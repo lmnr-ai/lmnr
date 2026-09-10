@@ -1,5 +1,6 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
@@ -76,10 +77,14 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
       };
     }
 
+    // extractString is unquoted, extractRaw keeps JSON quotes. `=` is OR (either
+    // form); `!=` must be AND or a quoted string satisfies extractRaw != value
+    // on every row and the filter becomes a no-op.
+    const join = filter.operator === Operator.Ne ? " AND " : " OR ";
     return {
       condition:
         `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
-        ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
+        `${join}simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
       params: {
         [`${paramKey}_key`]: fieldName,
         [`${paramKey}_val`]: String(value),

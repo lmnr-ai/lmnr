@@ -11,6 +11,7 @@ interface CondensedTimelineElementProps {
   condensedSpan: CondensedTimelineSpan;
   selectedSpan?: TraceViewSpan;
   isIncludedInGroupSelection: boolean | null;
+  isMuted: boolean;
   maxSpanCost: number;
   isCostHeatmapVisible: boolean;
   onClick: (span: TraceViewSpan) => void;
@@ -20,6 +21,7 @@ const CondensedTimelineElement = ({
   condensedSpan,
   selectedSpan,
   isIncludedInGroupSelection,
+  isMuted,
   maxSpanCost,
   isCostHeatmapVisible,
   onClick,
@@ -44,35 +46,37 @@ const CondensedTimelineElement = ({
 
   const backgroundColor = useMemo(() => {
     if (isCostHeatmapVisible) return undefined;
-    if (span.status === "error") {
-      return "rgba(204, 51, 51, 1)";
-    }
-    return SPAN_TYPE_TO_COLOR[span.spanType];
-  }, [span.status, span.spanType, isCostHeatmapVisible]);
+    const color = span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType];
+    return isMuted ? `color-mix(in oklch, ${color} 60%, var(--color-surface-200))` : color;
+  }, [span.status, span.spanType, isCostHeatmapVisible, isMuted]);
 
   return (
     <div
-      className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
-        "border border-white/70 z-20": isSelected,
-        "bg-muted": isCostHeatmapVisible,
-      })}
+      className={cn("@container absolute cursor-pointer", opacity)}
       style={{
         left: `${left}%`,
         width: `max(${width}%, 4px)`,
         top: row * ROW_HEIGHT + 1,
         height: ROW_HEIGHT - 2,
-        backgroundColor,
       }}
       onClick={handleClick}
     >
-      {isCostHeatmapVisible && (
-        <div
-          className="absolute inset-0 rounded-xs"
-          style={{
-            backgroundColor: `rgba(239, 68, 68, ${heatmapOpacity})`,
-          }}
-        />
-      )}
+      <div
+        className={cn("relative size-full rounded-xs hover:brightness-110 @min-[5px]:w-[calc(100%-1px)]", {
+          "ring-1 ring-white/70 z-20": isSelected,
+          "bg-muted": isCostHeatmapVisible,
+        })}
+        style={{ backgroundColor }}
+      >
+        {isCostHeatmapVisible && (
+          <div
+            className="absolute inset-0 rounded-xs"
+            style={{
+              backgroundColor: `rgba(239, 68, 68, ${heatmapOpacity})`,
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };

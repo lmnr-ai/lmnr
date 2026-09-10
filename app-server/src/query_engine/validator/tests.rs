@@ -199,8 +199,7 @@ fn test_eval_ids_picked_up_from_where() {
         ),
         "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
     );
-    // A bind placeholder is a scalar, so it hoists like a literal. This is the
-    // form the frontend sends.
+    // A bind placeholder is a scalar, so it hoists like a literal.
     assert_eq!(
         eval_ids_of("SELECT id FROM evaluation_datapoints WHERE evaluation_id = {evalId: UUID}"),
         "[toUUID({evalId: UUID})]"
@@ -221,7 +220,6 @@ fn test_eval_ids_picked_up_from_where() {
         ),
         "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
     );
-    // IN list.
     assert_eq!(
         eval_ids_of(
             "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN \
@@ -252,8 +250,8 @@ fn test_eval_ids_picked_up_from_where() {
 
 #[test]
 fn test_eval_ids_array_placeholder_passed_through() {
-    // `IN {ids: Array(UUID)}` parses as a one-element InList. The bind already
-    // *is* the view argument — wrapping it in toUUID is what ClickHouse rejects.
+    // The bind already *is* the view argument — wrapping it in toUUID is what
+    // ClickHouse rejects.
     for q in [
         "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {ids: Array(UUID)}",
         "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {evaluationIds: Array(UUID)}",
@@ -1287,21 +1285,190 @@ fn test_array_join_rejects_name_that_is_not_a_column_of_the_joined_table() {
 }
 
 #[test]
-fn test_array_join_rejects_qualified_and_function_relations() {
-    // A database-qualified table (`default.spans`) and a qualified column
-    // (`s.tags`) are the same shape to sqlparser, so both are refused rather
-    // than risk letting the former through.
-    for query in [
-        "SELECT x FROM signal_events ARRAY JOIN default.spans AS x",
-        "SELECT x FROM signal_events s ARRAY JOIN s.clusters AS x",
-        // A table function can never be an array column.
-        "SELECT x FROM signal_events ARRAY JOIN spans(1) AS x",
+fn test_array_join_allows_qualified_array_column() {
+    // A qualified right-hand side is the only spelling ClickHouse accepts when
+    // two joined relations share a column name, so the qualifier is resolved
+    // against the FROM clause rather than the name being refused outright.
+    for (query, expected) in [
+        (
+            "SELECT x FROM signal_events s ARRAY JOIN s.clusters AS x",
+            "ARRAY JOIN s.clusters AS x",
+        ),
+        (
+            "SELECT tag FROM traces t JOIN spans s ON t.id = s.trace_id ARRAY JOIN t.tags AS tag",
+            "ARRAY JOIN t.tags AS tag",
+        ),
+        // Unaliased: the bare table name is what addresses the relation, and
+        // the rewriter preserves it as the view's alias.
+        (
+            "SELECT tag FROM spans ARRAY JOIN spans.tags AS tag",
+            "ARRAY JOIN spans.tags AS tag",
+        ),
     ] {
-        let err = validate(query).expect_err("must be rejected: {query}");
+        let result = validate_ok(query);
         assert!(
-            err.contains("ARRAY JOIN must reference an unqualified array column"),
+            contains_ws(&result, expected),
+            "query: {query}\ngot: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_array_join_rejects_qualifier_that_is_not_a_relation_in_scope() {
+    // The reason qualified names need resolving at all: `default.spans` has the
+    // same shape as `s.tags`, and must not be mistaken for a column.
+    let err = validate("SELECT x FROM signal_events ARRAY JOIN default.spans AS x")
+        .expect_err("a database-qualified table must be rejected");
+    assert!(err.contains("qualifier 'default'"), "got: {err}");
+
+    // A qualifier naming a relation in scope still has its column checked.
+    let err = validate("SELECT x FROM signal_events s ARRAY JOIN s.not_a_column AS x")
+        .expect_err("an unknown column must be rejected");
+    assert!(err.contains("'not_a_column'"), "got: {err}");
+}
+
+#[test]
+fn test_array_join_allows_function_over_array_columns() {
+    // A function call is an expression over the row's own columns. Only the
+    // table allowlist looks away, so the function name is left verbatim.
+    for (query, expected) in [
+        (
+            "SELECT x FROM spans ARRAY JOIN splitByChar(',', name) AS x",
+            "ARRAY JOIN splitByChar(',', name) AS x",
+        ),
+        (
+            "SELECT z FROM traces ARRAY JOIN arrayZip(tags, span_names) AS z",
+            "ARRAY JOIN arrayZip(tags, span_names) AS z",
+        ),
+    ] {
+        let result = validate_ok(query);
+        assert!(
+            contains_ws(&result, expected),
+            "query: {query}\ngot: {result}"
+        );
+    }
+
+    // Tables referenced inside the arguments are still project-scoped, because
+    // a function operand stays visible to the rewriter.
+    let result = validate_ok(
+        "SELECT x FROM traces ARRAY JOIN arrayConcat((SELECT groupArray(name) FROM spans)) AS x",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_array_join_rejects_allowlisted_table_as_function_or_deep_name() {
+    // Exempting function operands from the allowlist must not re-open the
+    // `spans(1)` hole — the rewriter still sees them and rejects it.
+    let err = validate("SELECT x FROM signal_events ARRAY JOIN spans(1) AS x")
+        .expect_err("an allowlisted table as a table function must be rejected");
+    assert!(
+        err.contains("cannot be used as a table function"),
+        "got: {err}"
+    );
+
+    // A blocked function is caught by the global scan, exemption or not. The
+    // table functions that read other tables by name are blocked precisely
+    // because an ARRAY JOIN operand skips the allowlist that stops them in FROM.
+    for (query, name) in [
+        (
+            "SELECT x FROM spans ARRAY JOIN s3('http://e/f', 'CSV') AS x",
+            "s3",
+        ),
+        (
+            "SELECT x FROM spans ARRAY JOIN merge('default', '^spans') AS x",
+            "merge",
+        ),
+        (
+            "SELECT x FROM spans ARRAY JOIN mergeTreeIndex('default', 'spans') AS x",
+            "mergetreeindex",
+        ),
+    ] {
+        let err = validate(query).expect_err("a blocked function must be rejected");
+        assert!(
+            err.contains(&format!("'{name}' is not allowed")),
             "query: {query}\ngot: {err}"
         );
+    }
+
+    // Three-part names cannot be column references.
+    let err = validate("SELECT x FROM spans s ARRAY JOIN a.b.c AS x")
+        .expect_err("a three-part name must be rejected");
+    assert!(
+        err.contains("ARRAY JOIN must reference an array column"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_array_join_rejects_every_table_function_family() {
+    // The whole point of the `BLOCKED_FUNCTIONS` table-function entries is this
+    // position: an ARRAY JOIN function operand is exempt from the table
+    // allowlist, so a name that reads another table (or an external source) has
+    // nothing else stopping it. Every family in `system.table_functions` that
+    // reads by name or reaches off-box must be covered, not just the ones that
+    // existed when the exemption was written.
+    for name in [
+        // Read another table / dictionary / view by name.
+        "loop",
+        "dictionary",
+        "viewExplain",
+        "mergeTreeParts",
+        "mergeTreeProjection",
+        "mergeTreeTextIndex",
+        "mergeTreeAnalyzeIndexes",
+        "mergeTreeAnalyzeIndexesUUID",
+        "timeSeriesData",
+        "timeSeriesTags",
+        "timeSeriesMetrics",
+        "timeSeriesSelector",
+        "prometheusQuery",
+        "prometheusQueryRange",
+        // Reach off-box. The lakehouse readers take a path/URL argument.
+        "iceberg",
+        "icebergS3Cluster",
+        "deltaLake",
+        "deltaLakeAzureCluster",
+        "hudi",
+        "hudiCluster",
+        "paimon",
+        "paimonS3",
+        "arrowFlight",
+        "hive",
+        "ytsaurus",
+        "urlCluster",
+        "fileCluster",
+        "hdfsCluster",
+        "azureBlobStorageCluster",
+    ] {
+        let query = format!("SELECT x FROM spans ARRAY JOIN {name}('a', 'b') AS x");
+        let err = validate(&query).expect_err(&format!("{name} must be rejected"));
+        assert!(
+            err.contains(&format!("'{}' is not allowed", name.to_lowercase())),
+            "query: {query}\ngot: {err}"
+        );
+    }
+}
+
+#[test]
+fn test_blocked_table_function_prefixes_spare_legitimate_scalars() {
+    // The `mergetree` / `iceberg` prefixes are broad on purpose, but the
+    // `timeSeries*` scalar family must survive — two of its members even extend
+    // `timeseriestags`, which is why that one is exact-matched.
+    for expr in [
+        "timeSeriesTagsToGroup(tags)",
+        "timeSeriesTagsGroupToTags(tags)",
+        "timeSeriesExtractTag(name, 'a')",
+        "timeSeriesRange(1, 2, 3)",
+    ] {
+        let query = format!("SELECT {expr} FROM spans");
+        validate(&query).unwrap_or_else(|e| panic!("query: {query}\nunexpectedly rejected: {e}"));
     }
 }
 
@@ -1837,4 +2004,114 @@ fn test_bounds_unsupported_function_falls_back_to_default() {
     let b = traces_bounds("SELECT id FROM traces WHERE addDays(start_time, 1) > '2026-06-01'");
     assert_default_min(&b);
     assert_default_max(&b);
+}
+
+/// Independent check of the core invariant: re-parse the validator's output and
+/// assert no allowlisted table survives as a bare relation. ARRAY JOIN operands
+/// are excluded — ClickHouse parses those as expressions, never relations.
+fn assert_no_bare_allowlisted_table(sql: &str) {
+    use sqlparser::ast::TableFactor as TF;
+    struct Chk {
+        reg: TableRegistry,
+        exempt: HashSet<Span>,
+        bad: Vec<String>,
+    }
+    impl Visitor for Chk {
+        type Break = ();
+        fn pre_visit_select(&mut self, s: &Select) -> ControlFlow<()> {
+            for twj in &s.from {
+                for j in &twj.joins {
+                    if matches!(
+                        j.join_operator,
+                        JoinOperator::ArrayJoin
+                            | JoinOperator::LeftArrayJoin
+                            | JoinOperator::InnerArrayJoin
+                    ) && let TF::Table { name, .. } = &j.relation
+                        && let Some(sp) = relation_name_span(name)
+                    {
+                        self.exempt.insert(sp);
+                    }
+                }
+            }
+            ControlFlow::Continue(())
+        }
+        fn pre_visit_table_factor(&mut self, tf: &TF) -> ControlFlow<()> {
+            if let TF::Table {
+                name, args: None, ..
+            } = tf
+                && !relation_name_span(name).is_some_and(|s| self.exempt.contains(&s))
+                && self.reg.is_table_allowed(&relation_table_name(name))
+            {
+                self.bad.push(name.to_string());
+            }
+            ControlFlow::Continue(())
+        }
+    }
+    let stmts = parse_clickhouse_sql(sql).expect("output must re-parse");
+    let mut c = Chk {
+        reg: TableRegistry::new(),
+        exempt: HashSet::new(),
+        bad: Vec::new(),
+    };
+    for s in &stmts {
+        let _ = s.visit(&mut c);
+    }
+    assert!(c.bad.is_empty(), "UNSCOPED {:?} in: {sql}", c.bad);
+}
+
+#[test]
+fn test_array_join_never_leaves_an_unscoped_table() {
+    // The exemption sets are keyed by source span, so the risk that matters is
+    // an exempted operand accidentally covering a real relation. Assert the
+    // invariant directly on the output of every ARRAY JOIN shape we accept,
+    // independently of the passes that produced it.
+    for query in [
+        "SELECT tag FROM spans ARRAY JOIN tags AS tag, traces",
+        "SELECT tag FROM traces, spans ARRAY JOIN tags AS tag",
+        "SELECT tag FROM spans ARRAY JOIN tags AS t UNION ALL SELECT name FROM spans",
+        "SELECT a, b FROM traces ARRAY JOIN tags AS a ARRAY JOIN span_names AS b",
+        "SELECT x FROM traces ARRAY JOIN tags AS x WHERE id IN (SELECT trace_id FROM spans)",
+        "WITH c AS (SELECT x FROM spans ARRAY JOIN tags AS x) SELECT * FROM c",
+        // Aliases shadowing a table name or a database name.
+        "SELECT x FROM spans AS traces ARRAY JOIN traces.tags AS x",
+        "SELECT x FROM spans AS default ARRAY JOIN default.tags AS x",
+        "SELECT x FROM traces t JOIN spans t2 ON t.id = t2.trace_id ARRAY JOIN t2.tags AS x",
+        // Case and quoting variants of the same names.
+        "SELECT x FROM SPANS S ARRAY JOIN S.TAGS AS x",
+        r#"SELECT x FROM spans s ARRAY JOIN "s"."tags" AS x"#,
+        // Function operands must still scope tables nested in their arguments.
+        "SELECT x FROM spans ARRAY JOIN arrayMap(y -> y, tags) AS x",
+        "SELECT x FROM spans ARRAY JOIN arrayConcat(tags, (SELECT groupArray(name) FROM traces)) AS x",
+        "SELECT x FROM spans ARRAY JOIN f((SELECT g FROM (SELECT groupArray(name) AS g FROM spans))) AS x",
+        // Subquery and CTE left relations, whose column sets are unknown.
+        "SELECT x FROM (SELECT tags FROM spans) d ARRAY JOIN d.tags AS x",
+        "WITH c AS (SELECT tags FROM spans) SELECT x FROM c ARRAY JOIN c.anything AS x",
+    ] {
+        assert_no_bare_allowlisted_table(&validate_ok(query));
+    }
+}
+
+#[test]
+fn test_array_join_qualifier_cannot_reach_another_database() {
+    // Each of these is a way of spelling "read a table the allowlist would
+    // reject", relying on the ARRAY JOIN operand being skipped.
+    for query in [
+        "SELECT x FROM signal_events ARRAY JOIN spans AS x",
+        "SELECT x FROM signal_events ARRAY JOIN default.spans AS x",
+        r#"SELECT x FROM signal_events ARRAY JOIN "default"."spans" AS x"#,
+        // An alias that shadows the database name does not make the table a column.
+        "SELECT x FROM spans AS default ARRAY JOIN default.spans AS x",
+        "SELECT x FROM spans ARRAY JOIN evaluation_datapoints AS x",
+        "SELECT x FROM spans s ARRAY JOIN s.evaluation_datapoints AS x",
+        "SELECT x FROM (SELECT tags FROM spans) d ARRAY JOIN d.spans AS x",
+        "WITH c AS (SELECT tags FROM spans) SELECT x FROM c ARRAY JOIN c.spans AS x",
+        // Table functions, with and without arguments.
+        "SELECT x FROM signal_events ARRAY JOIN spans() AS x",
+        "SELECT x FROM signal_events ARRAY JOIN spans(1) AS x",
+        // project_id stays unreachable through an operand.
+        "SELECT x FROM spans ARRAY JOIN f(project_id) AS x",
+        "SELECT project_id FROM spans s ARRAY JOIN s.tags AS project_id",
+    ] {
+        validate(query).expect_err(&format!("must be rejected: {query}"));
+    }
 }

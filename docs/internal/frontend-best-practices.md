@@ -69,6 +69,11 @@ Use it for: an older response overwriting newer state (user paginates, then chan
 - In the `finally`, only null out the shared controller ref if it still points at your own controller — otherwise a newer operation has already replaced it and you'd clobber its handle.
 - On the success path use functional `set((state) => ...)` rather than closing over `state.data`, so you merge with the latest value rather than a snapshot.
 
+### Server actions and Zod schemas
+
+- Logic another surface may need (CLI, public API, agent) belongs behind an app-server route, not in a server action. Server actions are for UI-only plumbing.
+- Derive per-action schemas with `.pick()` / `.omit()` / `.partial()` instead of reusing the full resource schema, and keep whatever gates the action in the UI reading the same required fields.
+
 ### Error handling
 
 **Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
