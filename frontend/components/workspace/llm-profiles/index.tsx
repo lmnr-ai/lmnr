@@ -13,7 +13,9 @@ import {
 } from "@/components/settings/settings-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type LlmProfile, PROVIDER_LABELS } from "@/lib/actions/llm-profiles/schema";
+import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
 
 import DeleteProfileDialog from "./delete-profile-dialog";
@@ -29,6 +31,7 @@ export default function LlmProfiles({ workspaceId }: LlmProfilesProps) {
   const [editTarget, setEditTarget] = useState<LlmProfile | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LlmProfile | null>(null);
+  const isCloud = useFeatureFlags()[Feature.LAMINAR_CLOUD];
 
   const openEditor = (profile: LlmProfile | null) => {
     setEditTarget(profile);
@@ -39,7 +42,11 @@ export default function LlmProfiles({ workspaceId }: LlmProfilesProps) {
     <SettingsSection>
       <SettingsSectionHeader
         title="LLM Profiles"
-        description="Provider credentials and models that the playground and signals run on."
+        description={
+          isCloud
+            ? "Provider credentials and models that playgrounds run on."
+            : "Provider credentials and models that playgrounds and signals run on."
+        }
       />
       <Button variant="outline" icon="plus" className="w-fit" onClick={() => openEditor(null)}>
         Profile

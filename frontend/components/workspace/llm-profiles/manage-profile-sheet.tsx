@@ -6,7 +6,7 @@ import { Controller, FormProvider, useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { type LlmProfile } from "@/lib/actions/llm-profiles/schema";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export default function ManageProfileSheet({
       >
         <SheetHeader className="py-4 px-4 border-b">
           <SheetTitle>{profile ? "Edit LLM profile" : "New LLM profile"}</SheetTitle>
+          <SheetDescription>API keys are encrypted at rest and stored securely.</SheetDescription>
         </SheetHeader>
         {open && (
           <ProfileForm key={profile?.id ?? "new"} workspaceId={workspaceId} profile={profile} onSaved={onSaved} />
@@ -117,7 +118,7 @@ function ProfileForm({
                   models={field.value}
                   onChange={field.onChange}
                   statuses={connection.statuses}
-                  hint="Model ids as the provider expects them (Azure: deployment names)."
+                  hint="Model ids as the provider expects them."
                   error={fieldState.error?.message}
                 />
               )}
