@@ -3,7 +3,8 @@
 import { motion, useAnimationControls, type Variants } from "framer-motion";
 import { useEffect } from "react";
 
-import { ClaudeLogo, CodexLogo, CursorLogo } from "./agent-logos";
+import { ClaudeLogo, CodexLogo, CursorLogo } from "@/components/common/coding-agent-logos";
+
 import CopySetupButton from "./copy-setup-button";
 
 // Parent staggers its children so the three logos animate in a wave, not in unison.

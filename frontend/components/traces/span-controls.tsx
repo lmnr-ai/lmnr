@@ -4,6 +4,7 @@ import { type PropsWithChildren, useMemo } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTagsList from "@/components/tags/span-tags-list";
+import { CopyAgentContextButton } from "@/components/traces/copy-agent-context-button";
 import ErrorCard from "@/components/traces/error-card";
 import SpanActionsDropdown from "@/components/traces/span-actions-dropdown";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,12 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             <SpanActionsDropdown projectId={projectId as string} span={span} />
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            <CopyAgentContextButton
+              type="span"
+              projectId={projectId as string}
+              traceId={span.traceId}
+              spanId={span.spanId}
+            />
             {!isAlwaysSelectSpan && onClose && (
               <Button
                 variant="ghost"

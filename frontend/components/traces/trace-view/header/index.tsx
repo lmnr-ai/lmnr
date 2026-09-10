@@ -9,6 +9,7 @@ import { shallow } from "zustand/shallow";
 import { useLaminarAgentStore } from "@/components/agent";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
+import { CopyAgentContextButton } from "@/components/traces/copy-agent-context-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -273,6 +274,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             <TraceTagsButton traceId={traceId} />
           </span>
           {trace && <ShareTraceButton projectId={projectId} />}
+          <CopyAgentContextButton type="trace" projectId={projectId} traceId={traceId} />
         </div>
       </div>
       {/* Row 2: context pills (session, user, tags) */}
