@@ -160,9 +160,9 @@ export default function TemplateViewToggle({
                     className="h-8 py-1 text-xs"
                   />
                 )}
-                {(templates?.length ?? 0) > 0 && (
-                  <CommandGroup heading="Custom" className={GROUP_CLASS}>
-                    {filteredTemplates.length === 0 ? (
+                <CommandGroup heading="Custom" className={GROUP_CLASS}>
+                  {(templates?.length ?? 0) > 0 &&
+                    (filteredTemplates.length === 0 ? (
                       <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>
                     ) : (
                       filteredTemplates.map((t) => {
@@ -189,9 +189,8 @@ export default function TemplateViewToggle({
                           </CommandItem>
                         );
                       })
-                    )}
-                  </CommandGroup>
-                )}
+                    ))}
+                </CommandGroup>
                 {(templates?.length ?? 0) > 0 && <CommandSeparator alwaysRender />}
                 <CommandGroup className={GROUP_CLASS}>
                   <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
