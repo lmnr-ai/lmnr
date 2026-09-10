@@ -3,7 +3,8 @@
 //!
 //! Versions are minted by the sp-versioning classifier with NO regexes; the
 //! first consumer that needs them and finds the cache key absent (today the
-//! signals summarizer) publishes an [`SpRegexExtractionRequest`]. The worker
+//! signals summarizer) reports an [`SpRegexExtractionRequest`], which its
+//! driver publishes via [`request_sp_regex_extractions`]. The worker
 //! sources samples from ClickHouse — spans that classified to the version
 //! (`system_prompt_versions` rows), one per trace, picked across the
 //! version's time range — runs the extraction agent, and writes the regex
@@ -97,9 +98,9 @@ fn run_lock_cache_key(project_id: Uuid, agent_hash: &str, version_hash: &str) ->
     )
 }
 
-/// A demand request for one version's regexes. Published by the first
+/// A demand request for one version's regexes. Reported by the first
 /// consumer that finds the version's regex key absent.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpRegexExtractionRequest {
     pub project_id: Uuid,
     pub agent_hash: String,
@@ -107,39 +108,36 @@ pub struct SpRegexExtractionRequest {
 }
 
 /// Fire-and-forget demand publish; duplicates are absorbed by the worker's
-/// idempotency check and run lock. Consumers (the signals summarizer) are
+/// idempotency check and run lock, and a lost publish is re-raised by the next
+/// consumer to hit the same miss. Callers (the signals drivers) are
 /// signals-gated.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub async fn request_sp_regex_extraction(
+pub async fn request_sp_regex_extractions(
     queue: &MessageQueue,
-    project_id: Uuid,
-    agent_hash: &str,
-    version_hash: &str,
+    requests: &[SpRegexExtractionRequest],
 ) {
-    let request = SpRegexExtractionRequest {
-        project_id,
-        agent_hash: agent_hash.to_string(),
-        version_hash: version_hash.to_string(),
-    };
-    let payload = match serde_json::to_vec(&request) {
-        Ok(payload) => payload,
-        Err(e) => {
-            log::error!("[SP_REGEX_EXTRACTION] Failed to serialize request: {e:?}");
-            return;
+    for request in requests {
+        let payload = match serde_json::to_vec(request) {
+            Ok(payload) => payload,
+            Err(e) => {
+                log::error!("[SP_REGEX_EXTRACTION] Failed to serialize request: {e:?}");
+                continue;
+            }
+        };
+        if let Err(e) = queue
+            .publish(
+                &payload,
+                SP_REGEX_EXTRACTION_EXCHANGE,
+                SP_REGEX_EXTRACTION_ROUTING_KEY,
+                None,
+            )
+            .await
+        {
+            log::warn!(
+                "[SP_REGEX_EXTRACTION] Failed to publish request for version {}: {e:?}",
+                request.version_hash
+            );
         }
-    };
-    if let Err(e) = queue
-        .publish(
-            &payload,
-            SP_REGEX_EXTRACTION_EXCHANGE,
-            SP_REGEX_EXTRACTION_ROUTING_KEY,
-            None,
-        )
-        .await
-    {
-        log::warn!(
-            "[SP_REGEX_EXTRACTION] Failed to publish request for version {version_hash}: {e:?}"
-        );
     }
 }
 
