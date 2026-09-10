@@ -236,6 +236,24 @@ fn test_eval_ids_picked_up_from_where() {
         ),
         "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
     );
+    // AND of two restrictions picks the shorter side, not the intersection.
+    // {001,002,003} ∩ {003,004} = {003}, but comparing value expressions is
+    // unreliable; the shorter set is a conservative superset and only costs
+    // scan work.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id IN \
+             ('0195b6e0-0000-7000-8000-000000000001', \
+              '0195b6e0-0000-7000-8000-000000000002', \
+              '0195b6e0-0000-7000-8000-000000000003') \
+             AND evaluation_id IN \
+             ('0195b6e0-0000-7000-8000-000000000003', \
+              '0195b6e0-0000-7000-8000-000000000004')"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000003'), \
+         toUUID('0195b6e0-0000-7000-8000-000000000004')]"
+    );
     // OR of two evaluation_ids restricts to their union.
     assert_eq!(
         eval_ids_of(
@@ -285,8 +303,11 @@ fn test_eval_ids_widen_to_sentinel_when_unsafe() {
         "SELECT id FROM evaluation_datapoints WHERE index > 5",
         // A per-row column cannot become a scalar view argument.
         "SELECT id FROM evaluation_datapoints WHERE evaluation_id = group_id",
-        // Another relation's evaluation_id must not be borrowed.
+        // Another relation's evaluation_id must not be borrowed, even when
+        // this relation's evaluation_id is in the SELECT list.
         "SELECT e.id FROM evaluation_datapoints AS e \
+         WHERE other.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT e.evaluation_id FROM evaluation_datapoints AS e \
          WHERE other.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
         // Array bind mixed with a scalar cannot become `[toUUID(<array>), toUUID(x)]`.
         "SELECT id FROM evaluation_datapoints \
