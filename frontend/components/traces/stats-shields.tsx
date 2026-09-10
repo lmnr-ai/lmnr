@@ -192,7 +192,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
-            <Clock3 size={12} className="min-w-3 min-h-3" />
+            <Clock3 size={14} className="min-w-3 min-h-3" />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
               {formatDurationMs(durationMs)}
             </Label>
@@ -208,9 +208,9 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   const tokensContent = (
     <TooltipProvider delayDuration={250}>
       <Tooltip>
-        <TooltipTrigger className="min-w-8">
+        <TooltipTrigger>
           <div className="flex space-x-1 items-center">
-            <Coins className="min-w-3" size={12} />
+            <Coins className="min-w-3" size={14} />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
               {formatTokensCompact(stats.totalTokens)}
             </Label>
@@ -234,7 +234,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
-            <CircleDollarSign className="min-w-3" size={12} />
+            <CircleDollarSign className="min-w-3" size={14} />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
               {formatCostNumber(stats.totalCost)}
             </Label>
@@ -252,7 +252,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   return (
     <div
       className={cn(
-        "flex h-[26px] items-center gap-2 px-2 rounded-md overflow-hidden text-xs min-w-0",
+        "flex h-6 items-center gap-2.5 px-2 rounded-md overflow-hidden text-xs min-w-0",
         variant === "outline" ? "border border-muted text-white" : "bg-surface-up-2 text-secondary-foreground",
         className
       )}

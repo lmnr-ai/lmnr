@@ -57,15 +57,15 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ModelIndicator attributes={span.attributes} />
+          <ToolList tools={tools} />
           <SpanStatsShields span={span} className="w-fit" />
-          <div className="flex h-[26px] w-fit items-center rounded-md bg-surface-up-2 px-2">
+          <div className="flex h-6 w-fit items-center rounded-md bg-surface-up-2 px-2">
             <ClientTimestampFormatter
               absolute
               timestamp={span.startTime}
               className="text-xs text-secondary-foreground"
             />
           </div>
-          <ToolList tools={tools} />
           <StructuredOutputSchema schema={schema} />
           <SpanTagsList traceId={span.traceId} spanId={span.spanId} />
         </div>

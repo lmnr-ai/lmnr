@@ -155,7 +155,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                       <Button
                         variant="ghost"
                         className={cn(
-                          "flex h-[26px] items-center overflow-hidden px-1.5 hover:bg-surface-up-3",
+                          "flex h-6 items-center overflow-hidden px-1.5 hover:bg-surface-up-3",
                           browserSession && "text-primary hover:text-primary"
                         )}
                         disabled={!trace}

@@ -207,9 +207,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     <div className="relative flex flex-col px-2 pt-1.5 pb-2 flex-shrink-0">
       {/* Row 1: core trace controls + actions (share justified to end) */}
       <div className="flex items-center gap-1">
-        <div className="flex items-center gap-1 flex-1 min-w-0">
+        <div className="flex items-center flex-1 min-w-0">
           {!params?.traceId && (
-            <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
+            <span className={cn(HEADER_ITEM_CLS)}>
               {handleClose && (
                 <Button
                   aria-label="Collapse panel"
