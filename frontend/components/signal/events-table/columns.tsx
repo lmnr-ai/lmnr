@@ -195,7 +195,8 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
       return {
         name: field.name,
         key: `payload.${field.name}`,
-        dataType: "string",
+        dataType: "enum",
+        options: (field.enumValues ?? []).map((v) => ({ label: v, value: v })),
       };
     default:
       return {
