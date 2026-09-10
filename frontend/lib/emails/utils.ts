@@ -44,8 +44,7 @@ export async function sendWelcomeEmail(email: string) {
     react: WelcomeEmail(),
   });
 
-  if (error) throw error;
-  return data;
+  if (error) console.log(error);
 }
 
 export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
@@ -66,8 +65,7 @@ export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, da
     attachments: [await laminarLogoAttachment()],
   });
 
-  if (error) throw error;
-  return data;
+  if (error) console.error(error);
 }
 
 export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
@@ -88,8 +86,7 @@ export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date
     attachments: [await laminarLogoAttachment()],
   });
 
-  if (error) throw error;
-  return data;
+  if (error) console.error(error);
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
@@ -104,6 +101,5 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     attachments: [await laminarLogoAttachment()],
   });
 
-  if (error) throw error;
-  return data;
+  if (error) console.log(error);
 }
