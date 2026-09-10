@@ -34,6 +34,7 @@ use crate::llm::{
     ProviderInlineResponse, ProviderPart, ProviderRequestItem, ProviderResponse, ProviderResult,
 };
 
+#[allow(dead_code)]
 struct BatchEntry {
     requests: Vec<ProviderRequestItem>,
     poll_count: u32,
@@ -65,6 +66,7 @@ struct GenerateFailureConfig {
 
 #[derive(Clone)]
 pub struct MockProviderClient {
+    #[allow(dead_code)]
     batches: Arc<DashMap<String, BatchEntry>>,
     /// Tracks how many times `generate_content` has been called.
     generate_call_count: Arc<AtomicUsize>,
@@ -221,10 +223,6 @@ fn mock_response(request: &ProviderRequest) -> ProviderResponse {
 }
 
 impl LanguageModelClient for MockProviderClient {
-    fn supports_batch(&self) -> bool {
-        true
-    }
-
     async fn generate_content(
         &self,
         _model: &str,

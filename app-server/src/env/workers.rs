@@ -28,18 +28,10 @@ pub const NUM_NOTIFICATION_DELIVERY: NumEnv<usize> =
 
 // Signals / clustering worker counts (read only under `feature = "signals"`).
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const NUM_SEMANTIC_EVENT: NumEnv<usize> = NumEnv::new("NUM_SEMANTIC_EVENT_WORKERS", 2);
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const NUM_CLUSTERING_BATCHING: NumEnv<usize> =
     NumEnv::new("NUM_CLUSTERING_BATCHING_WORKERS", 2);
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const NUM_CLUSTERING: NumEnv<usize> = NumEnv::new("NUM_CLUSTERING_WORKERS", 2);
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const NUM_SIGNAL_JOB_SUBMISSION_BATCH: NumEnv<usize> =
-    NumEnv::new("NUM_SIGNAL_JOB_SUBMISSION_BATCH_WORKERS", 4);
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const NUM_SIGNAL_JOB_PENDING_BATCH: NumEnv<usize> =
-    NumEnv::new("NUM_SIGNAL_JOB_PENDING_BATCH_WORKERS", 4);
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const NUM_SIGNAL_JOB_REALTIME: NumEnv<usize> =
     NumEnv::new("NUM_SIGNAL_JOB_REALTIME_WORKERS", 4);
