@@ -251,6 +251,28 @@ fn test_eval_ids_picked_up_from_where() {
 }
 
 #[test]
+fn test_eval_ids_array_placeholder_passed_through() {
+    // `IN {ids: Array(UUID)}` parses as a one-element InList. The bind already
+    // *is* the view argument — wrapping it in toUUID is what ClickHouse rejects.
+    for q in [
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {ids: Array(UUID)}",
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {evaluationIds: Array(UUID)}",
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN ({evaluationIds:Array(UUID)})",
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {evaluationIds:Array(String)}",
+    ] {
+        let sql = validate_ok(q);
+        assert!(
+            !contains_ws(&sql, "toUUID({"),
+            "array bind must not be wrapped in toUUID; query: {q}\ngot: {sql}"
+        );
+        assert!(
+            contains_ws(&sql, "eval_ids = {") && contains_ws(&sql, "Array("),
+            "array bind should be passed through as eval_ids; query: {q}\ngot: {sql}"
+        );
+    }
+}
+
+#[test]
 fn test_eval_ids_widen_to_sentinel_when_unsafe() {
     // Each of these legitimately wants rows outside one evaluation, so eval_ids
     // must widen to the sentinel. Narrowing any would silently drop rows.
@@ -268,6 +290,12 @@ fn test_eval_ids_widen_to_sentinel_when_unsafe() {
         // Another relation's evaluation_id must not be borrowed.
         "SELECT e.id FROM evaluation_datapoints AS e \
          WHERE other.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+        // Array bind mixed with a scalar cannot become `[toUUID(<array>), toUUID(x)]`.
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id IN {ids: Array(UUID)} \
+         OR evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id IN ({ids: Array(UUID)}, '0195b6e0-0000-7000-8000-000000000001')",
     ] {
         assert_eq!(eval_ids_of(q), "[]", "should have widened, query: {q}");
     }

@@ -1575,6 +1575,18 @@ fn extract_eval_ids(expr: &Expr, alias: &str) -> EvalIds {
     }
 }
 
+/// `{name: Array(...)}` bind. Already an array — wrapping it in `toUUID` yields
+/// `toUUID(<array>)`, which ClickHouse rejects.
+fn is_array_placeholder(expr: &Expr) -> bool {
+    let Expr::Dictionary(fields) = deparen(expr) else {
+        return false;
+    };
+    matches!(
+        fields.first().map(|f| f.value.as_ref()),
+        Some(Expr::Function(f)) if relation_table_name(&f.name) == "array"
+    )
+}
+
 /// Build the `eval_ids` argument for an `evaluation_datapoints_v0(...)` call.
 /// The empty array is the view's "no evaluation filter" sentinel, so a WHERE we
 /// cannot narrow safely degrades to the unoptimized scan.
@@ -1582,6 +1594,17 @@ fn eval_ids_arg(where_clause: Option<&Expr>, alias: &str) -> Expr {
     let ids = where_clause
         .and_then(|w| extract_eval_ids(w, alias))
         .unwrap_or_default();
+    // A lone `{ids: Array(UUID)}` *is* the view argument. Mixed array+scalar
+    // sets can't be concatenated here, so widen.
+    if ids.iter().any(is_array_placeholder) {
+        if let [id] = ids.as_slice() {
+            return id.clone();
+        }
+        return Expr::Array(sqlparser::ast::Array {
+            elem: vec![],
+            named: false,
+        });
+    }
     // `toUUID` so a string literal or placeholder matches the view's
     // `Array(UUID)` parameter type.
     Expr::Array(sqlparser::ast::Array {
