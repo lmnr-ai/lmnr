@@ -132,7 +132,10 @@ export default function TemplateViewToggle({
               </CommandGroup>
               <CommandSeparator alwaysRender />
               <CommandGroup heading="Custom" className={GROUP_CLASS}>
-                <ScrollArea className="max-h-[240px] scroll-fade-t [&>div]:max-h-[240px] [&>div>div]:block!">
+                <ScrollArea
+                  className="max-h-[240px] [&>div]:max-h-[240px] [&>div>div]:block!"
+                  viewportClassName="scroll-fade-t"
+                >
                   {templates?.map((t) => {
                     const active = isCustom && selectedTemplate?.id === t.id;
                     return (
