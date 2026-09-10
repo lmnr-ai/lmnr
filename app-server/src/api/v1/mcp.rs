@@ -297,8 +297,7 @@ impl LaminarMcpServer {
         let extractor = Arc::new(PreviewExtractor::new());
         // No clickhouse/queue: chat compression never summarizes, so it never
         // looks up prompt versions or demands regex generation.
-        let compressor =
-            TraceCompressor::new(extractor, self.cache.clone(), llm_client, None, None);
+        let compressor = TraceCompressor::new(extractor, self.cache.clone(), llm_client, None);
         let compressed = compressor
             .compress_for_chat(&spans, project_id, trace_id, None)
             .await

@@ -338,14 +338,18 @@ pub struct GenerateContentRequest {
     pub service_tier: Option<String>,
 }
 
+// Batch-endpoint wire types — currently unused (the batch API has no callers)
+// but kept alongside `create_batch`/`get_batch` for future batch workloads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlineRequests {
     pub requests: Vec<InlineRequestItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlineRequestItem {
     pub request: GenerateContentRequest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -354,6 +358,7 @@ pub struct InlineRequestItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InputConfig {
     pub requests: Option<InlineRequests>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -362,6 +367,7 @@ pub struct InputConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct Batch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -369,11 +375,13 @@ pub struct Batch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct BatchCreateRequest {
     pub batch: Batch,
 }
 
 impl BatchCreateRequest {
+    #[allow(dead_code)]
     pub fn inline(requests: Vec<InlineRequestItem>, display_name: Option<String>) -> Self {
         Self {
             batch: Batch {
@@ -388,7 +396,7 @@ impl BatchCreateRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 pub enum JobState {
     BATCH_STATE_UNSPECIFIED,
     BATCH_STATE_PENDING,
@@ -401,6 +409,7 @@ pub enum JobState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct BatchStats {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_count: Option<String>,
@@ -414,12 +423,14 @@ pub struct BatchStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlinedResponsesWrapper {
     pub inlined_responses: Vec<InlineResponse>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct GenerateContentBatchOutput {
     pub inlined_responses: InlinedResponsesWrapper,
 }
@@ -435,6 +446,7 @@ pub struct ErrorInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct BatchJobMetadata {
     #[serde(rename = "@type")]
     pub type_url: String,
@@ -455,6 +467,7 @@ pub struct BatchJobMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct Operation {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -599,6 +612,7 @@ impl From<GeminiError> for super::ProviderError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlineResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response: Option<GenerateContentResponse>,
