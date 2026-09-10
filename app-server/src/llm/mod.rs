@@ -35,8 +35,9 @@ pub enum ProviderError {
     ParseError(String),
     #[error("Configuration error: {0}")]
     ConfigError(String),
+    // Constructed only by the (currently unused) batch API default impls.
     #[error("Not supported: {0}")]
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    #[allow(dead_code)]
     NotSupported(String),
     #[error("API error ({status_code}): {message}")]
     ApiError {
@@ -57,7 +58,7 @@ impl ProviderError {
         }
     }
 
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    #[allow(dead_code)]
     pub fn is_resource_exhausted(&self) -> bool {
         match self {
             ProviderError::ApiError {
@@ -113,10 +114,6 @@ pub(crate) fn emit_response_as_chunks(
 
 #[enum_dispatch]
 pub(crate) trait LanguageModelClient: Send + Sync {
-    fn supports_batch(&self) -> bool {
-        false
-    }
-
     async fn generate_content(
         &self,
         model: &str,
@@ -135,7 +132,8 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         Ok(response)
     }
 
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    // Batch API — currently has no callers; kept for future batch workloads.
+    #[allow(dead_code)]
     async fn create_batch(
         &self,
         _model: &str,
@@ -147,7 +145,7 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         ))
     }
 
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    #[allow(dead_code)]
     async fn get_batch(&self, _batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
         Err(ProviderError::NotSupported(
             "Batch operations are not supported by this provider".to_string(),
@@ -166,7 +164,6 @@ pub(crate) enum ProviderClient {
     Mock(MockProviderClient),
 }
 
-static ALWAYS_USE_REALTIME: OnceLock<bool> = OnceLock::new();
 const LLM_DEFAULT_HEADERS_JSON_ENV: &str = env::llm::DEFAULT_HEADERS_JSON;
 
 /// Whether the shared `LlmClient` actually initialized. Set from `main.rs`
@@ -189,11 +186,6 @@ pub fn set_llm_client_available(available: bool) {
 /// (user-task extraction, static-prompt extraction) gates on this.
 pub fn llm_client_available() -> bool {
     LLM_CLIENT_AVAILABLE.get().copied().unwrap_or(false)
-}
-
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub fn always_use_realtime() -> bool {
-    *ALWAYS_USE_REALTIME.get().unwrap_or(&false)
 }
 
 /// Read and normalize `LLM_PROVIDER` (lowercased + trimmed). Empty string
@@ -463,18 +455,6 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     }
 }
 
-/// `None` on a profile-only deployment: no env client, so no batch API either.
-fn finalize_client(client: Option<&ProviderClient>) -> Result<(), ProviderError> {
-    let always_realtime_env = env::llm::ALWAYS_USE_REALTIME.get();
-    ALWAYS_USE_REALTIME
-        .set(always_realtime_env || !client.is_some_and(|c| c.supports_batch()))
-        .map_err(|e| {
-            ProviderError::ConfigError(format!(
-                "Failed to update global provider config. Trying to overwrite provider. Existing supports_batch: {e}",
-            ))
-        })
-}
-
 /// LLM client that holds all available provider clients and multiplexes
 /// requests based on optional `provider` and `model_size` fields on
 /// [`ProviderRequest`]. Callers never deal with provider resolution --
@@ -677,13 +657,6 @@ impl LlmClient {
             log::info!("LLM_PROVIDER unset; signals run on workspace LLM profiles only");
         }
 
-        finalize_client(
-            default_provider
-                .as_ref()
-                .and_then(|name| providers.get(name))
-                .map(|client| &**client),
-        )?;
-
         Ok(Self {
             providers,
             default_provider,
@@ -848,7 +821,7 @@ impl LlmClient {
         }
     }
 
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    #[allow(dead_code)]
     pub async fn create_batch(
         &self,
         requests: Vec<ProviderRequestItem>,
@@ -881,7 +854,7 @@ impl LlmClient {
             .await
     }
 
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    #[allow(dead_code)]
     pub async fn get_batch(&self, batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
         // TODO: Implement batch retrieval for all providers
         let default = self

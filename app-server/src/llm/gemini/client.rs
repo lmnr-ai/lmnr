@@ -116,6 +116,7 @@ impl GeminiClient {
         Ok(generate_response)
     }
 
+    #[allow(dead_code)]
     pub async fn create_batch(
         &self,
         model: &str,
@@ -152,6 +153,7 @@ impl GeminiClient {
         Ok(operation)
     }
 
+    #[allow(dead_code)]
     pub async fn get_batch(&self, batch_name: &str) -> GeminiResult<Operation> {
         let url = format!("{}/batches/{}", self.api_base_url, batch_name);
 
@@ -178,10 +180,6 @@ impl GeminiClient {
 }
 
 impl LanguageModelClient for GeminiClient {
-    fn supports_batch(&self) -> bool {
-        true
-    }
-
     async fn generate_content(
         &self,
         model: &str,
