@@ -7,6 +7,7 @@ import TraceTagsCell from "@/components/tags/trace-tags-cell";
 import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import MetadataCell from "@/components/traces/traces-table/metadata-cell";
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
@@ -170,7 +171,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "metadata",
     enableSorting: true,
     meta: { sql: "metadata" },
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    cell: (row) => <MetadataCell value={row.getValue()} columnSize={row.column.getSize()} />,
     size: 100,
   },
   {

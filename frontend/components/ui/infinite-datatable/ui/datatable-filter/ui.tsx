@@ -248,6 +248,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
               onValueChange({ field: "value", value: newValue });
             }}
           />
+          {renderOperatorSelect()}
           <Input
             type="text"
             className="h-7 hide-arrow bg-transparent"

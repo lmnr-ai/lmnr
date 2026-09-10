@@ -120,6 +120,7 @@ export default function SQLEditor({
 
       {projectId && editable && (
         <motion.button
+          type="button"
           className="absolute bottom-2 right-2 z-10 flex items-center justify-center h-6 px-1 rounded-full bg-primary/90 text-primary-foreground/90 hover:bg-primary border border-white/25 shadow-md overflow-hidden disabled:opacity-50 disabled:pointer-events-none text-xs font-medium"
           disabled={isAiLoading}
           onClick={() => setIsAiDialogOpen(true)}

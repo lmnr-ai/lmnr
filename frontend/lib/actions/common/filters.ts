@@ -27,6 +27,7 @@ const booleanOperators: Record<BooleanFilter["operator"], OperatorHandler<Boolea
 
 const jsonOperators: Record<JsonFilter["operator"], OperatorHandler<JsonFilter>> = {
   eq: (col, filter) => eq(col, filter.value),
+  ne: (col, filter) => ne(col, filter.value),
 };
 
 type StringColumnConfig = {

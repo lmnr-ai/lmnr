@@ -23,6 +23,8 @@ export const NUMBER_OPERATORS = [
 
 export const BOOLEAN_OPERATORS = [Operator.Eq, Operator.Ne] as const;
 
-export const JSON_OPERATORS = [Operator.Eq] as const;
+// `ne` on a JSON key=value filter negates the whole match, so rows that don't
+// carry the key at all are included.
+export const JSON_OPERATORS = [Operator.Eq, Operator.Ne] as const;
 
 export const ARRAY_OPERATORS = [Operator.Includes, Operator.NotIncludes] as const;

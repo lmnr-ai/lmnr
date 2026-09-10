@@ -10,6 +10,7 @@ import {
   type ColumnFilterProcessor,
   createArrayColumnFilter,
   createCustomFilter,
+  createJsonKeyValueFilter,
   createNumberFilter,
   createStringFilter,
   type OrderByOptions,
@@ -69,31 +70,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ["input_tokens", createNumberFilter("Int64")],
     ["output_tokens", createNumberFilter("Int64")],
     ["duration", createNumberFilter("Float64")],
-    [
-      "metadata",
-      createCustomFilter(
-        (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
-          if (key && val) {
-            return (
-              `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
-              ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`
-            );
-          }
-          return "";
-        },
-        (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
-          if (key && val) {
-            return {
-              [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `${val}`,
-            };
-          }
-          return {};
-        }
-      ),
-    ],
+    ["metadata", createJsonKeyValueFilter("metadata")],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
     ["span_names", createArrayColumnFilter("String")],

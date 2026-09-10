@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 import { type RecentSearch, useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
 import { type ColumnFilter, createTagFromFilter } from "../types";
-import { buildValueSuggestions, displayFilterValue, hasUuidSuggestion } from "../utils";
+import { buildValueSuggestions, displayFilterValue, hasUuidSuggestion, rankFilters } from "../utils";
 
 interface FieldSuggestion {
   type: "field";
@@ -49,11 +49,7 @@ export const buildSuggestions = (
     ? [{ type: "value" as const, field: uuidFilterColumn as string, value: inputValue.trim() }]
     : [];
 
-  const matchingFields = filters.filter(
-    (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
-  );
-
-  const fieldSuggestions: Suggestion[] = matchingFields.map((filter) => ({
+  const fieldSuggestions: Suggestion[] = rankFilters(filters, input).map((filter) => ({
     type: "field" as const,
     filter,
   }));

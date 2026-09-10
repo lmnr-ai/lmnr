@@ -37,14 +37,17 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const searchFilter = search && search.trim() !== "" ? sql`${evaluations.name} ILIKE ${`%${search.trim()}%`}` : null;
 
   const metadataFilters = urlParamFilters
-    .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
+    .filter((filter) => filter.column === "metadata" && (filter.operator === "eq" || filter.operator === "ne"))
     .map((filter) => {
       const [key, value] = String(filter.value).split(/=(.*)/);
       if (key && value) {
         const parsedValue = tryParseJson(value);
         const typedMatch = sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: parsedValue })}`;
         const stringMatch = sql`${evaluations.metadata}->>${key} = ${String(value)}`;
-        return sql`(${typedMatch} OR ${stringMatch})`;
+        const match = sql`(${typedMatch} OR ${stringMatch})`;
+        // `IS NOT TRUE` rather than `NOT (...)`: `->>` yields NULL for a missing
+        // key, and `NOT NULL` would drop exactly the rows `!=` should keep.
+        return filter.operator === "ne" ? sql`${match} IS NOT TRUE` : match;
       }
       return sql`1=1`;
     });
