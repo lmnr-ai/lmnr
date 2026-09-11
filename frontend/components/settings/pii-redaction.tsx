@@ -21,13 +21,12 @@ const PRO_TIERS: WorkspaceTier[] = [WorkspaceTier.PRO, WorkspaceTier.ENTERPRISE]
 const MODE_LABELS: Record<PiiMode, { label: string; description: string }> = {
   off: { label: "Off", description: "Spans are stored as received." },
   redact: {
-    label: "Redact",
+    label: "On",
     description: "Detected PII is replaced with placeholders before storage. Nobody can see the original text.",
   },
   dual: {
-    label: "Redact for members",
-    description:
-      "Both copies are stored. Workspace owners and admins see the original text; members see the redacted copy.",
+    label: "Dual",
+    description: "Workspace owners and admins see the original data; members see the redacted copy.",
   },
 };
 
