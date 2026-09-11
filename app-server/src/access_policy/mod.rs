@@ -15,7 +15,11 @@ use uuid::Uuid;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::MEMBER_ROLE_CACHE_KEY},
-    db::{DB, projects::PiiMode, workspaces::get_member_role},
+    db::{
+        DB,
+        projects::{PiiMode, ProjectSettings},
+        workspaces::get_member_role,
+    },
     utils::limits::get_workspace_info_for_project_id,
 };
 
@@ -83,9 +87,7 @@ pub async fn for_actor(
     let project = get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("project {project_id} not found"))?;
-    // Only `dual` stores something the policy can hide; `off` and `redact`
-    // have one copy that everyone sees.
-    if project.settings.effective_pii_mode() != PiiMode::Dual {
+    if !stores_dual_copies(&project.settings) {
         return Ok(AccessPolicy::UNRESTRICTED);
     }
     let permissions = match actor {
@@ -98,6 +100,14 @@ pub async fn for_actor(
     Ok(AccessPolicy {
         mask_pii: !permissions.view_pii,
     })
+}
+
+/// Only `dual` stores something the policy can hide; `off` and `redact`
+/// have one copy that everyone sees. The configured mode decides, not the
+/// flag-degraded `effective_pii_mode()`: rows written while the flag was on
+/// still hold raw text, so turning the flag off must not unmask them.
+fn stores_dual_copies(settings: &ProjectSettings) -> bool {
+    settings.pii_mode() == PiiMode::Dual
 }
 
 /// Cached `members_of_workspaces.member_role`. Non-membership is not cached
@@ -133,6 +143,21 @@ async fn cached_member_role(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dual_stays_maskable_while_the_flag_is_off() {
+        // Tests run without PII_DUAL_MODE_ENABLED, so `effective_pii_mode()`
+        // degrades to `redact`; the read policy must still treat the project
+        // as dual so raw rows written earlier stay masked.
+        let dual: ProjectSettings = serde_json::from_str(r#"{"piiMode":"dual"}"#).unwrap();
+        assert_eq!(dual.effective_pii_mode(), PiiMode::Redact);
+        assert!(stores_dual_copies(&dual));
+
+        let redact: ProjectSettings = serde_json::from_str(r#"{"piiMode":"redact"}"#).unwrap();
+        assert!(!stores_dual_copies(&redact));
+        let legacy: ProjectSettings = serde_json::from_str(r#"{"removePii":true}"#).unwrap();
+        assert!(!stores_dual_copies(&legacy));
+    }
 
     #[test]
     fn unrestricted_policy_serializes_to_empty_object() {

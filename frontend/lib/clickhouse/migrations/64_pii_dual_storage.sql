@@ -156,11 +156,29 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
         ) AS output,
         if(
             tool_definitions_hash != toFixedString('', 32),
-            dictGetOrDefault(
-                'deduped_content_dict',
-                'content',
-                tuple(project_id, tool_definitions_hash),
-                ''
+            if(
+                JSONExtractBool({policy:String}, 'maskPii'),
+                -- Same per-row rule as the messages; the one-element arrayMap
+                -- binds the dict tuple to `t` so it is fetched once.
+                arrayMap(
+                    t -> multiIf(
+                        tupleElement(t, 3) = 1, tupleElement(t, 1),
+                        tupleElement(t, 3) = 2, tupleElement(t, 2),
+                        '"[PII_MASKED_UNAVAILABLE]"'
+                    ),
+                    [dictGetOrDefault(
+                        'deduped_content_dict',
+                        ('content', 'content_redacted', 'pii_state'),
+                        tuple(project_id, tool_definitions_hash),
+                        ('', '', toUInt8(0))
+                    )]
+                )[1],
+                dictGetOrDefault(
+                    'deduped_content_dict',
+                    'content',
+                    tuple(project_id, tool_definitions_hash),
+                    ''
+                )
             ),
             ''
         ) AS tool_definitions,
