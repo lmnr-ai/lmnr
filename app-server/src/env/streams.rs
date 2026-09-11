@@ -85,17 +85,30 @@ pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLI
 pub const CONFIRM_TIMEOUT_MS: NumEnv<u64> =
     NumEnv::new("RABBITMQ_STREAM_CONFIRM_TIMEOUT_MS", 10_000);
 
-/// Bounded queue depth between the per-partition readers and the batchers.
-/// This is the backpressure knob: when full, readers stop granting credit and
-/// the backlog stays on broker disk (exactly where we want it under burst).
+/// Bytes of decoded records one stream reader may hold between the delivery
+/// loop and its batchers — everything received but not yet flushed. This is the
+/// backpressure knob: when the budget is spent the reader stops polling the
+/// consumer, no more credit is granted, and the backlog stays on broker disk
+/// (exactly where we want it under burst).
+///
+/// A BYTE budget, not a record count: one record is a whole export batch whose
+/// size spans several orders of magnitude, so a record cap either OOMs the pod
+/// on large records or throttles needlessly on small ones. Each record is
+/// charged its decoded body length (a proxy for the in-memory size of the
+/// deserialized message — budget with ~2x headroom for that) and refunded once
+/// its batch is flushed or dropped, so the batchers' accumulating batches and a
+/// batch stuck in transient retry count against it too. One budget per reader
+/// (spans and indexer readers each hold their own).
 ///
 /// NOTE: the client crate keeps its own delivery buffers UPSTREAM of this one —
 /// one channel per partition plus one combined per super stream, 10000 records
-/// each by default — which fill before this channel's backpressure reaches the
-/// broker. Our fork (see Cargo.toml) makes them configurable via
-/// `RABBITMQ_STREAM_CLIENT_CHANNEL_CAPACITY`, read directly by the crate (not
-/// registered here as a descriptor — a `NumEnv` default would not affect it).
-pub const CHANNEL_CAPACITY: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_CHANNEL_CAPACITY", 256);
+/// each by default, still count-bound — which fill before this budget's
+/// backpressure reaches the broker. Our fork (see Cargo.toml) makes them
+/// configurable via `RABBITMQ_STREAM_CLIENT_CHANNEL_CAPACITY`, read directly by
+/// the crate (not registered here as a descriptor — a `NumEnv` default would
+/// not affect it).
+pub const CHANNEL_MAX_BYTES: NumEnv<usize> =
+    NumEnv::new("RABBITMQ_STREAM_CHANNEL_MAX_BYTES", 128 * 1024 * 1024);
 
 /// Batcher tasks per stream consumer, one env var per stream so they tune
 /// independently. Partitions are assigned to batchers by
