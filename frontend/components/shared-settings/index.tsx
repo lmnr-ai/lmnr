@@ -111,11 +111,13 @@ const SharedSettings = ({
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
   const workspaceId = workspace.id;
+  // Temporary local styling preview. Keep billing actions disabled server-side.
+  const showBillingPreview = true;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
   // via a direct ?tab= link when their flag is off.
   const isSectionEnabled = (section: Section): boolean => {
-    if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
+    if (section === "billing") return showBillingPreview || !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
     return true;
   };
@@ -144,11 +146,11 @@ const SharedSettings = ({
     items.push({ label: "Integrations", section: "integrations", icon: Unplug });
     items.push({ label: "LLM profiles", section: "llm-profiles", icon: Sparkles });
     items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
-    if (featureFlags[Feature.SUBSCRIPTION]) {
+    if (showBillingPreview || featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
     }
     return items;
-  }, [featureFlags, isOwner]);
+  }, [featureFlags, isOwner, showBillingPreview]);
 
   const projectMenus: { label: string; section: Section; icon: LucideIcon }[] = [
     { label: "General", section: "general", icon: Settings2 },
