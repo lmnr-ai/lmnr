@@ -1,15 +1,12 @@
 "use client";
 
-import { differenceInHours } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getNextQuickRange } from "@/components/ui/date-range-filter/utils";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { useProjectContext } from "@/contexts/project-context";
-import { Feature } from "@/lib/features/features";
 
 const findHorizontalScrollParent = (element: HTMLElement | null): HTMLElement | null => {
   let node = element?.parentElement ?? null;
@@ -35,43 +32,37 @@ const useVisibleWidth = (element: HTMLElement | null) => {
   return width;
 };
 
-export function TracesEmptyRow() {
+interface TracesEmptyRowProps {
+  hasFilters: boolean;
+}
+
+export function TracesEmptyRow({ hasFilters }: TracesEmptyRowProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
-  const { project } = useProjectContext();
-  const featureFlags = useFeatureFlags();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const visibleWidth = useVisibleWidth(container);
 
-  const hasFilters = searchParams.get("filter") !== null;
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const retentionDays = featureFlags[Feature.SUBSCRIPTION] ? project?.logRetentionDays : null;
-  const maxHours = retentionDays != null ? retentionDays * 24 : undefined;
-
-  const currentHours = pastHours
-    ? parseInt(pastHours, 10)
-    : startDate && endDate
-      ? differenceInHours(new Date(endDate), new Date(startDate))
-      : 24;
-  const nextRange = Number.isNaN(currentHours) ? undefined : getNextQuickRange(currentHours, maxHours);
-
-  const searchWiderRange = useCallback(() => {
-    if (!nextRange) return;
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.delete("startDate");
-    sp.delete("endDate");
-    sp.delete("groupByInterval");
-    sp.set("pastHours", nextRange.value);
-    sp.set("pageNumber", "0");
-    router.push(`${pathName}?${sp.toString()}`);
-  }, [nextRange, pathName, router, searchParams]);
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.delete("startDate");
+      sp.delete("endDate");
+      sp.delete("groupByInterval");
+      sp.set("pastHours", range.value);
+      sp.set("pageNumber", "0");
+      router.push(`${pathName}?${sp.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
 
   const clearFilters = useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete("filter");
+    sp.delete("textSearch");
     router.push(`${pathName}?${sp.toString()}`);
   }, [pathName, router, searchParams]);
 
@@ -85,10 +76,13 @@ export function TracesEmptyRow() {
         >
           <span className="text-sm text-secondary-foreground">No traces in this time range</span>
           <div className="flex items-center gap-2">
-            {nextRange && (
-              <Button variant="outline" className="text-secondary-foreground" onClick={searchWiderRange}>
-                Search last {nextRange.name.replace(/^1 /, "")}
-              </Button>
+            {!hasFilters && (
+              <SearchWiderRangeButton
+                pastHours={pastHours}
+                startDate={startDate}
+                endDate={endDate}
+                onSelect={searchWiderRange}
+              />
             )}
             {hasFilters && (
               <Button variant="outline" className="text-secondary-foreground" onClick={clearFilters}>

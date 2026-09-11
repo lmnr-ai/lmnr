@@ -47,6 +47,7 @@ const TracePickerContent = ({
         filters={searchValue.filters}
         search={searchValue.search.length > 0 ? searchValue.search : null}
         dateRange={dateRange}
+        onDateRangeChange={setDateRange}
         refetchRef={refetchRef}
         onTraceSelect={onTraceSelect}
         focusedTraceId={focusedTraceId}

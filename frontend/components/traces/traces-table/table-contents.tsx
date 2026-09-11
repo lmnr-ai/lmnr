@@ -319,7 +319,7 @@ export const TracesTableContents = memo(function TracesTableContents({
       isLoading={isLoading || isViewLoading}
       fetchNextPage={fetchNextPage}
       getRowHref={getRowHref}
-      emptyRow={<TracesEmptyRow />}
+      emptyRow={<TracesEmptyRow hasFilters={filter.length > 0 || !!textSearchFilter} />}
       pinnedColumns={pinnedColumns}
       sortBy={sortBy}
       sortDirection={sortDirection}
