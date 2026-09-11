@@ -51,4 +51,5 @@ Each of these lets a member of a `dual` project see raw text and is a follow-up 
 - `trace_outputs_v0` (agent output) and `signal_events_v0` take no policy; Signals stores its produced event raw (`handle_create_event`, private repo).
 - Search snippets (`search/snippets.rs`) extract from the raw `spans` columns; under `maskPii` they must read `*_redacted`.
 - `traces_static.input` (extracted task) has no redacted copy or state, hence the blanket mask on `agent_input`.
+- The Laminar Agent (private repo) reads trace context and runs its `query_sql` tool unrestricted, and its replies are not masked per user.
 - Backfill for `unchecked` history, per-role notification rendering, and a `pii_terms` search field for admin raw search.
