@@ -4,8 +4,10 @@ import { type Row } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -15,6 +17,7 @@ export interface TracePickerContentsProps {
   filters: Filter[];
   search: string | null;
   dateRange: { pastHours?: string; startDate?: string; endDate?: string };
+  onDateRangeChange: (range: { pastHours?: string; startDate?: string; endDate?: string }) => void;
   refetchRef: RefObject<() => void>;
   onTraceSelect: (trace: TraceRow) => void;
   focusedTraceId?: string | null;
@@ -27,6 +30,7 @@ export const TracePickerContents = memo(function TracePickerContents({
   filters,
   search,
   dateRange,
+  onDateRangeChange,
   refetchRef,
   onTraceSelect,
   focusedTraceId,
@@ -111,6 +115,21 @@ export const TracePickerContents = memo(function TracePickerContents({
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
       estimatedRowHeight={36}
+      emptyRow={
+        filters.length === 0 && !search ? (
+          <TableRow className="flex">
+            <TableCell className="w-full h-auto p-4 rounded-b text-center">
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-sm text-secondary-foreground">No traces in this time range</span>
+                <SearchWiderRangeButton
+                  {...dateRange}
+                  onSelect={(range) => onDateRangeChange({ pastHours: range.value })}
+                />
+              </div>
+            </TableCell>
+          </TableRow>
+        ) : undefined
+      }
     >
       {children}
     </InfiniteDataTable>

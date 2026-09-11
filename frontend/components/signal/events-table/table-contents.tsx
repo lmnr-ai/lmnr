@@ -1,12 +1,13 @@
 "use client";
 
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
 import { signalTraceHref, useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
 import { type SchemaField } from "@/components/signals/utils";
-import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange, getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -20,20 +21,23 @@ function getEmptyRow({
   pastHours,
   startDate,
   endDate,
+  onSelect,
 }: {
   pastHours?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  onSelect: (range: DateRange) => void;
 }) {
   const { from, to } = getDisplayRange({ startDate, endDate, pastHours });
   return (
     <TableRow className="flex">
       <TableCell className="text-center p-4 rounded-b w-full h-auto">
         <div className="flex flex-1 justify-center">
-          <div className="max-w-md">
+          <div className="flex flex-col items-center gap-2 max-w-md">
             <h3 className="text-sm font-medium text-secondary-foreground">
               No events in the {pastHours ? `last ${getTimeDifference(from, to)}` : "time range"}
             </h3>
+            <SearchWiderRangeButton pastHours={pastHours} startDate={startDate} endDate={endDate} onSelect={onSelect} />
           </div>
         </div>
       </TableCell>
@@ -87,6 +91,7 @@ export const EventsTableContents = memo(function EventsTableContents({
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const pathName = usePathname();
+  const router = useRouter();
   const [{ eventId }, setTraceParams] = useSignalTraceParams();
 
   const fetchEnabled = !!(pastHours || (startDate && endDate)) && !isViewLoading;
@@ -199,6 +204,19 @@ export const EventsTableContents = memo(function EventsTableContents({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("startDate");
+      params.delete("endDate");
+      params.delete("groupByInterval");
+      params.set("pastHours", range.value);
+      params.set("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
   const focusedRowId = useMemo(() => {
     if (!events || !eventId) return undefined;
     return events.some((e) => e.id === eventId) ? eventId : undefined;
@@ -245,7 +263,15 @@ export const EventsTableContents = memo(function EventsTableContents({
       sortBy={sortBy}
       sortDirection={sortDirection}
       onSort={onSort}
-      emptyRow={filter.length === 0 && !textSearchFilter ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
+      emptyRow={
+        filter.length === 0 &&
+        !textSearchFilter &&
+        selectedClusterIds.length === 0 &&
+        !isUnclusteredFilter &&
+        !emergingClusterId
+          ? getEmptyRow({ pastHours, startDate, endDate, onSelect: searchWiderRange })
+          : undefined
+      }
     >
       {children}
     </InfiniteDataTable>

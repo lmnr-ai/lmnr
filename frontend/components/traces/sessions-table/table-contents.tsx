@@ -1,13 +1,16 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
 import { columns } from "@/components/traces/sessions-table/columns";
 import { FETCH_SIZE } from "@/components/traces/sessions-table/constants";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type SessionRow } from "@/lib/traces/types";
@@ -39,6 +42,8 @@ export const SessionsTableContents = memo(function SessionsTableContents({
   isViewLoading,
 }: PropsWithChildren<SessionsTableContentsProps>) {
   const router = useRouter();
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
   const { projectId } = useParams();
   const { toast } = useToast();
 
@@ -105,6 +110,19 @@ export const SessionsTableContents = memo(function SessionsTableContents({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("startDate");
+      params.delete("endDate");
+      params.delete("groupByInterval");
+      params.set("pastHours", range.value);
+      params.set("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
   const handleRowClick = useCallback(
     (row: Row<SessionRow>) => {
       const encodedSessionId = row.original.sessionId.split("/").map(encodeURIComponent).join("/");
@@ -129,6 +147,23 @@ export const SessionsTableContents = memo(function SessionsTableContents({
       sortBy={sortBy}
       sortDirection={sortDirection}
       onSort={onSort}
+      emptyRow={
+        filter.length === 0 && !textSearchFilter ? (
+          <TableRow className="flex">
+            <TableCell className="w-full h-auto p-4 rounded-b text-center">
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-sm text-secondary-foreground">No sessions in this time range</span>
+                <SearchWiderRangeButton
+                  pastHours={pastHours}
+                  startDate={startDate}
+                  endDate={endDate}
+                  onSelect={searchWiderRange}
+                />
+              </div>
+            </TableCell>
+          </TableRow>
+        ) : undefined
+      }
     >
       {children}
     </InfiniteDataTable>
