@@ -34,9 +34,10 @@ const useVisibleWidth = (element: HTMLElement | null) => {
 
 interface TracesEmptyRowProps {
   hasFilters: boolean;
+  onClearFilters: () => void;
 }
 
-export function TracesEmptyRow({ hasFilters }: TracesEmptyRowProps) {
+export function TracesEmptyRow({ hasFilters, onClearFilters }: TracesEmptyRowProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -59,13 +60,6 @@ export function TracesEmptyRow({ hasFilters }: TracesEmptyRowProps) {
     [pathName, router, searchParams]
   );
 
-  const clearFilters = useCallback(() => {
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.delete("filter");
-    sp.delete("textSearch");
-    router.push(`${pathName}?${sp.toString()}`);
-  }, [pathName, router, searchParams]);
-
   return (
     <TableRow className="flex">
       <TableCell className="w-full h-auto p-0 rounded-b">
@@ -85,7 +79,7 @@ export function TracesEmptyRow({ hasFilters }: TracesEmptyRowProps) {
               />
             )}
             {hasFilters && (
-              <Button variant="outline" className="text-secondary-foreground" onClick={clearFilters}>
+              <Button variant="outline" className="text-secondary-foreground" onClick={onClearFilters}>
                 Clear filters
               </Button>
             )}

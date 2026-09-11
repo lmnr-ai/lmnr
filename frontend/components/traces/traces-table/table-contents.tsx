@@ -30,6 +30,7 @@ export interface TracesTableContentsProps {
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   onSort: (columnId: string, direction: "asc" | "desc") => void;
+  onClearFilters: () => void;
   pastHours: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -49,6 +50,7 @@ export const TracesTableContents = memo(function TracesTableContents({
   sortBy,
   sortDirection,
   onSort,
+  onClearFilters,
   pastHours,
   startDate,
   endDate,
@@ -319,7 +321,7 @@ export const TracesTableContents = memo(function TracesTableContents({
       isLoading={isLoading || isViewLoading}
       fetchNextPage={fetchNextPage}
       getRowHref={getRowHref}
-      emptyRow={<TracesEmptyRow hasFilters={filter.length > 0 || !!textSearchFilter} />}
+      emptyRow={<TracesEmptyRow hasFilters={filter.length > 0 || !!textSearchFilter} onClearFilters={onClearFilters} />}
       pinnedColumns={pinnedColumns}
       sortBy={sortBy}
       sortDirection={sortDirection}
