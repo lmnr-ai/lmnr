@@ -1,32 +1,28 @@
 -- Sparse-dual PII storage for role-based masking (docs/internal/rbac.md).
 --
 -- `*_redacted` holds the redactor's output only when it changed something.
--- `pii_state` says whether the raw column is safe to show under a masking
--- policy:
---   0 unchecked  default; `off` mode and every row written before this migration
---   1 clean      raw is safe: no PII found, or `redact` mode already stripped it
---   2 redacted   `*_redacted` holds the safe copy; an empty `*_redacted` on a
---                state-2 span row means that side had no PII and raw is safe
---   3 failed     redaction did not complete; raw may hold PII
--- Under a masking policy, 0 and 3 render as unavailable (fail-closed).
+-- `pii_checked` says the redactor screened the row, which makes an empty
+-- `*_redacted` mean "no PII found, raw is safe". Unchecked rows (`off` mode,
+-- every row written before this migration, redactor failures) render as
+-- unavailable under a masking policy (fail-closed).
 ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_redacted String CODEC(ZSTD(3));
 ALTER TABLE spans ADD COLUMN IF NOT EXISTS output_redacted String CODEC(ZSTD(3));
-ALTER TABLE spans ADD COLUMN IF NOT EXISTS pii_state UInt8 DEFAULT 0;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
 
 ALTER TABLE deduped_content ADD COLUMN IF NOT EXISTS content_redacted String CODEC(ZSTD(3));
-ALTER TABLE deduped_content ADD COLUMN IF NOT EXISTS pii_state UInt8 DEFAULT 0;
+ALTER TABLE deduped_content ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
 
 -- `spans_v1` = `spans_v0` (migration 61) plus a `policy` param: a JSON object
 -- built server-side from the caller's role (`AccessPolicy` in app-server).
 -- `'{}'` means unrestricted and yields exactly `spans_v0`'s output. The
--- `deduped_content_dict` attributes `content_redacted` / `pii_state` are added
+-- `deduped_content_dict` attributes `content_redacted` / `pii_checked` are added
 -- by `ensureDedupedContentDict` (frontend/instrumentation.ts) right after
 -- migrations run; CREATE VIEW does not resolve dictionary attributes, so the
 -- ordering within one boot is fine. `spans_v0` stays until every caller has
 -- moved to `spans_v1` (dropped in a later migration).
 --
--- Masked branch: whole-value columns resolve through the row's `pii_state`;
--- dedup'd messages resolve per message through the dict's `pii_state`, with
+-- Masked branch: whole-value columns resolve through the row's `pii_checked`;
+-- dedup'd messages resolve per message through the dict's `pii_checked`, with
 -- JSON `null` standing in for an unavailable message so the array stays valid.
 -- Legacy `llm_messages_dict` rows have no state and are therefore unavailable
 -- under a masking policy.
@@ -69,26 +65,26 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                 notEmpty(input_message_hashes),
                 '[' || arrayStringConcat(
                     arrayMap(
-                        t -> multiIf(
-                            tupleElement(t, 3) = 1, tupleElement(t, 1),
-                            tupleElement(t, 3) = 2, tupleElement(t, 2),
+                        t -> if(
+                            tupleElement(t, 3),
+                            if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
                             'null'
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
                                 'deduped_content_dict',
-                                ('content', 'content_redacted', 'pii_state'),
+                                ('content', 'content_redacted', 'pii_checked'),
                                 tuple(project_id, h),
-                                ('', '', toUInt8(0))
+                                ('', '', false)
                             ),
                             input_message_hashes
                         )
                     ),
                     ','
                 ) || ']',
-                multiIf(
-                    pii_state = 1, input,
-                    pii_state = 2, if(empty(input_redacted), input, input_redacted),
+                if(
+                    pii_checked,
+                    if(empty(input_redacted), input, input_redacted),
                     '"[PII_MASKED_UNAVAILABLE]"'
                 )
             ),
@@ -114,26 +110,26 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                 notEmpty(output_message_hashes),
                 '[' || arrayStringConcat(
                     arrayMap(
-                        t -> multiIf(
-                            tupleElement(t, 3) = 1, tupleElement(t, 1),
-                            tupleElement(t, 3) = 2, tupleElement(t, 2),
+                        t -> if(
+                            tupleElement(t, 3),
+                            if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
                             'null'
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
                                 'deduped_content_dict',
-                                ('content', 'content_redacted', 'pii_state'),
+                                ('content', 'content_redacted', 'pii_checked'),
                                 tuple(project_id, h),
-                                ('', '', toUInt8(0))
+                                ('', '', false)
                             ),
                             output_message_hashes
                         )
                     ),
                     ','
                 ) || ']',
-                multiIf(
-                    pii_state = 1, output,
-                    pii_state = 2, if(empty(output_redacted), output, output_redacted),
+                if(
+                    pii_checked,
+                    if(empty(output_redacted), output, output_redacted),
                     '"[PII_MASKED_UNAVAILABLE]"'
                 )
             ),
@@ -161,16 +157,16 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                 -- Same per-row rule as the messages; the one-element arrayMap
                 -- binds the dict tuple to `t` so it is fetched once.
                 arrayMap(
-                    t -> multiIf(
-                        tupleElement(t, 3) = 1, tupleElement(t, 1),
-                        tupleElement(t, 3) = 2, tupleElement(t, 2),
+                    t -> if(
+                        tupleElement(t, 3),
+                        if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
                         '"[PII_MASKED_UNAVAILABLE]"'
                     ),
                     [dictGetOrDefault(
                         'deduped_content_dict',
-                        ('content', 'content_redacted', 'pii_state'),
+                        ('content', 'content_redacted', 'pii_checked'),
                         tuple(project_id, tool_definitions_hash),
-                        ('', '', toUInt8(0))
+                        ('', '', false)
                     )]
                 )[1],
                 dictGetOrDefault(

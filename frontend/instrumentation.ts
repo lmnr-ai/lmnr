@@ -147,7 +147,7 @@ export async function register() {
       // Project-scoped dedup dict. Backs the `deduped_content` table for
       // both input/output messages and tool definitions. The spans views
       // try this dict first and fall back to `llm_messages_dict` for legacy
-      // spans. `content_redacted` / `pii_state` feed the masked branch of
+      // spans. `content_redacted` / `pii_checked` feed the masked branch of
       // `spans_v1` (migration 64); CREATE VIEW does not resolve dictionary
       // attributes, so recreating the dict after migrations is sufficient.
       const ensureDedupedContentDict = async () => {
@@ -164,7 +164,7 @@ export async function register() {
                 content_hash String,
                 content String,
                 content_redacted String,
-                pii_state UInt8
+                pii_checked Bool
             )
             PRIMARY KEY project_id, content_hash
             SOURCE(CLICKHOUSE(

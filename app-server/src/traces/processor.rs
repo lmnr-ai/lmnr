@@ -23,7 +23,7 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
-        PiiOutcome, PiiRedactorClient, PiiState, redact_spans_in_place, resolve_project_pii_modes,
+        PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
     },
     pubsub::PubSub,
     quickwit::{
@@ -426,10 +426,10 @@ pub async fn process_span_messages(
     // Quickwit indexing; runs BEFORE the `shared_content` CH insert /
     // Quickwit indexing so every storage tier holds the redacted content.
     // Already-seen-in-trace messages were redacted on first emit and ride
-    // the wire as hashes only. Best-effort: failures stamp `Failed` inside
-    // `redact_spans_in_place` and do not fail the batch. Without a redactor
-    // every row stays `Unchecked`, which the masked read path treats as
-    // unavailable.
+    // the wire as hashes only. Best-effort: failures leave rows unchecked
+    // inside `redact_spans_in_place` and do not fail the batch. Without a
+    // redactor every row stays unchecked, which the masked read path treats
+    // as unavailable.
     let pii_outcome = match pii_redactor.as_ref() {
         Some(redactor) => {
             let modes =
@@ -504,7 +504,7 @@ pub async fn process_span_messages(
                 let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
 
                 let pii = pii_outcome.span(span_idx);
-                ch_span.pii_state = pii.state.into();
+                ch_span.pii_checked = pii.checked;
                 ch_span.input_redacted = pii.input_redacted.unwrap_or_default();
                 ch_span.output_redacted = pii.output_redacted.unwrap_or_default();
 
@@ -651,8 +651,9 @@ pub async fn process_span_messages(
     // healing the row once the redactor is back.
     let storage_keys: Vec<(Uuid, [u8; 32])> = shared_content
         .iter()
-        .filter(|m| m.pii_state != u8::from(PiiState::Failed))
-        .map(|m| (m.project_id, m.content_hash))
+        .enumerate()
+        .filter(|(i, _)| !pii_outcome.shared_row_failed(*i))
+        .map(|(_, m)| (m.project_id, m.content_hash))
         .collect();
     let trace_new_keys: Vec<(Uuid, Uuid, [u8; 32])> = {
         let mut acc: Vec<(Uuid, Uuid, [u8; 32])> = Vec::new();

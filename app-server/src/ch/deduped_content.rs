@@ -27,9 +27,9 @@ pub struct CHDedupedContent {
     /// changed the content (`crate::pii_redactor`).
     #[serde(default)]
     pub content_redacted: String,
-    /// `crate::pii_redactor::PiiState` as stored.
+    /// The redactor screened `content`; see `crate::pii_redactor::SpanPii`.
     #[serde(default)]
-    pub pii_state: u8,
+    pub pii_checked: bool,
 }
 
 impl CHDedupedContent {
@@ -39,7 +39,7 @@ impl CHDedupedContent {
             content_hash,
             content,
             content_redacted: String::new(),
-            pii_state: 0,
+            pii_checked: false,
         }
     }
 }

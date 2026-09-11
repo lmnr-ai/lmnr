@@ -173,10 +173,10 @@ pub struct CHSpan {
     pub input_redacted: String,
     #[serde(default)]
     pub output_redacted: String,
-    /// `crate::pii_redactor::PiiState` as stored; drives the masked branch
-    /// of `spans_v1`.
+    /// The redactor screened this row (`crate::pii_redactor::SpanPii`);
+    /// drives the masked branch of `spans_v1`.
     #[serde(default)]
-    pub pii_state: u8,
+    pub pii_checked: bool,
 }
 
 impl CHSpan {
@@ -256,7 +256,7 @@ impl CHSpan {
             tool_definitions_hash: [0u8; 32],
             input_redacted: String::new(),
             output_redacted: String::new(),
-            pii_state: 0,
+            pii_checked: false,
         }
     }
 }

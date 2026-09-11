@@ -26,29 +26,6 @@ use pii_redactor::{RedactRequest, pii_redactor_service_client::PiiRedactorServic
 /// signal: byte equality is useless because the redactor re-serializes JSON.
 pub const REDACTED_MARKER: &str = "[REDACTED_";
 
-/// Row-level redaction state, persisted as `pii_state` on `spans` and
-/// `deduped_content` (migration 64) and read by the masked branch of
-/// `spans_v1`. Only `Clean` and `Redacted` are renderable under a masking
-/// policy; the other two fail closed.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PiiState {
-    /// Project is `off`, or the row predates PII states.
-    #[default]
-    Unchecked = 0,
-    /// Raw text is safe: nothing found, or `redact` mode already stripped it.
-    Clean = 1,
-    /// The `*_redacted` column holds the safe copy.
-    Redacted = 2,
-    /// Redaction did not complete; raw text may hold PII.
-    Failed = 3,
-}
-
-impl From<PiiState> for u8 {
-    fn from(state: PiiState) -> u8 {
-        state as u8
-    }
-}
-
 /// Redaction backend. The gRPC client is the production impl; tests plug in
 /// a fake so the state machine in [`redact_spans_in_place`] is unit-testable.
 pub trait RedactTexts {
@@ -92,7 +69,13 @@ impl RedactTexts for PiiRedactorClient {
 /// Per-span verdict for the ClickHouse row and the Quickwit document.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SpanPii {
-    pub state: PiiState,
+    /// Persisted as `pii_checked`: the redactor screened every text of this
+    /// span. In `redact` mode the raw text was replaced; in `dual` mode a
+    /// `*_redacted` copy exists exactly where something was found, so an
+    /// empty copy on a checked row means the raw side is safe. `false` for
+    /// `off` projects and for any failure; the masked read path treats
+    /// unchecked rows as unavailable.
+    pub checked: bool,
     /// Redacted whole `span.input`, sanitized like `CHSpan::input`. Present
     /// only in `dual` mode and only when the redactor changed the text.
     pub input_redacted: Option<String>,
@@ -101,11 +84,17 @@ pub struct SpanPii {
 }
 
 /// Result of one batch pass. Spans of `off` projects are absent and read
-/// back as [`PiiState::Unchecked`].
+/// back as unchecked.
 #[derive(Debug, Default)]
 pub struct PiiOutcome {
     spans: HashMap<usize, SpanPii>,
     dual_span_indices: HashSet<usize>,
+    /// Spans whose redaction did not complete (distinct from `off` spans,
+    /// which were never attempted).
+    failed_spans: HashSet<usize>,
+    /// `shared_content` indices whose redaction did not complete. These must
+    /// not be stamped storage-present so the next occurrence re-inserts.
+    failed_shared_rows: HashSet<usize>,
 }
 
 impl PiiOutcome {
@@ -114,25 +103,24 @@ impl PiiOutcome {
     }
 
     /// Whether the span's text may reach the search index. Under `dual` a
-    /// `failed` span still holds raw PII that no redacted copy shadows.
+    /// failed span still holds raw PII that no redacted copy shadows.
     pub fn is_indexable(&self, span_idx: usize) -> bool {
-        !(self.dual_span_indices.contains(&span_idx)
-            && self.span(span_idx).state == PiiState::Failed)
+        !(self.dual_span_indices.contains(&span_idx) && self.failed_spans.contains(&span_idx))
     }
 
-    fn mark(&mut self, span_idx: usize, state: PiiState) {
+    pub fn shared_row_failed(&self, row_idx: usize) -> bool {
+        self.failed_shared_rows.contains(&row_idx)
+    }
+
+    /// Optimistic mark before the RPC; any later `fail` wins.
+    fn check(&mut self, span_idx: usize) {
         let entry = self.spans.entry(span_idx).or_default();
-        entry.state = combine(entry.state, state);
+        entry.checked = !self.failed_spans.contains(&span_idx);
     }
-}
 
-/// `Failed` dominates, then `Redacted`, then `Clean`.
-fn combine(a: PiiState, b: PiiState) -> PiiState {
-    match (a, b) {
-        (PiiState::Failed, _) | (_, PiiState::Failed) => PiiState::Failed,
-        (PiiState::Redacted, _) | (_, PiiState::Redacted) => PiiState::Redacted,
-        (PiiState::Clean, _) | (_, PiiState::Clean) => PiiState::Clean,
-        _ => PiiState::Unchecked,
+    fn fail(&mut self, span_idx: usize) {
+        self.failed_spans.insert(span_idx);
+        self.spans.entry(span_idx).or_default().checked = false;
     }
 }
 
@@ -168,7 +156,7 @@ enum Dir {
 /// Effective PII mode for every unique project in `recordable_indices`,
 /// through the cached billing-info path so repeat batches are free. `None`
 /// means the lookup failed: the caller cannot tell whether the project is
-/// protected, so its spans are stamped `Failed` and skipped.
+/// protected, so its spans are left unchecked and skipped.
 pub async fn resolve_project_pii_modes(
     spans: &[Span],
     recordable_indices: &[usize],
@@ -209,15 +197,15 @@ pub async fn resolve_project_pii_modes(
 ///   storage-hit-but-trace-new), so cross-trace shared content is
 ///   redacted before indexing.
 ///
-/// `redact` mode overwrites the raw buffers and stamps `Clean` (the stored
-/// text IS the safe text). `dual` mode leaves `span.*` and `shared_content
-/// .content` raw, fills the `*_redacted` companions only where the redactor
-/// changed something, and stamps `Clean` / `Redacted`; the Quickwit buffers
-/// are overwritten in both modes so the search index only ever sees
-/// redacted text. Any RPC or parse failure stamps `Failed` on everything it
-/// covered and leaves the raw buffers untouched: redaction must never block
-/// ingestion, and `Failed` rows fail closed under a masking policy and are
-/// not stamped in the dedup presence cache, so the next occurrence retries.
+/// `redact` mode overwrites the raw buffers (the stored text IS the safe
+/// text). `dual` mode leaves `span.*` and `shared_content.content` raw and
+/// fills the `*_redacted` companions only where the redactor changed
+/// something. Both stamp `pii_checked`; the Quickwit buffers are overwritten
+/// in both modes so the search index only ever sees redacted text. Any RPC
+/// or parse failure leaves the affected rows unchecked and the raw buffers
+/// untouched: redaction must never block ingestion, unchecked rows fail
+/// closed under a masking policy, and failed `shared_content` rows are not
+/// stamped in the dedup presence cache, so the next occurrence retries.
 ///
 /// Storage-miss content is duplicated across `shared_content` and
 /// `span_trace_new_contents`; both copies are redacted independently
@@ -257,7 +245,9 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 targets.push(Target::SharedRow(idx));
                 texts.push(row.content.clone());
             }
-            None => row.pii_state = PiiState::Failed.into(),
+            None => {
+                outcome.failed_shared_rows.insert(idx);
+            }
         }
     }
 
@@ -267,12 +257,12 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
             Some(PiiMode::Off) => continue,
             Some(mode) => mode,
             None => {
-                outcome.mark(span_idx, PiiState::Failed);
+                outcome.fail(span_idx);
                 continue;
             }
         };
         // A span with nothing to check is safe by definition.
-        outcome.mark(span_idx, PiiState::Clean);
+        outcome.check(span_idx);
         if mode == PiiMode::Dual {
             outcome.dual_span_indices.insert(span_idx);
         }
@@ -335,7 +325,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 r.len(),
                 targets.len()
             );
-            fail_all(&targets, shared_content, recordable_indices, &mut outcome);
+            fail_all(&targets, recordable_indices, &mut outcome);
             return outcome;
         }
         Err(e) => {
@@ -343,7 +333,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 "pii-redactor: batch of {} fields stamped failed: {e:#}",
                 targets.len()
             );
-            fail_all(&targets, shared_content, recordable_indices, &mut outcome);
+            fail_all(&targets, recordable_indices, &mut outcome);
             return outcome;
         }
     };
@@ -358,7 +348,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                     Ok(v) => Some(v),
                     Err(e) => {
                         log::warn!("pii-redactor: parse redacted span[{idx}] text: {e:#}");
-                        outcome.mark(idx, PiiState::Failed);
+                        outcome.fail(idx);
                         None
                     }
                 };
@@ -373,7 +363,6 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                             } else {
                                 entry.output_redacted = stored;
                             }
-                            outcome.mark(idx, PiiState::Redacted);
                         }
                     }
                     _ => {
@@ -395,16 +384,11 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                     Some(PiiMode::Dual) => {
                         if changed {
                             row.content_redacted = sanitize_string(&text);
-                            row.pii_state = PiiState::Redacted.into();
-                        } else {
-                            row.pii_state = PiiState::Clean.into();
                         }
                     }
-                    _ => {
-                        row.content = sanitize_string(&text);
-                        row.pii_state = PiiState::Clean.into();
-                    }
+                    _ => row.content = sanitize_string(&text),
                 }
+                row.pii_checked = true;
             }
             Target::TraceNew(dir, dedup_idx, offset) => {
                 let contents_for_span = match dir {
@@ -421,24 +405,17 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
     outcome
 }
 
-/// Stamp `Failed` on every row and span the aborted RPC covered.
-fn fail_all(
-    targets: &[Target],
-    shared_content: &mut [CHDedupedContent],
-    recordable_indices: &[usize],
-    outcome: &mut PiiOutcome,
-) {
+/// Mark every row and span the aborted RPC covered as failed.
+fn fail_all(targets: &[Target], recordable_indices: &[usize], outcome: &mut PiiOutcome) {
     for target in targets {
         match target {
-            Target::Input(idx) | Target::Output(idx) => outcome.mark(*idx, PiiState::Failed),
+            Target::Input(idx) | Target::Output(idx) => outcome.fail(*idx),
             Target::SharedRow(idx) => {
-                if let Some(row) = shared_content.get_mut(*idx) {
-                    row.pii_state = PiiState::Failed.into();
-                }
+                outcome.failed_shared_rows.insert(*idx);
             }
             Target::TraceNew(_, dedup_idx, _) => {
                 if let Some(&span_idx) = recordable_indices.get(*dedup_idx) {
-                    outcome.mark(span_idx, PiiState::Failed);
+                    outcome.fail(span_idx);
                 }
             }
         }
@@ -528,13 +505,15 @@ mod tests {
         )
         .await;
         assert!(redactor.calls.lock().unwrap().is_empty());
-        assert_eq!(outcome.span(0).state, PiiState::Unchecked);
-        assert_eq!(rows[0].pii_state, u8::from(PiiState::Unchecked));
+        assert!(!outcome.span(0).checked);
+        assert!(!rows[0].pii_checked);
+        // Never attempted is not a failure: the row is still stamped present.
+        assert!(!outcome.shared_row_failed(0));
         assert_eq!(spans[0].input, Some(json!("secret")));
     }
 
     #[tokio::test]
-    async fn redact_mode_overwrites_raw_and_stamps_clean() {
+    async fn redact_mode_overwrites_raw_and_stamps_checked() {
         let p = Uuid::new_v4();
         let mut spans = vec![span(p, Some(json!("a secret")), Some(json!("plain")))];
         let mut rows = vec![row(p, "{\"content\":\"secret\"}")];
@@ -550,13 +529,13 @@ mod tests {
         )
         .await;
         let verdict = outcome.span(0);
-        assert_eq!(verdict.state, PiiState::Clean);
+        assert!(verdict.checked);
         assert_eq!(verdict.input_redacted, None);
         assert_eq!(spans[0].input, Some(json!("a [REDACTED_SECRET]")));
         assert_eq!(spans[0].output, Some(json!("plain")));
         assert_eq!(rows[0].content, "{\"content\":\"[REDACTED_SECRET]\"}");
         assert_eq!(rows[0].content_redacted, "");
-        assert_eq!(rows[0].pii_state, u8::from(PiiState::Clean));
+        assert!(rows[0].pii_checked);
         assert_eq!(tn_in[0][0], "\"[REDACTED_SECRET] msg\"");
         assert!(outcome.is_indexable(0));
     }
@@ -585,7 +564,7 @@ mod tests {
         .await;
 
         let hit = outcome.span(0);
-        assert_eq!(hit.state, PiiState::Redacted);
+        assert!(hit.checked);
         assert_eq!(
             hit.input_redacted.as_deref(),
             Some("\"a [REDACTED_SECRET]\"")
@@ -594,7 +573,7 @@ mod tests {
         assert_eq!(spans[0].input, Some(json!("a secret")));
 
         let clean = outcome.span(1);
-        assert_eq!(clean.state, PiiState::Clean);
+        assert!(clean.checked);
         assert_eq!(clean.input_redacted, None);
 
         assert_eq!(rows[0].content, "{\"content\":\"secret\"}");
@@ -602,9 +581,9 @@ mod tests {
             rows[0].content_redacted,
             "{\"content\":\"[REDACTED_SECRET]\"}"
         );
-        assert_eq!(rows[0].pii_state, u8::from(PiiState::Redacted));
+        assert!(rows[0].pii_checked);
         assert_eq!(rows[1].content_redacted, "");
-        assert_eq!(rows[1].pii_state, u8::from(PiiState::Clean));
+        assert!(rows[1].pii_checked);
 
         // Search buffers only ever carry redacted text.
         assert_eq!(tn_in[0][0], "\"[REDACTED_SECRET] msg\"");
@@ -612,7 +591,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rpc_failure_stamps_failed_and_leaves_raw() {
+    async fn rpc_failure_leaves_raw_unchecked_and_unstamped() {
         let p = Uuid::new_v4();
         let mut spans = vec![span(p, Some(json!("secret")), None)];
         let mut rows = vec![row(p, "\"secret\"")];
@@ -626,8 +605,9 @@ mod tests {
             &modes(p, Some(PiiMode::Dual)),
         )
         .await;
-        assert_eq!(outcome.span(0).state, PiiState::Failed);
-        assert_eq!(rows[0].pii_state, u8::from(PiiState::Failed));
+        assert!(!outcome.span(0).checked);
+        assert!(!rows[0].pii_checked);
+        assert!(outcome.shared_row_failed(0));
         assert_eq!(spans[0].input, Some(json!("secret")));
         assert!(!outcome.is_indexable(0));
     }
@@ -646,7 +626,7 @@ mod tests {
             &modes(p, Some(PiiMode::Redact)),
         )
         .await;
-        assert_eq!(outcome.span(0).state, PiiState::Failed);
+        assert!(!outcome.span(0).checked);
         assert!(outcome.is_indexable(0));
     }
 
@@ -667,27 +647,33 @@ mod tests {
         )
         .await;
         assert!(redactor.calls.lock().unwrap().is_empty());
-        assert_eq!(outcome.span(0).state, PiiState::Failed);
-        assert_eq!(rows[0].pii_state, u8::from(PiiState::Failed));
+        assert!(!outcome.span(0).checked);
+        assert!(!rows[0].pii_checked);
+        assert!(outcome.shared_row_failed(0));
     }
 
-    #[test]
-    fn combine_prefers_the_worst_state() {
-        assert_eq!(
-            combine(PiiState::Clean, PiiState::Redacted),
-            PiiState::Redacted
-        );
-        assert_eq!(
-            combine(PiiState::Redacted, PiiState::Failed),
-            PiiState::Failed
-        );
-        assert_eq!(
-            combine(PiiState::Unchecked, PiiState::Clean),
-            PiiState::Clean
-        );
-        assert_eq!(
-            combine(PiiState::Unchecked, PiiState::Unchecked),
-            PiiState::Unchecked
-        );
+    #[tokio::test]
+    async fn parse_failure_after_a_clean_check_leaves_the_span_unchecked() {
+        struct Garbage;
+        impl RedactTexts for Garbage {
+            async fn redact(&self, texts: Vec<String>) -> Result<Vec<String>> {
+                Ok(texts.into_iter().map(|_| "not json".to_string()).collect())
+            }
+        }
+        let p = Uuid::new_v4();
+        let mut spans = vec![span(p, Some(json!("secret")), None)];
+        let outcome = redact_spans_in_place(
+            &Garbage,
+            &mut spans,
+            &mut [],
+            &mut [vec![]],
+            &mut [vec![]],
+            &[0],
+            &modes(p, Some(PiiMode::Dual)),
+        )
+        .await;
+        assert!(!outcome.span(0).checked);
+        assert!(!outcome.is_indexable(0));
+        assert_eq!(spans[0].input, Some(json!("secret")));
     }
 }
