@@ -22,8 +22,9 @@ ALTER TABLE deduped_content ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT fa
 -- moved to `spans_v1` (dropped in a later migration).
 --
 -- Masked branch: whole-value columns resolve through the row's `pii_checked`;
--- dedup'd messages resolve per message through the dict's `pii_checked`, with
--- JSON `null` standing in for an unavailable message so the array stays valid.
+-- dedup'd messages resolve per message through the dict's `pii_checked`. An
+-- unavailable value renders as the JSON string `"[PII_MASKED_UNAVAILABLE]"`
+-- (whole or per message) so the column stays parseable.
 -- Legacy `llm_messages_dict` rows have no state and are therefore unavailable
 -- under a masking policy.
 CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
@@ -68,7 +69,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                         t -> if(
                             tupleElement(t, 3),
                             if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
-                            'null'
+                            '"[PII_MASKED_UNAVAILABLE]"'
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
@@ -113,7 +114,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                         t -> if(
                             tupleElement(t, 3),
                             if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
-                            'null'
+                            '"[PII_MASKED_UNAVAILABLE]"'
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
