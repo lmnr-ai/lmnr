@@ -18,7 +18,12 @@ interface HeaderLinkButtonProps {
 export const HeaderLinkButton = ({ icon, label, tooltip, onClick, className }: HeaderLinkButtonProps) => (
   <Tooltip delayDuration={400}>
     <TooltipTrigger asChild>
-      <Button variant="ghost" size="sm" onClick={onClick} className={cn("h-7 hover:bg-surface-up", className)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onClick}
+        className={cn("h-7 bg-surface-up-2 hover:bg-surface-up-4 active:bg-surface-up-5", className)}
+      >
         {icon}
         <span className="truncate ml-1">{label}</span>
         <ArrowUpRight size={12} className="ml-1 flex-shrink-0" />

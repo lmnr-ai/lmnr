@@ -46,12 +46,15 @@ export default function ViewToggle({
   const isTreeView = tab === "tree";
 
   return (
-    <div className="flex items-center min-w-0">
+    <div className="flex items-center min-w-0 gap-px bg-surface-00">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className={cn("flex h-[26px] items-center hover:bg-surface-up-3", isTreeView && "rounded-r-none")}
+            className={cn(
+              "flex h-[26px] items-center bg-surface-up-2 hover:bg-surface-up-4 active:bg-surface-up-5 data-[state=open]:bg-surface-up-5",
+              isTreeView && "rounded-r-none"
+            )}
           >
             <CurrentIcon size={14} className="mr-1" />
             <span className="capitalize">{currentView.label}</span>
@@ -81,7 +84,7 @@ export default function ViewToggle({
           variant="ghost"
           onClick={onToggleContent}
           className={cn(
-            "flex h-[26px] items-center overflow-hidden rounded-l-none px-1.5 text-muted-foreground hover:bg-surface-up-3",
+            "flex h-[26px] items-center overflow-hidden rounded-l-none bg-surface-up-2 px-1.5 text-muted-foreground hover:bg-surface-up-4 active:bg-surface-up-5",
             showContent && "text-foreground"
           )}
         >
