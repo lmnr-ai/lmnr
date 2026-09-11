@@ -133,6 +133,7 @@ use crate::{
     reports::generator::ReportsGenerator,
 };
 
+mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
 mod api;
@@ -1382,7 +1383,7 @@ fn main() -> anyhow::Result<()> {
     // == PII redactor ==
     // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
     // redacted via the pii-redactor gRPC service for projects whose
-    // `projects.remove_pii` toggle is on. Failure to connect at startup
+    // `settings.piiMode` is not `off`. Failure to connect at startup
     // disables the feature without blocking app-server boot.
     let pii_redactor: Option<pii_redactor::PiiRedactorClient> = if is_feature_enabled(
         Feature::PiiRedaction,

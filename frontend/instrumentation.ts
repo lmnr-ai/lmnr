@@ -145,9 +145,11 @@ export async function register() {
       };
 
       // Project-scoped dedup dict. Backs the `deduped_content` table for
-      // both input/output messages and tool definitions. The `spans_v0`
-      // view tries this dict first and falls back to `llm_messages_dict`
-      // for legacy spans.
+      // both input/output messages and tool definitions. The spans views
+      // try this dict first and fall back to `llm_messages_dict` for legacy
+      // spans. `content_redacted` / `pii_state` feed the masked branch of
+      // `spans_v1` (migration 64); CREATE VIEW does not resolve dictionary
+      // attributes, so recreating the dict after migrations is sufficient.
       const ensureDedupedContentDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
         const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
@@ -160,7 +162,9 @@ export async function register() {
             (
                 project_id UUID,
                 content_hash String,
-                content String
+                content String,
+                content_redacted String,
+                pii_state UInt8
             )
             PRIMARY KEY project_id, content_hash
             SOURCE(CLICKHOUSE(

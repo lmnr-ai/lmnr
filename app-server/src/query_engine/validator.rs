@@ -4,8 +4,8 @@
 //! This is a security boundary: it enforces SELECT-only access, blocks
 //! ClickHouse functions that can reach the filesystem / network / other
 //! tenants, rejects `project_id` access and unknown table-qualified columns,
-//! and rewrites allowed table references to their project-scoped `_v0` view
-//! functions.
+//! and rewrites allowed table references to their project-scoped view
+//! functions (`_v0`, or `_v1` for the views that also take an access policy).
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
@@ -23,8 +23,26 @@ use sqlparser::parser::{Parser, ParserError};
 use sqlparser::tokenizer::{Span, Token, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
+/// Views that take the role-derived `policy` JSON argument (migration 64,
+/// docs/internal/rbac.md). Parameterized views have no default arguments, so a
+/// table moves here only together with its `_v1` view.
+const POLICY_VIEW_VERSION: &str = "v1";
+const SPANS_TABLE: &str = "spans";
 
-/// The `traces_v0` view is parameterized by `min_start_time` / `max_start_time`,
+/// Whether `table_name` resolves to a `_v1` view that takes `policy`.
+fn takes_policy(table_name: &str) -> bool {
+    table_name == SPANS_TABLE || table_name == TRACES_TABLE
+}
+
+fn view_version(table_name: &str) -> &'static str {
+    if takes_policy(table_name) {
+        POLICY_VIEW_VERSION
+    } else {
+        VIEW_VERSION
+    }
+}
+
+/// The `traces_v1` view is parameterized by `min_start_time` / `max_start_time`,
 /// which narrow the scan before the trace rows are materialized. These bounds are
 /// derived from the user's WHERE filters on `start_time` / `end_time` (padded ±3h,
 /// see [`START_TIME_PADDING`]); when the query has no time filter on traces, the
@@ -401,7 +419,7 @@ pub(crate) fn parse_clickhouse_sql(sql: &str) -> Result<Vec<Statement>, ParserEr
 
 /// Parse a single scalar expression with the same ClickHouse dialect used for
 /// statements. Used to build the `min_start_time` / `max_start_time` bound
-/// arguments injected into the `traces_v0(...)` view function.
+/// arguments injected into the `traces_v1(...)` view function.
 fn parse_ch_expr(sql: &str) -> Result<Expr, ParserError> {
     let dialect = ClickHouseOptionalIntervalDialect::default();
     let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
@@ -698,10 +716,13 @@ impl QueryValidator {
 
     /// Validates and secures a SQL query using virtual views. Returns the
     /// rewritten query or an error message describing why it was rejected.
+    /// `policy` is the JSON `AccessPolicy` literal passed to every `_v1` view
+    /// (`{}` = unrestricted).
     pub fn validate_and_secure_query(
         &self,
         sql_query: &str,
         project_id: &str,
+        policy: &str,
     ) -> Result<String, String> {
         let mut statements =
             parse_clickhouse_sql(sql_query).map_err(|e| format!("Query validation failed: {e}"))?;
@@ -735,6 +756,7 @@ impl QueryValidator {
         let mut rewriter = ViewRewriter {
             registry: &self.registry,
             project_id,
+            policy,
             cte_names,
             array_join_operands: &array_join_operands,
             where_stack: Vec::new(),
@@ -1225,7 +1247,7 @@ impl Visitor for PostRewriteChecker<'_> {
             if args.is_none() && is_array_join_operand(self.array_join_operands, name) {
                 return ControlFlow::Continue(());
             }
-            // A view function (`spans_v0(...)`) carries args; a bare allowlisted
+            // A view function (`spans_v1(...)`) carries args; a bare allowlisted
             // relation does not. The latter escaped rewriting — fail closed.
             if args.is_none() {
                 let table = relation_table_name(name);
@@ -1244,6 +1266,8 @@ impl Visitor for PostRewriteChecker<'_> {
 struct ViewRewriter<'a> {
     registry: &'a TableRegistry,
     project_id: &'a str,
+    /// JSON `AccessPolicy` literal for the `_v1` views.
+    policy: &'a str,
     cte_names: HashSet<String>,
     array_join_operands: &'a HashSet<Span>,
     where_stack: Vec<Option<Expr>>,
@@ -1303,7 +1327,7 @@ impl VisitorMut for ViewRewriter<'_> {
                 return ControlFlow::Continue(());
             }
 
-            let view_name = format!("{table_name}_{VIEW_VERSION}");
+            let view_name = format!("{table_name}_{}", view_version(&table_name));
             let alias_ident = alias
                 .as_ref()
                 .map(|a| a.name.clone())
@@ -1311,7 +1335,10 @@ impl VisitorMut for ViewRewriter<'_> {
 
             *name = ObjectName(vec![ObjectNamePart::Identifier(Ident::new(view_name))]);
             let mut view_args = vec![named_arg("project_id", string_expr(self.project_id))];
-            // `traces_v0` and `evaluation_datapoints_v0` are parameterized by
+            if takes_policy(&table_name) {
+                view_args.push(named_arg("policy", string_expr(self.policy)));
+            }
+            // `traces_v1` and `evaluation_datapoints_v0` are parameterized by
             // start_time bounds; derive them from the enclosing WHERE so the view
             // narrows its scan. Columns are matched against this relation's alias
             // (or the bare table name) so a joined table's `start_time` is not
@@ -1608,7 +1635,7 @@ fn merge(a: Option<String>, b: Option<String>, is_and: bool, lower: bool) -> Opt
 }
 
 /// Build the `min_start_time` / `max_start_time` argument expressions for a
-/// `traces_v0(...)` call from the enclosing WHERE clause. Derived bounds are
+/// `traces_v1(...)` call from the enclosing WHERE clause. Derived bounds are
 /// padded ±[`START_TIME_PADDING`]; missing bounds fall back to the broad epoch
 /// defaults so every trace stays visible.
 fn traces_time_bound_args(where_clause: Option<&Expr>, alias: &str) -> (Expr, Expr) {

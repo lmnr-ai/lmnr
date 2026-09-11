@@ -18,7 +18,7 @@
 //!
 //! After extraction the source attributes are stripped from `raw_attributes`
 //! so they don't ride the wire OR end up in `CHSpan.attributes`. The `tools`
-//! virtual column on `spans_v0` is the canonical read path.
+//! virtual column on the spans view is the canonical read path.
 
 use std::sync::Arc;
 
@@ -204,11 +204,11 @@ pub fn resolve_tool_dedup(
         return 0;
     }
     let bytes = content.len();
-    shared_content.push(CHDedupedContent {
-        project_id: span.project_id,
-        content_hash: dedup.hash,
-        content: content.clone(),
-    });
+    shared_content.push(CHDedupedContent::new(
+        span.project_id,
+        dedup.hash,
+        content.clone(),
+    ));
     bytes
 }
 

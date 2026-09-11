@@ -291,8 +291,8 @@ pub async fn build_message_dedup(
 ///
 /// For storage-miss positions the string is duplicated into both
 /// `shared_content` (CH insert) and `span_trace_new_contents` (Quickwit
-/// indexing). The PII redactor redacts both copies in lockstep when
-/// `remove_pii=true` for the project.
+/// indexing). The PII redactor redacts both copies in lockstep when the
+/// project's `piiMode` is not `off`.
 pub struct DedupBatch {
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
@@ -361,11 +361,7 @@ pub fn build_dedup_batch(
             if is_storage_miss && seen_storage_in_batch.insert((span.project_id, hash)) {
                 let content = content.clone();
                 content_bytes_for_span += content.len();
-                shared_content.push(CHDedupedContent {
-                    project_id: span.project_id,
-                    content_hash: hash,
-                    content,
-                });
+                shared_content.push(CHDedupedContent::new(span.project_id, hash, content));
             }
         }
 

@@ -7,7 +7,7 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings, ProjectSettingsSchema } from "./settings";
+import { parseStoredProjectSettings, type ProjectSettings } from "./settings";
 
 export const DeleteProjectSchema = z.object({
   projectId: z.guid(),
@@ -187,6 +187,15 @@ async function deleteProjectApiKeysFromCache(apiKeyHashes: string[]) {
   );
 }
 
+/** `projects.workspace_id`, or null when the project does not exist. */
+export async function getProjectWorkspaceId(projectId: string): Promise<string | null> {
+  const row = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: { workspaceId: true },
+  });
+  return row?.workspaceId ?? null;
+}
+
 export async function deleteAllProjectsWorkspaceInfoFromCache(workspaceId: string) {
   // Cache carries information about the projects in the workspace, so we need to delete it
   // when we delete or create a project in the workspace.
@@ -239,13 +248,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   }
 
   const project = projectResult[0];
-  // Tolerate older / hand-edited rows: anything the schema doesn't recognise
-  // falls back to defaults. `.partial()` lets the stored row omit keys.
-  const settingsParse = ProjectSettingsSchema.partial().safeParse(project.settings ?? {});
-  const settings: ProjectSettings = {
-    ...DEFAULT_PROJECT_SETTINGS,
-    ...(settingsParse.success ? settingsParse.data : {}),
-  };
+  const settings: ProjectSettings = parseStoredProjectSettings(project.settings);
 
   const workspaceResult = await db
     .select({

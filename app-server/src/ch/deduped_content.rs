@@ -15,14 +15,33 @@ use super::{
 /// Keyed by `(project_id, content_hash)`: the same content seen across two
 /// traces in the same project collapses to one row. Spans reference rows by
 /// hash via `input_message_hashes`, `output_message_hashes`, and
-/// `tool_definitions_hash` columns; the `spans_v0` view reconstructs the
-/// JSON on read via the `deduped_content_dict` dictionary.
+/// `tool_definitions_hash` columns; the spans views reconstruct the JSON on
+/// read via the `deduped_content_dict` dictionary.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHDedupedContent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     pub content_hash: [u8; 32],
     pub content: String,
+    /// Redacted copy, filled only in `dual` PII mode when the redactor
+    /// changed the content (`crate::pii_redactor`).
+    #[serde(default)]
+    pub content_redacted: String,
+    /// `crate::pii_redactor::PiiState` as stored.
+    #[serde(default)]
+    pub pii_state: u8,
+}
+
+impl CHDedupedContent {
+    pub fn new(project_id: Uuid, content_hash: [u8; 32], content: String) -> Self {
+        Self {
+            project_id,
+            content_hash,
+            content,
+            content_redacted: String::new(),
+            pii_state: 0,
+        }
+    }
 }
 
 pub async fn get_content_by_hash(

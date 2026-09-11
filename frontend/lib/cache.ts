@@ -265,6 +265,11 @@ export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) 
 
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
 
+// Must stay in sync with `MEMBER_ROLE_CACHE_KEY` in `app-server/src/cache/keys.rs`.
+// The app-server caches a member's role to derive its read policy; remove the
+// key whenever the role changes or the membership ends.
+export const MEMBER_ROLE_CACHE_KEY = (workspaceId: string, userId: string) => `member_role:${workspaceId}:${userId}`;
+
 export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
   `autocomplete:${resource}:${projectId}:${field}`;
 

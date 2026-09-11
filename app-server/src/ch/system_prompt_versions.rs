@@ -240,7 +240,7 @@ pub async fn fetch_version_span_refs(
 
 /// Fetch the SYSTEM PROMPT text of the given spans, keyed by span id.
 ///
-/// Reads the reconstructed message-array `input` through `spans_v0` (dedup'd
+/// Reads the reconstructed message-array `input` through `spans_v1` (dedup'd
 /// spans store an empty raw `spans.input`; the view rebuilds it from the
 /// content dictionaries — same pattern as the debugger warmup). Spans whose
 /// input yields no extractable system message are absent from the result;
@@ -260,7 +260,7 @@ pub async fn fetch_system_prompts(
     let rows = clickhouse
         .query(
             "SELECT span_id, input
-             FROM spans_v0(project_id={project_id:UUID})
+             FROM spans_v1(project_id={project_id:UUID}, policy='{}')
              WHERE trace_id IN {trace_ids:Array(UUID)}
                AND span_id IN {span_ids:Array(UUID)}",
         )

@@ -9,7 +9,7 @@ import {
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
@@ -102,11 +102,14 @@ export async function getSharedEvaluationDatapoints({
     sortDirection,
   });
 
-  const results = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  });
+  const results = await executeQuery<Record<string, unknown>>(
+    {
+      query,
+      parameters,
+      projectId,
+    },
+    { actor: SHARED_ACTOR }
+  );
 
   return { evaluation, results };
 }
@@ -156,11 +159,14 @@ export async function getSharedEvaluationStatistics({
     columns,
   });
 
-  const rawResults = await executeQuery<{ scores: string }>({
-    query: statsQuery,
-    parameters: statsParams,
-    projectId,
-  });
+  const rawResults = await executeQuery<{ scores: string }>(
+    {
+      query: statsQuery,
+      parameters: statsParams,
+      projectId,
+    },
+    { actor: SHARED_ACTOR }
+  );
 
   const parsedResults = rawResults.map((row) => {
     let scores: Record<string, unknown> | undefined;

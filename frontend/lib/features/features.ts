@@ -23,6 +23,7 @@ export enum Feature {
   LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
+  PII_DUAL_MODE = "PII_DUAL_MODE",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -145,6 +146,12 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.AGENT) {
     return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.PII_DUAL_MODE) {
+    // Same variable the app-server reads; both halves must agree before a
+    // project can be switched to `dual` (docs/internal/rbac.md).
+    return process.env.PII_DUAL_MODE_ENABLED === "true";
   }
 
   if (feature === Feature.TELEMETRY) {

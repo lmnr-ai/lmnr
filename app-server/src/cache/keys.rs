@@ -111,6 +111,10 @@ pub const INGESTION_RATE_LIMIT_PERIOD_CACHE_KEY: &str = "ingestion_project_rate_
 pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
 
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
+/// `member_role:{workspace_id}:{user_id}` → `members_of_workspaces.member_role`.
+/// Positive entries only; the frontend removes the key on role change and
+/// membership removal (`frontend/lib/actions/workspace`).
+pub const MEMBER_ROLE_CACHE_KEY: &str = "member_role";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
 pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";

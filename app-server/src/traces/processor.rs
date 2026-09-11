@@ -22,7 +22,9 @@ use crate::{
     db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
-    pii_redactor::{PiiRedactorClient, redact_spans_in_place},
+    pii_redactor::{
+        PiiOutcome, PiiRedactorClient, PiiState, redact_spans_in_place, resolve_project_pii_modes,
+    },
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
@@ -418,31 +420,34 @@ pub async fn process_span_messages(
         )
     };
 
-    // Project-level PII redaction. Triggered by `projects.settings.removePii`
+    // Project-level PII redaction. Driven by `projects.settings.piiMode`
     // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so
     // the redacted bytes flow into both the `shared_content` CH insert and
     // Quickwit indexing; runs BEFORE the `shared_content` CH insert /
     // Quickwit indexing so every storage tier holds the redacted content.
     // Already-seen-in-trace messages were redacted on first emit and ride
-    // the wire as hashes only. Tool-definition blobs share the
-    // `shared_content` buffer; the redactor walks every `shared_content`
-    // row of opted-in projects (so tool defs ARE redacted along with
-    // messages — acceptable, the redactor is no-op on schemas) plus the
-    // per-span Quickwit content. Best-effort: failures are logged inside
-    // `redact_spans_in_place` and do not fail the batch.
-    if let Some(redactor) = pii_redactor.as_ref() {
-        redact_spans_in_place(
-            redactor,
-            &mut spans,
-            &mut shared_content,
-            &mut input_batch.span_trace_new_contents,
-            &mut output_batch.span_trace_new_contents,
-            &recordable_indices,
-            db.clone(),
-            cache.clone(),
-        )
-        .await;
-    }
+    // the wire as hashes only. Best-effort: failures stamp `Failed` inside
+    // `redact_spans_in_place` and do not fail the batch. Without a redactor
+    // every row stays `Unchecked`, which the masked read path treats as
+    // unavailable.
+    let pii_outcome = match pii_redactor.as_ref() {
+        Some(redactor) => {
+            let modes =
+                resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone())
+                    .await;
+            redact_spans_in_place(
+                redactor,
+                &mut spans,
+                &mut shared_content,
+                &mut input_batch.span_trace_new_contents,
+                &mut output_batch.span_trace_new_contents,
+                &recordable_indices,
+                &modes,
+            )
+            .await
+        }
+        None => PiiOutcome::default(),
+    };
 
     for span in &mut spans {
         // Must run AFTER provider conversion (LangChain rewrites `input`)
@@ -498,6 +503,11 @@ pub async fn process_span_messages(
                 let usage = &span_usage_vec[span_idx];
                 let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
 
+                let pii = pii_outcome.span(span_idx);
+                ch_span.pii_state = pii.state.into();
+                ch_span.input_redacted = pii.input_redacted.unwrap_or_default();
+                ch_span.output_redacted = pii.output_redacted.unwrap_or_default();
+
                 let input_hashes = input_batch
                     .span_hashes
                     .get(dedup_idx)
@@ -505,6 +515,7 @@ pub async fn process_span_messages(
                     .unwrap_or_default();
                 if !input_hashes.is_empty() {
                     ch_span.input = String::new();
+                    ch_span.input_redacted = String::new();
                     ch_span.input_message_hashes = input_hashes;
                     ch_span.input_new_message_indices = input_batch
                         .span_new_indices
@@ -520,6 +531,7 @@ pub async fn process_span_messages(
                     .unwrap_or_default();
                 if !output_hashes.is_empty() {
                     ch_span.output = String::new();
+                    ch_span.output_redacted = String::new();
                     ch_span.output_message_hashes = output_hashes;
                     ch_span.output_new_message_indices = output_batch
                         .span_new_indices
@@ -634,8 +646,12 @@ pub async fn process_span_messages(
     // Trace-new keys for search "first occurrence per trace" semantic.
     // Project-scoped storage keys for content presence. Both must be stamped
     // on the consumer ONLY after a successful `shared_content` insert.
+    // Rows whose redaction failed are left unstamped so the next occurrence
+    // is treated as a storage miss and re-inserted (RMT keeps the latest),
+    // healing the row once the redactor is back.
     let storage_keys: Vec<(Uuid, [u8; 32])> = shared_content
         .iter()
+        .filter(|m| m.pii_state != u8::from(PiiState::Failed))
         .map(|m| (m.project_id, m.content_hash))
         .collect();
     let trace_new_keys: Vec<(Uuid, Uuid, [u8; 32])> = {
@@ -791,11 +807,32 @@ pub async fn process_span_messages(
             } else {
                 None
             };
-            QuickwitIndexedSpan::from_span(
-                s,
+            // `dual` mode: whole-value text reaches the index only in its
+            // redacted form, and a span whose redaction failed contributes
+            // no text at all.
+            let span_idx = recordable_indices[dedup_idx];
+            let pii = pii_outcome.span(span_idx);
+            let redacted_copy = (pii.input_redacted.is_some() || pii.output_redacted.is_some())
+                .then(|| {
+                    let mut owned = (*s).clone();
+                    if let Some(text) = pii.input_redacted.as_deref() {
+                        owned.input = serde_json::from_str(text).ok();
+                    }
+                    if let Some(text) = pii.output_redacted.as_deref() {
+                        owned.output = serde_json::from_str(text).ok();
+                    }
+                    owned
+                });
+            let mut doc = QuickwitIndexedSpan::from_span(
+                redacted_copy.as_ref().unwrap_or(s),
                 new_input_messages.as_deref(),
                 new_output_messages.as_deref(),
-            )
+            );
+            if !pii_outcome.is_indexable(span_idx) {
+                doc.input = None;
+                doc.output = None;
+            }
+            doc
         })
         .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs

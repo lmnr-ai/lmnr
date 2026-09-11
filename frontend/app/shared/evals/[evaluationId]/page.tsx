@@ -6,6 +6,7 @@ import PageViewTracker from "@/components/common/page-view-tracker";
 import SharedEvaluation from "@/components/shared/evaluation/shared-evaluation";
 import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { getSharedEvaluation } from "@/lib/actions/shared/evaluation";
+import { SHARED_ACTOR } from "@/lib/actions/sql";
 import { ogImage } from "@/lib/metadata";
 
 const getCachedSharedEvaluation = cache((evaluationId: string) => getSharedEvaluation({ evaluationId }));
@@ -50,7 +51,10 @@ export default async function SharedEvaluationPage(props: { params: Promise<{ ev
     return notFound();
   }
 
-  const scoreNames = await getEvaluationScoreNames({ projectId: shared.projectId, evaluationId });
+  const scoreNames = await getEvaluationScoreNames(
+    { projectId: shared.projectId, evaluationId },
+    { actor: SHARED_ACTOR }
+  );
 
   return (
     <>

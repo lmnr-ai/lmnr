@@ -203,8 +203,8 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
     // spans in the trace. Project-scoped `deduped_content_dict` is tried
     // first; legacy spans fall back to the trace-scoped `llm_messages_dict`
     // for input. Output reconstruction has no legacy fallback. Attributes
-    // are untransformed. Reading raw `spans` directly skips the `spans_v0`
-    // view's full reconstruction.
+    // are untransformed. Reading raw `spans` directly skips the spans view's
+    // full reconstruction.
     format!(
         "SELECT span_id,
                 if(

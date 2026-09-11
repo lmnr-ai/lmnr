@@ -154,6 +154,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
+| `docs/internal/rbac.md` | `piiMode` (off/redact/dual), `pii_state`, `spans_v1`/`traces_v1` policy param, `AccessPolicy`, SQL route `actor`, role-based PII masking |
 | `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |

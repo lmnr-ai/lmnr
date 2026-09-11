@@ -37,6 +37,7 @@ pub mod mock;
 pub mod mq;
 pub mod notifications;
 pub mod observability;
+pub mod pii;
 #[cfg(feature = "signals")]
 pub mod private;
 pub mod quickwit;
