@@ -15,6 +15,7 @@ pub(super) struct SpanScope {
     report_id: Uuid,
     workspace_id: Uuid,
     source_project_id: Uuid,
+    signal_id: Option<Uuid>,
     period_start: i64,
     period_end: i64,
     parent: Option<SpanContextCarrier>,
@@ -35,6 +36,7 @@ impl SpanScope {
             report_id,
             workspace_id,
             source_project_id,
+            signal_id: None,
             period_start,
             period_end,
             parent: None,
@@ -47,6 +49,13 @@ impl SpanScope {
             ..self.clone()
         }
     }
+
+    pub(super) fn with_signal(&self, signal_id: Uuid) -> Self {
+        Self {
+            signal_id: Some(signal_id),
+            ..self.clone()
+        }
+    }
 }
 
 pub(super) struct SpanBuilder;
@@ -54,14 +63,19 @@ pub(super) struct SpanBuilder;
 impl SpanBuilder {
     fn base(span: InternalSpan, scope: &SpanScope) -> InternalSpan {
         let source_project_id = scope.source_project_id.to_string();
-        span.project(scope.internal_project_id)
+        let span = span
+            .project(scope.internal_project_id)
             .span_path_root(ROOT_SPAN_NAME)
             .session_id(&scope.report_id.to_string())
             .metadata_str("report_id", &scope.report_id.to_string())
             .metadata_str("workspace_id", &scope.workspace_id.to_string())
             .metadata_str("project_id", &source_project_id)
             .metadata_str("period_start", &scope.period_start.to_string())
-            .metadata_str("period_end", &scope.period_end.to_string())
+            .metadata_str("period_end", &scope.period_end.to_string());
+        match scope.signal_id {
+            Some(signal_id) => span.metadata_str("signal_id", &signal_id.to_string()),
+            None => span,
+        }
     }
 
     pub(super) fn root(scope: &SpanScope) -> tracing::Span {

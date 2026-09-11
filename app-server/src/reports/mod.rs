@@ -3,7 +3,11 @@ pub mod report_data;
 pub mod scheduler;
 mod self_tracing;
 
-pub use report_data::{NoteworthyEvent, ProjectReportData, ReportData};
+#[allow(unused_imports)]
+pub use report_data::{
+    NoteworthyEvent, ProjectReportData, ReportChartBucket, ReportClusterData, ReportData,
+    SignalReportData,
+};
 
 use std::sync::Arc;
 
