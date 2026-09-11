@@ -36,9 +36,9 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex flex-col px-2 pt-2 gap-2">
-        <div className="flex flex-none items-center gap-2">
+        <div className="flex flex-none items-center gap-2 overflow-hidden">
           <SpanTypeIcon spanType={span.spanType} />
-          <div className="min-w-0">
+          <div className="min-w-0 overflow-hidden">
             <SpanActionsDropdown projectId={projectId as string} span={span} />
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -62,6 +62,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           <div className="flex h-6 w-fit items-center rounded-md bg-surface-up-2 px-2">
             <ClientTimestampFormatter
               absolute
+              seconds
               timestamp={span.startTime}
               className="text-xs text-secondary-foreground"
             />
