@@ -7,29 +7,42 @@ use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
 
-/// Project-scoped content-addressed row that backs structural dedup for any
-/// hash-referenced JSON blob the spans table points at (LLM input messages,
-/// LLM output messages, normalized tool-definition arrays, and any future
-/// single-blob dedup we add).
-///
-/// Keyed by `(project_id, content_hash)`: the same content seen across two
-/// traces in the same project collapses to one row. Spans reference rows by
-/// hash via `input_message_hashes`, `output_message_hashes`, and
-/// `tool_definitions_hash` columns; the `spans_v0` view reconstructs the
-/// JSON on read via the `deduped_content_dict` dictionary.
+/// One `unique_content` row: any JSON blob the spans table references by
+/// hash (input / output messages, tool-definition arrays). Keyed by
+/// `(project_id, group_id, content_hash)` — see `traces::dedup` for the group.
+/// Field order is the table's column order: the clickhouse crate binds by
+/// position.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
-pub struct CHDedupedContent {
+pub struct CHUniqueContent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
+    pub group_id: String,
     pub content_hash: [u8; 32],
     pub content: String,
 }
 
+/// Resolve one blob by hash: the group-scoped table first, then the legacy
+/// project-scoped `deduped_content` for rows written before migration 64.
 pub async fn get_content_by_hash(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
+    group_id: &str,
     content_hash_hex: &str,
 ) -> clickhouse::error::Result<Option<String>> {
+    let grouped = clickhouse
+        .query(
+            "SELECT content FROM unique_content
+             WHERE project_id = ? AND group_id = ? AND content_hash = toFixedString(unhex(?), 32)
+             LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(group_id)
+        .bind(content_hash_hex)
+        .fetch_optional::<String>()
+        .await?;
+    if grouped.is_some() {
+        return Ok(grouped);
+    }
     clickhouse
         .query(
             "SELECT content FROM deduped_content
@@ -42,8 +55,8 @@ pub async fn get_content_by_hash(
         .await
 }
 
-impl ClickhouseInsertable for CHDedupedContent {
-    const TABLE: Table = Table::DedupedContent;
+impl ClickhouseInsertable for CHUniqueContent {
+    const TABLE: Table = Table::UniqueContent;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
         insert.with_setting(
@@ -53,6 +66,6 @@ impl ClickhouseInsertable for CHDedupedContent {
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
-        DataPlaneBatch::DedupedContent(items)
+        DataPlaneBatch::UniqueContent(items)
     }
 }

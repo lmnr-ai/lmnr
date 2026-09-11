@@ -12,7 +12,6 @@ use crate::{
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
-        deduped_content::CHDedupedContent,
         spans::CHSpan,
         traces::TraceAggregation,
         traces_agg::{CHTraceAgg, PATCH_START_TIME_OFFSET_NS},
@@ -29,7 +28,11 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{DedupBatch, MessageDedup, build_dedup_batch, mark_seen},
+        dedup::{
+            SeenMarks, SharedContentBatch,
+            messages::{MessageBatch, MessageDedup},
+            tools::{ToolDedup, resolve_tool_dedup},
+        },
         metadata::TraceMetadataPatch,
         provider::convert_span_to_provider_format,
         realtime::{
@@ -38,7 +41,6 @@ use crate::{
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
-        tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
     utils::limits::update_workspace_bytes_ingested,
@@ -53,20 +55,20 @@ const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 /// are accounted identically (both are excluded from
 /// `estimate_size_bytes_no_payload`, so the billing loop owns 100% of their
 /// charge):
-///   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted
-///     `shared_content` bytes (first referrer in batch pays the content).
+///   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted shared
+///     content bytes (first referrer in batch pays the content).
 ///   - non-recordable + producer stripped the field to `None`: bill from the
-///     wire dedup — 32B/hash + every trace-new content. Over-bills the
-///     trace-new-but-storage-hit subset (content already in `shared_content`
-///     from another trace) by its JSON size; acceptable, bounded by the trace's
+///     wire dedup — 32B/hash + every shipped content. Over-bills the
+///     trace-new-but-storage-hit subset (content already stored from another
+///     trace) by its JSON size; acceptable, bounded by the trace's
 ///     unique-message tail, and the only post-dedup analogue available without
-///     re-running `build_dedup_batch` for these spans.
+///     re-running `MessageBatch::build` for these spans.
 ///   - everyone else (populated, non-array, or genuinely empty field): raw JSON
 ///     size.
 fn field_bytes(
     dedup_idx: Option<usize>,
     wire_dedup: Option<&MessageDedup>,
-    batch: &DedupBatch,
+    batch: &MessageBatch,
     raw: &Option<serde_json::Value>,
 ) -> usize {
     if let Some(idx) = dedup_idx {
@@ -78,14 +80,14 @@ fn field_bytes(
             raw.as_ref().map_or(0, crate::utils::estimate_json_size)
         }
     } else if let Some(d) = wire_dedup {
-        d.hashes.len() * 32 + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
+        d.hashes.len() * 32 + d.contents.values().map(|s| s.len()).sum::<usize>()
     } else {
         raw.as_ref().map_or(0, crate::utils::estimate_json_size)
     }
 }
 
 /// Billed bytes for a span's tool definitions: 32B for the hash plus any
-/// newly-inserted `shared_content` (first referrer in batch pays the content).
+/// newly-inserted shared content (first referrer in batch pays the content).
 /// `should_keep_attribute` already strips the source `ai.prompt.tools` /
 /// `llm.request.functions.*` / `gen_ai.tool.definitions` keys out of
 /// `CHSpan.attributes`, so this isn't double-counted by
@@ -107,7 +109,7 @@ fn tool_bytes(
 /// Raw extracted trace io carried on a metadata-only virtual span, split out
 /// before the regular pipeline. `input` is the verbatim JSON the façade put on
 /// `SPAN_TRACE_INPUT`; `output_hashes` are the per-message hashes into
-/// `deduped_content`. Both land in `traces_static`'s own io columns.
+/// `unique_content`. Both land in `traces_static`'s own io columns.
 struct RawTraceIo {
     project_id: Uuid,
     trace_id: Uuid,
@@ -326,8 +328,7 @@ pub async fn process_span_messages(
 
     // Split into parallel `Vec`s — downstream code reads `spans`, `dedups`
     // (input messages), `output_dedups`, and `tool_dedups` as separate slices
-    // keyed by index. All three dedup paths share the project-scoped
-    // `shared_content` table.
+    // keyed by index. All three dedup paths share one content batch.
     let (mut spans, dedup_triples): (
         Vec<Span>,
         Vec<(
@@ -357,13 +358,11 @@ pub async fn process_span_messages(
 
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
-    // Build the unified dedup batch up front so the size-bytes loop and
-    // CHSpans build can run before we kick off the parallel inserts. Input,
-    // output, and tool dedups all share the project-scoped `shared_content`
-    // table. The `seen_storage_in_batch` HashSet collapses
-    // `(project_id, hash)` across all three paths so a hash that appears as
-    // input in span A, output in span B, and as part of a tool definition
-    // in span C emits exactly one `shared_content` row.
+    // Resolve every dedup verdict up front so the size-bytes loop and CHSpans
+    // build can run before we kick off the parallel inserts. Input, output and
+    // tool content share one `SharedContentBatch`, which collapses a key that
+    // appears as input in span A, output in span B, and in a tool definition
+    // in span C into exactly one `unique_content` row.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -380,35 +379,21 @@ pub async fn process_span_messages(
             .iter()
             .map(|&i| output_dedups[i].clone())
             .collect();
-        let recordable_tool_dedups: Vec<Option<ToolDedup>> = recordable_indices
+
+        let mut shared_content = SharedContentBatch::default();
+        let input_batch =
+            MessageBatch::build(&dedup_spans, &recordable_input_dedups, &mut shared_content);
+        let output_batch =
+            MessageBatch::build(&dedup_spans, &recordable_output_dedups, &mut shared_content);
+
+        let tool_content_bytes: Vec<usize> = recordable_indices
             .iter()
-            .map(|&i| tool_dedups[i].clone())
+            .zip(&dedup_spans)
+            .map(|(&span_idx, span)| match tool_dedups[span_idx].as_ref() {
+                Some(td) => resolve_tool_dedup(span, td, &mut shared_content),
+                None => 0,
+            })
             .collect();
-
-        let mut shared_content: Vec<CHDedupedContent> = Vec::new();
-        let mut seen_storage_in_batch: std::collections::HashSet<(Uuid, [u8; 32])> =
-            std::collections::HashSet::new();
-
-        let input_batch = build_dedup_batch(
-            &dedup_spans,
-            &recordable_input_dedups,
-            &mut seen_storage_in_batch,
-            &mut shared_content,
-        );
-        let output_batch = build_dedup_batch(
-            &dedup_spans,
-            &recordable_output_dedups,
-            &mut seen_storage_in_batch,
-            &mut shared_content,
-        );
-
-        let mut tool_content_bytes: Vec<usize> = vec![0; recordable_indices.len()];
-        for (dedup_idx, span) in dedup_spans.iter().enumerate() {
-            if let Some(td) = recordable_tool_dedups[dedup_idx].as_ref() {
-                tool_content_bytes[dedup_idx] =
-                    resolve_tool_dedup(span, td, &mut seen_storage_in_batch, &mut shared_content);
-            }
-        }
 
         (
             shared_content,
@@ -419,22 +404,19 @@ pub async fn process_span_messages(
     };
 
     // Project-level PII redaction. Triggered by `projects.settings.removePii`
-    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so
-    // the redacted bytes flow into both the `shared_content` CH insert and
-    // Quickwit indexing; runs BEFORE the `shared_content` CH insert /
-    // Quickwit indexing so every storage tier holds the redacted content.
-    // Already-seen-in-trace messages were redacted on first emit and ride
-    // the wire as hashes only. Tool-definition blobs share the
-    // `shared_content` buffer; the redactor walks every `shared_content`
-    // row of opted-in projects (so tool defs ARE redacted along with
-    // messages — acceptable, the redactor is no-op on schemas) plus the
-    // per-span Quickwit content. Best-effort: failures are logged inside
-    // `redact_spans_in_place` and do not fail the batch.
+    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup and
+    // BEFORE the `unique_content` insert / Quickwit indexing so every
+    // storage tier holds the redacted content. Already-seen-in-trace messages
+    // were redacted on first emit and ride the wire as hashes only. The
+    // redactor walks every shared row of opted-in projects (so tool defs ARE
+    // redacted along with messages — acceptable, the redactor is no-op on
+    // schemas) plus the per-span Quickwit content. Best-effort: failures are
+    // logged inside `redact_spans_in_place` and do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
         redact_spans_in_place(
             redactor,
             &mut spans,
-            &mut shared_content,
+            shared_content.rows_mut(),
             &mut input_batch.span_trace_new_contents,
             &mut output_batch.span_trace_new_contents,
             &recordable_indices,
@@ -453,8 +435,8 @@ pub async fn process_span_messages(
     }
 
     // Charge each span for its input + output + tool definitions. Dedup'd
-    // fields pay 32B per hash + any newly-inserted `messages.content`
-    // (shared content billed once to the first referrer in the batch);
+    // fields pay 32B per hash + any newly-inserted shared content (billed
+    // once to the first referrer in the batch);
     // non-dedup'd or empty fields pay for the raw JSON. `estimate_size_bytes_no_payload`
     // intentionally excludes input AND output so this loop owns 100% of
     // their accounting.
@@ -538,10 +520,10 @@ pub async fn process_span_messages(
     };
 
     // Parallelize trace upsert against the span path. Within the span path
-    // the strict order llm_messages -> mark_seen -> spans must be preserved
-    // (`spans` is plain MergeTree, so a retry after a successful spans
-    // insert + failed llm_messages insert would duplicate every span row).
-    // See CLAUDE.md "Ingest order in process_span_messages".
+    // the strict order unique_content -> spans -> Redis stamps must be
+    // preserved (`spans` is plain MergeTree, so a retry after a successful
+    // spans insert + failed content insert would duplicate every span row).
+    // See `docs/internal/dedup-search.md` "Ingest order".
     let ch = &ch;
 
     let trace_branch = async {
@@ -631,61 +613,33 @@ pub async fn process_span_messages(
         }
     };
 
-    // Trace-new keys for search "first occurrence per trace" semantic.
-    // Project-scoped storage keys for content presence. Both must be stamped
-    // on the consumer ONLY after a successful `shared_content` insert.
-    let storage_keys: Vec<(Uuid, [u8; 32])> = shared_content
-        .iter()
-        .map(|m| (m.project_id, m.content_hash))
-        .collect();
-    let trace_new_keys: Vec<(Uuid, Uuid, [u8; 32])> = {
-        let mut acc: Vec<(Uuid, Uuid, [u8; 32])> = Vec::new();
-        for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
-            let span = &spans[span_idx];
-            if let Some(hashes) = input_batch.span_hashes.get(dedup_idx) {
-                if let Some(positions) = input_batch.span_new_indices.get(dedup_idx) {
-                    for &pos in positions {
-                        if let Some(h) = hashes.get(pos as usize) {
-                            acc.push((span.project_id, span.trace_id, *h));
-                        }
-                    }
-                }
-            }
-            if let Some(hashes) = output_batch.span_hashes.get(dedup_idx) {
-                if let Some(positions) = output_batch.span_new_indices.get(dedup_idx) {
-                    for &pos in positions {
-                        if let Some(h) = hashes.get(pos as usize) {
-                            acc.push((span.project_id, span.trace_id, *h));
-                        }
-                    }
-                }
-            }
-        }
-        acc
-    };
+    let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
+
+    // Storage marks for content presence, trace-new marks for the search
+    // "first occurrence per trace" semantic. Stamped ONLY after both inserts.
+    let mut seen_marks = SeenMarks::default();
+    shared_content.storage_marks(&mut seen_marks);
+    input_batch.trace_new_marks(&recordable_refs, &mut seen_marks);
+    output_batch.trace_new_marks(&recordable_refs, &mut seen_marks);
 
     let span_branch = async {
-        // Strict order: shared_content -> spans -> mark_seen. `spans` is plain
+        // Strict order: unique_content -> spans -> stamp. `spans` is plain
         // MergeTree, so a retry after a successful spans insert + failed
-        // shared_content insert would duplicate every span row. `mark_seen`
-        // runs LAST because the two key axes are backed by different tables:
-        // `s:` keys by `shared_content`, but `tn:` (trace-new) keys by
-        // `spans.*_new_message_indices`. Stamping `tn:` before the spans insert
-        // (the old order) left a window where a permanently-dropped spans
-        // insert orphaned the trace-new marker — later spans in the same trace
-        // saw the `tn:` key and shipped empty `*_new_message_indices`, so no
-        // span recorded the first occurrence. Stamp only after BOTH backing
-        // stores are durable. See CLAUDE.md "Ingest order in
-        // process_span_messages".
+        // content insert would duplicate every span row. Stamping runs LAST
+        // because the two key axes are backed by different tables: `s2:` by
+        // `unique_content`, `tn:` by `spans.*_new_message_indices` — a
+        // `tn:` key stamped before a permanently-dropped spans insert made
+        // later spans ship empty `*_new_message_indices`, so no span recorded
+        // the first occurrence. See `docs/internal/dedup-search.md`.
         if !shared_content.is_empty() {
-            if let Err(e) = ch.insert_batch(&shared_content, config).await {
+            if let Err(e) = ch.insert_batch(shared_content.rows(), config).await {
                 log::error!(
-                    "Failed to insert {} shared_content rows to ClickHouse: {:?}",
+                    "Failed to insert {} unique_content rows to ClickHouse: {:?}",
                     shared_content.len(),
                     e
                 );
                 return Err(HandlerError::transient(anyhow::anyhow!(
-                    "Failed to insert shared_content to Clickhouse: {:?}",
+                    "Failed to insert unique_content to Clickhouse: {:?}",
                     e
                 )));
             }
@@ -703,8 +657,8 @@ pub async fn process_span_messages(
             )));
         }
 
-        if !storage_keys.is_empty() || !trace_new_keys.is_empty() {
-            mark_seen(&storage_keys, &trace_new_keys, cache.clone()).await;
+        if !seen_marks.is_empty() {
+            seen_marks.stamp(&cache).await;
         }
         Ok(())
     };
@@ -726,8 +680,6 @@ pub async fn process_span_messages(
     .await;
 
     // Send realtime span updates
-    let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
-
     let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
@@ -747,12 +699,13 @@ pub async fn process_span_messages(
             // new), so cross-trace shared content is still indexed for
             // THIS trace's first-occurrence search. Unparseable JSON is
             // dropped (filter_map) — the row still went to
-            // `shared_content` if storage-miss, it just isn't searchable.
+            // `unique_content` if storage-miss, it just isn't searchable.
             // A span with no hashes (non-array input) gets `None`, so
             // `from_span` falls through to raw `span.input`. Output is
             // dedup'd the same way: `span.output` is `None` on the wire for
             // dedup'd LLM spans, so the trace-new output array is rebuilt
             // from `output_batch.span_trace_new_contents` (mirrors input).
+            // `unique_content` holds the same bytes under the span's group.
             let new_input_messages = if s.is_llm_span()
                 && input_batch
                     .span_hashes
