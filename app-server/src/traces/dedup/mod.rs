@@ -118,7 +118,7 @@ pub fn debug_input_hash(input: &Value) -> String {
 fn storage_seen_key(project_id: Uuid, group_id: &str, hash: &ContentHash) -> String {
     format!(
         "{DEDUP_STORAGE_SEEN_CACHE_KEY}:{}:{group_id}:{}",
-        project_id.simple(),
+        project_id.to_string(),
         hex::encode(hash)
     )
 }
@@ -126,8 +126,8 @@ fn storage_seen_key(project_id: Uuid, group_id: &str, hash: &ContentHash) -> Str
 fn trace_new_key(project_id: Uuid, trace_id: Uuid, hash: &ContentHash) -> String {
     format!(
         "{DEDUP_TRACE_NEW_CACHE_KEY}:{}:{}:{}",
-        project_id.simple(),
-        trace_id.simple(),
+        project_id.to_string(),
+        trace_id.to_string(),
         hex::encode(hash)
     )
 }

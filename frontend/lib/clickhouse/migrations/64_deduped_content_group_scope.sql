@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS deduped_content_v2
 )
 ENGINE = ReplacingMergeTree(last_seen_at)
 ORDER BY (project_id, group_id, content_hash)
+-- identical rows will not be merged across partitions
+-- but the overhead is low (given this is scoped to trace)
+-- and it wins on maintenance / TTLs, so this is deliberate
+PARTITION BY toStartOfWeek(last_seen_at)
 SETTINGS index_granularity = 8192, index_granularity_bytes = 2097152;
 
 -- `spans_v0`: migration 61's body with the v2 -> v1 lookup chain. The group is

@@ -27,8 +27,8 @@ const TRACE_SESSION_HINT_TTL_SECONDS: u64 = 6 * 3600;
 fn hint_key(project_id: Uuid, trace_id: Uuid) -> String {
     format!(
         "{TRACE_SESSION_HINT_CACHE_KEY}:{}:{}",
-        project_id.simple(),
-        trace_id.simple()
+        project_id.to_string(),
+        trace_id.to_string()
     )
 }
 
