@@ -130,18 +130,28 @@ export const ToolList = ({ tools }: { tools: Tool[] }) => {
           <ChevronDown className="trigger-open size-3" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="max-w-96 p-0 overflow-hidden" align="start" side="bottom">
-        <ScrollArea className="max-h-[50vh]" viewportClassName="max-h-[50vh]">
-          <div className="flex flex-col gap-1 p-1">
+      <DropdownMenuContent
+        className="w-96 max-w-(--radix-dropdown-menu-content-available-width) overflow-hidden p-0"
+        align="start"
+        side="bottom"
+      >
+        <ScrollArea className="w-full max-h-[50vh]" viewportClassName="max-h-[50vh] [&>div]:!block [&>div]:!w-full">
+          <div className="flex w-full min-w-0 flex-col gap-1 p-1">
             {tools.map((tool, index) => (
               <details
                 key={index}
-                className="overflow-hidden rounded-md bg-surface-up text-xs [&[open]_.parameters-closed]:hidden [&:not([open])_.parameters-open]:hidden"
+                className="w-full min-w-0 overflow-hidden rounded-md bg-surface-up text-xs [&[open]_.parameters-closed]:hidden [&:not([open])_.parameters-open]:hidden"
               >
-                <summary className={tool.parameters ? "group cursor-pointer list-none p-2 pb-1" : "list-none p-2 pb-1"}>
-                  <div className="mb-1 flex items-center gap-2">
-                    <Bolt size={10} className="text-tool" />
-                    <Label className="text-xs font-mono text-tool">{tool.name}</Label>
+                <summary
+                  className={
+                    tool.parameters
+                      ? "group min-w-0 cursor-pointer list-none overflow-hidden p-2 pb-1"
+                      : "min-w-0 list-none overflow-hidden p-2 pb-1"
+                  }
+                >
+                  <div className="mb-1 flex min-w-0 items-center gap-2">
+                    <Bolt size={10} className="shrink-0 text-tool" />
+                    <Label className="min-w-0 break-all text-xs font-mono text-tool">{tool.name}</Label>
                   </div>
                   {tool.description && (
                     <p className="mb-1 text-xs leading-relaxed text-muted-foreground">{tool.description}</p>
@@ -159,7 +169,7 @@ export const ToolList = ({ tools }: { tools: Tool[] }) => {
                     readOnly
                     value={tool.parameters}
                     defaultMode="json"
-                    className="rounded-none border-x-0 border-b-0 bg-surface-up-2 border-none"
+                    className="w-full min-w-0 rounded-none border-x-0 border-b-0 bg-surface-up-2 border-none"
                   />
                 )}
               </details>
