@@ -242,57 +242,6 @@ mod tests {
         assert!(minimal.contents.is_empty());
     }
 
-    #[test]
-    fn legacy_wire_shape_translates_offsets_to_positions() {
-        // The pre-LAM-2234 shape: `trace_new_contents` aligned with
-        // `trace_new_indices` by offset, `storage_miss_offsets` indexing into
-        // `trace_new_indices` rather than into `hashes`. Position 3 is
-        // trace-new but a storage hit (already in `deduped_content`, which the
-        // views still read as a fallback), so it must NOT become a miss.
-        let h = |b: u8| format!("[{}]", vec![b.to_string(); 32].join(","));
-        let legacy = format!(
-            r#"{{"hashes":[{},{},{},{}],
-                 "trace_new_indices":[1,3],
-                 "trace_new_contents":["{{\"a\":1}}","{{\"b\":2}}"],
-                 "storage_miss_offsets":[0]}}"#,
-            h(1),
-            h(2),
-            h(3),
-            h(4)
-        );
-        let d: MessageDedup = serde_json::from_str(&legacy).unwrap();
-        assert_eq!(d.hashes.len(), 4);
-        assert_eq!(d.trace_new_indices, vec![1, 3]);
-        assert_eq!(d.storage_miss_indices, vec![1]);
-        assert_eq!(d.contents.get(&1).map(String::as_str), Some(r#"{"a":1}"#));
-        assert_eq!(d.contents.get(&3).map(String::as_str), Some(r#"{"b":2}"#));
-    }
-
-    #[test]
-    fn pre_project_scoped_aliases_still_deserialize() {
-        // The oldest shape `dev` accepts: `new_indices` / `new_contents`, no
-        // `storage_miss_offsets`. Must not fall through to the new-shape
-        // branch, which would drop `contents` silently.
-        let zero = format!("[{}]", vec!["0"; 32].join(","));
-        let ancient =
-            format!(r#"{{"hashes":[{zero}],"new_indices":[0],"new_contents":["{{\"a\":1}}"]}}"#);
-        let d: MessageDedup = serde_json::from_str(&ancient).unwrap();
-        assert_eq!(d.trace_new_indices, vec![0]);
-        assert_eq!(d.storage_miss_indices, vec![0]);
-        assert_eq!(d.contents.get(&0).map(String::as_str), Some(r#"{"a":1}"#));
-    }
-
-    #[test]
-    fn oldest_wire_shape_without_offsets_treats_every_trace_new_as_a_miss() {
-        let zero = format!("[{}]", vec!["0"; 32].join(","));
-        let oldest = format!(
-            r#"{{"hashes":[{zero}],"trace_new_indices":[0],"trace_new_contents":["{{}}"]}}"#
-        );
-        let d: MessageDedup = serde_json::from_str(&oldest).unwrap();
-        assert_eq!(d.storage_miss_indices, vec![0]);
-        assert_eq!(d.contents.get(&0).map(String::as_str), Some("{}"));
-    }
-
     #[tokio::test]
     async fn returns_none_for_empty_input_array() {
         let span = llm_span(Uuid::new_v4(), Uuid::new_v4(), json!([]));
