@@ -12,7 +12,7 @@ export function InstallTabsSection() {
 
   return (
     <Tabs defaultValue="typescript" value={tabValue} onValueChange={setTabValue}>
-      <TabsList className="border-none flex">
+      <TabsList className="flex">
         <TabsTrigger value="typescript">TypeScript</TabsTrigger>
         <TabsTrigger value="python">Python</TabsTrigger>
       </TabsList>
@@ -48,7 +48,7 @@ Laminar.initialize();
 
   return (
     <Tabs value={tabValue} onValueChange={setTabValue} defaultValue="typescript">
-      <TabsList className="border-none flex">
+      <TabsList className="flex">
         <TabsTrigger value="typescript">TypeScript</TabsTrigger>
         <TabsTrigger value="python">Python</TabsTrigger>
       </TabsList>

@@ -2,16 +2,17 @@ import { ArrowRight } from "lucide-react";
 import { memo } from "react";
 
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
-import { cn } from "@/lib/utils.ts";
+import { cn, formatTimestampWithSeconds } from "@/lib/utils.ts";
 
 interface InputItemProps {
   text: string | null;
   isLoading: boolean;
   inGroup?: boolean;
   className?: string;
+  startTime?: string;
 }
 
-function InputItemInner({ text, inGroup, className }: InputItemProps) {
+function InputItemInner({ text, inGroup, className, startTime }: InputItemProps) {
   if (!text) return null;
 
   return (
@@ -31,6 +32,11 @@ function InputItemInner({ text, inGroup, className }: InputItemProps) {
             <ArrowRight size={14} />
           </div>
           <span className="font-medium text-sm whitespace-nowrap shrink-0">Input</span>
+          {startTime && (
+            <time dateTime={startTime} className="ml-auto shrink-0 text-xs text-muted-foreground">
+              {formatTimestampWithSeconds(startTime)}
+            </time>
+          )}
         </div>
         <div className="pl-7">
           <CollapsedTextWithMore text={text} lineHeight={17} />
