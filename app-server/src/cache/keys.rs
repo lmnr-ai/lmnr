@@ -201,10 +201,10 @@ pub const SYSTEM_PROMPT_REGEX_EXTRACTION_LOCK_CACHE_KEY: &str =
     "system_prompt_regex_extraction_lock";
 
 // Content dedup (`traces/dedup`). `s2` is scoped by the span's locality group
-// (session, else trace) and backed by `deduped_content_v2`; the retired `s`
+// (session, else trace) and backed by `unique_content`; the retired `s`
 // prefix was project-scoped and backed the legacy `deduped_content` table, so
-// its leftover keys must not suppress v2 inserts.
-/// `s2:{project}:{group}:{hash}` — content row is durable in `deduped_content_v2`.
+// its leftover keys must not suppress `unique_content` inserts.
+/// `s2:{project}:{group}:{hash}` — content row is durable in `unique_content`.
 pub const DEDUP_STORAGE_SEEN_CACHE_KEY: &str = "s2";
 /// `tn:{project}:{trace}:{hash}` — hash already recorded as a first occurrence
 /// in the trace (`spans.*_new_message_indices`).

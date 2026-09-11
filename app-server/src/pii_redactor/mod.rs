@@ -7,7 +7,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
-use crate::ch::deduped_content::CHDedupedContent;
+use crate::ch::unique_content::CHUniqueContent;
 use crate::db::DB;
 use crate::db::spans::Span;
 use crate::utils::limits::get_workspace_info_for_project_id;
@@ -60,7 +60,7 @@ enum Target {
     Input(usize),
     /// Whole `span.output`.
     Output(usize),
-    /// One row of the `deduped_content_v2` CH buffer. Redacted content is
+    /// One row of the `unique_content` CH buffer. Redacted content is
     /// inserted into ClickHouse on the next step; same content also lives
     /// in some span's `span_trace_new_contents` (under
     /// [`Target::TraceNew`]), redacted independently in the same RPC.
@@ -114,7 +114,7 @@ async fn resolve_opted_in_projects(
 /// - **Whole `span.input` / `span.output`**: kept on root spans for the
 ///   trace-list preview and on non-LLM / non-array-input spans.
 /// - **`SharedContentBatch` rows**: every row about to be inserted into
-///   the CH `deduped_content_v2` table.
+///   the CH `unique_content` table.
 /// - **Per-span `span_trace_new_contents`**: the per-span Quickwit
 ///   indexing buffer. Covers ALL trace-new positions (storage-miss AND
 ///   storage-hit-but-trace-new), so cross-trace shared content is
@@ -130,7 +130,7 @@ async fn resolve_opted_in_projects(
 /// are schemas, not user text).
 ///
 /// MUST run after `MessageBatch::build` (input + output) and BEFORE the
-/// `deduped_content_v2` ClickHouse insert / Quickwit indexing.
+/// `unique_content` ClickHouse insert / Quickwit indexing.
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
@@ -148,7 +148,7 @@ async fn resolve_opted_in_projects(
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
-    shared_content: &mut Vec<CHDedupedContent>,
+    shared_content: &mut Vec<CHUniqueContent>,
     input_trace_new_contents: &mut [Vec<String>],
     output_trace_new_contents: &mut [Vec<String>],
     recordable_indices: &[usize],

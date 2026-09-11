@@ -128,9 +128,9 @@ pub struct CHSpan {
     pub events: Vec<(i64, String, String)>,
     /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
     /// left empty and the view reconstructs the input JSON array through
-    /// `deduped_content_v2_dict`, keyed by the row's own group (`session_id`,
+    /// `unique_content_dict`, keyed by the row's own group (`session_id`,
     /// else `trace_id`), falling back to the legacy project-scoped
-    /// `deduped_content_dict` for rows written before migration 63.
+    /// `deduped_content_dict` for rows written before migration 64.
     #[serde(default)]
     pub input_message_hashes: Vec<[u8; 32]>,
     /// 0-based positions into `input_message_hashes` for messages this span
@@ -310,7 +310,7 @@ pub async fn is_span_in_project(
 ///
 /// `input` is the reconstructed message-array JSON from `spans_v0` (dedup'd
 /// spans store an empty `spans.input`; the view rebuilds it from
-/// `deduped_content_v2_dict` / `deduped_content_dict`). `raw_response`, `gen_ai_output`
+/// `unique_content_dict` / `deduped_content_dict`). `raw_response`, `gen_ai_output`
 /// and `finish_reason` are extracted from the raw `attributes` blob via
 /// `JSONExtractRaw`, which yields an empty string when the key is absent.
 ///

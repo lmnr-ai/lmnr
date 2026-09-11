@@ -26,7 +26,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{AGENT_CLASSIFY_LOCK_CACHE_KEY, AGENT_VERSION_HASH_CACHE_KEY},
     },
-    ch::deduped_content,
+    ch::unique_content,
     db::{DB, agents},
     llm::LlmClient,
     mq::{MessageQueue, stream::StreamPublisher},
@@ -46,7 +46,7 @@ pub struct CheckpointsQueueMessage {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     /// Empty when the span carried none; with `trace_id` it locates the
-    /// span's `deduped_content_v2` group (`traces::dedup::group_id`).
+    /// span's `unique_content` group (`traces::dedup::group_id`).
     #[serde(default)]
     pub session_id: String,
     pub system_prompt: String,
@@ -206,7 +206,7 @@ impl CheckpointsHandler {
         let tool_definitions = if message.tool_definitions_hash.is_empty() {
             String::new()
         } else {
-            deduped_content::get_content_by_hash(
+            unique_content::get_content_by_hash(
                 &self.clickhouse,
                 message.project_id,
                 &dedup::group_id(&message.session_id, message.trace_id),

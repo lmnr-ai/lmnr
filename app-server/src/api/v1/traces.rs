@@ -40,7 +40,7 @@ pub struct RabbitMqSpanMessage {
     /// Pre-computed dedup verdict for an LLM span's output messages. Same
     /// shape as `input_dedup`. Cross-direction collapse: model output of
     /// span A and input of span B in the same group emit one
-    /// `deduped_content_v2` row.
+    /// `unique_content` row.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_dedup: Option<MessageDedup>,
     /// Pre-computed dedup verdict for an LLM span's tool definitions.

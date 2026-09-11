@@ -109,7 +109,7 @@ fn tool_bytes(
 /// Raw extracted trace io carried on a metadata-only virtual span, split out
 /// before the regular pipeline. `input` is the verbatim JSON the façade put on
 /// `SPAN_TRACE_INPUT`; `output_hashes` are the per-message hashes into
-/// `deduped_content_v2`. Both land in `traces_static`'s own io columns.
+/// `unique_content`. Both land in `traces_static`'s own io columns.
 struct RawTraceIo {
     project_id: Uuid,
     trace_id: Uuid,
@@ -362,7 +362,7 @@ pub async fn process_span_messages(
     // build can run before we kick off the parallel inserts. Input, output and
     // tool content share one `SharedContentBatch`, which collapses a key that
     // appears as input in span A, output in span B, and in a tool definition
-    // in span C into exactly one `deduped_content_v2` row.
+    // in span C into exactly one `unique_content` row.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -405,7 +405,7 @@ pub async fn process_span_messages(
 
     // Project-level PII redaction. Triggered by `projects.settings.removePii`
     // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup and
-    // BEFORE the `deduped_content_v2` insert / Quickwit indexing so every
+    // BEFORE the `unique_content` insert / Quickwit indexing so every
     // storage tier holds the redacted content. Already-seen-in-trace messages
     // were redacted on first emit and ride the wire as hashes only. The
     // redactor walks every shared row of opted-in projects (so tool defs ARE
@@ -520,7 +520,7 @@ pub async fn process_span_messages(
     };
 
     // Parallelize trace upsert against the span path. Within the span path
-    // the strict order deduped_content_v2 -> spans -> Redis stamps must be
+    // the strict order unique_content -> spans -> Redis stamps must be
     // preserved (`spans` is plain MergeTree, so a retry after a successful
     // spans insert + failed content insert would duplicate every span row).
     // See `docs/internal/dedup-search.md` "Ingest order".
@@ -623,23 +623,23 @@ pub async fn process_span_messages(
     output_batch.trace_new_marks(&recordable_refs, &mut seen_marks);
 
     let span_branch = async {
-        // Strict order: deduped_content_v2 -> spans -> stamp. `spans` is plain
+        // Strict order: unique_content -> spans -> stamp. `spans` is plain
         // MergeTree, so a retry after a successful spans insert + failed
         // content insert would duplicate every span row. Stamping runs LAST
         // because the two key axes are backed by different tables: `s2:` by
-        // `deduped_content_v2`, `tn:` by `spans.*_new_message_indices` — a
+        // `unique_content`, `tn:` by `spans.*_new_message_indices` — a
         // `tn:` key stamped before a permanently-dropped spans insert made
         // later spans ship empty `*_new_message_indices`, so no span recorded
         // the first occurrence. See `docs/internal/dedup-search.md`.
         if !shared_content.is_empty() {
             if let Err(e) = ch.insert_batch(shared_content.rows(), config).await {
                 log::error!(
-                    "Failed to insert {} deduped_content_v2 rows to ClickHouse: {:?}",
+                    "Failed to insert {} unique_content rows to ClickHouse: {:?}",
                     shared_content.len(),
                     e
                 );
                 return Err(HandlerError::transient(anyhow::anyhow!(
-                    "Failed to insert deduped_content_v2 to Clickhouse: {:?}",
+                    "Failed to insert unique_content to Clickhouse: {:?}",
                     e
                 )));
             }
@@ -699,13 +699,13 @@ pub async fn process_span_messages(
             // new), so cross-trace shared content is still indexed for
             // THIS trace's first-occurrence search. Unparseable JSON is
             // dropped (filter_map) — the row still went to
-            // `deduped_content_v2` if storage-miss, it just isn't searchable.
+            // `unique_content` if storage-miss, it just isn't searchable.
             // A span with no hashes (non-array input) gets `None`, so
             // `from_span` falls through to raw `span.input`. Output is
             // dedup'd the same way: `span.output` is `None` on the wire for
             // dedup'd LLM spans, so the trace-new output array is rebuilt
             // from `output_batch.span_trace_new_contents` (mirrors input).
-            // `deduped_content_v2` holds the same bytes under the span's group.
+            // `unique_content` holds the same bytes under the span's group.
             let new_input_messages = if s.is_llm_span()
                 && input_batch
                     .span_hashes

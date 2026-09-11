@@ -198,17 +198,18 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
 }
 
 /// Dictionary lookup for one content hash, mirroring `spans_v0`: the
-/// group-scoped `deduped_content_v2_dict` first, the legacy project-scoped
-/// `deduped_content_dict` only when v2 has no row. Nested `if` rather than
-/// `coalesce` because `coalesce` evaluates every branch eagerly, while `if`
-/// skips the v1 lookup for v2-only hashes (identical `dictGetOrNull` calls are
-/// evaluated once). `dedup_group` is the query's `WITH` alias.
+/// group-scoped `unique_content_dict` first, the legacy project-scoped
+/// `deduped_content_dict` only when `unique_content` has no row. `if` rather
+/// than `coalesce`/`ifNull`, which evaluate every branch eagerly: both dicts
+/// are `COMPLEX_KEY_CACHE`, so a `deduped_content_dict` lookup for a hash that
+/// only `unique_content` has (the common case post-migration) is a cache miss
+/// that queries the legacy table. `dedup_group` is the query's `WITH` alias.
 fn content_lookup(hash_expr: &str) -> String {
     format!(
         "if(
-            isNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, {hash_expr}))),
+            isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}))),
             dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, {hash_expr}), 'null'),
-            assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, {hash_expr})))
+            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}), 'null')
         )"
     )
 }

@@ -7,13 +7,13 @@ use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
 
-/// One `deduped_content_v2` row: any JSON blob the spans table references by
+/// One `unique_content` row: any JSON blob the spans table references by
 /// hash (input / output messages, tool-definition arrays). Keyed by
 /// `(project_id, group_id, content_hash)` — see `traces::dedup` for the group.
 /// Field order is the table's column order: the clickhouse crate binds by
 /// position.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
-pub struct CHDedupedContent {
+pub struct CHUniqueContent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     pub group_id: String,
@@ -22,7 +22,7 @@ pub struct CHDedupedContent {
 }
 
 /// Resolve one blob by hash: the group-scoped table first, then the legacy
-/// project-scoped `deduped_content` for rows written before migration 63.
+/// project-scoped `deduped_content` for rows written before migration 64.
 pub async fn get_content_by_hash(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
@@ -31,7 +31,7 @@ pub async fn get_content_by_hash(
 ) -> clickhouse::error::Result<Option<String>> {
     let grouped = clickhouse
         .query(
-            "SELECT content FROM deduped_content_v2
+            "SELECT content FROM unique_content
              WHERE project_id = ? AND group_id = ? AND content_hash = toFixedString(unhex(?), 32)
              LIMIT 1",
         )
@@ -55,8 +55,8 @@ pub async fn get_content_by_hash(
         .await
 }
 
-impl ClickhouseInsertable for CHDedupedContent {
-    const TABLE: Table = Table::DedupedContentV2;
+impl ClickhouseInsertable for CHUniqueContent {
+    const TABLE: Table = Table::UniqueContent;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
         insert.with_setting(
@@ -66,6 +66,6 @@ impl ClickhouseInsertable for CHDedupedContent {
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
-        DataPlaneBatch::DedupedContentV2(items)
+        DataPlaneBatch::UniqueContent(items)
     }
 }

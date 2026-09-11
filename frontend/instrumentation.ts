@@ -125,12 +125,12 @@ export async function register() {
         // Current: group-scoped (session, else trace) so one trace's
         // lookups land in adjacent granules.
         {
-          name: "deduped_content_v2_dict",
-          table: "deduped_content_v2",
+          name: "unique_content_dict",
+          table: "unique_content",
           keyColumns: ["project_id UUID", "group_id String", "content_hash String"],
         },
         // Legacy: project-scoped, read-only fallback for spans ingested
-        // before migration 63. No writer.
+        // before migration 64. No writer.
         {
           name: "deduped_content_dict",
           table: "deduped_content",

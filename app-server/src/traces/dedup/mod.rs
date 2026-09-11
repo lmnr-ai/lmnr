@@ -1,5 +1,5 @@
 //! Structural dedup of LLM span payloads — input messages, output messages,
-//! tool definitions — into the content-addressed `deduped_content_v2` table.
+//! tool definitions — into the content-addressed `unique_content` table.
 //!
 //! Every blob is BLAKE3-hashed over canonical JSON and stored once per
 //! `(project_id, group_id, content_hash)`. The group is the span's session when
@@ -14,7 +14,7 @@
 //!   drives `*_new_message_indices` for search and Quickwit indexing.
 //!
 //! The producer only reads these; the consumer stamps them ([`SeenMarks`]) once
-//! the `deduped_content_v2` and `spans` inserts are both durable. The one
+//! the `unique_content` and `spans` inserts are both durable. The one
 //! producer-side write is the trace→session hint in [`session`].
 
 pub mod messages;
@@ -31,7 +31,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{DEDUP_STORAGE_SEEN_CACHE_KEY, DEDUP_TRACE_NEW_CACHE_KEY},
     },
-    ch::deduped_content::CHDedupedContent,
+    ch::unique_content::CHUniqueContent,
     db::spans::Span,
 };
 
@@ -139,7 +139,7 @@ async fn is_seen(cache: &Cache, key: &str) -> bool {
 }
 
 /// Redis stamps for one consumer flush. Stamped only after both backing tables
-/// are durable: `s2:` keys are backed by `deduped_content_v2`, `tn:` keys by
+/// are durable: `s2:` keys are backed by `unique_content`, `tn:` keys by
 /// `spans.*_new_message_indices`, and a key without its row would make later
 /// spans skip content that never landed.
 #[derive(Default)]
@@ -167,12 +167,12 @@ impl SeenMarks {
     }
 }
 
-/// Rows headed for `deduped_content_v2` in one flush. Input, output and tool
+/// Rows headed for `unique_content` in one flush. Input, output and tool
 /// content share it, so a hash referenced by several spans or fields is inserted
 /// and billed once — to the first referrer in batch order.
 #[derive(Default)]
 pub struct SharedContentBatch {
-    rows: Vec<CHDedupedContent>,
+    rows: Vec<CHUniqueContent>,
     keys: HashSet<(Uuid, String, ContentHash)>,
 }
 
@@ -188,7 +188,7 @@ impl SharedContentBatch {
         if !self.keys.insert((project_id, group_id.to_string(), hash)) {
             return 0;
         }
-        self.rows.push(CHDedupedContent {
+        self.rows.push(CHUniqueContent {
             project_id,
             group_id: group_id.to_string(),
             content_hash: hash,
@@ -205,12 +205,12 @@ impl SharedContentBatch {
         self.rows.len()
     }
 
-    pub fn rows(&self) -> &[CHDedupedContent] {
+    pub fn rows(&self) -> &[CHUniqueContent] {
         &self.rows
     }
 
     /// Mutable for the PII redactor, which rewrites `content` in place.
-    pub fn rows_mut(&mut self) -> &mut Vec<CHDedupedContent> {
+    pub fn rows_mut(&mut self) -> &mut Vec<CHUniqueContent> {
         &mut self.rows
     }
 

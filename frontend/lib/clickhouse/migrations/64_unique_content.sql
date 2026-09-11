@@ -2,19 +2,23 @@
 --
 -- `deduped_content` is keyed `(project_id, content_hash)`, so one trace's
 -- messages are scattered over the whole table and reconstructing it costs the
--- dictionary one granule read per distinct hash. `deduped_content_v2` leads the
+-- dictionary one granule read per distinct hash. `unique_content` leads the
 -- key with the span's locality group — its session id when it has one, else its
 -- trace id — so a conversation's content is one contiguous key range. Granules
 -- are 2 MiB instead of the 10 MiB default to trim the range's boundary waste;
 -- smaller buys nothing because compressed blocks are ~1 MiB anyway.
 --
 -- Forward-only: `deduped_content` keeps serving rows written before this
--- migration and gets no new writes. The views try the v2 dictionary first and
--- fall back to the v1 one only for hashes v2 doesn't have (`if` evaluates its
--- branches lazily; `coalesce` would run both lookups). The trace-scoped
+-- migration and gets no new writes. The views try the `unique_content`
+-- dictionary first and fall back to the `deduped_content` one only for hashes
+-- `unique_content` does not have. `if`, not `coalesce`/`ifNull`, which evaluate
+-- every branch eagerly: both dicts are COMPLEX_KEY_CACHE, so a
+-- `deduped_content_dict` lookup for a hash it never had is a cache miss that
+-- queries the legacy table (measured on CH 26.5: `coalesce` = one such lookup
+-- per hash, `if` = zero). The trace-scoped
 -- `llm_messages_dict` leg is gone from every reader; `llm_messages` and its
 -- dictionary stay until a follow-up cleanup migration drops them.
-CREATE TABLE IF NOT EXISTS deduped_content_v2
+CREATE TABLE IF NOT EXISTS unique_content
 (
     project_id UUID,
     group_id String,
@@ -30,7 +34,7 @@ ORDER BY (project_id, group_id, content_hash)
 PARTITION BY toStartOfWeek(last_seen_at)
 SETTINGS index_granularity = 8192, index_granularity_bytes = 2097152;
 
--- `spans_v0`: migration 61's body with the v2 -> v1 lookup chain. The group is
+-- `spans_v0`: migration 61's body with the `unique_content` -> `deduped_content` lookup chain. The group is
 -- derived from the row itself (`app-server/src/traces/dedup/mod.rs::group_id`
 -- is the Rust mirror of `dedup_group`), so no new span column is needed.
 DROP VIEW IF EXISTS spans_v0;
@@ -73,9 +77,9 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> if(
-                        isNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, h))),
+                        isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, h))),
                         dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), 'null'),
-                        assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, h)))
+                        dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, h), 'null')
                     ),
                     input_message_hashes
                 ),
@@ -88,9 +92,9 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> if(
-                        isNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, h))),
+                        isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, h))),
                         dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), 'null'),
-                        assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, h)))
+                        dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, h), 'null')
                     ),
                     output_message_hashes
                 ),
@@ -101,9 +105,9 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         if(
             tool_definitions_hash != toFixedString('', 32),
             if(
-                isNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, tool_definitions_hash))),
+                isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, tool_definitions_hash))),
                 dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, tool_definitions_hash), ''),
-                assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, dedup_group, tool_definitions_hash)))
+                dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, tool_definitions_hash), '')
             ),
             ''
         ) AS tool_definitions,
@@ -117,7 +121,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
 
 -- `trace_outputs_v0`: the output hashes were written by an LLM span whose group
 -- was the session if it was known at ingest, else the trace — and the trace's
--- session may only have arrived on a later span. Try both groups, then v1.
+-- session may only have arrived on a later span. Try both groups, then `deduped_content`.
 DROP VIEW IF EXISTS default.trace_outputs_v0;
 CREATE VIEW IF NOT EXISTS default.trace_outputs_v0 SQL SECURITY INVOKER AS
 WITH
@@ -128,12 +132,12 @@ SELECT
     arrayMap(
         h -> if(
             session_group != ''
-                AND isNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, session_group, h))),
-            assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, session_group, h))),
+                AND isNotNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, session_group, h))),
+            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, session_group, h), ''),
             if(
-                isNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, trace_group, h))),
+                isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, trace_group, h))),
                 dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), ''),
-                assumeNotNull(dictGetOrNull('deduped_content_v2_dict', 'content', tuple(project_id, trace_group, h)))
+                dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, trace_group, h), '')
             )
         ),
         arrayMap(
