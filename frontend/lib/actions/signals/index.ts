@@ -1,10 +1,10 @@
-import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import signalTemplates from "@/components/signals/prompts";
 import { SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
 import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
-import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { PaginationFiltersSchema, SortSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSignalDefinition, mintSignalVersion } from "@/lib/actions/signal-versions";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
@@ -41,6 +41,9 @@ export type SignalRow = {
   eventsCount: number;
   clustersCount: number;
   lastEventAt: string | null;
+  runsCount: number;
+  // Populated by the private signal-versioning implementation when available.
+  versionsCount: number | null;
 };
 
 export type Signal = {
@@ -79,6 +82,7 @@ const LLM_PROFILE_CLOUD_ERROR = {
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
+  ...SortSchema.shape,
   projectId: z.guid(),
   search: z.string().nullable().optional(),
 });
@@ -408,7 +412,8 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
 }
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
-  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } = input;
+  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter, sortBy, sortDirection } =
+    input;
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
@@ -442,6 +447,15 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   whereConditions.push(...filterConditions);
 
+  const sortableColumns = {
+    name: signals.name,
+    prompt: signals.prompt,
+    createdAt: signals.createdAt,
+  } as const;
+  const sortColumn =
+    sortBy && sortBy in sortableColumns ? sortableColumns[sortBy as keyof typeof sortableColumns] : null;
+  const sortOrder = sortDirection === "ASC" ? asc : desc;
+
   const results = await db
     .select({
       id: signals.id,
@@ -454,7 +468,14 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     })
     .from(signals)
     .where(and(...whereConditions))
-    .orderBy(desc(signals.createdAt))
+    .orderBy(
+      ...(sortColumn
+        ? [sortOrder(sortColumn), desc(signals.createdAt)]
+        : [
+            asc(sql<number>`CASE WHEN ${signals.metadata}->>'disabled' = 'true' THEN 1 ELSE 0 END`),
+            desc(signals.createdAt),
+          ])
+    )
     .limit(limit)
     .offset(offset);
 
@@ -462,9 +483,10 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   const eventCountBySignal: Record<string, number> = {};
   const clusterCountBySignal: Record<string, number> = {};
   const lastEventBySignal: Record<string, string> = {};
+  const runCountBySignal: Record<string, number> = {};
 
   if (signalIds.length > 0) {
-    const [eventStats, clusterCounts] = await Promise.all([
+    const [eventStats, clusterCounts, runCounts] = await Promise.all([
       executeQuery<{ signal_id: string; count: string; last_event_at: string }>({
         projectId,
         query: `
@@ -491,6 +513,18 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       `,
         parameters: { signalIds },
       }),
+      executeQuery<{ signal_id: string; count: string }>({
+        projectId,
+        query: `
+        SELECT
+          signal_id,
+          uniqExact(run_id) as count
+        FROM signal_runs
+        WHERE signal_id IN ({signalIds: Array(UUID)})
+        GROUP BY signal_id
+      `,
+        parameters: { signalIds },
+      }),
     ]);
 
     for (const row of eventStats) {
@@ -501,6 +535,10 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     for (const row of clusterCounts) {
       clusterCountBySignal[row.signal_id] = parseInt(row.count, 10);
     }
+
+    for (const row of runCounts) {
+      runCountBySignal[row.signal_id] = parseInt(row.count, 10);
+    }
   }
 
   const items: SignalRow[] = results.map(({ metadata, ...signal }) => ({
@@ -509,6 +547,8 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     eventsCount: eventCountBySignal[signal.id] || 0,
     clustersCount: clusterCountBySignal[signal.id] || 0,
     lastEventAt: lastEventBySignal[signal.id] || null,
+    runsCount: runCountBySignal[signal.id] || 0,
+    versionsCount: null,
   }));
 
   return {

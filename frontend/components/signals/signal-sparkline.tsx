@@ -12,6 +12,7 @@ interface SignalSparklineProps {
 }
 
 export default function SignalSparkline({ data, maxCount, isLoading }: SignalSparklineProps) {
+  const height = 48;
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -36,7 +37,7 @@ export default function SignalSparkline({ data, maxCount, isLoading }: SignalSpa
 
   if (isLoading) {
     return (
-      <div ref={containerRef} className="w-full" style={{ height: 40 }}>
+      <div ref={containerRef} className="w-full" style={{ height }}>
         <Skeleton className="w-full h-full rounded-sm" />
       </div>
     );
@@ -44,23 +45,23 @@ export default function SignalSparkline({ data, maxCount, isLoading }: SignalSpa
 
   if (!data || data.length === 0) {
     return (
-      <div ref={containerRef} className="w-full flex items-center" style={{ height: 40 }}>
+      <div ref={containerRef} className="w-full flex items-center" style={{ height }}>
         <span className="text-muted-foreground text-xs">No data</span>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="w-full" style={{ height: 40 }}>
+    <div ref={containerRef} className="w-full" style={{ height }}>
       {width > 0 && (
-        <LineChart width={width} height={40} data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+        <LineChart width={width} height={height} data={data} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <YAxis domain={[0, Math.max(maxCount ?? 1, 1)]} hide />
           <Line
             activeDot={false}
             type="linear"
             dataKey="count"
             stroke="hsl(var(--primary))"
-            strokeWidth={1.5}
+            strokeWidth={1}
             dot={false}
             isAnimationActive={false}
           />
