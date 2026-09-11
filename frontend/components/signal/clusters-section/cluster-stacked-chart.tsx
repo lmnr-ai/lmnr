@@ -6,6 +6,8 @@ import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
 import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
@@ -30,6 +32,11 @@ interface ClusterStackedChartProps {
   colorMap: Map<string, string>;
   /** Absolutely-positioned content over the plot — the cluster readout. */
   overlay?: ReactNode;
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  onSelectRange: (range: DateRange) => void;
+  showSearchWiderRange: boolean;
 }
 
 export default function ClusterStackedChart({
@@ -38,6 +45,11 @@ export default function ClusterStackedChart({
   containerWidth,
   colorMap,
   overlay,
+  pastHours,
+  startDate,
+  endDate,
+  onSelectRange,
+  showSearchWiderRange,
 }: ClusterStackedChartProps) {
   const markers = useSignalVersionMarkers();
 
@@ -85,8 +97,16 @@ export default function ClusterStackedChart({
 
   if (isEmpty) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No data for selected time range
+      <div className="flex flex-col items-center justify-center gap-2 h-full text-muted-foreground text-sm">
+        <span>No data for selected time range</span>
+        {showSearchWiderRange && (
+          <SearchWiderRangeButton
+            pastHours={pastHours}
+            startDate={startDate}
+            endDate={endDate}
+            onSelect={onSelectRange}
+          />
+        )}
       </div>
     );
   }

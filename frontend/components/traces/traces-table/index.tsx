@@ -143,6 +143,10 @@ function TracesTableContent() {
     if (statsUrl) fetchStats(statsUrl);
   }, [statsUrl, fetchStats]);
 
+  const handleClearFilters = useCallback(() => {
+    setSearchAndFilters({ filters: [], search: "" });
+  }, [setSearchAndFilters]);
+
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
       setSort(columnId || null, columnId ? direction : null);
@@ -180,6 +184,7 @@ function TracesTableContent() {
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
+        onClearFilters={handleClearFilters}
         pastHours={pastHours}
         startDate={startDate}
         endDate={endDate}

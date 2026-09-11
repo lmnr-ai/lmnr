@@ -6,7 +6,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::db::signal_triggers::{self, TriggerPatch, TriggerRow};
-use crate::traces::input_dedup::canonical_json;
+use crate::traces::dedup::canonical_json;
 
 /// No FK from alerts.source_id — delete in application code.
 const ALERT_TYPE_SIGNAL_EVENT: &str = "SIGNAL_EVENT";

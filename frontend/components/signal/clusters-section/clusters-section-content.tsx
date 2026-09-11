@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
@@ -10,6 +10,7 @@ import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-bre
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getChartClusters, selectUnclusteredCount, useSignalStoreContext } from "@/components/signal/store.tsx";
+import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
@@ -43,6 +44,8 @@ const EMPTY_HAS_CHILDREN = new Set<string>();
 
 export default function ClustersSectionContent({ className }: Props) {
   const searchParams = useSearchParams();
+  const pathName = usePathname();
+  const router = useRouter();
   const { toast } = useToast();
   const [clusterId, setClusterId] = useClusterId();
   const [emergingClusterId, setEmergingClusterId] = useEmergingClusterId();
@@ -141,6 +144,19 @@ export default function ClustersSectionContent({ className }: Props) {
   const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
   const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
 
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("startDate");
+      params.delete("endDate");
+      params.delete("groupByInterval");
+      params.set("pastHours", range.value);
+      params.set("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
   // The one way anything in the section changes the selection.
   const selectCluster = useCallback(
     (id: string) => {
@@ -191,6 +207,11 @@ export default function ClustersSectionContent({ className }: Props) {
               statsData={clusterStatsData}
               containerWidth={localChartWidth}
               colorMap={colorMap}
+              pastHours={pastHours}
+              startDate={startDate}
+              endDate={endDate}
+              onSelectRange={searchWiderRange}
+              showSearchWiderRange={!clusterId && !emergingClusterId}
               // With the list gone the chart has no other label for what is pinned
               // — and with nothing pinned, the readout's root list is the only way
               // to reach a folded cluster or the unclustered bucket, which has no

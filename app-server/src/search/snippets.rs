@@ -197,36 +197,39 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
         .join(", ")
 }
 
+/// Dictionary lookup for one content hash, mirroring `spans_v0`: the
+/// group-scoped `unique_content_dict` first, the legacy project-scoped
+/// `deduped_content_dict` only when `unique_content` has no row. `if` rather
+/// than `coalesce`/`ifNull`, which evaluate every branch eagerly: both dicts
+/// are `COMPLEX_KEY_CACHE`, so a `deduped_content_dict` lookup for a hash that
+/// only `unique_content` has (the common case post-migration) is a cache miss
+/// that queries the legacy table. `dedup_group` is the query's `WITH` alias.
+fn content_lookup(hash_expr: &str) -> String {
+    format!(
+        "if(
+            isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}))),
+            dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, {hash_expr}), 'null'),
+            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}), 'null')
+        )"
+    )
+}
+
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
     // For LLM (deduped) spans, input/output snippets match only the deduped
     // "new messages" — older repeated history is searchable via earlier
-    // spans in the trace. Project-scoped `deduped_content_dict` is tried
-    // first; legacy spans fall back to the trace-scoped `llm_messages_dict`
-    // for input. Output reconstruction has no legacy fallback. Attributes
-    // are untransformed. Reading raw `spans` directly skips the spans view's
-    // full reconstruction.
+    // spans in the trace. Attributes are untransformed. Reading raw `spans`
+    // directly skips the spans views' full reconstruction, and their PII
+    // masking (known gap, `docs/internal/rbac.md`).
+    let input_lookup = content_lookup("input_message_hashes[i + 1]");
+    let output_lookup = content_lookup("output_message_hashes[i + 1]");
     format!(
-        "SELECT span_id,
+        "WITH if(session_id != '', session_id, toString(trace_id)) AS dedup_group
+         SELECT span_id,
                 if(
                     notEmpty(input_message_hashes),
                     extract(
                         arrayStringConcat(
-                            arrayMap(
-                                i -> coalesce(
-                                    dictGetOrNull(
-                                        'deduped_content_dict',
-                                        'content',
-                                        tuple(project_id, input_message_hashes[i + 1])
-                                    ),
-                                    dictGetOrNull(
-                                        'llm_messages_dict',
-                                        'content',
-                                        tuple(project_id, trace_id, input_message_hashes[i + 1])
-                                    ),
-                                    'null'
-                                ),
-                                input_new_message_indices
-                            ),
+                            arrayMap(i -> {input_lookup}, input_new_message_indices),
                             ','
                         ),
                         '{context_regex}'
@@ -237,15 +240,7 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
                     notEmpty(output_message_hashes),
                     extract(
                         arrayStringConcat(
-                            arrayMap(
-                                i -> dictGetOrDefault(
-                                    'deduped_content_dict',
-                                    'content',
-                                    tuple(project_id, output_message_hashes[i + 1]),
-                                    'null'
-                                ),
-                                output_new_message_indices
-                            ),
+                            arrayMap(i -> {output_lookup}, output_new_message_indices),
                             ','
                         ),
                         '{context_regex}'

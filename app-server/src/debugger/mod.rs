@@ -36,7 +36,7 @@ use crate::{
     },
     ch::spans::{DebugCacheSpanRow, query_debug_cache_spans_page},
     env,
-    traces::input_dedup::debug_input_hash,
+    traces::dedup::debug_input_hash,
 };
 
 /// Spans pulled from ClickHouse per warmup page (strict/small).

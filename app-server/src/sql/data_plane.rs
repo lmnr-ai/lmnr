@@ -23,7 +23,7 @@ struct DataPlaneReadRequest {
 
 /// HYBRID deployments (mostly deprecated) receive the already-validated SQL,
 /// so the access policy travels inside the `_v1` view arguments; the data
-/// plane's ClickHouse must carry migration 64 for those views to resolve.
+/// plane's ClickHouse must carry migration 65 for those views to resolve.
 pub async fn query(
     cache: Arc<Cache>,
     http_client: Arc<reqwest::Client>,

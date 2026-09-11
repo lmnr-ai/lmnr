@@ -1,5 +1,6 @@
 import { ChevronDown, Eye, EyeOff, LayoutTemplate, List, ListTree, type LucideIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,16 +49,14 @@ export default function ViewToggle({
     <div className="flex items-center min-w-0">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md focus-visible:outline-0",
-              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
-            )}
+          <Button
+            variant="ghost"
+            className={cn("flex h-[26px] items-center hover:bg-surface-up-3", isTreeView && "rounded-r-none")}
           >
             <CurrentIcon size={14} className="mr-1" />
             <span className="capitalize">{currentView.label}</span>
             <ChevronDown size={14} className="ml-1" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           {tabs.map((option) => {
@@ -78,16 +77,17 @@ export default function ViewToggle({
       </DropdownMenu>
       {/* Content toggle (only visible in tree view) */}
       {isTreeView && (
-        <button
+        <Button
+          variant="ghost"
           onClick={onToggleContent}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none text-muted-foreground overflow-hidden",
-            showContent ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
+            "flex h-[26px] items-center overflow-hidden rounded-l-none px-1.5 text-muted-foreground hover:bg-surface-up-3",
+            showContent && "text-foreground"
           )}
         >
           {showContent ? <Eye size={14} className="flex-shrink-0" /> : <EyeOff size={14} className="flex-shrink-0" />}
           <span className="ml-1 truncate">Content</span>
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -2,10 +2,13 @@
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { datasetsTableFilters, RESOURCE } from "@/components/datasets/constants";
+import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
+import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { type Filter } from "@/lib/actions/common/filters";
+import { type DatasetInfo } from "@/lib/dataset/types";
 
 interface DatasetsTableControlsProps {
   projectId: string;
@@ -14,6 +17,7 @@ interface DatasetsTableControlsProps {
   searchValue: { filters: Filter[]; search: string };
   onSearchChange: (value: { filters: Filter[]; search: string }) => void;
   columnLabels: { id: string; label: string }[];
+  onCreate: (dataset: DatasetInfo) => void;
 }
 
 export function DatasetsTableControls({
@@ -23,6 +27,7 @@ export function DatasetsTableControls({
   searchValue,
   onSearchChange,
   columnLabels,
+  onCreate,
 }: DatasetsTableControlsProps) {
   return (
     <>
@@ -30,6 +35,10 @@ export function DatasetsTableControls({
         <DataTableFilter columns={datasetsTableFilters} filters={activeFilters} onFiltersChange={onFiltersChange} />
         <ColumnsMenu columnLabels={columnLabels} />
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
+        <div className="flex-1" />
+        <CreateDatasetDialog onUpdate={onCreate}>
+          <Button icon="plus">Dataset</Button>
+        </CreateDatasetDialog>
       </div>
       <div className="w-full">
         <AdvancedSearch

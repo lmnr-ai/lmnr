@@ -9,7 +9,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
-use crate::ch::deduped_content::CHDedupedContent;
+use crate::ch::unique_content::CHUniqueContent;
 use crate::db::DB;
 use crate::db::projects::PiiMode;
 use crate::db::spans::Span;
@@ -133,7 +133,7 @@ enum Target {
     Input(usize),
     /// Whole `span.output`.
     Output(usize),
-    /// One row of the `shared_content` CH buffer. Redacted content is
+    /// One row of the `unique_content` CH buffer. Redacted content is
     /// inserted into ClickHouse on the next step; same content also lives
     /// in some span's `span_trace_new_contents` (under
     /// [`Target::TraceNew`]), redacted independently in the same RPC.
@@ -190,32 +190,32 @@ pub async fn resolve_project_pii_modes(
 ///
 /// - **Whole `span.input` / `span.output`**: kept on root spans for the
 ///   trace-list preview and on non-LLM / non-array-input spans.
-/// - **`shared_content` rows**: every row about to be inserted into the
-///   CH `deduped_content` table.
+/// - **`SharedContentBatch` rows**: every row about to be inserted into
+///   the CH `unique_content` table.
 /// - **Per-span `span_trace_new_contents`**: the per-span Quickwit
 ///   indexing buffer. Covers ALL trace-new positions (storage-miss AND
 ///   storage-hit-but-trace-new), so cross-trace shared content is
 ///   redacted before indexing.
 ///
 /// `redact` mode overwrites the raw buffers (the stored text IS the safe
-/// text). `dual` mode leaves `span.*` and `shared_content.content` raw and
+/// text). `dual` mode leaves `span.*` and `CHUniqueContent::content` raw and
 /// fills the `*_redacted` companions only where the redactor changed
 /// something. Both stamp `pii_checked`; the Quickwit buffers are overwritten
 /// in both modes so the search index only ever sees redacted text. Any RPC
 /// or parse failure leaves the affected rows unchecked and the raw buffers
 /// untouched: redaction must never block ingestion, unchecked rows fail
-/// closed under a masking policy, and failed `shared_content` rows are not
+/// closed under a masking policy, and failed shared rows are not
 /// stamped in the dedup presence cache, so the next occurrence retries.
 ///
-/// Storage-miss content is duplicated across `shared_content` and
+/// Storage-miss content is duplicated across the shared rows and
 /// `span_trace_new_contents`; both copies are redacted independently
 /// (sent twice to the redactor RPC). Acceptable cost — storage-miss is the
 /// common case but the wire shape favors correctness over RPC count.
-/// Tool-definition blobs share the `shared_content` buffer and are redacted
+/// Tool-definition blobs share the shared-row buffer and are redacted
 /// along with messages (the redactor is a no-op on schemas).
 ///
-/// MUST run after `build_dedup_batch` (input + output) and BEFORE the
-/// `shared_content` ClickHouse insert / Quickwit indexing.
+/// MUST run after `MessageBatch::build` (input + output) and BEFORE the
+/// `unique_content` ClickHouse insert / Quickwit indexing.
 ///
 /// Note: byte-billing accuracy for PII-redacted content is slightly off because
 /// `span_content_bytes` is computed pre-redaction; an opted-in project pays for
@@ -226,7 +226,7 @@ pub async fn resolve_project_pii_modes(
 pub async fn redact_spans_in_place<R: RedactTexts>(
     client: &R,
     spans: &mut [Span],
-    shared_content: &mut [CHDedupedContent],
+    shared_content: &mut [CHUniqueContent],
     input_trace_new_contents: &mut [Vec<String>],
     output_trace_new_contents: &mut [Vec<String>],
     recordable_indices: &[usize],
@@ -480,8 +480,8 @@ mod tests {
         }
     }
 
-    fn row(project_id: Uuid, content: &str) -> CHDedupedContent {
-        CHDedupedContent::new(project_id, [0u8; 32], content.to_string())
+    fn row(project_id: Uuid, content: &str) -> CHUniqueContent {
+        CHUniqueContent::new(project_id, "g".to_string(), [0u8; 32], content.to_string())
     }
 
     fn modes(project_id: Uuid, mode: Option<PiiMode>) -> HashMap<Uuid, Option<PiiMode>> {

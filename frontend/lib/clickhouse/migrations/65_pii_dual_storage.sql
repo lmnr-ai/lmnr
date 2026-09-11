@@ -9,25 +9,28 @@ ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_redacted String CODEC(ZSTD(3));
 ALTER TABLE spans ADD COLUMN IF NOT EXISTS output_redacted String CODEC(ZSTD(3));
 ALTER TABLE spans ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
 
-ALTER TABLE deduped_content ADD COLUMN IF NOT EXISTS content_redacted String CODEC(ZSTD(3));
-ALTER TABLE deduped_content ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
+-- Only the current dedup table gets the columns: legacy `deduped_content`
+-- (migration 64) has no writer, so its rows are unchecked by definition.
+ALTER TABLE unique_content ADD COLUMN IF NOT EXISTS content_redacted String CODEC(ZSTD(3));
+ALTER TABLE unique_content ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
 
--- `spans_v1` = `spans_v0` (migration 61) plus a `policy` param: a JSON object
+-- `spans_v1` = `spans_v0` (migration 64) plus a `policy` param: a JSON object
 -- built server-side from the caller's role (`AccessPolicy` in app-server).
 -- `'{}'` means unrestricted and yields exactly `spans_v0`'s output. The
--- `deduped_content_dict` attributes `content_redacted` / `pii_checked` are added
--- by `ensureDedupedContentDict` (frontend/instrumentation.ts) right after
--- migrations run; CREATE VIEW does not resolve dictionary attributes, so the
--- ordering within one boot is fine. `spans_v0` stays until every caller has
--- moved to `spans_v1` (dropped in a later migration).
+-- `unique_content_dict` attributes `content_redacted` / `pii_checked` are added
+-- by `ensureContentDicts` (frontend/instrumentation.ts) right after migrations
+-- run; CREATE VIEW does not resolve dictionary attributes, so the ordering
+-- within one boot is fine. `spans_v0` stays until every caller has moved to
+-- `spans_v1` (dropped in a later migration).
 --
 -- Masked branch: whole-value columns resolve through the row's `pii_checked`;
--- dedup'd messages resolve per message through the dict's `pii_checked`. An
--- unavailable value renders as the JSON string `"[PII_MASKED_UNAVAILABLE]"`
--- (whole or per message) so the column stays parseable.
--- Legacy `llm_messages_dict` rows have no state and are therefore unavailable
--- under a masking policy.
+-- dedup'd messages resolve per message through `unique_content_dict` alone
+-- (the legacy dict has no `pii_checked`, so its rows are unavailable either
+-- way and the fallback lookup is skipped). An unavailable value renders as
+-- the JSON string `"[PII_MASKED_UNAVAILABLE]"` (whole or per message) so the
+-- column stays parseable.
 CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
+    WITH if(session_id != '', session_id, toString(trace_id)) AS dedup_group
     SELECT
         span_id,
         name,
@@ -73,9 +76,9 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
-                                'deduped_content_dict',
+                                'unique_content_dict',
                                 ('content', 'content_redacted', 'pii_checked'),
-                                tuple(project_id, h),
+                                tuple(project_id, dedup_group, h),
                                 ('', '', false)
                             ),
                             input_message_hashes
@@ -93,10 +96,10 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                 notEmpty(input_message_hashes),
                 '[' || arrayStringConcat(
                     arrayMap(
-                        h -> coalesce(
-                            dictGetOrNull('deduped_content_dict', 'content', tuple(project_id, h)),
-                            dictGetOrNull('llm_messages_dict', 'content', tuple(project_id, trace_id, h)),
-                            'null'
+                        h -> if(
+                            isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, h))),
+                            dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), 'null'),
+                            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, h), 'null')
                         ),
                         input_message_hashes
                     ),
@@ -118,9 +121,9 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
-                                'deduped_content_dict',
+                                'unique_content_dict',
                                 ('content', 'content_redacted', 'pii_checked'),
-                                tuple(project_id, h),
+                                tuple(project_id, dedup_group, h),
                                 ('', '', false)
                             ),
                             output_message_hashes
@@ -138,11 +141,10 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                 notEmpty(output_message_hashes),
                 '[' || arrayStringConcat(
                     arrayMap(
-                        h -> dictGetOrDefault(
-                            'deduped_content_dict',
-                            'content',
-                            tuple(project_id, h),
-                            'null'
+                        h -> if(
+                            isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, h))),
+                            dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, h), 'null'),
+                            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, h), 'null')
                         ),
                         output_message_hashes
                     ),
@@ -155,8 +157,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
             tool_definitions_hash != toFixedString('', 32),
             if(
                 JSONExtractBool({policy:String}, 'maskPii'),
-                -- Same per-row rule as the messages; the one-element arrayMap
-                -- binds the dict tuple to `t` so it is fetched once.
+                -- Single-element arrayMap so the dict tuple is fetched once.
                 arrayMap(
                     t -> if(
                         tupleElement(t, 3),
@@ -164,17 +165,16 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                         '"[PII_MASKED_UNAVAILABLE]"'
                     ),
                     [dictGetOrDefault(
-                        'deduped_content_dict',
+                        'unique_content_dict',
                         ('content', 'content_redacted', 'pii_checked'),
-                        tuple(project_id, tool_definitions_hash),
+                        tuple(project_id, dedup_group, tool_definitions_hash),
                         ('', '', false)
                     )]
                 )[1],
-                dictGetOrDefault(
-                    'deduped_content_dict',
-                    'content',
-                    tuple(project_id, tool_definitions_hash),
-                    ''
+                if(
+                    isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, tool_definitions_hash))),
+                    dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, tool_definitions_hash), ''),
+                    dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, tool_definitions_hash), '')
                 )
             ),
             ''

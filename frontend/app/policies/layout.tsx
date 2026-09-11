@@ -15,7 +15,7 @@ export default async function PoliciesLayout({ children }: PropsWithChildren) {
   const session = await getServerSession();
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-700">
+    <div className="min-h-screen flex flex-col bg-surface-150">
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding

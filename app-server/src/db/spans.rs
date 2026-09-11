@@ -491,7 +491,7 @@ mod tests {
 
         // Fallback path: the filter KEEPS tool-def keys so legacy spans (no
         // producer extraction) still render tools. New-path stripping is
-        // covered by `traces::tool_dedup` tests.
+        // covered by `traces::dedup::tools` tests.
         assert_eq!(
             attrs.get("llm.request.functions.0.name"),
             Some(&json!("get_weather"))
