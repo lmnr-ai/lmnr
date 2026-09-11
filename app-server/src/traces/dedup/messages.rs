@@ -54,13 +54,18 @@ impl<'de> Deserialize<'de> for MessageDedup {
         #[derive(Deserialize)]
         struct Wire {
             hashes: Vec<ContentHash>,
-            #[serde(default)]
+            #[serde(default, alias = "new_indices")]
             trace_new_indices: Vec<u16>,
             #[serde(default)]
             storage_miss_indices: Vec<u16>,
             #[serde(default)]
             contents: BTreeMap<u16, String>,
-            // Legacy-only keys; `Some` on exactly the old shape.
+            // Legacy-only keys; `Some` on exactly the old shapes. `Option`
+            // needs no `serde(default)` — serde's `missing_field` yields
+            // `None` for it. The aliases are the pre-project-scoped shape;
+            // dropping them here would silently route
+            // those messages down the new-shape branch and lose their content.
+            #[serde(alias = "new_contents")]
             trace_new_contents: Option<Vec<String>>,
             storage_miss_offsets: Option<Vec<u16>>,
         }
@@ -339,6 +344,20 @@ mod tests {
         assert_eq!(d.storage_miss_indices, vec![1]);
         assert_eq!(d.contents.get(&1).map(String::as_str), Some(r#"{"a":1}"#));
         assert_eq!(d.contents.get(&3).map(String::as_str), Some(r#"{"b":2}"#));
+    }
+
+    #[test]
+    fn pre_project_scoped_aliases_still_deserialize() {
+        // The oldest shape `dev` accepts: `new_indices` / `new_contents`, no
+        // `storage_miss_offsets`. Must not fall through to the new-shape
+        // branch, which would drop `contents` silently.
+        let zero = format!("[{}]", vec!["0"; 32].join(","));
+        let ancient =
+            format!(r#"{{"hashes":[{zero}],"new_indices":[0],"new_contents":["{{\"a\":1}}"]}}"#);
+        let d: MessageDedup = serde_json::from_str(&ancient).unwrap();
+        assert_eq!(d.trace_new_indices, vec![0]);
+        assert_eq!(d.storage_miss_indices, vec![0]);
+        assert_eq!(d.contents.get(&0).map(String::as_str), Some(r#"{"a":1}"#));
     }
 
     #[test]
