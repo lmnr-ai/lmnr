@@ -10,7 +10,8 @@ import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-bre
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getChartClusters, selectUnclusteredCount, useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type ClusterStatsDataPoint, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";

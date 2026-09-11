@@ -6,7 +6,8 @@ import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
-import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
 // How much of the cluster colour a bar keeps. The palette is built for flat

@@ -3,18 +3,9 @@ import { z } from "zod/v4";
 import { TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 
-export type EventCluster = {
-  id: string;
-  name: string;
-  parentId: string | null;
-  level: number;
-  numChildrenClusters: number;
-  numEvents: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import { type EventCluster } from "./types";
 
-export const UNCLUSTERED_ID = "__unclustered__";
+export { type EventCluster, UNCLUSTERED_ID } from "./types";
 
 export const GetEventClustersSchema = z.object({
   ...TimeRangeSchema.shape,
