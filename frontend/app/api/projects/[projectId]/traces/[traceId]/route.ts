@@ -2,6 +2,21 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getTrace, updateTraceVisibility } from "@/lib/actions/trace";
+import { getServerSession } from "@/lib/auth-session";
+import { isUserMemberOfProject } from "@/lib/authorization";
+
+async function assertProjectMember(projectId: string): Promise<Response | null> {
+  // No app-level middleware covers `/api/projects/...`; gate each handler.
+  const session = await getServerSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!(await isUserMemberOfProject(projectId, userId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -10,6 +25,9 @@ export async function GET(
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
+
+  const denied = await assertProjectMember(projectId);
+  if (denied) return denied;
 
   try {
     const trace = await getTrace({ traceId, projectId });
@@ -38,6 +56,9 @@ export async function PUT(
 
   const projectId = params.projectId;
   const traceId = params.traceId;
+
+  const denied = await assertProjectMember(projectId);
+  if (denied) return denied;
 
   const body = (await req.json()) as { visibility: "private" | "public" };
 
