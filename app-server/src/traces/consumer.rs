@@ -33,6 +33,7 @@ pub struct SpanHandler {
     pub pubsub: Arc<PubSub>,
     pub pii_redactor: Option<PiiRedactorClient>,
     pub indexer_stream_publisher: Option<Arc<StreamPublisher>>,
+    pub quickwit_indexing_enabled: bool,
     pub config: BatchingConfig,
 }
 
@@ -130,6 +131,7 @@ impl SpanHandler {
             self.pii_redactor.clone(),
             None,
             self.indexer_stream_publisher.clone(),
+            self.quickwit_indexing_enabled,
         )
         .await
     }

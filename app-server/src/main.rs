@@ -1366,6 +1366,15 @@ fn main() -> anyhow::Result<()> {
         (None, None, None)
     };
 
+    // Whether anything downstream will ever drain a `publish_for_indexing` call:
+    // either the stream path is active (its reader gate is independent of this
+    // pod's own `quickwit_client`, see above) or the queue path has a live
+    // client, matching the same `quickwit_client.is_some()` check that gates
+    // spawning the queue-path indexer workers below. When both are false,
+    // publishing would just spin the queue/log errors for messages nobody
+    // will ever read.
+    let quickwit_indexing_enabled = indexer_stream_publisher.is_some() || quickwit_client.is_some();
+
     // Now that the queue/DB/cache (and the optional spans stream publisher)
     // exist, hand them to the internal self-tracing exporter. Until this runs
     // the exporter drops spans; nothing emits internal spans this early on a
@@ -1553,6 +1562,7 @@ fn main() -> anyhow::Result<()> {
         let stream_runtime_for_consumer = stream_runtime.clone();
         let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
         let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
+        let quickwit_indexing_enabled_for_consumer = quickwit_indexing_enabled;
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1587,6 +1597,7 @@ fn main() -> anyhow::Result<()> {
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
+                                quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1633,6 +1644,7 @@ fn main() -> anyhow::Result<()> {
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
+                                quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1695,6 +1707,8 @@ fn main() -> anyhow::Result<()> {
                                     pii_redactor,
                                     indexer_stream_publisher:
                                         indexer_stream_publisher_for_consumer.clone(),
+                                    quickwit_indexing_enabled:
+                                        quickwit_indexing_enabled_for_consumer,
                                     config: BatchingConfig {
                                         size: env::batching::SPANS_SIZE.get(),
                                         flush_interval: Duration::from_millis(
