@@ -1,4 +1,4 @@
-//! Dataset datapoint operations shared by the project-API-key handlers
+//! Dataset CRUD and datapoint operations shared by the project-API-key handlers
 //! (`api::v1::datasets`) and the CLI user-token handlers (`api::v1::cli::datasets`).
 //!
 //! Fat-service / thin-handler: these take plain args and return a domain result
@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -22,6 +22,105 @@ use crate::{
 };
 
 use super::datapoints::{CHQueryEngineDatapoint, Datapoint};
+
+#[derive(Debug, thiserror::Error)]
+pub enum CrudError {
+    #[error("Dataset name is required")]
+    InvalidName,
+    #[error("Dataset not found")]
+    DatasetNotFound,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}
+
+pub fn error_response(error: CrudError) -> actix_web::HttpResponse {
+    use actix_web::HttpResponse;
+
+    match error {
+        CrudError::InvalidName => HttpResponse::BadRequest().json(json!({
+            "error": error.to_string()
+        })),
+        CrudError::DatasetNotFound => HttpResponse::NotFound().json(json!({
+            "error": error.to_string()
+        })),
+        CrudError::Internal(error) => {
+            log::error!("dataset CRUD error: {error:?}");
+            HttpResponse::InternalServerError().json(json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+fn normalized_name(name: String) -> Result<String, CrudError> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(CrudError::InvalidName);
+    }
+    Ok(name.to_string())
+}
+
+pub async fn create_dataset(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    name: String,
+) -> Result<db::datasets::Dataset, CrudError> {
+    let name = normalized_name(name)?;
+    db::datasets::create_dataset(pool, &name, project_id)
+        .await
+        .map_err(CrudError::Internal)
+}
+
+pub async fn get_dataset(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    dataset_id: Uuid,
+) -> Result<db::datasets::Dataset, CrudError> {
+    db::datasets::get_dataset(pool, dataset_id, project_id)
+        .await
+        .map_err(CrudError::Internal)?
+        .ok_or(CrudError::DatasetNotFound)
+}
+
+pub async fn update_dataset(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    dataset_id: Uuid,
+    name: String,
+) -> Result<db::datasets::Dataset, CrudError> {
+    let name = normalized_name(name)?;
+    db::datasets::update_dataset(pool, dataset_id, project_id, &name)
+        .await
+        .map_err(CrudError::Internal)?
+        .ok_or(CrudError::DatasetNotFound)
+}
+
+pub async fn delete_dataset(
+    pool: &sqlx::PgPool,
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    dataset_id: Uuid,
+) -> Result<db::datasets::Dataset, CrudError> {
+    // Match the frontend deletion order: remove Postgres metadata first, then
+    // issue the ClickHouse datapoint mutation. These stores cannot share a transaction.
+    let dataset = db::datasets::delete_dataset(pool, dataset_id, project_id)
+        .await
+        .map_err(CrudError::Internal)?
+        .ok_or(CrudError::DatasetNotFound)?;
+
+    clickhouse
+        .query(
+            "DELETE FROM dataset_datapoints
+             WHERE project_id = ? AND dataset_id = ?",
+        )
+        .bind(project_id)
+        .bind(dataset_id)
+        .execute()
+        .await
+        .map_err(anyhow::Error::from)?;
+
+    Ok(dataset)
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -261,4 +360,25 @@ pub async fn create_datapoints(
         datapoints,
         dataset_was_created,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CrudError, normalized_name};
+
+    #[test]
+    fn dataset_names_are_trimmed() {
+        assert_eq!(
+            normalized_name("  examples  ".to_string()).unwrap(),
+            "examples"
+        );
+    }
+
+    #[test]
+    fn blank_dataset_names_are_rejected() {
+        assert!(matches!(
+            normalized_name(" \n\t ".to_string()),
+            Err(CrudError::InvalidName)
+        ));
+    }
 }
