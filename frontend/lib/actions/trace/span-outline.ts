@@ -1,14 +1,11 @@
 import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
+import { truncateForPrompt } from "@/lib/utils";
 
 // One representative span per distinct (name, span_type) shape; enough for an
 // LLM to see every structure in the trace without shipping the whole payload.
 const MAX_OUTLINE_SPANS = 50;
-
-const MAX_STRING = 64;
-const MAX_ARRAY = 10;
-const MAX_DEPTH = 8;
 
 export const GetTraceSpanOutlineSchema = z.object({
   projectId: z.guid(),
@@ -25,30 +22,6 @@ export interface TraceSpanOutlineEntry {
   output: unknown;
   attributes: unknown;
 }
-
-const tryParse = (value: unknown): unknown => {
-  if (typeof value !== "string" || value === "") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-};
-
-// Truncate leaves of an already-parsed tree; truncating the raw JSON string
-// would cut it mid-token and destroy the structure the LLM needs to see.
-const truncateValues = (value: unknown, depth = 0): unknown => {
-  if (typeof value === "string") {
-    return value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…` : value;
-  }
-  if (value === null || typeof value !== "object") return value;
-  if (depth >= MAX_DEPTH) return "…";
-  if (Array.isArray(value)) {
-    const head = value.slice(0, MAX_ARRAY).map((item) => truncateValues(item, depth + 1));
-    return value.length > MAX_ARRAY ? [...head, `…${value.length - MAX_ARRAY} more items`] : head;
-  }
-  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, truncateValues(item, depth + 1)]));
-};
 
 /**
  * Compact per-shape outline of a trace for the copy-prompt flow: one
@@ -95,8 +68,8 @@ export async function getTraceSpanOutline(
   return rows.map((row) => ({
     ...row,
     occurrences: Number(row.occurrences),
-    input: truncateValues(tryParse(row.input)),
-    output: truncateValues(tryParse(row.output)),
-    attributes: truncateValues(tryParse(row.attributes)),
+    input: truncateForPrompt(row.input),
+    output: truncateForPrompt(row.output),
+    attributes: truncateForPrompt(row.attributes),
   }));
 }

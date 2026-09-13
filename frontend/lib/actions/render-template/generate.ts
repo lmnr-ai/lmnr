@@ -72,8 +72,7 @@ export const generateTemplate = async (input: GenerateTemplateInput): Promise<Ge
     {
       name: "generateRenderTemplate",
       sessionId: parsed.sessionId,
-      metadata: { feature: "render-template" },
-      input: { projectId, scope },
+      metadata: { feature: "render-template", projectId, scope },
     },
     async () => {
       const agent = new ToolLoopAgent({

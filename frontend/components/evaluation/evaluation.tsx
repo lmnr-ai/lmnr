@@ -12,6 +12,7 @@ import { useReportAgentContextName } from "@/components/agent";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
+import { buildSuggestedColumnDefs, createEvalSuggestions } from "@/components/evaluation/label-suggestion";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
@@ -29,8 +30,13 @@ import {
   mergeDatapointUpsertIntoRows,
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
+import { type ColumnSuggestion, useColumnSuggestions } from "@/components/ui/columns-menu/suggestions";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import {
+  useTableConfigStore,
+  useTableConfigStoreApi,
+  useTableView,
+} from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import {
   type EvalRow,
@@ -80,7 +86,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // Column config layer: customColumns are read from the config store and
   // threaded into the columnDefs / URLs below.
   const { customColumns, removeCustomColumn } = useTableConfigStore(
-    (s) => ({ customColumns: s.config.customColumns, removeCustomColumn: s.removeCustomColumn }),
+    (s) => ({
+      customColumns: s.config.customColumns,
+      removeCustomColumn: s.removeCustomColumn,
+    }),
     shallow
   );
 
@@ -92,7 +101,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
   const isComparison = !!targetId;
-  const columnDefs = useMemo(
+  const baseColumnDefs = useMemo(
     () => buildColumnDefs({ scoreNames, customColumns, isShared }),
     [scoreNames, customColumns, isShared]
   );
@@ -100,6 +109,64 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // Resolved eval-score directions (override > app-wide LLM default > true).
   // Async — coloring repaints when it lands; shared evals can't write overrides.
   const { resolved: scoreDirections, toggle: toggleScoreDirection } = useScoreDirections(params.projectId, scoreNames);
+
+  // Proactive column suggestions (e.g. the "Label" column). Suppressed in shared
+  // evals, when a same-named column exists, or when a kept-and-saved custom column
+  // already carries the suggestion key (cross-user guard via the view config).
+  // Collision guard keys off column IDs (a kept suggestion becomes `custom:<name>`),
+  // not the rendered header — ids are stable and never a React component.
+  const existingColumnIds = useMemo(
+    () => baseColumnDefs.map((c) => c.id).filter((id): id is string => !!id),
+    [baseColumnDefs]
+  );
+  const existingSuggestionKeys = useMemo(
+    () => customColumns.map((c) => c.suggestionKey).filter((k): k is string => !!k),
+    [customColumns]
+  );
+  const suggestions = useMemo<ColumnSuggestion[]>(
+    () => createEvalSuggestions(params.projectId, evaluationId),
+    [params.projectId, evaluationId]
+  );
+  const configStore = useTableConfigStoreApi();
+  const onKeepSuggestion = useCallback(
+    (s: ColumnSuggestion, sql: string) => {
+      const { addCustomColumn: add, setColumnOrder, config } = configStore.getState();
+      add({ name: s.name, sql, dataType: s.dataType, suggestionKey: s.id });
+      // A kept suggestion "joins the family" at the front (it was shown far-left);
+      // addCustomColumn appends to columnOrder, so move it to the front.
+      const id = `custom:${s.name}`;
+      setColumnOrder([id, ...config.columnOrder.filter((c) => c !== id)]);
+    },
+    [configStore]
+  );
+  // Proactive suggestions are opportunistic — a transient failure (no AI provider
+  // configured, empty/streaming eval, backend hiccup) must NOT surface a
+  // destructive toast on every load. Fail silently; the hook retries next mount.
+  const onSuggestionError = useCallback(() => {}, []);
+  const {
+    active: activeSuggestions,
+    keep: keepSuggestion,
+    discard: discardSuggestion,
+  } = useColumnSuggestions({
+    resource: RESOURCE,
+    scopeId: evaluationId,
+    suggestions,
+    existingColumnIds,
+    existingSuggestionKeys,
+    // Suppress in comparison mode: suggested cols are proposals for the primary
+    // eval and have no compared value, so they'd render an empty comparison cell.
+    disabled: isShared || isComparison,
+    onKeep: onKeepSuggestion,
+    onError: onSuggestionError,
+  });
+  const suggestedColumnDefs = useMemo(
+    () => buildSuggestedColumnDefs(activeSuggestions, keepSuggestion, discardSuggestion),
+    [activeSuggestions, keepSuggestion, discardSuggestion]
+  );
+  const suggestedColumnIds = useMemo(() => suggestedColumnDefs.map((c) => c.id!), [suggestedColumnDefs]);
+
+  // Suggested columns render first (far-left), then the normal columns.
+  const columnDefs = useMemo(() => [...suggestedColumnDefs, ...baseColumnDefs], [suggestedColumnDefs, baseColumnDefs]);
 
   // Stats SWR — drives the score chips + charts.
   const statsUrl = useMemo(() => {
@@ -176,25 +243,33 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
-  // Score-range heatmap input — derived from current data, no storage needed.
+  // Heatmap ranges — derived from current data, no storage needed. Keyed by score
+  // name for score columns AND by column id (`custom:<name>`) for numeric custom
+  // columns, so DataCell can heatmap those too. `series[i] = { rowKey, rangeKey }`.
   const scoreRanges = useMemo(() => {
     if (!allDatapoints) return {};
     const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
-    return scoreNames.reduce(
-      (acc, scoreName) => {
+    const series = [
+      ...scoreNames.map((name) => ({ rowKey: `score:${name}`, rangeKey: name })),
+      ...customColumns
+        .filter((c) => c.dataType === "number")
+        .map((c) => ({ rowKey: `custom:${c.name}`, rangeKey: `custom:${c.name}` })),
+    ];
+    return series.reduce(
+      (acc, { rowKey, rangeKey }) => {
         const values = allDatapoints
           .flatMap((row) => {
-            const v = [row[`score:${scoreName}`]];
-            if (targetId) v.push(row[`compared:score:${scoreName}`]);
+            const v = [row[rowKey]];
+            if (targetId) v.push(row[`compared:${rowKey}`]);
             return v;
           })
           .filter(isValidNumber);
         if (values.length === 0) return acc;
-        return { ...acc, [scoreName]: { min: Math.min(...values), max: Math.max(...values) } };
+        return { ...acc, [rangeKey]: { min: Math.min(...values), max: Math.max(...values) } };
       },
       {} as Record<string, { min: number; max: number }>
     );
-  }, [allDatapoints, scoreNames, targetId]);
+  }, [allDatapoints, scoreNames, targetId, customColumns]);
 
   // Realtime — only on the live (non-comparison) eval page.
   const debouncedRevalidateStats = useMemo(
@@ -322,6 +397,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       searchValue={searchValue}
       onSearchChange={setSearchAndFilters}
       viewsResource={RESOURCE}
+      pinnedColumns={suggestedColumnIds}
     />
   );
 

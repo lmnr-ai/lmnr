@@ -25,6 +25,21 @@ export default function TracesColumnsMenu({ columnLabels = [], columnDefs }: Tra
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
       schema: { tables: ["traces"] },
+      aiGeneration: {
+        table: "traces",
+        whereSql: "1 = 1",
+        sampleColumns: [
+          "metadata",
+          "top_span_name",
+          "top_span_type",
+          "status",
+          "tags",
+          "span_names",
+          "duration",
+          "total_cost",
+          "total_tokens",
+        ],
+      },
       generationMode: "trace-expression",
       buildTestQuery: (sql) => `SELECT ${sql} as \`test\` FROM traces LIMIT 1`,
       getColumnDefs: () => columnDefs,

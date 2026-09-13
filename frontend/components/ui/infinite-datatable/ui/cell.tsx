@@ -18,18 +18,26 @@ interface InfiniteTableCellProps<TData extends RowData> {
 }
 
 function InfiniteTableCellInner<TData extends RowData>({ cell, size, start, isPinned }: InfiniteTableCellProps<TData>) {
+  const isSuggested = cell.column.columnDef.meta?.suggested === true;
+
   const style: CSSProperties = {
     position: isPinned ? "sticky" : "relative",
     left: isPinned ? start : undefined,
     width: size,
     zIndex: isPinned ? 10 : 0,
     display: "flex",
+    // Suggested columns fill the full row height so the tint reaches the row
+    // borders. `h-full` (height:100%) resolves against the auto-height row and
+    // collapses to content height, so drop it (height:auto) and let align-self
+    // stretch fill; zero the auto cross-margins the base cell uses to center.
+    ...(isSuggested ? { alignSelf: "stretch", height: "auto", marginTop: 0, marginBottom: 0 } : {}),
   };
 
   return (
     <TableCell
       className={cn(
         "relative px-4 m-0 truncate h-full my-auto",
+        isSuggested && "bg-primary/5 items-center",
         isPinned &&
           "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)] group-hover/row:bg-muted/50 group-data-[state=selected]/row:bg-primary/15 group-data-[focused=true]/row:bg-muted"
       )}

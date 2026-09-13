@@ -26,6 +26,9 @@ export interface SQLEditorProps {
   inputPlaceholder?: string;
   projectId?: string;
   aiButtonVariant?: "icon" | "full";
+  /** When provided, "Ask AI" routes through this agentic generator instead of the
+   *  one-shot /sql/generate route. Returns the SQL, or null when nothing usable. */
+  onGenerate?: (prompt: string) => Promise<string | null>;
   /** Extra CodeMirror extensions appended per-usage (e.g. scroll margins). */
   extraExtensions?: Extension[];
 }
@@ -42,6 +45,7 @@ export default function SQLEditor({
   inputPlaceholder = "e.g. Get top 10 most expensive traces from last 24 hours",
   projectId,
   aiButtonVariant = "icon",
+  onGenerate,
   extraExtensions,
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
@@ -63,6 +67,16 @@ export default function SQLEditor({
     setIsAiLoading(true);
 
     try {
+      // Agentic path (custom-column panels): verify-loop against real rows.
+      if (onGenerate) {
+        const generated = await onGenerate(prompt);
+        if (generated && onChange) {
+          onChange(generated);
+          track("sql_editor", "ai_generated", { mode: generationMode });
+        }
+        return;
+      }
+
       const response = await fetch(`/api/projects/${projectId}/sql/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,7 +107,7 @@ export default function SQLEditor({
     } finally {
       setIsAiLoading(false);
     }
-  }, [aiPrompt, projectId, generationMode, value, onChange]);
+  }, [aiPrompt, projectId, generationMode, value, onChange, onGenerate]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

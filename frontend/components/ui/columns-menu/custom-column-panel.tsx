@@ -29,6 +29,36 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
 
   if (!projectId) return null;
 
+  // "Ask AI" in the panel always uses the agentic generator (verify-loop against
+  // real rows), never the one-shot route. Throws surface as a toast in SQLEditor.
+  const handleAiGenerate = async (prompt: string): Promise<string | null> => {
+    const { table, whereSql, parameters, sampleColumns } = config.aiGeneration;
+    const res = await fetch(`/api/projects/${projectId}/sql/generate-column`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table,
+        whereSql,
+        parameters: parameters ?? {},
+        sampleColumns,
+        instruction: prompt,
+        dataType,
+      }),
+    });
+    if (!res.ok) {
+      const msg = await res
+        .json()
+        .then((d) => d?.error)
+        .catch(() => null);
+      throw new Error(msg ?? "Failed to generate SQL");
+    }
+    const json = (await res.json()) as { success?: boolean; sql?: string; reason?: "none" | "error" };
+    if (json.success && json.sql) return json.sql;
+    // Agent couldn't satisfy the request from the available columns.
+    if (json.reason === "none") throw new Error("Couldn't build a column for that request. Try rephrasing.");
+    throw new Error("Failed to generate SQL");
+  };
+
   const handleSave = async () => {
     setError(null);
 
@@ -37,11 +67,12 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
 
     if (!trimmedName || !trimmedSql) return;
 
-    // Check for duplicate names (skip the current name when editing)
+    // Check for duplicate names by column id (skip the current name when
+    // editing). Compare `custom:<name>` rather than the rendered header — a
+    // suggested column's header is a React component, so a header-string compare
+    // would miss it and let a duplicate slip through.
     const cols = config.getColumnDefs();
-    if (
-      cols.some((c) => c.meta?.isCustom && (c.header as string) === trimmedName && trimmedName !== editingColumn?.name)
-    ) {
+    if (cols.some((c) => c.meta?.isCustom && c.id === `custom:${trimmedName}` && trimmedName !== editingColumn?.name)) {
       setError(`A column named "${trimmedName}" already exists.`);
       return;
     }
@@ -130,6 +161,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
                 generationMode={config.generationMode ?? "eval-expression"}
                 inputPlaceholder={config.aiInputPlaceholder ?? "e.g. Count the number of spans in trace_spans"}
                 projectId={projectId as string}
+                onGenerate={handleAiGenerate}
               />
             </div>
             {config.sqlHint && <p className="text-xs text-muted-foreground">{config.sqlHint}</p>}

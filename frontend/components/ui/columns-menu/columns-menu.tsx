@@ -54,6 +54,8 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
         name: col.header as string,
         sql: col.meta.sql!,
         dataType: col.meta.dataType as "string" | "number",
+        // Carry the origin suggestion id through the edit so it survives the save.
+        suggestionKey: col.meta.suggestionKey,
       });
       setActivePanel("form");
     }
@@ -62,7 +64,12 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
   const handleSave = (column: CustomColumn) => {
     if (!columnActions) return;
     if (editingColumn) {
-      columnActions.updateCustomColumn(editingColumn.name, column);
+      // Preserve the suggestionKey from the column being edited — the panel form
+      // doesn't surface it, so without this an edit/rename would clear the guard.
+      columnActions.updateCustomColumn(editingColumn.name, {
+        ...column,
+        ...(editingColumn.suggestionKey && { suggestionKey: editingColumn.suggestionKey }),
+      });
     } else {
       columnActions.addCustomColumn(column);
     }

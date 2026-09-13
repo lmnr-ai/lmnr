@@ -20,6 +20,7 @@ interface EvaluationDatapointsTableContentsProps {
   isShared: boolean;
   scoreRanges: ScoreRanges;
   pinnedLeftColumnIds?: string[];
+  pinnedColumns?: string[];
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
@@ -44,6 +45,7 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   isShared,
   scoreRanges,
   pinnedLeftColumnIds,
+  pinnedColumns,
   datapointId,
   handleRowClick,
   getRowHref,
@@ -86,6 +88,7 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
       onRowClick={handleRowClick}
       getRowHref={getRowHref}
       pinnedLeftColumnIds={pinnedLeftColumnIds}
+      pinnedColumns={pinnedColumns}
       className="flex-1"
       sortBy={sortBy}
       sortDirection={sortDirection}

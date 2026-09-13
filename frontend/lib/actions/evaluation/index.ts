@@ -3,12 +3,8 @@ import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
-import {
-  buildEvalQuery,
-  buildEvalStatsQuery,
-  EvalFilterSchema,
-  type EvalQueryColumn,
-} from "@/lib/actions/evaluation/query-builder";
+import { buildEvalStatsQuery, EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { runEvalQuery } from "@/lib/actions/evaluation/run-query";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -186,8 +182,8 @@ export const getEvaluationDatapoints = async (
     }
   }
 
-  // Step 2: Build and execute single JOIN query
-  const { query, parameters } = buildEvalQuery({
+  // Step 2: build + execute + un-alias truncated previews (single chokepoint).
+  const results = await runEvalQuery(projectId, {
     evaluationId,
     columns,
     traceIds: searchTraceIds,
@@ -200,16 +196,7 @@ export const getEvaluationDatapoints = async (
     targetId: targetId ?? undefined,
   });
 
-  const results = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  });
-
-  return {
-    evaluation: evaluation as Evaluation,
-    results,
-  };
+  return { evaluation: evaluation as Evaluation, results };
 };
 
 export const getEvaluationStatistics = async (

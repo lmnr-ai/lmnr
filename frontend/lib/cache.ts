@@ -275,3 +275,8 @@ export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprin
 // the normalized score name; the value is a boolean isHigherBetter.
 export const SCORE_DIRECTION_CACHE_KEY = (normalizedScoreName: string): string =>
   `score_direction:${normalizedScoreName}`;
+
+// Agentic column-suggestion SQL, keyed by (project, suggestion id, sample-row shape)
+// so evals with the same data/target/metadata structure skip the agent loop.
+export const COLUMN_SUGGESTION_CACHE_KEY = (projectId: string, cacheKey: string, fingerprint: string): string =>
+  `column_suggestion:${projectId}:${cacheKey}:${fingerprint}`;

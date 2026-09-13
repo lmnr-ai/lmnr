@@ -1,0 +1,122 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import {
+  type ColumnSuggestion,
+  resolveColumnSuggestions,
+  resolvedRecord,
+  type SuggestionRecord,
+} from "@/components/ui/columns-menu/suggestions/resolve";
+
+// Pure decision logic for proactive column suggestions (the "Label" column on
+// the eval table). This is the single pre-agreed seam: the hook is a thin
+// wrapper (localStorage IO + async generate) over these rules.
+
+const mkSuggestion = (id: string, name = id): ColumnSuggestion => ({
+  id,
+  name,
+  dataType: "string",
+  generate: async () => ({ sql: "1" }),
+});
+
+const label = mkSuggestion("label", "Label");
+
+const base = {
+  existingColumnIds: [] as string[],
+  existingSuggestionKeys: [] as string[],
+  persisted: {} as Record<string, SuggestionRecord>,
+  disabled: false,
+};
+
+describe("resolveColumnSuggestions", () => {
+  it("marks an unseen, eligible suggestion for generation", () => {
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label] });
+    assert.deepEqual(
+      res.toGenerate.map((s) => s.id),
+      ["label"]
+    );
+    assert.deepEqual(res.toShow, []);
+  });
+
+  it("shows a pending suggestion from its cached sql without regenerating", () => {
+    const res = resolveColumnSuggestions({
+      ...base,
+      suggestions: [label],
+      persisted: { label: { status: "pending", sql: "simpleJSONExtractString(data, 'id')" } },
+    });
+    assert.deepEqual(res.toGenerate, []);
+    assert.equal(res.toShow.length, 1);
+    assert.equal(res.toShow[0].suggestion.id, "label");
+    assert.equal(res.toShow[0].sql, "simpleJSONExtractString(data, 'id')");
+  });
+
+  it("skips a resolved suggestion entirely (never nag again)", () => {
+    const res = resolveColumnSuggestions({
+      ...base,
+      suggestions: [label],
+      persisted: { label: { status: "resolved" } },
+    });
+    assert.deepEqual(res.toShow, []);
+    assert.deepEqual(res.toGenerate, []);
+  });
+
+  it("skips when a custom column with the suggestion's id already exists (self guard)", () => {
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnIds: ["custom:Label"] });
+    assert.deepEqual(res.toShow, []);
+    assert.deepEqual(res.toGenerate, []);
+  });
+
+  it("id match is case-insensitive", () => {
+    const res = resolveColumnSuggestions({ ...base, suggestions: [label], existingColumnIds: ["custom:label"] });
+    assert.deepEqual(res.toGenerate, []);
+    assert.deepEqual(res.toShow, []);
+  });
+
+  it("skips when a kept custom column carries the suggestion key (cross-user / rename-proof)", () => {
+    // Column was renamed away from "Label" (id now custom:Renamed) but still
+    // carries suggestionKey "label" — the id compare misses, the key guard catches it.
+    const res = resolveColumnSuggestions({
+      ...base,
+      suggestions: [label],
+      existingColumnIds: ["custom:Renamed"],
+      existingSuggestionKeys: ["label"],
+    });
+    assert.deepEqual(res.toShow, []);
+    assert.deepEqual(res.toGenerate, []);
+  });
+
+  it("suppresses everything when disabled (shared eval)", () => {
+    const res = resolveColumnSuggestions({
+      ...base,
+      suggestions: [label],
+      persisted: { label: { status: "pending", sql: "1" } },
+      disabled: true,
+    });
+    assert.deepEqual(res.toShow, []);
+    assert.deepEqual(res.toGenerate, []);
+  });
+
+  it("handles multiple suggestions independently by id", () => {
+    const a = mkSuggestion("a", "Alpha");
+    const b = mkSuggestion("b", "Beta");
+    const c = mkSuggestion("c", "Gamma");
+    const res = resolveColumnSuggestions({
+      ...base,
+      suggestions: [a, b, c],
+      existingColumnIds: ["custom:Gamma"], // c is skipped
+      persisted: { b: { status: "pending", sql: "b_sql" } }, // b shows, a generates
+    });
+    assert.deepEqual(
+      res.toGenerate.map((s) => s.id),
+      ["a"]
+    );
+    assert.deepEqual(
+      res.toShow.map((s) => s.suggestion.id),
+      ["b"]
+    );
+  });
+
+  it("keep and discard both produce a resolved record", () => {
+    assert.deepEqual(resolvedRecord(), { status: "resolved" });
+  });
+});
