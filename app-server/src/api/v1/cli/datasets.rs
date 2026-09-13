@@ -5,7 +5,7 @@ use actix_web::{HttpResponse, delete, get, patch, post, web};
 use crate::{
     api::v1::datasets::{
         CreateDatapointsRequest, DatasetNameRequest, GetDatapointsRequestParams,
-        GetDatasetsRequest, create_datapoints_response,
+        GetDatasetsRequest, create_datapoints_response, handlers,
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -26,12 +26,7 @@ pub async fn create_dataset(
     req: web::Json<DatasetNameRequest>,
     db: web::Data<DB>,
 ) -> actix_web::Result<HttpResponse> {
-    let result = service::create_dataset(&db.pool, auth.project_id, req.into_inner().name).await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Created().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    Ok(handlers::create(&db, auth.project_id, req.into_inner()).await)
 }
 
 #[get("/datasets/{dataset_id}")]
@@ -40,12 +35,7 @@ pub async fn get_dataset(
     path: web::Path<uuid::Uuid>,
     db: web::Data<DB>,
 ) -> actix_web::Result<HttpResponse> {
-    let result = service::get_dataset(&db.pool, auth.project_id, path.into_inner()).await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Ok().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    Ok(handlers::get(&db, auth.project_id, path.into_inner()).await)
 }
 
 #[patch("/datasets/{dataset_id}")]
@@ -55,18 +45,7 @@ pub async fn update_dataset(
     req: web::Json<DatasetNameRequest>,
     db: web::Data<DB>,
 ) -> actix_web::Result<HttpResponse> {
-    let result = service::update_dataset(
-        &db.pool,
-        auth.project_id,
-        path.into_inner(),
-        req.into_inner().name,
-    )
-    .await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Ok().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    Ok(handlers::update(&db, auth.project_id, path.into_inner(), req.into_inner()).await)
 }
 
 #[delete("/datasets/{dataset_id}")]
@@ -76,18 +55,7 @@ pub async fn delete_dataset(
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> actix_web::Result<HttpResponse> {
-    let result = service::delete_dataset(
-        &db.pool,
-        clickhouse.get_ref(),
-        auth.project_id,
-        path.into_inner(),
-    )
-    .await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Ok().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    Ok(handlers::delete(&db, &clickhouse, auth.project_id, path.into_inner()).await)
 }
 
 /// `GET /v1/cli/datasets`
@@ -125,6 +93,11 @@ pub async fn get_datapoints(
         }
     };
     let query = params.into_inner();
+    if query.limit <= 0 || query.limit > 1_000 || query.offset < 0 {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "limit must be between 1 and 1000 and offset must be non-negative"
+        })));
+    }
 
     match service::fetch_datapoints_page(
         auth.project_id,

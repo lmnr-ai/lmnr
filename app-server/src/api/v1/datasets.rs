@@ -31,13 +31,7 @@ pub async fn create_dataset(
     project_api_key: ProjectApiKey,
     req: web::Json<DatasetNameRequest>,
 ) -> actix_web::Result<HttpResponse> {
-    let result =
-        service::create_dataset(&db.pool, project_api_key.project_id, req.into_inner().name).await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Created().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    Ok(handlers::create(&db, project_api_key.project_id, req.into_inner()).await)
 }
 
 #[get("/datasets/{dataset_id}")]
@@ -46,13 +40,7 @@ pub async fn get_dataset(
     project_api_key: ProjectApiKey,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
-    let result =
-        service::get_dataset(&db.pool, project_api_key.project_id, path.into_inner()).await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Ok().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    Ok(handlers::get(&db, project_api_key.project_id, path.into_inner()).await)
 }
 
 #[patch("/datasets/{dataset_id}")]
@@ -62,18 +50,13 @@ pub async fn update_dataset(
     path: web::Path<Uuid>,
     req: web::Json<DatasetNameRequest>,
 ) -> actix_web::Result<HttpResponse> {
-    let result = service::update_dataset(
-        &db.pool,
+    Ok(handlers::update(
+        &db,
         project_api_key.project_id,
         path.into_inner(),
-        req.into_inner().name,
+        req.into_inner(),
     )
-    .await;
-
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Ok().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+    .await)
 }
 
 #[delete("/datasets/{dataset_id}")]
@@ -83,18 +66,60 @@ pub async fn delete_dataset(
     project_api_key: ProjectApiKey,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
-    let result = service::delete_dataset(
-        &db.pool,
-        clickhouse.get_ref(),
+    Ok(handlers::delete(
+        &db,
+        &clickhouse,
         project_api_key.project_id,
         path.into_inner(),
     )
-    .await;
+    .await)
+}
 
-    Ok(match result {
-        Ok(dataset) => HttpResponse::Ok().json(dataset),
-        Err(error) => service::error_response(error),
-    })
+/// Auth-agnostic CRUD handlers shared by the project-key and CLI routes.
+pub mod handlers {
+    use actix_web::HttpResponse;
+    use uuid::Uuid;
+
+    use super::DatasetNameRequest;
+    use crate::{datasets::service, db::DB};
+
+    pub async fn create(db: &DB, project_id: Uuid, input: DatasetNameRequest) -> HttpResponse {
+        match service::create_dataset(&db.pool, project_id, input.name).await {
+            Ok(dataset) => HttpResponse::Created().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+
+    pub async fn get(db: &DB, project_id: Uuid, dataset_id: Uuid) -> HttpResponse {
+        match service::get_dataset(&db.pool, project_id, dataset_id).await {
+            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+
+    pub async fn update(
+        db: &DB,
+        project_id: Uuid,
+        dataset_id: Uuid,
+        input: DatasetNameRequest,
+    ) -> HttpResponse {
+        match service::update_dataset(&db.pool, project_id, dataset_id, input.name).await {
+            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+
+    pub async fn delete(
+        db: &DB,
+        clickhouse: &clickhouse::Client,
+        project_id: Uuid,
+        dataset_id: Uuid,
+    ) -> HttpResponse {
+        match service::delete_dataset(&db.pool, clickhouse, project_id, dataset_id).await {
+            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -150,6 +175,11 @@ pub async fn get_datapoints(
         }
     };
     let query = params.into_inner();
+    if query.limit <= 0 || query.limit > 1_000 || query.offset < 0 {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "limit must be between 1 and 1000 and offset must be non-negative"
+        })));
+    }
 
     match service::fetch_datapoints_page(
         project_id,

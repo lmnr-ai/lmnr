@@ -24,7 +24,7 @@ use crate::{
 use super::datapoints::{CHQueryEngineDatapoint, Datapoint};
 
 #[derive(Debug, thiserror::Error)]
-pub enum CrudError {
+pub enum DatasetError {
     #[error("Dataset name is required")]
     InvalidName,
     #[error("Dataset not found")]
@@ -33,17 +33,17 @@ pub enum CrudError {
     Internal(#[from] anyhow::Error),
 }
 
-pub fn error_response(error: CrudError) -> actix_web::HttpResponse {
+pub fn error_response(error: DatasetError) -> actix_web::HttpResponse {
     use actix_web::HttpResponse;
 
     match error {
-        CrudError::InvalidName => HttpResponse::BadRequest().json(json!({
+        DatasetError::InvalidName => HttpResponse::BadRequest().json(json!({
             "error": error.to_string()
         })),
-        CrudError::DatasetNotFound => HttpResponse::NotFound().json(json!({
+        DatasetError::DatasetNotFound => HttpResponse::NotFound().json(json!({
             "error": error.to_string()
         })),
-        CrudError::Internal(error) => {
+        DatasetError::Internal(error) => {
             log::error!("dataset CRUD error: {error:?}");
             HttpResponse::InternalServerError().json(json!({
                 "error": "Internal server error"
@@ -52,34 +52,28 @@ pub fn error_response(error: CrudError) -> actix_web::HttpResponse {
     }
 }
 
-fn normalized_name(name: String) -> Result<String, CrudError> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(CrudError::InvalidName);
-    }
-    Ok(name.to_string())
-}
-
 pub async fn create_dataset(
     pool: &sqlx::PgPool,
     project_id: Uuid,
     name: String,
-) -> Result<db::datasets::Dataset, CrudError> {
-    let name = normalized_name(name)?;
+) -> Result<db::datasets::Dataset, DatasetError> {
+    if name.is_empty() {
+        return Err(DatasetError::InvalidName);
+    }
     db::datasets::create_dataset(pool, &name, project_id)
         .await
-        .map_err(CrudError::Internal)
+        .map_err(DatasetError::Internal)
 }
 
 pub async fn get_dataset(
     pool: &sqlx::PgPool,
     project_id: Uuid,
     dataset_id: Uuid,
-) -> Result<db::datasets::Dataset, CrudError> {
+) -> Result<db::datasets::Dataset, DatasetError> {
     db::datasets::get_dataset(pool, dataset_id, project_id)
         .await
-        .map_err(CrudError::Internal)?
-        .ok_or(CrudError::DatasetNotFound)
+        .map_err(DatasetError::Internal)?
+        .ok_or(DatasetError::DatasetNotFound)
 }
 
 pub async fn update_dataset(
@@ -87,12 +81,14 @@ pub async fn update_dataset(
     project_id: Uuid,
     dataset_id: Uuid,
     name: String,
-) -> Result<db::datasets::Dataset, CrudError> {
-    let name = normalized_name(name)?;
+) -> Result<db::datasets::Dataset, DatasetError> {
+    if name.is_empty() {
+        return Err(DatasetError::InvalidName);
+    }
     db::datasets::update_dataset(pool, dataset_id, project_id, &name)
         .await
-        .map_err(CrudError::Internal)?
-        .ok_or(CrudError::DatasetNotFound)
+        .map_err(DatasetError::Internal)?
+        .ok_or(DatasetError::DatasetNotFound)
 }
 
 pub async fn delete_dataset(
@@ -100,13 +96,13 @@ pub async fn delete_dataset(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     dataset_id: Uuid,
-) -> Result<db::datasets::Dataset, CrudError> {
+) -> Result<db::datasets::Dataset, DatasetError> {
     // Match the frontend deletion order: remove Postgres metadata first, then
     // issue the ClickHouse datapoint mutation. These stores cannot share a transaction.
     let dataset = db::datasets::delete_dataset(pool, dataset_id, project_id)
         .await
-        .map_err(CrudError::Internal)?
-        .ok_or(CrudError::DatasetNotFound)?;
+        .map_err(DatasetError::Internal)?
+        .ok_or(DatasetError::DatasetNotFound)?;
 
     clickhouse
         .query(
@@ -360,25 +356,4 @@ pub async fn create_datapoints(
         datapoints,
         dataset_was_created,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CrudError, normalized_name};
-
-    #[test]
-    fn dataset_names_are_trimmed() {
-        assert_eq!(
-            normalized_name("  examples  ".to_string()).unwrap(),
-            "examples"
-        );
-    }
-
-    #[test]
-    fn blank_dataset_names_are_rejected() {
-        assert!(matches!(
-            normalized_name(" \n\t ".to_string()),
-            Err(CrudError::InvalidName)
-        ));
-    }
 }
