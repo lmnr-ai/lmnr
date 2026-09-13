@@ -93,7 +93,11 @@ export default function ClustersSectionContent({ className }: Props) {
   // No revalidation on focus: the strip's tree is fetched through the store, which
   // has no such trigger, so refetching the bars alone would leave the two halves of
   // this chart describing different moments.
-  const { data: statsResponse, error: statsError } = useSWR<ClusterStatsResponse>(statsUrl, swrFetcher, {
+  const {
+    data: statsResponse,
+    error: statsError,
+    isValidating: isStatsValidating,
+  } = useSWR<ClusterStatsResponse>(statsUrl, swrFetcher, {
     keepPreviousData: true,
     revalidateOnFocus: false,
     onError: () => toast({ title: "Error", description: "Failed to load cluster stats.", variant: "destructive" }),
@@ -133,15 +137,6 @@ export default function ClustersSectionContent({ className }: Props) {
     fetchClusters({ pastHours, startDate, endDate });
   }, [fetchClusters, pastHours, startDate, endDate]);
 
-  // Only while a fetch is actually in flight: settled with no clusters must fall
-  // through to the empty chart, since a strip of grey pills over it reads as
-  // still loading. A refresh keeps the old strip, because the model survives it.
-  const showSkeleton = !model && (isClustersLoading || isStatsPending);
-
-  // The chart's own empty state may only speak for a window whose stats resolved.
-  const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
-  const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
-
   // This supplies only the denominator for "% of traces" in cluster details.
   // The run totals are deliberately not passed to the chart: its background line
   // graph was removed while this contextual statistic remains useful.
@@ -152,13 +147,24 @@ export default function ClustersSectionContent({ className }: Props) {
     startDate,
     endDate,
   });
-  const { data: runStats } = useSWR<{ items: { count: number }[] }>(runStatsUrl, swrFetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data: runStats, isValidating: isRunStatsValidating } = useSWR<{ items: { count: number }[] }>(
+    runStatsUrl,
+    swrFetcher,
+    { revalidateOnFocus: false }
+  );
   const traceTotal = useMemo(
     () => (runStats?.items ?? []).reduce((sum, item) => sum + Number(item.count), 0),
     [runStats?.items]
   );
+
+  // Never combine data from different range or width keys. SWR may retain the
+  // previous cluster stats while either replacement request is in flight, and
+  // the store likewise retains its previous tree until fetchClusters settles.
+  const isClusterDataLoading = isClustersLoading || isStatsPending || isStatsValidating || isRunStatsValidating;
+  const showSkeleton = isClusterDataLoading;
+
+  // The chart's own empty state may only speak for a window whose data resolved.
+  const showChartLoading = isClusterDataLoading;
 
   const searchWiderRange = useCallback(
     (range: DateRange) => {
@@ -192,9 +198,11 @@ export default function ClustersSectionContent({ className }: Props) {
     <div className={cn("relative flex w-full min-w-0 flex-col", className)}>
       {/* The strip and the trail read as one block above the chart, which is
           why the gap between them is looser than the one under it. */}
-      {(model || showSkeleton) && (
+      {(model || showSkeleton || emergingClusterId) && (
         <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
-          {model ? (
+          {showSkeleton ? (
+            <ClusterIcicleSkeleton />
+          ) : model ? (
             <ClusterIcicle
               tree={model.tree}
               ancestors={model.ancestors}
@@ -203,10 +211,8 @@ export default function ClustersSectionContent({ className }: Props) {
               onHover={setHoveredId}
               onSelect={selectCluster}
             />
-          ) : (
-            <ClusterIcicleSkeleton />
-          )}
-          {model && (emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />)}
+          ) : null}
+          {emergingClusterId ? <EmergingClusterBreadcrumbs /> : model ? <ClusterBreadcrumbs /> : null}
         </div>
       )}
 
