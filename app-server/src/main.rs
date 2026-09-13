@@ -1246,7 +1246,7 @@ fn main() -> anyhow::Result<()> {
 
     // == Quickwit ==
     // Quickwit is optional - if unavailable, the server will start but search/indexing will be disabled
-    let quickwit_client =
+    let quickwit_client = if is_feature_enabled(Feature::Quickwit) {
         match runtime_handle.block_on(QuickwitClient::connect(QuickwitConfig::from_env())) {
             Ok(client) => {
                 log::info!("Quickwit client connected successfully");
@@ -1259,7 +1259,11 @@ fn main() -> anyhow::Result<()> {
                 );
                 None
             }
-        };
+        }
+    } else {
+        log::info!("QUICKWIT_ENABLED is false - search/indexing disabled");
+        None
+    };
 
     // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
     // Additive to the queues above: producers prefer a stream when its publisher

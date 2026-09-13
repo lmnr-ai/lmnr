@@ -53,6 +53,9 @@ pub enum Feature {
     /// Strip PII from span input/output via the pii-redactor gRPC service,
     /// gated per project by the `projects.settings.removePii` toggle.
     PiiRedaction,
+    /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
+    /// (default true).
+    Quickwit,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -117,6 +120,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::PiiRedaction => {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
+        Feature::Quickwit => env::quickwit::ENABLED.get(),
     }
 }
 
