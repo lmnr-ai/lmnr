@@ -3,9 +3,7 @@ use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{
-    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
-};
+use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 
 /// One `unique_content` row: any JSON blob the spans table references by
 /// hash (input / output messages, tool-definition arrays). Keyed by
@@ -59,10 +57,7 @@ impl ClickhouseInsertable for CHUniqueContent {
     const TABLE: Table = Table::UniqueContent;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_setting(
-            "async_insert_busy_timeout_max_ms",
-            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
-        )
+        super::configure_hot_ingest_insert(insert)
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {

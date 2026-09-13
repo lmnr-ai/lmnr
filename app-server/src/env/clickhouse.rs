@@ -21,6 +21,15 @@ pub const ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: StringEnv =
 /// disables the timeout entirely (handled in `ch/mod.rs`). Default 120 s.
 pub const INSERT_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("CLICKHOUSE_INSERT_TIMEOUT_SECS", 120);
 
+/// Turns on ClickHouse insert-block deduplication for the hot ingest tables, so
+/// a replayed flush that already landed is dropped server-side instead of
+/// double-writing. One var covers `async_insert_deduplicate` AND
+/// `deduplicate_blocks_in_dependent_materialized_views` — see
+/// `ch::configure_hot_ingest_insert` for why they must never be split. Off by
+/// default: dedup costs a hash + a Keeper round trip per block, so self-hosters
+/// opt in rather than inherit it.
+pub const INSERT_DEDUPLICATE: BoolEnv = BoolEnv::new("CLICKHOUSE_INSERT_DEDUPLICATE", false);
+
 /// Whether browser-event inserts wait for the async insert to complete.
 pub const BROWSER_EVENTS_WAIT_FOR_ASYNC_INSERT: BoolEnv =
     BoolEnv::new("BROWSER_EVENTS_CH_WAIT_FOR_ASYNC_INSERT", true);

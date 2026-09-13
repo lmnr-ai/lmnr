@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use clickhouse::Row;
 use clickhouse::insert::Insert;
@@ -7,9 +9,7 @@ use uuid::Uuid;
 
 use super::traces::TraceAggregation;
 use super::utils::chrono_to_nanoseconds;
-use super::{
-    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
-};
+use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
 
 /// Whether any partial exists for the trace. Existence probe on the
@@ -113,7 +113,8 @@ fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
     let Some(Value::Object(map)) = metadata else {
         return Vec::new();
     };
-    map.iter()
+    let mut pairs: Vec<(String, String)> = map
+        .iter()
         // Extracted input lives in the `trace_agent_input` supplementary
         // table, not the traces_agg maxMap. The metadata patch that carries
         // this key is written to `traces_replacing` (the current read path)
@@ -122,7 +123,24 @@ fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
         // equivalent to strip — see `input_extraction::metadata`.)
         .filter(|(k, _)| k.as_str() != USER_TASK_METADATA_KEY)
         .map(|(k, v)| (k.clone(), v.to_string()))
-        .collect()
+        .collect();
+    // `serde_json` runs with `preserve_order`, so this Map's key order is
+    // whatever the `HashMap` it was built from happened to yield — different on
+    // every rebuild. Sort so a retried flush serializes the same bytes and CH's
+    // insert-block dedup can recognise it. `maxMap` merges per key, so key order
+    // is irrelevant to the stored value.
+    pairs.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+    pairs
+}
+
+/// A `HashSet`'s iteration order is reseeded per instance, so the same batch
+/// rebuilt on a retry would emit these arrays in a different order and lose CH's
+/// insert-block dedup. Both columns are `groupUniqArrayArray`, which is
+/// order-independent, so sorting costs nothing at read.
+fn sorted_array(values: &HashSet<String>) -> Vec<String> {
+    let mut out: Vec<String> = values.iter().cloned().collect();
+    out.sort_unstable();
+    out
 }
 
 fn status_enum_values(status: Option<&str>) -> Vec<i8> {
@@ -163,9 +181,9 @@ impl CHTraceAgg {
             output_cost: agg.output_cost,
             total_cost: agg.total_cost,
             metadata: encode_metadata(agg.metadata.as_ref()),
-            tags: agg.tags.iter().cloned().collect(),
+            tags: sorted_array(&agg.tags),
             num_spans: agg.num_spans as u64,
-            span_names: agg.span_names.iter().cloned().collect(),
+            span_names: sorted_array(&agg.span_names),
             cache_read_input_tokens: agg.cache_read_input_tokens as u64,
             cache_creation_input_tokens: agg.cache_creation_input_tokens as u64,
             reasoning_tokens: agg.reasoning_tokens as u64,
@@ -249,10 +267,7 @@ impl ClickhouseInsertable for CHTraceAgg {
     const TABLE: Table = Table::TracesAgg;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_setting(
-            "async_insert_busy_timeout_max_ms",
-            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
-        )
+        super::configure_hot_ingest_insert(insert)
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
@@ -337,6 +352,32 @@ mod tests {
         let encoded = encode_metadata(Some(&metadata));
         assert!(encoded.iter().any(|(k, _)| k == "user_key"));
         assert!(!encoded.iter().any(|(k, _)| k == "lmnr_user_task"));
+    }
+
+    // ClickHouse insert-block dedup is a content checksum, so every column
+    // built from a `HashMap`/`HashSet` has to be ordered by its own contents —
+    // otherwise a retried flush emits different bytes and is written twice.
+    #[test]
+    fn hash_ordered_columns_are_sorted_for_block_dedup() {
+        let metadata = json!({"zeta": 1, "alpha": 2, "mu": 3});
+        let keys: Vec<String> = encode_metadata(Some(&metadata))
+            .into_iter()
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(keys, vec!["alpha", "mu", "zeta"]);
+
+        let mut agg = TraceAggregation::empty(Uuid::new_v4(), Uuid::new_v4());
+        agg.tags = ["prod", "beta", "llm"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        agg.span_names = ["outer", "inner", "middle"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let row = CHTraceAgg::from_aggregation(&agg, 0);
+        assert_eq!(row.tags, vec!["beta", "llm", "prod"]);
+        assert_eq!(row.span_names, vec!["inner", "middle", "outer"]);
     }
 
     #[test]
