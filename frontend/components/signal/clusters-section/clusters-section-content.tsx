@@ -8,7 +8,7 @@ import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use
 import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
-import { getChartClustersFromData, useSignalStoreContext } from "@/components/signal/store.tsx";
+import { getBreadcrumbFromData, getChartClustersFromData, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import {
   type ClusterVisualizationSnapshot,
@@ -27,7 +27,7 @@ import ClusterReadout from "./cluster-readout";
 import ClusterStackedChart from "./cluster-stacked-chart";
 import { useClusterFocusContext } from "./focus-store";
 import { buildClusterModel, type ClusterNode } from "./model";
-import { buildPath, buildTree } from "./utils";
+import { buildTree } from "./utils";
 
 interface Props {
   className?: string;
@@ -74,10 +74,11 @@ export default function ClustersSectionContent({ className }: Props) {
   });
   const { data: snapshot, error } = useSWR<ClusterVisualizationSnapshot>(visualizationUrl, swrFetcher, {
     revalidateOnFocus: false,
+    keepPreviousData: true,
     onError: () =>
       toast({ title: "Error", description: "Failed to load cluster visualization.", variant: "destructive" }),
   });
-  const isLoading = Boolean(visualizationUrl) && !snapshot && !error;
+  const isLoading = !snapshot && !error;
   const isCurrentSnapshot = snapshot?.rangeKey === rangeKey;
   const currentSnapshot = isCurrentSnapshot ? snapshot : undefined;
 
@@ -125,7 +126,10 @@ export default function ClustersSectionContent({ className }: Props) {
     () => buildClusterModel(currentSnapshot?.clusters ?? [], clusterStatsData),
     [clusterStatsData, currentSnapshot]
   );
-  const breadcrumb = useMemo(() => (clusterId ? buildPath(clusterTree, clusterId) : []), [clusterId, clusterTree]);
+  const breadcrumb = useMemo(
+    () => getBreadcrumbFromData(clusterTree, unclusteredCount, clusterId),
+    [clusterId, clusterTree, unclusteredCount]
+  );
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
     chartClusters.forEach((cluster) => map.set(cluster.id, getClusterColorById(cluster.id)));

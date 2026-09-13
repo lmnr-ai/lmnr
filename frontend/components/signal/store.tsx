@@ -60,11 +60,18 @@ const getCurrentNode = (state: Store, clusterId: string | null): ClusterNode | n
   return findNodeById(state.clusterTree, clusterId);
 };
 
-export const getBreadcrumb = (state: Store, clusterId: string | null): ClusterNode[] => {
+export const getBreadcrumbFromData = (
+  clusterTree: ClusterNode[],
+  unclusteredCount: number,
+  clusterId: string | null
+): ClusterNode[] => {
   if (!clusterId) return [];
-  if (clusterId === UNCLUSTERED_ID) return [getUnclusteredVirtualCluster(selectUnclusteredCount(state))];
-  return buildPath(state.clusterTree, clusterId);
+  if (clusterId === UNCLUSTERED_ID) return [getUnclusteredVirtualCluster(unclusteredCount)];
+  return buildPath(clusterTree, clusterId);
 };
+
+export const getBreadcrumb = (state: Store, clusterId: string | null): ClusterNode[] =>
+  getBreadcrumbFromData(state.clusterTree, selectUnclusteredCount(state), clusterId);
 
 // Exported for the readout, which offers the unclustered bucket as a pick and so
 // has to name its size. Not derivable from the cluster tree — the tree only knows
