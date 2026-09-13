@@ -52,7 +52,10 @@ async fn policy_for(
         .await
         .unwrap_or_else(|e| {
             log::warn!("access policy for project {project_id}: {e:#}; masking");
-            AccessPolicy { mask_pii: true }
+            AccessPolicy {
+                mask_pii: true,
+                ..Default::default()
+            }
         })
 }
 

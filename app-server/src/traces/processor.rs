@@ -22,7 +22,7 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
-        PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
+        MaskedText, PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
     },
     pubsub::PubSub,
     quickwit::{
@@ -489,10 +489,18 @@ pub async fn process_span_messages(
                 let usage = &span_usage_vec[span_idx];
                 let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
 
+                // `dual` mode: the canonical text replaces the row's own
+                // serialization so the masks index the stored bytes.
                 let pii = pii_outcome.span(span_idx);
                 ch_span.pii_checked = pii.checked;
-                ch_span.input_redacted = pii.input_redacted.unwrap_or_default();
-                ch_span.output_redacted = pii.output_redacted.unwrap_or_default();
+                if let Some(masked) = pii.input {
+                    ch_span.input_masks = masked.ch_masks();
+                    ch_span.input = masked.text;
+                }
+                if let Some(masked) = pii.output {
+                    ch_span.output_masks = masked.ch_masks();
+                    ch_span.output = masked.text;
+                }
 
                 let input_hashes = input_batch
                     .span_hashes
@@ -501,7 +509,7 @@ pub async fn process_span_messages(
                     .unwrap_or_default();
                 if !input_hashes.is_empty() {
                     ch_span.input = String::new();
-                    ch_span.input_redacted = String::new();
+                    ch_span.input_masks = Vec::new();
                     ch_span.input_message_hashes = input_hashes;
                     ch_span.input_new_message_indices = input_batch
                         .span_new_indices
@@ -517,7 +525,7 @@ pub async fn process_span_messages(
                     .unwrap_or_default();
                 if !output_hashes.is_empty() {
                     ch_span.output = String::new();
-                    ch_span.output_redacted = String::new();
+                    ch_span.output_masks = Vec::new();
                     ch_span.output_message_hashes = output_hashes;
                     ch_span.output_new_message_indices = output_batch
                         .span_new_indices
@@ -763,22 +771,28 @@ pub async fn process_span_messages(
             } else {
                 None
             };
-            // `dual` mode: whole-value text reaches the index only in its
-            // redacted form, and a span whose redaction failed contributes
-            // no text at all.
+            // `dual` mode: whole-value text reaches the index only with its
+            // masks spliced in (a splice failure drops the text), and a span
+            // whose redaction failed contributes no text at all.
             let span_idx = recordable_indices[dedup_idx];
             let pii = pii_outcome.span(span_idx);
-            let redacted_copy = (pii.input_redacted.is_some() || pii.output_redacted.is_some())
-                .then(|| {
-                    let mut owned = (*s).clone();
-                    if let Some(text) = pii.input_redacted.as_deref() {
-                        owned.input = serde_json::from_str(text).ok();
-                    }
-                    if let Some(text) = pii.output_redacted.as_deref() {
-                        owned.output = serde_json::from_str(text).ok();
-                    }
-                    owned
-                });
+            let input_pii = pii.input.as_ref().filter(|m| m.has_pii());
+            let output_pii = pii.output.as_ref().filter(|m| m.has_pii());
+            let redacted_copy = (input_pii.is_some() || output_pii.is_some()).then(|| {
+                let spliced = |m: &MaskedText| -> Option<Value> {
+                    m.redacted()
+                        .ok()
+                        .and_then(|text| serde_json::from_str(&text).ok())
+                };
+                let mut owned = (*s).clone();
+                if let Some(m) = input_pii {
+                    owned.input = spliced(m);
+                }
+                if let Some(m) = output_pii {
+                    owned.output = spliced(m);
+                }
+                owned
+            });
             let mut doc = QuickwitIndexedSpan::from_span(
                 redacted_copy.as_ref().unwrap_or(s),
                 new_input_messages.as_deref(),

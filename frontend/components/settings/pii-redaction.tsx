@@ -26,7 +26,7 @@ const MODE_LABELS: Record<PiiMode, { label: string; description: string }> = {
   },
   dual: {
     label: "Dual",
-    description: "Workspace owners and admins see the original data; members see the redacted copy.",
+    description: "Workspace owners and admins see the original data; members see PII masked.",
   },
 };
 

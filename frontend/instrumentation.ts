@@ -116,31 +116,53 @@ export async function register() {
             QUERY_WAIT_TIMEOUT_MILLISECONDS 15000`;
       };
 
-      // Content-dedup dictionaries. `spans_v0` / `spans_v1` / `trace_outputs_v0`
-      // / search snippets resolve message and tool-definition hashes through
-      // these. Key columns mirror each table's ORDER BY; the hash is declared
-      // `String` because dict attrs can't be `FixedString(N)` — CH coerces
-      // the table's `FixedString(32)` transparently. CREATE VIEW does not
-      // resolve dictionary attributes, so recreating the dicts after
-      // migrations is enough for views to see new attributes.
-      const CONTENT_DICTS = [
-        // Current: group-scoped (session, else trace) so one trace's
-        // lookups land in adjacent granules. `content_redacted` /
+      // Dictionaries the `_v0` / `_v1` views read. Key columns mirror each
+      // source's ORDER BY; a hash is declared `String` because dict attrs
+      // can't be `FixedString(N)` — CH coerces the table's `FixedString(32)`
+      // transparently. CREATE VIEW does not resolve dictionary attributes, so
+      // recreating the dicts after migrations is enough for views to see
+      // new attributes. A `query` source is quoted as a SQL string, so
+      // literals inside it are doubled (`''''` is one `'`).
+      const VIEW_DICTS: {
+        name: string;
+        keyColumns: string[];
+        attrColumns: string[];
+        source: { table: string } | { query: string };
+        layout: "cache" | "direct";
+      }[] = [
+        // Content dedup, current: group-scoped (session, else trace) so one
+        // trace's lookups land in adjacent granules. `content_masks` /
         // `pii_checked` feed the masked branch of `spans_v1` (migration 65).
         {
           name: "unique_content_dict",
-          table: "unique_content",
           keyColumns: ["project_id UUID", "group_id String", "content_hash String"],
-          attrColumns: ["content String", "content_redacted String", "pii_checked Bool"],
+          attrColumns: ["content String", "content_masks Array(Tuple(UInt32, UInt32, String))", "pii_checked Bool"],
+          source: { table: "unique_content" },
+          layout: "cache",
         },
-        // Legacy: project-scoped, read-only fallback for spans ingested
-        // before migration 64. No writer, so no PII columns: its rows are
-        // unavailable under a masking policy.
+        // Content dedup, legacy: project-scoped, read-only fallback for spans
+        // ingested before migration 64. No writer, so no PII columns: its
+        // rows are unavailable under a masking policy.
         {
           name: "deduped_content_dict",
-          table: "deduped_content",
           keyColumns: ["project_id UUID", "content_hash String"],
           attrColumns: ["content String"],
+          source: { table: "deduped_content" },
+          layout: "cache",
+        },
+        // Trace scope for `spans_v1`'s `traceFilters` (migration 65): the
+        // trace's `user_id` / `metadata`, `''` when unset. DIRECT so a fresh
+        // trace is filterable as soon as `traces_static` has it; the view
+        // only consults it when the policy carries filters.
+        {
+          name: "trace_access_policy_dict",
+          keyColumns: ["project_id UUID", "trace_id UUID"],
+          attrColumns: ["user_id String", "metadata String"],
+          source: {
+            query:
+              "SELECT project_id, trace_id, ifNull(user_id, '''') AS user_id, ifNull(metadata, '''') AS metadata FROM traces_static FINAL",
+          },
+          layout: "direct",
         },
       ];
 
@@ -150,8 +172,15 @@ export async function register() {
         const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
         const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
 
-        for (const { name, table, keyColumns, attrColumns } of CONTENT_DICTS) {
+        for (const { name, keyColumns, attrColumns, source, layout } of VIEW_DICTS) {
           const primaryKey = keyColumns.map((c) => c.split(" ")[0]).join(", ");
+          const sourceClause = "table" in source ? `TABLE '${source.table}'` : `QUERY '${source.query}'`;
+          // DIRECT has no cache and takes no LIFETIME.
+          const layoutClause =
+            layout === "cache"
+              ? `LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
+              LIFETIME(MIN 1800 MAX 3600)`
+              : "LAYOUT(COMPLEX_KEY_DIRECT())";
           await clickhouseClient.command({
             query: `
               CREATE OR REPLACE DICTIONARY ${name}
@@ -163,10 +192,9 @@ export async function register() {
                   USER '${user}'
                   PASSWORD '${password}'
                   DB '${db}'
-                  TABLE '${table}'
+                  ${sourceClause}
               ))
-              LAYOUT(COMPLEX_KEY_CACHE(${dictCacheOptions()}))
-              LIFETIME(MIN 1800 MAX 3600)
+              ${layoutClause}
             `,
           });
         }

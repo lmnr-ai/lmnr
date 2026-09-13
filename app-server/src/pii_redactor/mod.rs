@@ -3,6 +3,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
+use serde::de::IgnoredAny;
 use serde_json::Value;
 use tonic::transport::Channel;
 use tracing::Instrument;
@@ -16,21 +17,21 @@ use crate::db::spans::Span;
 use crate::utils::limits::get_workspace_info_for_project_id;
 use crate::utils::sanitize_string;
 
+pub mod masks;
 #[allow(clippy::all)]
 pub mod pii_redactor;
 
+pub use masks::MaskedText;
+#[cfg(test)]
+pub use masks::PiiMask;
 use pii_redactor::{RedactRequest, pii_redactor_service_client::PiiRedactorServiceClient};
-
-/// Default placeholder prefix the redactor substitutes for every entity
-/// (`[REDACTED_EMAIL]`, ...). Its presence in the response is the "changed"
-/// signal: byte equality is useless because the redactor re-serializes JSON.
-pub const REDACTED_MARKER: &str = "[REDACTED_";
 
 /// Redaction backend. The gRPC client is the production impl; tests plug in
 /// a fake so the state machine in [`redact_spans_in_place`] is unit-testable.
 pub trait RedactTexts {
-    /// Redact stringified-JSON texts, preserving order and length.
-    fn redact(&self, texts: Vec<String>) -> impl Future<Output = Result<Vec<String>>> + Send;
+    /// Detect PII in stringified-JSON texts, preserving order and length.
+    /// Each result is the text's canonical re-serialization plus masks.
+    fn redact(&self, texts: Vec<String>) -> impl Future<Output = Result<Vec<MaskedText>>> + Send;
 }
 
 #[derive(Clone)]
@@ -47,14 +48,13 @@ impl PiiRedactorClient {
 }
 
 impl RedactTexts for PiiRedactorClient {
-    async fn redact(&self, texts: Vec<String>) -> Result<Vec<String>> {
+    async fn redact(&self, texts: Vec<String>) -> Result<Vec<MaskedText>> {
         if texts.is_empty() {
             return Ok(Vec::new());
         }
         let mut client = self.client.as_ref().clone();
         let req = RedactRequest {
             texts,
-            placeholder_format: None,
             skip_keys: Vec::new(),
         };
         let resp = client
@@ -62,7 +62,7 @@ impl RedactTexts for PiiRedactorClient {
             .await
             .map_err(|e| anyhow!("pii-redactor rpc: {}", e.message()))?
             .into_inner();
-        Ok(resp.texts)
+        Ok(resp.results.into_iter().map(MaskedText::from).collect())
     }
 }
 
@@ -70,17 +70,17 @@ impl RedactTexts for PiiRedactorClient {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SpanPii {
     /// Persisted as `pii_checked`: the redactor screened every text of this
-    /// span. In `redact` mode the raw text was replaced; in `dual` mode a
-    /// `*_redacted` copy exists exactly where something was found, so an
-    /// empty copy on a checked row means the raw side is safe. `false` for
-    /// `off` projects and for any failure; the masked read path treats
-    /// unchecked rows as unavailable.
+    /// span. In `redact` mode the raw text was replaced; in `dual` mode the
+    /// masks say exactly where PII sits, so a checked row with no masks is
+    /// safe as-is. `false` for `off` projects and for any failure; the
+    /// masked read path treats unchecked rows as unavailable.
     pub checked: bool,
-    /// Redacted whole `span.input`, sanitized like `CHSpan::input`. Present
-    /// only in `dual` mode and only when the redactor changed the text.
-    pub input_redacted: Option<String>,
+    /// Canonical whole `span.input` with its masks; `dual` mode only.
+    /// Written verbatim as `CHSpan::input` / `input_masks` — the masks
+    /// index this exact string.
+    pub input: Option<MaskedText>,
     /// Same for `span.output`.
-    pub output_redacted: Option<String>,
+    pub output: Option<MaskedText>,
 }
 
 /// Result of one batch pass. Spans of `off` projects are absent and read
@@ -197,15 +197,19 @@ pub async fn resolve_project_pii_modes(
 ///   storage-hit-but-trace-new), so cross-trace shared content is
 ///   redacted before indexing.
 ///
-/// `redact` mode overwrites the raw buffers (the stored text IS the safe
-/// text). `dual` mode leaves `span.*` and `CHUniqueContent::content` raw and
-/// fills the `*_redacted` companions only where the redactor changed
-/// something. Both stamp `pii_checked`; the Quickwit buffers are overwritten
-/// in both modes so the search index only ever sees redacted text. Any RPC
-/// or parse failure leaves the affected rows unchecked and the raw buffers
-/// untouched: redaction must never block ingestion, unchecked rows fail
-/// closed under a masking policy, and failed shared rows are not
-/// stamped in the dedup presence cache, so the next occurrence retries.
+/// The redactor returns each text's canonical re-serialization plus PII
+/// masks (byte ranges into it). `redact` mode overwrites the raw buffers
+/// with the masks spliced in (the stored text IS the safe text). `dual`
+/// mode stores the canonical text verbatim next to its masks and ClickHouse
+/// splices at read time; the text is not passed through `sanitize_string`
+/// again because that would shift the offsets (inputs are sanitized before
+/// the RPC instead). Both stamp `pii_checked`; the Quickwit buffers get the
+/// spliced text in both modes so the search index only ever sees redacted
+/// text. Any RPC, parse or mask failure leaves the affected rows unchecked
+/// and the raw buffers untouched: redaction must never block ingestion,
+/// unchecked rows fail closed under a masking policy, and failed shared
+/// rows are not stamped in the dedup presence cache, so the next occurrence
+/// retries.
 ///
 /// Storage-miss content is duplicated across the shared rows and
 /// `span_trace_new_contents`; both copies are redacted independently
@@ -283,13 +287,15 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
         // Producer-side dedup strips `span.input` to `None` for nested LLM
         // spans (those ride the wire as hashes only), so this covers root
         // LLM spans kept for the trace-list preview and non-LLM spans.
+        // Sanitized here, like `CHSpan::from_db_span` does, so the canonical
+        // response can be stored as-is (shared rows arrive pre-sanitized).
         if let Some(input) = span.input.as_ref() {
             targets.push(Target::Input(span_idx));
-            texts.push(input.to_string());
+            texts.push(sanitize_string(&input.to_string()));
         }
         if let Some(output) = span.output.as_ref() {
             targets.push(Target::Output(span_idx));
-            texts.push(output.to_string());
+            texts.push(sanitize_string(&output.to_string()));
         }
     }
 
@@ -338,34 +344,39 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
         }
     };
 
-    for (target, text) in targets.into_iter().zip(redacted.into_iter()) {
-        let changed = text.contains(REDACTED_MARKER);
+    for (target, masked) in targets.into_iter().zip(redacted) {
         let is_input = matches!(target, Target::Input(_));
         match target {
             Target::Input(idx) | Target::Output(idx) => {
                 let mode = mode_for(&spans[idx].project_id).unwrap_or(PiiMode::Redact);
-                let parsed: Option<Value> = match serde_json::from_str(&text) {
-                    Ok(v) => Some(v),
-                    Err(e) => {
-                        log::warn!("pii-redactor: parse redacted span[{idx}] text: {e:#}");
-                        outcome.fail(idx);
-                        None
-                    }
-                };
-                let Some(value) = parsed else { continue };
                 match mode {
                     PiiMode::Dual => {
-                        if changed {
-                            let entry = outcome.spans.entry(idx).or_default();
-                            let stored = Some(sanitize_string(&value.to_string()));
-                            if is_input {
-                                entry.input_redacted = stored;
-                            } else {
-                                entry.output_redacted = stored;
-                            }
+                        // Stored verbatim; only check it is the JSON the
+                        // view will hand out.
+                        if let Err(e) = serde_json::from_str::<IgnoredAny>(&masked.text) {
+                            log::warn!("pii-redactor: canonical span[{idx}] text: {e:#}");
+                            outcome.fail(idx);
+                            continue;
+                        }
+                        let entry = outcome.spans.entry(idx).or_default();
+                        if is_input {
+                            entry.input = Some(masked);
+                        } else {
+                            entry.output = Some(masked);
                         }
                     }
                     _ => {
+                        let value: Value = match masked
+                            .redacted()
+                            .and_then(|t| serde_json::from_str(&t).map_err(Into::into))
+                        {
+                            Ok(v) => v,
+                            Err(e) => {
+                                log::warn!("pii-redactor: redacted span[{idx}] text: {e:#}");
+                                outcome.fail(idx);
+                                continue;
+                            }
+                        };
                         if is_input {
                             spans[idx].input = Some(value);
                         } else {
@@ -378,15 +389,21 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 let Some(row) = shared_content.get_mut(idx) else {
                     continue;
                 };
-                // The redactor returns stringified JSON; sanitize to match
-                // the non-redact path's `sanitize_string(&item.to_string())`.
                 match mode_for(&row.project_id) {
                     Some(PiiMode::Dual) => {
-                        if changed {
-                            row.content_redacted = sanitize_string(&text);
-                        }
+                        row.content_masks = masked.ch_masks();
+                        row.content = masked.text;
                     }
-                    _ => row.content = sanitize_string(&text),
+                    // Spliced text is re-sanitized to match the non-redact
+                    // path's `sanitize_string(&item.to_string())`.
+                    _ => match masked.redacted() {
+                        Ok(text) => row.content = sanitize_string(&text),
+                        Err(e) => {
+                            log::warn!("pii-redactor: shared row[{idx}]: {e:#}");
+                            outcome.failed_shared_rows.insert(idx);
+                            continue;
+                        }
+                    },
                 }
                 row.pii_checked = true;
             }
@@ -395,8 +412,17 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                     Dir::Input => input_trace_new_contents.get_mut(dedup_idx),
                     Dir::Output => output_trace_new_contents.get_mut(dedup_idx),
                 };
-                if let Some(c) = contents_for_span.and_then(|v| v.get_mut(offset)) {
-                    *c = sanitize_string(&text);
+                let Some(c) = contents_for_span.and_then(|v| v.get_mut(offset)) else {
+                    continue;
+                };
+                match masked.redacted() {
+                    Ok(text) => *c = sanitize_string(&text),
+                    Err(e) => {
+                        log::warn!("pii-redactor: trace-new content[{dedup_idx}][{offset}]: {e:#}");
+                        if let Some(&span_idx) = recordable_indices.get(dedup_idx) {
+                            outcome.fail(span_idx);
+                        }
+                    }
                 }
             }
         }

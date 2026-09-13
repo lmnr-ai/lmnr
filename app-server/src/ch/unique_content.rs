@@ -19,11 +19,11 @@ pub struct CHUniqueContent {
     pub group_id: String,
     pub content_hash: [u8; 32],
     pub content: String,
-    /// Redacted copy, filled only in `dual` PII mode when the redactor
-    /// changed the content (`crate::pii_redactor`). Trailing columns: the
-    /// table's `last_seen_at` keeps its DEFAULT.
+    /// PII byte ranges into `content` (`crate::pii_redactor::PiiMask` as
+    /// `(start, end, label)`), filled only in `dual` PII mode. Trailing
+    /// columns: the table's `last_seen_at` keeps its DEFAULT.
     #[serde(default)]
-    pub content_redacted: String,
+    pub content_masks: Vec<(u32, u32, String)>,
     /// The redactor screened `content`; see `crate::pii_redactor::SpanPii`.
     #[serde(default)]
     pub pii_checked: bool,
@@ -41,7 +41,7 @@ impl CHUniqueContent {
             group_id,
             content_hash,
             content,
-            content_redacted: String::new(),
+            content_masks: Vec::new(),
             pii_checked: false,
         }
     }

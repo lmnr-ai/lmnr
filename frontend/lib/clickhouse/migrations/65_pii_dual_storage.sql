@@ -1,36 +1,116 @@
--- Sparse-dual PII storage for role-based masking (docs/internal/rbac.md).
+-- PII masks and trace-level access policy (docs/internal/rbac.md).
 --
--- `*_redacted` holds the redactor's output only when it changed something.
--- `pii_checked` says the redactor screened the row, which makes an empty
--- `*_redacted` mean "no PII found, raw is safe". Unchecked rows (`off` mode,
--- every row written before this migration, redactor failures) render as
--- unavailable under a masking policy (fail-closed).
-ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_redacted String CODEC(ZSTD(3));
-ALTER TABLE spans ADD COLUMN IF NOT EXISTS output_redacted String CODEC(ZSTD(3));
+-- `dual` PII mode stores the redactor's canonical text once, plus `*_masks`:
+-- byte ranges `(start, end, label)` into exactly that string. A masking
+-- policy splices `[REDACTED_<LABEL>]` over the ranges at read time via
+-- `apply_pii_masks`. `pii_checked` says the redactor screened the row, so a
+-- checked row with no masks is safe as-is. Unchecked rows (`off` mode, rows
+-- written before this migration, redactor failures) render as unavailable
+-- under a masking policy (fail-closed).
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_masks Array(Tuple(start UInt32, end UInt32, label String)) CODEC(ZSTD(3));
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS output_masks Array(Tuple(start UInt32, end UInt32, label String)) CODEC(ZSTD(3));
 ALTER TABLE spans ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
 
 -- Only the current dedup table gets the columns: legacy `deduped_content`
 -- (migration 64) has no writer, so its rows are unchecked by definition.
-ALTER TABLE unique_content ADD COLUMN IF NOT EXISTS content_redacted String CODEC(ZSTD(3));
+ALTER TABLE unique_content ADD COLUMN IF NOT EXISTS content_masks Array(Tuple(start UInt32, end UInt32, label String)) CODEC(ZSTD(3));
 ALTER TABLE unique_content ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT false;
+
+-- SQL UDFs are macro-expanded into the calling query (replicated across a
+-- ClickHouse Cloud service). Lambda parameters carry a `pii_` prefix so they
+-- cannot capture a caller's column of the same name.
+--
+-- Read-time twin of app-server's `pii_redactor::masks::apply_masks`; the two
+-- must produce identical output. Masks are sorted and non-overlapping; each
+-- element is preceded by the text between the previous mask's end and its
+-- own start (`arrayPushFront`/`arrayPopBack` shift the ends by one so the
+-- lambda pairs every mask with the previous end, and stays size-consistent
+-- when `masks` is empty).
+CREATE FUNCTION IF NOT EXISTS apply_pii_masks AS (text, masks) -> if(
+    empty(masks),
+    text,
+    arrayStringConcat(
+        arrayMap(
+            (pii_m, pii_prev_end) -> substring(text, pii_prev_end + 1, tupleElement(pii_m, 1) - pii_prev_end)
+                || '[REDACTED_' || upper(tupleElement(pii_m, 3)) || ']',
+            masks,
+            arrayPopBack(arrayPushFront(arrayMap(pii_x -> tupleElement(pii_x, 2), masks), toUInt32(0)))
+        ),
+        ''
+    ) || substring(text, tupleElement(masks[-1], 2) + 1)
+);
+
+-- A metadata value as the string a filter compares against: JSON strings
+-- unquoted, everything else (`false`, `42`, objects) as raw JSON. A missing
+-- key is `''`.
+CREATE FUNCTION IF NOT EXISTS pii_json_scalar AS (doc, key) -> if(
+    JSONType(doc, key) = 'String',
+    JSONExtractString(doc, key),
+    JSONExtractRaw(doc, key)
+);
+
+-- Operators of `AccessPolicy.traceFilters`; anything else hides the row.
+CREATE FUNCTION IF NOT EXISTS pii_str_op AS (actual, op, expected) -> multiIf(
+    op = 'eq', actual = expected,
+    op = 'ne', actual != expected,
+    false
+);
+
+-- Row-level scope from `policy.traceFilters` (AND of every filter) over a
+-- trace's `user_id` and `metadata` (`''` when the trace has none). Outer
+-- `if` first so a policy without `traceFilters` folds to a constant at
+-- analysis time and the dictionary lookup feeding `user_id`/`metadata` is
+-- never evaluated. A policy that is not JSON, a `traceFilters` that is not
+-- an array, or a filter with an unknown column/operator all hide the row.
+CREATE FUNCTION IF NOT EXISTS trace_visible AS (user_id, metadata, policy) -> if(
+    NOT JSONHas(policy, 'traceFilters'),
+    isValidJSON(policy),
+    if(
+        JSONType(policy, 'traceFilters') = 'Array',
+        arrayAll(
+            pii_f -> multiIf(
+                tupleElement(pii_f, 'column') = 'user_id',
+                    pii_str_op(user_id, tupleElement(pii_f, 'operator'), tupleElement(pii_f, 'value')),
+                tupleElement(pii_f, 'column') = 'metadata',
+                    pii_str_op(pii_json_scalar(metadata, tupleElement(pii_f, 'key')), tupleElement(pii_f, 'operator'), tupleElement(pii_f, 'value')),
+                false
+            ),
+            JSONExtract(policy, 'traceFilters', 'Array(Tuple(column String, key String, operator String, value String))')
+        ),
+        false
+    )
+);
 
 -- `spans_v1` = `spans_v0` (migration 64) plus a `policy` param: a JSON object
 -- built server-side from the caller's role (`AccessPolicy` in app-server).
 -- `'{}'` means unrestricted and yields exactly `spans_v0`'s output. The
--- `unique_content_dict` attributes `content_redacted` / `pii_checked` are added
--- by `ensureContentDicts` (frontend/instrumentation.ts) right after migrations
--- run; CREATE VIEW does not resolve dictionary attributes, so the ordering
--- within one boot is fine. `spans_v0` stays until every caller has moved to
--- `spans_v1` (dropped in a later migration).
+-- dictionaries this view reads (`unique_content_dict` attributes
+-- `content_masks` / `pii_checked`, and `trace_access_policy_dict` over
+-- `traces_static`) are created by `ensureContentDicts`
+-- (frontend/instrumentation.ts) right after migrations run; CREATE VIEW does
+-- not resolve dictionaries, so the ordering within one boot is fine.
+-- `spans_v0` stays until every caller has moved to `spans_v1`.
 --
--- Masked branch: whole-value columns resolve through the row's `pii_checked`;
--- dedup'd messages resolve per message through `unique_content_dict` alone
--- (the legacy dict has no `pii_checked`, so its rows are unavailable either
--- way and the fallback lookup is skipped). An unavailable value renders as
--- the JSON string `"[PII_MASKED_UNAVAILABLE]"` (whole or per message) so the
--- column stays parseable.
+-- Masked branch (`policy.maskPii`): whole-value columns splice the row's own
+-- masks; dedup'd messages and tool definitions resolve per element through
+-- `unique_content_dict` alone (the legacy dict has no `pii_checked`, so its
+-- rows are unavailable either way and the fallback lookup is skipped). An
+-- unavailable value renders as the JSON string `"[PII_MASKED_UNAVAILABLE]"`
+-- (whole or per message) so the column stays parseable.
+--
+-- Scope (`policy.traceFilters`): the span's trace is resolved through
+-- `trace_access_policy_dict` and `trace_visible` decides in WHERE; the
+-- predicate lands in PREWHERE and, being row-local, keeps projections and
+-- lazy materialization usable.
 CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
-    WITH if(session_id != '', session_id, toString(trace_id)) AS dedup_group
+    WITH
+        if(session_id != '', session_id, toString(trace_id)) AS dedup_group,
+        dictGetOrDefault(
+            'trace_access_policy_dict',
+            ('user_id', 'metadata'),
+            (project_id, trace_id),
+            ('', '')
+        ) AS trace_scope
     SELECT
         span_id,
         name,
@@ -71,26 +151,22 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                     arrayMap(
                         t -> if(
                             tupleElement(t, 3),
-                            if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
+                            apply_pii_masks(tupleElement(t, 1), tupleElement(t, 2)),
                             '"[PII_MASKED_UNAVAILABLE]"'
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
                                 'unique_content_dict',
-                                ('content', 'content_redacted', 'pii_checked'),
+                                ('content', 'content_masks', 'pii_checked'),
                                 tuple(project_id, dedup_group, h),
-                                ('', '', false)
+                                ('', [], false)
                             ),
                             input_message_hashes
                         )
                     ),
                     ','
                 ) || ']',
-                if(
-                    pii_checked,
-                    if(empty(input_redacted), input, input_redacted),
-                    '"[PII_MASKED_UNAVAILABLE]"'
-                )
+                if(pii_checked, apply_pii_masks(input, input_masks), '"[PII_MASKED_UNAVAILABLE]"')
             ),
             if(
                 notEmpty(input_message_hashes),
@@ -116,26 +192,22 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                     arrayMap(
                         t -> if(
                             tupleElement(t, 3),
-                            if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
+                            apply_pii_masks(tupleElement(t, 1), tupleElement(t, 2)),
                             '"[PII_MASKED_UNAVAILABLE]"'
                         ),
                         arrayMap(
                             h -> dictGetOrDefault(
                                 'unique_content_dict',
-                                ('content', 'content_redacted', 'pii_checked'),
+                                ('content', 'content_masks', 'pii_checked'),
                                 tuple(project_id, dedup_group, h),
-                                ('', '', false)
+                                ('', [], false)
                             ),
                             output_message_hashes
                         )
                     ),
                     ','
                 ) || ']',
-                if(
-                    pii_checked,
-                    if(empty(output_redacted), output, output_redacted),
-                    '"[PII_MASKED_UNAVAILABLE]"'
-                )
+                if(pii_checked, apply_pii_masks(output, output_masks), '"[PII_MASKED_UNAVAILABLE]"')
             ),
             if(
                 notEmpty(output_message_hashes),
@@ -161,14 +233,14 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                 arrayMap(
                     t -> if(
                         tupleElement(t, 3),
-                        if(empty(tupleElement(t, 2)), tupleElement(t, 1), tupleElement(t, 2)),
+                        apply_pii_masks(tupleElement(t, 1), tupleElement(t, 2)),
                         '"[PII_MASKED_UNAVAILABLE]"'
                     ),
                     [dictGetOrDefault(
                         'unique_content_dict',
-                        ('content', 'content_redacted', 'pii_checked'),
+                        ('content', 'content_masks', 'pii_checked'),
                         tuple(project_id, dedup_group, tool_definitions_hash),
-                        ('', '', false)
+                        ('', [], false)
                     )]
                 )[1],
                 if(
@@ -185,11 +257,13 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
         tags_array AS tags,
         events
     FROM spans
-    WHERE project_id = {project_id:UUID};
+    WHERE project_id = {project_id:UUID}
+        AND trace_visible(tupleElement(trace_scope, 1), tupleElement(trace_scope, 2), {policy:String});
 
--- `traces_v1` = `traces_v0` (migration 54) plus the same `policy` param. The
--- only content column is `agent_input` (`traces_static.input`, the extracted
--- user task); it has no redacted copy yet, so it is unavailable under a
+-- `traces_v1` = `traces_v0` (migration 54) plus the same `policy` param.
+-- `traceFilters` are evaluated on the joined `traces_static` row directly.
+-- The only content column is `agent_input` (`traces_static.input`, the
+-- extracted user task); it has no masks yet, so it is unavailable under a
 -- masking policy.
 CREATE VIEW IF NOT EXISTS traces_v1 SQL SECURITY INVOKER AS
 SELECT
@@ -280,4 +354,5 @@ LEFT JOIN (
 ) AS ts
     ON t.project_id = ts.project_id AND t.id = ts.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
-    AND t.start_time <= {max_start_time:DateTime64(9)};
+    AND t.start_time <= {max_start_time:DateTime64(9)}
+    AND trace_visible(ifNull(ts.user_id, ''), ifNull(ts.metadata, ''), {policy:String});

@@ -2218,3 +2218,27 @@ fn test_policy_literal_is_quoted_as_a_string() {
         "got: {result}"
     );
 }
+
+#[test]
+fn test_trace_filter_value_with_quotes_survives_as_one_literal() {
+    // A filter value is user data; `'` and `"` in it must reach ClickHouse
+    // inside the policy string, and the rewritten SQL must still parse.
+    use crate::access_policy::{AccessPolicy, TraceFilter, TraceFilterOperator};
+    let policy = AccessPolicy {
+        trace_filters: vec![TraceFilter::metadata(
+            "team",
+            TraceFilterOperator::Eq,
+            r#"o'neil "the" boss"#,
+        )],
+        ..Default::default()
+    };
+    let result = validate_with_policy("SELECT name FROM spans", &policy.to_view_arg());
+    assert!(
+        result.contains(
+            r#"policy = '{"traceFilters":[{"column":"metadata","key":"team","operator":"eq","value":"o''neil \"the\" boss"}]}'"#
+        ),
+        "got: {result}"
+    );
+    assert_eq!(result.matches("policy = ").count(), 1);
+    parse_clickhouse_sql(&result).expect("rewritten SQL re-parses");
+}

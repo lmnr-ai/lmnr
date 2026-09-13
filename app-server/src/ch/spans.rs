@@ -165,13 +165,14 @@ pub struct CHSpan {
     pub cache_creation_input_tokens: u64,
     #[serde(default)]
     pub reasoning_tokens: u64,
-    /// Redacted copies of `input` / `output`, filled only in `dual` PII mode
-    /// when the redactor changed the text; empty when the raw side is safe.
-    /// Cleared alongside `input` / `output` for dedup'd spans.
+    /// PII byte ranges into `input` / `output` (`crate::pii_redactor::PiiMask`
+    /// as `(start, end, label)`), filled only in `dual` PII mode; `spans_v1`
+    /// splices placeholders over them under a masking policy. Cleared
+    /// alongside `input` / `output` for dedup'd spans.
     #[serde(default)]
-    pub input_redacted: String,
+    pub input_masks: Vec<(u32, u32, String)>,
     #[serde(default)]
-    pub output_redacted: String,
+    pub output_masks: Vec<(u32, u32, String)>,
     /// The redactor screened this row (`crate::pii_redactor::SpanPii`);
     /// drives the masked branch of `spans_v1`.
     #[serde(default)]
@@ -253,8 +254,8 @@ impl CHSpan {
             output_message_hashes: Vec::new(),
             output_new_message_indices: Vec::new(),
             tool_definitions_hash: [0u8; 32],
-            input_redacted: String::new(),
-            output_redacted: String::new(),
+            input_masks: Vec::new(),
+            output_masks: Vec::new(),
             pii_checked: false,
         }
     }
