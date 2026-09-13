@@ -3,46 +3,37 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
-import {
-  getChartClusters,
-  getClustersRangeKey,
-  selectUnclusteredCount,
-  useSignalStoreContext,
-} from "@/components/signal/store.tsx";
+import { getChartClustersFromData, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type DateRange } from "@/components/ui/date-range-filter/utils";
-import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import {
+  type ClusterVisualizationSnapshot,
+  getClusterVisualizationRangeKey,
+} from "@/lib/actions/cluster-visualization-types";
+import { type ClusterStatsDataPoint, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import ClusterBreadcrumbs from "./cluster-breadcrumbs";
+import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ClusterIcicle from "./cluster-icicle";
 import ClusterIcicleSkeleton from "./cluster-icicle-skeleton";
 import ClusterReadout from "./cluster-readout";
 import ClusterStackedChart from "./cluster-stacked-chart";
 import { useClusterFocusContext } from "./focus-store";
 import { buildClusterModel, type ClusterNode } from "./model";
+import { buildPath, buildTree } from "./utils";
 
 interface Props {
   className?: string;
 }
 
-type ClusterStatsResponse = {
-  items: ClusterStatsDataPoint[];
-  unclusteredCounts: { timestamp: string; count: number }[];
-};
-
 const EMPTY_STATS: ClusterStatsDataPoint[] = [];
-const EMPTY_CLUSTERS: EventCluster[] = [];
-// Stable identities: the readout is rendered without a model when only the
-// unclustered bucket exists, and fresh literals would remount it each render.
 const EMPTY_TREE: ClusterNode[] = [];
 const EMPTY_HAS_CHILDREN = new Set<string>();
 
@@ -53,132 +44,94 @@ export default function ClustersSectionContent({ className }: Props) {
   const { toast } = useToast();
   const [clusterId, setClusterId] = useClusterId();
   const [emergingClusterId, setEmergingClusterId] = useEmergingClusterId();
-
-  // The setter only: subscribing to `hoveredId` here would re-render the section
-  // — chart included — on every pointer move over the strip.
   const setHoveredId = useClusterFocusContext((state) => state.setHoveredId);
-
-  const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
-  const rawClusters = useSignalStoreContext((state) => state.rawClusters);
-  const clustersRangeKey = useSignalStoreContext((state) => state.clustersRangeKey);
   const signal = useSignalStoreContext((state) => state.signal);
-  const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
+  const setClusters = useSignalStoreContext((state) => state.setClusters);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const rangeKey = getClustersRangeKey({ pastHours, startDate, endDate });
-  const hasCurrentClusters = clustersRangeKey === rangeKey;
-
-  const storedChartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
-  const storedUnclusteredCount = useSignalStoreContext(selectUnclusteredCount);
-  const chartClusters = hasCurrentClusters ? storedChartClusters : EMPTY_CLUSTERS;
-  const unclusteredCount = hasCurrentClusters ? storedUnclusteredCount : 0;
+  const rangeKey = getClusterVisualizationRangeKey({ pastHours, startDate, endDate });
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
-
     const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setLocalChartWidth(entry.contentRect.width);
-      }
+      for (const entry of entries) setLocalChartWidth(entry.contentRect.width);
     });
-
     resizeObserver.observe(chartContainerRef.current);
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Null until the ResizeObserver has measured the container, which pauses SWR —
-  // the state that "not fetched yet" must be distinguishable from "fetched empty".
-  const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats`,
+  const visualizationUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/clusters/visualization`,
     chartContainerWidth: localChartWidth,
     pastHours,
     startDate,
     endDate,
   });
-
-  // No revalidation on focus: the strip's tree is fetched through the store, which
-  // has no such trigger, so refetching the bars alone would leave the two halves of
-  // this chart describing different moments.
-  const {
-    data: statsResponse,
-    error: statsError,
-    isValidating: isStatsValidating,
-  } = useSWR<ClusterStatsResponse>(statsUrl, swrFetcher, {
+  const { data: snapshot, error } = useSWR<ClusterVisualizationSnapshot>(visualizationUrl, swrFetcher, {
     revalidateOnFocus: false,
-    onError: () => toast({ title: "Error", description: "Failed to load cluster stats.", variant: "destructive" }),
+    onError: () =>
+      toast({ title: "Error", description: "Failed to load cluster visualization.", variant: "destructive" }),
   });
+  const isLoading = Boolean(visualizationUrl) && !snapshot && !error;
+  const isCurrentSnapshot = snapshot?.rangeKey === rangeKey;
+  const currentSnapshot = isCurrentSnapshot ? snapshot : undefined;
 
-  // Undefined data with no error covers both "paused on a null key" and "in flight".
-  const isStatsPending = !statsResponse && !statsError;
+  // The store remains the shared index for event-table filtering. It receives
+  // only complete visualization snapshots, never independently fetched pieces.
+  useEffect(() => {
+    if (!currentSnapshot) return;
+    setClusters({
+      items: currentSnapshot.clusters,
+      totalEventCount: currentSnapshot.totalEventCount,
+      clusteredEventCount: currentSnapshot.clusteredEventCount,
+      rangeKey: currentSnapshot.rangeKey,
+    });
+  }, [currentSnapshot, setClusters]);
 
-  // Memoized on the response object so the merged array keeps one identity —
-  // buildClusterModel and the chart both memoize on it.
   const clusterStatsData = useMemo(() => {
-    if (!statsResponse) return EMPTY_STATS;
-    const unclustered: ClusterStatsDataPoint[] = statsResponse.unclusteredCounts.map((item) => ({
-      cluster_id: UNCLUSTERED_ID,
-      timestamp: item.timestamp,
-      count: item.count,
-    }));
-    return [...statsResponse.items, ...unclustered];
-  }, [statsResponse]);
+    if (!currentSnapshot) return EMPTY_STATS;
+    return [
+      ...currentSnapshot.stats,
+      ...currentSnapshot.unclusteredCounts.map((item) => ({
+        cluster_id: UNCLUSTERED_ID,
+        timestamp: item.timestamp,
+        count: item.count,
+      })),
+    ];
+  }, [currentSnapshot]);
 
-  // The strip draws every cluster at every level, not the drill-down's slice: it
-  // is the navigation, so re-rooting it on selection would take away what the
-  // selection is read against.
-  const model = useMemo(
-    () => buildClusterModel(hasCurrentClusters ? rawClusters : EMPTY_CLUSTERS, clusterStatsData),
-    [hasCurrentClusters, rawClusters, clusterStatsData]
+  const clusterTree = useMemo(() => buildTree(currentSnapshot?.clusters ?? []), [currentSnapshot]);
+  const chartClusters = useMemo(
+    () =>
+      currentSnapshot
+        ? getChartClustersFromData(
+            clusterTree,
+            currentSnapshot.totalEventCount,
+            currentSnapshot.clusteredEventCount,
+            clusterId
+          )
+        : [],
+    [clusterId, clusterTree, currentSnapshot]
   );
-
-  // Color is a pure function of cluster id (shared with trace-view), so the
-  // map is just for the unclustered virtual bucket plus convenience lookups.
+  const unclusteredCount = currentSnapshot
+    ? Math.max(0, currentSnapshot.totalEventCount - currentSnapshot.clusteredEventCount)
+    : 0;
+  const model = useMemo(
+    () => buildClusterModel(currentSnapshot?.clusters ?? [], clusterStatsData),
+    [clusterStatsData, currentSnapshot]
+  );
+  const breadcrumb = useMemo(() => (clusterId ? buildPath(clusterTree, clusterId) : []), [clusterId, clusterTree]);
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
-    chartClusters.forEach((c) => map.set(c.id, getClusterColorById(c.id)));
+    chartClusters.forEach((cluster) => map.set(cluster.id, getClusterColorById(cluster.id)));
     map.set(UNCLUSTERED_ID, UNCLUSTERED_COLOR);
     return map;
   }, [chartClusters]);
-
-  useEffect(() => {
-    if (!pastHours && !(startDate && endDate)) return;
-    fetchClusters({ pastHours, startDate, endDate });
-  }, [fetchClusters, pastHours, startDate, endDate]);
-
-  // This supplies only the denominator for "% of traces" in cluster details.
-  // The run totals are deliberately not passed to the chart: its background line
-  // graph was removed while this contextual statistic remains useful.
-  const runStatsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/runs/stats`,
-    // The total is independent of chart bucketing. A stable width avoids
-    // refetching the denominator whenever the chart container resizes.
-    chartContainerWidth: 1,
-    pastHours,
-    startDate,
-    endDate,
-  });
-  const {
-    data: runStats,
-    error: runStatsError,
-    isValidating: isRunStatsValidating,
-  } = useSWR<{ items: { count: number }[] }>(runStatsUrl, swrFetcher, { revalidateOnFocus: false });
-  const traceTotal = useMemo(
-    () => (runStats?.items ?? []).reduce((sum, item) => sum + Number(item.count), 0),
-    [runStats?.items]
-  );
-
-  const isRunStatsPending = !runStats && !runStatsError;
-
-  const isInitialDataLoading = !hasCurrentClusters || isStatsPending || isRunStatsPending;
-  const isClusterDataRefreshing = isClustersLoading || isStatsValidating || isRunStatsValidating;
-  const showSkeleton = isInitialDataLoading;
-  const showChartLoading = isInitialDataLoading;
-  const displayedTraceTotal = isClusterDataRefreshing ? 0 : traceTotal;
 
   const searchWiderRange = useCallback(
     (range: DateRange) => {
@@ -193,34 +146,33 @@ export default function ClustersSectionContent({ className }: Props) {
     [pathName, router, searchParams]
   );
 
-  // The one way anything in the section changes the selection.
   const selectCluster = useCallback(
     (id: string) => {
-      track("signals", "cluster_clicked", {
-        clusterId: id === UNCLUSTERED_ID ? "-" : id,
-      });
-      // Picking anything in the cluster tree exits the emerging-cluster view —
-      // otherwise the events fetcher would keep filtering to the L0 cluster
-      // (it prioritizes emergingClusterId over clusterId/unclustered).
+      track("signals", "cluster_clicked", { clusterId: id === UNCLUSTERED_ID ? "-" : id });
       setEmergingClusterId(null);
       setClusterId(clusterId === id ? null : id);
     },
-    [setClusterId, setEmergingClusterId, clusterId]
+    [clusterId, setClusterId, setEmergingClusterId]
   );
+
+  const navigateToBreadcrumb = useCallback(
+    (index: number) => setClusterId(index < 0 ? null : breadcrumb[index].id),
+    [breadcrumb, setClusterId]
+  );
+
+  const showSkeleton = isLoading && !currentSnapshot;
 
   return (
     <div className={cn("relative flex w-full min-w-0 flex-col", className)}>
-      {/* The strip and the trail read as one block above the chart, which is
-          why the gap between them is looser than the one under it. */}
-      {((hasCurrentClusters && model) || showSkeleton || emergingClusterId) && (
+      {(model || showSkeleton || emergingClusterId) && (
         <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
           {showSkeleton ? (
             <ClusterIcicleSkeleton />
-          ) : hasCurrentClusters && model ? (
+          ) : model ? (
             <ClusterIcicle
               tree={model.tree}
               ancestors={model.ancestors}
-              traceTotal={displayedTraceTotal}
+              traceTotal={currentSnapshot?.traceTotal ?? 0}
               selectedId={clusterId}
               onHover={setHoveredId}
               onSelect={selectCluster}
@@ -228,17 +180,19 @@ export default function ClustersSectionContent({ className }: Props) {
           ) : null}
           {emergingClusterId ? (
             <EmergingClusterBreadcrumbs />
-          ) : hasCurrentClusters && model ? (
-            <ClusterBreadcrumbs />
+          ) : model ? (
+            <ClusterBreadcrumb
+              breadcrumb={breadcrumb}
+              selectedClusterId={clusterId}
+              onNavigateToBreadcrumb={navigateToBreadcrumb}
+            />
           ) : null}
         </div>
       )}
 
-      {/* The graph fills this fixed-height container below tunable top padding;
-          the readout remains absolutely positioned over the full container. */}
       <div className="h-[250px] w-full overflow-hidden">
         <div className="h-full" ref={chartContainerRef}>
-          {showChartLoading ? (
+          {showSkeleton ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               Loading chart...
             </div>
@@ -253,14 +207,6 @@ export default function ClustersSectionContent({ className }: Props) {
               endDate={endDate}
               onSelectRange={searchWiderRange}
               showSearchWiderRange={!clusterId && !emergingClusterId}
-              // With the list gone the chart has no other label for what is pinned
-              // — and with nothing pinned, the readout's root list is the only way
-              // to reach a folded cluster or the unclustered bucket, which has no
-              // band on the strip at all.
-              // Rendered without a model too, as long as there is something to
-              // pick: with no clusters at all the unclustered bucket has neither a
-              // band nor a list row anywhere else, so gating this on `model` left
-              // those events unreachable.
               overlay={
                 (model || unclusteredCount > 0) && (
                   <ClusterReadout
@@ -268,7 +214,7 @@ export default function ClustersSectionContent({ className }: Props) {
                     hasChildren={model?.hasChildren ?? EMPTY_HAS_CHILDREN}
                     clusterId={clusterId}
                     unclusteredCount={unclusteredCount}
-                    traceTotal={displayedTraceTotal}
+                    traceTotal={currentSnapshot?.traceTotal ?? 0}
                     onSelect={selectCluster}
                     onHover={setHoveredId}
                   />
