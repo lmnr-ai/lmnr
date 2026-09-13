@@ -12,14 +12,12 @@ where
     T: Buf,
 {
     Ingest { payload: T },
-    Commit,
 }
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
 enum DocCommandCode {
     IngestV1 = 0,
-    CommitV1 = 1,
 }
 
 impl<T> DocCommand<T>
@@ -39,10 +37,6 @@ where
                     written += len;
                 }
                 written
-            }
-            DocCommand::Commit => {
-                buf.put_u8(DocCommandCode::CommitV1 as u8);
-                1
             }
         }
     }
