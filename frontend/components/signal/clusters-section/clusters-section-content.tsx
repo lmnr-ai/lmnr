@@ -142,29 +142,33 @@ export default function ClustersSectionContent({ className }: Props) {
   // graph was removed while this contextual statistic remains useful.
   const runStatsUrl = useTimeSeriesStatsUrl({
     baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/runs/stats`,
-    chartContainerWidth: localChartWidth,
+    // The total is independent of chart bucketing. A stable width avoids
+    // refetching the denominator whenever the chart container resizes.
+    chartContainerWidth: 1,
     pastHours,
     startDate,
     endDate,
   });
-  const { data: runStats, isValidating: isRunStatsValidating } = useSWR<{ items: { count: number }[] }>(
-    runStatsUrl,
-    swrFetcher,
-    { revalidateOnFocus: false }
-  );
+  const {
+    data: runStats,
+    error: runStatsError,
+    isValidating: isRunStatsValidating,
+  } = useSWR<{ items: { count: number }[] }>(runStatsUrl, swrFetcher, { revalidateOnFocus: false });
   const traceTotal = useMemo(
     () => (runStats?.items ?? []).reduce((sum, item) => sum + Number(item.count), 0),
     [runStats?.items]
   );
 
-  // Never combine data from different range or width keys. SWR may retain the
-  // previous cluster stats while either replacement request is in flight, and
-  // the store likewise retains its previous tree until fetchClusters settles.
-  const isClusterDataLoading = isClustersLoading || isStatsPending || isStatsValidating || isRunStatsValidating;
-  const showSkeleton = isClusterDataLoading;
+  const isRunStatsPending = !runStats && !runStatsError;
 
-  // The chart's own empty state may only speak for a window whose data resolved.
-  const showChartLoading = isClusterDataLoading;
+  // Keep coherent previous visuals during refreshes. Percentages disappear until
+  // all three sources settle, so event counts never use a denominator from a
+  // different request window.
+  const isClusterDataRefreshing = isClustersLoading || isStatsValidating || isRunStatsValidating;
+  const showSkeleton = !model && (isClustersLoading || isStatsPending);
+  const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
+  const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
+  const displayedTraceTotal = isRunStatsPending || isClusterDataRefreshing ? 0 : traceTotal;
 
   const searchWiderRange = useCallback(
     (range: DateRange) => {
@@ -206,7 +210,7 @@ export default function ClustersSectionContent({ className }: Props) {
             <ClusterIcicle
               tree={model.tree}
               ancestors={model.ancestors}
-              traceTotal={traceTotal}
+              traceTotal={displayedTraceTotal}
               selectedId={clusterId}
               onHover={setHoveredId}
               onSelect={selectCluster}
@@ -250,7 +254,7 @@ export default function ClustersSectionContent({ className }: Props) {
                     hasChildren={model?.hasChildren ?? EMPTY_HAS_CHILDREN}
                     clusterId={clusterId}
                     unclusteredCount={unclusteredCount}
-                    traceTotal={traceTotal}
+                    traceTotal={displayedTraceTotal}
                     onSelect={selectCluster}
                     onHover={setHoveredId}
                   />
