@@ -11,6 +11,7 @@ import useSWR from "swr";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { scoreChartConfig } from "@/components/evaluations/progression-chart/shared";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
 import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { higherBetterMenuItem } from "../evaluation/columns/score-cell";
 import { useScoreDirections } from "../evaluation/use-score-directions";
+import { type ChartConfig } from "../ui/chart";
 import Header from "../ui/header";
 import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
@@ -85,31 +87,41 @@ function buildScoreColumns(
   heatmapEnabled: boolean,
   scoreRanges: Record<string, ScoreRange>,
   isHigherBetter: (scoreName: string) => boolean,
+  chartConfig: ChartConfig,
+  onHoverScore: (scoreName: string | null) => void,
   onToggleScoreDirection?: (scoreName: string) => void
 ): ColumnDef<Evaluation>[] {
   return scoreNames.map((scoreName) => {
     const higherBetter = isHigherBetter(scoreName);
+    const color = chartConfig[scoreName]?.color;
     return {
       id: `score:${scoreName}`,
-      header: scoreName,
+      // Same dot (and color) as the chart legend, so a column can be matched to
+      // its line without hovering.
+      header: () => (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="size-2 rounded-sm shrink-0" style={{ background: color }} />
+          <span className="truncate">{scoreName}</span>
+        </div>
+      ),
       accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
       cell: (cell) => {
         const v = cell.getValue() as number | null;
-        if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
-        const range = scoreRanges[scoreName];
-        if (heatmapEnabled && range) {
-          return (
-            <HeatmapValue
-              value={v}
-              range={range}
-              isHigherBetter={higherBetter}
-              text={<Mono>{formatScoreValue(v)}</Mono>}
-            />
-          );
-        }
-        return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
+        // Hovering the cell spotlights this score's line in the chart; the row
+        // hover already supplies the run, so together they pick out one point.
+        return (
+          <div
+            className="flex h-full w-full min-w-0 items-center"
+            onMouseEnter={() => onHoverScore(scoreName)}
+            onMouseLeave={() => onHoverScore(null)}
+          >
+            {renderScoreValue(v, heatmapEnabled ? scoreRanges[scoreName] : undefined, higherBetter)}
+          </div>
+        );
       },
-      size: 120,
+      // Widened over the other columns' 120 to pay for the header's color dot,
+      // so the score name truncates no earlier than it used to.
+      size: 134,
       meta: onToggleScoreDirection
         ? {
             customDropdownItems: () => [higherBetterMenuItem(higherBetter, () => onToggleScoreDirection(scoreName))],
@@ -117,6 +129,21 @@ function buildScoreColumns(
         : undefined,
     };
   });
+}
+
+function renderScoreValue(value: number | null, range: ScoreRange | undefined, isHigherBetter: boolean) {
+  if (!isValidScore(value)) return <span className="text-muted-foreground">—</span>;
+  if (range) {
+    return (
+      <HeatmapValue
+        value={value}
+        range={range}
+        isHigherBetter={isHigherBetter}
+        text={<Mono>{formatScoreValue(value)}</Mono>}
+      />
+    );
+  }
+  return <Mono>{Number.isInteger(value) ? value.toString() : value.toFixed(3)}</Mono>;
 }
 
 const layoutStorage: LayoutStorage = {
@@ -173,6 +200,8 @@ function EvaluationsContent() {
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
   const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
+  // Spotlighted score — set by the chart legend AND by hovering a score cell.
+  const [hoveredScore, setHoveredScore] = useState<string | null>(null);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [chartEvaluations, setChartEvaluations] = useState<{ id: string; name: string }[]>([]);
   // Off (default): 0–1 scores plot on a fixed 0–1 axis, others on their own min/max.
@@ -218,6 +247,9 @@ function EvaluationsContent() {
 
   // Resolved eval-score directions (override > app-wide LLM default > true).
   const { isHigherBetter, toggle: toggleScoreDirection } = useScoreDirections(params?.projectId, scoreNames);
+
+  // One color source for the chart lines, its legend and the table headers.
+  const chartConfig = useMemo(() => scoreChartConfig(scoreNames), [scoreNames]);
 
   const columns = useMemo<ColumnDef<Evaluation>[]>(
     () => [
@@ -276,6 +308,8 @@ function EvaluationsContent() {
         heatmapEnabled,
         scoreRanges,
         isHigherBetter,
+        chartConfig,
+        setHoveredScore,
         toggleScoreDirection
       ),
     ],
@@ -289,6 +323,7 @@ function EvaluationsContent() {
       setHiddenEvaluationIds,
       allRunIds,
       isHigherBetter,
+      chartConfig,
       toggleScoreDirection,
     ]
   );
@@ -387,6 +422,9 @@ function EvaluationsContent() {
                 className="h-full"
                 baselineEvaluationId={selectedEvaluationId}
                 hoveredEvaluationId={hoveredEvaluationId}
+                chartConfig={chartConfig}
+                hoveredScore={hoveredScore}
+                onHoverScore={setHoveredScore}
                 onPointClick={(id) => router.push(`/project/${params?.projectId}/evaluations/${id}`)}
                 fillHeight={fillHeight}
               />

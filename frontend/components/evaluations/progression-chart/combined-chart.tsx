@@ -1,6 +1,6 @@
 "use client";
 
-import { type Key, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type Key, type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
@@ -14,6 +14,11 @@ import { type ProgressionPoint } from "./shared";
 const MAX_POINT_GAP_PX = 120;
 // LineChart margin.left + margin.right.
 const HORIZONTAL_MARGIN_PX = 24;
+// Dot radii: resting, run-highlighted, and the single (run × score) intersection
+// when a score cell is hovered — it has to read as bigger than the run highlight.
+const DOT_RADIUS = 2.5;
+const HIGHLIGHTED_DOT_RADIUS = 5;
+const EMPHASIZED_DOT_RADIUS = 8;
 
 interface CombinedChartProps {
   data: ProgressionPoint[];
@@ -155,11 +160,31 @@ export default function CombinedChart({
     const plotWidth = Math.max(0, containerWidth - HORIZONTAL_MARGIN_PX);
     const budgetSlots = plotWidth > 0 ? Math.floor(plotWidth / MAX_POINT_GAP_PX) : 0;
     const maxSlots = Math.max(lastIndex, budgetSlots);
-    const pad = (maxSlots - lastIndex) / 2;
+    const spare = (maxSlots - lastIndex) / 2;
+    // `allowDataOverflow` makes recharts clip the series to the plot rect, so a
+    // point sitting exactly on a domain edge loses half its dot. Reserve at
+    // least the largest dot's radius on each side.
+    const pxPerSlot = maxSlots > 0 && plotWidth > 0 ? plotWidth / maxSlots : 0;
+    const edgePad = pxPerSlot > 0 ? (EMPHASIZED_DOT_RADIUS + 1) / pxPerSlot : 0;
+    const pad = Math.max(spare, edgePad);
     return [-pad, lastIndex + pad];
   }, [containerWidth, rows.length]);
 
-  const visible = scores.filter((s) => visibleScores.includes(s));
+  // Recharts paints series in order, so the spotlighted score goes LAST: its
+  // line and its emphasized dot must sit on top. Scores often share a value at
+  // the same run, and a later series' dot would otherwise bury the exact point
+  // the user is pointing at (leaving only a ring of it visible).
+  const visible = useMemo(() => {
+    const shown = scores.filter((s) => visibleScores.includes(s));
+    if (!hoveredScore || !shown.includes(hoveredScore)) return shown;
+    return [...shown.filter((s) => s !== hoveredScore), hoveredScore];
+  }, [scores, visibleScores, hoveredScore]);
+
+  // `${score}|${slotIndex}` → the dot's pixel y, recorded as the dots render.
+  // The tooltip needs it to tell which line the cursor is nearest, and recharts
+  // exposes no per-series geometry to tooltip content. Entries for a rendered
+  // (score, slot) are always rewritten this pass, so a lookup is never stale.
+  const dotPositionsRef = useRef<Map<string, number>>(new Map());
 
   return (
     <div ref={containerRef} className="h-full w-full">
@@ -207,7 +232,7 @@ export default function CombinedChart({
           <YAxis hide domain={[0, 1]} padding={{ top: 10, bottom: 10 }} />
           <Tooltip
             cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }}
-            content={<NormalizedTooltip ranks={ranks} chartConfig={chartConfig} />}
+            content={<NormalizedTooltip ranks={ranks} chartConfig={chartConfig} dotPositions={dotPositionsRef} />}
           />
           {visible.map((score) => {
             // Legend hover spotlights one score's line; the others fade back.
@@ -232,9 +257,16 @@ export default function CombinedChart({
                   if (typeof cx !== "number" || typeof cy !== "number" || Number.isNaN(cx) || Number.isNaN(cy)) {
                     return <g key={key ?? undefined} />;
                   }
+                  if (payload) dotPositionsRef.current.set(`${score}|${payload.x}`, cy);
                   const isHovered = payload?.evaluationId === hoveredEvaluationId;
-                  const r = isHovered ? 5 : 2.5;
-                  const opacity = scoreDimmed ? 0.15 : hoveredEvaluationId ? (isHovered ? 1 : dimmedOpacity) : 1;
+                  // Both hovers set → a score CELL is hovered, so single out its
+                  // exact point; a run hover alone grows every score's point.
+                  const isEmphasized = isHovered && hoveredScore === score;
+                  const r = isEmphasized ? EMPHASIZED_DOT_RADIUS : isHovered ? HIGHLIGHTED_DOT_RADIUS : DOT_RADIUS;
+                  // The hovered run's dots stay lit on EVERY score, even a dimmed
+                  // one — dimming is about which LINE is spotlighted, and the run
+                  // has to stay readable across all its scores at once.
+                  const opacity = isHovered ? 1 : scoreDimmed ? 0.15 : hoveredEvaluationId ? dimmedOpacity : 1;
                   return (
                     <circle
                       key={key ?? undefined}
@@ -264,17 +296,41 @@ export default function CombinedChart({
 function NormalizedTooltip({
   active,
   payload,
+  coordinate,
   ranks,
   chartConfig,
+  dotPositions,
 }: {
   active?: boolean;
   payload?: Array<{ name?: string | number; payload?: Row }>;
+  // recharts' activeCoordinate: x snaps to the active slot, y is the cursor's.
+  coordinate?: { x?: number; y?: number };
   ranks: Record<string, Record<string, { position: number; total: number }>>;
   chartConfig: ChartConfig;
+  dotPositions: RefObject<Map<string, number>>;
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
+
+  // Every score stays listed (that's the value of the tooltip); the one whose
+  // point the cursor is closest to is called out so a dense chart is readable.
+  const cursorY = coordinate?.y;
+  let nearestScore: string | null = null;
+  if (typeof cursorY === "number") {
+    let nearestDistance = Infinity;
+    for (const entry of payload) {
+      const score = String(entry.name ?? "");
+      const dotY = dotPositions.current?.get(`${score}|${row.x}`);
+      if (typeof dotY !== "number") continue;
+      const distance = Math.abs(dotY - cursorY);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestScore = score;
+      }
+    }
+  }
+
   return (
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
       <div className="font-medium truncate max-w-60">{row.name}</div>
@@ -285,13 +341,21 @@ function NormalizedTooltip({
           const raw = row.__raw[score];
           const rank = ranks[score]?.[row.evaluationId];
           const color = chartConfig[score]?.color;
+          const isNearest = score === nearestScore;
           return (
             <div key={score} className="flex items-center gap-2">
               <span className="size-2 rounded-sm shrink-0" style={{ background: color }} />
-              <span className="text-muted-foreground">{score}</span>
-              <span className="ml-auto font-mono">{raw === null || raw === undefined ? "—" : formatNumber(raw)}</span>
+              <span className={isNearest ? "text-primary-foreground" : "text-muted-foreground"}>{score}</span>
+              <span className={cn("ml-auto font-mono", isNearest && "text-primary-foreground")}>
+                {raw === null || raw === undefined ? "—" : formatNumber(raw)}
+              </span>
               {rank && (
-                <span className="text-muted-foreground/60 font-mono tabular-nums">
+                <span
+                  className={cn(
+                    "font-mono tabular-nums",
+                    isNearest ? "text-primary-foreground/80" : "text-muted-foreground/60"
+                  )}
+                >
                   Rank {rank.position}/{rank.total}
                 </span>
               )}

@@ -275,7 +275,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     timelineOpenTraceIds: new Set<string>(),
     condensedTimelineZoomByTrace: {},
     condensedTimelineVisibleSpanIdsByTrace: {},
-    isCostHeatmapVisible: false,
+    isCostHeatmapVisible: true,
     scrollToGroup: null,
     scrollToTraceId: null,
 
