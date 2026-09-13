@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
+use serde_json::Value;
 use tonic::transport::Channel;
 use tracing::Instrument;
 use uuid::Uuid;
@@ -9,6 +11,7 @@ use uuid::Uuid;
 use crate::cache::Cache;
 use crate::ch::unique_content::CHUniqueContent;
 use crate::db::DB;
+use crate::db::projects::PiiMode;
 use crate::db::spans::Span;
 use crate::utils::limits::get_workspace_info_for_project_id;
 use crate::utils::sanitize_string;
@@ -17,6 +20,18 @@ use crate::utils::sanitize_string;
 pub mod pii_redactor;
 
 use pii_redactor::{RedactRequest, pii_redactor_service_client::PiiRedactorServiceClient};
+
+/// Default placeholder prefix the redactor substitutes for every entity
+/// (`[REDACTED_EMAIL]`, ...). Its presence in the response is the "changed"
+/// signal: byte equality is useless because the redactor re-serializes JSON.
+pub const REDACTED_MARKER: &str = "[REDACTED_";
+
+/// Redaction backend. The gRPC client is the production impl; tests plug in
+/// a fake so the state machine in [`redact_spans_in_place`] is unit-testable.
+pub trait RedactTexts {
+    /// Redact stringified-JSON texts, preserving order and length.
+    fn redact(&self, texts: Vec<String>) -> impl Future<Output = Result<Vec<String>>> + Send;
+}
 
 #[derive(Clone)]
 pub struct PiiRedactorClient {
@@ -29,9 +44,9 @@ impl PiiRedactorClient {
             client: Arc::new(client),
         }
     }
+}
 
-    /// Send a list of stringified-JSON texts and get back the redacted ones,
-    /// preserving order. Empty input short-circuits without an RPC.
+impl RedactTexts for PiiRedactorClient {
     async fn redact(&self, texts: Vec<String>) -> Result<Vec<String>> {
         if texts.is_empty() {
             return Ok(Vec::new());
@@ -48,6 +63,64 @@ impl PiiRedactorClient {
             .map_err(|e| anyhow!("pii-redactor rpc: {}", e.message()))?
             .into_inner();
         Ok(resp.texts)
+    }
+}
+
+/// Per-span verdict for the ClickHouse row and the Quickwit document.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SpanPii {
+    /// Persisted as `pii_checked`: the redactor screened every text of this
+    /// span. In `redact` mode the raw text was replaced; in `dual` mode a
+    /// `*_redacted` copy exists exactly where something was found, so an
+    /// empty copy on a checked row means the raw side is safe. `false` for
+    /// `off` projects and for any failure; the masked read path treats
+    /// unchecked rows as unavailable.
+    pub checked: bool,
+    /// Redacted whole `span.input`, sanitized like `CHSpan::input`. Present
+    /// only in `dual` mode and only when the redactor changed the text.
+    pub input_redacted: Option<String>,
+    /// Same for `span.output`.
+    pub output_redacted: Option<String>,
+}
+
+/// Result of one batch pass. Spans of `off` projects are absent and read
+/// back as unchecked.
+#[derive(Debug, Default)]
+pub struct PiiOutcome {
+    spans: HashMap<usize, SpanPii>,
+    dual_span_indices: HashSet<usize>,
+    /// Spans whose redaction did not complete (distinct from `off` spans,
+    /// which were never attempted).
+    failed_spans: HashSet<usize>,
+    /// `shared_content` indices whose redaction did not complete. These must
+    /// not be stamped storage-present so the next occurrence re-inserts.
+    failed_shared_rows: HashSet<usize>,
+}
+
+impl PiiOutcome {
+    pub fn span(&self, span_idx: usize) -> SpanPii {
+        self.spans.get(&span_idx).cloned().unwrap_or_default()
+    }
+
+    /// Whether the span's text may reach the search index. Under `dual` a
+    /// failed span still holds raw PII that no redacted copy shadows.
+    pub fn is_indexable(&self, span_idx: usize) -> bool {
+        !(self.dual_span_indices.contains(&span_idx) && self.failed_spans.contains(&span_idx))
+    }
+
+    pub fn shared_row_failed(&self, row_idx: usize) -> bool {
+        self.failed_shared_rows.contains(&row_idx)
+    }
+
+    /// Optimistic mark before the RPC; any later `fail` wins.
+    fn check(&mut self, span_idx: usize) {
+        let entry = self.spans.entry(span_idx).or_default();
+        entry.checked = !self.failed_spans.contains(&span_idx);
+    }
+
+    fn fail(&mut self, span_idx: usize) {
+        self.failed_spans.insert(span_idx);
+        self.spans.entry(span_idx).or_default().checked = false;
     }
 }
 
@@ -69,8 +142,8 @@ enum Target {
     /// per-trace first-occurrence search. `(direction, dedup_idx, offset)`
     /// addresses `span_trace_new_contents[dedup_idx][offset]` in the
     /// matching direction view. Always redacted regardless of
-    /// storage-miss vs storage-hit (the bug we fixed: storage-hit + trace-
-    /// new content was previously dropped from Quickwit indexing).
+    /// storage-miss vs storage-hit, so cross-trace shared content is
+    /// redacted before indexing.
     TraceNew(Dir, usize, usize),
 }
 
@@ -80,36 +153,40 @@ enum Dir {
     Output,
 }
 
-/// Resolve `settings.remove_pii` for every unique project in `recordable_indices`,
-/// going through the cached billing-info path so repeat batches are free.
-/// Returns the set of opted-in project ids — empty set means "no work".
-async fn resolve_opted_in_projects(
+/// Effective PII mode for every unique project in `recordable_indices`,
+/// through the cached billing-info path so repeat batches are free. `None`
+/// means the lookup failed: the caller cannot tell whether the project is
+/// protected, so its spans are left unchecked and skipped.
+pub async fn resolve_project_pii_modes(
     spans: &[Span],
     recordable_indices: &[usize],
     db: Arc<DB>,
     cache: Arc<Cache>,
-) -> HashSet<Uuid> {
+) -> HashMap<Uuid, Option<PiiMode>> {
     let unique: HashSet<Uuid> = recordable_indices
         .iter()
         .map(|&i| spans[i].project_id)
         .collect();
-    let mut opted_in: HashSet<Uuid> = HashSet::with_capacity(unique.len());
+    let mut modes = HashMap::with_capacity(unique.len());
     for project_id in unique {
-        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(Some(info)) if info.settings.remove_pii => {
-                opted_in.insert(project_id);
-            }
-            Ok(_) => {}
-            Err(e) => {
-                log::warn!("pii-redactor: lookup project[{project_id}] settings: {e:#}");
-            }
-        }
+        let mode =
+            match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
+                Ok(Some(info)) => Some(info.settings.effective_pii_mode()),
+                // Unknown project: nothing to protect.
+                Ok(None) => Some(PiiMode::Off),
+                Err(e) => {
+                    log::warn!("pii-redactor: lookup project[{project_id}] settings: {e:#}");
+                    None
+                }
+            };
+        modes.insert(project_id, mode);
     }
-    opted_in
+    modes
 }
 
-/// Redact `span.input` / `span.output` for every span whose project has
-/// `remove_pii=true`. Three buffer kinds are redacted in lockstep:
+/// Run PII redaction for every span whose project is in `redact` or `dual`
+/// mode and return the per-span verdicts. Three buffer kinds are walked in
+/// lockstep:
 ///
 /// - **Whole `span.input` / `span.output`**: kept on root spans for the
 ///   trace-list preview and on non-LLM / non-array-input spans.
@@ -120,24 +197,25 @@ async fn resolve_opted_in_projects(
 ///   storage-hit-but-trace-new), so cross-trace shared content is
 ///   redacted before indexing.
 ///
+/// `redact` mode overwrites the raw buffers (the stored text IS the safe
+/// text). `dual` mode leaves `span.*` and `CHUniqueContent::content` raw and
+/// fills the `*_redacted` companions only where the redactor changed
+/// something. Both stamp `pii_checked`; the Quickwit buffers are overwritten
+/// in both modes so the search index only ever sees redacted text. Any RPC
+/// or parse failure leaves the affected rows unchecked and the raw buffers
+/// untouched: redaction must never block ingestion, unchecked rows fail
+/// closed under a masking policy, and failed shared rows are not
+/// stamped in the dedup presence cache, so the next occurrence retries.
+///
 /// Storage-miss content is duplicated across the shared rows and
 /// `span_trace_new_contents`; both copies are redacted independently
-/// (sent twice to the redactor RPC). Acceptable cost — storage-miss is
-/// the common case but the wire shape favors correctness over RPC count.
-/// Already-seen-in-trace messages aren't in any of these buffers and
-/// were redacted on first emit. Tool-definition blobs share the
-/// shared-row buffer but are NOT walked here (tool definitions
-/// are schemas, not user text).
+/// (sent twice to the redactor RPC). Acceptable cost — storage-miss is the
+/// common case but the wire shape favors correctness over RPC count.
+/// Tool-definition blobs share the shared-row buffer and are redacted
+/// along with messages (the redactor is a no-op on schemas).
 ///
 /// MUST run after `MessageBatch::build` (input + output) and BEFORE the
 /// `unique_content` ClickHouse insert / Quickwit indexing.
-///
-/// Best-effort: any RPC failure is logged and the batch is left untouched —
-/// PII redaction must never block trace ingestion.
-///
-/// `input_trace_new_contents` / `output_trace_new_contents` are the per-span
-/// trace-new content buffers Quickwit indexes, indexed by `dedup_idx` (matching
-/// `recordable_indices`).
 ///
 /// Note: byte-billing accuracy for PII-redacted content is slightly off because
 /// `span_content_bytes` is computed pre-redaction; an opted-in project pays for
@@ -145,56 +223,56 @@ async fn resolve_opted_in_projects(
 /// over-bill is bounded by the redactor's shrinkage, typically small (a few
 /// percent), so we accept it for design simplicity rather than threading the
 /// byte-delta back through the dedup path.
-pub async fn redact_spans_in_place(
-    client: &PiiRedactorClient,
+pub async fn redact_spans_in_place<R: RedactTexts>(
+    client: &R,
     spans: &mut [Span],
-    shared_content: &mut Vec<CHUniqueContent>,
+    shared_content: &mut [CHUniqueContent],
     input_trace_new_contents: &mut [Vec<String>],
     output_trace_new_contents: &mut [Vec<String>],
     recordable_indices: &[usize],
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-) {
-    let opted_in = resolve_opted_in_projects(spans, recordable_indices, db, cache).await;
-    if opted_in.is_empty() {
-        return;
-    }
-
-    // Map project_id → whether it's opted in, then map span_idx → opted-in
-    // bool once so the inner loops don't re-borrow.
-    let opt_in_for_span: HashMap<usize, bool> = recordable_indices
-        .iter()
-        .map(|&i| (i, opted_in.contains(&spans[i].project_id)))
-        .collect();
+    project_modes: &HashMap<Uuid, Option<PiiMode>>,
+) -> PiiOutcome {
+    let mut outcome = PiiOutcome::default();
+    let mode_for = |project_id: &Uuid| project_modes.get(project_id).copied().flatten();
 
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
 
-    // Walk the shared rows that belong to opted-in projects.
-    for (idx, msg) in shared_content.iter().enumerate() {
-        if opted_in.contains(&msg.project_id) {
-            targets.push(Target::SharedRow(idx));
-            texts.push(msg.content.clone());
+    for (idx, row) in shared_content.iter_mut().enumerate() {
+        match mode_for(&row.project_id) {
+            Some(PiiMode::Off) => {}
+            Some(_) => {
+                targets.push(Target::SharedRow(idx));
+                texts.push(row.content.clone());
+            }
+            None => {
+                outcome.failed_shared_rows.insert(idx);
+            }
         }
     }
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
-        if !*opt_in_for_span.get(&span_idx).unwrap_or(&false) {
-            continue;
-        }
         let span = &spans[span_idx];
+        let mode = match mode_for(&span.project_id) {
+            Some(PiiMode::Off) => continue,
+            Some(mode) => mode,
+            None => {
+                outcome.fail(span_idx);
+                continue;
+            }
+        };
+        // A span with nothing to check is safe by definition.
+        outcome.check(span_idx);
+        if mode == PiiMode::Dual {
+            outcome.dual_span_indices.insert(span_idx);
+        }
 
-        // Dedup'd LLM input: redact each trace-new content position so
-        // Quickwit's per-trace indexer sees redacted content. Includes
-        // storage-hit + trace-new content (cross-trace case).
         if let Some(contents) = input_trace_new_contents.get(dedup_idx) {
             for (offset, c) in contents.iter().enumerate() {
                 targets.push(Target::TraceNew(Dir::Input, dedup_idx, offset));
                 texts.push(c.clone());
             }
         }
-
-        // Dedup'd LLM output: same shape as input.
         if let Some(contents) = output_trace_new_contents.get(dedup_idx) {
             for (offset, c) in contents.iter().enumerate() {
                 targets.push(Target::TraceNew(Dir::Output, dedup_idx, offset));
@@ -202,33 +280,21 @@ pub async fn redact_spans_in_place(
             }
         }
 
-        // Whole `span.input`. Producer-side dedup strips this to `None` for
-        // nested LLM spans (those ride the wire as hashes only), so this
-        // covers (a) root LLM spans whose `input` was kept for the trace
-        // list preview and (b) non-LLM / non-array-input spans.
+        // Producer-side dedup strips `span.input` to `None` for nested LLM
+        // spans (those ride the wire as hashes only), so this covers root
+        // LLM spans kept for the trace-list preview and non-LLM spans.
         if let Some(input) = span.input.as_ref() {
-            match serde_json::to_string(input) {
-                Ok(s) => {
-                    targets.push(Target::Input(span_idx));
-                    texts.push(s);
-                }
-                Err(e) => log::warn!("pii-redactor: serialize span[{span_idx}].input: {e:#}"),
-            }
+            targets.push(Target::Input(span_idx));
+            texts.push(input.to_string());
         }
-
         if let Some(output) = span.output.as_ref() {
-            match serde_json::to_string(output) {
-                Ok(s) => {
-                    targets.push(Target::Output(span_idx));
-                    texts.push(s);
-                }
-                Err(e) => log::warn!("pii-redactor: serialize span[{span_idx}].output: {e:#}"),
-            }
+            targets.push(Target::Output(span_idx));
+            texts.push(output.to_string());
         }
     }
 
     if texts.is_empty() {
-        return;
+        return outcome;
     }
 
     // Summary stats over per-element char counts, so the trace shows the
@@ -252,41 +318,77 @@ pub async fn redact_spans_in_place(
         p50_chars,
     );
     let redacted = match client.redact(texts).instrument(rpc_span).await {
-        Ok(r) => r,
-        Err(e) => {
+        Ok(r) if r.len() == targets.len() => r,
+        Ok(r) => {
             log::error!(
-                "pii-redactor: skipping batch of {} fields: {e:#}",
+                "pii-redactor: response len {} != request len {}; batch stamped failed",
+                r.len(),
                 targets.len()
             );
-            return;
+            fail_all(&targets, recordable_indices, &mut outcome);
+            return outcome;
+        }
+        Err(e) => {
+            log::error!(
+                "pii-redactor: batch of {} fields stamped failed: {e:#}",
+                targets.len()
+            );
+            fail_all(&targets, recordable_indices, &mut outcome);
+            return outcome;
         }
     };
-    if redacted.len() != targets.len() {
-        log::error!(
-            "pii-redactor: response len {} != request len {}; skipping",
-            redacted.len(),
-            targets.len()
-        );
-        return;
-    }
 
     for (target, text) in targets.into_iter().zip(redacted.into_iter()) {
+        let changed = text.contains(REDACTED_MARKER);
+        let is_input = matches!(target, Target::Input(_));
         match target {
-            Target::Input(idx) => match serde_json::from_str(&text) {
-                Ok(v) => spans[idx].input = Some(v),
-                Err(e) => log::warn!("pii-redactor: parse redacted span[{idx}].input: {e:#}"),
-            },
-            Target::Output(idx) => match serde_json::from_str(&text) {
-                Ok(v) => spans[idx].output = Some(v),
-                Err(e) => log::warn!("pii-redactor: parse redacted span[{idx}].output: {e:#}"),
-            },
-            Target::SharedRow(idx) => {
-                if let Some(msg) = shared_content.get_mut(idx) {
-                    // The redactor returns stringified JSON; sanitize to
-                    // match the non-redact path's
-                    // `sanitize_string(&item.to_string())`.
-                    msg.content = sanitize_string(&text);
+            Target::Input(idx) | Target::Output(idx) => {
+                let mode = mode_for(&spans[idx].project_id).unwrap_or(PiiMode::Redact);
+                let parsed: Option<Value> = match serde_json::from_str(&text) {
+                    Ok(v) => Some(v),
+                    Err(e) => {
+                        log::warn!("pii-redactor: parse redacted span[{idx}] text: {e:#}");
+                        outcome.fail(idx);
+                        None
+                    }
+                };
+                let Some(value) = parsed else { continue };
+                match mode {
+                    PiiMode::Dual => {
+                        if changed {
+                            let entry = outcome.spans.entry(idx).or_default();
+                            let stored = Some(sanitize_string(&value.to_string()));
+                            if is_input {
+                                entry.input_redacted = stored;
+                            } else {
+                                entry.output_redacted = stored;
+                            }
+                        }
+                    }
+                    _ => {
+                        if is_input {
+                            spans[idx].input = Some(value);
+                        } else {
+                            spans[idx].output = Some(value);
+                        }
+                    }
                 }
+            }
+            Target::SharedRow(idx) => {
+                let Some(row) = shared_content.get_mut(idx) else {
+                    continue;
+                };
+                // The redactor returns stringified JSON; sanitize to match
+                // the non-redact path's `sanitize_string(&item.to_string())`.
+                match mode_for(&row.project_id) {
+                    Some(PiiMode::Dual) => {
+                        if changed {
+                            row.content_redacted = sanitize_string(&text);
+                        }
+                    }
+                    _ => row.content = sanitize_string(&text),
+                }
+                row.pii_checked = true;
             }
             Target::TraceNew(dir, dedup_idx, offset) => {
                 let contents_for_span = match dir {
@@ -299,4 +401,26 @@ pub async fn redact_spans_in_place(
             }
         }
     }
+
+    outcome
 }
+
+/// Mark every row and span the aborted RPC covered as failed.
+fn fail_all(targets: &[Target], recordable_indices: &[usize], outcome: &mut PiiOutcome) {
+    for target in targets {
+        match target {
+            Target::Input(idx) | Target::Output(idx) => outcome.fail(*idx),
+            Target::SharedRow(idx) => {
+                outcome.failed_shared_rows.insert(*idx);
+            }
+            Target::TraceNew(_, dedup_idx, _) => {
+                if let Some(&span_idx) = recordable_indices.get(*dedup_idx) {
+                    outcome.fail(span_idx);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

@@ -11,6 +11,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::AccessPolicy,
     cache::{Cache, CacheTrait, keys::SQL_RATE_LIMIT_CACHE_KEY},
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
@@ -150,6 +151,9 @@ pub async fn handle_sql_query(
                 project_id,
                 parameters,
                 SqlQuerySource::Public,
+                // Project API keys and CLI user tokens are admin-level
+                // credentials (docs/internal/rbac.md).
+                AccessPolicy::UNRESTRICTED,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),

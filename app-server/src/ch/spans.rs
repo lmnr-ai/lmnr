@@ -165,6 +165,17 @@ pub struct CHSpan {
     pub cache_creation_input_tokens: u64,
     #[serde(default)]
     pub reasoning_tokens: u64,
+    /// Redacted copies of `input` / `output`, filled only in `dual` PII mode
+    /// when the redactor changed the text; empty when the raw side is safe.
+    /// Cleared alongside `input` / `output` for dedup'd spans.
+    #[serde(default)]
+    pub input_redacted: String,
+    #[serde(default)]
+    pub output_redacted: String,
+    /// The redactor screened this row (`crate::pii_redactor::SpanPii`);
+    /// drives the masked branch of `spans_v1`.
+    #[serde(default)]
+    pub pii_checked: bool,
 }
 
 impl CHSpan {
@@ -242,6 +253,9 @@ impl CHSpan {
             output_message_hashes: Vec::new(),
             output_new_message_indices: Vec::new(),
             tool_definitions_hash: [0u8; 32],
+            input_redacted: String::new(),
+            output_redacted: String::new(),
+            pii_checked: false,
         }
     }
 }
@@ -308,7 +322,7 @@ pub async fn is_span_in_project(
 /// One LLM/CACHED span of a replay trace, with the reconstructed input and the
 /// raw output-bearing attributes needed by the debugger warmup (LAM-1715).
 ///
-/// `input` is the reconstructed message-array JSON from `spans_v0` (dedup'd
+/// `input` is the reconstructed message-array JSON from `spans_v1` (dedup'd
 /// spans store an empty `spans.input`; the view rebuilds it from
 /// `unique_content_dict` / `deduped_content_dict`). `raw_response`, `gen_ai_output`
 /// and `finish_reason` are extracted from the raw `attributes` blob via
@@ -336,10 +350,12 @@ pub struct DebugCacheSpanRow {
 }
 
 /// Fetch one page of a trace's LLM + CACHED spans in `start_time` ASC order,
-/// reading reconstructed input + output attributes from `spans_v0`.
+/// reading reconstructed input + output attributes from `spans_v1`.
 ///
-/// `spans_v0` is a parameterized view (`WHERE project_id = {project_id:UUID}`),
+/// `spans_v1` is a parameterized view (`WHERE project_id = {project_id:UUID}`),
 /// so the project scope is passed as a query param rather than a WHERE clause.
+/// The debugger replays on behalf of the pipeline, not a viewer, so it reads
+/// with the unrestricted policy.
 pub async fn query_debug_cache_spans_page(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
@@ -358,7 +374,7 @@ pub async fn query_debug_cache_spans_page(
                 JSONExtractRaw(attributes, 'gen_ai.response.finish_reason') AS finish_reason,
                 JSONExtractRaw(attributes, 'gen_ai.response.finish_reasons') AS finish_reasons,
                 JSONExtractString(attributes, 'gen_ai.response.model') AS model
-            FROM spans_v0(project_id={project_id:UUID})
+            FROM spans_v1(project_id={project_id:UUID}, policy='{}')
             WHERE trace_id = {trace_id:UUID}
               AND span_type IN ('LLM', 'CACHED')
             ORDER BY start_time ASC

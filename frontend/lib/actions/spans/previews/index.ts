@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types";
+import type { SqlActor } from "@/lib/actions/sql";
 
 import { type AgentNamesResult, resolveAgentNames } from "./agent-names";
 import { extractUserInputsForSpans } from "./input-extraction";
@@ -61,7 +62,7 @@ export async function processSpanPreviews(
  */
 export async function getSpanPreviews(
   input: z.infer<typeof GetSpanPreviewsSchema>,
-  options: ResolveOptions = {}
+  options: ResolveOptions & { actor?: SqlActor } = {}
 ): Promise<SpanPreviewsResult> {
   const { projectId, traceId, spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } =
     GetSpanPreviewsSchema.parse(input);
@@ -75,7 +76,8 @@ export async function getSpanPreviews(
     spanTypes,
     startDate,
     endDate,
-    inputSpanIds
+    inputSpanIds,
+    options.actor
   );
 
   const [previewsResult, agentNames] = await Promise.all([

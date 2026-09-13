@@ -188,12 +188,12 @@ impl SharedContentBatch {
         if !self.keys.insert((project_id, group_id.to_string(), hash)) {
             return 0;
         }
-        self.rows.push(CHUniqueContent {
+        self.rows.push(CHUniqueContent::new(
             project_id,
-            group_id: group_id.to_string(),
-            content_hash: hash,
-            content: content.to_string(),
-        });
+            group_id.to_string(),
+            hash,
+            content.to_string(),
+        ));
         content.len()
     }
 
@@ -214,9 +214,13 @@ impl SharedContentBatch {
         &mut self.rows
     }
 
-    pub fn storage_marks(&self, marks: &mut SeenMarks) {
-        for row in &self.rows {
-            marks.storage(row.project_id, &row.group_id, &row.content_hash);
+    /// `skip(row_index)` withholds the mark: an unmarked row is a storage
+    /// miss for the next occurrence and gets re-inserted.
+    pub fn storage_marks(&self, marks: &mut SeenMarks, skip: impl Fn(usize) -> bool) {
+        for (i, row) in self.rows.iter().enumerate() {
+            if !skip(i) {
+                marks.storage(row.project_id, &row.group_id, &row.content_hash);
+            }
         }
     }
 }
@@ -283,8 +287,12 @@ mod tests {
         assert_eq!(batch.len(), 2);
 
         let mut marks = SeenMarks::default();
-        batch.storage_marks(&mut marks);
+        batch.storage_marks(&mut marks, |_| false);
         assert_eq!(marks.keys.len(), 2);
         assert!(marks.keys[0].starts_with("s2:"));
+
+        let mut marks = SeenMarks::default();
+        batch.storage_marks(&mut marks, |i| i == 0);
+        assert_eq!(marks.keys.len(), 1);
     }
 }

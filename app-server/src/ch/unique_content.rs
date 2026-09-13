@@ -19,6 +19,32 @@ pub struct CHUniqueContent {
     pub group_id: String,
     pub content_hash: [u8; 32],
     pub content: String,
+    /// Redacted copy, filled only in `dual` PII mode when the redactor
+    /// changed the content (`crate::pii_redactor`). Trailing columns: the
+    /// table's `last_seen_at` keeps its DEFAULT.
+    #[serde(default)]
+    pub content_redacted: String,
+    /// The redactor screened `content`; see `crate::pii_redactor::SpanPii`.
+    #[serde(default)]
+    pub pii_checked: bool,
+}
+
+impl CHUniqueContent {
+    pub fn new(
+        project_id: Uuid,
+        group_id: String,
+        content_hash: [u8; 32],
+        content: String,
+    ) -> Self {
+        Self {
+            project_id,
+            group_id,
+            content_hash,
+            content,
+            content_redacted: String::new(),
+            pii_checked: false,
+        }
+    }
 }
 
 /// Resolve one blob by hash: the group-scoped table first, then the legacy

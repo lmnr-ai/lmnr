@@ -10,9 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache,
-    data_plane::client::DataPlaneClient,
-    db::workspaces::WorkspaceDeployment,
+    cache::Cache, data_plane::client::DataPlaneClient, db::workspaces::WorkspaceDeployment,
     sql::SqlQueryError,
 };
 
@@ -23,6 +21,9 @@ struct DataPlaneReadRequest {
     parameters: HashMap<String, Value>,
 }
 
+/// HYBRID deployments (mostly deprecated) receive the already-validated SQL,
+/// so the access policy travels inside the `_v1` view arguments; the data
+/// plane's ClickHouse must carry migration 65 for those views to resolve.
 pub async fn query(
     cache: Arc<Cache>,
     http_client: Arc<reqwest::Client>,

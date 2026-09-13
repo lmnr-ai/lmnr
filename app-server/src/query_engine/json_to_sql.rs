@@ -61,7 +61,9 @@ pub fn convert_json_to_sql(query: &QueryStructure) -> Result<String, String> {
     let has_metrics = !query.metrics.is_empty();
 
     if !(has_time_range || has_dimensions || has_metrics) {
-        return Err("Query must have at least one of: metrics, dimensions, or time_range".to_string());
+        return Err(
+            "Query must have at least one of: metrics, dimensions, or time_range".to_string(),
+        );
     }
 
     let mut parts: Vec<String> = vec![
@@ -138,7 +140,10 @@ fn build_where_clause(query: &QueryStructure) -> Result<Option<String>, String> 
     if conditions.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(format!("WHERE\n    {}", conditions.join("\n    AND "))))
+        Ok(Some(format!(
+            "WHERE\n    {}",
+            conditions.join("\n    AND ")
+        )))
     }
 }
 

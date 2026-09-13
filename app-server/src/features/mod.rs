@@ -51,8 +51,12 @@ pub enum Feature {
     /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
     IngestionRateLimiter,
     /// Strip PII from span input/output via the pii-redactor gRPC service,
-    /// gated per project by the `projects.settings.removePii` toggle.
+    /// gated per project by `projects.settings.piiMode`.
     PiiRedaction,
+    /// `dual` PII mode: keep raw + redacted copies and mask per role at read
+    /// time. Gated behind `PII_DUAL_MODE_ENABLED`, default off; while off,
+    /// `dual` projects are ingested as `redact`.
+    PiiDualMode,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -117,6 +121,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::PiiRedaction => {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
+        Feature::PiiDualMode => env::pii::DUAL_MODE_ENABLED.get(),
     }
 }
 

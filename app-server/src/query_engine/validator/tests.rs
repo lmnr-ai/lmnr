@@ -23,7 +23,7 @@ fn contains_ws(haystack: &str, needle: &str) -> bool {
 }
 
 fn validate(query: &str) -> Result<String, String> {
-    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID)
+    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID, "{}")
 }
 
 fn validate_ok(query: &str) -> String {
@@ -96,7 +96,7 @@ fn test_validate_basic_spans_select() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}')")
         ),
         "got: {result}"
     );
@@ -110,7 +110,7 @@ fn test_validate_basic_traces_select() {
         contains_ws(
             &result,
             &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
+                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
             )
         ),
         "got: {result}"
@@ -492,7 +492,7 @@ fn test_cte_with_spans() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -512,7 +512,7 @@ fn test_subquery_with_spans() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -533,7 +533,7 @@ fn test_join_with_allowed_tables() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS s")
         ),
         "got: {result}"
     );
@@ -541,7 +541,7 @@ fn test_join_with_allowed_tables() {
         contains_ws(
             &result,
             &format!(
-                "JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "JOIN traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
             )
         ),
         "got: {result}"
@@ -560,10 +560,10 @@ fn test_complex_nested_query() {
         )
         "#;
     let result = validate_ok(query);
-    let spans_v0_count = result.matches("spans_v0").count();
+    let spans_v1_count = result.matches("spans_v1").count();
     assert!(
-        spans_v0_count >= 2,
-        "expected >=2 spans_v0, got {spans_v0_count} in: {result}"
+        spans_v1_count >= 2,
+        "expected >=2 spans_v1, got {spans_v1_count} in: {result}"
     );
     let project_filter_count = result
         .matches(&format!("project_id = '{SAMPLE_PROJECT_ID}'"))
@@ -584,7 +584,7 @@ fn test_basic_spans_query_transformation() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -600,7 +600,7 @@ fn test_spans_with_where_clause() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -616,7 +616,7 @@ fn test_spans_with_order_by_and_limit() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -642,13 +642,13 @@ fn test_spans_time_range_query() {
         contains_ws(
             &result,
             &format!(
-                "SELECT start_time FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans"
+                "SELECT start_time FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans"
             )
         ),
         "got: {result}"
     );
     // The interval predicate is preserved on the query (not lifted into the view fn).
-    let after_from = result.split("spans_v0").last().unwrap_or("");
+    let after_from = result.split("spans_v1").last().unwrap_or("");
     assert!(
         contains_ws(after_from, "start_time > now() - INTERVAL 1 HOUR"),
         "interval predicate missing in: {result}"
@@ -668,7 +668,7 @@ fn test_traces_time_range_query() {
         contains_ws(
             &result,
             &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
             )
         ),
         "got: {result}"
@@ -691,7 +691,7 @@ fn test_traces_time_range_query_between() {
         contains_ws(
             &result,
             &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
             )
         ),
         "got: {result}"
@@ -710,7 +710,7 @@ fn test_multiple_tables_in_join() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS s")
         ),
         "got: {result}"
     );
@@ -718,7 +718,7 @@ fn test_multiple_tables_in_join() {
         contains_ws(
             &result,
             &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
             )
         ),
         "got: {result}"
@@ -839,7 +839,7 @@ LEFT JOIN spans_pivot USING (user_id)
         contains_ws(
             &result,
             &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
+                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
             )
         ),
         "got: {result}"
@@ -847,7 +847,7 @@ LEFT JOIN spans_pivot USING (user_id)
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -878,7 +878,7 @@ ORDER BY time_bucket WITH FILL STEP INTERVAL 1 MINUTE
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -929,7 +929,7 @@ fn test_cte_with_safe_name_still_allowed() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -999,7 +999,7 @@ fn test_in_with_array_placeholder_unparenthesized() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -1377,7 +1377,7 @@ fn test_array_join_allows_function_over_array_columns() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}')")
         ),
         "got: {result}"
     );
@@ -1506,7 +1506,7 @@ fn test_array_join_subquery_right_hand_side_is_still_rewritten() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}')")
         ),
         "got: {result}"
     );
@@ -1547,7 +1547,7 @@ fn test_interval_with_unit_inside_string_literal() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -1568,7 +1568,7 @@ fn test_interval_with_unit_outside_string_literal() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -1631,7 +1631,9 @@ fn test_mixed_type_intervals_with_range_qualifier() {
         assert!(
             contains_ws(
                 &result,
-                &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+                &format!(
+                    "FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans"
+                )
             ),
             "table not rewritten for {lit}: {result}"
         );
@@ -1651,7 +1653,7 @@ fn test_backtick_quoted_identifiers_still_parse() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -1660,17 +1662,17 @@ fn test_backtick_quoted_identifiers_still_parse() {
 }
 
 // ----------------------------------------------------------------------------
-// traces_v0 start_time bound extraction (LAM-1876)
+// traces_v1 start_time bound extraction (LAM-1876)
 // ----------------------------------------------------------------------------
 
 /// Extract the `min_start_time = ..., max_start_time = ...` fragment of the
-/// first `traces_v0(...)` call in the rewritten SQL, whitespace-normalized.
+/// first `traces_v1(...)` call in the rewritten SQL, whitespace-normalized.
 fn traces_bounds(query: &str) -> String {
     let sql = validate_ok(query);
     let n = norm(&sql);
-    let start = n.find("traces_v0(").expect("no traces_v0 in output");
+    let start = n.find("traces_v1(").expect("no traces_v1 in output");
     // Find the matching close paren for the view-arg list.
-    let after = &n[start + "traces_v0(".len()..];
+    let after = &n[start + "traces_v1(".len()..];
     let mut depth = 1usize;
     let mut end = 0usize;
     for (i, c) in after.char_indices() {
@@ -2135,4 +2137,84 @@ fn test_array_join_qualifier_cannot_reach_another_database() {
     ] {
         validate(query).expect_err(&format!("must be rejected: {query}"));
     }
+}
+
+// ----------------------------------------------------------------------------
+// Access policy injection (docs/internal/rbac.md)
+// ----------------------------------------------------------------------------
+
+fn validate_with_policy(query: &str, policy: &str) -> String {
+    QueryValidator::new()
+        .validate_and_secure_query(query, SAMPLE_PROJECT_ID, policy)
+        .unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
+}
+
+#[test]
+fn test_policy_reaches_every_spans_and_traces_reference() {
+    let result = validate_with_policy(
+        "SELECT s.name, t.id FROM spans s JOIN traces t ON s.trace_id = t.id \
+         WHERE s.trace_id IN (SELECT trace_id FROM spans WHERE name = 'x')",
+        r#"{"maskPii":true}"#,
+    );
+    assert_eq!(
+        result.matches(r#"policy = '{"maskPii":true}'"#).count(),
+        3,
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}') AS s"
+            )
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_policy_is_not_passed_to_v0_views() {
+    let result = validate_with_policy(
+        "SELECT se.id FROM signal_events se JOIN trace_outputs o ON se.trace_id = o.trace_id",
+        r#"{"maskPii":true}"#,
+    );
+    assert!(!result.contains("policy"), "got: {result}");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS se")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_user_supplied_policy_argument_is_rejected() {
+    // The only way to reach `spans_v1` is through the rewriter; a caller
+    // cannot hand-pick a laxer policy by naming the view function directly.
+    for query in [
+        "SELECT name FROM spans_v1(project_id = 'x', policy = '{}')",
+        "SELECT name FROM spans(project_id = 'x', policy = '{}')",
+    ] {
+        validate(query).expect_err(&format!("must be rejected: {query}"));
+    }
+}
+
+#[test]
+fn test_policy_literal_is_quoted_as_a_string() {
+    // A stray quote in the policy must not break out of the string literal.
+    let result = validate_with_policy("SELECT name FROM spans", "{\"k\":\"it's\"}");
+    assert!(
+        result.contains(r#"policy = '{"k":"it''s"}'"#),
+        "got: {result}"
+    );
 }

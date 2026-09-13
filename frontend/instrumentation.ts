@@ -116,25 +116,31 @@ export async function register() {
             QUERY_WAIT_TIMEOUT_MILLISECONDS 15000`;
       };
 
-      // Content-dedup dictionaries. `spans_v0` / `trace_outputs_v0` / search
-      // snippets resolve message and tool-definition hashes through these.
-      // Key columns mirror each table's ORDER BY; the hash is declared
+      // Content-dedup dictionaries. `spans_v0` / `spans_v1` / `trace_outputs_v0`
+      // / search snippets resolve message and tool-definition hashes through
+      // these. Key columns mirror each table's ORDER BY; the hash is declared
       // `String` because dict attrs can't be `FixedString(N)` — CH coerces
-      // the table's `FixedString(32)` transparently.
+      // the table's `FixedString(32)` transparently. CREATE VIEW does not
+      // resolve dictionary attributes, so recreating the dicts after
+      // migrations is enough for views to see new attributes.
       const CONTENT_DICTS = [
         // Current: group-scoped (session, else trace) so one trace's
-        // lookups land in adjacent granules.
+        // lookups land in adjacent granules. `content_redacted` /
+        // `pii_checked` feed the masked branch of `spans_v1` (migration 65).
         {
           name: "unique_content_dict",
           table: "unique_content",
           keyColumns: ["project_id UUID", "group_id String", "content_hash String"],
+          attrColumns: ["content String", "content_redacted String", "pii_checked Bool"],
         },
         // Legacy: project-scoped, read-only fallback for spans ingested
-        // before migration 64. No writer.
+        // before migration 64. No writer, so no PII columns: its rows are
+        // unavailable under a masking policy.
         {
           name: "deduped_content_dict",
           table: "deduped_content",
           keyColumns: ["project_id UUID", "content_hash String"],
+          attrColumns: ["content String"],
         },
       ];
 
@@ -144,14 +150,13 @@ export async function register() {
         const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
         const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
 
-        for (const { name, table, keyColumns } of CONTENT_DICTS) {
+        for (const { name, table, keyColumns, attrColumns } of CONTENT_DICTS) {
           const primaryKey = keyColumns.map((c) => c.split(" ")[0]).join(", ");
           await clickhouseClient.command({
             query: `
               CREATE OR REPLACE DICTIONARY ${name}
               (
-                  ${keyColumns.join(",\n                  ")},
-                  content String
+                  ${[...keyColumns, ...attrColumns].join(",\n                  ")}
               )
               PRIMARY KEY ${primaryKey}
               SOURCE(CLICKHOUSE(

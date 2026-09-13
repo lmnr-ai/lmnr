@@ -15,6 +15,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::AccessPolicy,
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
@@ -188,6 +189,8 @@ impl LaminarMcpServer {
             project_id,
             params.parameters,
             SqlQuerySource::Public,
+            // Project API keys are admin-level credentials (docs/internal/rbac.md).
+            AccessPolicy::UNRESTRICTED,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),

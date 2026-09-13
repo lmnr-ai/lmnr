@@ -5,7 +5,8 @@
 // out of room — the strip is width-constrained and does its own fold — not a
 // property of the data.
 
-import { type ClusterStatsDataPoint, type EventCluster } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
+import { type EventCluster } from "@/lib/actions/clusters/types";
 import { getClusterColorById } from "@/lib/clusters/colors";
 
 /** Cluster levels kept, coarsest last: L1 (finest) through L3. Deeper levels
