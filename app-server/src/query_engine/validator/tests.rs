@@ -355,6 +355,97 @@ fn test_eval_ids_cannot_be_passed_by_user() {
 }
 
 #[test]
+fn test_validate_signal_events_all_select() {
+    // No WHERE: the mandatory signal_ids arg is still supplied, as the sentinel.
+    let result = validate_ok("SELECT id FROM signal_events_all");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM signal_events_all_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) \
+                 AS signal_events_all"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+/// Extract the `signal_ids = [...]` fragment of a rewritten `_v0(...)` call,
+/// whitespace-normalized. Mirrors [`eval_ids_of`].
+fn signal_ids_of(query: &str) -> String {
+    let sql = validate_ok(query);
+    let n = norm(&sql);
+    let start = n
+        .find("signal_ids = [")
+        .expect("no signal_ids in output; got: {n}");
+    let after = &n[start + "signal_ids = ".len()..];
+    let end = after.find(']').expect("unterminated signal_ids array") + 1;
+    after[..end].to_string()
+}
+
+#[test]
+fn test_signal_ids_picked_up_from_where() {
+    assert_eq!(
+        signal_ids_of(
+            "SELECT id FROM signal_events_all \
+             WHERE signal_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // A bind placeholder is a scalar, so it hoists like a literal.
+    assert_eq!(
+        signal_ids_of("SELECT id FROM event_clusters_all WHERE signal_id = {signalId: UUID}"),
+        "[toUUID({signalId: UUID})]"
+    );
+    // Qualified by the relation's own alias.
+    assert_eq!(
+        signal_ids_of(
+            "SELECT s.id FROM signal_events_all AS s \
+             WHERE s.signal_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // `clusters_v0` pushes signal_ids into its own PREWHERE rather than an
+    // internal subquery, but derivation is the same code path.
+    assert_eq!(
+        signal_ids_of(
+            "SELECT id FROM clusters WHERE signal_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+}
+
+#[test]
+fn test_signal_ids_widen_to_sentinel_when_unsafe() {
+    // `getTraceSignals` deliberately reads every signal that fired on a trace —
+    // no signal_id predicate at all — so the no-predicate case must widen. This
+    // is the case `signal_ids` exists to not break.
+    for q in [
+        "SELECT id FROM signal_events WHERE trace_id = '0195b6e0-0000-7000-8000-000000000001'",
+        // `severity > 1` rows belong to other signals too.
+        "SELECT id FROM signal_events_all \
+         WHERE signal_id = '0195b6e0-0000-7000-8000-000000000001' OR severity > 1",
+        "SELECT id FROM signal_events_all \
+         WHERE signal_id != '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT id FROM event_clusters_all WHERE signal_id NOT IN ('0195b6e0-0000-7000-8000-000000000001')",
+        "SELECT id FROM clusters WHERE level > 0",
+    ] {
+        assert_eq!(signal_ids_of(q), "[]", "should have widened, query: {q}");
+    }
+}
+
+#[test]
+fn test_signal_ids_cannot_be_passed_by_user() {
+    // The rewriter is the only thing that may set signal_ids.
+    validate(
+        "SELECT id FROM signal_events_all_v0(project_id = '00000000-0000-0000-0000-000000000000', signal_ids = [])",
+    )
+    .expect_err("_v0 view functions must not be callable directly");
+    validate("SELECT id FROM signal_events_all(signal_ids = [])")
+        .expect_err("an allowlisted table must not be usable as a table function");
+}
+
+#[test]
 fn test_reject_write_operations() {
     // Write operations sqlparser parses as a non-Query statement: rejected by
     // the SELECT-only security gate with the canonical message.
@@ -476,6 +567,25 @@ fn test_reject_invalid_column() {
         err.contains("Column 'invalid_column' does not exist"),
         "got: {err}"
     );
+}
+
+#[test]
+fn test_clusters_path_is_not_exposed() {
+    // `path` is internal machinery -- it expands a trace's leaf-only cluster_ids
+    // into leaf + ancestors inside the views, and lives only as a `clusters_dict`
+    // attribute. Callers walk the hierarchy with `parent_id`, which stays exposed.
+    let err = validate("SELECT clusters.path FROM clusters")
+        .expect_err("clusters.path must not be queryable");
+    assert!(err.contains("Column 'path' does not exist"), "got: {err}");
+    // Unqualified, it gets past the column check (which only resolves qualified
+    // names) and then fails in ClickHouse, because `clusters_v0` no longer
+    // selects it -- the registry and the view have to drop it together.
+    validate("SELECT path FROM clusters").expect("bare column names are not table-resolved");
+    // Being an array column, exposing it would also have made this legal.
+    validate("SELECT x FROM clusters ARRAY JOIN path AS x")
+        .expect_err("ARRAY JOIN on clusters.path must not be legal");
+    // The hierarchy is still walkable.
+    validate("SELECT id, parent_id, level FROM clusters").expect("parent_id stays exposed");
 }
 
 #[test]
@@ -726,7 +836,7 @@ fn test_multiple_tables_in_join() {
     assert!(
         contains_ws(
             &result,
-            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS se")
+            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) AS se")
         ),
         "got: {result}"
     );
@@ -1161,7 +1271,10 @@ fn test_array_join_column_not_rewritten() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+            &format!(
+                "FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 signal_ids = [toUUID({{signalId: UUID}})]) AS signal_events"
+            )
         ),
         "got: {result}"
     );
@@ -1205,11 +1318,12 @@ fn test_array_join_does_not_shadow_real_clusters_table() {
         )
     "#;
     let result = validate_ok(query);
-    // The real FROM table is scoped...
+    // The real FROM table is scoped. `c.id IN (...)` doesn't restrict `c`'s own
+    // signal_id, so signal_ids widens to the sentinel.
     assert!(
         contains_ws(
             &result,
-            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}') AS c")
+            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) AS c")
         ),
         "got: {result}"
     );
@@ -1247,14 +1361,20 @@ fn test_full_clusters_emerging_query() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}') AS clusters")
+            &format!(
+                "FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 signal_ids = [toUUID({{signalId: UUID}})]) AS clusters"
+            )
         ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+            &format!(
+                "FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 signal_ids = [toUUID({{signalId: UUID}})]) AS signal_events"
+            )
         ),
         "got: {result}"
     );
@@ -1272,6 +1392,8 @@ fn test_array_join_allows_other_tables_array_columns() {
     let by_table = [
         ("traces", "span_names", "n"),
         ("traces", "tags", "tag"),
+        ("traces", "signal_events", "e"),
+        ("traces", "clusters", "c"),
         ("evaluation_datapoints", "trace_spans", "s"),
         ("spans", "tags", "tag"),
     ];

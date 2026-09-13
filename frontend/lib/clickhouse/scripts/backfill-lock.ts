@@ -46,29 +46,30 @@ const RELEASE_IF_HELD = `
 // destination anti-join can't prevent that, since both read the window before
 // either insert lands. Hence `SET NX EX` (one atomic round trip) rather than
 // exists-then-set.
-export const acquireBackfillLock = async (): Promise<BackfillLock | null> => {
+export const acquireBackfillLock = async (lockKey: string = LOCK_KEY): Promise<BackfillLock | null> => {
   const url = redisUrl();
+  const label = lockKey;
   if (!url) {
     // No Redis means no shared state, so there is nothing to serialise on. A
     // single-replica self-hosted install (the common case) is fine; more than one
     // replica would double-count, so warn rather than silently proceed.
     console.warn(
-      "[traces-agg-backfill] REDIS_URL is not set, so there is no cross-replica lock. " +
+      `[${label}] REDIS_URL is not set, so there is no cross-replica lock. ` +
         "If you run MORE THAN ONE frontend replica, set REDIS_URL or run a single replica for the " +
-        "first boot — concurrent replicas would double-count traces_agg tokens/costs."
+        "first boot — concurrent replicas would duplicate this backfill's writes."
     );
     return { lost: () => false, release: async () => {} };
   }
 
   const token = randomUUID();
   const client = new Redis(url, { maxRetriesPerRequest: 3 });
-  client.on("error", (error) => console.error("[traces-agg-backfill] lock redis error", error));
+  client.on("error", (error) => console.error(`[${label}] lock redis error`, error));
 
   let acquired = false;
   try {
-    acquired = (await client.set(LOCK_KEY, token, "EX", LOCK_TTL_SECONDS, "NX")) === "OK";
+    acquired = (await client.set(lockKey, token, "EX", LOCK_TTL_SECONDS, "NX")) === "OK";
   } catch (error) {
-    console.error("[traces-agg-backfill] could not acquire the lock", error);
+    console.error(`[${label}] could not acquire the lock`, error);
   }
   if (!acquired) {
     await client.quit().catch(() => {});
@@ -80,36 +81,26 @@ export const acquireBackfillLock = async (): Promise<BackfillLock | null> => {
     if (lost) return;
     lost = true;
     console.warn(
-      `[traces-agg-backfill] ${reason}; stopping. Remaining history is migrated by whichever replica ` +
+      `[${label}] ${reason}; stopping. Remaining history is migrated by whichever replica ` +
         "holds the lock now, or on the next boot."
     );
   };
 
   const renew = setInterval(() => {
     void client
-      .eval(RENEW_IF_HELD, 1, LOCK_KEY, token, String(LOCK_TTL_SECONDS))
-      // 0 means the key is gone or now holds another token — we no longer own it.
+      .eval(RENEW_IF_HELD, 1, lockKey, token, String(LOCK_TTL_SECONDS))
       .then((held) => {
         if (held !== 1) surrender("lock lease expired and was taken over");
       })
-      // A FAILED renew must surrender too, not just a refused one. Swallowing the
-      // error leaves `lost` false while the lease quietly runs out, so a Redis
-      // outage lasting past the TTL lets this run keep writing after another
-      // replica has legitimately claimed the lock — and concurrent runs double
-      // traces_agg sums (verified: with the error swallowed, `lost()` stayed false
-      // across an outage that outlived the lease). Surrendering on the first
-      // failure is the safe direction: worst case we stop early and the next boot
-      // resumes from the destination watermark.
       .catch((error) => surrender(`could not renew the lock lease (${String(error)})`));
   }, LOCK_RENEW_INTERVAL_MS);
-  // Don't hold the event loop open on account of the renew timer.
   renew.unref?.();
 
   return {
     lost: () => lost,
     release: async () => {
       clearInterval(renew);
-      await client.eval(RELEASE_IF_HELD, 1, LOCK_KEY, token).catch(() => {});
+      await client.eval(RELEASE_IF_HELD, 1, lockKey, token).catch(() => {});
       await client.quit().catch(() => {});
     },
   };

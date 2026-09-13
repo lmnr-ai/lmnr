@@ -23,7 +23,7 @@ const VIEW_BACKING_TABLES: Record<string, string> = {
   labeling_queue_items_v0: "labeling_queue_items",
   clusters_v0: "signal_event_clusters",
   signal_events_all_v0: "signal_events",
-  event_clusters_all_v0: "events_to_clusters",
+  event_clusters_all_v0: "signal_event_summaries",
 };
 
 interface TableRow {

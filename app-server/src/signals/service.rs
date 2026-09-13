@@ -674,28 +674,27 @@ pub async fn delete_signal(
     Ok(SignalResponse::new(deleted, None, profile_name))
 }
 
-/// Link rows first — they're resolved by `event_id` against `signal_events`.
+/// `signal_events` first: `backfill-signal-clusters.ts` reaches `events_to_clusters`
+/// only by joining it, so a crash mid-purge cannot resurrect this signal's clusters.
 async fn purge_signal_from_clickhouse(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     signal_id: Uuid,
 ) {
     let statements = [
-        "DELETE FROM events_to_clusters
-         WHERE project_id = ?
-           AND event_id IN (
-             SELECT id FROM signal_events WHERE project_id = ? AND signal_id = ?
-           )",
-        "DELETE FROM signal_event_clusters WHERE project_id = ? AND signal_id = ?",
         "DELETE FROM signal_events WHERE project_id = ? AND signal_id = ?",
+        "DELETE FROM signal_event_summaries WHERE project_id = ? AND signal_id = ?",
+        "DELETE FROM signal_event_clusters WHERE project_id = ? AND signal_id = ?",
     ];
 
-    for (i, statement) in statements.iter().enumerate() {
-        let mut query = clickhouse.query(statement).bind(project_id);
-        if i == 0 {
-            query = query.bind(project_id);
-        }
-        if let Err(e) = query.bind(signal_id).execute().await {
+    for statement in statements {
+        if let Err(e) = clickhouse
+            .query(statement)
+            .bind(project_id)
+            .bind(signal_id)
+            .execute()
+            .await
+        {
             log::error!("failed to purge signal {signal_id} from ClickHouse: {e:?}");
             return;
         }
