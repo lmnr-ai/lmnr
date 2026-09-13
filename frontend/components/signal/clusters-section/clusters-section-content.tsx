@@ -19,7 +19,6 @@ import { cn, swrFetcher } from "@/lib/utils";
 
 import ClusterBreadcrumbs from "./cluster-breadcrumbs";
 import ClusterIcicle from "./cluster-icicle";
-import ClusterIcicleEmpty from "./cluster-icicle-empty";
 import ClusterIcicleSkeleton from "./cluster-icicle-skeleton";
 import ClusterReadout from "./cluster-readout";
 import ClusterStackedChart from "./cluster-stacked-chart";
@@ -175,26 +174,26 @@ export default function ClustersSectionContent({ className }: Props) {
     <div className={cn("relative flex w-full min-w-0 flex-col", className)}>
       {/* The strip and the trail read as one block above the chart, which is
           why the gap between them is looser than the one under it. */}
-      <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
-        {model ? (
-          <ClusterIcicle
-            tree={model.tree}
-            ancestors={model.ancestors}
-            selectedId={clusterId}
-            onHover={setHoveredId}
-            onSelect={selectCluster}
-          />
-        ) : showSkeleton ? (
-          <ClusterIcicleSkeleton />
-        ) : (
-          <ClusterIcicleEmpty />
-        )}
-        {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-      </div>
+      {(model || showSkeleton) && (
+        <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
+          {model ? (
+            <ClusterIcicle
+              tree={model.tree}
+              ancestors={model.ancestors}
+              selectedId={clusterId}
+              onHover={setHoveredId}
+              onSelect={selectCluster}
+            />
+          ) : (
+            <ClusterIcicleSkeleton />
+          )}
+          {model && (emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />)}
+        </div>
+      )}
 
       {/* The graph fills this fixed-height container below tunable top padding;
           the readout remains absolutely positioned over the full container. */}
-      <div className="h-[320px] w-full overflow-hidden">
+      <div className="h-[250px] w-full overflow-hidden">
         <div className="h-full" ref={chartContainerRef}>
           {showChartLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
