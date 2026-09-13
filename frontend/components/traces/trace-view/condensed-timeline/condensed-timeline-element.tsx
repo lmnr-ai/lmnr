@@ -46,13 +46,12 @@ const CondensedTimelineElement = ({
 
   const backgroundColor = useMemo(() => {
     if (isCostHeatmapVisible) return undefined;
-    const color = span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType];
-    return isMuted ? `color-mix(in oklch, ${color} 60%, var(--color-surface-200))` : color;
-  }, [span.status, span.spanType, isCostHeatmapVisible, isMuted]);
+    return span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType];
+  }, [span.status, span.spanType, isCostHeatmapVisible]);
 
   return (
     <div
-      className={cn("@container absolute cursor-pointer", opacity)}
+      className={cn("@container absolute cursor-pointer rounded-xs", opacity, isMuted && "bg-surface-200")}
       style={{
         left: `${left}%`,
         width: `max(${width}%, 4px)`,
@@ -65,6 +64,7 @@ const CondensedTimelineElement = ({
         className={cn("relative size-full rounded-xs hover:brightness-110 @min-[5px]:w-[calc(100%-1px)]", {
           "ring-1 ring-white/70 z-20": isSelected,
           "bg-muted": isCostHeatmapVisible,
+          "opacity-60": isMuted,
         })}
         style={{ backgroundColor }}
       >

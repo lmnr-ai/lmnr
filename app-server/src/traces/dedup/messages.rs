@@ -18,7 +18,7 @@ use crate::{cache::Cache, db::spans::Span, utils::sanitize_string};
 /// change mid-trace (late session adopt, expired hint), so a trace-seen hash
 /// may still be missing under the current group. `contents` carries the JSON
 /// for every position in either list; everything else rides as hashes only.
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDedup {
     pub hashes: Vec<ContentHash>,
     #[serde(default)]
@@ -27,84 +27,6 @@ pub struct MessageDedup {
     pub storage_miss_indices: Vec<u16>,
     #[serde(default)]
     pub contents: BTreeMap<u16, String>,
-}
-
-// Backward-compatible deserialization of the pre-LAM-2234 wire shape, which
-// carried `trace_new_contents` (aligned with `trace_new_indices` by OFFSET, not
-// by position) and `storage_miss_offsets` (offsets into `trace_new_indices`,
-// not positions in `hashes`). A plain derive accepts those messages — serde
-// ignores the unknown keys and defaults `contents`/`storage_miss_indices` to
-// empty — so nothing is rejected or requeued; the span is written with
-// `input_message_hashes` set and no content row ever reaches `unique_content`,
-// and `spans_v0` reconstructs those positions as literal `null`. Silent, and
-// unrecoverable once the message is acked, hence the translation.
-//
-// Translating is sound because of the `deduped_content` read fallback: a
-// position the old producer called a storage HIT is by definition already in
-// that table, so it resolves there; the storage-miss positions are inserted
-// into `unique_content` under this span's group and resolve on the primary leg.
-//
-// TODO(LAM-2234): restore `#[derive(Deserialize)]` and delete this impl once
-// the queue has drained past the deploy that stops emitting the old shape.
-impl<'de> Deserialize<'de> for MessageDedup {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Wire {
-            hashes: Vec<ContentHash>,
-            #[serde(default, alias = "new_indices")]
-            trace_new_indices: Vec<u16>,
-            #[serde(default)]
-            storage_miss_indices: Vec<u16>,
-            #[serde(default)]
-            contents: BTreeMap<u16, String>,
-            // Legacy-only keys; `Some` on exactly the old shapes. `Option`
-            // needs no `serde(default)` — serde's `missing_field` yields
-            // `None` for it. The aliases are the pre-project-scoped shape;
-            // dropping them here would silently route
-            // those messages down the new-shape branch and lose their content.
-            #[serde(alias = "new_contents")]
-            trace_new_contents: Option<Vec<String>>,
-            storage_miss_offsets: Option<Vec<u16>>,
-        }
-
-        let wire = Wire::deserialize(deserializer)?;
-        let Some(legacy_contents) = wire.trace_new_contents else {
-            return Ok(MessageDedup {
-                hashes: wire.hashes,
-                trace_new_indices: wire.trace_new_indices,
-                storage_miss_indices: wire.storage_miss_indices,
-                contents: wire.contents,
-            });
-        };
-
-        let contents: BTreeMap<u16, String> = wire
-            .trace_new_indices
-            .iter()
-            .copied()
-            .zip(legacy_contents)
-            .collect();
-        // Absent `storage_miss_offsets` is the oldest (trace-scoped) shape,
-        // where every trace-new position was also a storage miss.
-        let storage_miss_indices = wire
-            .storage_miss_offsets
-            .map(|offsets| {
-                offsets
-                    .iter()
-                    .filter_map(|&off| wire.trace_new_indices.get(off as usize).copied())
-                    .collect()
-            })
-            .unwrap_or_else(|| wire.trace_new_indices.clone());
-
-        Ok(MessageDedup {
-            hashes: wire.hashes,
-            trace_new_indices: wire.trace_new_indices,
-            storage_miss_indices,
-            contents,
-        })
-    }
 }
 
 /// Producer-side: hash each message and consult both Redis axes. `None` when
@@ -318,57 +240,6 @@ mod tests {
         assert!(minimal.trace_new_indices.is_empty());
         assert!(minimal.storage_miss_indices.is_empty());
         assert!(minimal.contents.is_empty());
-    }
-
-    #[test]
-    fn legacy_wire_shape_translates_offsets_to_positions() {
-        // The pre-LAM-2234 shape: `trace_new_contents` aligned with
-        // `trace_new_indices` by offset, `storage_miss_offsets` indexing into
-        // `trace_new_indices` rather than into `hashes`. Position 3 is
-        // trace-new but a storage hit (already in `deduped_content`, which the
-        // views still read as a fallback), so it must NOT become a miss.
-        let h = |b: u8| format!("[{}]", vec![b.to_string(); 32].join(","));
-        let legacy = format!(
-            r#"{{"hashes":[{},{},{},{}],
-                 "trace_new_indices":[1,3],
-                 "trace_new_contents":["{{\"a\":1}}","{{\"b\":2}}"],
-                 "storage_miss_offsets":[0]}}"#,
-            h(1),
-            h(2),
-            h(3),
-            h(4)
-        );
-        let d: MessageDedup = serde_json::from_str(&legacy).unwrap();
-        assert_eq!(d.hashes.len(), 4);
-        assert_eq!(d.trace_new_indices, vec![1, 3]);
-        assert_eq!(d.storage_miss_indices, vec![1]);
-        assert_eq!(d.contents.get(&1).map(String::as_str), Some(r#"{"a":1}"#));
-        assert_eq!(d.contents.get(&3).map(String::as_str), Some(r#"{"b":2}"#));
-    }
-
-    #[test]
-    fn pre_project_scoped_aliases_still_deserialize() {
-        // The oldest shape `dev` accepts: `new_indices` / `new_contents`, no
-        // `storage_miss_offsets`. Must not fall through to the new-shape
-        // branch, which would drop `contents` silently.
-        let zero = format!("[{}]", vec!["0"; 32].join(","));
-        let ancient =
-            format!(r#"{{"hashes":[{zero}],"new_indices":[0],"new_contents":["{{\"a\":1}}"]}}"#);
-        let d: MessageDedup = serde_json::from_str(&ancient).unwrap();
-        assert_eq!(d.trace_new_indices, vec![0]);
-        assert_eq!(d.storage_miss_indices, vec![0]);
-        assert_eq!(d.contents.get(&0).map(String::as_str), Some(r#"{"a":1}"#));
-    }
-
-    #[test]
-    fn oldest_wire_shape_without_offsets_treats_every_trace_new_as_a_miss() {
-        let zero = format!("[{}]", vec!["0"; 32].join(","));
-        let oldest = format!(
-            r#"{{"hashes":[{zero}],"trace_new_indices":[0],"trace_new_contents":["{{}}"]}}"#
-        );
-        let d: MessageDedup = serde_json::from_str(&oldest).unwrap();
-        assert_eq!(d.storage_miss_indices, vec![0]);
-        assert_eq!(d.contents.get(&0).map(String::as_str), Some("{}"));
     }
 
     #[tokio::test]

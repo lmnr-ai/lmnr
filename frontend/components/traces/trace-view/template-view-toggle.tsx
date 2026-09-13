@@ -96,12 +96,15 @@ export default function TemplateViewToggle({
   );
 
   return (
-    <div className="flex items-center min-w-0">
+    <div className="flex items-center min-w-0 gap-px bg-surface-00">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            className={cn("flex h-[26px] items-center hover:bg-surface-up-3", isTreeView && "rounded-r-none")}
+            className={cn(
+              "flex h-[26px] items-center bg-surface-up-2 hover:bg-surface-up-4 active:bg-surface-up-5 data-[state=open]:bg-surface-up-5",
+              isTreeView && "rounded-r-none"
+            )}
           >
             <CurrentIcon size={14} className="mr-1 flex-shrink-0" />
             <span className={cn("truncate max-w-[160px]", !isCustom && "capitalize")}>{current.label}</span>
@@ -189,7 +192,7 @@ export default function TemplateViewToggle({
           variant="ghost"
           onClick={onToggleContent}
           className={cn(
-            "flex h-[26px] items-center overflow-hidden rounded-l-none text-muted-foreground hover:bg-surface-up-3",
+            "flex h-[26px] items-center overflow-hidden rounded-l-none bg-surface-up-2 text-muted-foreground hover:bg-surface-up-4 active:bg-surface-up-5",
             showContent && "text-foreground"
           )}
         >
