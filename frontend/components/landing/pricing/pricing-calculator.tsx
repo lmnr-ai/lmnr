@@ -16,10 +16,22 @@ import {
   TOKENS_PER_RUN_STEPS,
 } from "./volume-inputs/steps";
 
-// Bytes of stored trace data per agent token: a saturating exponential decay
-// y = a·e^(−b·x) + c fitted to measured traces, x in thousands of tokens. ~2.8
-// bytes on a short run, decaying toward ~0.22 as dedup collapses repeats.
-const BYTES_PER_TOKEN_FIT = { a: 2.548, b: 0.002661, c: 0.2221 };
+// Storage is modelled in two independent factors rather than one bytes-per-token
+// curve. The old single curve multiplied a decaying density back by x, which made
+// stored bytes NON-MONOTONIC: a 1.22M-token trace billed 12.5% less than a 500k
+// one. Splitting the two keeps the product monotonic by construction.
+
+// 1. How many tokens survive dedup. Log-logistic, fitted to 20,933 measured
+// traces: flat near 10k for short runs, climbing through the middle decade, flat
+// again at the per-trace cap. The upper plateau is the cap itself, not a dedup
+// effect — past ~450k tokens every trace is truncated, so both the median and
+// the mean read the cap. Revisit this fit if that cap ever moves.
+const RENDERED_TOKENS_FIT = { lo: 9695, hi: 39953, x0: 180160, p: 1.924 };
+
+// 2. Bytes of stored UTF-8 per surviving token. Flat: encoding density is a
+// property of the content, not of run length. Agent traces are mostly JSON, which
+// tokenizes near 3 bytes/token, prose nearer 4.
+const BYTES_PER_RENDERED_TOKEN = 3.2;
 
 const PRO_DATA_THRESHOLD_GB = 30;
 // Once the estimated Hobby bill clears this, Pro is the cheaper/safer pick.
@@ -72,13 +84,15 @@ interface TierEstimate {
 /** Evaluated at the PER-RUN token count, never the monthly total: dedup works
  *  within a trace, so a month of small runs stores far more per token than one
  *  long run of the same total size. */
-function bytesPerToken(tokensPerRun: number): number {
-  const { a, b, c } = BYTES_PER_TOKEN_FIT;
-  return a * Math.exp((-b * tokensPerRun) / 1_000) + c;
+function renderedTokens(tokensPerRun: number): number {
+  const { lo, hi, x0, p } = RENDERED_TOKENS_FIT;
+  // A trace can never store more than it started with. The fitted floor sits
+  // above the smallest measured bucket, so short runs need the clamp.
+  return Math.min(tokensPerRun, lo + (hi - lo) / (1 + (tokensPerRun / x0) ** -p));
 }
 
 function estimateDataGB(runs: number, tokensPerRun: number): number {
-  return (runs * tokensPerRun * bytesPerToken(tokensPerRun)) / 1_000_000_000;
+  return (runs * renderedTokens(tokensPerRun) * BYTES_PER_RENDERED_TOKEN) / 1_000_000_000;
 }
 
 // Dollar cost of running one Signal over `signalCoveragePct`% of the month's
