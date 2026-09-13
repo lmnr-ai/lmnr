@@ -1299,7 +1299,9 @@ fn main() -> anyhow::Result<()> {
                         // nobody touches and let a failure on it abort the
                         // observations transport too.
                         let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
-                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                        if env::streams::SPANS_INDEXER_ENABLED.get()
+                            && is_feature_enabled(Feature::Quickwit)
+                        {
                             streams.push(mq::stream::SPANS_INDEXER_STREAM);
                         }
                         for name in streams {
@@ -1334,7 +1336,9 @@ fn main() -> anyhow::Result<()> {
                         // Both roles read this same env var, so the gate is
                         // symmetric; unset keeps `publish_for_indexing` on the
                         // queue fallback.
-                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                        if env::streams::SPANS_INDEXER_ENABLED.get()
+                            && is_feature_enabled(Feature::Quickwit)
+                        {
                             match mq::stream::StreamPublisher::new(
                                 &environment,
                                 mq::stream::SPANS_INDEXER_STREAM,
@@ -1351,7 +1355,7 @@ fn main() -> anyhow::Result<()> {
                             }
                         } else {
                             log::warn!(
-                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not building the spans indexer stream publisher; indexing stays on the quorum queue"
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off (or QUICKWIT_ENABLED is false) - not building the spans indexer stream publisher; indexing stays on the quorum queue"
                             );
                         }
                         log::info!("RabbitMQ Streams transport enabled");
@@ -1370,14 +1374,15 @@ fn main() -> anyhow::Result<()> {
         (None, None, None)
     };
 
-    // Whether anything downstream will ever drain a `publish_for_indexing` call:
-    // either the stream path is active (its reader gate is independent of this
-    // pod's own `quickwit_client`, see above) or the queue path has a live
-    // client, matching the same `quickwit_client.is_some()` check that gates
-    // spawning the queue-path indexer workers below. When both are false,
-    // publishing would just spin the queue/log errors for messages nobody
-    // will ever read.
-    let quickwit_indexing_enabled = indexer_stream_publisher.is_some() || quickwit_client.is_some();
+    // Whether anything downstream will ever drain a `publish_for_indexing` call.
+    // `Feature::Quickwit` is the master switch: when it's off, nothing should
+    // publish at all, regardless of the stream/queue transport in use. When
+    // it's on, either the stream path is active (its reader gate is
+    // independent of this pod's own `quickwit_client`, see above) or the queue
+    // path has a client, matching the same `quickwit_client.is_some()` check
+    // that gates spawning the queue-path indexer workers below.
+    let quickwit_indexing_enabled = is_feature_enabled(Feature::Quickwit)
+        && (indexer_stream_publisher.is_some() || quickwit_client.is_some());
 
     // Now that the queue/DB/cache (and the optional spans stream publisher)
     // exist, hand them to the internal self-tracing exporter. Until this runs
@@ -1738,7 +1743,9 @@ fn main() -> anyhow::Result<()> {
                             // the batch in place without advancing the offset and
                             // calls `reconnect()`, so the backlog waits on broker
                             // disk and drains once Quickwit returns.
-                            if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            if env::streams::SPANS_INDEXER_ENABLED.get()
+                                && is_feature_enabled(Feature::Quickwit)
+                            {
                                 let indexer_quickwit_client = match quickwit_client_for_consumer
                                     .as_ref()
                                 {
