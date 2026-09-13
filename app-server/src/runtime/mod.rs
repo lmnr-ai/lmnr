@@ -5,6 +5,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::runtime;
 use tokio::runtime::Runtime;
 
+pub mod shutdown;
+
 pub fn create_general_purpose_runtime() -> io::Result<Runtime> {
     runtime::Builder::new_multi_thread()
         .enable_time()

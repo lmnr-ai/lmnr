@@ -9,6 +9,7 @@ use crate::mq::{
     MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiver, MessageQueueReceiverTrait,
     MessageQueueTrait,
 };
+use crate::runtime::shutdown;
 use crate::utils::retry;
 
 const DEFAULT_PREFETCH_COUNT: u16 = 128;
@@ -228,8 +229,13 @@ impl<H: MessageHandler> QueueWorker<H> {
         self.id
     }
 
-    /// Main processing loop - runs forever with internal retry
+    /// Main processing loop - runs until shutdown, with internal retry
     pub async fn process(self: Arc<Self>) {
+        // The process must not exit between `handle` and the ack that records it —
+        // the redelivery would otherwise redo work that already landed. `main`
+        // waits on the drain registry before returning.
+        let _drain = shutdown::register_drain();
+
         loop {
             if let Err(e) = self.process_inner().await {
                 log::error!(
@@ -238,6 +244,14 @@ impl<H: MessageHandler> QueueWorker<H> {
                     self.worker_type,
                     e
                 );
+            }
+            if shutdown::is_requested() {
+                log::info!(
+                    "Worker {} ({:?}) stopped for shutdown",
+                    self.id,
+                    self.worker_type
+                );
+                return;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -252,7 +266,25 @@ impl<H: MessageHandler> QueueWorker<H> {
             self.worker_type
         );
 
-        while let Some(delivery) = receiver.receive().await {
+        loop {
+            // Graceful shutdown: stop taking deliveries. Only reachable between
+            // messages, so the handler and the ack/reject that records its outcome
+            // have both completed — being killed between those two is what makes
+            // the redelivery redo work that already landed.
+            let delivery = tokio::select! {
+                () = shutdown::cancelled() => {
+                    log::info!(
+                        "Worker {} ({:?}) draining on shutdown",
+                        self.id,
+                        self.worker_type
+                    );
+                    return Ok(());
+                }
+                received = receiver.receive() => match received {
+                    Some(delivery) => delivery,
+                    None => break,
+                },
+            };
             let delivery = delivery?;
 
             let acker = delivery.acker();

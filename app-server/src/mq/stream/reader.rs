@@ -59,14 +59,26 @@
 //! mid-flush still duplicates at most that one in-flight batch, with the
 //! read-guard fence in `store_offsets` as the backstop.
 //!
-//! Reader teardown never drains: every exit path aborts the batchers (then
-//! awaits the cancellation) and drops whatever they hold. Held records were
-//! never flushed, so the replay from the last stored offset writes them exactly
-//! once — draining would instead double-write them whenever the offset store
-//! behind the drain-flush failed, and teardown usually means the connection is
-//! already dead, so that store was going to fail. The only residual duplicate
-//! window is a flush already in flight at abort time (insert landed, store
-//! didn't).
+//! Reader teardown never flushes what a batcher merely HOLDS: every exit path
+//! drops those records. They were never flushed, so the replay from the last
+//! stored offset writes them exactly once — flushing them on the way out would
+//! instead double-write them whenever the offset store behind that flush failed,
+//! and an error teardown usually means the connection is already dead, so that
+//! store was going to fail.
+//!
+//! What teardown does differ on is the batcher already INSIDE a flush, and that
+//! is the whole of the LAM-2219 duplicate window (insert landed, store didn't):
+//!
+//!   - **Error teardown** aborts the batchers (then awaits the cancellation, since
+//!     abort only *requests* it and a task inside `store_offset` could otherwise
+//!     confirm after the next generation started). The connection is presumed
+//!     dead, so there is nothing to wait for.
+//!   - **Graceful shutdown** ([`crate::runtime::shutdown`]) closes the channels
+//!     and AWAITS the batchers under one deadline instead. The connection is still
+//!     alive and the pod has a grace period, so the in-flight flush gets to finish
+//!     its `store_offset`; only then does the batcher see `recv() == None` and
+//!     return, dropping what it holds exactly as above. Whatever is still flushing
+//!     at the deadline is aborted, i.e. falls back to the error-path behaviour.
 //!
 //! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
@@ -92,6 +104,7 @@ use uuid::Uuid;
 use super::encoding;
 use super::topology::StreamEnvironment;
 use crate::env;
+use crate::runtime::shutdown;
 use crate::utils::retry;
 use crate::worker::HandlerError;
 
@@ -238,8 +251,13 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         );
     }
 
-    /// Runs forever, reconnecting on stream end / connection loss.
+    /// Runs until shutdown, reconnecting on stream end / connection loss.
     pub async fn run(self) {
+        // Held for the reader's whole life: `main` waits on the drain registry
+        // before the process exits, which is what gives an in-flight flush the
+        // time to store its offset instead of being killed between the two.
+        let _drain = shutdown::register_drain();
+
         loop {
             if let Err(e) = self.run_once().await {
                 log::error!(
@@ -248,6 +266,17 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     self.super_stream,
                     e
                 );
+            }
+            // `run_once` already drained the batchers on a shutdown; reconnecting
+            // would start ingesting again with the pod on its way out, and every
+            // record read after this point would be dropped unflushed.
+            if shutdown::is_requested() {
+                log::info!(
+                    "Stream reader {} ({}) stopped for shutdown",
+                    self.id,
+                    self.super_stream
+                );
+                return;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -391,10 +420,27 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         let mut assignment = BatcherAssignment::default();
 
         // Every exit — including a delivery error — falls through to the shared
-        // teardown below so the batchers are aborted, never detached.
+        // teardown below so the batchers are torn down, never detached.
         let mut result: anyhow::Result<()> = Ok(());
+        // Set only on the graceful path, which awaits the batchers instead of
+        // aborting them. Kept separate from `result`: a delivery error is not a
+        // shutdown, and treating it as one would wait out the drain deadline on a
+        // connection that is already gone.
+        let mut draining = false;
         loop {
             let delivery = tokio::select! {
+                // Graceful shutdown: stop reading. Whatever the batchers hold is
+                // dropped (it replays), but whatever they are FLUSHING gets to
+                // finish storing its offset — see the teardown below.
+                () = shutdown::cancelled() => {
+                    log::info!(
+                        "Stream reader {} ({}) draining on shutdown: no more records will be read",
+                        self.id,
+                        self.super_stream
+                    );
+                    draining = true;
+                    break;
+                }
                 // An activation failed to resolve its stored offset; that
                 // partition is parked. Tear down and reconnect so the fresh
                 // activation re-queries instead of ingesting from a guessed
@@ -474,7 +520,27 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             // the broker. A skipped record holds nothing, so it costs nothing —
             // its offset must reach the batcher even when the budget is spent.
             let permit = match &message {
-                Some(_) => Some(budget.admit(decoded_len).await),
+                Some(_) => {
+                    // Admission parks here until the batchers refund bytes, which
+                    // under an unbounded transient retry is unbounded — so the
+                    // shutdown signal has to interrupt it too, or the drain would
+                    // not even start until the backpressure cleared and the
+                    // batchers would be SIGKILLed mid-flush. Dropping this decoded
+                    // record costs nothing: its offset was never stored, so it
+                    // replays.
+                    tokio::select! {
+                        permit = budget.admit(decoded_len) => Some(permit),
+                        () = shutdown::cancelled() => {
+                            log::info!(
+                                "Stream reader {} ({}) draining on shutdown while waiting for memory budget",
+                                self.id,
+                                self.super_stream
+                            );
+                            draining = true;
+                            break;
+                        }
+                    }
+                }
                 None => None,
             };
 
@@ -494,24 +560,79 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             }
         }
 
-        // Never drain: held records were never flushed, so the replay from the
-        // last stored offset writes them exactly once — a drain-flush here would
-        // double-write them whenever the offset store behind it fails, and
-        // teardown usually means the connection is already dead. Abort (not
-        // drop: dropping a JoinHandle detaches the task, leaving it retrying
-        // and storing offsets across the reconnect) and then AWAIT the
-        // cancellation: abort only *requests* it, and a task still inside
-        // `store_offset` could otherwise confirm after the next generation
-        // started. The await is what makes "generation N is gone" true before
-        // N+1 spawns.
+        // Closing the channels is what tells the batchers to stop; neither path
+        // flushes what they hold, because those records were never flushed and so
+        // replay exactly once from the last stored offset.
         drop(senders);
-        for handle in batcher_handles {
-            handle.abort();
-            // Ignore the JoinError — a cancelled task always yields one.
-            let _ = handle.await;
+        if draining {
+            drain_batchers(batcher_handles, self.id, self.super_stream).await;
+        } else {
+            // Error teardown. Abort (not drop: dropping a JoinHandle detaches the
+            // task, leaving it retrying and storing offsets across the reconnect)
+            // and then AWAIT the cancellation: abort only *requests* it, and a task
+            // still inside `store_offset` could otherwise confirm after the next
+            // generation started. The await is what makes "generation N is gone"
+            // true before N+1 spawns.
+            for handle in batcher_handles {
+                handle.abort();
+                // Ignore the JoinError — a cancelled task always yields one.
+                let _ = handle.await;
+            }
         }
 
         result
+    }
+}
+
+/// Graceful-shutdown teardown: AWAIT the batchers instead of aborting them.
+///
+/// The difference from the error path is one word, and it is the entire point of
+/// the drain. A batcher sitting in `flush_and_commit` when SIGTERM arrives has
+/// already handed its batch to ClickHouse; aborting it there can leave the insert
+/// landed and the `store_offset` that records it unsent, and the successor pod
+/// then replays those records — the LAM-2219 duplicate. Awaiting lets that flush
+/// finish its store, after which the batcher sees the closed channel and returns,
+/// dropping what it merely holds (unflushed, so the replay writes it exactly
+/// once — same as the abort path).
+///
+/// Bounded by ONE shared deadline for the whole set: transient flush retries are
+/// unbounded by design, so a ClickHouse outage would otherwise park the drain
+/// until the kubelet SIGKILLs us. Whatever is still running at the deadline is
+/// aborted, which is exactly what the error path does — so the drain can only
+/// remove duplicates, never add them.
+async fn drain_batchers(
+    handles: Vec<tokio::task::JoinHandle<()>>,
+    reader_id: Uuid,
+    super_stream: &str,
+) {
+    let deadline = tokio::time::Instant::now()
+        + Duration::from_secs(env::server::SHUTDOWN_DRAIN_TIMEOUT_SECS.get());
+
+    let mut cut_short = 0usize;
+    for mut handle in handles {
+        if tokio::time::timeout_at(deadline, &mut handle)
+            .await
+            .is_err()
+        {
+            handle.abort();
+            let _ = handle.await;
+            cut_short += 1;
+        }
+    }
+
+    if cut_short > 0 {
+        log::warn!(
+            "Stream reader {} ({}) cut short {} batcher(s) still flushing at the drain deadline; an insert that landed without its offset store will be replayed",
+            reader_id,
+            super_stream,
+            cut_short
+        );
+    } else {
+        log::info!(
+            "Stream reader {} ({}) drained: every in-flight flush stored its offset",
+            reader_id,
+            super_stream
+        );
     }
 }
 
@@ -664,7 +785,9 @@ async fn run_batcher<H: StreamBatchHandler>(
                         // Reader teardown: drop everything we hold. Unflushed
                         // records replay from the last stored offset, so exiting
                         // without a flush writes them exactly once; see the
-                        // module header.
+                        // module header. On a graceful shutdown this arm is only
+                        // reached AFTER the flush we were in returned, which is
+                        // the point of awaiting rather than aborting there.
                         return;
                     }
                 }
@@ -1189,6 +1312,53 @@ mod tests {
         assert!(
             !flag.load(std::sync::atomic::Ordering::SeqCst),
             "the aborted task must never reach its post-sleep work (e.g. store_offset)"
+        );
+    }
+
+    /// The graceful counterpart of the test above, and the LAM-2219 fix: a batcher
+    /// that is INSIDE a flush when SIGTERM arrives must be awaited, not aborted.
+    /// Aborting it there can leave the ClickHouse insert landed and the
+    /// `store_offset` that records it unsent, and the successor pod then replays
+    /// the same records.
+    #[tokio::test(start_paused = true)]
+    async fn draining_lets_an_in_flight_flush_store_its_offset() {
+        let stored_offset = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stored_in_task = stored_offset.clone();
+
+        // Stands in for a batcher mid-`flush_and_commit`: the insert has returned
+        // and the offset store is the next await.
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            stored_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+
+        drain_batchers(vec![handle], Uuid::nil(), "observations_stream").await;
+
+        assert!(
+            stored_offset.load(std::sync::atomic::Ordering::SeqCst),
+            "the drain must wait for the in-flight flush to store its offset"
+        );
+    }
+
+    /// ...but only up to the deadline. Transient flush retries are unbounded by
+    /// design, so an outage must not park the drain until the kubelet SIGKILLs the
+    /// pod — at that point cutting the batcher short is what the error path would
+    /// have done anyway.
+    #[tokio::test(start_paused = true)]
+    async fn draining_gives_up_on_a_batcher_stuck_in_transient_retry() {
+        let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag_in_task = flag.clone();
+
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(86_400)).await;
+            flag_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+
+        drain_batchers(vec![handle], Uuid::nil(), "observations_stream").await;
+
+        assert!(
+            !flag.load(std::sync::atomic::Ordering::SeqCst),
+            "a wedged batcher must be aborted at the deadline, not waited on forever"
         );
     }
 

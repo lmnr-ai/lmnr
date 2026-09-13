@@ -1,4 +1,4 @@
-//! HTTP / gRPC server ports and request payload limits.
+//! HTTP / gRPC server ports, request payload limits, and the shutdown budget.
 
 use super::NumEnv;
 
@@ -14,3 +14,14 @@ pub const CONSUMER_PORT: NumEnv<u16> = NumEnv::new("CONSUMER_PORT", 8002);
 pub const HTTP_PAYLOAD_LIMIT: NumEnv<usize> = NumEnv::new("HTTP_PAYLOAD_LIMIT", 5_242_880);
 /// Max gRPC request payload in bytes. Default 25 MB.
 pub const GRPC_PAYLOAD_LIMIT: NumEnv<usize> = NumEnv::new("GRPC_PAYLOAD_LIMIT", 26_214_400);
+
+/// How long a SIGTERM'd process waits for stream readers and queue workers to
+/// finish the flush they are in (and the offset store / ack that records it)
+/// before it exits anyway — see `runtime::shutdown`.
+///
+/// Must fit inside the pod's `terminationGracePeriodSeconds` MINUS the `preStop`
+/// delay, or the kubelet SIGKILLs us mid-flush and the drain buys nothing. It is
+/// spent only on work already in flight, so a value near the p99 flush duration
+/// is enough; the ceiling exists because transient flush retries are unbounded by
+/// design.
+pub const SHUTDOWN_DRAIN_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("SHUTDOWN_DRAIN_TIMEOUT_SECS", 25);
