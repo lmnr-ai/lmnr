@@ -199,6 +199,18 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+      {
+        name: "signal_events",
+        type: "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
+        description:
+          "Signal events that fired on this trace. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Filtering on this column reads every tuple element including payload, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. Empty until backfilled for older traces. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+      },
+      {
+        name: "clusters",
+        type: "Array(Tuple(id UUID, signal_id UUID, name String, level UInt8, parent_id UUID, num_signal_events UInt32, created_at DateTime64(9), updated_at DateTime64(9)))",
+        description:
+          "Named clusters (L1 and ancestors) this trace's signal events belong to. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
+      },
     ],
   },
   trace_outputs: {
@@ -354,14 +366,24 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Numeric severity level. 0 = INFO, 1 = WARNING, 2 = CRITICAL",
       },
       {
-        name: "summary",
-        type: "String",
-        description: "Short human-readable description (may be empty)",
-      },
-      {
         name: "clusters",
         type: "Array(UUID)",
         description: "Cluster IDs this event belongs to. Excludes L0 clusters",
+      },
+      {
+        name: "leaf_clusters",
+        type: "Array(UUID)",
+        description: "L1 (finest named) cluster IDs this event belongs to",
+      },
+      {
+        name: "cluster_details",
+        type: "Array(Tuple(id UUID, name String, level UInt8))",
+        description: "Named clusters this event belongs to, with name and level. Excludes L0 clusters",
+      },
+      {
+        name: "signal_version",
+        type: "UInt32",
+        description: "Signal definition version that produced the event. 0 predates versioning",
       },
     ],
   },
