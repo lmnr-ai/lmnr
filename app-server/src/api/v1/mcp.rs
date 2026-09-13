@@ -79,6 +79,8 @@ const MCP_SQL_EXTRAS: &str = r#"<joins>
 - has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to
   (clusters.signal_id = signal_events.signal_id only scopes by signal — it is a many-to-many cross
   product, NOT an event-to-cluster match).
+- For per-trace signal/cluster questions prefer traces.signal_events and traces.clusters over joining
+  signal_events. ARRAY JOIN signal_events AS e, ARRAY JOIN clusters AS c.
 - Top-level clusters have parent_id = the nil UUID '00000000-0000-0000-0000-000000000000' (NOT SQL
   NULL): filter with parent_id = toUUID('00000000-0000-0000-0000-000000000000'), not IS NULL.
 </joins>

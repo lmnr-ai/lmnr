@@ -31,8 +31,21 @@ const VIEW_VERSION: &str = "v0";
 /// broad epoch defaults below are used so every trace is visible.
 const TRACES_TABLE: &str = "traces";
 /// Takes the same start_time bounds plus `eval_ids`, whose empty-array sentinel
-/// means "no filter" (see [`eval_ids_arg`]).
+/// means "no filter" (see [`scalar_ids_arg`]).
 const EVALUATION_DATAPOINTS_TABLE: &str = "evaluation_datapoints";
+/// These three all resolve cluster membership through `signal_event_summaries`
+/// internally, whose sort key is `(project_id, signal_id, cluster_id, event_id, ...)`.
+/// They take a `signal_ids` array (same empty-sentinel semantics as `eval_ids`,
+/// see [`scalar_ids_arg`]) so a caller that knows its signal narrows that scan
+/// instead of reading every signal in the project.
+const SIGNAL_EVENTS_TABLE: &str = "signal_events";
+const SIGNAL_EVENTS_ALL_TABLE: &str = "signal_events_all";
+const EVENT_CLUSTERS_ALL_TABLE: &str = "event_clusters_all";
+/// `signal_event_clusters`' own sort key is `(project_id, signal_id, id)`, so
+/// `clusters_v0` takes `signal_ids` too — pushed straight into its own
+/// `PREWHERE` rather than an internal subquery, since it reads that table
+/// directly.
+const CLUSTERS_TABLE: &str = "clusters";
 /// 1970-01-01 UTC — the lower default when the query has no lower time bound.
 const DEFAULT_MIN_START_TIME: &str = "1970-01-01 00:00:00";
 /// 2099-12-31 UTC — the upper default when the query has no upper time bound.
@@ -505,6 +518,8 @@ impl TableRegistry {
             "agent_input",
             "internal_metadata",
             "has_browser_session",
+            "signal_events",
+            "clusters",
         ];
 
         // Extracted agent outputs live in their own view (`trace_outputs_v0`,
@@ -553,8 +568,10 @@ impl TableRegistry {
             "payload",
             "timestamp",
             "severity",
-            "summary",
             "clusters",
+            "leaf_clusters",
+            "cluster_details",
+            "signal_version",
         ];
 
         let logs_columns = [
@@ -615,6 +632,9 @@ impl TableRegistry {
             "trace_spans",
         ];
 
+        // No `path`: the ancestor chain is internal to the views (it expands a
+        // trace's leaf `cluster_ids` into leaf + ancestors). Callers walk the
+        // hierarchy with `parent_id`.
         let clusters_columns = [
             "id",
             "signal_id",
@@ -1319,22 +1339,30 @@ impl VisitorMut for ViewRewriter<'_> {
             // enclosing SELECT's WHERE (see `pre_visit_select`), so
             // post-aggregation HAVING predicates are intentionally excluded —
             // they can't be pushed to a pre-scan PREWHERE anyway.
+            let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
             if table_name == TRACES_TABLE {
-                let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
             } else if table_name == EVALUATION_DATAPOINTS_TABLE {
                 // Same bounds derivation as traces — the view exposes the trace's
                 // `start_time`.
-                let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
                 view_args.push(named_arg(
                     "eval_ids",
-                    eval_ids_arg(where_clause, &alias_ident.value),
+                    scalar_ids_arg(where_clause, &alias_ident.value, "evaluation_id"),
                 ));
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
+            } else if table_name == SIGNAL_EVENTS_TABLE
+                || table_name == SIGNAL_EVENTS_ALL_TABLE
+                || table_name == EVENT_CLUSTERS_ALL_TABLE
+                || table_name == CLUSTERS_TABLE
+            {
+                view_args.push(named_arg(
+                    "signal_ids",
+                    scalar_ids_arg(where_clause, &alias_ident.value, "signal_id"),
+                ));
             }
             *args = Some(TableFunctionArgs {
                 args: view_args,
@@ -1633,25 +1661,24 @@ fn traces_time_bound_args(where_clause: Option<&Expr>, alias: &str) -> (Expr, Ex
     (min_expr, max_expr)
 }
 
-/// `evaluation_id` values a WHERE subtree restricts to. `None` widens to every
-/// evaluation, so it is always the safe answer: it costs speed, never rows.
-type EvalIds = Option<Vec<Expr>>;
+/// Values a WHERE subtree restricts a scalar column to. `None` widens to every
+/// value, so it is always the safe answer: it costs speed, never rows. Shared
+/// by `evaluation_id` (`eval_ids`) and `signal_id` (`signal_ids`).
+type ScalarIds = Option<Vec<Expr>>;
 
-/// A qualifier naming another relation is rejected so a joined table's
-/// `evaluation_id` isn't mistaken for this one; unqualified is accepted
-/// best-effort, as in [`classify_time_expr`].
-fn is_eval_id_column(expr: &Expr, alias: &str) -> bool {
+/// A qualifier naming another relation is rejected so a joined table's column
+/// isn't mistaken for this one; unqualified is accepted best-effort, as in
+/// [`classify_time_expr`].
+fn is_named_scalar_column(expr: &Expr, alias: &str, column: &str) -> bool {
     match deparen(expr) {
-        Expr::Identifier(ident) => ident.value.eq_ignore_ascii_case("evaluation_id"),
+        Expr::Identifier(ident) => ident.value.eq_ignore_ascii_case(column),
         Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
             if parts.len() >= 2
                 && parts[parts.len() - 2].value.to_lowercase() != alias.to_lowercase()
             {
                 return false;
             }
-            parts[parts.len() - 1]
-                .value
-                .eq_ignore_ascii_case("evaluation_id")
+            parts[parts.len() - 1].value.eq_ignore_ascii_case(column)
         }
         _ => false,
     }
@@ -1660,13 +1687,13 @@ fn is_eval_id_column(expr: &Expr, alias: &str) -> bool {
 /// Same boolean semantics as [`extract_bounds`]: under `AND` either branch's
 /// restriction holds, under `OR` only if *both* supply it — which is what stops
 /// `evaluation_id = X OR index > 5` from dropping the `index > 5` rows.
-fn extract_eval_ids(expr: &Expr, alias: &str) -> EvalIds {
+fn extract_scalar_ids(expr: &Expr, alias: &str, column: &str) -> ScalarIds {
     match deparen(expr) {
         Expr::BinaryOp { left, op, right } => match op {
             BinaryOperator::And => {
                 match (
-                    extract_eval_ids(left, alias),
-                    extract_eval_ids(right, alias),
+                    extract_scalar_ids(left, alias, column),
+                    extract_scalar_ids(right, alias, column),
                 ) {
                     // Narrower side, not a true intersection: comparing value
                     // expressions is unreliable and a superset only costs scan work.
@@ -1677,8 +1704,8 @@ fn extract_eval_ids(expr: &Expr, alias: &str) -> EvalIds {
             }
             BinaryOperator::Or => {
                 let (a, b) = (
-                    extract_eval_ids(left, alias),
-                    extract_eval_ids(right, alias),
+                    extract_scalar_ids(left, alias, column),
+                    extract_scalar_ids(right, alias, column),
                 );
                 match (a, b) {
                     (Some(mut a), Some(b)) => {
@@ -1689,9 +1716,9 @@ fn extract_eval_ids(expr: &Expr, alias: &str) -> EvalIds {
                 }
             }
             BinaryOperator::Eq => {
-                let value = if is_eval_id_column(left, alias) {
+                let value = if is_named_scalar_column(left, alias, column) {
                     deparen(right)
-                } else if is_eval_id_column(right, alias) {
+                } else if is_named_scalar_column(right, alias, column) {
                     deparen(left)
                 } else {
                     return None;
@@ -1711,7 +1738,7 @@ fn extract_eval_ids(expr: &Expr, alias: &str) -> EvalIds {
             negated,
         } => {
             // `NOT IN` does not narrow.
-            if *negated || list.is_empty() || !is_eval_id_column(col, alias) {
+            if *negated || list.is_empty() || !is_named_scalar_column(col, alias, column) {
                 return None;
             }
             if list.iter().any(expr_references_column) {
@@ -1735,11 +1762,11 @@ fn is_array_placeholder(expr: &Expr) -> bool {
     )
 }
 
-/// The empty array is the view's "no evaluation filter" sentinel, so a WHERE we
-/// cannot narrow safely degrades to the unoptimized scan.
-fn eval_ids_arg(where_clause: Option<&Expr>, alias: &str) -> Expr {
+/// The empty array is the view's "no filter" sentinel for `column`, so a WHERE
+/// we cannot narrow safely degrades to the unoptimized scan.
+fn scalar_ids_arg(where_clause: Option<&Expr>, alias: &str, column: &str) -> Expr {
     let ids = where_clause
-        .and_then(|w| extract_eval_ids(w, alias))
+        .and_then(|w| extract_scalar_ids(w, alias, column))
         .unwrap_or_default();
     // A lone array bind *is* the view argument. Mixed array+scalar sets can't be
     // concatenated here, so widen.

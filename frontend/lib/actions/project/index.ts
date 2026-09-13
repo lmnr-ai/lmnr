@@ -93,6 +93,27 @@ export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) 
   return { success: true, message: "Project renamed successfully" };
 }
 
+/** Narrows a `database.table` list to the ones that exist. A lookup failure returns
+ *  the list untouched, so a hiccup cannot silently skip a purge. */
+async function presentTables(tables: string[]): Promise<string[]> {
+  try {
+    const rs = await clickhouseClient.query({
+      query: `
+        SELECT concat(database, '.', name) AS qualified
+        FROM system.tables
+        WHERE concat(database, '.', name) IN ({tables: Array(String)})
+      `,
+      query_params: { tables },
+      format: "JSONEachRow",
+    });
+    const present = new Set((await rs.json<{ qualified: string }>()).map((r) => r.qualified));
+    return tables.filter((table) => present.has(table));
+  } catch (error) {
+    console.error("Could not resolve ClickHouse tables for project deletion:", error);
+    return tables;
+  }
+}
+
 async function deleteProjectDataFromClickHouse(
   projectId: string
 ): Promise<{ success: true } | { success: false; tables: string[] }> {
@@ -120,12 +141,18 @@ async function deleteProjectDataFromClickHouse(
     "default.signal_event_clusters",
     "default.signal_runs",
     "default.signal_run_messages",
+    // Dropped by backfill-signal-clusters.ts once it finishes; the filter below
+    // keeps it from reporting a failure after that.
     "default.events_to_clusters",
+    "default.signal_event_summaries",
     "default.system_prompt_versions",
     "default.system_prompt_version_defs",
   ];
 
-  const deletionPromises = tables.map(async (table) => {
+  // An absent table would otherwise report a false failure on every deletion.
+  const targets = await presentTables(tables);
+
+  const deletionPromises = targets.map(async (table) => {
     try {
       await clickhouseClient.command({
         query: `ALTER TABLE ${table} DELETE WHERE project_id = {project_id: UUID}`,
@@ -143,7 +170,7 @@ async function deleteProjectDataFromClickHouse(
 
   return results.reduce<{ success: true } | { success: false; tables: string[] }>(
     (acc, curr, index) => {
-      const table = tables[index];
+      const table = targets[index];
 
       if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
         if ("tables" in acc) {

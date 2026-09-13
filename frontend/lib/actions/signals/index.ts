@@ -151,27 +151,15 @@ const SetTemplateSignalsSchema = z.object({
   subscriberEmail: z.email().optional(),
 });
 
-// Purge a signal's ClickHouse footprint: its events, its clusters, and the
-// event<->cluster link rows. The link rows must be deleted before signal_events
-// since they're resolved by event_id against it.
+// Purge a signal's ClickHouse footprint: events, clusters, summaries.
+// signal_events first — backfill-signal-clusters.ts reaches events_to_clusters
+// only by joining it, so a crash mid-purge cannot resurrect this signal's clusters.
 async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]) {
   if (signalIds.length === 0) return;
   try {
     await clickhouseClient.command({
       query: `
-          DELETE FROM events_to_clusters
-          WHERE project_id = {projectId: UUID}
-            AND event_id IN (
-              SELECT id FROM signal_events
-              WHERE project_id = {projectId: UUID}
-                AND signal_id IN ({signalIds: Array(UUID)})
-            )
-        `,
-      query_params: { projectId, signalIds },
-    });
-    await clickhouseClient.command({
-      query: `
-          DELETE FROM signal_event_clusters
+          DELETE FROM signal_events
           WHERE project_id = {projectId: UUID}
             AND signal_id IN ({signalIds: Array(UUID)})
         `,
@@ -179,7 +167,15 @@ async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]
     });
     await clickhouseClient.command({
       query: `
-          DELETE FROM signal_events
+          DELETE FROM signal_event_summaries
+          WHERE project_id = {projectId: UUID}
+            AND signal_id IN ({signalIds: Array(UUID)})
+        `,
+      query_params: { projectId, signalIds },
+    });
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM signal_event_clusters
           WHERE project_id = {projectId: UUID}
             AND signal_id IN ({signalIds: Array(UUID)})
         `,
