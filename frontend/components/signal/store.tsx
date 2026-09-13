@@ -21,6 +21,8 @@ export type SignalState = {
   clusterTree: ClusterNode[];
   totalEventCount: number;
   clusteredEventCount: number;
+  clustersRangeKey: string | null;
+  clustersRequestKey: string | null;
   isClustersLoading: boolean;
 };
 
@@ -29,6 +31,9 @@ export type FetchClustersParams = {
   startDate?: string | null;
   endDate?: string | null;
 };
+
+export const getClustersRangeKey = ({ pastHours, startDate, endDate }: FetchClustersParams) =>
+  `${pastHours ?? ""}:${startDate ?? ""}:${endDate ?? ""}`;
 
 export type SignalActions = {
   setTraceId: (traceId: string | null) => void;
@@ -127,6 +132,8 @@ export const createSignalStore = (initProps: EventsProps) =>
     clusterTree: [],
     totalEventCount: 0,
     clusteredEventCount: 0,
+    clustersRangeKey: null,
+    clustersRequestKey: null,
     isClustersLoading: true,
     signal: {
       ...initProps.signal,
@@ -145,7 +152,8 @@ export const createSignalStore = (initProps: EventsProps) =>
     // Cluster actions
     fetchClusters: async ({ pastHours, startDate, endDate }: FetchClustersParams) => {
       const { signal } = get();
-      set({ isClustersLoading: true });
+      const rangeKey = getClustersRangeKey({ pastHours, startDate, endDate });
+      set({ clustersRequestKey: rangeKey, isClustersLoading: true });
       try {
         const urlParams = new URLSearchParams();
         if (pastHours) urlParams.set("pastHours", pastHours);
@@ -164,16 +172,18 @@ export const createSignalStore = (initProps: EventsProps) =>
           totalEventCount: number;
           clusteredEventCount: number;
         };
+        if (get().clustersRequestKey !== rangeKey) return;
         set({
           rawClusters: data.items,
           clusterTree: buildTree(data.items),
           totalEventCount: data.totalEventCount,
           clusteredEventCount: data.clusteredEventCount,
+          clustersRangeKey: rangeKey,
         });
       } catch (err) {
         console.error("Failed to load clusters:", err);
       } finally {
-        set({ isClustersLoading: false });
+        if (get().clustersRequestKey === rangeKey) set({ isClustersLoading: false });
       }
     },
   }));

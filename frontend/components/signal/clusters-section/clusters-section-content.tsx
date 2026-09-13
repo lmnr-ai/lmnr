@@ -9,9 +9,14 @@ import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use
 import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
-import { getChartClusters, selectUnclusteredCount, useSignalStoreContext } from "@/components/signal/store.tsx";
+import {
+  getChartClusters,
+  getClustersRangeKey,
+  selectUnclusteredCount,
+  useSignalStoreContext,
+} from "@/components/signal/store.tsx";
 import { type DateRange } from "@/components/ui/date-range-filter/utils";
-import { type ClusterStatsDataPoint, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -35,6 +40,7 @@ type ClusterStatsResponse = {
 };
 
 const EMPTY_STATS: ClusterStatsDataPoint[] = [];
+const EMPTY_CLUSTERS: EventCluster[] = [];
 // Stable identities: the readout is rendered without a model when only the
 // unclustered bucket exists, and fresh literals would remount it each render.
 const EMPTY_TREE: ClusterNode[] = [];
@@ -54,15 +60,20 @@ export default function ClustersSectionContent({ className }: Props) {
 
   const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
   const rawClusters = useSignalStoreContext((state) => state.rawClusters);
+  const clustersRangeKey = useSignalStoreContext((state) => state.clustersRangeKey);
   const signal = useSignalStoreContext((state) => state.signal);
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const rangeKey = getClustersRangeKey({ pastHours, startDate, endDate });
+  const hasCurrentClusters = clustersRangeKey === rangeKey;
 
-  const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
-  const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
+  const storedChartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
+  const storedUnclusteredCount = useSignalStoreContext(selectUnclusteredCount);
+  const chartClusters = hasCurrentClusters ? storedChartClusters : EMPTY_CLUSTERS;
+  const unclusteredCount = hasCurrentClusters ? storedUnclusteredCount : 0;
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
@@ -98,7 +109,6 @@ export default function ClustersSectionContent({ className }: Props) {
     error: statsError,
     isValidating: isStatsValidating,
   } = useSWR<ClusterStatsResponse>(statsUrl, swrFetcher, {
-    keepPreviousData: true,
     revalidateOnFocus: false,
     onError: () => toast({ title: "Error", description: "Failed to load cluster stats.", variant: "destructive" }),
   });
@@ -121,7 +131,10 @@ export default function ClustersSectionContent({ className }: Props) {
   // The strip draws every cluster at every level, not the drill-down's slice: it
   // is the navigation, so re-rooting it on selection would take away what the
   // selection is read against.
-  const model = useMemo(() => buildClusterModel(rawClusters, clusterStatsData), [rawClusters, clusterStatsData]);
+  const model = useMemo(
+    () => buildClusterModel(hasCurrentClusters ? rawClusters : EMPTY_CLUSTERS, clusterStatsData),
+    [hasCurrentClusters, rawClusters, clusterStatsData]
+  );
 
   // Color is a pure function of cluster id (shared with trace-view), so the
   // map is just for the unclustered virtual bucket plus convenience lookups.
@@ -161,14 +174,11 @@ export default function ClustersSectionContent({ className }: Props) {
 
   const isRunStatsPending = !runStats && !runStatsError;
 
-  // Keep coherent previous visuals during refreshes. Percentages disappear until
-  // all three sources settle, so event counts never use a denominator from a
-  // different request window.
+  const isInitialDataLoading = !hasCurrentClusters || isStatsPending || isRunStatsPending;
   const isClusterDataRefreshing = isClustersLoading || isStatsValidating || isRunStatsValidating;
-  const showSkeleton = !model && (isClustersLoading || isStatsPending);
-  const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
-  const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
-  const displayedTraceTotal = isRunStatsPending || isClusterDataRefreshing ? 0 : traceTotal;
+  const showSkeleton = isInitialDataLoading;
+  const showChartLoading = isInitialDataLoading;
+  const displayedTraceTotal = isClusterDataRefreshing ? 0 : traceTotal;
 
   const searchWiderRange = useCallback(
     (range: DateRange) => {
@@ -202,11 +212,11 @@ export default function ClustersSectionContent({ className }: Props) {
     <div className={cn("relative flex w-full min-w-0 flex-col", className)}>
       {/* The strip and the trail read as one block above the chart, which is
           why the gap between them is looser than the one under it. */}
-      {(model || showSkeleton || emergingClusterId) && (
+      {((hasCurrentClusters && model) || showSkeleton || emergingClusterId) && (
         <div className="mb-2 flex w-full shrink-0 flex-col gap-4">
           {showSkeleton ? (
             <ClusterIcicleSkeleton />
-          ) : model ? (
+          ) : hasCurrentClusters && model ? (
             <ClusterIcicle
               tree={model.tree}
               ancestors={model.ancestors}
@@ -216,7 +226,11 @@ export default function ClustersSectionContent({ className }: Props) {
               onSelect={selectCluster}
             />
           ) : null}
-          {emergingClusterId ? <EmergingClusterBreadcrumbs /> : model ? <ClusterBreadcrumbs /> : null}
+          {emergingClusterId ? (
+            <EmergingClusterBreadcrumbs />
+          ) : hasCurrentClusters && model ? (
+            <ClusterBreadcrumbs />
+          ) : null}
         </div>
       )}
 
