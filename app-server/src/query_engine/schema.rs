@@ -227,6 +227,16 @@ const TABLES: &[Table] = &[
                 "Bool",
                 "Whether the trace has a recorded browser session",
             ),
+            col(
+                "signal_events",
+                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
+                "Signal events that fired on this trace. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Filtering on this column reads every tuple element including payload, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "clusters",
+                "Array(Tuple(id UUID, signal_id UUID, name String, level UInt8, parent_id UUID, num_signal_events UInt32, created_at DateTime64(9), updated_at DateTime64(9)))",
+                "Named clusters (L1 and ancestors) this trace's signal events belong to. Empty until events are clustered. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
+            ),
         ],
     },
     Table {
@@ -503,14 +513,19 @@ const TABLES: &[Table] = &[
             ),
             col("severity", "UInt8", "0 = INFO, 1 = WARNING, 2 = CRITICAL"),
             col(
-                "summary",
-                "String",
-                "Short human-readable description (may be empty)",
-            ),
-            col(
                 "clusters",
                 "Array(UUID)",
                 "Cluster ids this event belongs to (excludes L0)",
+            ),
+            col(
+                "leaf_clusters",
+                "Array(UUID)",
+                "L1 (finest named) cluster ids this event belongs to",
+            ),
+            col(
+                "cluster_details",
+                "Array(Tuple(id UUID, name String, level UInt8))",
+                "Named clusters this event belongs to, with name and level (excludes L0)",
             ),
             col(
                 "signal_version",
@@ -689,7 +704,7 @@ mod tests {
             .flat_map(|t| t.columns.iter())
             .filter(|c| c.description.contains("LARGE"))
             .collect();
-        assert_eq!(annotated.len(), 24, "payload column count changed");
+        assert_eq!(annotated.len(), 25, "payload column count changed");
         for c in annotated {
             assert!(
                 c.description.ends_with(NOTE),

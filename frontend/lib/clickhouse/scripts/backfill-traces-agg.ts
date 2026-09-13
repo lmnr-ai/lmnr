@@ -300,6 +300,11 @@ const writeStatus = async (status: BackfillStatus): Promise<void> => {
   }
 };
 
+// Deliberately NOT derived from the status record: that record is optional (see
+// above) and absent on every boot when REDIS_URL is unset, which would read as
+// "unfinished" forever. `startTracesAggBackfill` returns the answer instead, so
+// the dependent signal-clusters backfill is gated on what THIS process did.
+
 const runBackfill = async (now: Date, lostLease: () => boolean = () => false): Promise<BackfillOutcome> => {
   // The source has had no writer since the cutover, so "absent"/"empty" is a
   // permanent answer rather than a not-yet — safe to record as completed.
@@ -455,16 +460,23 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
 // only when NEXT_MANUAL_SIG_HANDLE is unset — so a listener here would strand
 // the pod on shutdown in the manual-handle configuration. Releasing the lock a
 // few minutes early isn't worth that risk; the lock TTL covers a pod that dies.
-export const startTracesAggBackfill = async (): Promise<void> => {
+///
+/// Returns whether `traces_agg` is fully migrated as far as this process can
+/// tell. The signal-clusters backfill INNER JOINs `traces_agg` for each trace's
+/// start_time, so it MUST NOT run on a `false` — it would silently drop the
+/// memberships of every unmigrated trace and record itself done.
+export const startTracesAggBackfill = async (): Promise<boolean> => {
   const status = await readStatus();
   // Silent on purpose: a migration that already finished should leave no trace
   // in the logs of every subsequent boot, which is the whole point of the record.
-  if (status?.state === "completed") return;
+  if (status?.state === "completed") return true;
 
-  const lock = await acquireBackfillLock();
+  const lock = await acquireBackfillLock("traces_agg_backfill_lock");
   if (!lock) {
+    // Another replica may still be walking history, so this is "unknown", not
+    // "done" — the dependent backfill defers to the next boot either way.
     console.log("[traces-agg-backfill] another replica holds the lock; skipping");
-    return;
+    return false;
   }
 
   if (status?.state === "partial") {
@@ -483,9 +495,13 @@ export const startTracesAggBackfill = async (): Promise<void> => {
     if (outcome.state !== "surrendered" && !lock.lost()) {
       await writeStatus({ ...outcome, at: new Date().toISOString() });
     }
+    // Same lease condition as the write: a run whose lease lapsed mid-insert may
+    // have left the last window short, so it cannot vouch for the table.
+    return outcome.state === "completed" && !lock.lost();
   } catch {
     // runBackfill already logged the resume point and the manual hint. The status
     // is deliberately left untouched so the next boot retries.
+    return false;
   } finally {
     await lock.release();
   }

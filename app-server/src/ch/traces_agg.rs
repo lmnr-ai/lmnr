@@ -76,6 +76,37 @@ pub struct CHTraceAgg {
     /// (an unlisted variant, or a value > 127 wrapping in the u8→i8 cast)
     /// are accepted at insert but poison every later read of the part.
     pub trace_types: Vec<i8>,
+    /// This batch's signal events only — the arrays concatenate across a
+    /// trace's partials.
+    /// Tuple field order matches the `traces_agg.signal_events` DDL.
+    pub signal_events: Vec<CHTraceSignalEvent>,
+    /// L1 leaf cluster ids for this trace's signal events. L0 is excluded
+    /// because those rows are deleted on promotion. Ancestors are derived
+    /// at read time from `clusters_dict.path`.
+    ///
+    /// `uuid_vec` is required: `Uuid`'s own `Serialize` writes 17
+    /// length-prefixed bytes per element in RowBinary instead of 16.
+    #[serde(with = "crate::ch::utils::uuid_vec")]
+    pub cluster_ids: Vec<Uuid>,
+}
+
+/// One element of `traces_agg.signal_events`. Field order is the DDL tuple.
+///
+/// Deliberately minimal, since every field is paid for on each of the trace's
+/// events: the signal's `name` is derivable from `signal_id`, and the event's
+/// time is the trace's own `end_time`, already a column on the row.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CHTraceSignalEvent {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub event_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    pub severity: u8,
+    /// The event's JSON payload, denormalized so a trace-scoped read does not
+    /// have to join `signal_events` (ordered by signal_id, so it cannot prune
+    /// on trace_id at all). Copied verbatim from `signal_events.payload`, never
+    /// re-serialized, so the two always render the same bytes.
+    pub payload: String,
 }
 
 fn encode_metadata(metadata: Option<&Value>) -> Vec<(String, String)> {
@@ -140,6 +171,8 @@ impl CHTraceAgg {
             reasoning_tokens: agg.reasoning_tokens as u64,
             statuses: status_enum_values(agg.status.as_deref()),
             trace_types: vec![trace_type_enum_value(agg.trace_type)],
+            signal_events: Vec::new(),
+            cluster_ids: Vec::new(),
         }
     }
 
@@ -169,10 +202,22 @@ impl CHTraceAgg {
         metadata: Option<&Value>,
         start_time: i64,
     ) -> Self {
+        let mut row = Self::zero_sum_partial(project_id, trace_id, start_time);
+        row.metadata = encode_metadata(metadata);
+        row.num_spans = 1;
+        row
+    }
+
+    /// Identity aggregates everywhere except identity + `start_time`. Used by
+    /// writers that only know one fact about a trace (a signal event, a
+    /// cluster id) so they do not have to copy the full zero-delta by hand.
+    /// `start_time` must be the trace's real start: it is `min` AND the
+    /// partition key, and there is no "unknown" value that stays in-partition.
+    pub fn zero_sum_partial(project_id: Uuid, trace_id: Uuid, start_time_ns: i64) -> Self {
         CHTraceAgg {
             id: trace_id,
             project_id,
-            start_time,
+            start_time: start_time_ns,
             end_time: 0,
             input_tokens: 0,
             output_tokens: 0,
@@ -180,15 +225,17 @@ impl CHTraceAgg {
             input_cost: 0.0,
             output_cost: 0.0,
             total_cost: 0.0,
-            metadata: encode_metadata(metadata),
+            metadata: Vec::new(),
             tags: Vec::new(),
-            num_spans: 1,
+            num_spans: 0,
             span_names: Vec::new(),
             cache_read_input_tokens: 0,
             cache_creation_input_tokens: 0,
             reasoning_tokens: 0,
             statuses: Vec::new(),
             trace_types: Vec::new(),
+            signal_events: Vec::new(),
+            cluster_ids: Vec::new(),
         }
     }
 }
@@ -242,6 +289,25 @@ mod tests {
         assert!(row.statuses.is_empty());
         assert!(row.trace_types.is_empty());
         assert!(row.span_names.is_empty());
+        assert!(row.signal_events.is_empty());
+        assert!(row.cluster_ids.is_empty());
+    }
+
+    #[test]
+    fn zero_sum_partial_is_identities_except_start_time() {
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let start = 1_700_000_000_000_000_000;
+        let row = CHTraceAgg::zero_sum_partial(project_id, trace_id, start);
+        assert_eq!(row.project_id, project_id);
+        assert_eq!(row.id, trace_id);
+        assert_eq!(row.start_time, start);
+        assert_eq!(row.end_time, 0);
+        assert_eq!(row.num_spans, 0);
+        assert_eq!(row.total_tokens, 0);
+        assert_eq!(row.total_cost, 0.0);
+        assert!(row.signal_events.is_empty());
+        assert!(row.cluster_ids.is_empty());
     }
 
     #[test]
@@ -283,5 +349,150 @@ mod tests {
         assert_eq!(status_enum_values(Some("ok")), vec![STATUS_ENUM_SUCCESS]);
         assert_eq!(status_enum_values(Some("")), Vec::<i8>::new());
         assert_eq!(status_enum_values(None), Vec::<i8>::new());
+    }
+}
+
+/// Round-trips `CHTraceAgg` through a real ClickHouse to catch RowBinary
+/// layout drift. `#[ignore]`d: it needs a server, and every other test in this
+/// crate is hermetic.
+///
+/// Worth keeping because this failure mode is silent. `main.rs` disables
+/// validation, so writes carry no names or types; a field whose Rust type
+/// serialises to a different byte width than its column just desynchronises the
+/// stream, and the server reports `CANNOT_READ_ALL_DATA` at some later row,
+/// blaming whichever column straddled the end of the buffer. Nothing points at
+/// the offending field. `cluster_ids` shipped exactly that bug: `Vec<Uuid>`
+/// without `uuid_vec` wrote 17 bytes per element instead of 16.
+///
+///   docker compose -f docker-compose-local-dev.yml up -d clickhouse
+///   cargo test --features signals traces_agg_row_layout -- --ignored --nocapture
+#[cfg(test)]
+mod live_ch {
+    use super::*;
+    use uuid::Uuid;
+
+    const DB: &str = "lmnr_traces_agg_layout_test";
+
+    /// Read side needs the same UUID handling as the write side.
+    #[derive(Row, Deserialize)]
+    struct IdsRow {
+        #[serde(with = "clickhouse::serde::uuid")]
+        cluster_id: Uuid,
+        #[serde(with = "clickhouse::serde::uuid")]
+        event_id: Uuid,
+    }
+
+    fn client(database: &str) -> clickhouse::Client {
+        clickhouse::Client::default()
+            .with_url(std::env::var("CLICKHOUSE_URL").unwrap_or("http://localhost:8123".into()))
+            .with_user(std::env::var("CLICKHOUSE_USER").unwrap_or("ch_user".into()))
+            .with_password(std::env::var("CLICKHOUSE_PASSWORD").unwrap_or("ch_passwd".into()))
+            .with_database(database)
+            // Mirrors main.rs: plain RowBinary, which is what makes a width
+            // mismatch silent rather than a clean type error.
+            .with_validation(false)
+            .with_setting("async_insert", "1")
+            .with_setting("wait_for_async_insert", "1")
+    }
+
+    #[tokio::test]
+    #[ignore = "needs a live ClickHouse"]
+    async fn traces_agg_row_layout_round_trips() {
+        let admin = client("default");
+        admin
+            .query(&format!("CREATE DATABASE IF NOT EXISTS {DB}"))
+            .execute()
+            .await
+            .unwrap();
+        let c = client(DB);
+        c.query("DROP TABLE IF EXISTS traces_agg")
+            .execute()
+            .await
+            .unwrap();
+        // Column types mirror the deployed table; only the engine differs
+        // (Cloud runs the Shared* variant).
+        c.query(
+            "CREATE TABLE traces_agg (
+                id UUID, project_id UUID,
+                start_time SimpleAggregateFunction(min, DateTime64(9,'UTC')),
+                end_time SimpleAggregateFunction(max, DateTime64(9,'UTC')),
+                input_tokens SimpleAggregateFunction(sum, Int64),
+                output_tokens SimpleAggregateFunction(sum, Int64),
+                total_tokens SimpleAggregateFunction(sum, Int64),
+                input_cost SimpleAggregateFunction(sum, Float64),
+                output_cost SimpleAggregateFunction(sum, Float64),
+                total_cost SimpleAggregateFunction(sum, Float64),
+                metadata SimpleAggregateFunction(maxMap, Map(String,String)),
+                session_id SimpleAggregateFunction(max, String),
+                user_id SimpleAggregateFunction(max, String),
+                top_span_id SimpleAggregateFunction(max, UUID),
+                top_span_name SimpleAggregateFunction(max, String),
+                top_span_type SimpleAggregateFunction(max, UInt8),
+                tags SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
+                num_spans SimpleAggregateFunction(sum, UInt64),
+                has_browser_session SimpleAggregateFunction(max, UInt8),
+                span_names SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
+                cache_read_input_tokens SimpleAggregateFunction(sum, UInt64),
+                cache_creation_input_tokens SimpleAggregateFunction(sum, UInt64),
+                reasoning_tokens SimpleAggregateFunction(sum, UInt64),
+                created_at SimpleAggregateFunction(min, DateTime64(9,'UTC')) DEFAULT now64(9),
+                statuses SimpleAggregateFunction(groupUniqArrayArray, Array(Enum8('success'=1,'error'=2))),
+                trace_types SimpleAggregateFunction(groupUniqArrayArray, Array(Enum8('DEFAULT'=0,'EVALUATION'=1,'EVENT'=2,'PLAYGROUND'=3))),
+                internal_metadata SimpleAggregateFunction(maxMap, Map(String,String)),
+                signal_events SimpleAggregateFunction(groupArrayArray, Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))),
+                cluster_ids SimpleAggregateFunction(groupUniqArrayArray, Array(UUID))
+            ) ENGINE = AggregatingMergeTree PARTITION BY toYYYYMM(start_time) ORDER BY (project_id, id)",
+        )
+        .execute()
+        .await
+        .unwrap();
+
+        let project_id = Uuid::new_v4();
+        // Several rows: a one-byte drift only trips the parser a few rows in.
+        let expected: Vec<(Uuid, Uuid, Uuid)> = (0..5)
+            .map(|_| (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()))
+            .collect();
+        let mut insert = c.insert::<CHTraceAgg>("traces_agg").await.unwrap();
+        for (trace_id, cluster_id, event_id) in &expected {
+            let mut row =
+                CHTraceAgg::zero_sum_partial(project_id, *trace_id, 1_700_000_000_000_000_000);
+            row.cluster_ids = vec![*cluster_id];
+            row.signal_events = vec![CHTraceSignalEvent {
+                event_id: *event_id,
+                signal_id: Uuid::new_v4(),
+                severity: 1,
+                payload: "{}".to_string(),
+            }];
+            insert.write(&row).await.unwrap();
+        }
+        insert
+            .end()
+            .await
+            .expect("RowBinary layout drifted from the table");
+
+        for (trace_id, cluster_id, event_id) in &expected {
+            let got = c
+                .query(
+                    "SELECT arrayJoin(cluster_ids) AS cluster_id, \
+                            tupleElement(arrayJoin(signal_events), 1) AS event_id \
+                     FROM traces_agg WHERE project_id = ? AND id = ?",
+                )
+                .bind(project_id)
+                .bind(trace_id)
+                .fetch_one::<IdsRow>()
+                .await
+                .unwrap();
+            let (got_cluster, got_event) = (got.cluster_id, got.event_id);
+            // Equality, not just well-formedness: a wrong byte ORDER still
+            // yields a syntactically valid UUID.
+            assert_eq!(got_cluster, *cluster_id, "cluster_id byte order drifted");
+            assert_eq!(got_event, *event_id, "signal_events tuple drifted");
+        }
+
+        admin
+            .query(&format!("DROP DATABASE IF EXISTS {DB}"))
+            .execute()
+            .await
+            .unwrap();
     }
 }

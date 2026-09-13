@@ -167,6 +167,83 @@ export async function register() {
         }
       };
 
+      // Hashed in-memory dict over signal_event_clusters (no centroids). Views
+      // resolve cluster names/paths with dictGet instead of joining FINAL.
+      //
+      // `path` is NOT stored anywhere: the source query walks `parent_id`
+      // recursively and materializes the ancestor chain in dict memory at load
+      // time, so it costs one pass per reload rather than one per query, and a
+      // reparent needs no descendant rewrites on disk. Measured on 26.5 over a
+      // 104k-cluster signal: 186ms to build every chain. Depth is capped at 8,
+      // the ceiling `ClusteringTuning::validate` allows for CLUSTERING_MAX_DEPTH
+      // (default 3) -- raise both together or paths silently truncate.
+      // `dictGetHierarchy` would do this natively but is UInt64-key only.
+      // COMPLEX_KEY_HASHED, not CACHE: whole table resident. Cloud creates this
+      // by hand (LOCAL_DB is off). Every reload rebuilds the entire dict, so the
+      // LIFETIME is a cost dial, not a freshness one -- at prod's 261k clusters
+      // that is 0.68s and 268 MiB per reload. 30-60s trades a rename taking up
+      // to a minute to appear for ~3x fewer reloads.
+      const ensureClustersDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY clusters_dict
+            (
+                project_id UUID,
+                id UUID,
+                signal_id UUID,
+                name String,
+                level UInt8,
+                parent_id UUID,
+                path Array(UUID),
+                num_signal_events UInt32,
+                num_children_clusters UInt16,
+                created_at DateTime64(9, 'UTC'),
+                updated_at DateTime64(9, 'UTC')
+            )
+            PRIMARY KEY project_id, id
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                QUERY 'WITH RECURSIVE anc AS (
+                           SELECT project_id, signal_id, id AS start_id, parent_id, 1 AS depth
+                           FROM signal_event_clusters FINAL
+                           WHERE notEmpty(parent_id)
+                         UNION ALL
+                           SELECT a.project_id, a.signal_id, a.start_id, c.parent_id, a.depth + 1
+                           FROM anc AS a
+                           INNER JOIN signal_event_clusters AS c FINAL
+                             ON c.project_id = a.project_id AND c.signal_id = a.signal_id
+                                AND c.id = a.parent_id
+                           -- practically the depth is maxed at 3, but just add some buffer;
+                           -- the limit will be hit by parent_id emptiness
+                           WHERE a.depth < 8
+                             AND notEmpty(c.parent_id)
+                       )
+                       SELECT c.project_id, c.id, c.signal_id, c.name, c.level, c.parent_id,
+                              p.path,
+                              c.num_signal_events, c.num_children_clusters, c.created_at, c.updated_at
+                       FROM signal_event_clusters AS c FINAL
+                       LEFT JOIN (
+                           SELECT project_id, signal_id, start_id,
+                                  arrayMap(x -> x.2, arraySort(x -> x.1, groupArray((depth, parent_id)))) AS path
+                           FROM anc GROUP BY project_id, signal_id, start_id
+                       ) AS p
+                         ON p.project_id = c.project_id AND p.signal_id = c.signal_id
+                            AND p.start_id = c.id'
+                INVALIDATE_QUERY 'SELECT max(updated_at), count() FROM signal_event_clusters'
+            ))
+            LAYOUT(COMPLEX_KEY_HASHED())
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
       const initializeClickHouse = async () => {
         try {
           const { migration } = await import("clickhouse-migrations");
@@ -185,6 +262,7 @@ export async function register() {
           );
 
           await ensureContentDicts();
+          await ensureClustersDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;
@@ -258,11 +336,21 @@ export async function register() {
       console.log("✓ ClickHouse schema applied successfully");
 
       // Backfill historical traces_replacing rows into traces_agg/traces_static
-      // (LAM-2018). Deliberately NOT awaited — it walks up to 90 days in 6h
-      // batches and must never delay serving traffic. Resumes from the
-      // destination watermark on the next boot if it dies partway.
-      const { startTracesAggBackfill } = await import("@/lib/clickhouse/scripts/backfill-traces-agg.ts");
-      startTracesAggBackfill().catch((error) => console.error("Failed to start traces_agg backfill:", error));
+      // (LAM-2018), then copy events_to_clusters → signal_event_summaries and
+      // stamp traces_agg memberships. Deliberately NOT awaited — the walk covers
+      // up to 90 days in 6h batches and must never delay serving traffic.
+      // Resumes from the destination watermark on the next boot if it dies partway.
+      //
+      // Strictly sequential, and gated on what the first call RETURNS rather than
+      // on its status record: the copy INNER JOINs traces_agg for each trace's
+      // start_time, and that record is absent on every boot when REDIS_URL is
+      // unset, so reading it back would defer the copy forever.
+      void (async () => {
+        const { startTracesAggBackfill } = await import("@/lib/clickhouse/scripts/backfill-traces-agg.ts");
+        const { startSignalClustersBackfill } = await import("@/lib/clickhouse/scripts/backfill-signal-clusters.ts");
+        const tracesAggComplete = await startTracesAggBackfill();
+        await startSignalClustersBackfill(tracesAggComplete);
+      })().catch((error) => console.error("Failed to run ClickHouse backfills:", error));
 
       // Seed default signals for projects that don't have any. Same path as
       // workspace create: one transaction for signal + trigger + v1 + alerts.
