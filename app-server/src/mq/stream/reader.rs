@@ -76,9 +76,16 @@
 //!   - **Graceful shutdown** ([`crate::runtime::shutdown`]) closes the channels
 //!     and AWAITS the batchers under one deadline instead. The connection is still
 //!     alive and the pod has a grace period, so the in-flight flush gets to finish
-//!     its `store_offset`; only then does the batcher see `recv() == None` and
-//!     return, dropping what it holds exactly as above. Whatever is still flushing
-//!     at the deadline is aborted, i.e. falls back to the error-path behaviour.
+//!     its `store_offset`. Whatever is still flushing at the deadline is aborted,
+//!     i.e. falls back to the error-path behaviour.
+//!
+//! Awaiting a batcher is only safe because `run_batcher` refuses new work of its
+//! own once a shutdown is requested — dropping the senders CLOSES the channel but
+//! does not EMPTY it, so a batcher that kept consuming would accumulate everything
+//! still queued and flush it, which is precisely the held-record double-write
+//! above (and the flush most likely to be cut short at the deadline, since the
+//! channel is fullest exactly when a flush was in progress). So the drain finishes
+//! the flush that was already in flight and nothing else.
 //!
 //! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
@@ -591,9 +598,14 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 /// already handed its batch to ClickHouse; aborting it there can leave the insert
 /// landed and the `store_offset` that records it unsent, and the successor pod
 /// then replays those records — the LAM-2219 duplicate. Awaiting lets that flush
-/// finish its store, after which the batcher sees the closed channel and returns,
-/// dropping what it merely holds (unflushed, so the replay writes it exactly
-/// once — same as the abort path).
+/// finish its store, after which the batcher returns, dropping what it merely
+/// holds (unflushed, so the replay writes it exactly once — same as the abort
+/// path).
+///
+/// This is only bounded work because `run_batcher` stops taking new work once a
+/// shutdown is requested. Closing the channel does NOT empty it, so a batcher
+/// that kept consuming would flush the queued backlog here — new inserts, on the
+/// deadline's clock, i.e. the double-write the graceful path exists to remove.
 ///
 /// Bounded by ONE shared deadline for the whole set: transient flush retries are
 /// unbounded by design, so a ClickHouse outage would otherwise park the drain
@@ -746,6 +758,16 @@ async fn run_batcher<H: StreamBatchHandler>(
             received = rx.recv() => {
                 match received {
                     Some(delivery) => {
+                        // Graceful shutdown: take no new work. Closing the channel
+                        // does not empty it, so without this the drain's await
+                        // would let us consume everything still queued, accumulate
+                        // it, and flush it — the held-record double-write the
+                        // module header rules out. Dropping the record costs
+                        // nothing: its offset was never stored, so it replays.
+                        if shutdown::is_requested() {
+                            return;
+                        }
+
                         if let Some(message) = delivery.message {
                             batch_weight += H::message_weight(&message);
                             batch.push((delivery.stream.clone(), message));
@@ -785,14 +807,22 @@ async fn run_batcher<H: StreamBatchHandler>(
                         // Reader teardown: drop everything we hold. Unflushed
                         // records replay from the last stored offset, so exiting
                         // without a flush writes them exactly once; see the
-                        // module header. On a graceful shutdown this arm is only
-                        // reached AFTER the flush we were in returned, which is
-                        // the point of awaiting rather than aborting there.
+                        // module header. On a graceful shutdown the guards above
+                        // usually get here first — either way the flush that was
+                        // in flight has returned, which is the point of awaiting
+                        // rather than aborting there.
                         return;
                     }
                 }
             }
             _ = ticker.tick() => {
+                // A tick that fires after the shutdown request must not flush what
+                // we hold either — the drain waits out the flush that was already
+                // in flight, not a new one. See the `recv` arm above.
+                if shutdown::is_requested() {
+                    return;
+                }
+
                 // `!pending_offsets.is_empty()` matters even with an empty batch:
                 // a stretch of only dead-lettered records has offsets to commit
                 // and would otherwise leave the partition pinned.
