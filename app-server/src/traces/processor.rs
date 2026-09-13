@@ -198,6 +198,7 @@ pub async fn process_span_messages(
     pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
     indexer_stream_publisher: Option<Arc<StreamPublisher>>,
+    quickwit_indexing_enabled: bool,
 ) -> Result<(), HandlerError> {
     // Producer-side preprocessing already ran `parse_and_enrich_attributes`
     // and `convert_span_to_provider_format` for `pre_processed` messages.
@@ -683,99 +684,105 @@ pub async fn process_span_messages(
     let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
-    // Index spans and events in Quickwit
-    // Non-LLM spans are only indexed if their size is <= 5KB.
-    // For LLM spans, only the deduped "new messages" subset is indexed —
-    // older repeated history already searchable via the prior step's span.
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
-        .map(|(dedup_idx, s)| {
-            // For LLM spans: parse this span's trace-new INPUT messages
-            // into `Vec<Value>` for the indexer. Read directly from the
-            // per-span `span_trace_new_contents` — these cover ALL
-            // trace-new positions (storage-miss AND storage-hit-but-trace-
-            // new), so cross-trace shared content is still indexed for
-            // THIS trace's first-occurrence search. Unparseable JSON is
-            // dropped (filter_map) — the row still went to
-            // `unique_content` if storage-miss, it just isn't searchable.
-            // A span with no hashes (non-array input) gets `None`, so
-            // `from_span` falls through to raw `span.input`. Output is
-            // dedup'd the same way: `span.output` is `None` on the wire for
-            // dedup'd LLM spans, so the trace-new output array is rebuilt
-            // from `output_batch.span_trace_new_contents` (mirrors input).
-            // `unique_content` holds the same bytes under the span's group.
-            let new_input_messages = if s.is_llm_span()
-                && input_batch
-                    .span_hashes
-                    .get(dedup_idx)
-                    .map(|h| !h.is_empty())
-                    .unwrap_or(false)
-            {
-                input_batch
-                    .span_trace_new_contents
-                    .get(dedup_idx)
-                    .map(|contents| {
-                        contents
-                            .iter()
-                            .filter_map(|c| serde_json::from_str::<Value>(c).ok())
-                            .collect::<Vec<Value>>()
-                    })
-            } else {
-                None
-            };
-            let new_output_messages = if s.is_llm_span()
-                && output_batch
-                    .span_hashes
-                    .get(dedup_idx)
-                    .map(|h| !h.is_empty())
-                    .unwrap_or(false)
-            {
-                output_batch
-                    .span_trace_new_contents
-                    .get(dedup_idx)
-                    .map(|contents| {
-                        contents
-                            .iter()
-                            .filter_map(|c| serde_json::from_str::<Value>(c).ok())
-                            .collect::<Vec<Value>>()
-                    })
-            } else {
-                None
-            };
-            QuickwitIndexedSpan::from_span(
-                s,
-                new_input_messages.as_deref(),
-                new_output_messages.as_deref(),
-            )
-        })
-        .collect();
-    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
-        .iter()
-        .flat_map(|s| s.events.iter().map(|e| e.into()))
-        .collect();
+    // Index spans and events in Quickwit. Skipped entirely when nothing will
+    // ever drain `publish_for_indexing`: neither the stream reader nor the
+    // queue-path indexer workers exist (see `quickwit_indexing_enabled` at
+    // its call site), so building the payload would just be wasted work
+    // ahead of a publish that errors or piles up unread.
+    if quickwit_indexing_enabled {
+        // Non-LLM spans are only indexed if their size is <= 5KB.
+        // For LLM spans, only the deduped "new messages" subset is indexed —
+        // older repeated history already searchable via the prior step's span.
+        let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
+            .map(|(dedup_idx, s)| {
+                // For LLM spans: parse this span's trace-new INPUT messages
+                // into `Vec<Value>` for the indexer. Read directly from the
+                // per-span `span_trace_new_contents` — these cover ALL
+                // trace-new positions (storage-miss AND storage-hit-but-trace-
+                // new), so cross-trace shared content is still indexed for
+                // THIS trace's first-occurrence search. Unparseable JSON is
+                // dropped (filter_map) — the row still went to
+                // `unique_content` if storage-miss, it just isn't searchable.
+                // A span with no hashes (non-array input) gets `None`, so
+                // `from_span` falls through to raw `span.input`. Output is
+                // dedup'd the same way: `span.output` is `None` on the wire for
+                // dedup'd LLM spans, so the trace-new output array is rebuilt
+                // from `output_batch.span_trace_new_contents` (mirrors input).
+                // `unique_content` holds the same bytes under the span's group.
+                let new_input_messages = if s.is_llm_span()
+                    && input_batch
+                        .span_hashes
+                        .get(dedup_idx)
+                        .map(|h| !h.is_empty())
+                        .unwrap_or(false)
+                {
+                    input_batch
+                        .span_trace_new_contents
+                        .get(dedup_idx)
+                        .map(|contents| {
+                            contents
+                                .iter()
+                                .filter_map(|c| serde_json::from_str::<Value>(c).ok())
+                                .collect::<Vec<Value>>()
+                        })
+                } else {
+                    None
+                };
+                let new_output_messages = if s.is_llm_span()
+                    && output_batch
+                        .span_hashes
+                        .get(dedup_idx)
+                        .map(|h| !h.is_empty())
+                        .unwrap_or(false)
+                {
+                    output_batch
+                        .span_trace_new_contents
+                        .get(dedup_idx)
+                        .map(|contents| {
+                            contents
+                                .iter()
+                                .filter_map(|c| serde_json::from_str::<Value>(c).ok())
+                                .collect::<Vec<Value>>()
+                        })
+                } else {
+                    None
+                };
+                QuickwitIndexedSpan::from_span(
+                    s,
+                    new_input_messages.as_deref(),
+                    new_output_messages.as_deref(),
+                )
+            })
+            .collect();
+        let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
+            .iter()
+            .flat_map(|s| s.events.iter().map(|e| e.into()))
+            .collect();
 
-    if !quickwit_spans.is_empty() {
-        if let Err(e) = publish_for_indexing(
-            &IndexerQueuePayload::Spans(quickwit_spans),
-            queue.clone(),
-            indexer_stream_publisher.clone(),
-        )
-        .await
-        {
-            log::error!("Failed to publish spans for Quickwit indexing: {:?}", e);
+        if !quickwit_spans.is_empty() {
+            if let Err(e) = publish_for_indexing(
+                &IndexerQueuePayload::Spans(quickwit_spans),
+                queue.clone(),
+                indexer_stream_publisher.clone(),
+            )
+            .await
+            {
+                log::error!("Failed to publish spans for Quickwit indexing: {:?}", e);
+            }
         }
-    }
-    if !quickwit_events.is_empty() {
-        if let Err(e) = publish_for_indexing(
-            &IndexerQueuePayload::Events(quickwit_events),
-            queue.clone(),
-            indexer_stream_publisher.clone(),
-        )
-        .await
-        {
-            log::error!("Failed to publish events for Quickwit indexing: {:?}", e);
+        if !quickwit_events.is_empty() {
+            if let Err(e) = publish_for_indexing(
+                &IndexerQueuePayload::Events(quickwit_events),
+                queue.clone(),
+                indexer_stream_publisher.clone(),
+            )
+            .await
+            {
+                log::error!("Failed to publish events for Quickwit indexing: {:?}", e);
+            }
         }
     }
 
