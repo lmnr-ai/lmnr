@@ -676,6 +676,14 @@ pub async fn delete_signal(
 
 /// `signal_events` first: `backfill-signal-clusters.ts` reaches `events_to_clusters`
 /// only by joining it, so a crash mid-purge cannot resurrect this signal's clusters.
+///
+/// The denormalized copies on `traces_agg` (`signal_events`, `cluster_ids`) are
+/// deliberately NOT scrubbed: that table is partitioned by month and sorted by
+/// `(project_id, id)`, so a per-signal `ALTER … UPDATE` prunes to nothing and
+/// rewrites every part of a table holding every project's traces. Both stay inert
+/// instead — `cluster_ids` are filtered through `dictHas('clusters_dict')` in
+/// `traces_v0`, and a `signal_events` tuple carries no signal identity, which every
+/// reader resolves from Postgres.
 async fn purge_signal_from_clickhouse(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,

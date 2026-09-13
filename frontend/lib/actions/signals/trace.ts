@@ -145,6 +145,9 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
       .where(and(eq(signals.projectId, projectId), inArray(signals.id, signalIds))),
   ]);
 
+  // Driven by the Postgres rows, not by eventsBySignal: a deleted signal's tuples
+  // stay on traces_agg (purging them would rewrite the whole table), so Postgres is
+  // what decides which of the trace's events still belong to a live signal.
   return signalRows.map((signal) => ({
     signalId: signal.id,
     signalName: signal.name,

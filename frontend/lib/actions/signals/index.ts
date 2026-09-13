@@ -154,6 +154,14 @@ const SetTemplateSignalsSchema = z.object({
 // Purge a signal's ClickHouse footprint: events, clusters, summaries.
 // signal_events first — backfill-signal-clusters.ts reaches events_to_clusters
 // only by joining it, so a crash mid-purge cannot resurrect this signal's clusters.
+//
+// The denormalized copies on traces_agg (signal_events, cluster_ids) are
+// deliberately NOT scrubbed: traces_agg is partitioned by month and sorted by
+// (project_id, id), so a per-signal ALTER … UPDATE prunes to nothing and rewrites
+// every part of a table holding every project's traces. Both stay inert instead —
+// cluster_ids are filtered through dictHas('clusters_dict') in traces_v0 and drop
+// out on the next dict reload, and a signal_events tuple carries no signal
+// identity, which every reader resolves from Postgres.
 async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]) {
   if (signalIds.length === 0) return;
   try {
