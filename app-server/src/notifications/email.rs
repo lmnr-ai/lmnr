@@ -127,44 +127,28 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             project_id,
             project_name,
             signal_id,
-            trace_id,
             event_name,
             severity,
             extracted_information,
             alert_name,
             event_id,
+            ..
         } => {
-            let trace_link = with_utm(
-                &format!(
-                    "{}/project/{}/traces/{}?chat=true",
-                    frontend_url_email(),
-                    project_id,
-                    trace_id
-                ),
-                "email",
-                "signal_alert",
-                "view_trace",
-            );
             let attributes = extracted_information
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
             let severity_label = severity_label(*severity);
-            let subject = if project_name.is_empty() {
-                format!("{}: {} event", event_name, severity_label)
-            } else {
-                format!(
-                    "[{}] {}: {} event",
-                    project_name, event_name, severity_label
-                )
-            };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject,
+                subject: signal_notification_subject(
+                    project_name,
+                    event_name,
+                    &format!("{} event", severity_label),
+                ),
                 html: render_alert_email(
                     event_name,
                     project_name,
                     &attributes,
-                    &trace_link,
                     project_id,
                     signal_id,
                     *severity,
@@ -173,20 +157,24 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 ),
             }
         }
-        NotificationKind::NewCluster { signal_name, .. } => {
+        NotificationKind::NewCluster {
+            project_name,
+            signal_name,
+            ..
+        } => {
             // All clusters in the batch are rendered as one digest email.
             let clusters: Vec<&NotificationKind> = notifications
                 .iter()
                 .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
                 .collect();
-            let subject = if clusters.len() > 1 {
-                format!("{}: {} new clusters", signal_name, clusters.len())
+            let wording = if clusters.len() > 1 {
+                format!("{} new clusters detected", clusters.len())
             } else {
-                format!("{}: New cluster", signal_name)
+                "New cluster detected".to_string()
             };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject,
+                subject: signal_notification_subject(project_name, signal_name, &wording),
                 html: render_new_cluster_email(&clusters),
             }
         }
@@ -248,6 +236,10 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
 
 // ── Alert email ──
 
+fn signal_notification_subject(project_name: &str, signal_name: &str, wording: &str) -> String {
+    format!("{} / {} - {}", project_name, signal_name, wording)
+}
+
 /// Human-readable severity label for an alert notification severity level.
 fn severity_label(severity: u8) -> &'static str {
     match severity {
@@ -263,7 +255,6 @@ fn render_alert_email(
     event_name: &str,
     project_name: &str,
     attributes: &serde_json::Value,
-    trace_link: &str,
     project_id: &Uuid,
     signal_id: &Uuid,
     severity: u8,
@@ -304,11 +295,10 @@ fn render_alert_email(
         signal_id
     );
     let card = format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}{}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}</div>"#,
         breadcrumb(&[project_name, event_name], &signal_link),
         TEXT,
-        data_rows(&rows),
-        action(trace_link, "View trace")
+        data_rows(&rows)
     );
     let body = format!(
         "{}{}{}",
@@ -920,6 +910,104 @@ mod tests {
     }
 
     #[test]
+    fn signal_notification_subjects_use_project_and_signal_names() {
+        let event = NotificationKind::EventIdentification {
+            project_id: Uuid::nil(),
+            project_name: "laminar-agent".into(),
+            signal_id: Uuid::from_u128(1),
+            trace_id: Uuid::from_u128(2),
+            event_id: None,
+            event_name: "Failure Detector".into(),
+            severity: 2,
+            extracted_information: None,
+            alert_name: "Critical failures".into(),
+        };
+        let cluster = |id| NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "laminar-agent".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Failure Detector".into(),
+            cluster_id: Uuid::from_u128(id),
+            cluster_name: format!("Cluster {id}"),
+            num_signal_events: 1,
+            alert_name: "New clusters".into(),
+            first_seen: None,
+            last_seen: None,
+            severity_counts: [0, 0, 1],
+            activity_buckets: vec![1],
+            example_events: vec![],
+        };
+
+        assert_eq!(
+            format_email_batch(&[event], &Uuid::nil()).subject,
+            "laminar-agent / Failure Detector - Critical event"
+        );
+        assert_eq!(
+            format_email_batch(&[cluster(3)], &Uuid::nil()).subject,
+            "laminar-agent / Failure Detector - New cluster detected"
+        );
+        assert_eq!(
+            format_email_batch(&[cluster(3), cluster(4)], &Uuid::nil()).subject,
+            "laminar-agent / Failure Detector - 2 new clusters detected"
+        );
+    }
+
+    #[test]
+    fn new_event_and_cluster_emails_omit_primary_action_button() {
+        let event_html = render_alert_email(
+            "Failure Detector",
+            "laminar-agent",
+            &serde_json::json!({ "failure": "timeout" }),
+            &Uuid::nil(),
+            &Uuid::from_u128(1),
+            2,
+            "Critical failures",
+            None,
+        );
+        let cluster = NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "laminar-agent".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Failure Detector".into(),
+            cluster_id: Uuid::from_u128(2),
+            cluster_name: "Timeouts".into(),
+            num_signal_events: 1,
+            alert_name: "New clusters".into(),
+            first_seen: None,
+            last_seen: None,
+            severity_counts: [0, 0, 1],
+            activity_buckets: vec![1],
+            example_events: vec![],
+        };
+        let cluster_html = render_new_cluster_email(&[&cluster]);
+
+        assert!(!event_html.contains(EMAIL_PRIMARY_50));
+        assert!(!event_html.contains("View trace"));
+        assert!(!cluster_html.contains(EMAIL_PRIMARY_50));
+    }
+
+    #[test]
+    fn usage_emails_keep_primary_action_button() {
+        let warning_html = render_usage_warning_email(
+            "Workspace",
+            Uuid::nil(),
+            "bytes",
+            "3 GiB",
+            "3 GiB",
+            false,
+            "Free",
+            false,
+        );
+        let hard_limit_html =
+            render_usage_hard_limit_email("Workspace", Uuid::nil(), "bytes", "3 GiB", "3 GiB");
+
+        assert!(warning_html.contains(EMAIL_PRIMARY_50));
+        assert!(warning_html.contains("View usage"));
+        assert!(hard_limit_html.contains(EMAIL_PRIMARY_50));
+        assert!(hard_limit_html.contains("Manage limit"));
+    }
+
+    #[test]
     fn alert_omits_null_attributes_and_pretty_prints_nested_values() {
         let html = render_alert_email(
             "Event",
@@ -928,7 +1016,6 @@ mod tests {
                 "empty": null,
                 "nested": { "status": "failed", "attempt": 2 }
             }),
-            "https://example.com/trace",
             &Uuid::nil(),
             &Uuid::nil(),
             1,
