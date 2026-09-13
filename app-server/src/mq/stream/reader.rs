@@ -79,6 +79,12 @@
 //!     its `store_offset`. Whatever is still flushing at the deadline is aborted,
 //!     i.e. falls back to the error-path behaviour.
 //!
+//! Which of the two runs is decided by the shutdown flag, not by why the delivery
+//! loop exited: the batchers leave at the same signal the reader does, so during a
+//! shutdown any exit reason can surface — most easily a failed send to a batcher
+//! that already returned — and taking the abort path on one of those would kill
+//! the sibling still inside the flush being protected.
+//!
 //! Awaiting a batcher is only safe because `run_batcher` refuses new work of its
 //! own once a shutdown is requested — dropping the senders CLOSES the channel but
 //! does not EMPTY it, so a batcher that kept consuming would accumulate everything
@@ -429,11 +435,6 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         // Every exit — including a delivery error — falls through to the shared
         // teardown below so the batchers are torn down, never detached.
         let mut result: anyhow::Result<()> = Ok(());
-        // Set only on the graceful path, which awaits the batchers instead of
-        // aborting them. Kept separate from `result`: a delivery error is not a
-        // shutdown, and treating it as one would wait out the drain deadline on a
-        // connection that is already gone.
-        let mut draining = false;
         loop {
             let delivery = tokio::select! {
                 // Graceful shutdown: stop reading. Whatever the batchers hold is
@@ -445,7 +446,6 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                         self.id,
                         self.super_stream
                     );
-                    draining = true;
                     break;
                 }
                 // An activation failed to resolve its stored offset; that
@@ -543,7 +543,6 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                                 self.id,
                                 self.super_stream
                             );
-                            draining = true;
                             break;
                         }
                     }
@@ -562,7 +561,20 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 })
                 .is_err()
             {
-                log::error!("Stream batcher {} died, reconnecting reader", batcher);
+                // A closed channel is EXPECTED during a shutdown: the batchers stop
+                // taking work at the same signal we do, so one of them returning
+                // first is a race we lose, not a failure. The record we were
+                // handing over replays.
+                if shutdown::is_requested() {
+                    log::info!(
+                        "Stream reader {} ({}) stopped: batcher {} has already drained",
+                        self.id,
+                        self.super_stream,
+                        batcher
+                    );
+                } else {
+                    log::error!("Stream batcher {} died, reconnecting reader", batcher);
+                }
                 break;
             }
         }
@@ -571,7 +583,12 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         // flushes what they hold, because those records were never flushed and so
         // replay exactly once from the last stored offset.
         drop(senders);
-        if draining {
+        // Keyed on the shutdown flag, NOT on why the loop exited. The batchers
+        // leave at the same signal we do, so a shutdown can surface here as any
+        // exit reason — most easily as a failed send to a batcher that already
+        // returned — and choosing the abort path on one of those would kill the
+        // sibling still inside the flush this whole path exists to protect.
+        if shutdown::is_requested() {
             drain_batchers(batcher_handles, self.id, self.super_stream).await;
         } else {
             // Error teardown. Abort (not drop: dropping a JoinHandle detaches the
