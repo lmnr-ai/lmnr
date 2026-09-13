@@ -40,7 +40,7 @@ export default function StructuredOutputSheet({
   } = useFormContext<PlaygroundForm>();
 
   const structuredOutput = watch("structuredOutput");
-  const model = watch("model");
+  const model = watch("llmModel");
 
   const renderTrigger = useCallback(() => {
     if (!structuredOutput) {

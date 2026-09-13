@@ -13,58 +13,58 @@ export interface AnthropicEffortConfig {
 export type AnthropicThinkingConfig = AnthropicBudgetConfig | AnthropicEffortConfig;
 
 export const anthropicThinkingModels = [
-  "anthropic:claude-3-7-sonnet-20250219",
-  "anthropic:claude-sonnet-4-20250514",
-  "anthropic:claude-opus-4-20250514",
-  "anthropic:claude-opus-4-1-20250805",
-  "anthropic:claude-haiku-4-5-20251001",
-  "anthropic:claude-sonnet-4-5-20250929",
-  "anthropic:claude-sonnet-4-6",
-  "anthropic:claude-opus-4-6",
-  "anthropic:claude-opus-4-7",
-  "anthropic:claude-opus-4-8",
-  "anthropic:claude-fable-5",
-  "anthropic:claude-sonnet-5",
+  "claude-3-7-sonnet-20250219",
+  "claude-sonnet-4-20250514",
+  "claude-opus-4-20250514",
+  "claude-opus-4-1-20250805",
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5-20250929",
+  "claude-sonnet-4-6",
+  "claude-opus-4-6",
+  "claude-opus-4-7",
+  "claude-opus-4-8",
+  "claude-fable-5",
+  "claude-sonnet-5",
 ] as const;
 
 export const anthropicProviderOptionsSettings: Record<
   (typeof anthropicThinkingModels)[number],
   { thinking: AnthropicThinkingConfig }
 > = {
-  "anthropic:claude-3-7-sonnet-20250219": {
+  "claude-3-7-sonnet-20250219": {
     thinking: { type: "budget", min: 1024 },
   },
-  "anthropic:claude-sonnet-4-20250514": {
+  "claude-sonnet-4-20250514": {
     thinking: { type: "budget", min: 1024 },
   },
-  "anthropic:claude-opus-4-20250514": {
+  "claude-opus-4-20250514": {
     thinking: { type: "budget", min: 1024 },
   },
-  "anthropic:claude-opus-4-1-20250805": {
+  "claude-opus-4-1-20250805": {
     thinking: { type: "budget", min: 1024 },
   },
-  "anthropic:claude-haiku-4-5-20251001": {
+  "claude-haiku-4-5-20251001": {
     thinking: { type: "budget", min: 1024 },
   },
-  "anthropic:claude-sonnet-4-5-20250929": {
+  "claude-sonnet-4-5-20250929": {
     thinking: { type: "budget", min: 1024 },
   },
-  "anthropic:claude-sonnet-4-6": {
+  "claude-sonnet-4-6": {
     thinking: { type: "effort", levels: ["low", "medium", "high"] },
   },
-  "anthropic:claude-opus-4-6": {
+  "claude-opus-4-6": {
     thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
   },
-  "anthropic:claude-opus-4-7": {
+  "claude-opus-4-7": {
     thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
   },
-  "anthropic:claude-opus-4-8": {
+  "claude-opus-4-8": {
     thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
   },
-  "anthropic:claude-fable-5": {
+  "claude-fable-5": {
     thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
   },
-  "anthropic:claude-sonnet-5": {
+  "claude-sonnet-5": {
     thinking: { type: "effort", levels: ["low", "medium", "high", "max"] },
   },
 };

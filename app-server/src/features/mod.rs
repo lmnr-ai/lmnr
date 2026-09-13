@@ -22,6 +22,9 @@ pub enum Feature {
     /// on `ENABLE_TRACING` so it works without a Sentry DSN.
     InternalTracing,
     Signals,
+    /// Signals route their LLM calls through a profile. Self-hosted only: cloud
+    /// signals keep running on Laminar's internal keys.
+    SignalLlmProfiles,
     /// Ingestion-time user-task extraction (LAM-1880). Shares the
     /// LLM-provider condition with `Signals` but stays a separate flag —
     /// features are fine-grained so gating can diverge later.
@@ -50,6 +53,9 @@ pub enum Feature {
     /// Strip PII from span input/output via the pii-redactor gRPC service,
     /// gated per project by the `projects.settings.removePii` toggle.
     PiiRedaction,
+    /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
+    /// (default true).
+    Quickwit,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -79,13 +85,13 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::InternalTracing => {
             std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
         }
-        Feature::Clustering => {
-            // Kept as a
-            // separate flag (rather than aliasing to Signals) so we can
-            // extend backend gating later without renaming the variant.
-            is_feature_enabled(Feature::Signals)
-        }
-        Feature::Signals => has_llm_provider(),
+        // Clustering still runs on env credentials only, so it must not follow
+        // `Signals` into the profile-backed (credential-less env) mode.
+        Feature::Clustering => has_llm_provider(),
+        // Self-hosted signals can route every call through a workspace LLM
+        // profile, so an env provider is only mandatory on Laminar Cloud.
+        Feature::Signals => has_llm_provider() || is_feature_enabled(Feature::SignalLlmProfiles),
+        Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
         Feature::InputExtraction => has_llm_provider(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
@@ -114,6 +120,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::PiiRedaction => {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
+        Feature::Quickwit => env::quickwit::ENABLED.get(),
     }
 }
 

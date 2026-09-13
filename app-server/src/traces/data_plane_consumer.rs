@@ -35,6 +35,7 @@ pub struct DataPlaneSpanHandler {
     pub pubsub: Arc<PubSub>,
     pub pii_redactor: Option<PiiRedactorClient>,
     pub indexer_stream_publisher: Option<Arc<StreamPublisher>>,
+    pub quickwit_indexing_enabled: bool,
     pub config: BatchingConfig,
 }
 
@@ -162,6 +163,7 @@ impl DataPlaneSpanHandler {
             self.pii_redactor.clone(),
             Some(&config),
             self.indexer_stream_publisher.clone(),
+            self.quickwit_indexing_enabled,
         )
         .await
     }

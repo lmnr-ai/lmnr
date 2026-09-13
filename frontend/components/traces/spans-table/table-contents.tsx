@@ -1,14 +1,17 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
 import { columns } from "@/components/traces/spans-table/columns";
 import { FETCH_SIZE } from "@/components/traces/spans-table/constants";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SpanRow } from "@/lib/traces/types";
 
@@ -34,6 +37,7 @@ export const SpansTableContents = memo(function SpansTableContents({
 }: PropsWithChildren<SpansTableContentsProps>) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
+  const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
   const setTraceId = useTracesStoreContext((s) => s.setTraceId);
@@ -111,6 +115,19 @@ export const SpansTableContents = memo(function SpansTableContents({
     [setSpanId, setTraceId]
   );
 
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("startDate");
+      params.delete("endDate");
+      params.delete("groupByInterval");
+      params.set("pastHours", range.value);
+      params.set("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
   const getRowHref = useCallback(
     (row: Row<SpanRow>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -134,6 +151,23 @@ export const SpansTableContents = memo(function SpansTableContents({
       isFetching={isFetching}
       isLoading={isLoading || isViewLoading}
       fetchNextPage={fetchNextPage}
+      emptyRow={
+        filter.length === 0 && !textSearchFilter ? (
+          <TableRow className="flex">
+            <TableCell className="w-full h-auto p-4 rounded-b text-center">
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-sm text-secondary-foreground">No spans in this time range</span>
+                <SearchWiderRangeButton
+                  pastHours={pastHours}
+                  startDate={startDate}
+                  endDate={endDate}
+                  onSelect={searchWiderRange}
+                />
+              </div>
+            </TableCell>
+          </TableRow>
+        ) : undefined
+      }
     >
       {children}
     </InfiniteDataTable>

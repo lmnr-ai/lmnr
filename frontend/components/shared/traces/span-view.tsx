@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import ErrorCard from "@/components/traces/error-card";
-import { ModelIndicator } from "@/components/traces/model-indicator";
+import { getSpanModel, ModelIndicator } from "@/components/traces/model-indicator";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import SpanStatsShields from "@/components/traces/stats-shields";
@@ -43,6 +43,9 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
     );
   }
 
+  const tools = resolveTools(span);
+  const schema = span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"];
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex flex-col px-2 pt-2 gap-1">
@@ -65,36 +68,28 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
         </div>
         <div className="flex flex-col gap-1.5 py-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <SpanStatsShields span={span} variant="outline" />
+            <SpanStatsShields span={span} />
             <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
               {new Date(span.startTime).toLocaleString()}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <ModelIndicator attributes={span.attributes} />
-            <ToolList tools={resolveTools(span)} />
-            <StructuredOutputSchema
-              schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
-            />
-          </div>
+          {(getSpanModel(span.attributes) || tools.length > 0 || schema) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <ModelIndicator attributes={span.attributes} />
+              <ToolList tools={tools} />
+              <StructuredOutputSchema schema={schema} />
+            </div>
+          )}
         </div>
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
       </div>
       <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input">
         <div className="px-2 pb-2 mt-2 border-b w-full">
-          <TabsList className="border-none text-xs h-7">
-            <TabsTrigger value="span-input" className="text-xs">
-              Span Input
-            </TabsTrigger>
-            <TabsTrigger value="span-output" className="text-xs">
-              Span Output
-            </TabsTrigger>
-            <TabsTrigger value="attributes" className="text-xs">
-              Attributes
-            </TabsTrigger>
-            <TabsTrigger value="events" className="text-xs">
-              Events
-            </TabsTrigger>
+          <TabsList size="sm">
+            <TabsTrigger value="span-input">Span Input</TabsTrigger>
+            <TabsTrigger value="span-output">Span Output</TabsTrigger>
+            <TabsTrigger value="attributes">Attributes</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
         </div>
         <div className="grow flex overflow-hidden">

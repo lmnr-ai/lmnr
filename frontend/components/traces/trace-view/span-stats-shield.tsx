@@ -33,7 +33,7 @@ function SpanStatsShieldInner({
     <div
       className={cn(
         "items-center gap-2 text-xs flex shrink-0",
-        !isInline && "bg-muted px-1.5 rounded-md animate-in fade-in duration-200",
+        !isInline && "h-6 bg-muted px-1.5 rounded-md animate-in fade-in duration-200",
         className
       )}
     >

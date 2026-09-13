@@ -48,7 +48,8 @@ pub struct WindowEntry {
     /// Parked redeliveries don't bump it (they're the same occurrence).
     pub seen_count: u64,
     /// This entry's version resolved — rows/memo for it were already written
-    /// this cycle; the fully-static force skips it.
+    /// this cycle; the fully-static force skips it. Reset on a cheap-match
+    /// miss, which proves the version it came from is gone.
     pub labeled: bool,
     /// First sighting. Drives the deterministic LCS fold order and the top-K
     /// tiebreak, so it must NOT move when the prompt recurs.

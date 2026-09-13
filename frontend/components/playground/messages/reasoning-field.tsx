@@ -2,10 +2,12 @@ import { capitalize } from "lodash";
 import React from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
+import { useLlmProfileProvider } from "@/components/playground/llm-profiles-context";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { matchKnownModel, thinkingNamespace } from "@/lib/playground/providers";
 import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
 import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
@@ -14,12 +16,10 @@ import { type PlaygroundForm } from "@/lib/playground/types";
 const ReasoningField = () => {
   const { watch, control } = useFormContext<PlaygroundForm>();
 
-  const model = useWatch({
-    control,
-    name: "model",
-  });
+  const [llmProfileId, model] = useWatch({ control, name: ["llmProfileId", "llmModel"] });
+  const namespace = thinkingNamespace(useLlmProfileProvider(llmProfileId));
 
-  if (openAIThinkingModels.find((o) => o === model)) {
+  if (namespace === "openai" && matchKnownModel(openAIThinkingModels, model)) {
     return (
       <div className="flex justify-between items-center">
         <span className="text-sm">Reasoning Effort</span>
@@ -45,8 +45,9 @@ const ReasoningField = () => {
     );
   }
 
-  if (anthropicThinkingModels.find((a) => a === model)) {
-    const config = anthropicProviderOptionsSettings[model as (typeof anthropicThinkingModels)[number]].thinking;
+  const anthropicModel = namespace === "anthropic" ? matchKnownModel(anthropicThinkingModels, model) : undefined;
+  if (anthropicModel) {
+    const config = anthropicProviderOptionsSettings[anthropicModel].thinking;
 
     if (config.type === "effort") {
       return (
@@ -130,8 +131,9 @@ const ReasoningField = () => {
     );
   }
 
-  if (googleThinkingModels.find((g) => g === model)) {
-    const config = googleProviderOptionsSettings[model as (typeof googleThinkingModels)[number]].thinkingConfig;
+  const googleModel = namespace === "google" ? matchKnownModel(googleThinkingModels, model) : undefined;
+  if (googleModel) {
+    const config = googleProviderOptionsSettings[googleModel].thinkingConfig;
 
     if (config.type === "level") {
       return (

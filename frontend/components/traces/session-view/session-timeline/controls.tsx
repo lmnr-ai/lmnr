@@ -21,9 +21,9 @@ export default function SessionTimelineControls() {
         <Button
           aria-label="Zoom in"
           disabled={zoom >= MAX_ZOOM}
-          className="size-5 min-w-5"
+          className="min-w-5"
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           onClick={() => setZoom(zoom + ZOOM_INCREMENT)}
         >
           <Plus className="size-3" />
@@ -31,9 +31,9 @@ export default function SessionTimelineControls() {
         <Button
           aria-label="Zoom out"
           disabled={zoom <= MIN_ZOOM}
-          className="size-5 min-w-5"
+          className="min-w-5"
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           onClick={() => setZoom(zoom - ZOOM_INCREMENT)}
         >
           <Minus className="size-3" />

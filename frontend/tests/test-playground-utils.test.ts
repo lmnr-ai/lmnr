@@ -3,8 +3,45 @@ import { describe, it } from "node:test";
 
 import { type ModelMessage } from "ai";
 
+import { pickLlmRoute } from "@/components/playground/utils";
+import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { type Message } from "@/lib/playground/types";
 import { extractInstructions, parseSystemMessages, transformFromLegacy } from "@/lib/playground/utils";
+
+// ─── pickLlmRoute ──────────────────────────────────────────────────────────
+
+describe("pickLlmRoute", () => {
+  const profiles = [
+    { id: "p-openai", name: "OpenAI", provider: "openai_responses", models: ["o1", "gpt-4o", "gpt-4o-mini"] },
+    {
+      id: "p-bedrock",
+      name: "Bedrock",
+      provider: "bedrock",
+      models: ["anthropic.claude-3-5-sonnet-20241022-v1:0"],
+    },
+  ] as LlmProfileOption[];
+
+  it("matches a listed model verbatim, ignoring case and padding", () => {
+    assert.deepStrictEqual(pickLlmRoute(profiles, "gpt-4o"), { llmProfileId: "p-openai", llmModel: "gpt-4o" });
+    assert.deepStrictEqual(pickLlmRoute(profiles, " O1 "), { llmProfileId: "p-openai", llmModel: "o1" });
+    assert.deepStrictEqual(pickLlmRoute(profiles, "anthropic.claude-3-5-sonnet-20241022-v1:0"), {
+      llmProfileId: "p-bedrock",
+      llmModel: "anthropic.claude-3-5-sonnet-20241022-v1:0",
+    });
+  });
+
+  it("does not guess from partial overlap", () => {
+    assert.equal(pickLlmRoute(profiles, "gpt-4o-mini-2024-07-18"), null);
+    assert.equal(pickLlmRoute(profiles, "claude-3-5-sonnet-20241022-v1:0"), null);
+    assert.equal(pickLlmRoute(profiles, "0"), null);
+  });
+
+  it("returns null for empty or unknown ids", () => {
+    assert.equal(pickLlmRoute(profiles, undefined), null);
+    assert.equal(pickLlmRoute(profiles, "  "), null);
+    assert.equal(pickLlmRoute(profiles, "mistral-large"), null);
+  });
+});
 
 // ─── parseSystemMessages ───────────────────────────────────────────────────
 

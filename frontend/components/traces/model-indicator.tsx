@@ -1,19 +1,22 @@
 import { get } from "lodash";
-
-import { Label } from "../ui/label";
+import { MessageCircle } from "lucide-react";
 
 interface ModelIndicatorProps {
   attributes: Record<string, any>;
 }
 
+export const getSpanModel = (attributes?: Record<string, any>): string =>
+  get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
+
 export const ModelIndicator = ({ attributes }: ModelIndicatorProps) => {
-  const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
+  const model = getSpanModel(attributes);
 
   if (!model) return null;
 
   return (
-    <Label className="h-6 w-fit flex items-center text-xs truncate font-mono border rounded-md px-2 border-llm-foreground bg-llm-foreground/10 text-llm-foreground">
+    <span className="h-6 w-fit flex items-center gap-1 rounded-md px-2 text-xs font-mono bg-llm-foreground/15 text-llm-foreground">
+      <MessageCircle size={12} className="min-w-3" />
       {model}
-    </Label>
+    </span>
   );
 };

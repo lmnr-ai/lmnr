@@ -1,14 +1,15 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
 
 import { signalTraceHref, useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
 import { runTraceParams } from "@/components/signal/runs-table/columns/event-cell";
 import { FETCH_SIZE } from "@/components/signal/runs-table/constants";
 import { useSignalStoreContext } from "@/components/signal/store";
-import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange, getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -19,7 +20,17 @@ import { track } from "@/lib/posthog";
 
 import { getSignalRunsColumns } from "./columns";
 
-function getEmptyRow({ pastHours, startDate, endDate }: { pastHours?: string; startDate?: string; endDate?: string }) {
+function getEmptyRow({
+  pastHours,
+  startDate,
+  endDate,
+  onSelect,
+}: {
+  pastHours?: string;
+  startDate?: string;
+  endDate?: string;
+  onSelect: (range: DateRange) => void;
+}) {
   const { from, to } = getDisplayRange({ startDate, endDate, pastHours });
   return (
     <TableRow className="flex">
@@ -33,6 +44,7 @@ function getEmptyRow({ pastHours, startDate, endDate }: { pastHours?: string; st
               Whenever a signal is applied against a trace, a run will appear here. Runs show the results of signal
               execution on your traces.
             </p>
+            <SearchWiderRangeButton pastHours={pastHours} startDate={startDate} endDate={endDate} onSelect={onSelect} />
           </div>
         </div>
       </TableCell>
@@ -56,6 +68,7 @@ export const RunsTableContents = memo(function RunsTableContents({
   const params = useParams<{ projectId: string }>();
   const searchParams = useSearchParams();
   const pathName = usePathname();
+  const router = useRouter();
   const signal = useSignalStoreContext((state) => state.signal);
   const [{ traceId, eventId }, setTraceParams] = useSignalTraceParams();
 
@@ -113,6 +126,19 @@ export const RunsTableContents = memo(function RunsTableContents({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("startDate");
+      params.delete("endDate");
+      params.delete("groupByInterval");
+      params.set("pastHours", range.value);
+      params.set("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
   const focusedRowId = useMemo(() => {
     if (!runs) return undefined;
     if (eventId) {
@@ -149,7 +175,7 @@ export const RunsTableContents = memo(function RunsTableContents({
       isFetching={isFetching}
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
-      emptyRow={getEmptyRow(dateRange)}
+      emptyRow={filters.length === 0 ? getEmptyRow({ ...dateRange, onSelect: searchWiderRange }) : undefined}
     >
       {children}
     </InfiniteDataTable>

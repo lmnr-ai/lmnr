@@ -50,7 +50,7 @@ export default function ToolsSheet({
   } = useFormContext<PlaygroundForm>();
 
   const tools = watch("tools");
-  const model = watch("model");
+  const model = watch("llmModel");
 
   const handleToolChoiceChange = useCallback(
     (onChange: ControllerRenderProps["onChange"]) => (value: string) => {

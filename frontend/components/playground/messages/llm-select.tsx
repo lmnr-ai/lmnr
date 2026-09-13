@@ -1,11 +1,9 @@
-import { isEmpty } from "lodash";
-import { Check, ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Search, Settings2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { apiKeyToProvider, type Provider, providers } from "@/components/playground/types";
-import { providerIconMap, providerNameMap } from "@/components/playground/utils";
+import { useLlmProfiles } from "@/components/playground/llm-profiles-context";
+import { type LlmRoute } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,46 +17,44 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { IconAnthropic, IconGemini, IconOpenAI } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
-import { type EnvVars } from "@/lib/env/utils";
-import { type ProviderApiKey } from "@/lib/settings/types";
+import { ProviderIcon } from "@/components/workspace/llm-profiles/provider-icon";
+import { useProjectContext } from "@/contexts/project-context";
+import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { cn } from "@/lib/utils";
 
-interface LlmSelectNewProps {
-  value: string;
+interface LlmSelectProps {
+  value: LlmRoute;
   disabled?: boolean;
-  onChange: (id: `${Provider}:${string}`) => void;
-  apiKeys: ProviderApiKey[];
+  onChange: (route: LlmRoute) => void;
   className?: string;
 }
 
-const LlmSelect = ({ apiKeys, disabled, onChange, value, className }: LlmSelectNewProps) => {
+/** One submenu per workspace LLM profile listing its models. */
+const LlmSelect = ({ disabled, onChange, value, className }: LlmSelectProps) => {
   const [query, setQuery] = useState("");
-  const params = useParams();
-  const options = useMemo<typeof providers>(
-    () =>
-      providers
-        .filter((provider) => apiKeys.map((key) => apiKeyToProvider?.[key.name as EnvVars]).includes(provider.provider))
-        .map(({ provider, models }) => {
-          const lowerQuery = query.toLowerCase();
-          const providerMatches = provider.toLowerCase().includes(lowerQuery);
-          const filteredModels = models.filter(({ label }) => label.toLowerCase().includes(lowerQuery));
-          return providerMatches || filteredModels.length > 0
-            ? { provider, models: providerMatches ? models : filteredModels }
-            : null;
-        })
-        .filter(Boolean) as typeof providers,
-    [apiKeys, query]
-  );
+  const { settingsHref } = useProjectContext();
+  const profiles = useLlmProfiles();
+
+  const selected = profiles.find((p) => p.id === value.llmProfileId);
+
+  const options = useMemo<LlmProfileOption[]>(() => {
+    const lowerQuery = query.trim().toLowerCase();
+    if (!lowerQuery) return profiles;
+    return profiles.flatMap((profile) => {
+      if (profile.name.toLowerCase().includes(lowerQuery)) return [profile];
+      const models = profile.models.filter((m) => m.toLowerCase().includes(lowerQuery));
+      return models.length > 0 ? [{ ...profile, models }] : [];
+    });
+  }, [profiles, query]);
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger value={value} asChild>
+      <DropdownMenuTrigger asChild>
         <Button disabled={disabled} className={cn("focus-visible:ring-0 text-xs px-2", className)} variant="outline">
-          <span className="mr-1">{providerIconMap[value.split(":")[0] as Provider]}</span>
+          {selected && <ProviderIcon provider={selected.provider} className="mr-1" />}
           <span className="truncate mr-1 py-0.5">
-            {providers.flatMap((p) => p.models).find((m) => m.id === value)?.label ?? "Select model"}
+            {selected && value.llmModel ? `${selected.name} / ${value.llmModel}` : "Select model"}
           </span>
           <ChevronDown className="ml-auto w-3.5 h-3.5" size={16} />
         </Button>
@@ -74,53 +70,41 @@ const LlmSelect = ({ apiKeys, disabled, onChange, value, className }: LlmSelectN
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          {!isEmpty(options) ? (
-            options.map((provider) => (
-              <DropdownMenuSub key={provider.provider}>
+          {options.length > 0 ? (
+            options.map((profile) => (
+              <DropdownMenuSub key={profile.id}>
                 <DropdownMenuSubTrigger>
-                  <span className="mr-2">{providerIconMap[provider.provider]}</span>{" "}
-                  {providerNameMap[provider.provider]}
+                  <ProviderIcon provider={profile.provider} className="mr-2" />
+                  <span className="truncate">{profile.name}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent>
-                    {provider.models.map((model) => (
-                      <DropdownMenuItem key={model.id} onSelect={() => onChange(model.id)}>
-                        <span title={model.id} className="mr-2">
-                          {providerIconMap[provider.provider]}
-                        </span>
-                        <span className="truncate mr-2">{model.label}</span>
-                        <Check size={14} className={cn("ml-auto", { "opacity-0": value !== model.id })} />
-                      </DropdownMenuItem>
-                    ))}
+                    {profile.models.map((model) => {
+                      const isSelected = profile.id === value.llmProfileId && model === value.llmModel;
+                      return (
+                        <DropdownMenuItem
+                          key={model}
+                          onSelect={() => onChange({ llmProfileId: profile.id, llmModel: model })}
+                        >
+                          <span className="truncate mr-2">{model}</span>
+                          <Check size={14} className={cn("ml-auto", { "opacity-0": !isSelected })} />
+                        </DropdownMenuItem>
+                      );
+                    })}
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
             ))
           ) : (
-            <DropdownMenuSub>
-              <DropdownMenuItem disabled>No models found</DropdownMenuItem>
-            </DropdownMenuSub>
+            <DropdownMenuItem disabled>No models found</DropdownMenuItem>
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <Link href={`/project/${params?.projectId}/settings`} passHref>
+          <Link href={settingsHref("llm-profiles")} passHref>
             <DropdownMenuItem>
-              <div className="flex items-center mr-auto">
-                <Plus size={12} className="mr-2" />
-                More providers
-              </div>
-              <div className="flex overflow-hidden">
-                <span className="flex items-center justify-center bg-background size-5 -mr-2 border rounded-full">
-                  <IconOpenAI className="size-3" />
-                </span>
-                <span className="flex items-center justify-center bg-background size-5 -mr-2 border rounded-full">
-                  <IconAnthropic className="size-3" />
-                </span>
-                <span className="flex items-center justify-center bg-background size-5 border rounded-full">
-                  <IconGemini className="size-3" />
-                </span>
-              </div>
+              <Settings2 size={12} className="mr-2" />
+              Manage LLM profiles
             </DropdownMenuItem>
           </Link>
         </DropdownMenuGroup>

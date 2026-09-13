@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { datasetsColumnLabels, DatasetsTableContents } from "@/components/datasets/table-contents";
 import { DatasetsTableControls } from "@/components/datasets/table-controls";
-import { Button } from "@/components/ui/button";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { type DatasetInfo } from "@/lib/dataset/types";
@@ -13,7 +12,6 @@ import { track } from "@/lib/posthog";
 
 import Header from "../ui/header";
 import { RESOURCE } from "./constants";
-import CreateDatasetDialog from "./create-dataset-dialog";
 
 const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
@@ -41,11 +39,6 @@ function DatasetsContent() {
     <>
       <Header path="datasets" />
       <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
-        <CreateDatasetDialog onUpdate={handleCreateDataset}>
-          <Button icon="plus" className="w-fit">
-            Dataset
-          </Button>
-        </CreateDatasetDialog>
         <div className="flex flex-1 overflow-hidden">
           <DatasetsTableContents
             updateDataRef={updateDataRef}
@@ -60,6 +53,7 @@ function DatasetsContent() {
               searchValue={searchValue}
               onSearchChange={setSearchAndFilters}
               columnLabels={datasetsColumnLabels}
+              onCreate={handleCreateDataset}
             />
           </DatasetsTableContents>
         </div>

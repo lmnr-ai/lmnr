@@ -27,7 +27,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
             <Button
               aria-label="Settings"
               size="icon"
-              disabled={!watch("model")}
+              disabled={!watch("llmModel")}
               variant="outline"
               className={cn(className, "self-end size-7")}
             >

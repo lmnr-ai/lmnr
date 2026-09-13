@@ -5,7 +5,7 @@ import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { resolveSpanTokenDetails, spanTokenDetailColumns } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { downloadSpanImages } from "@/lib/spans/utils";
+import { normalizeSpanForExport } from "@/lib/spans/utils";
 import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
@@ -111,7 +111,7 @@ export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema
   const { spanId, projectId, datasetId, metadata = {} } = ExportSpanSchema.parse(input);
 
   const span = await getSpan({ spanId, projectId });
-  const processedInput = await downloadSpanImages(span.input);
+  const processedInput = normalizeSpanForExport(span.input);
 
   await createDatapoints({
     projectId,
@@ -131,7 +131,7 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   const { queueId, spanId, metadata, projectId } = PushSpanSchema.parse(input);
 
   const span = await getSpan({ spanId, projectId });
-  const processedInput = await downloadSpanImages(span.input);
+  const processedInput = normalizeSpanForExport(span.input);
 
   await pushQueueItems({
     projectId,

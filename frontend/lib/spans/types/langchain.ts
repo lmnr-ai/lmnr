@@ -3,8 +3,6 @@ import { map } from "lodash";
 import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/s3";
-
 /** Complex Content Block **/
 export const LangChainTextPartSchema = z.object({
   type: z.literal("text"),
@@ -265,73 +263,10 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
   });
 };
 
-export const downloadLangChainImages = async (
-  messages: z.infer<typeof LangChainMessagesSchema>
-): Promise<z.infer<typeof LangChainMessagesSchema>> =>
-  Promise.all(
-    messages.map(async (message) => {
-      if ((message.role === "human" || message.role === "user") && Array.isArray(message.content)) {
-        const processedContent = await Promise.all(
-          message.content.map(async (part) => {
-            if ("type" in part && part.type === "image_url") {
-              const imageUrl = typeof part.image_url === "string" ? part.image_url : part.image_url.url;
-              try {
-                if (isStorageUrl(imageUrl)) {
-                  const base64Image = await urlToBase64(imageUrl);
-                  return {
-                    ...part,
-                    image_url:
-                      typeof part.image_url === "string" ? base64Image : { ...part.image_url, url: base64Image },
-                  };
-                }
-                return part;
-              } catch (error) {
-                console.error("Error processing image part:", error);
-                return {
-                  type: "text" as const,
-                  text: `[Image processing failed: ${imageUrl}]`,
-                };
-              }
-            }
-
-            if ("source_type" in part && part.source_type === "url" && part.type === "image") {
-              try {
-                if (isStorageUrl(part.url)) {
-                  const base64Image = await urlToBase64(part.url);
-                  return {
-                    ...part,
-                    source_type: "base64" as const,
-                    data: base64Image.split(",")[1],
-                    mime_type: part.mime_type || "image/jpeg",
-                  };
-                }
-                return part;
-              } catch (error) {
-                console.error("Error processing image part:", error);
-                return {
-                  type: "text" as const,
-                  source_type: "text" as const,
-                  text: `[Image processing failed: ${part.url}]`,
-                };
-              }
-            }
-
-            return part;
-          })
-        );
-
-        return { ...message, content: processedContent };
-      }
-
-      return message;
-    })
-  );
-
 export const convertLangChainToPlaygroundMessages = async (
   messages: z.infer<typeof LangChainMessagesSchema>
-): Promise<Message[]> => {
-  const convertedImagesMessages = await downloadLangChainImages(messages);
-  return convertLangChainToChatMessages(convertedImagesMessages).map((message) => {
+): Promise<Message[]> =>
+  convertLangChainToChatMessages(messages).map((message) => {
     if (typeof message.content === "string") {
       return {
         ...message,
@@ -340,4 +275,3 @@ export const convertLangChainToPlaygroundMessages = async (
     }
     return message as Message;
   });
-};

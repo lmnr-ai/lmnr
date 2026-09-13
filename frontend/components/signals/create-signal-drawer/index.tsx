@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useEffect, useMemo } from "react";
+import { type PropsWithChildren, useCallback, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -29,11 +29,6 @@ export default function CreateSignalDrawer({
   const { projectId } = useParams();
   const featureFlags = useFeatureFlags();
   const defaultMode = featureFlags[Feature.BATCH_SIGNALS] ? 0 : 1;
-
-  const previousTriggerIds = useMemo(
-    () => (initialValues?.triggers ?? []).filter((t) => t.id).map((t) => t.id!),
-    [initialValues]
-  );
 
   const convertToFormValues = useCallback(
     (values: ManageSignalForm | undefined): ManageSignalForm => {
@@ -84,7 +79,6 @@ export default function CreateSignalDrawer({
             onClose={onClose}
             onSuccess={onSuccess}
             onSubmitComplete={onSubmitComplete}
-            previousTriggerIds={previousTriggerIds}
           />
         </SheetContent>
       </Sheet>

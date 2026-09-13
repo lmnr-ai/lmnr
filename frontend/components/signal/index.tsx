@@ -57,6 +57,8 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
         triggers: form.triggers,
         sampleRate: form.sampleRate,
         disabled: form.disabled,
+        llmProfileId: form.llmProfileId,
+        llmModel: form.llmModel,
       });
     },
     [signal, setSignal]

@@ -5,9 +5,10 @@ import { z } from "zod/v4";
 import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema } from "@/lib/actions/common/types";
+import { mintSnapshotAndBump } from "@/lib/actions/signal-versions";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
-import { signalTriggers } from "@/lib/db/migrations/schema";
+import { signals, signalTriggers } from "@/lib/db/migrations/schema";
 
 export type Trigger = {
   id: string;
@@ -110,16 +111,32 @@ export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersS
 export async function createSignalTrigger(input: z.infer<typeof CreateSignalTriggerSchema>) {
   const { projectId, signalId, conditions, filters, mode } = CreateSignalTriggerSchema.parse(input);
 
-  const [result] = await db
-    .insert(signalTriggers)
-    .values({
-      projectId,
-      signalId,
-      value: conditions,
-      filters,
-      mode,
-    })
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: signals.id })
+      .from(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, signalId)))
+      .for("update");
+
+    if (!locked) return undefined;
+
+    const [created] = await tx
+      .insert(signalTriggers)
+      .values({
+        projectId,
+        signalId,
+        value: conditions,
+        filters,
+        mode,
+      })
+      .returning();
+
+    await mintSnapshotAndBump(tx, projectId, signalId);
+
+    return created;
+  });
+
+  if (!result) return undefined;
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -140,21 +157,35 @@ export async function updateSignalTrigger(input: z.infer<typeof UpdateSignalTrig
     setValues.mode = mode;
   }
 
-  const [result] = await db
-    .update(signalTriggers)
-    .set(setValues)
-    .where(
-      and(
-        eq(signalTriggers.projectId, projectId),
-        eq(signalTriggers.signalId, signalId),
-        eq(signalTriggers.id, triggerId)
-      )
-    )
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: signals.id })
+      .from(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, signalId)))
+      .for("update");
 
-  if (!result) {
-    return undefined;
-  }
+    if (!locked) return undefined;
+
+    const [updated] = await tx
+      .update(signalTriggers)
+      .set(setValues)
+      .where(
+        and(
+          eq(signalTriggers.projectId, projectId),
+          eq(signalTriggers.signalId, signalId),
+          eq(signalTriggers.id, triggerId)
+        )
+      )
+      .returning();
+
+    if (!updated) return undefined;
+
+    await mintSnapshotAndBump(tx, projectId, signalId);
+
+    return updated;
+  });
+
+  if (!result) return undefined;
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -170,22 +201,36 @@ export async function updateSignalTrigger(input: z.infer<typeof UpdateSignalTrig
 export async function deleteSignalTriggers(input: z.infer<typeof DeleteSignalTriggersSchema>) {
   const { projectId, signalId, triggerIds } = DeleteSignalTriggersSchema.parse(input);
 
-  const results = await Promise.all(
-    triggerIds.map((triggerId) =>
-      db
-        .delete(signalTriggers)
-        .where(
-          and(
-            eq(signalTriggers.projectId, projectId),
-            eq(signalTriggers.signalId, signalId),
-            eq(signalTriggers.id, triggerId)
+  const deletedCount = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: signals.id })
+      .from(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, signalId)))
+      .for("update");
+
+    if (!locked) return 0;
+
+    const deleted = await Promise.all(
+      triggerIds.map((triggerId) =>
+        tx
+          .delete(signalTriggers)
+          .where(
+            and(
+              eq(signalTriggers.projectId, projectId),
+              eq(signalTriggers.signalId, signalId),
+              eq(signalTriggers.id, triggerId)
+            )
           )
-        )
-        .returning()
-    )
-  );
+          .returning()
+      )
+    );
+
+    await mintSnapshotAndBump(tx, projectId, signalId);
+
+    return deleted.flat().length;
+  });
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
-  return { deletedCount: results.flat().length };
+  return { deletedCount };
 }

@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
-import { playgrounds } from "@/lib/db/migrations/schema";
+import { llmProfileModels, llmProfiles, playgrounds, projects } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 
 export type Playground = {
@@ -23,34 +23,66 @@ export const GetPlaygroundSchema = z.object({
   playgroundId: z.guid(),
 });
 
-export const CreatePlaygroundSchema = z.object({
-  projectId: z.guid(),
-  name: z.string().min(1, "Name is required"),
-  promptMessages: z.array(z.any()).optional(),
-  modelId: z.string().optional(),
-  outputSchema: z.string().optional(),
-  tools: z.any().optional(),
-  toolChoice: z.any().optional(),
-  temperature: z.number().optional(),
-  maxTokens: z.number().optional(),
-  providerOptions: z.record(z.string(), z.any()).optional(),
-});
+const llmRouteIsPaired = { message: "llmProfileId and llmModel must be set together", path: ["llmModel"] };
 
-export const UpdatePlaygroundSchema = z.object({
-  projectId: z.guid(),
-  playgroundId: z.guid(),
-  promptMessages: z.array(z.any()),
-  modelId: z.string(),
-  outputSchema: z.string().optional(),
-  tools: z.string().optional(),
-  temperature: z.number().optional(),
-  maxTokens: z.number().optional(),
-  providerOptions: z.record(z.string(), z.any()).optional(),
-  toolChoice: z
-    .string()
-    .or(z.object({ type: z.string(), toolName: z.string().optional() }).optional())
-    .optional(),
-});
+export const CreatePlaygroundSchema = z
+  .object({
+    projectId: z.guid(),
+    name: z.string().min(1, "Name is required"),
+    promptMessages: z.array(z.any()).optional(),
+    llmProfileId: z.guid().nullable().optional(),
+    llmModel: z.string().trim().min(1).max(256).nullable().optional(),
+    outputSchema: z.string().optional(),
+    tools: z.any().optional(),
+    toolChoice: z.any().optional(),
+    temperature: z.number().optional(),
+    maxTokens: z.number().optional(),
+    providerOptions: z.record(z.string(), z.any()).optional(),
+  })
+  .refine((v) => !v.llmProfileId === !v.llmModel, llmRouteIsPaired);
+
+export const UpdatePlaygroundSchema = z
+  .object({
+    projectId: z.guid(),
+    playgroundId: z.guid(),
+    promptMessages: z.array(z.any()),
+    llmProfileId: z.guid().nullable(),
+    llmModel: z.string().trim().min(1).max(256).nullable(),
+    outputSchema: z.string().optional(),
+    tools: z.string().optional(),
+    temperature: z.number().optional(),
+    maxTokens: z.number().optional(),
+    providerOptions: z.record(z.string(), z.any()).optional(),
+    toolChoice: z
+      .string()
+      .or(z.object({ type: z.string(), toolName: z.string().optional() }).optional())
+      .optional(),
+  })
+  .refine((v) => (v.llmProfileId === null) === (v.llmModel === null), llmRouteIsPaired);
+
+/** The composite FK only checks the pair exists; that it belongs to the project's workspace is checked here. */
+async function assertLlmRouteInWorkspace(projectId: string, llmProfileId: string, llmModel: string) {
+  const [match] = await db
+    .select({ model: llmProfileModels.name })
+    .from(llmProfiles)
+    .innerJoin(projects, and(eq(projects.workspaceId, llmProfiles.workspaceId), eq(projects.id, projectId)))
+    .innerJoin(
+      llmProfileModels,
+      and(eq(llmProfileModels.profileId, llmProfiles.id), eq(llmProfileModels.name, llmModel))
+    )
+    .where(eq(llmProfiles.id, llmProfileId))
+    .limit(1);
+  if (!match) {
+    throw new z.ZodError([
+      {
+        code: "custom",
+        path: ["llmProfileId"],
+        message: "LLM profile or model not found in this workspace",
+        input: llmProfileId,
+      },
+    ]);
+  }
+}
 
 export const DeletePlaygroundsSchema = z.object({
   projectId: z.guid(),
@@ -101,7 +133,8 @@ export async function createPlayground(input: z.infer<typeof CreatePlaygroundSch
     projectId,
     name,
     promptMessages,
-    modelId,
+    llmProfileId,
+    llmModel,
     outputSchema,
     tools,
     toolChoice,
@@ -110,13 +143,18 @@ export async function createPlayground(input: z.infer<typeof CreatePlaygroundSch
     providerOptions,
   } = CreatePlaygroundSchema.parse(input);
 
+  if (llmProfileId && llmModel) {
+    await assertLlmRouteInWorkspace(projectId, llmProfileId, llmModel);
+  }
+
   const [result] = await db
     .insert(playgrounds)
     .values({
       projectId,
       name,
       ...(promptMessages !== undefined && { promptMessages }),
-      ...(modelId !== undefined && { modelId }),
+      llmProfileId: llmProfileId ?? null,
+      llmModel: llmModel ?? null,
       ...(outputSchema !== undefined && { outputSchema }),
       ...(tools !== undefined && { tools }),
       ...(toolChoice !== undefined && { toolChoice }),
@@ -136,13 +174,18 @@ export async function createPlayground(input: z.infer<typeof CreatePlaygroundSch
 export async function updatePlayground(input: z.infer<typeof UpdatePlaygroundSchema>) {
   const { projectId, playgroundId, ...data } = UpdatePlaygroundSchema.parse(input);
 
+  if (data.llmProfileId && data.llmModel) {
+    await assertLlmRouteInWorkspace(projectId, data.llmProfileId, data.llmModel);
+  }
+
   const [result] = await db
     .update(playgrounds)
     .set({
       tools: data.tools,
       toolChoice: data.toolChoice,
       promptMessages: data.promptMessages,
-      modelId: data.modelId,
+      llmProfileId: data.llmProfileId,
+      llmModel: data.llmModel,
       outputSchema: data.outputSchema ?? null,
       temperature: data.temperature,
       maxTokens: data.maxTokens,

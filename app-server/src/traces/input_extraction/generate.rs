@@ -18,7 +18,7 @@ use crate::llm::models::{
     ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderResponse,
     ProviderThinkingConfig, ProviderThinkingLevel, ProviderTool,
 };
-use crate::llm::{LlmClient, request_to_span_input, request_to_tools_attr};
+use crate::llm::{LlmClient, ModelProvider, request_to_span_input, request_to_tools_attr};
 use crate::utils::retry;
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
@@ -372,6 +372,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         service_tier: None,
         provider: Some(extraction_provider()),
         model_size: Some(ModelSize::Small),
+        llm_profile: None,
     }
 }
 
@@ -439,7 +440,7 @@ async fn call_llm_once(
 ) -> Result<ProviderResponse, LlmCallError> {
     // Build the span before the call — spans can't be backdated, so a
     // span built after the call returns would record ~zero duration.
-    let (model, provider) = llm_client.resolve_model_provider(request);
+    let ModelProvider { model, provider } = llm_client.resolve_model_provider(request).await;
     let span_input = request_to_span_input(request);
     let span_tools = request_to_tools_attr(request);
     let span = SpanBuilder::llm(scope, span_name)

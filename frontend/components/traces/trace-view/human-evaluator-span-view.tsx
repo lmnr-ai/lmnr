@@ -28,7 +28,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
 
   if (isLoading || !span) {
     return (
-      <div className="flex flex-col space-y-2 p-4">
+      <div className="flex flex-col gap-2 p-4">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
@@ -38,7 +38,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
 
   if (span.attributes["gen_ai.prompt.user"]) {
     return (
-      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+      <div className="whitespace-pre-wrap p-4 m-2 border rounded-md bg-surface-up">
         {span.attributes["gen_ai.prompt.user"]}
       </div>
     );
@@ -48,16 +48,10 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
     <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
       <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
         <div className="px-2 pb-2 mt-2 border-b w-full">
-          <TabsList className="border-none text-xs h-7">
-            <TabsTrigger value="span" className="text-xs">
-              Span Input
-            </TabsTrigger>
-            <TabsTrigger value="attributes" className="text-xs">
-              Attributes
-            </TabsTrigger>
-            <TabsTrigger value="events" className="text-xs">
-              Events
-            </TabsTrigger>
+          <TabsList size="sm">
+            <TabsTrigger value="span">Span Input</TabsTrigger>
+            <TabsTrigger value="attributes">Attributes</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
         </div>
         <div className="flex-1 flex overflow-hidden">

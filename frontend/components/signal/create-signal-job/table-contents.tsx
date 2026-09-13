@@ -8,8 +8,10 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner";
 import { columns, filters as tableFilters } from "@/components/traces/traces-table/columns";
 import { Button } from "@/components/ui/button";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
@@ -27,6 +29,7 @@ export interface CreateSignalJobTableContentsProps {
   filter: string[];
   search: string | null;
   dateRange: { pastHours?: string; startDate?: string; endDate?: string };
+  onDateRangeChange: (range: { pastHours?: string; startDate?: string; endDate?: string }) => void;
   refetchRef: RefObject<() => void>;
   searchValue: { filters: Filter[]; search: string };
   onSearchChange: (value: { filters: Filter[]; search: string }) => void;
@@ -39,6 +42,7 @@ export const CreateSignalJobTableContents = memo(function CreateSignalJobTableCo
   filter,
   search,
   dateRange,
+  onDateRangeChange,
   refetchRef,
   searchValue,
   onSearchChange,
@@ -192,6 +196,21 @@ export const CreateSignalJobTableContents = memo(function CreateSignalJobTableCo
       state={{ rowSelection }}
       onRowSelectionChange={onRowSelectionChange}
       getRowHref={getRowHref}
+      emptyRow={
+        filter.length === 0 && !search ? (
+          <TableRow className="flex">
+            <TableCell className="w-full h-auto p-4 rounded-b text-center">
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-sm text-secondary-foreground">No traces in this time range</span>
+                <SearchWiderRangeButton
+                  {...dateRange}
+                  onSelect={(range) => onDateRangeChange({ pastHours: range.value })}
+                />
+              </div>
+            </TableCell>
+          </TableRow>
+        ) : undefined
+      }
     >
       <div className="flex flex-1 w-full h-full items-center justify-between gap-2">
         {children}

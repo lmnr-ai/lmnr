@@ -96,8 +96,6 @@ pub async fn create_spans(
             status: None,
             events: vec![],
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 

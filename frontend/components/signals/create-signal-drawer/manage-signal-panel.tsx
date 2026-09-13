@@ -1,14 +1,16 @@
 "use client";
 
-import { Bell, History, Settings2 } from "lucide-react";
+import { Bell, GitBranch, History, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import AlertsManager from "@/components/settings/alerts/alerts-manager";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import CreateSignalJob from "@/components/signal/create-signal-job";
+import { signalSectionHref } from "@/components/signal/hooks/signal-tab-search";
+import VersionsSection from "@/components/signal/versions-section";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -38,10 +40,11 @@ interface Props {
   slackBrokerEnabled?: boolean;
 }
 
-type SignalTab = "settings" | "backfill" | "alerts";
+type SignalTab = "settings" | "versions" | "backfill" | "alerts";
 
 const tabs: { id: SignalTab; label: string; icon: ReactNode }[] = [
   { id: "settings", label: "General", icon: <Settings2 /> },
+  { id: "versions", label: "Versions", icon: <GitBranch /> },
   { id: "alerts", label: "Alerts", icon: <Bell /> },
   { id: "backfill", label: "Backfill", icon: <History /> },
 ];
@@ -50,6 +53,10 @@ const tabHeaders: Record<SignalTab, { title: string; description?: string }> = {
   settings: {
     title: "General",
     description: "Configure this signal's definition and triggers.",
+  },
+  versions: {
+    title: "Versions",
+    description: "Versions of signal's definition.",
   },
   backfill: {
     title: "Backfill",
@@ -88,18 +95,8 @@ export default function ManageSignalPanel({
 
   const signalId = initialValues?.id;
 
-  const previousTriggerIds = useMemo(
-    () => (initialValues?.triggers ?? []).filter((t) => t.id).map((t) => t.id!),
-    [initialValues]
-  );
-
   const buildSectionHref = useCallback(
-    (section: SignalTab) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", "settings");
-      params.set("section", section);
-      return `${pathName}?${params.toString()}`;
-    },
+    (section: SignalTab) => signalSectionHref(pathName, searchParams.toString(), section),
     [searchParams, pathName]
   );
 
@@ -137,13 +134,17 @@ export default function ManageSignalPanel({
             <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
               <SettingsSectionHeader {...tabHeaders.settings} />
               <FormProvider {...form}>
-                <ManageSignalContent
-                  variant="panel"
-                  onSuccess={onSuccess}
-                  onSubmitComplete={onSubmitComplete}
-                  previousTriggerIds={previousTriggerIds}
-                />
+                <ManageSignalContent variant="panel" onSuccess={onSuccess} onSubmitComplete={onSubmitComplete} />
               </FormProvider>
+            </div>
+          </ScrollArea>
+        );
+      case "versions":
+        return (
+          <ScrollArea className="flex-1">
+            <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
+              <SettingsSectionHeader {...tabHeaders.versions} />
+              <VersionsSection />
             </div>
           </ScrollArea>
         );
@@ -190,21 +191,23 @@ export default function ManageSignalPanel({
           <SidebarContent className="bg-background">
             <SidebarGroup className="px-4 py-0">
               <SidebarMenu>
-                {tabs.map((tab) => (
-                  <SidebarMenuItem className="h-7" key={tab.id}>
-                    <SidebarMenuButton
-                      asChild
-                      className="flex items-center flex-1 hover:bg-surface-150 active:bg-surface-200 data-[active=true]:bg-surface-200"
-                      isActive={activeTab === tab.id}
-                      tooltip={tab.label}
-                    >
-                      <Link href={buildSectionHref(tab.id)}>
-                        {tab.icon}
-                        <span className="mr-2">{tab.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {tabs
+                  .filter((tab) => tab.id !== "versions" || signalId)
+                  .map((tab) => (
+                    <SidebarMenuItem className="h-7" key={tab.id}>
+                      <SidebarMenuButton
+                        asChild
+                        className="flex items-center flex-1 hover:bg-surface-150 active:bg-surface-200 data-[active=true]:bg-surface-200"
+                        isActive={activeTab === tab.id}
+                        tooltip={tab.label}
+                      >
+                        <Link href={buildSectionHref(tab.id)}>
+                          {tab.icon}
+                          <span className="mr-2">{tab.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>

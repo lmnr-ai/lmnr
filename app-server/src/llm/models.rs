@@ -37,6 +37,10 @@ pub struct ProviderRequest {
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_size: Option<ModelSize>,
+    /// Workspace LLM profile + pinned model. Takes precedence over
+    /// `provider`/`model_size`, which are only consulted for env routing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_profile: Option<super::profiles::LlmProfileRoute>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -134,6 +138,7 @@ pub struct ProviderFunctionDeclaration {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ProviderBatchOutput {
     pub responses: Vec<ProviderInlineResponse>,
 }
@@ -189,6 +194,7 @@ pub enum ProviderFinishReason {
 }
 
 impl ProviderFinishReason {
+    #[allow(dead_code)]
     pub fn is_retryable(&self) -> bool {
         match self {
             Self::Stop => true,
@@ -234,6 +240,7 @@ pub struct ProviderUsageMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ProviderBatchState {
     Pending,
     Running,
@@ -246,6 +253,7 @@ pub enum ProviderBatchState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ProviderBatchOperation {
     pub name: String,
     #[serde(default)]

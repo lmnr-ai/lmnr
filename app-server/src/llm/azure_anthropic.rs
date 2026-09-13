@@ -31,6 +31,9 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// Note the OpenAI-shaped `azure_*` providers take the opposite header.
 const AUTH_HEADER: &str = "x-api-key";
 
+/// Host for the `anthropic` LLM profile provider; `send` appends `/v1/messages`.
+pub(crate) const ANTHROPIC_API_URL: &str = "https://api.anthropic.com";
+
 #[derive(Debug, Error)]
 pub enum AzureAnthropicError {
     #[error("Request failed: {0}")]
@@ -101,7 +104,34 @@ impl AzureAnthropicClient {
         let api_base_url = anthropic_base_url()?;
         let default_headers =
             default_headers_from_env().map_err(AzureAnthropicError::ConfigError)?;
+        Self::with_config(api_key, api_base_url, default_headers)
+    }
 
+    /// Build from explicit values (LLM profiles). `resource_root` is the Foundry
+    /// host root; `/anthropic` is appended here.
+    pub(crate) fn with_resource_root(api_key: String, resource_root: &str) -> ProviderResult<Self> {
+        let api_base_url = format!("{}/anthropic", resource_root.trim_end_matches('/'));
+        Self::with_config(api_key, api_base_url, reqwest::header::HeaderMap::new())
+            .map_err(Into::into)
+    }
+
+    /// Anthropic's own API: same Messages body, `x-api-key` and `anthropic-version`
+    /// headers as the Azure route, so the client is shared. `/v1/messages` is
+    /// appended per request, hence the bare host.
+    pub(crate) fn direct(api_key: String) -> ProviderResult<Self> {
+        Self::with_config(
+            api_key,
+            ANTHROPIC_API_URL.to_string(),
+            reqwest::header::HeaderMap::new(),
+        )
+        .map_err(Into::into)
+    }
+
+    fn with_config(
+        api_key: String,
+        api_base_url: String,
+        default_headers: reqwest::header::HeaderMap,
+    ) -> AzureAnthropicResult<Self> {
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
@@ -153,7 +183,6 @@ impl AzureAnthropicClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Azure Anthropic API error ({}): {}", status, error_text);
             let message = serde_json::from_str::<Value>(&error_text)
                 .ok()
                 .and_then(|v| {
@@ -272,6 +301,7 @@ mod tests {
             service_tier: None,
             provider: None,
             model_size: None,
+            llm_profile: None,
         }
     }
 

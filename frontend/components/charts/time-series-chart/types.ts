@@ -13,6 +13,17 @@ export interface TimeSeriesChartConfig {
   };
 }
 
+/** A dashed vertical annotation, e.g. "a new signal version took effect here". */
+export type TimeSeriesMarker = {
+  /** Any instant; snapped to the bucket it falls in before rendering. */
+  timestamp: string;
+  label: string;
+  /** Optional Settings deep-link. Last marker wins when several snap to one bar. */
+  href?: string;
+  /** Hover rows. Snap fills this from `label` + original `timestamp` when omitted. */
+  tooltip?: { label: string; timestamp: string }[];
+};
+
 export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   data: T[];
   chartConfig: TimeSeriesChartConfig;
@@ -40,4 +51,5 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   // Optional secondary-axis line + gradient drawn behind the bars.
   overlayField?: string;
   overlayColor?: string;
+  markers?: TimeSeriesMarker[];
 }

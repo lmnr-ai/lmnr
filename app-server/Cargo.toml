@@ -18,6 +18,8 @@ async-trait = "0.1"
 aws-config = "1.10.1"
 aws-sdk-bedrockruntime = {version = "1.139.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
 aws-sdk-s3 =  {version = "1.141.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
+# Only for `HTTP_BEARER_AUTH_SCHEME_ID`, which the bedrockruntime crate does not re-export.
+aws-smithy-runtime-api = "1.15"
 backon = {version = "1.6.0", default-features = false, features = ["std", "tokio-sleep"]}
 base64 = "0.22.1"
 blake3 = "1.8"
@@ -65,7 +67,7 @@ rayon = "1.11.0"
 redis = {version = "1.6.0", features = ["tokio-comp", "tokio-rustls-comp"]}
 regex = "1.12.3"
 reqwest = {version = "0.13.4", features = ["json", "stream"]}
-resend-rs = "0.21"
+resend-rs = "0.32.1"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.49, opentelemetry = 0.32

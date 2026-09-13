@@ -27,18 +27,9 @@ pub const BROWSER_EVENTS_SIZE: NumEnv<usize> = NumEnv::new("BROWSER_EVENTS_BATCH
 pub const BROWSER_EVENTS_FLUSH_INTERVAL_SEC: NumEnv<u64> =
     NumEnv::new("BROWSER_EVENTS_BATCH_FLUSH_INTERVAL_SEC", 1);
 
-// Signals / clustering batching (read only under `feature = "signals"`).
+// Clustering batching (read only under `feature = "signals"`).
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_EVENTS_SIZE: NumEnv<usize> = NumEnv::new("CLUSTERING_EVENTS_BATCH_SIZE", 100);
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_EVENTS_FLUSH_INTERVAL_SEC: NumEnv<u64> =
     NumEnv::new("CLUSTERING_EVENTS_BATCH_FLUSH_INTERVAL_SEC", 300);
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const SIGNALS_FLUSH_INTERVAL_SEC: NumEnv<u64> =
-    NumEnv::new("SIGNALS_BATCH_FLUSH_INTERVAL_SEC", 300);
-
-/// `SIGNALS_BATCH_SIZE` has no static default — it falls back to a
-/// crate constant (`signals::private::queue::DEFAULT_BATCH_SIZE`) only
-/// available in `signals`-feature builds, so just expose the name here.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const SIGNALS_SIZE: &str = "SIGNALS_BATCH_SIZE";

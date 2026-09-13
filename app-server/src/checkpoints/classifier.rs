@@ -120,6 +120,7 @@ async fn classify_with_llm(
         service_tier: None,
         provider: None,
         model_size: Some(ModelSize::Small),
+        llm_profile: None,
     };
 
     let response = run_llm(root, llm_client, &request, || {

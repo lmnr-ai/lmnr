@@ -1,6 +1,7 @@
 "use client";
 
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -9,17 +10,29 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
   return <TabsPrimitive.Root data-slot="tabs" className={cn("flex flex-col gap-2", className)} {...props} />;
 }
 
-function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
-  return (
-    <TabsPrimitive.List
-      data-slot="tabs-list"
-      className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
-        className
-      )}
-      {...props}
-    />
-  );
+const tabsListVariants = cva(
+  "bg-muted text-muted-foreground inline-flex w-fit items-center justify-center rounded-lg p-[3px]",
+  {
+    variants: {
+      // `sm` drives the compact trace/span/settings tab bars: shorter list + xs
+      // triggers (the descendant selector saves every TabsTrigger a text-xs override).
+      size: {
+        default: "h-9",
+        sm: "h-7 [&_[data-slot=tabs-trigger]]:text-xs",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  }
+);
+
+function TabsList({
+  className,
+  size,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.List> & VariantProps<typeof tabsListVariants>) {
+  return <TabsPrimitive.List data-slot="tabs-list" className={cn(tabsListVariants({ size }), className)} {...props} />;
 }
 
 function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {

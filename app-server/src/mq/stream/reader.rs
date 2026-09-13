@@ -4,10 +4,18 @@
 //!   SuperStreamConsumer (single active consumer, one group)
 //!            │  chunked deliveries, one subscription per active partition
 //!            ▼
-//!   fan-out by partition_index % batchers        (bounded mpsc = backpressure)
+//!   fan-out by partition_index % batchers        (byte budget = backpressure)
 //!            ▼
 //!   N batcher tasks — accumulate, flush, THEN store offset per partition
 //! ```
+//!
+//! Backpressure is a BYTE budget (`RABBITMQ_STREAM_CHANNEL_MAX_BYTES`), not a
+//! channel depth: a record is a whole export batch, so counting records bounds
+//! nothing useful — 256 multi-megabyte records per batcher was an OOM. Every
+//! decoded record is charged its body length before it is handed to a batcher,
+//! and the charge is refunded only when the batch holding it is flushed or
+//! dropped. While the delivery loop waits for budget it is not polling the
+//! consumer, so no credit is granted and the backlog waits on broker disk.
 //!
 //! Two invariants make this correct:
 //!
@@ -78,7 +86,7 @@ use rabbitmq_stream_client::{
     types::{MessageContext, OffsetSpecification, ResponseCode},
 };
 use serde::de::DeserializeOwned;
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc};
 use uuid::Uuid;
 
 use super::encoding;
@@ -108,6 +116,47 @@ pub struct StreamDelivery<M> {
     pub message: Option<M>,
     pub stream: String,
     pub offset: u64,
+    /// The bytes this record holds against the reader's memory budget. `None`
+    /// for a skipped record (nothing is held). Refunded when dropped, which the
+    /// batcher does only after the batch containing the record is flushed.
+    pub permit: Option<OwnedSemaphorePermit>,
+}
+
+/// Byte budget for records received but not yet flushed. Backed by a semaphore
+/// whose permits are bytes, so admission blocks the delivery loop until enough
+/// earlier records have been flushed — see the module header.
+struct MemoryBudget {
+    semaphore: Arc<Semaphore>,
+    /// `Semaphore::acquire_many` takes a `u32`, which caps both the budget and
+    /// the largest single admission.
+    max_bytes: u32,
+}
+
+impl MemoryBudget {
+    fn new(max_bytes: usize) -> Self {
+        let max_bytes = max_bytes.clamp(1, u32::MAX as usize) as u32;
+        Self {
+            semaphore: Arc::new(Semaphore::new(max_bytes as usize)),
+            max_bytes,
+        }
+    }
+
+    /// Bytes charged for a record. Clamped to the whole budget so a record
+    /// larger than the budget is still admitted once everything else has
+    /// drained, instead of parking the reader forever.
+    fn cost(&self, bytes: usize) -> u32 {
+        bytes.min(self.max_bytes as usize) as u32
+    }
+
+    /// Wait until `bytes` fit, then hold them until the permit drops.
+    async fn admit(&self, bytes: usize) -> OwnedSemaphorePermit {
+        self.semaphore
+            .clone()
+            .acquire_many_owned(self.cost(bytes))
+            .await
+            // Only fails once the semaphore is closed, and nothing closes it.
+            .expect("stream memory budget is never closed")
+    }
 }
 
 /// Batch sink for a stream reader. Mirrors `BatchMessageHandler`'s
@@ -206,7 +255,9 @@ impl<H: StreamBatchHandler> StreamReader<H> {
 
     async fn run_once(&self) -> anyhow::Result<()> {
         let num_batchers = self.num_batchers;
-        let capacity = env::streams::CHANNEL_CAPACITY.get().max(1);
+        // Per generation: the batchers holding permits are aborted below, so a
+        // fresh budget on reconnect starts fully available.
+        let budget = MemoryBudget::new(env::streams::CHANNEL_MAX_BYTES.get());
         // `&'static str`, so it copies into the `consumer_update` closure.
         let consumer_name = self.consumer_name;
 
@@ -317,7 +368,9 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         let mut senders = Vec::with_capacity(num_batchers);
         let mut batcher_handles = Vec::with_capacity(num_batchers);
         for index in 0..num_batchers {
-            let (tx, rx) = mpsc::channel::<StreamDelivery<H::Message>>(capacity);
+            // Unbounded on purpose: depth is bounded in BYTES by `budget`, which
+            // every record is charged against before it is sent.
+            let (tx, rx) = mpsc::unbounded_channel::<StreamDelivery<H::Message>>();
             senders.push(tx);
             batcher_handles.push(tokio::spawn(run_batcher(
                 index,
@@ -389,10 +442,12 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     _ => None,
                 });
 
-            let message = match data {
+            // The decoded body length is what the record is charged against the
+            // memory budget — the closest cheap proxy for the deserialized size.
+            let (message, decoded_len) = match data {
                 Some(body) => match encoding::decode(body, encoding_property.as_deref()) {
                     Ok(body) => match serde_json::from_slice::<H::Message>(&body) {
-                        Ok(message) => Some(message),
+                        Ok(message) => (Some(message), body.len()),
                         Err(e) => {
                             // Won't parse on retry either — same verdict as the queue
                             // path's reject-without-requeue on a deserialize failure.
@@ -402,29 +457,36 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                                 &stream,
                                 offset,
                             );
-                            None
+                            (None, 0)
                         }
                     },
                     Err(e) => {
                         Self::log_skipped_record("decode_failed", &e.to_string(), &stream, offset);
-                        None
+                        (None, 0)
                     }
                 },
+                None => (None, 0),
+            };
+
+            // Admission is the backpressure point: when the batchers hold too
+            // much unflushed data this awaits, which stops us draining the
+            // consumer and lets credit-based flow control park the backlog on
+            // the broker. A skipped record holds nothing, so it costs nothing —
+            // its offset must reach the batcher even when the budget is spent.
+            let permit = match &message {
+                Some(_) => Some(budget.admit(decoded_len).await),
                 None => None,
             };
 
             let batcher = assignment.resolve(&stream, num_batchers);
 
-            // Bounded send: when the batcher is behind this awaits, which stops
-            // us draining the consumer and lets credit-based flow control park
-            // the backlog on the broker.
             if senders[batcher]
                 .send(StreamDelivery {
                     message,
                     stream,
                     offset,
+                    permit,
                 })
-                .await
                 .is_err()
             {
                 log::error!("Stream batcher {} died, reconnecting reader", batcher);
@@ -541,7 +603,7 @@ impl PendingOffsets {
 /// Accumulate → flush → store offsets, for the partitions assigned to us.
 async fn run_batcher<H: StreamBatchHandler>(
     index: usize,
-    mut rx: mpsc::Receiver<StreamDelivery<H::Message>>,
+    mut rx: mpsc::UnboundedReceiver<StreamDelivery<H::Message>>,
     handler: Arc<H>,
     client: Client,
     consumer_name: &'static str,
@@ -551,6 +613,8 @@ async fn run_batcher<H: StreamBatchHandler>(
     let mut batch: Vec<(String, H::Message)> = Vec::new();
     // Accumulated `message_weight`, not `batch.len()` — see the trait doc.
     let mut batch_weight = 0usize;
+    // Memory-budget permits for the records in `batch`, refunded by the flush.
+    let mut held_permits: Vec<OwnedSemaphorePermit> = Vec::new();
     let mut pending_offsets = PendingOffsets::default();
     let mut ticker = tokio::time::interval(handler.interval());
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -564,6 +628,9 @@ async fn run_batcher<H: StreamBatchHandler>(
                         if let Some(message) = delivery.message {
                             batch_weight += H::message_weight(&message);
                             batch.push((delivery.stream.clone(), message));
+                        }
+                        if let Some(permit) = delivery.permit {
+                            held_permits.push(permit);
                         }
 
                         // Recorded even for a skipped record (`message: None`), so
@@ -587,6 +654,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                                 consumer_name,
                                 &mut batch,
                                 &mut batch_weight,
+                                &mut held_permits,
                                 &mut pending_offsets,
                             )
                             .await;
@@ -613,6 +681,7 @@ async fn run_batcher<H: StreamBatchHandler>(
                         consumer_name,
                         &mut batch,
                         &mut batch_weight,
+                        &mut held_permits,
                         &mut pending_offsets,
                     )
                     .await;
@@ -643,10 +712,15 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     consumer_name: &'static str,
     batch: &mut Vec<(String, H::Message)>,
     batch_weight: &mut usize,
+    held_permits: &mut Vec<OwnedSemaphorePermit>,
     pending_offsets: &mut PendingOffsets,
 ) {
     let mut entries = std::mem::take(batch);
     *batch_weight = 0;
+    // Held until this function returns: by then every record in `entries` has
+    // been flushed or dropped, so its bytes go back to the reader's budget and
+    // the delivery loop may take that much more off the broker.
+    let _held_permits = std::mem::take(held_permits);
     let mut offsets = pending_offsets.take();
 
     // Snapshot only — holding the read guard across the flush await would block
@@ -1450,6 +1524,55 @@ mod tests {
         assert!(claim_offset_high_water_mark(group, "p-1", 10));
         assert!(!claim_offset_high_water_mark(group, "p-0", 40));
         assert!(claim_offset_high_water_mark(group, "p-1", 11));
+    }
+
+    /// The budget is the backpressure: an admission that does not fit must park
+    /// the delivery loop until an earlier record's bytes are refunded (its batch
+    /// flushed), not fall through. A record-count channel let 256 multi-MB
+    /// records per batcher pile up in memory — the LAM-2242 OOM.
+    #[tokio::test]
+    async fn budget_admission_blocks_until_bytes_are_refunded() {
+        let budget = Arc::new(MemoryBudget::new(100));
+
+        let first = budget.admit(60).await;
+
+        let waiting = budget.clone();
+        let second = tokio::spawn(async move { waiting.admit(60).await });
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !second.is_finished(),
+            "60 + 60 exceeds a 100-byte budget, so the second admission must wait"
+        );
+
+        // The flush drops the permit, refunding the bytes.
+        drop(first);
+        let _second = second.await.expect("admission task panicked");
+    }
+
+    /// A record bigger than the whole budget is charged the whole budget, not
+    /// refused: it is admitted once everything else has drained. Charging its
+    /// true size would exceed the semaphore's permits and park the reader on
+    /// that partition forever.
+    #[tokio::test]
+    async fn oversized_record_is_admitted_once_the_budget_is_free() {
+        let budget = MemoryBudget::new(100);
+        assert_eq!(budget.cost(1_000), 100);
+
+        let permit = budget.admit(1_000).await;
+        // It took the whole budget: nothing else fits until it is refunded.
+        assert_eq!(budget.semaphore.available_permits(), 0);
+        drop(permit);
+        assert_eq!(budget.semaphore.available_permits(), 100);
+    }
+
+    /// A misconfigured budget must never be zero (every admission would block
+    /// forever) nor exceed what `acquire_many` can request in one call.
+    #[test]
+    fn budget_is_clamped_to_a_usable_range() {
+        assert_eq!(MemoryBudget::new(0).max_bytes, 1);
+        assert_eq!(MemoryBudget::new(usize::MAX).max_bytes, u32::MAX);
     }
 
     #[test]

@@ -73,6 +73,20 @@ pub async fn get_signal(
     })
 }
 
+#[get("signals/{signal_id}/versions")]
+pub async fn list_signal_versions(
+    auth: CliProjectAuth,
+    path: web::Path<Uuid>,
+    db: web::Data<DB>,
+) -> actix_web::Result<HttpResponse> {
+    let result = service::list_signal_versions(&db.pool, auth.project_id, path.into_inner()).await;
+
+    Ok(match result {
+        Ok(versions) => HttpResponse::Ok().json(serde_json::json!({ "versions": versions })),
+        Err(e) => service::error_response(e),
+    })
+}
+
 #[patch("signals/{signal_id}")]
 pub async fn update_signal(
     auth: CliProjectAuth,

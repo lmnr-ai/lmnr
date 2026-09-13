@@ -289,6 +289,9 @@ function CondensedTimeline() {
                   condensedSpan={condensedSpan}
                   selectedSpan={selectedSpan}
                   isIncludedInGroupSelection={isIncludedInGroupSelection}
+                  isMuted={
+                    !isCostHeatmapVisible && selectedSpan != null && selectedSpan.spanId !== condensedSpan.span.spanId
+                  }
                   maxSpanCost={maxSpanCost}
                   isCostHeatmapVisible={isCostHeatmapVisible}
                   onClick={handleSpanClick}

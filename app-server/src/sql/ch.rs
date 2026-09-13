@@ -19,7 +19,7 @@ pub struct ClickhouseBadResponseError {
     pub exception: Option<String>,
 }
 
-/// Max query chars kept in the memory-limit error log.
+/// Max query chars kept in the memory-limit log.
 const LOGGED_QUERY_MAX_CHARS: usize = 4096;
 
 /// True when a ClickHouse exception is `MEMORY_LIMIT_EXCEEDED` (code 241) — either the per-query
@@ -27,7 +27,7 @@ const LOGGED_QUERY_MAX_CHARS: usize = 4096;
 ///
 /// Matched on the `Code: 241` PREFIX rather than a `MEMORY_LIMIT_EXCEEDED` substring: exceptions for
 /// malformed SQL echo the offending query back inside the message, so a substring match would let a
-/// user forge one by putting the error name in their query.
+/// user pick which log line they land in by putting the error name in their query.
 fn is_memory_limit_exception(exception: &str) -> bool {
     exception.trim_start().starts_with("Code: 241")
 }
@@ -50,6 +50,18 @@ pub async fn query(
         .with_setting("output_format_json_quote_64bit_integers", "0")
         .with_setting("max_execution_time", env::sql::MAX_EXECUTION_TIME.get())
         .with_setting("max_result_bytes", env::sql::MAX_RESULT_BYTES.get());
+
+    // Both settings are only needed because cloud production pins
+    // `compatibility = 24.6`, which reverts them to off / `LIMIT <= 10`.
+    let lazy_materialization_limit = env::sql::MAX_LIMIT_FOR_LAZY_MATERIALIZATION.get();
+    if lazy_materialization_limit != 0 {
+        clickhouse_query = clickhouse_query
+            .with_setting("query_plan_optimize_lazy_materialization", "1")
+            .with_setting(
+                "query_plan_max_limit_for_lazy_materialization",
+                lazy_materialization_limit.to_string(),
+            );
+    }
 
     // Cap per-query memory for public/CLI traffic only — the trusted frontend
     // runs uncapped. `0` (the default) means unlimited, so we only set it when an
@@ -96,11 +108,11 @@ pub async fn query(
             let msg = error.exception.unwrap_or_default();
             span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e));
             span.end();
-            // Memory-limit hits are logged at `error` WITH the query: this endpoint's bad requests
-            // are filtered out as noise from malformed user SQL, but a query big enough to trip the
-            // cap is a capacity signal we need to see, and it's unactionable without the SQL.
+            // Memory-limit hits stay at `warn` (it's still a client error — `error` only made
+            // Sentry noisy), but keep the query: the cap is a capacity signal that's unactionable
+            // without the SQL.
             if is_memory_limit_exception(&msg) {
-                log::error!(
+                log::warn!(
                     "User SQL query exceeded ClickHouse memory limit. project_id: {project_id}, error: {msg}, query: {}",
                     utils::truncate_chars(&query, LOGGED_QUERY_MAX_CHARS)
                 );
@@ -147,7 +159,7 @@ mod tests {
     #[test]
     fn a_user_cannot_forge_the_memory_limit_classification() {
         // Malformed-SQL exceptions echo the query back, so a substring match on the error NAME
-        // would let a user promote their own syntax error to an `error`-level log.
+        // would let a user get their own syntax error logged with the query attached.
         assert!(!is_memory_limit_exception(
             "Code: 47. DB::Exception: Unknown expression identifier 'MEMORY_LIMIT_EXCEEDED' \
              In scope SELECT MEMORY_LIMIT_EXCEEDED FROM spans. (UNKNOWN_IDENTIFIER)"

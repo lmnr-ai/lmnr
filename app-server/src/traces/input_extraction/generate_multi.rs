@@ -379,6 +379,7 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
         service_tier: None,
         provider: Some(extraction_provider()),
         model_size: Some(ModelSize::Medium),
+        llm_profile: None,
     }
 }
 

@@ -1,7 +1,7 @@
 //! Read-only SQL query (`/v1/sql`) execution guards. Both are passed straight
 //! into CH settings, so they're modeled as strings.
 
-use super::StringEnv;
+use super::{NumEnv, StringEnv};
 
 /// `max_execution_time` for ad-hoc SQL queries, in seconds.
 pub const MAX_EXECUTION_TIME: StringEnv = StringEnv::new("SQL_QUERY_MAX_EXECUTION_TIME", "120");
@@ -27,3 +27,14 @@ pub const MAX_MEMORY_USAGE: StringEnv = StringEnv::new("SQL_QUERY_MAX_MEMORY_USA
 /// https://presentations.clickhouse.com/2021-meetup53/optimizations/?full#13
 pub const MIN_BYTES_TO_USE_DIRECT_IO: StringEnv =
     StringEnv::new("SQL_QUERY_MIN_BYTES_TO_USE_DIRECT_IO", "0");
+
+/// `query_plan_max_limit_for_lazy_materialization` — largest `LIMIT` for which
+/// ClickHouse defers reading columns used neither for filtering nor sorting
+/// until after `ORDER BY ... LIMIT` picks the rows.
+///
+/// The default is ClickHouse's own since 25.12, so it can only ever raise a
+/// server's ceiling; a smaller value would silently disable the optimisation for
+/// larger `LIMIT`s. `0` skips both lazy materialization settings, required
+/// before 25.4 where they do not exist and an unknown setting fails the query.
+pub const MAX_LIMIT_FOR_LAZY_MATERIALIZATION: NumEnv<u64> =
+    NumEnv::new("SQL_QUERY_MAX_LIMIT_FOR_LAZY_MATERIALIZATION", 10000);

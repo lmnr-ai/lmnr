@@ -2,7 +2,8 @@
 //! to RabbitMQ for further processing.
 //!
 //! Producer-side preprocessing (LAM-1608): we parse + enrich attributes,
-//! run provider conversion, compute the prompt hash, and consult Redis to
+//! run provider conversion, compute the prompt hash, settle the span's dedup
+//! group (session, else trace — see `dedup::session`), and consult Redis to
 //! drop already-seen LLM input messages BEFORE the message hits Rabbit.
 //! Already-seen messages ride the wire as 32-byte hashes only, so the queue
 //! payload shrinks proportionally with conversation history depth. The
@@ -17,9 +18,12 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_ROUTING_KEY,
-    input_dedup::{MessageDedup, build_message_dedup},
+    dedup::{
+        messages::{MessageDedup, build_message_dedup},
+        session::resolve_session,
+        tools::{ToolDedup, build_tool_dedup},
+    },
     provider::convert_span_to_provider_format,
-    tool_dedup::{ToolDedup, build_tool_dedup},
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -71,7 +75,9 @@ struct DedupVerdicts {
 ///   1. parse + enrich attributes (input/output extraction from OTel attrs)
 ///   2. provider conversion (LangChain rewrites `input`)
 ///   3. prompt-hash extraction (system message → `lmnr.span.prompt_hash`)
-///   4. project-scoped dedup verdicts: input messages, output messages,
+///   4. session resolution — publishes or adopts the trace→session hint so
+///      the span's dedup group is settled before any verdict is built
+///   5. group-scoped dedup verdicts: input messages, output messages,
 ///      and tool definitions
 ///
 /// On success, replaces `span.input` / `span.output` with `None` whenever a
@@ -115,11 +121,13 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         }),
     );
 
-    // Tool dedup runs first so its source attributes are stripped before
+    // Session first: every verdict below keys storage by the span's group.
+    resolve_session(span, &cache).await;
+    // Tool dedup runs next so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
-    let tools = build_tool_dedup(span, cache.clone()).await;
-    let input = build_message_dedup(span, span.input.as_ref(), cache.clone()).await;
-    let output = build_message_dedup(span, span.output.as_ref(), cache).await;
+    let tools = build_tool_dedup(span, &cache).await;
+    let input = build_message_dedup(span, span.input.as_ref(), &cache).await;
+    let output = build_message_dedup(span, span.output.as_ref(), &cache).await;
 
     // Output-candidate capture runs AFTER the output dedup verdict exists —
     // it needs the per-message hashes (`output.hashes`), not the raw

@@ -27,6 +27,7 @@ export interface TranscriptRowProps {
   inputPreviews: PreviewMap;
   agentNames: Record<string, string | null | undefined>;
   userInput: string | null;
+  traceStartTime?: string;
   selectedSpanId?: string;
   expandedGroupIds: Set<string>;
   onSpanSelect: (span: TraceViewListSpan) => void;
@@ -39,6 +40,7 @@ function TranscriptRowInner({
   inputPreviews,
   agentNames,
   userInput,
+  traceStartTime,
   selectedSpanId,
   expandedGroupIds,
   onSpanSelect,
@@ -47,7 +49,7 @@ function TranscriptRowInner({
   switch (row.type) {
     case "user-input":
       // Agent input is ingestion-extracted (read off the trace), never loading.
-      return <InputItem text={userInput} isLoading={false} />;
+      return <InputItem text={userInput} isLoading={false} startTime={traceStartTime} />;
 
     case "group": {
       const collapsed = !expandedGroupIds.has(row.groupId);
@@ -108,7 +110,7 @@ function areTranscriptRowPropsEqual(prev: TranscriptRowProps, next: TranscriptRo
   const row = next.row;
   switch (row.type) {
     case "user-input":
-      return prev.userInput === next.userInput;
+      return prev.userInput === next.userInput && prev.traceStartTime === next.traceStartTime;
 
     case "span":
     case "group-span": {

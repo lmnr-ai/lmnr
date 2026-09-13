@@ -69,8 +69,6 @@ fn publish_metadata_only_span(
             status: None,
             events: vec![],
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 

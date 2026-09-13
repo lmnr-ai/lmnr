@@ -2,7 +2,6 @@ import { DollarSign, Minus, Plus } from "lucide-react";
 
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
-import { useElevation } from "@/components/ui/surface";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -21,9 +20,6 @@ export default function Controls({
   isCostHeatmapVisible,
   onToggleCostHeatmap,
 }: ControlsProps) {
-  // Controls sit one level above the timeline surface they float over. Each chip paints
-  // that raised surface (fill + neighbour vars, no shadow), so hover steps up from it.
-  const { className: raisedSurface } = useElevation({ offset: 2 });
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
       <TooltipProvider delayDuration={300}>
@@ -31,9 +27,8 @@ export default function Controls({
           <TooltipTrigger asChild>
             <button
               className={cn(
-                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md text-xs text-muted-foreground hover:bg-surface-up-2 transition-colors border",
-                raisedSurface,
-                isCostHeatmapVisible && "border-primary/50 text-primary"
+                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:bg-secondary transition-colors border",
+                isCostHeatmapVisible && "border-primary/50 text-primary bg-muted"
               )}
               onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
             >
@@ -41,28 +36,14 @@ export default function Controls({
               <span>Cost heatmap</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
+          <TooltipContent>Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <div className={cn("flex items-center border rounded-md px-0.5 h-[24px]", raisedSurface)}>
-        <Button
-          aria-label="Zoom in"
-          disabled={zoom >= MAX_ZOOM}
-          className="size-5 min-w-5"
-          variant="ghost"
-          size="icon"
-          onClick={onZoomIn}
-        >
+      <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
+        <Button disabled={zoom >= MAX_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomIn}>
           <Plus className="size-3" />
         </Button>
-        <Button
-          aria-label="Zoom out"
-          disabled={zoom <= MIN_ZOOM}
-          className="size-5 min-w-5"
-          variant="ghost"
-          size="icon"
-          onClick={onZoomOut}
-        >
+        <Button disabled={zoom <= MIN_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomOut}>
           <Minus className="size-3" />
         </Button>
       </div>

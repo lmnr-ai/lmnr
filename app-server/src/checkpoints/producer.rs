@@ -18,8 +18,9 @@ use crate::{
     db::spans::Span,
     mq::{MessageQueue, MessageQueueTrait},
     traces::{
-        input_dedup::DedupBatch, prompt_hash::extract_system_message,
-        span_attributes::SPAN_PROMPT_HASH, tool_dedup::ToolDedup,
+        dedup::{messages::MessageBatch, tools::ToolDedup},
+        prompt_hash::extract_system_message,
+        span_attributes::SPAN_PROMPT_HASH,
     },
 };
 
@@ -36,7 +37,7 @@ const CHECKPOINT_INPUT_MESSAGE_COUNT: usize = 2;
 pub async fn publish_checkpoints_for_batch(
     spans: &[Span],
     recordable_indices: &[usize],
-    input_batch: &DedupBatch,
+    input_batch: &MessageBatch,
     tool_dedups: &[Option<ToolDedup>],
     queue: Arc<MessageQueue>,
 ) {
@@ -85,12 +86,16 @@ pub async fn publish_checkpoints_for_batch(
         let model = span.attributes.request_model().unwrap_or_default();
 
         // Reuse the ingest-time skeleton hash so the consumer doesn't recompute it.
-        let prompt_hash = span.attributes.string_attr(SPAN_PROMPT_HASH).unwrap_or_default();
+        let prompt_hash = span
+            .attributes
+            .string_attr(SPAN_PROMPT_HASH)
+            .unwrap_or_default();
 
         checkpoints.push(CheckpointsQueueMessage {
             project_id: span.project_id,
             trace_id: span.trace_id,
             span_id: span.span_id,
+            session_id: span.attributes.session_id().unwrap_or_default(),
             system_prompt,
             tool_definitions_hash: tool_def_hash,
             model,
@@ -111,7 +116,12 @@ pub async fn publish_checkpoints_for_batch(
     };
 
     if let Err(e) = queue
-        .publish(&payload, CHECKPOINTS_EXCHANGE, CHECKPOINTS_ROUTING_KEY, None)
+        .publish(
+            &payload,
+            CHECKPOINTS_EXCHANGE,
+            CHECKPOINTS_ROUTING_KEY,
+            None,
+        )
         .await
     {
         log::error!("[CHECKPOINTS] Failed to publish checkpoint messages: {e:?}");

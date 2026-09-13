@@ -159,3 +159,7 @@ export {
   SelectTrigger,
   SelectValue,
 };
+
+/** Undo SelectTrigger's `[&>span]:line-clamp-1` (-webkit-box) so icon+label stay on one row. */
+export const selectTriggerWithIconClassName =
+  "[&>span]:line-clamp-none [&>span]:flex! [&>span]:items-center [&>span]:gap-2 [&>span]:min-w-0";

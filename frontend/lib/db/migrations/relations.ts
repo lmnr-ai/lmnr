@@ -56,7 +56,24 @@ import {
   tagClasses,
   agentVersions,
   traces,
+  llmProfiles,
+  llmProfileModels,
 } from "./schema";
+
+export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [llmProfiles.workspaceId],
+    references: [workspaces.id],
+  }),
+  models: many(llmProfileModels),
+}));
+
+export const llmProfileModelsRelations = relations(llmProfileModels, ({ one }) => ({
+  profile: one(llmProfiles, {
+    fields: [llmProfileModels.profileId],
+    references: [llmProfiles.id],
+  }),
+}));
 
 export const datasetParquetsRelations = relations(datasetParquets, ({ one }) => ({
   dataset: one(datasets, {

@@ -6,6 +6,7 @@ import useSWR from "swr";
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
+import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
 import { type SignalRunStatsDataPoint } from "@/lib/actions/signal-runs/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ interface RunsChartProps {
 
 export default function RunsChart({ className, containerRef, containerWidth, statsUrl }: RunsChartProps) {
   const { data, isLoading } = useSWR<{ items: SignalRunStatsDataPoint[] }>(statsUrl, swrFetcher);
+  const markers = useSignalVersionMarkers();
 
   // Drop `count` (analyzed-only overlay denominator) so the chart total is the stacked series, not series + subset.
   const chartData = useMemo(
@@ -68,6 +70,7 @@ export default function RunsChart({ className, containerRef, containerWidth, sta
           chartConfig={chartConfig}
           fields={fields}
           containerWidth={containerWidth}
+          markers={markers}
           hideZeroValues
         />
       )}

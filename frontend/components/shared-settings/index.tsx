@@ -27,7 +27,6 @@ import CustomModelCosts from "@/components/settings/custom-model-costs";
 import DeleteProject from "@/components/settings/delete-project";
 import PiiRedaction from "@/components/settings/pii-redaction";
 import ProjectApiKeys from "@/components/settings/project-api-keys";
-import ProviderApiKeys from "@/components/settings/provider-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -44,6 +43,7 @@ import {
 } from "@/components/ui/sidebar";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import LlmProfiles from "@/components/workspace/llm-profiles";
 import WorkspaceReports from "@/components/workspace/reports";
 import WorkspaceUsage from "@/components/workspace/usage";
 import WorkspaceIntegrations from "@/components/workspace/workspace-integrations";
@@ -83,9 +83,9 @@ const VALID_SECTIONS = new Set<Section>([
   "reports",
   "billing",
   "workspace-general",
+  "llm-profiles",
   "general",
   "project-api-keys",
-  "provider-api-keys",
   "model-costs",
   "render-templates",
   "agent-versions",
@@ -142,6 +142,7 @@ const SharedSettings = ({
       items.push({ label: "Data residency", section: "deployment", icon: Cloud });
     }
     items.push({ label: "Integrations", section: "integrations", icon: Unplug });
+    items.push({ label: "LLM profiles", section: "llm-profiles", icon: Sparkles });
     items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
@@ -152,7 +153,6 @@ const SharedSettings = ({
   const projectMenus: { label: string; section: Section; icon: LucideIcon }[] = [
     { label: "General", section: "general", icon: Settings2 },
     { label: "Project API Keys", section: "project-api-keys", icon: Key },
-    { label: "Playground model providers", section: "provider-api-keys", icon: Sparkles },
     { label: "Model costs", section: "model-costs", icon: DollarSign },
     { label: "Render templates", section: "render-templates", icon: Code2 },
     { label: "Agent versions", section: "agent-versions", icon: GitBranch },
@@ -205,6 +205,8 @@ const SharedSettings = ({
         );
       case "workspace-general":
         return <WorkspaceSettings workspace={workspace} isOwner={isOwner} />;
+      case "llm-profiles":
+        return <LlmProfiles workspaceId={workspaceId} />;
       // Project sections
       case "general":
         return (
@@ -227,8 +229,6 @@ const SharedSettings = ({
         );
       case "project-api-keys":
         return <ProjectApiKeys apiKeys={apiKeys} />;
-      case "provider-api-keys":
-        return <ProviderApiKeys />;
       case "model-costs":
         return <CustomModelCosts />;
       case "render-templates":

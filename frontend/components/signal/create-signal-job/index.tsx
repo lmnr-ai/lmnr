@@ -132,6 +132,7 @@ const CreateSignalJobContent = () => {
           filter={filter}
           search={search}
           dateRange={dateRange}
+          onDateRangeChange={setDateRange}
           refetchRef={refetchRef}
           searchValue={searchValue}
           onSearchChange={setSearchValue}

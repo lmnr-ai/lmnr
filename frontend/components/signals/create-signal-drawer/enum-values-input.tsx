@@ -12,20 +12,26 @@ export default function EnumValuesInput({
 }) {
   const [inputValue, setInputValue] = useState("");
 
+  /** Adds the typed value; a duplicate is dropped but still clears the input. */
+  const commitInput = useCallback(() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    if (!values?.includes(trimmed)) {
+      onChange([...(values || []), trimmed]);
+    }
+    setInputValue("");
+  }, [inputValue, values, onChange]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" || e.key === ",") {
         e.preventDefault();
-        const trimmed = inputValue.trim();
-        if (trimmed && !values?.includes(trimmed)) {
-          onChange([...(values || []), trimmed]);
-          setInputValue("");
-        }
+        commitInput();
       } else if (e.key === "Backspace" && !inputValue && values && values.length > 0) {
         onChange(values.slice(0, -1));
       }
     },
-    [inputValue, values, onChange]
+    [commitInput, inputValue, values, onChange]
   );
 
   const handlePaste = useCallback(
@@ -77,6 +83,7 @@ export default function EnumValuesInput({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={commitInput}
         onPaste={handlePaste}
         placeholder={values?.length ? "" : "Add values..."}
         className="flex-1 min-w-16 text-xs bg-transparent outline-none placeholder:text-muted-foreground"

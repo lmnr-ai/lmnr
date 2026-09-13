@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::cache::Cache;
 use crate::db::DB;
 use crate::mq::{MessageQueue, stream::StreamPublisher};
-use crate::traces::input_dedup::MessageDedup;
+use crate::traces::dedup::messages::MessageDedup;
 use crate::traces::metadata::publish_trace_output_update;
 
 /// Per-span output candidate captured inside `preprocess_for_queue`, AFTER
@@ -85,8 +85,8 @@ mod tests {
         MessageDedup {
             hashes,
             trace_new_indices: vec![],
-            trace_new_contents: vec![],
-            storage_miss_offsets: vec![],
+            storage_miss_indices: vec![],
+            contents: Default::default(),
         }
     }
 

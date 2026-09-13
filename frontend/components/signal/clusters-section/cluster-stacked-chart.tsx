@@ -1,17 +1,15 @@
 "use client";
 
-import { Circle } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
+import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
-
-const RUN_TOTAL_KEY = "__runTotal";
-const OVERLAY_LABEL = "Signal runs";
-const OVERLAY_COLOR = "var(--color-surface-350)";
 
 // How much of the cluster colour a bar keeps. The palette is built for flat
 // charts and reads hot as a large filled area on a dark surface.
@@ -31,9 +29,13 @@ interface ClusterStackedChartProps {
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
   colorMap: Map<string, string>;
-  runTotals?: { timestamp: string; count: number }[];
   /** Absolutely-positioned content over the plot — the cluster readout. */
   overlay?: ReactNode;
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  onSelectRange: (range: DateRange) => void;
+  showSearchWiderRange: boolean;
 }
 
 export default function ClusterStackedChart({
@@ -41,31 +43,18 @@ export default function ClusterStackedChart({
   statsData,
   containerWidth,
   colorMap,
-  runTotals,
   overlay,
+  pastHours,
+  startDate,
+  endDate,
+  onSelectRange,
+  showSearchWiderRange,
 }: ClusterStackedChartProps) {
-  const overlayPoints = Array.isArray(runTotals) ? runTotals : undefined;
-  const hasOverlay = !!overlayPoints && overlayPoints.length > 0;
+  const markers = useSignalVersionMarkers();
 
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
     const fieldKeys: string[] = [];
-
-    const runTotalByTs = new Map<string, number>();
-    if (overlayPoints) for (const t of overlayPoints) runTotalByTs.set(t.timestamp, t.count);
-    if (hasOverlay)
-      config[RUN_TOTAL_KEY] = {
-        label: OVERLAY_LABEL,
-        color: OVERLAY_COLOR,
-        // Boxed to `ClusterIcon`'s footprint. The tooltip lists this row above
-        // the cluster rows, and a bare glyph is both smaller and subject to the
-        // parent's `[&>svg]:size-2.5`, so the labels wouldn't line up.
-        icon: () => (
-          <div className="flex size-4 shrink-0 items-center justify-center">
-            <Circle className="size-2.5 text-muted-foreground" />
-          </div>
-        ),
-      };
 
     clusters.forEach((cluster) => {
       const key = cluster.id;
@@ -94,12 +83,11 @@ export default function ClusterStackedChart({
       .map(([timestamp, counts]) => {
         const point: TimeSeriesDataPoint = { timestamp } as TimeSeriesDataPoint;
         for (const key of fieldKeys) (point as Record<string, unknown>)[key] = counts[key] || 0;
-        if (hasOverlay) (point as Record<string, unknown>)[RUN_TOTAL_KEY] = runTotalByTs.get(timestamp) ?? 0;
         return point;
       });
 
     return { data: chartData, chartConfig: config, fields: fieldKeys };
-  }, [clusters, statsData, colorMap, overlayPoints, hasOverlay]);
+  }, [clusters, statsData, colorMap]);
 
   // Row count is not emptiness: the stats query fills the range, so a window with
   // no events still comes back as a full set of zero buckets and would otherwise
@@ -108,19 +96,28 @@ export default function ClusterStackedChart({
 
   if (isEmpty) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No data for selected time range
+      <div className="flex flex-col items-center justify-center gap-2 h-full text-muted-foreground text-sm">
+        <span>No data for selected time range</span>
+        {showSearchWiderRange && (
+          <SearchWiderRangeButton
+            pastHours={pastHours}
+            startDate={startDate}
+            endDate={endDate}
+            onSelect={onSelectRange}
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full pt-12">
       <TimeSeriesChart
         data={data}
         chartConfig={chartConfig}
         fields={fields}
         containerWidth={containerWidth}
+        markers={markers}
         showTotal={false}
         tooltipDelay={TOOLTIP_DELAY_MS}
         tooltipMaxItems={TOOLTIP_MAX_ITEMS}
@@ -131,9 +128,7 @@ export default function ClusterStackedChart({
         // main thread than the animation is worth.
         animate={false}
         hideZeroValues
-        overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
-        overlayColor={OVERLAY_COLOR}
-        className="!h-full"
+        className="!h-full !w-full"
       />
       {overlay}
     </div>

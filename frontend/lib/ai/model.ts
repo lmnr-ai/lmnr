@@ -83,7 +83,8 @@ function getConfiguredLLMProvider(): LLMProvider | null {
 const azureEndpoint = (): string =>
   nonEmptyEnv("AZURE_BASE_URL") ?? `https://${nonEmptyEnv("AZURE_RESOURCE_ID")}.services.ai.azure.com`;
 
-const isAzureOpenAIHost = (url: string): boolean => URL.parse(url)?.hostname.endsWith(".openai.azure.com") ?? false;
+export const isAzureOpenAIHost = (url: string): boolean =>
+  URL.parse(url)?.hostname.endsWith(".openai.azure.com") ?? false;
 
 /** Host root with any API-shape path trimmed back off, so callers append their own. */
 function azureResourceRoot(rawBaseUrl: string): string {
@@ -113,7 +114,7 @@ export function azureAnthropicBaseUrl(rawBaseUrl: string): string {
 }
 
 /** `createAzure` only appends `api-version` for `*.openai.azure.com` hosts. */
-const appendApiVersion =
+export const appendApiVersion =
   (apiVersion: string): typeof globalThis.fetch =>
   (input, init) => {
     if (typeof input !== "string" && !(input instanceof URL)) {

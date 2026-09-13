@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams } from "next/navigation";
-import { memo, type PropsWithChildren, type RefObject, useCallback, useState } from "react";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { FETCH_SIZE } from "@/components/datasets/constants";
@@ -146,7 +146,9 @@ export const DatasetsTableContents = memo(function DatasetsTableContents({
     deps: [projectId, filter, search],
   });
 
-  updateDataRef.current = updateData;
+  useEffect(() => {
+    updateDataRef.current = updateData;
+  }, [updateData, updateDataRef]);
 
   const handleDeleteDatasets = useCallback(
     async (datasetIds: string[]) => {

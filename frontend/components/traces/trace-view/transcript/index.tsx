@@ -471,6 +471,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
                 inputPreviews={inputPreviews}
                 agentNames={agentNames}
                 userInput={userInput}
+                traceStartTime={trace?.startTime}
                 selectedSpanId={selectedSpanId}
                 expandedGroupIds={transcriptExpandedGroups}
                 onSpanSelect={handleSpanSelect}

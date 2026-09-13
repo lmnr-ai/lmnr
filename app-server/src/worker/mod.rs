@@ -154,10 +154,6 @@ pub enum WorkerType {
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     Clustering,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    SignalJobSubmissionBatch,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    SignalJobPendingBatch,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobRealtime,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalAdmission,
@@ -178,10 +174,6 @@ impl std::fmt::Display for WorkerType {
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::NotificationDeliveries => write!(f, "notification_deliveries"),
             WorkerType::Clustering => write!(f, "clustering"),
-            WorkerType::SignalJobSubmissionBatch => {
-                write!(f, "signal_job_submission_batch")
-            }
-            WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
             WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
             WorkerType::SignalAdmission => write!(f, "signal_admission"),
             WorkerType::InputExtraction => write!(f, "input_extraction"),

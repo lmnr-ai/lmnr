@@ -9,6 +9,9 @@ pub const PROJECT_CACHE_KEY: &str = "project";
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
+/// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
+/// `llm::profiles::service` removes the key on every profile write.
+pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";
 /// Gives one signal run exclusive use of a trace for its FIRST step, so the
 /// next signal's request hits the provider prefix cache the first one warmed
 /// instead of racing it. Held only across step 0 and scoped per
@@ -66,7 +69,11 @@ pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
 /// frontend constant in `frontend/lib/cache.ts`.
 pub const HARD_LIMIT_NOTIFIED_CACHE_KEY: &str = "hard_limit_notified";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v2";
+/// `(project, static_signature) → String` summary of one system-prompt
+/// template. `_v3` is per prompt; `_v2` was per prompt SET with a struct
+/// value under the same `{prefix}:{project}:{8hex}` shape, so it must not be
+/// reused.
+pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v3";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
@@ -192,6 +199,20 @@ pub const SYSTEM_PROMPT_VERSION_LOCK_CACHE_KEY: &str = "system_prompt_version_lo
 /// (`static_sp_extraction::worker::run_lock_cache_key`).
 pub const SYSTEM_PROMPT_REGEX_EXTRACTION_LOCK_CACHE_KEY: &str =
     "system_prompt_regex_extraction_lock";
+
+// Content dedup (`traces/dedup`). `s2` is scoped by the span's locality group
+// (session, else trace) and backed by `unique_content`; the retired `s`
+// prefix was project-scoped and backed the legacy `deduped_content` table, so
+// its leftover keys must not suppress `unique_content` inserts.
+/// `s2:{project}:{group}:{hash}` — content row is durable in `unique_content`.
+pub const DEDUP_STORAGE_SEEN_CACHE_KEY: &str = "s2";
+/// `tn:{project}:{trace}:{hash}` — hash already recorded as a first occurrence
+/// in the trace (`spans.*_new_message_indices`).
+pub const DEDUP_TRACE_NEW_CACHE_KEY: &str = "tn";
+/// `trace_session:{project}:{trace} → session_id` — lets an LLM span without
+/// its own session join the trace's session group. Written by the ingest
+/// producer, the one producer-side Redis write in the dedup path.
+pub const TRACE_SESSION_HINT_CACHE_KEY: &str = "trace_session";
 
 // Debugger replay cache (LAM-1715). Concrete Redis keys are namespaced by
 // `(project_id, replay_trace_id)` — see `traces/debug_cache.rs`.

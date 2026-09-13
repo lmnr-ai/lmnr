@@ -323,7 +323,7 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
           size="sm"
           variant="ghost"
           className={cn(
-            "h-5 gap-1 rounded-md border border-secondary-foreground/20 bg-muted px-1.5 text-[0.7rem] font-medium text-secondary-foreground hover:bg-muted",
+            "h-5 gap-1 bg-surface-up-2 px-1.5 text-xs font-medium text-secondary-foreground hover:bg-surface-up-4 active:bg-surface-up-5 data-[state=open]:bg-surface-up-5",
             triggerClassName
           )}
         >
@@ -416,7 +416,7 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
+        className="gap-1 text-muted-foreground"
         onClick={openEdit}
         title="Edit template"
       >

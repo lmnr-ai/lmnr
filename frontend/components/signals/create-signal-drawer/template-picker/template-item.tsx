@@ -28,9 +28,9 @@ export default function TemplateItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 px-2 h-[72px] rounded-md border bg-background transition-colors text-center",
+        "flex flex-col items-center justify-center gap-1 px-2 h-[72px] rounded-md border bg-surface-up-2 transition-colors text-center",
         dashed ? "border-dashed border-input" : "border-input",
-        hovered && "bg-accent border-accent-foreground/20"
+        hovered && "bg-surface-up-4"
       )}
     >
       {hovered ? (

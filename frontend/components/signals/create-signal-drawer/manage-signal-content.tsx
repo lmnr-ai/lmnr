@@ -20,7 +20,6 @@ interface ManageSignalContentProps {
   onClose?: () => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   onSubmitComplete: (data: ManageSignalForm) => void;
-  previousTriggerIds: string[];
   className?: string;
 }
 
@@ -29,7 +28,6 @@ export default function ManageSignalContent({
   onClose,
   onSuccess,
   onSubmitComplete,
-  previousTriggerIds,
   className,
 }: ManageSignalContentProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +51,6 @@ export default function ManageSignalContent({
     onSubmitComplete,
     onSuccess,
     setIsLoading,
-    previousTriggerIds,
     setFormId,
     setFormTriggers,
   });

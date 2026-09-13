@@ -12,6 +12,7 @@ pub mod debugger_sessions;
 pub mod evaluations;
 pub mod events;
 pub mod labeling_queues;
+pub mod llm_profiles;
 pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;

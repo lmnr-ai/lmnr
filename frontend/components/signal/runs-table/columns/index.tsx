@@ -3,6 +3,7 @@ import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NIL_EVENT_ID } from "@/components/signal/runs-table/constants";
+import SignalVersion from "@/components/signal/signal-version";
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
@@ -82,6 +83,13 @@ export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
     id: "cost",
   },
   {
+    accessorKey: "signalVersion",
+    header: "Version",
+    cell: (row) => <SignalVersion version={row.row.original.signalVersion} />,
+    size: 88,
+    id: "signalVersion",
+  },
+  {
     accessorKey: "updatedAt",
     header: "Updated At",
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
@@ -100,11 +108,13 @@ export const defaultRunsColumnOrder = [
   "traceId",
   "eventId",
   "runId",
+  "signalVersion",
 ];
 
 export const defaultRunsColumnVisibility: Record<string, boolean> = {
   traceId: false,
   runId: false,
+  signalVersion: false,
 };
 
 export const signalRunsFilters: ColumnFilter[] = [
@@ -150,5 +160,10 @@ export const signalRunsFilters: ColumnFilter[] = [
     name: "Event ID",
     key: "event_id",
     dataType: "string",
+  },
+  {
+    name: "Version",
+    key: "signal_version",
+    dataType: "number",
   },
 ];

@@ -38,6 +38,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
+# sharp 0.35 dropped `lib/index.js`, so @vercel/nft's hardcoded sharp special case
+# no longer fires; libvips reaches .next/standalone only via sharp's own
+# `require.resolve('@img/sharp-libvips-*/binary')` breadcrumb. Fail the build here
+# rather than 500 on the first next/image or /api/cluster-swatch request.
+RUN find .next/standalone -name 'libvips-cpp.so.*' | grep -q . \
+  || (echo "libvips missing from standalone trace - sharp would fail at runtime" && exit 1)
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app

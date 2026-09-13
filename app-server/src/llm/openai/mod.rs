@@ -113,6 +113,39 @@ pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttp
     })
 }
 
+/// Explicit (non-env) inputs for an OpenAI-compatible client, e.g. from an LLM profile.
+pub(crate) struct OpenAIExplicitConfig {
+    pub api_key: String,
+    /// Root the API-shape path is appended to (`/chat/completions`, `/responses`).
+    pub api_base_url: String,
+    pub api_version: Option<String>,
+    pub default_headers: reqwest::header::HeaderMap,
+    pub azure: bool,
+}
+
+pub(super) fn build_http_config_from(
+    config: OpenAIExplicitConfig,
+) -> OpenAIResult<OpenAIHttpConfig> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
+        .default_headers(config.default_headers)
+        .build()
+        .map_err(|e| OpenAIError::config(format!("Failed to build HTTP client: {}", e)))?;
+
+    Ok(OpenAIHttpConfig {
+        client,
+        api_key: config.api_key,
+        api_base_url: config.api_base_url.trim_end_matches('/').to_string(),
+        api_version: config.api_version.filter(|v| !v.trim().is_empty()),
+        flavor: if config.azure {
+            OpenAIFlavor::Azure
+        } else {
+            OpenAIFlavor::OpenAI
+        },
+    })
+}
+
 fn non_empty_env(name: &str) -> Option<String> {
     std::env::var(name)
         .ok()
@@ -158,7 +191,6 @@ pub(super) async fn send_openai_request(
     let status = response.status();
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
-        log::error!("OpenAI API error ({}): {}", status, error_text);
         let message = serde_json::from_str::<Value>(&error_text)
             .ok()
             .and_then(|v| {

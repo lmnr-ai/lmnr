@@ -20,8 +20,8 @@ use super::tool::{
 use crate::instrumentation::spans::{self, InternalSpan, SpanContextCarrier, SpanType};
 use crate::llm::models::ModelSize;
 use crate::llm::{
-    self, LlmClient, ProviderContent, ProviderError, ProviderGenerationConfig, ProviderPart,
-    ProviderRequest,
+    self, LlmClient, ModelProvider, ProviderContent, ProviderError, ProviderGenerationConfig,
+    ProviderPart, ProviderRequest,
 };
 use crate::utils::retry;
 
@@ -252,9 +252,10 @@ async fn run_agent_loop(
             service_tier: None,
             provider: config.provider.clone(),
             model_size: config.model_size,
+            llm_profile: None,
         };
 
-        let (model, provider) = llm_client.resolve_model_provider(&request);
+        let ModelProvider { model, provider } = llm_client.resolve_model_provider(&request).await;
         let llm_span = info_span!(target: "lmnr::internal", "llm_call");
         let llm_span = InternalSpan::wrap(llm_span, SpanType::LLM)
             .project(tracing_ctx.project_id)

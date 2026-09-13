@@ -55,15 +55,8 @@ use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_R
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 #[cfg(feature = "signals")]
 use signals::private::{
-    SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
-    SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
-    SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
-    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
     SignalWorkerConfig,
     admission::SignalAdmissionHandler,
-    batching::SignalBatchingHandler,
-    pendings_consumer::SignalJobPendingBatchHandler,
     queue::{
         SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE, SIGNALS_ADMISSION_RETRY_EXCHANGE,
         SIGNALS_ADMISSION_RETRY_QUEUE, SIGNALS_ADMISSION_RETRY_ROUTING_KEY,
@@ -75,7 +68,6 @@ use signals::private::{
         SIGNALS_REALTIME_WAITING_QUEUE, SIGNALS_REALTIME_WAITING_ROUTING_KEY,
     },
     realtime::SignalJobRealtimeHandler,
-    submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
 use traces::{
@@ -466,35 +458,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.5 Signals message queue ====
-            #[cfg(feature = "signals")]
-            {
-                channel
-                    .exchange_declare(
-                        SIGNALS_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNALS_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-            }
-
             // ==== 3.5b Input extraction message queue ====
             channel
                 .exchange_declare(
@@ -658,104 +621,9 @@ fn main() -> anyhow::Result<()> {
                     .unwrap();
             }
 
-            // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
+            // ==== 3.8 Signals Realtime message queue ====
             #[cfg(feature = "signals")]
             {
-                channel
-                    .exchange_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
-                channel
-                    .exchange_declare(
-                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNAL_JOB_PENDING_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
-                channel
-                    .exchange_declare(
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                let mut waiting_queue_args = quorum_queue_args.clone();
-                waiting_queue_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
-                );
-
-                channel
-                    .queue_declare(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        waiting_queue_args,
-                    )
-                    .await
-                    .unwrap();
-
-                // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
-                channel
-                    .queue_bind(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
-                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
                 channel
                     .exchange_declare(
                         SIGNALS_REALTIME_EXCHANGE.into(),
@@ -1236,9 +1104,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
-        // ==== 3.5 Signals event message queue ====
-        #[cfg(feature = "signals")]
-        queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
         // ==== 3.5c User-task regex agent queue ====
@@ -1260,26 +1125,11 @@ fn main() -> anyhow::Result<()> {
                 EVENT_CLUSTERING_BATCH_QUEUE,
             );
         }
-        // ==== 3.8 Signal Job Submission Batch message queue ====
+        // ==== 3.8 Signals Admission message queue ====
         #[cfg(feature = "signals")]
         {
-            queue.register_queue(
-                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-            );
-            // ==== 3.9 Signal Job Pending Batch message queue ====
-            queue.register_queue(
-                SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-                SIGNAL_JOB_PENDING_BATCH_QUEUE,
-            );
-            // ==== 3.10 Signal Job Waiting Batch message queue ====
-            queue.register_queue(
-                SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-                SIGNAL_JOB_WAITING_BATCH_QUEUE,
-            );
-            // ==== 3.10b Signals Admission message queue ====
             queue.register_queue(SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE);
-            // ==== 3.10c Signals Realtime message queue ====
+            // ==== 3.8b Signals Realtime message queue ====
             queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
         }
         // ==== 3.11 Logs message queue ====
@@ -1396,7 +1246,7 @@ fn main() -> anyhow::Result<()> {
 
     // == Quickwit ==
     // Quickwit is optional - if unavailable, the server will start but search/indexing will be disabled
-    let quickwit_client =
+    let quickwit_client = if is_feature_enabled(Feature::Quickwit) {
         match runtime_handle.block_on(QuickwitClient::connect(QuickwitConfig::from_env())) {
             Ok(client) => {
                 log::info!("Quickwit client connected successfully");
@@ -1409,7 +1259,11 @@ fn main() -> anyhow::Result<()> {
                 );
                 None
             }
-        };
+        }
+    } else {
+        log::info!("QUICKWIT_ENABLED is false - search/indexing disabled");
+        None
+    };
 
     // ==== 3.15 RabbitMQ Streams transport (LAM-2024) ====
     // Additive to the queues above: producers prefer a stream when its publisher
@@ -1439,13 +1293,12 @@ fn main() -> anyhow::Result<()> {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
                         let topology = mq::stream::StreamTopology::from_env();
-                        // Declare the indexer stream only when its flag is on:
-                        // its publisher AND its reader are both gated on that same
-                        // flag, so otherwise we'd create a 32-partition super stream
-                        // nobody touches and let a failure on it abort the
-                        // observations transport too.
+                        // Declare the indexer stream only when the publisher
+                        // below would actually be built: otherwise we'd create a
+                        // 32-partition super stream nobody touches and let a
+                        // failure on it abort the observations transport too.
                         let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
-                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                        if env::streams::SPANS_INDEXER_ENABLED.get() && quickwit_client.is_some() {
                             streams.push(mq::stream::SPANS_INDEXER_STREAM);
                         }
                         for name in streams {
@@ -1468,19 +1321,13 @@ fn main() -> anyhow::Result<()> {
                                 log::error!("Failed to build observations publisher: {:?}", e)
                             }
                         }
-                        // Gated on the SHARED config flag, not on this pod's own
-                        // `quickwit_client`. The indexer reader lives in the
-                        // consumer pod and `QuickwitClient::connect` is a
-                        // per-pod TCP dial, so "Quickwit is live here" says
-                        // nothing about whether the consumer pod started a
-                        // reader — a producer that connects while the consumer
-                        // doesn't would publish indexing jobs to a stream
-                        // nothing reads, and an unread stream is deleted by
-                        // retention (the quorum queue would have retained them).
-                        // Both roles read this same env var, so the gate is
-                        // symmetric; unset keeps `publish_for_indexing` on the
+                        // Only build the indexer stream publisher on THIS pod's
+                        // own client, actually connected: producer and consumer
+                        // are separate deployments with separate configs, so
+                        // there's no cross-pod guarantee to lean on anyway.
+                        // Unset/unhealthy keeps `publish_for_indexing` on the
                         // queue fallback.
-                        if env::streams::SPANS_INDEXER_ENABLED.get() {
+                        if env::streams::SPANS_INDEXER_ENABLED.get() && quickwit_client.is_some() {
                             match mq::stream::StreamPublisher::new(
                                 &environment,
                                 mq::stream::SPANS_INDEXER_STREAM,
@@ -1497,7 +1344,7 @@ fn main() -> anyhow::Result<()> {
                             }
                         } else {
                             log::warn!(
-                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off - not building the spans indexer stream publisher; indexing stays on the quorum queue"
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off (or Quickwit is disabled/unreachable) - not building the spans indexer stream publisher; indexing stays on the quorum queue"
                             );
                         }
                         log::info!("RabbitMQ Streams transport enabled");
@@ -1515,6 +1362,13 @@ fn main() -> anyhow::Result<()> {
     } else {
         (None, None, None)
     };
+
+    // Whether anything downstream will ever drain a `publish_for_indexing`
+    // call: this pod's own `quickwit_client` is present (enabled and
+    // connected), matching the check that gates spawning the queue-path
+    // indexer workers below and the one that gated building
+    // `indexer_stream_publisher` above.
+    let quickwit_indexing_enabled = quickwit_client.is_some();
 
     // Now that the queue/DB/cache (and the optional spans stream publisher)
     // exist, hand them to the internal self-tracing exporter. Until this runs
@@ -1590,7 +1444,15 @@ fn main() -> anyhow::Result<()> {
         is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
-        match runtime_handle.block_on(llm::LlmClient::new()) {
+        let llm_profile_store = if is_feature_enabled(Feature::SignalLlmProfiles) {
+            Some(Arc::new(llm::profiles::LlmProfileStore::new(
+                db.clone(),
+                cache.clone(),
+            )))
+        } else {
+            None
+        };
+        match runtime_handle.block_on(llm::LlmClient::new(llm_profile_store)) {
             Ok(client) => Some(Arc::new(client)),
             Err(e) => {
                 log::warn!(
@@ -1642,8 +1504,6 @@ fn main() -> anyhow::Result<()> {
 
         let num_browser_events_workers = env::workers::NUM_BROWSER_EVENTS.get();
 
-        let num_signals_workers = env::workers::NUM_SEMANTIC_EVENT.get();
-
         let num_notification_workers = env::workers::NUM_NOTIFICATION.get();
 
         let num_notification_delivery_workers = env::workers::NUM_NOTIFICATION_DELIVERY.get();
@@ -1651,11 +1511,6 @@ fn main() -> anyhow::Result<()> {
         let num_clustering_batching_workers = env::workers::NUM_CLUSTERING_BATCHING.get();
 
         let num_clustering_workers = env::workers::NUM_CLUSTERING.get();
-
-        let num_signal_job_submission_batch_workers =
-            env::workers::NUM_SIGNAL_JOB_SUBMISSION_BATCH.get();
-
-        let num_signal_job_pending_batch_workers = env::workers::NUM_SIGNAL_JOB_PENDING_BATCH.get();
 
         let num_logs_workers = env::workers::NUM_LOGS.get();
 
@@ -1673,18 +1528,15 @@ fn main() -> anyhow::Result<()> {
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
-            num_signals_workers,
             num_notification_workers,
             num_notification_delivery_workers,
             num_clustering_batching_workers,
             num_clustering_workers,
-            num_signal_job_submission_batch_workers,
-            num_signal_job_pending_batch_workers,
             num_logs_workers,
             num_reports_workers,
             num_input_extraction_workers,
@@ -1705,6 +1557,7 @@ fn main() -> anyhow::Result<()> {
         let stream_runtime_for_consumer = stream_runtime.clone();
         let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
         let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
+        let quickwit_indexing_enabled_for_consumer = quickwit_indexing_enabled;
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1739,6 +1592,7 @@ fn main() -> anyhow::Result<()> {
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
+                                quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1785,6 +1639,7 @@ fn main() -> anyhow::Result<()> {
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
+                                quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1847,6 +1702,8 @@ fn main() -> anyhow::Result<()> {
                                     pii_redactor,
                                     indexer_stream_publisher:
                                         indexer_stream_publisher_for_consumer.clone(),
+                                    quickwit_indexing_enabled:
+                                        quickwit_indexing_enabled_for_consumer,
                                     config: BatchingConfig {
                                         size: env::batching::SPANS_SIZE.get(),
                                         flush_interval: Duration::from_millis(
@@ -1858,21 +1715,19 @@ fn main() -> anyhow::Result<()> {
                             );
                             tokio::spawn(reader.run());
 
-                            // Same shared flag the producer gates its publisher on,
-                            // so the two pod roles can't disagree about whether this
-                            // stream has a reader. The reader must NOT be gated on
-                            // this pod's own `quickwit_client`: that handle is a
-                            // boot-time TCP dial, so a Quickwit blip during THIS
-                            // pod's startup would leave the stream with no reader
-                            // while producer pods (gated only on the flag) keep
-                            // publishing — and an unread stream is deleted by
-                            // retention, unlike an undrained quorum queue. So build
-                            // a LAZY client when the boot dial failed: the handler
-                            // classifies `Unavailable` as transient, which retries
-                            // the batch in place without advancing the offset and
-                            // calls `reconnect()`, so the backlog waits on broker
-                            // disk and drains once Quickwit returns.
-                            if env::streams::SPANS_INDEXER_ENABLED.get() {
+                            // This pod's own decision, independent of whatever any
+                            // producer pod decided (producer/consumer are separate
+                            // deployments with separate configs, so there's no
+                            // cross-pod state to lean on). If THIS pod's own eager
+                            // dial failed at boot, still start the reader with a
+                            // LAZY client rather than skipping it outright: the
+                            // handler classifies `Unavailable` as transient, which
+                            // retries the batch in place without advancing the
+                            // offset and calls `reconnect()`, so the backlog waits
+                            // on broker disk and drains once Quickwit returns here.
+                            if env::streams::SPANS_INDEXER_ENABLED.get()
+                                && is_feature_enabled(Feature::Quickwit)
+                            {
                                 let indexer_quickwit_client = match quickwit_client_for_consumer
                                     .as_ref()
                                 {
@@ -1951,36 +1806,6 @@ fn main() -> anyhow::Result<()> {
                                 BROWSER_SESSIONS_ROUTING_KEY,
                             ),
                         );
-                    }
-
-                    // Spawn signals workers using new worker pool
-                    #[cfg(feature = "signals")]
-                    if llm_provider_client.is_some() {
-                        let batch_size: usize = env::num_with_default(
-                            env::batching::SIGNALS_SIZE,
-                            crate::signals::private::queue::DEFAULT_BATCH_SIZE,
-                        );
-                        let batch_flush_interval_sec =
-                            env::batching::SIGNALS_FLUSH_INTERVAL_SEC.get();
-                        let queue = mq_for_consumer.clone();
-                        batch_worker_pool_clone.spawn(
-                            BatchWorkerType::SignalsBatching,
-                            num_signals_workers,
-                            move || {
-                                SignalBatchingHandler::new(
-                                    queue.clone(),
-                                    BatchingConfig {
-                                        size: batch_size,
-                                        flush_interval: Duration::from_secs(
-                                            batch_flush_interval_sec,
-                                        ),
-                                    },
-                                )
-                            },
-                            QueueConfig::new(SIGNALS_QUEUE, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY),
-                        );
-                    } else {
-                        log::warn!("LLM client not available - skipping signals workers");
                     }
 
                     // Spawn notification workers (stage 1: persist + fan-out to targets)
@@ -2126,72 +1951,6 @@ fn main() -> anyhow::Result<()> {
                                 );
                             }
                         }
-                    }
-
-                    // Spawn LLM batch submissions workers
-                    #[cfg(feature = "signals")]
-                    if let Some(llm_client) = llm_provider_client.as_ref() {
-                        let db = db_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
-                        let queue = mq_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client_clone = llm_client.clone();
-                        let config = Arc::new(SignalWorkerConfig::from_env());
-                        worker_pool_clone.spawn(
-                            WorkerType::SignalJobSubmissionBatch,
-                            num_signal_job_submission_batch_workers,
-                            move || {
-                                SignalJobSubmissionBatchHandler::new(
-                                    db.clone(),
-                                    cache.clone(),
-                                    queue.clone(),
-                                    clickhouse.clone(),
-                                    llm_client_clone.clone(),
-                                    config.clone(),
-                                )
-                            },
-                            QueueConfig::new(
-                                SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-                                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                                SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
-                            ),
-                        );
-                    } else {
-                        log::warn!(
-                            "LLM provider not available - skipping batch submissions workers"
-                        );
-                    }
-
-                    // Spawn LLM batch pending workers
-                    #[cfg(feature = "signals")]
-                    if let Some(llm_client) = llm_provider_client.as_ref() {
-                        let db = db_for_consumer.clone();
-                        let queue = mq_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client_clone = llm_client.clone();
-                        let cache = cache_for_consumer.clone();
-                        let config = Arc::new(SignalWorkerConfig::from_env());
-                        worker_pool_clone.spawn(
-                            WorkerType::SignalJobPendingBatch,
-                            num_signal_job_pending_batch_workers,
-                            move || {
-                                SignalJobPendingBatchHandler::new(
-                                    db.clone(),
-                                    cache.clone(),
-                                    queue.clone(),
-                                    clickhouse.clone(),
-                                    llm_client_clone.clone(),
-                                    config.clone(),
-                                )
-                            },
-                            QueueConfig::new(
-                                SIGNAL_JOB_PENDING_BATCH_QUEUE,
-                                SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-                                SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
-                            ),
-                        );
-                    } else {
-                        log::warn!("LLM provider not available - skipping batch pending workers");
                     }
 
                     // Spawn LLM realtime workers
@@ -2726,9 +2485,15 @@ fn main() -> anyhow::Result<()> {
                             // shadowed by the dynamic segment.
                             .service(api::v1::cli::signals::create_signal)
                             .service(api::v1::cli::signals::list_signals)
+                            .service(api::v1::cli::signals::list_signal_versions)
                             .service(api::v1::cli::signals::get_signal)
                             .service(api::v1::cli::signals::update_signal)
-                            .service(api::v1::cli::signals::delete_signal);
+                            .service(api::v1::cli::signals::delete_signal)
+                            .service(api::v1::cli::llm_profiles::list_llm_profiles)
+                            .service(api::v1::cli::llm_profiles::create_llm_profile)
+                            .service(api::v1::cli::llm_profiles::get_llm_profile)
+                            .service(api::v1::cli::llm_profiles::update_llm_profile)
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2799,6 +2564,11 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::projects::get_current_project)
+                                    .service(api::v1::llm_profiles::list_llm_profiles)
+                                    .service(api::v1::llm_profiles::create_llm_profile)
+                                    .service(api::v1::llm_profiles::get_llm_profile)
+                                    .service(api::v1::llm_profiles::update_llm_profile)
+                                    .service(api::v1::llm_profiles::delete_llm_profile)
                                     .service(api::v1::datasets::get_datasets)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
@@ -2807,6 +2577,12 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
+                                    .service(api::v1::signals::create_signal)
+                                    .service(api::v1::signals::list_signals)
+                                    .service(api::v1::signals::list_signal_versions)
+                                    .service(api::v1::signals::get_signal)
+                                    .service(api::v1::signals::update_signal)
+                                    .service(api::v1::signals::delete_signal)
                                     // Debugger session lifecycle — SDK-driven
                                     // (project API key). update_name is CLI-only,
                                     // so it lives under /v1/cli, not here.
@@ -2844,6 +2620,16 @@ fn main() -> anyhow::Result<()> {
                         let app = app.service(
                             web::scope("/api/v1/slack")
                                 .service(crate::agent::slack_events::slack_process),
+                        );
+                        // Workspace-scoped internal routes; like projects/{project_id}, the
+                        // Next.js route checks the caller's workspace membership.
+                        #[cfg(feature = "signals")]
+                        let app = app.service(
+                            web::scope("/api/v1/workspaces/{workspace_id}")
+                                .service(routes::llm_profiles::probe_llm_profile)
+                                .service(routes::llm_profiles::create_llm_profile)
+                                .service(routes::llm_profiles::update_llm_profile)
+                                .service(routes::llm_profiles::delete_llm_profile),
                         );
                         app.service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

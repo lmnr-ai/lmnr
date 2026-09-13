@@ -1,156 +1,138 @@
 "use client";
+
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
-import React, { useState } from "react";
+import { Copy, Globe, Loader2, Lock, Share } from "lucide-react";
+import { useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy-button";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
-const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
+const ShareTraceButton = ({ projectId }: { projectId: string }) => {
   const { trace, updateTraceVisibility } = useTraceViewStore(
-    (state) => ({
-      trace: state.trace,
-      updateTraceVisibility: state.updateTraceVisibility,
-    }),
+    (state) => ({ trace: state.trace, updateTraceVisibility: state.updateTraceVisibility }),
     shallow
   );
-
-  const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${trace?.id}` : "";
-  const [isLoading, setIsLoading] = useState(false);
-
+  const [isVisibilityLoading, setIsVisibilityLoading] = useState(false);
   const { toast } = useToast();
-  const handleChangeVisibility = async (value: "private" | "public") => {
+  const handleChangeVisibility = async (visibility: "private" | "public") => {
+    if (!trace || trace.visibility === visibility) return;
     try {
-      setIsLoading(true);
-      const res = await fetch(`/api/projects/${projectId}/traces/${trace?.id}`, {
+      setIsVisibilityLoading(true);
+      const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}`, {
         method: "PUT",
-        body: JSON.stringify({
-          visibility: value,
-        }),
+        body: JSON.stringify({ visibility }),
       });
-
-      if (res.ok) {
-        toast({
-          title: "Trace privacy updated.",
-        });
-        updateTraceVisibility(value);
-        track("traces", "visibility_changed", { visibility: value });
-      } else {
-        const text = await res.json();
-        if ("error" in text) {
-          toast({ variant: "destructive", title: "Error", description: String(text.error) });
-        }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Failed to update trace privacy");
       }
-    } catch (e) {
+      updateTraceVisibility(visibility);
+      track("traces", "visibility_changed", { visibility });
+      toast({ title: "Trace privacy updated." });
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to update trace privacy. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update trace privacy. Please try again.",
       });
     } finally {
-      setIsLoading(false);
+      setIsVisibilityLoading(false);
     }
   };
 
-  if (!trace) {
-    return null;
-  }
+  const handleCopyLink = async () => {
+    if (!trace) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/shared/traces/${trace.id}`);
+    track("traces", "share_link_copied");
+    toast({ title: "Copied share link", duration: 1000 });
+  };
+
+  if (!trace) return null;
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button className="relative hover:bg-secondary px-1.5" variant="ghost">
-                {trace.visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>Share Trace</TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-        <PopoverContent className="flex flex-col gap-4 w-96" align="end">
-          <div>
-            <h2 className="text-md font-medium">Share trace</h2>
-            <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this trace.</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Select value={trace.visibility || "private"} onValueChange={handleChangeVisibility}>
-              <SelectTrigger
-                disabled={isLoading}
-                value={trace.visibility || "private"}
-                className="text-sm min-w-4 h-8 focus:ring-0"
-              >
-                <SelectValue placeholder="Select access">
-                  <div className="flex items-center">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                        <span>Loading...</span>
-                      </>
-                    ) : trace.visibility === "public" ? (
-                      <>
-                        <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
-                        <span>Public</span>
-                      </>
+    <DropdownMenu>
+      <Tooltip delayDuration={400}>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button className="relative hover:bg-surface-up" variant="ghost" size="icon" aria-label="Share trace">
+              {trace.visibility === "public" ? <Globe className="size-3.5" /> : <Share className="size-3.5" />}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent>Share trace</TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+      <DropdownMenuContent className="w-56" align="end">
+        <DropdownMenuLabel className="pb-1 text-xs font-normal text-muted-foreground">Share trace</DropdownMenuLabel>
+        <div className="px-1 pb-1" onKeyDown={(event) => event.stopPropagation()}>
+          <Select
+            value={trace.visibility ?? "private"}
+            disabled={isVisibilityLoading}
+            onValueChange={(visibility: "private" | "public") => handleChangeVisibility(visibility)}
+          >
+            <SelectTrigger className="h-7 border-0 bg-surface-up-2 px-2 shadow-none hover:bg-muted">
+              {isVisibilityLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <SelectValue>
+                  <span className="flex items-center gap-2">
+                    {trace.visibility === "public" ? (
+                      <Globe className="size-3.5 text-muted-foreground" />
                     ) : (
-                      <>
-                        <Lock className="text-secondary-foreground h-4 w-4 mr-2" />
-                        <span>Private</span>
-                      </>
+                      <Lock className="size-3.5 text-muted-foreground" />
                     )}
-                  </div>
+                    <span>{trace.visibility === "public" ? "Public" : "Private"}</span>
+                  </span>
                 </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem key="private" value="private">
-                  <div className="flex items-center">
-                    <Lock className="text-secondary-foreground h-4 w-4 mr-2" />
-                    <div className="flex flex-col gap-1">
-                      <span>Private</span>
-                      <span className="text-xs text-secondary-foreground">Only you can access this trace</span>
-                    </div>
-                  </div>
-                </SelectItem>
-                <SelectItem key="public" value="public">
-                  <div className="flex items-center">
-                    <Globe className="text-secondary-foreground h-4 w-4 mr-2" />
-                    <div className="flex flex-col gap-1">
-                      <span>Public</span>
-                      <span className="text-xs text-secondary-foreground">Everyone can view this trace</span>
-                    </div>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-row-reverse gap-2">
-            <PopoverClose asChild>
-              <Button variant="outline">Done</Button>
-            </PopoverClose>
-            {trace.visibility === "public" && (
-              <CopyButton
-                variant="lightSecondary"
-                icon={<Link className="h-4 w-4 mr-2" />}
-                text={url}
-                onCopy={() => track("traces", "share_link_copied")}
-              >
-                <span>Copy link</span>
-              </CopyButton>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </TooltipProvider>
+              )}
+            </SelectTrigger>
+            <SelectContent className="w-56">
+              <SelectItem value="private" className="py-2">
+                <span className="flex items-start gap-2">
+                  <Lock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="flex flex-col">
+                    <span className="font-medium">Private</span>
+                    <span className="text-[11px] leading-tight text-muted-foreground">
+                      Only you can access this trace
+                    </span>
+                  </span>
+                </span>
+              </SelectItem>
+              <SelectItem value="public" className="py-2">
+                <span className="flex items-start gap-2">
+                  <Globe className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="flex flex-col">
+                    <span className="font-medium">Public</span>
+                    <span className="text-[11px] leading-tight text-muted-foreground">
+                      Anyone with a link can view this trace
+                    </span>
+                  </span>
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {trace.visibility === "public" && (
+          <DropdownMenuItem onClick={handleCopyLink}>
+            <Copy className="size-3.5" />
+            Copy share link
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

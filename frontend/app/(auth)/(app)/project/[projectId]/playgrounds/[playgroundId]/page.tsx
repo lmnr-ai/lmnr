@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import Playground from "@/components/playground/playground";
 import { getPlaygroundConfig } from "@/components/playground/utils";
+import { listProjectLlmProfileOptions } from "@/lib/actions/llm-profiles";
 import { createPlayground, getPlayground } from "@/lib/actions/playgrounds";
 import { getSpan } from "@/lib/actions/span";
 import { type Playground as PlaygroundType } from "@/lib/playground/types";
@@ -35,8 +36,11 @@ export default async function PlaygroundPage(props: {
         if (span) {
           const parsedSpanId = spanId.replace(/[0-]+/g, "");
 
-          const config = getPlaygroundConfig(span);
-          const promptMessages = await convertSpanToPlayground(span.input);
+          const [profiles, promptMessages] = await Promise.all([
+            listProjectLlmProfileOptions({ projectId: params.projectId }),
+            convertSpanToPlayground(span.input),
+          ]);
+          const config = getPlaygroundConfig(span, profiles);
 
           const playground = await createPlayground({
             ...config,

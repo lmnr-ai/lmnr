@@ -33,6 +33,7 @@ pnpm build          # Production build
 
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
 - `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
+- `pnpm test` on a clean `dev` already has two red tests (after `pnpm install --frozen-lockfile`, `ai` 7.0.15): `tests/test-ai-sdk-parser.test.ts` "skips empty text/reasoning parts" and `tests/test-normalize-messages.test.ts` "end-to-end: a bare AI-SDK parts array …". Both expect empty `text`/`reasoning` parts to be dropped and get 2 parts instead of 1. Pre-existing — `git stash -u` and re-run before blaming your change.
 - **Turbopack is the Next 16.3 default for both commands; `build` opts out with `--webpack`, `dev` does not.** Turbopack's production output miscompiled chunks (`module factory is not available` on client navigation). So both bundler blocks in `next.config.ts` are live, and a production repro needs `pnpm build`, not a bare `next build`. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
 
 ### Backend (Rust)
@@ -44,7 +45,10 @@ cargo build --release      # Production build
 cargo test -- --nocapture  # Run tests
 ```
 
+- The `aws-*` crates in `Cargo.lock` require **rustc ≥ 1.94.1**; on 1.94.0 `cargo check` fails during resolution ("requires rustc 1.94.1") before compiling anything — `rustup update stable`.
 - `cargo check --features signals` and `cargo fmt` on `main.rs` both fail in OSS — the `signals` feature gates modules that live only in `lmnr-private`. Default-feature `cargo check` is the real gate; format leaf files individually with `rustfmt --edition 2024 <file>`. Full stub workaround list: `docs/internal/app-server.md`.
+- NEVER run `cargo fmt`, even as `cargo fmt -- <file>` (the file arg does NOT scope it). The tree is not rustfmt-clean at HEAD, so it rewrites ~40 unrelated files and buries the real diff. Use `rustfmt --edition 2024 <file>` on the files you changed.
+- `cargo test --lib` fails with "no library targets found" — `app-server` is a binary crate. Use `cargo test --bin app-server <filter>`; the filter takes a single path prefix, not a list.
 
 ## Local Development Setup
 
@@ -101,16 +105,20 @@ pnpm db:generate   # generate migrations AND strip "public". qualifiers (require
 - ClickHouse migrations (`frontend/lib/clickhouse/migrations/`) run once and are checksummed — NEVER modify an applied migration file; always add a new numbered one.
 - Full details (drizzle-kit quirks, snapshots, `POSTGRES_SCHEMA`): `docs/internal/database.md`.
 
-## Comment style
+## Comments
 
-Keep comments short: a single terse line covering the WHY (non-obvious constraint, invariant, workaround). No multi-paragraph rationale blocks. Prefer removing a comment once identifier names make intent obvious.
+Comments are welcome when they add a WHY that names cannot: a constraint, invariant, or workaround. Keep them to a line or two. Skip comments that restate the next lines, and skip changelog notes ("previously X, now Y") — describe the current code, not the diff. Longer design notes belong in `docs/internal/`.
+
+```rust
+// Exclusive parks happen after admission; a wait_count>0 wake already owns the claim.
+```
 
 ## App-server conventions
 
 - Every env var is registered in `app-server/src/env/` (typed `NumEnv`/`StringEnv`/`BoolEnv` descriptors) — never inline a string-literal env name at a call site.
 - `mod env` shadows `std::env`: inside files with `use crate::env;`, write `std::env::var(...)` fully qualified.
 - Backend `Feature` flags are fine-grained — one flag per feature; never gate a new feature on another feature's flag.
-- More: `docs/internal/app-server.md`.
+- More: `docs/internal/app-server.md`, and `docs/internal/rust-best-practices.md` for reuse/layering/scoping rules.
 
 ## Frontend conventions
 
@@ -137,10 +145,11 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 
 | File | Read when touching |
 |---|---|
+| `docs/internal/rust-best-practices.md` | Any app-server change — reuse, layering, db/cache scoping, named types, error retryability |
 | `docs/internal/database.md` | Postgres migrations, `POSTGRES_SCHEMA`, name-sort collation |
 | `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
 | `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
-| `docs/internal/dedup-search.md` | `shared_content`/`llm_messages` dedup, `spans_v0` reconstruction, Quickwit indexing/search |
+| `docs/internal/dedup-search.md` | `unique_content` group-scoped dedup (`traces/dedup/`), `spans_v0` reconstruction, Quickwit indexing/search |
 | `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, checkpoints, 413s |
 | `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |

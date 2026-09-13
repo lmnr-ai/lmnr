@@ -2,7 +2,18 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useId, useMemo, useState } from "react";
-import { Area, Bar, BarChart, BarStack, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  Bar,
+  BarChart,
+  BarStack,
+  CartesianGrid,
+  ComposedChart,
+  ReferenceArea,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
@@ -10,8 +21,9 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { cn } from "@/lib/utils";
 
 import DelayedTooltipContent from "./delayed-tooltip-content";
+import { MarkerLabel, MarkerLine } from "./marker";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
-import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
+import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange, snapMarkersToBuckets } from "./utils";
 
 const formatter = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
@@ -41,6 +53,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   hideZeroValues = false,
   overlayField,
   overlayColor = "var(--color-muted-foreground)",
+  markers,
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
@@ -72,6 +85,8 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
       0
     );
   }, [data]);
+
+  const snappedMarkers = useMemo(() => snapMarkersToBuckets(markers, data), [markers, data]);
 
   const zoom = useCallback(() => {
     if (!isValidZoomRange(refArea.left, refArea.right)) {
@@ -201,6 +216,21 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               );
             })}
           </BarStack>
+          {snappedMarkers.map((marker) => (
+            <ReferenceLine
+              key={marker.timestamp}
+              x={marker.timestamp}
+              stroke="var(--color-muted-foreground)"
+              strokeDasharray="3 3"
+              strokeOpacity={0.7}
+              shape={<MarkerLine href={marker.href} tooltip={marker.tooltip} />}
+              label={{
+                value: marker.label,
+                position: "insideTopLeft",
+                content: <MarkerLabel href={marker.href} tooltip={marker.tooltip} />,
+              }}
+            />
+          ))}
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}

@@ -1,5 +1,5 @@
 import { type Message } from "@/lib/playground/types";
-import { convertToPlaygroundMessages, downloadImages, normalizeToMessages } from "@/lib/spans/types";
+import { convertToPlaygroundMessages, normalizeToMessages } from "@/lib/spans/types";
 import { convertAiSdkToPlaygroundMessages, matchAiSdkMessages } from "@/lib/spans/types/ai-sdk";
 import {
   convertAnthropicToPlaygroundMessages,
@@ -9,49 +9,42 @@ import {
 import { convertGeminiToPlaygroundMessages, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import {
   convertLangChainToPlaygroundMessages,
-  downloadLangChainImages,
   LangChainMessageSchema,
   LangChainMessagesSchema,
 } from "@/lib/spans/types/langchain";
-import {
-  convertOpenAIToPlaygroundMessages,
-  downloadOpenAIImages,
-  parseOpenAIInput,
-  parseOpenAIOutput,
-} from "@/lib/spans/types/openai";
+import { convertOpenAIToPlaygroundMessages, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
 
 /**
- * This function essentially prepares span for export
- * downloading necessary image parts
+ * Prepares a span payload for export to a dataset or labeling queue: coerces it
+ * to whichever provider message shape parses, so a single message object comes
+ * out as an array. Falls through to the payload as-is when nothing matches.
  */
-export const downloadSpanImages = async (messages: any): Promise<unknown> => {
+export const normalizeSpanForExport = (messages: any): unknown => {
   const openAIOutput = parseOpenAIOutput(messages);
   if (openAIOutput) {
-    return await downloadOpenAIImages(openAIOutput);
+    return openAIOutput;
   }
 
   const openAIInput = parseOpenAIInput(messages);
   if (openAIInput) {
-    return await downloadOpenAIImages(openAIInput);
+    return openAIInput;
   }
 
   const langChainMessageResult = LangChainMessageSchema.safeParse(messages);
-  const langChainMessagesResult = LangChainMessagesSchema.safeParse(messages);
-
   if (langChainMessageResult.success) {
-    return await downloadLangChainImages([langChainMessageResult.data]);
+    return [langChainMessageResult.data];
   }
 
+  const langChainMessagesResult = LangChainMessagesSchema.safeParse(messages);
   if (langChainMessagesResult.success) {
-    return await downloadLangChainImages(langChainMessagesResult.data);
+    return langChainMessagesResult.data;
   }
 
-  return await downloadImages(messages);
+  return messages;
 };
 
 /**
  * This function essentially converts span to playground
- * downloading necessary image parts
  */
 export const convertSpanToPlayground = async (messages: any): Promise<Message[]> => {
   // Verbatim AI SDK messages (LAM-1922) are `{role, content}`-shaped; wrap

@@ -6,8 +6,8 @@ use super::conversions::{
     provider_request_to_responses_stream_body,
 };
 use crate::llm::openai::{
-    OpenAIError, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult, build_http_config, endpoint_url,
-    send_openai_request,
+    OpenAIError, OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult,
+    build_http_config, build_http_config_from, endpoint_url, send_openai_request,
 };
 use crate::llm::{
     LanguageModelClient, ProviderResult,
@@ -39,20 +39,29 @@ impl OpenAIResponsesClient {
     }
 
     fn with_flavor(flavor: OpenAIFlavor) -> OpenAIResult<Self> {
+        Ok(Self::from_http_config(build_http_config(flavor)?))
+    }
+
+    /// Build from explicit values (LLM profiles) instead of env.
+    pub(crate) fn from_config(config: OpenAIExplicitConfig) -> OpenAIResult<Self> {
+        Ok(Self::from_http_config(build_http_config_from(config)?))
+    }
+
+    fn from_http_config(config: OpenAIHttpConfig) -> Self {
         let OpenAIHttpConfig {
             client,
             api_key,
             api_base_url,
             api_version,
             flavor,
-        } = build_http_config(flavor)?;
-        Ok(Self {
+        } = config;
+        Self {
             client,
             api_key,
             api_base_url,
             api_version,
             flavor,
-        })
+        }
     }
 
     pub fn api_base_url(&self) -> &str {

@@ -1774,8 +1774,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -2100,8 +2098,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -2446,8 +2442,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -2593,8 +2587,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -3066,8 +3058,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -3220,8 +3210,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -3481,8 +3469,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -3657,8 +3643,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -3717,8 +3701,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -4123,8 +4105,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         }
     }
@@ -4231,8 +4211,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
         span.parse_and_enrich_attributes();
@@ -4277,8 +4255,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
         span.parse_and_enrich_attributes();
@@ -4311,8 +4287,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
         span.parse_and_enrich_attributes();
@@ -4338,8 +4312,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
         span.parse_and_enrich_attributes();
@@ -4691,8 +4663,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 

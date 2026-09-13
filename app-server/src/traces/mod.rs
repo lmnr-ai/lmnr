@@ -1,7 +1,7 @@
 pub mod consumer;
 pub mod data_plane_consumer;
+pub mod dedup;
 pub mod grpc_service;
-pub mod input_dedup;
 pub mod input_extraction;
 pub mod metadata;
 pub mod opentelemetry_json;
@@ -20,7 +20,6 @@ pub mod span_attributes;
 pub mod spans;
 pub mod static_sp_extraction;
 pub mod stream_consumer;
-pub mod tool_dedup;
 pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";

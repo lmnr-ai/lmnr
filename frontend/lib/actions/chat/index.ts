@@ -8,15 +8,12 @@ import {
   type ToolSet,
   type TypedToolCall,
 } from "ai";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { type Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
-import { decodeApiKey } from "@/lib/crypto";
-import { db } from "@/lib/db/drizzle";
-import { providerApiKeys } from "@/lib/db/migrations/schema";
-import { getModel } from "@/lib/playground/providersRegistry";
+import { resolveProjectLlmProfile } from "@/lib/actions/llm-profiles/resolve";
+import { providerFamily } from "@/lib/actions/llm-profiles/schema";
+import { languageModelFromProfile } from "@/lib/ai/profile-model";
 import { extractInstructions } from "@/lib/playground/utils";
 
 import { type JsonObject } from "./types";
@@ -41,7 +38,8 @@ export const zJsonObject = z
 
 export const PlaygroundParamsSchema = z.object({
   messages: z.array(modelMessageSchema).min(1),
-  model: z.string().min(1),
+  llmProfileId: z.guid("Select an LLM profile and a model"),
+  llmModel: z.string().trim().min(1, "Select a model"),
   projectId: z.guid(),
   providerOptions: z.any().optional(),
   maxTokens: z.number().positive().optional(),
@@ -68,6 +66,8 @@ const emptyUsage: LanguageModelUsage = {
 
 export interface ChatGenerationResult {
   result: GenerateTextResult<ToolSet, Record<string, never>, never>;
+  /** Vendor family reported as `gen_ai.system`. */
+  provider: string;
   startTime: Date;
   endTime: Date;
 }
@@ -89,32 +89,13 @@ export interface PlaygroundChatResult {
   response?: { modelId?: string };
 }
 
-export async function getProviderApiKey(projectId: string, provider: Provider): Promise<string> {
-  const apiKeyName = providerToApiKey[provider];
-
-  const [key] = await db
-    .select({
-      value: providerApiKeys.value,
-      nonceHex: providerApiKeys.nonceHex,
-      name: providerApiKeys.name,
-      createdAt: providerApiKeys.createdAt,
-    })
-    .from(providerApiKeys)
-    .where(and(eq(providerApiKeys.projectId, projectId), eq(providerApiKeys.name, apiKeyName)));
-
-  if (!key) {
-    throw new Error("No matching provider key found.");
-  }
-
-  return await decodeApiKey(key.name, key.nonceHex, key.value);
-}
-
 export async function generateChatResponse(
   params: z.infer<typeof PlaygroundParamsSchema>
 ): Promise<ChatGenerationResult> {
   const {
     messages,
-    model,
+    llmProfileId,
+    llmModel,
     projectId,
     providerOptions,
     maxTokens,
@@ -127,8 +108,8 @@ export async function generateChatResponse(
     abortSignal,
   } = params;
 
-  const provider = model.split(":")[0] as Provider;
-  const decodedKey = await getProviderApiKey(projectId, provider);
+  const resolved = await resolveProjectLlmProfile({ projectId, profileId: llmProfileId, model: llmModel });
+  const model = languageModelFromProfile(resolved.profile, resolved.secrets, resolved.model);
 
   if (providerOptions?.google?.thinkingConfig) {
     const tc = providerOptions.google.thinkingConfig as Record<string, unknown>;
@@ -150,7 +131,7 @@ export async function generateChatResponse(
     // override for structured output is applied later in handleChatGeneration.
     result = await generateText({
       abortSignal,
-      model: getModel(model as `${Provider}:${string}`, decodedKey),
+      model,
       ...prompt,
       maxOutputTokens: maxTokens,
       temperature,
@@ -162,7 +143,7 @@ export async function generateChatResponse(
   } else {
     result = await generateText({
       abortSignal,
-      model: getModel(model as `${Provider}:${string}`, decodedKey),
+      model,
       ...prompt,
       maxOutputTokens: maxTokens,
       temperature,
@@ -178,6 +159,7 @@ export async function generateChatResponse(
 
   return {
     result,
+    provider: providerFamily(resolved.profile.provider),
     startTime,
     endTime,
   };
@@ -187,10 +169,10 @@ export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
 ): Promise<PlaygroundChatResult> {
   const parsedParams = PlaygroundParamsSchema.parse(params);
-  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
+  const { messages, llmModel, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
     parsedParams;
 
-  const { result, startTime, endTime } = await generateChatResponse(parsedParams);
+  const { result, provider, startTime, endTime } = await generateChatResponse(parsedParams);
 
   const finalStep = result.finalStep;
 
@@ -206,11 +188,9 @@ export async function handleChatGeneration(
   };
 
   try {
-    const provider = model.split(":")[0] as Provider;
-
     const spanData: SpanData = {
       provider,
-      model,
+      model: llmModel,
       result: safeResult,
       messages,
       maxTokens,
