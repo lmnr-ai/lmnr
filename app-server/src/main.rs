@@ -1293,15 +1293,12 @@ fn main() -> anyhow::Result<()> {
                 match mq::stream::StreamEnvironment::connect().await {
                     Ok(environment) => {
                         let topology = mq::stream::StreamTopology::from_env();
-                        // Declare the indexer stream only when its flag is on:
-                        // its publisher AND its reader are both gated on that same
-                        // flag, so otherwise we'd create a 32-partition super stream
-                        // nobody touches and let a failure on it abort the
-                        // observations transport too.
+                        // Declare the indexer stream only when the publisher
+                        // below would actually be built: otherwise we'd create a
+                        // 32-partition super stream nobody touches and let a
+                        // failure on it abort the observations transport too.
                         let mut streams = vec![mq::stream::OBSERVATIONS_STREAM];
-                        if env::streams::SPANS_INDEXER_ENABLED.get()
-                            && is_feature_enabled(Feature::Quickwit)
-                        {
+                        if env::streams::SPANS_INDEXER_ENABLED.get() && quickwit_client.is_some() {
                             streams.push(mq::stream::SPANS_INDEXER_STREAM);
                         }
                         for name in streams {
@@ -1324,21 +1321,13 @@ fn main() -> anyhow::Result<()> {
                                 log::error!("Failed to build observations publisher: {:?}", e)
                             }
                         }
-                        // Gated on the SHARED config flag, not on this pod's own
-                        // `quickwit_client`. The indexer reader lives in the
-                        // consumer pod and `QuickwitClient::connect` is a
-                        // per-pod TCP dial, so "Quickwit is live here" says
-                        // nothing about whether the consumer pod started a
-                        // reader — a producer that connects while the consumer
-                        // doesn't would publish indexing jobs to a stream
-                        // nothing reads, and an unread stream is deleted by
-                        // retention (the quorum queue would have retained them).
-                        // Both roles read this same env var, so the gate is
-                        // symmetric; unset keeps `publish_for_indexing` on the
+                        // Only build the indexer stream publisher on THIS pod's
+                        // own client, actually connected: producer and consumer
+                        // are separate deployments with separate configs, so
+                        // there's no cross-pod guarantee to lean on anyway.
+                        // Unset/unhealthy keeps `publish_for_indexing` on the
                         // queue fallback.
-                        if env::streams::SPANS_INDEXER_ENABLED.get()
-                            && is_feature_enabled(Feature::Quickwit)
-                        {
+                        if env::streams::SPANS_INDEXER_ENABLED.get() && quickwit_client.is_some() {
                             match mq::stream::StreamPublisher::new(
                                 &environment,
                                 mq::stream::SPANS_INDEXER_STREAM,
@@ -1355,7 +1344,7 @@ fn main() -> anyhow::Result<()> {
                             }
                         } else {
                             log::warn!(
-                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off (or QUICKWIT_ENABLED is false) - not building the spans indexer stream publisher; indexing stays on the quorum queue"
+                                "RABBITMQ_STREAM_SPANS_INDEXER_ENABLED is off (or Quickwit is disabled/unreachable) - not building the spans indexer stream publisher; indexing stays on the quorum queue"
                             );
                         }
                         log::info!("RabbitMQ Streams transport enabled");
@@ -1374,15 +1363,12 @@ fn main() -> anyhow::Result<()> {
         (None, None, None)
     };
 
-    // Whether anything downstream will ever drain a `publish_for_indexing` call.
-    // `Feature::Quickwit` is the master switch: when it's off, nothing should
-    // publish at all, regardless of the stream/queue transport in use. When
-    // it's on, either the stream path is active (its reader gate is
-    // independent of this pod's own `quickwit_client`, see above) or the queue
-    // path has a client, matching the same `quickwit_client.is_some()` check
-    // that gates spawning the queue-path indexer workers below.
-    let quickwit_indexing_enabled = is_feature_enabled(Feature::Quickwit)
-        && (indexer_stream_publisher.is_some() || quickwit_client.is_some());
+    // Whether anything downstream will ever drain a `publish_for_indexing`
+    // call: this pod's own `quickwit_client` is present (enabled and
+    // connected), matching the check that gates spawning the queue-path
+    // indexer workers below and the one that gated building
+    // `indexer_stream_publisher` above.
+    let quickwit_indexing_enabled = quickwit_client.is_some();
 
     // Now that the queue/DB/cache (and the optional spans stream publisher)
     // exist, hand them to the internal self-tracing exporter. Until this runs
@@ -1729,20 +1715,16 @@ fn main() -> anyhow::Result<()> {
                             );
                             tokio::spawn(reader.run());
 
-                            // Same shared flag the producer gates its publisher on,
-                            // so the two pod roles can't disagree about whether this
-                            // stream has a reader. The reader must NOT be gated on
-                            // this pod's own `quickwit_client`: that handle is a
-                            // boot-time TCP dial, so a Quickwit blip during THIS
-                            // pod's startup would leave the stream with no reader
-                            // while producer pods (gated only on the flag) keep
-                            // publishing — and an unread stream is deleted by
-                            // retention, unlike an undrained quorum queue. So build
-                            // a LAZY client when the boot dial failed: the handler
-                            // classifies `Unavailable` as transient, which retries
-                            // the batch in place without advancing the offset and
-                            // calls `reconnect()`, so the backlog waits on broker
-                            // disk and drains once Quickwit returns.
+                            // This pod's own decision, independent of whatever any
+                            // producer pod decided (producer/consumer are separate
+                            // deployments with separate configs, so there's no
+                            // cross-pod state to lean on). If THIS pod's own eager
+                            // dial failed at boot, still start the reader with a
+                            // LAZY client rather than skipping it outright: the
+                            // handler classifies `Unavailable` as transient, which
+                            // retries the batch in place without advancing the
+                            // offset and calls `reconnect()`, so the backlog waits
+                            // on broker disk and drains once Quickwit returns here.
                             if env::streams::SPANS_INDEXER_ENABLED.get()
                                 && is_feature_enabled(Feature::Quickwit)
                             {
