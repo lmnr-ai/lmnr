@@ -142,6 +142,24 @@ export default function ClustersSectionContent({ className }: Props) {
   const hasChartData = chartClusters.length > 0 && clusterStatsData.length > 0;
   const showChartLoading = !hasChartData && (isClustersLoading || isStatsPending);
 
+  // This supplies only the denominator for "% of traces" in cluster details.
+  // The run totals are deliberately not passed to the chart: its background line
+  // graph was removed while this contextual statistic remains useful.
+  const runStatsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/runs/stats`,
+    chartContainerWidth: localChartWidth,
+    pastHours,
+    startDate,
+    endDate,
+  });
+  const { data: runStats } = useSWR<{ items: { count: number }[] }>(runStatsUrl, swrFetcher, {
+    revalidateOnFocus: false,
+  });
+  const traceTotal = useMemo(
+    () => (runStats?.items ?? []).reduce((sum, item) => sum + Number(item.count), 0),
+    [runStats?.items]
+  );
+
   const searchWiderRange = useCallback(
     (range: DateRange) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -180,6 +198,7 @@ export default function ClustersSectionContent({ className }: Props) {
             <ClusterIcicle
               tree={model.tree}
               ancestors={model.ancestors}
+              traceTotal={traceTotal}
               selectedId={clusterId}
               onHover={setHoveredId}
               onSelect={selectCluster}
@@ -225,6 +244,7 @@ export default function ClustersSectionContent({ className }: Props) {
                     hasChildren={model?.hasChildren ?? EMPTY_HAS_CHILDREN}
                     clusterId={clusterId}
                     unclusteredCount={unclusteredCount}
+                    traceTotal={traceTotal}
                     onSelect={selectCluster}
                     onHover={setHoveredId}
                   />

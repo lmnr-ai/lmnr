@@ -27,6 +27,8 @@ interface Props {
   selectedId: string | null;
   /** id → its ancestors, so a node can tell whether it is under the focus. */
   ancestors: Map<string, Set<string>>;
+  /** Traces the signal evaluated over the window — the share's denominator. */
+  traceTotal: number;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
   className?: string;
@@ -34,7 +36,15 @@ interface Props {
 
 // Hover is deliberately absent from these props: it lives in the focus store, so
 // that the strip itself does not re-render on a pointer move.
-export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, onSelect, className }: Props) {
+export default function ClusterIcicle({
+  tree,
+  selectedId,
+  ancestors,
+  traceTotal,
+  onHover,
+  onSelect,
+  className,
+}: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   // The strip owns ONE tooltip, not one per band. A band's own bottom edge is the
   // wrong place to hang it: inside an open panel that edge is in the middle of
@@ -141,7 +151,7 @@ export default function ClusterIcicle({ tree, selectedId, ancestors, onHover, on
             {extraNodes ? (
               <ExtraList nodes={extraNodes} selectedId={selectedId} onHover={onHover} onSelect={onSelect} />
             ) : (
-              tip && <BandDetails node={tip.node} />
+              tip && <BandDetails node={tip.node} traceTotal={traceTotal} />
             )}
           </TooltipContent>
         </TooltipPortal>

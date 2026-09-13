@@ -56,6 +56,8 @@ interface Props {
   clusterId: string | null;
   /** Events in the window no cluster claimed. */
   unclusteredCount: number;
+  /** Traces the signal evaluated over the window — the share's denominator. */
+  traceTotal: number;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   className?: string;
@@ -66,6 +68,7 @@ export default function ClusterReadout({
   hasChildren,
   clusterId,
   unclusteredCount,
+  traceTotal,
   onSelect,
   onHover,
   className,
@@ -127,7 +130,7 @@ export default function ClusterReadout({
       iconVariant={hasChildren.has(node!.id) ? "boxes" : "box"}
       color={node!.color}
       title={node!.name}
-      facts={clusterFacts(node!)}
+      facts={clusterFacts(node!, traceTotal)}
       expandable={expandable}
       open={open}
     />
