@@ -40,6 +40,12 @@ impl MaskedText {
         apply_masks(&self.text, &self.masks)
     }
 
+    /// Errors like [`apply_masks`] would. Run before storing masks verbatim:
+    /// the ClickHouse splice assumes well-formed ranges and has no guard.
+    pub fn validate(&self) -> Result<()> {
+        validate_masks(&self.text, &self.masks)
+    }
+
     /// Row-binary shape of the ClickHouse mask columns.
     pub fn ch_masks(&self) -> Vec<(u32, u32, String)> {
         self.masks
@@ -66,11 +72,9 @@ impl From<pii_redactor::RedactedText> for MaskedText {
     }
 }
 
-/// Splice `[REDACTED_<LABEL>]` over every mask. Errors on a malformed mask
-/// (unsorted, overlapping, past the end, off a char boundary) instead of
-/// emitting partially redacted text: callers treat that like an RPC failure.
-pub fn apply_masks(text: &str, masks: &[PiiMask]) -> Result<String> {
-    let mut out = String::with_capacity(text.len());
+/// Masks must be sorted, non-overlapping, within `text`, and on char
+/// boundaries; anything else is an error, never a best-effort splice.
+pub fn validate_masks(text: &str, masks: &[PiiMask]) -> Result<()> {
     let mut cursor = 0usize;
     for m in masks {
         let (start, end) = (m.start as usize, m.end as usize);
@@ -85,6 +89,19 @@ pub fn apply_masks(text: &str, masks: &[PiiMask]) -> Result<String> {
                 text.len()
             ));
         }
+        cursor = end;
+    }
+    Ok(())
+}
+
+/// Splice `[REDACTED_<LABEL>]` over every mask. A malformed mask is an error
+/// instead of partially redacted text: callers treat it like an RPC failure.
+pub fn apply_masks(text: &str, masks: &[PiiMask]) -> Result<String> {
+    validate_masks(text, masks)?;
+    let mut out = String::with_capacity(text.len());
+    let mut cursor = 0usize;
+    for m in masks {
+        let (start, end) = (m.start as usize, m.end as usize);
         out.push_str(&text[cursor..start]);
         out.push_str(PII_PLACEHOLDER_PREFIX);
         out.push_str(&m.label.to_uppercase());

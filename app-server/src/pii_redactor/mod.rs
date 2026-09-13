@@ -351,10 +351,13 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 let mode = mode_for(&spans[idx].project_id).unwrap_or(PiiMode::Redact);
                 match mode {
                     PiiMode::Dual => {
-                        // Stored verbatim; only check it is the JSON the
-                        // view will hand out.
-                        if let Err(e) = serde_json::from_str::<IgnoredAny>(&masked.text) {
-                            log::warn!("pii-redactor: canonical span[{idx}] text: {e:#}");
+                        // Stored verbatim; check it is the JSON the view
+                        // will hand out and that the masks can be spliced.
+                        if let Err(e) = serde_json::from_str::<IgnoredAny>(&masked.text)
+                            .map_err(anyhow::Error::from)
+                            .and_then(|_| masked.validate())
+                        {
+                            log::warn!("pii-redactor: canonical span[{idx}]: {e:#}");
                             outcome.fail(idx);
                             continue;
                         }
@@ -391,6 +394,11 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 };
                 match mode_for(&row.project_id) {
                     Some(PiiMode::Dual) => {
+                        if let Err(e) = masked.validate() {
+                            log::warn!("pii-redactor: shared row[{idx}]: {e:#}");
+                            outcome.failed_shared_rows.insert(idx);
+                            continue;
+                        }
                         row.content_masks = masked.ch_masks();
                         row.content = masked.text;
                     }

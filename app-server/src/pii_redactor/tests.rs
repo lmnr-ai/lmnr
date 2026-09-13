@@ -343,22 +343,24 @@ async fn garbage_canonical_text_leaves_the_span_unchecked() {
     }
 }
 
+/// Returns the text as received with one mask past its end.
+struct BadMasks;
+impl RedactTexts for BadMasks {
+    async fn redact(&self, texts: Vec<String>) -> Result<Vec<MaskedText>> {
+        Ok(texts
+            .into_iter()
+            .map(|text| MaskedText {
+                text,
+                masks: vec![secret_mask(0, 10_000)],
+            })
+            .collect())
+    }
+}
+
 #[tokio::test]
 async fn malformed_masks_fail_closed() {
-    // A mask past the end of the text: `redact` mode must not store the raw
-    // text as if it were safe, and the shared row must not be stamped.
-    struct BadMasks;
-    impl RedactTexts for BadMasks {
-        async fn redact(&self, texts: Vec<String>) -> Result<Vec<MaskedText>> {
-            Ok(texts
-                .into_iter()
-                .map(|text| MaskedText {
-                    text,
-                    masks: vec![secret_mask(0, 10_000)],
-                })
-                .collect())
-        }
-    }
+    // `redact` mode must not store the raw text as if it were safe, and the
+    // shared row must not be stamped.
     let p = Uuid::new_v4();
     let mut spans = vec![span(p, Some(json!("secret")), None)];
     let mut rows = vec![row(p, "\"secret\"")];
@@ -379,4 +381,29 @@ async fn malformed_masks_fail_closed() {
     assert!(outcome.shared_row_failed(0));
     assert_eq!(tn_in[0][0], "\"secret\"", "buffer left as-is, span failed");
     assert!(outcome.is_indexable(0), "redact-mode failures still index");
+}
+
+#[tokio::test]
+async fn dual_mode_rejects_malformed_masks_before_storing_them() {
+    // The ClickHouse splice trusts stored masks, so a range `apply_masks`
+    // would refuse must never reach a `pii_checked` row.
+    let p = Uuid::new_v4();
+    let mut spans = vec![span(p, Some(json!("secret")), None)];
+    let mut rows = vec![row(p, "\"secret\"")];
+    let outcome = redact_spans_in_place(
+        &BadMasks,
+        &mut spans,
+        &mut rows,
+        &mut [vec![]],
+        &mut [vec![]],
+        &[0],
+        &modes(p, Some(PiiMode::Dual)),
+    )
+    .await;
+    assert!(!outcome.span(0).checked);
+    assert_eq!(outcome.span(0).input, None, "no masks handed to the CH row");
+    assert!(!rows[0].pii_checked);
+    assert!(rows[0].content_masks.is_empty());
+    assert!(outcome.shared_row_failed(0));
+    assert!(!outcome.is_indexable(0), "dual-mode failures hold raw text");
 }
