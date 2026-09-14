@@ -32,7 +32,6 @@ function PureEventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
-  const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const { mutate } = useSWRConfig();
 
   const pastHours = searchParams.get("pastHours");
@@ -56,12 +55,8 @@ function PureEventsTable() {
   const handleRefresh = useCallback(() => {
     if (!fetchEnabled) return;
     refetchRef.current();
-    fetchClusters({ pastHours, startDate, endDate });
-    // Both stats series, or the strip's band structure refreshes while its widths
-    // and the bars underneath keep the previous counts. Their keys are the time
-    // range, which a refresh does not change, so nothing else revalidates them.
-    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/events/clusters/stats`));
-  }, [fetchEnabled, fetchClusters, pastHours, startDate, endDate, mutate, signal.id]);
+    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/clusters/visualization`));
+  }, [fetchEnabled, mutate, signal.id]);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
