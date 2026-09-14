@@ -88,7 +88,10 @@ pub struct SpanPii {
 #[derive(Debug, Default)]
 pub struct PiiOutcome {
     spans: HashMap<usize, SpanPii>,
-    dual_span_indices: HashSet<usize>,
+    /// Spans whose stored text stays raw and is hidden only by the read
+    /// policy: `dual` projects, and projects whose mode is unknown (assumed
+    /// `dual`). A failure here must keep the text out of the search index.
+    raw_stored_spans: HashSet<usize>,
     /// Spans whose redaction did not complete (distinct from `off` spans,
     /// which were never attempted).
     failed_spans: HashSet<usize>,
@@ -98,14 +101,40 @@ pub struct PiiOutcome {
 }
 
 impl PiiOutcome {
+    /// Verdicts for a batch no redactor will see: every span of a non-`off`
+    /// project is unchecked, and raw-stored spans are kept out of the index.
+    /// Shared rows keep their storage marks: with no redactor configured,
+    /// re-inserting them on every occurrence would heal nothing.
+    pub fn without_redactor(
+        spans: &[Span],
+        recordable_indices: &[usize],
+        project_modes: &HashMap<Uuid, Option<PiiMode>>,
+    ) -> Self {
+        let mut outcome = Self::default();
+        for &span_idx in recordable_indices {
+            let mode = project_modes
+                .get(&spans[span_idx].project_id)
+                .copied()
+                .flatten();
+            if mode == Some(PiiMode::Off) {
+                continue;
+            }
+            outcome.fail(span_idx);
+            if mode != Some(PiiMode::Redact) {
+                outcome.raw_stored_spans.insert(span_idx);
+            }
+        }
+        outcome
+    }
+
     pub fn span(&self, span_idx: usize) -> SpanPii {
         self.spans.get(&span_idx).cloned().unwrap_or_default()
     }
 
-    /// Whether the span's text may reach the search index. Under `dual` a
-    /// failed span still holds raw PII that no redacted copy shadows.
+    /// Whether the span's text may reach the search index: a failed
+    /// raw-stored span holds PII that no redacted copy shadows.
     pub fn is_indexable(&self, span_idx: usize) -> bool {
-        !(self.dual_span_indices.contains(&span_idx) && self.failed_spans.contains(&span_idx))
+        !(self.raw_stored_spans.contains(&span_idx) && self.failed_spans.contains(&span_idx))
     }
 
     pub fn shared_row_failed(&self, row_idx: usize) -> bool {
@@ -260,15 +289,18 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
         let mode = match mode_for(&span.project_id) {
             Some(PiiMode::Off) => continue,
             Some(mode) => mode,
+            // Unknown mode: the project may be `dual`, so its raw text must
+            // not be indexed either.
             None => {
                 outcome.fail(span_idx);
+                outcome.raw_stored_spans.insert(span_idx);
                 continue;
             }
         };
         // A span with nothing to check is safe by definition.
         outcome.check(span_idx);
         if mode == PiiMode::Dual {
-            outcome.dual_span_indices.insert(span_idx);
+            outcome.raw_stored_spans.insert(span_idx);
         }
 
         if let Some(contents) = input_trace_new_contents.get(dedup_idx) {
