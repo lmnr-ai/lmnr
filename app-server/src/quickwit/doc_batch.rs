@@ -12,12 +12,14 @@ where
     T: Buf,
 {
     Ingest { payload: T },
+    Commit,
 }
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
 enum DocCommandCode {
     IngestV1 = 0,
+    CommitV1 = 1,
 }
 
 impl<T> DocCommand<T>
@@ -37,6 +39,10 @@ where
                     written += len;
                 }
                 written
+            }
+            DocCommand::Commit => {
+                buf.put_u8(DocCommandCode::CommitV1 as u8);
+                1
             }
         }
     }
@@ -62,6 +68,11 @@ impl DocBatchBuilder {
         self.doc_lengths.push(len as u32);
     }
 
+    fn commit(&mut self) {
+        let len = DocCommand::Commit::<Bytes>.write(&mut self.doc_buffer);
+        self.doc_lengths.push(len as u32);
+    }
+
     fn build(self) -> DocBatch {
         DocBatch {
             index_id: self.index_id,
@@ -81,6 +92,8 @@ pub fn build_json_doc_batch<T: Serialize>(
         let payload = serde_json::to_vec(doc)?;
         builder.ingest_doc(Bytes::from(payload));
     }
+
+    builder.commit();
 
     Ok(builder.build())
 }
