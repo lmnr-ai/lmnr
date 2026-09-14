@@ -51,7 +51,7 @@ pub enum Feature {
     /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
     IngestionRateLimiter,
     /// Strip PII from span input/output via the pii-redactor gRPC service,
-    /// gated per project by the `projects.settings.removePii` toggle.
+    /// gated per project by `projects.settings.piiMode`.
     PiiRedaction,
     /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
     /// (default true).

@@ -1,8 +1,35 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
+
+/// How a project's span input/output is treated for PII.
+#[derive(Deserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PiiMode {
+    /// Stored as received.
+    #[default]
+    Off,
+    /// The redactor's output replaces the raw text before storage.
+    Redact,
+    /// Raw text is stored with its PII masks; the read path masks per role.
+    Dual,
+}
+
+/// Unknown mode strings (a frontend ahead of this binary) resolve to `redact`
+/// so a new mode can never silently disable redaction.
+fn deserialize_pii_mode<'de, D: Deserializer<'de>>(d: D) -> Result<Option<PiiMode>, D::Error> {
+    Ok(Option::<String>::deserialize(d)?.map(|s| match s.as_str() {
+        "off" => PiiMode::Off,
+        "redact" => PiiMode::Redact,
+        "dual" => PiiMode::Dual,
+        other => {
+            log::warn!("unknown piiMode {other:?}, treating as redact");
+            PiiMode::Redact
+        }
+    }))
+}
 
 /// Read-only view of `projects.settings` JSONB. Writes happen exclusively
 /// from the Next.js side; the Rust app-server only deserializes. New
@@ -12,12 +39,65 @@ use uuid::Uuid;
 #[derive(Deserialize, Serialize, Default, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ProjectSettings {
-    /// PII redaction toggle. Enabling routes every span on this project
-    /// through the pii-redactor before storage. Pro-tier gated frontend-side.
+    /// PII mode; read through [`ProjectSettings::pii_mode`], which applies
+    /// the legacy fallback. Pro-tier gated frontend-side.
+    #[serde(deserialize_with = "deserialize_pii_mode")]
+    pub pii_mode: Option<PiiMode>,
+    /// Legacy toggle that predates `piiMode`; `true` without `piiMode` reads
+    /// as `redact`. Migration 0111 leaves it in the JSONB so a pod on the
+    /// previous binary keeps redacting during the rollout; it is also what
+    /// keeps the cached settings readable by that pod.
     pub remove_pii: bool,
     /// Per-project eval-score direction overrides (score name -> isHigherBetter).
     /// Frontend-only concern; mirrored here so the JSONB round-trips losslessly.
     pub score_direction_overrides: std::collections::HashMap<String, bool>,
+}
+
+impl ProjectSettings {
+    /// Configured PII mode with the legacy `removePii` fallback applied.
+    pub fn pii_mode(&self) -> PiiMode {
+        match self.pii_mode {
+            Some(mode) => mode,
+            None if self.remove_pii => PiiMode::Redact,
+            None => PiiMode::Off,
+        }
+    }
+}
+
+#[cfg(test)]
+mod pii_mode_tests {
+    use super::*;
+
+    fn settings(json: &str) -> ProjectSettings {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn explicit_mode_wins_over_legacy_toggle() {
+        assert_eq!(
+            settings(r#"{"piiMode":"off","removePii":true}"#).pii_mode(),
+            PiiMode::Off
+        );
+        assert_eq!(settings(r#"{"piiMode":"dual"}"#).pii_mode(), PiiMode::Dual);
+    }
+
+    #[test]
+    fn legacy_toggle_reads_as_redact() {
+        assert_eq!(
+            settings(r#"{"removePii":true}"#).pii_mode(),
+            PiiMode::Redact
+        );
+        assert_eq!(settings(r#"{"removePii":false}"#).pii_mode(), PiiMode::Off);
+        assert_eq!(settings("{}").pii_mode(), PiiMode::Off);
+    }
+
+    #[test]
+    fn unknown_mode_fails_closed_to_redact() {
+        assert_eq!(
+            settings(r#"{"piiMode":"vault"}"#).pii_mode(),
+            PiiMode::Redact
+        );
+    }
 }
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
