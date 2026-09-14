@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
-import { type PiiMode } from "@/lib/actions/project/types";
+import { PII_MODES, type PiiMode } from "@/lib/actions/project/types";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceTier, type WorkspaceRole } from "@/lib/workspaces/types";
@@ -17,10 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 
 const PRO_TIERS: WorkspaceTier[] = [WorkspaceTier.PRO, WorkspaceTier.ENTERPRISE];
-
-// `dual` becomes selectable once mask storage lands (it is ingested like
-// `redact` until then).
-const SELECTABLE_MODES: PiiMode[] = ["off", "redact"];
 
 const MODE_LABELS: Record<PiiMode, { label: string; description: string }> = {
   off: { label: "Off", description: "Spans are stored as received." },
@@ -108,7 +104,7 @@ export default function PiiRedaction({ currentUserRole }: { currentUserRole: Wor
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SELECTABLE_MODES.map((m) => (
+              {PII_MODES.map((m) => (
                 <SelectItem key={m} value={m}>
                   {MODE_LABELS[m].label}
                 </SelectItem>
