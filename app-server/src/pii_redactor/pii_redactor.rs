@@ -3,25 +3,45 @@
 pub struct RedactRequest {
     /// Each entry must be a stringified JSON value (object, array, or scalar).
     /// The service walks the tree, recursively parses string leaves whose
-    /// content is itself stringified JSON, redacts PII from string values,
-    /// and returns each entry re-serialized as a JSON string. Object keys are
-    /// never redacted; numbers/bools/null are passed through.
+    /// content is itself stringified JSON, detects PII in string values, and
+    /// returns each entry re-serialized as a compact JSON string together
+    /// with the byte ranges to mask. Object keys are never masked;
+    /// numbers/bools/null are passed through.
     #[prost(string, repeated, tag = "1")]
     pub texts: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// Optional override for the placeholder format.
-    /// When empty, defaults to "\[REDACTED\_{LABEL}\]".
-    #[prost(string, optional, tag = "2")]
-    pub placeholder_format: ::core::option::Option<::prost::alloc::string::String>,
-    /// Object-key names whose VALUES should be skipped during redaction
+    /// Object-key names whose VALUES should be skipped during detection
     /// (treated as structural metadata, not content). Applied at every nesting
     /// level. If empty, a built-in default list is used.
     #[prost(string, repeated, tag = "3")]
     pub skip_keys: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// One PII entity: byte offsets into `RedactedText.text` (start inclusive,
+/// end exclusive, always on UTF-8 char boundaries) and the model's base label
+/// (e.g. `private_email`).
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Mask {
+    #[prost(uint32, tag = "1")]
+    pub start: u32,
+    #[prost(uint32, tag = "2")]
+    pub end: u32,
+    #[prost(string, tag = "3")]
+    pub label: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RedactedText {
+    /// Canonical compact re-serialization of the input, unredacted. Masks are
+    /// offsets into exactly this string; store it verbatim if masks are kept.
+    #[prost(string, tag = "1")]
+    pub text: ::prost::alloc::string::String,
+    /// Sorted, non-overlapping.
+    #[prost(message, repeated, tag = "2")]
+    pub masks: ::prost::alloc::vec::Vec<Mask>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RedactResponse {
-    #[prost(string, repeated, tag = "1")]
-    pub texts: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// One entry per request text, same order.
+    #[prost(message, repeated, tag = "2")]
+    pub results: ::prost::alloc::vec::Vec<RedactedText>,
 }
 /// Generated client implementations.
 pub mod pii_redactor_service_client {
