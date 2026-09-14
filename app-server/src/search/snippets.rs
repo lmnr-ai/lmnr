@@ -218,7 +218,8 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
     // For LLM (deduped) spans, input/output snippets match only the deduped
     // "new messages" — older repeated history is searchable via earlier
     // spans in the trace. Attributes are untransformed. Reading raw `spans`
-    // directly skips the `spans_v0` view's full reconstruction.
+    // directly skips the spans views' full reconstruction, and their PII
+    // masking (known gap, `docs/internal/rbac.md`).
     let input_lookup = content_lookup("input_message_hashes[i + 1]");
     let output_lookup = content_lookup("output_message_hashes[i + 1]");
     format!(

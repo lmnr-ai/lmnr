@@ -133,6 +133,7 @@ use crate::{
     reports::generator::ReportsGenerator,
 };
 
+mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
 mod api;

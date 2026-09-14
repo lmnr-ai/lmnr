@@ -42,6 +42,24 @@ pub async fn get_workspace(
     Ok(workspace)
 }
 
+/// `members_of_workspaces.member_role` (`owner` | `admin` | `member`) for the
+/// user in the workspace; `None` when the user is not a member.
+pub async fn get_member_role(
+    pool: &PgPool,
+    workspace_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<String>> {
+    let role = sqlx::query_scalar::<_, String>(
+        "SELECT member_role::text FROM members_of_workspaces
+         WHERE workspace_id = $1 AND user_id = $2",
+    )
+    .bind(workspace_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(role)
+}
+
 pub async fn get_workspace_deployment_by_project_id(
     pool: &PgPool,
     project_id: &Uuid,
