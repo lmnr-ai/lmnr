@@ -6,7 +6,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type ManageSignalForm } from "@/components/signals/create-signal-drawer/types";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { type Signal } from "@/lib/actions/signals";
 

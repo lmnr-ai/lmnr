@@ -2,8 +2,10 @@ import { z } from "zod/v4";
 
 import { fetcherJSON } from "@/lib/utils";
 
+import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
 
+export { SHARED_ACTOR, type SqlActor } from "./actor";
 export type { GenerationMode, GenerationResult } from "./types";
 
 const ExecuteQuerySchema = z.object({
@@ -18,15 +20,23 @@ const ExecuteQuerySchema = z.object({
     .optional(),
 });
 
-export const executeQuery = async <T extends object>(input: z.infer<typeof ExecuteQuerySchema>) => {
+/**
+ * The actor is a separate argument, not part of the input schema, so route
+ * handlers that spread a request body cannot let a client pick who they are.
+ */
+export const executeQuery = async <T extends object>(
+  input: z.infer<typeof ExecuteQuerySchema>,
+  options?: { actor?: SqlActor }
+) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
+  const actor = await resolveSqlActor(options?.actor);
 
   const res = (await fetcherJSON(`/projects/${projectId}/sql/query`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, parameters }),
+    body: JSON.stringify({ query, parameters, actor }),
   })) as T[];
 
   return res;

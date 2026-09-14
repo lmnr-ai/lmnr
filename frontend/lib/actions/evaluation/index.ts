@@ -11,7 +11,7 @@ import {
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, type SqlActor } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { datasets, evaluations } from "@/lib/db/migrations/schema";
 import {
@@ -77,24 +77,30 @@ export const RenameEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
-export const getEvaluationScoreNames = async ({
-  projectId,
-  evaluationId,
-}: {
-  projectId: string;
-  evaluationId: string;
-}): Promise<string[]> => {
-  const rows = await executeQuery<{ name: string }>({
-    query: `
+export const getEvaluationScoreNames = async (
+  {
+    projectId,
+    evaluationId,
+  }: {
+    projectId: string;
+    evaluationId: string;
+  },
+  options?: { actor?: SqlActor }
+): Promise<string[]> => {
+  const rows = await executeQuery<{ name: string }>(
+    {
+      query: `
       SELECT DISTINCT arrayJoin(JSONExtractKeys(scores)) AS name
       FROM evaluation_datapoints
       WHERE evaluation_id = {evaluationId:UUID}
         AND length(scores) > 0
       ORDER BY name
     `,
-    parameters: { evaluationId },
-    projectId,
-  });
+      parameters: { evaluationId },
+      projectId,
+    },
+    { actor: options?.actor }
+  );
   return rows.map((r) => r.name).filter(Boolean);
 };
 

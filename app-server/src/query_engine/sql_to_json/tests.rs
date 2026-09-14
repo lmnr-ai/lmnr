@@ -145,7 +145,10 @@ fn test_simple_query_roundtrip() {
     let result = convert_sql_to_json(&sql).unwrap();
 
     assert_eq!(result.table, original.table);
-    assert_eq!(result.metrics[0].r#fn, original.metrics[0].r#fn.to_lowercase());
+    assert_eq!(
+        result.metrics[0].r#fn,
+        original.metrics[0].r#fn.to_lowercase()
+    );
     assert_eq!(result.limit, original.limit);
 }
 
