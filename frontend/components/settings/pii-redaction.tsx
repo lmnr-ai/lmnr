@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
-import { type PiiMode } from "@/lib/actions/project/settings";
+import { PII_MODES, type PiiMode } from "@/lib/actions/project/settings";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceTier, type WorkspaceRole } from "@/lib/workspaces/types";
@@ -47,7 +47,6 @@ export default function PiiRedaction({ currentUserRole }: { currentUserRole: Wor
   const isCloud = flags[Feature.LAMINAR_CLOUD];
   const isProTier = !isCloud || (workspace ? PRO_TIERS.includes(workspace.tierName) : false);
   const canEdit = currentUserRole === "owner" || currentUserRole === "admin";
-  const modes: PiiMode[] = flags[Feature.PII_DUAL_MODE] ? ["off", "redact", "dual"] : ["off", "redact"];
 
   // Optimistically set piiMode in the shared project cache; revert on error.
   const setMode = (value: PiiMode) =>
@@ -105,7 +104,7 @@ export default function PiiRedaction({ currentUserRole }: { currentUserRole: Wor
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {modes.map((m) => (
+              {PII_MODES.map((m) => (
                 <SelectItem key={m} value={m}>
                   {MODE_LABELS[m].label}
                 </SelectItem>

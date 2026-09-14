@@ -171,7 +171,7 @@ pub async fn resolve_project_pii_modes(
     for project_id in unique {
         let mode =
             match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-                Ok(Some(info)) => Some(info.settings.effective_pii_mode()),
+                Ok(Some(info)) => Some(info.settings.pii_mode()),
                 // Unknown project: nothing to protect.
                 Ok(None) => Some(PiiMode::Off),
                 Err(e) => {

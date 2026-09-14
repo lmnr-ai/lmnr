@@ -177,10 +177,7 @@ pub async fn for_actor(
 }
 
 /// Only `dual` stores something the policy can hide (raw text next to its
-/// masks); `off` and `redact` have one text that everyone sees. The
-/// configured mode decides, not the flag-degraded `effective_pii_mode()`:
-/// rows written while the flag was on still hold raw text, so turning the
-/// flag off must not unmask them.
+/// masks); `off` and `redact` have one text that everyone sees.
 fn stores_dual_copies(settings: &ProjectSettings) -> bool {
     settings.pii_mode() == PiiMode::Dual
 }
@@ -220,12 +217,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dual_stays_maskable_while_the_flag_is_off() {
-        // Tests run without PII_DUAL_MODE_ENABLED, so `effective_pii_mode()`
-        // degrades to `redact`; the read policy must still treat the project
-        // as dual so raw rows written earlier stay masked.
+    fn only_dual_projects_are_maskable() {
         let dual: ProjectSettings = serde_json::from_str(r#"{"piiMode":"dual"}"#).unwrap();
-        assert_eq!(dual.effective_pii_mode(), PiiMode::Redact);
         assert!(stores_dual_copies(&dual));
 
         let redact: ProjectSettings = serde_json::from_str(r#"{"piiMode":"redact"}"#).unwrap();

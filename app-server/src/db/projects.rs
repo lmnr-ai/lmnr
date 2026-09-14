@@ -4,8 +4,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
 
-use crate::features::{Feature, is_feature_enabled};
-
 /// How a project's span input/output is treated for PII (docs/internal/rbac.md).
 #[derive(Deserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -60,16 +58,6 @@ impl ProjectSettings {
             Some(mode) => mode,
             None if self.remove_pii => PiiMode::Redact,
             None => PiiMode::Off,
-        }
-    }
-
-    /// Mode the pipeline actually runs: `dual` degrades to `redact` while
-    /// `Feature::PiiDualMode` is off, so no raw PII is stored before the
-    /// masked read path is live.
-    pub fn effective_pii_mode(&self) -> PiiMode {
-        match self.pii_mode() {
-            PiiMode::Dual if !is_feature_enabled(Feature::PiiDualMode) => PiiMode::Redact,
-            mode => mode,
         }
     }
 }

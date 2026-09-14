@@ -26,9 +26,8 @@ export type PiiMode = (typeof PII_MODES)[number];
 
 export const ProjectSettingsSchema = z
   .object({
-    /// PII handling for span input/output. Pro-tier gated server-side;
-    /// `dual` additionally requires `Feature.PII_DUAL_MODE`. Only workspace
-    /// owners/admins may change it (enforced in the settings route).
+    /// PII handling for span input/output. Pro-tier gated server-side. Only
+    /// workspace owners/admins may change it (enforced in the settings route).
     piiMode: z.enum(PII_MODES),
     /// Per-project manual overrides of eval-score direction (score name ->
     /// isHigherBetter). Layered over the app-wide LLM-inferred defaults.
@@ -98,9 +97,6 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
       const gate = PRO_TIER_GATES[k] as ((value: unknown) => boolean) | undefined;
       return gate !== undefined && settings[k] !== undefined && gate(settings[k]);
     });
-  if (settings.piiMode === "dual" && !isFeatureEnabled(Feature.PII_DUAL_MODE)) {
-    throw new Error("Dual PII mode is not enabled on this deployment");
-  }
   if (enablesGatedKey) {
     const rows = await db
       .select({ tierName: subscriptionTiers.name })
