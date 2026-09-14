@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 import { type Span } from "@/lib/traces/types.ts";
@@ -28,8 +28,9 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
     }
-  >({
-    query: `
+  >(
+    {
+      query: `
       SELECT
         span_id as spanId,
         parent_span_id as parentSpanId,
@@ -55,12 +56,14 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
       WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
       LIMIT 1
     `,
-    parameters: {
-      spanId,
-      traceId,
+      parameters: {
+        spanId,
+        traceId,
+      },
+      projectId: sharedTrace.projectId,
     },
-    projectId: sharedTrace.projectId,
-  });
+    { actor: SHARED_ACTOR }
+  );
 
   if (!span) {
     throw new Error("No span found.");

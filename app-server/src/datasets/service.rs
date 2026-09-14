@@ -14,6 +14,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::AccessPolicy,
     cache::Cache,
     ch::datapoints::{self as ch_datapoints},
     db::{self, DB},
@@ -140,6 +141,7 @@ pub async fn fetch_datapoints_page(
         project_id,
         parameters,
         SqlQuerySource::Internal,
+        AccessPolicy::UNRESTRICTED,
         clickhouse_ro.clone(),
         query_engine.clone(),
         http_client.clone(),
@@ -161,6 +163,7 @@ pub async fn fetch_datapoints_page(
             Value::String(dataset_id.to_string()),
         )]),
         SqlQuerySource::Internal,
+        AccessPolicy::UNRESTRICTED,
         clickhouse_ro,
         query_engine,
         http_client,
