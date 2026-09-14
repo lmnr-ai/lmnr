@@ -415,13 +415,14 @@ pub async fn process_span_messages(
     // defs ARE screened along with messages — acceptable, the redactor is
     // no-op on schemas) plus the per-span Quickwit content. Best-effort:
     // failures leave rows unchecked inside `redact_spans_in_place` and do
-    // not fail the batch. Without a redactor every row stays unchecked,
-    // which the masked read path treats as unavailable.
+    // not fail the batch. Without a redactor every non-`off` row stays
+    // unchecked (unavailable under a masking policy) and `dual` text stays
+    // out of the search index; modes are resolved either way so that
+    // decision does not depend on the redactor being up.
+    let pii_modes =
+        resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone()).await;
     let pii_outcome = match pii_redactor.as_ref() {
         Some(redactor) => {
-            let modes =
-                resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone())
-                    .await;
             redact_spans_in_place(
                 redactor,
                 &mut spans,
@@ -429,11 +430,11 @@ pub async fn process_span_messages(
                 &mut input_batch.span_trace_new_contents,
                 &mut output_batch.span_trace_new_contents,
                 &recordable_indices,
-                &modes,
+                &pii_modes,
             )
             .await
         }
-        None => PiiOutcome::default(),
+        None => PiiOutcome::without_redactor(&spans, &recordable_indices, &pii_modes),
     };
 
     for span in &mut spans {
