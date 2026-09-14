@@ -308,6 +308,47 @@ async fn unknown_mode_is_failed_without_rpc() {
     assert!(!outcome.span(0).checked);
     assert!(!rows[0].pii_checked);
     assert!(outcome.shared_row_failed(0));
+    // The project may be `dual`: its raw text must not reach the index.
+    assert!(!outcome.is_indexable(0));
+}
+
+#[test]
+fn without_redactor_only_off_and_redact_spans_stay_indexable() {
+    let (off, redact, dual, unknown) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let spans = vec![
+        span(off, Some(json!("secret")), None),
+        span(redact, Some(json!("secret")), None),
+        span(dual, Some(json!("secret")), None),
+        span(unknown, Some(json!("secret")), None),
+    ];
+    let project_modes = HashMap::from([
+        (off, Some(PiiMode::Off)),
+        (redact, Some(PiiMode::Redact)),
+        (dual, Some(PiiMode::Dual)),
+        (unknown, None),
+    ]);
+    let outcome = PiiOutcome::without_redactor(&spans, &[0, 1, 2, 3], &project_modes);
+
+    assert!(!outcome.span(0).checked);
+    assert!(outcome.is_indexable(0), "off: nothing to hide");
+    assert!(!outcome.span(1).checked);
+    assert!(
+        outcome.is_indexable(1),
+        "redact: stored raw for everyone anyway"
+    );
+    assert!(!outcome.span(2).checked);
+    assert!(
+        !outcome.is_indexable(2),
+        "dual: masked in CH, must not leak via search"
+    );
+    assert!(!outcome.span(3).checked);
+    assert!(!outcome.is_indexable(3), "unknown: assumed dual");
+    assert!(!outcome.shared_row_failed(0));
 }
 
 #[tokio::test]
