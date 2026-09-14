@@ -44,9 +44,7 @@ use uuid::Uuid;
 
 use super::traces::TraceAggregation;
 use super::utils::chrono_to_nanoseconds;
-use super::{
-    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
-};
+use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 use crate::traces::input_extraction::metadata::USER_TASK_METADATA_KEY;
 
 /// One delta write of the static columns for a trace. Field order MUST match the
@@ -126,13 +124,23 @@ fn root_span_type_enum_value(top_span_type: u8) -> Option<i8> {
 /// write would REPLACE the customer's real metadata. The call site already keeps
 /// the synthetic fold out of `traces_static` entirely; this is the backstop, and
 /// it mirrors the strip `traces_agg`'s `encode_metadata` does for the same key.
+///
+/// Keys are sorted. `serde_json` runs with `preserve_order`, so the incoming
+/// object's key order is inherited from the `HashMap` it was built from and
+/// differs on every rebuild — which would make a retried flush serialize a
+/// different string and defeat CH's insert-block dedup. Readers render this
+/// column verbatim, so sorted is also a nicer order than random.
 fn encode_metadata(metadata: Option<&Value>) -> Option<String> {
     let Some(Value::Object(map)) = metadata else {
         return None;
     };
-    let filtered: serde_json::Map<String, Value> = map
+    let mut pairs: Vec<(&String, &Value)> = map
         .iter()
         .filter(|(k, _)| !is_reserved_metadata_key(k))
+        .collect();
+    pairs.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+    let filtered: serde_json::Map<String, Value> = pairs
+        .into_iter()
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     (!filtered.is_empty()).then(|| Value::Object(filtered).to_string())
@@ -284,10 +292,7 @@ impl ClickhouseInsertable for CHTraceStatic {
     const TABLE: Table = Table::TracesStatic;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_setting(
-            "async_insert_busy_timeout_max_ms",
-            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
-        )
+        super::configure_hot_ingest_insert(insert)
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
@@ -297,41 +302,13 @@ impl ClickhouseInsertable for CHTraceStatic {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use chrono::Utc;
     use serde_json::json;
 
     use super::*;
 
     fn empty_agg() -> TraceAggregation {
-        TraceAggregation {
-            trace_id: Uuid::new_v4(),
-            project_id: Uuid::new_v4(),
-            start_time: None,
-            end_time: None,
-            input_tokens: 0,
-            output_tokens: 0,
-            total_tokens: 0,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
-            reasoning_tokens: 0,
-            input_cost: 0.0,
-            output_cost: 0.0,
-            total_cost: 0.0,
-            session_id: None,
-            user_id: None,
-            status: None,
-            metadata: None,
-            tags: HashSet::new(),
-            num_spans: 0,
-            top_span_id: None,
-            top_span_name: None,
-            top_span_type: 0,
-            trace_type: 0,
-            has_browser_session: None,
-            span_names: HashSet::new(),
-        }
+        TraceAggregation::empty(Uuid::new_v4(), Uuid::new_v4())
     }
 
     // A batch that learned nothing static must not write a row at all — every
@@ -439,6 +416,14 @@ mod tests {
         assert_eq!(
             encode_metadata(Some(&json!({"a": 1, "b": "x", "c": {"n": true}}))).as_deref(),
             Some("{\"a\":1,\"b\":\"x\",\"c\":{\"n\":true}}")
+        );
+        // Keys are sorted, not source-ordered: `serde_json` runs with
+        // `preserve_order`, so the incoming order is the ingest `HashMap`'s and
+        // differs on every rebuild — which would defeat CH insert-block dedup on
+        // a retried flush.
+        assert_eq!(
+            encode_metadata(Some(&json!({"zeta": 1, "alpha": 2}))).as_deref(),
+            Some("{\"alpha\":2,\"zeta\":1}")
         );
     }
 

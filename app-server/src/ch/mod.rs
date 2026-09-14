@@ -56,6 +56,51 @@ pub static INSERT_END_TIMEOUT: LazyLock<Option<Duration>> = LazyLock::new(|| {
     (secs > 0).then(|| Duration::from_secs(secs))
 });
 
+/// Read once from `CLICKHOUSE_INSERT_DEDUPLICATE`; gates the settings applied by
+/// [`configure_hot_ingest_insert`].
+static INSERT_DEDUPLICATE: LazyLock<bool> =
+    LazyLock::new(|| crate::env::clickhouse::INSERT_DEDUPLICATE.get());
+
+/// Shared insert settings for the hot ingest tables (`spans`, `traces_agg`,
+/// `traces_static`, `unique_content`). Deliberately NOT on the global client:
+/// the low-volume writers get no benefit from the larger coalescing window and
+/// would just churn parts.
+///
+/// `async_insert_deduplicate` is what makes a replayed flush idempotent. Every
+/// hot-path insert goes through `async_insert=1`, and the async path ignores
+/// dedup entirely unless this is set — so without it a redelivered batch is
+/// written twice, which is arithmetically wrong on `traces_agg`'s
+/// `SimpleAggregateFunction(sum, …)` columns rather than merely redundant.
+///
+/// `deduplicate_blocks_in_dependent_materialized_views` MUST ship with it, not
+/// after it. Materialized views fire on the raw inserted block and cannot see a
+/// dedup decision taken on the destination table, so with only the first setting
+/// a replay is dropped from the base table while every dependent view still
+/// re-aggregates it — a split brain no read can reconcile. There are no views on
+/// these tables today; the setting is inert until one lands, and pairing them in
+/// one env var is what keeps it impossible to enable them in the wrong order.
+///
+/// Dedup is content-checksum based, so it only catches a replay that reassembles
+/// the SAME block. That holds for an in-place retry of a flush and not for a
+/// batch re-cut by a different consumer, which is why the row builders keep the
+/// determinism invariant documented in `docs/internal/clickhouse-traces.md`.
+pub fn configure_hot_ingest_insert<T>(insert: Insert<T>) -> Insert<T> {
+    // Cap the server-side async-insert coalescing wait. The Rust batcher
+    // already coalesces upstream; without this, CH parks at the adaptive
+    // max (~1s) because per-flush byte size is well below the size cap.
+    let insert = insert.with_setting(
+        "async_insert_busy_timeout_max_ms",
+        SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
+    );
+    if *INSERT_DEDUPLICATE {
+        insert
+            .with_setting("async_insert_deduplicate", "1")
+            .with_setting("deduplicate_blocks_in_dependent_materialized_views", "1")
+    } else {
+        insert
+    }
+}
+
 #[derive(Serialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Table {

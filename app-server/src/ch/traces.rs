@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -39,43 +39,46 @@ pub struct TraceAggregation {
 }
 
 impl TraceAggregation {
-    /// Aggregate statistics from a batch of Spans and SpanUsage grouped by trace_id
-    pub fn from_spans(spans: &[Span], span_usage_vec: &[SpanUsage]) -> Vec<Self> {
-        use std::collections::HashMap;
+    /// Every aggregate at its identity, before any span folds in.
+    pub fn empty(project_id: Uuid, trace_id: Uuid) -> Self {
+        Self {
+            trace_id,
+            project_id,
+            start_time: None,
+            end_time: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            session_id: None,
+            user_id: None,
+            status: None,
+            metadata: None,
+            tags: HashSet::new(),
+            num_spans: 0,
+            top_span_id: None,
+            top_span_name: None,
+            top_span_type: 0,
+            trace_type: 0,
+            has_browser_session: None,
+            span_names: HashSet::new(),
+        }
+    }
 
+    /// Aggregate statistics from a batch of Spans and SpanUsage grouped by
+    /// trace_id. Output order is sorted, not `HashMap` order — see the return.
+    pub fn from_spans(spans: &[Span], span_usage_vec: &[SpanUsage]) -> Vec<Self> {
         let mut trace_aggregations: HashMap<Uuid, TraceAggregation> = HashMap::new();
 
         for (span, span_usage) in spans.iter().zip(span_usage_vec.iter()) {
-            let entry =
-                trace_aggregations
-                    .entry(span.trace_id)
-                    .or_insert_with(|| TraceAggregation {
-                        trace_id: span.trace_id,
-                        project_id: span.project_id,
-                        start_time: None,
-                        end_time: None,
-                        input_tokens: 0,
-                        output_tokens: 0,
-                        total_tokens: 0,
-                        cache_read_input_tokens: 0,
-                        cache_creation_input_tokens: 0,
-                        reasoning_tokens: 0,
-                        input_cost: 0.0,
-                        output_cost: 0.0,
-                        total_cost: 0.0,
-                        session_id: None,
-                        user_id: None,
-                        status: None,
-                        metadata: None,
-                        tags: HashSet::new(),
-                        num_spans: 0,
-                        top_span_id: None,
-                        top_span_name: None,
-                        top_span_type: 0,
-                        trace_type: 0,
-                        has_browser_session: None,
-                        span_names: HashSet::new(),
-                    });
+            let entry = trace_aggregations
+                .entry(span.trace_id)
+                .or_insert_with(|| Self::empty(span.project_id, span.trace_id));
 
             // Aggregate min start_time
             entry.start_time = Some(match entry.start_time {
@@ -174,7 +177,14 @@ impl TraceAggregation {
             entry.num_spans += 1;
         }
 
-        trace_aggregations.into_values().collect()
+        // ClickHouse insert-block dedup is a content checksum, so a retried
+        // flush is only idempotent if it rebuilds byte-identical rows. A
+        // `HashMap`'s iteration order is reseeded per instance and the retry
+        // rebuilds this map from scratch, so the row order has to come from the
+        // keys instead. Both `traces_agg` and `traces_static` inherit this order.
+        let mut aggregations: Vec<Self> = trace_aggregations.into_values().collect();
+        aggregations.sort_unstable_by_key(|agg| (agg.project_id, agg.trace_id));
+        aggregations
     }
 }
 
@@ -246,5 +256,34 @@ mod tests {
         assert_eq!(agg.total_tokens, 100);
         assert_eq!(agg.total_cost, 1.5);
         assert_eq!(agg.num_spans, 2);
+    }
+
+    // Row order feeds ClickHouse insert-block dedup (a content checksum), so it
+    // has to come from the trace ids rather than `HashMap` iteration order — a
+    // retried flush rebuilds the map from scratch and would otherwise serialize
+    // a different byte sequence and be written twice.
+    #[test]
+    fn from_spans_is_ordered_by_trace_id() {
+        let project_id = Uuid::new_v4();
+        let mut spans: Vec<Span> = (0..8)
+            .map(|_| {
+                let mut span = make_span(Uuid::new_v4(), SpanType::LLM, 1);
+                span.project_id = project_id;
+                span
+            })
+            .collect();
+        // Feed them in an order unrelated to the expected output order.
+        spans.sort_by_key(|s| s.span_id);
+        let usage: Vec<SpanUsage> = spans.iter().map(|_| make_usage(1, 0.1)).collect();
+
+        let ids: Vec<Uuid> = TraceAggregation::from_spans(&spans, &usage)
+            .iter()
+            .map(|agg| agg.trace_id)
+            .collect();
+
+        let mut expected = ids.clone();
+        expected.sort_unstable();
+        assert_eq!(ids, expected);
+        assert_eq!(ids.len(), 8);
     }
 }

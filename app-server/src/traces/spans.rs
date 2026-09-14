@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     sync::LazyLock,
 };
 
@@ -600,6 +600,10 @@ impl SpanAttributes {
         );
     }
 
+    /// Deduplicated and sorted. `spans.tags_array` is built straight from this and
+    /// feeds ClickHouse insert-block dedup, which is a content checksum — a retried
+    /// flush calls this again on a clone of the same span, so the order has to come
+    /// from the values rather than from a freshly seeded hash container.
     pub fn tags(&self) -> Vec<String> {
         let attr_tags = self
             .raw_attributes
@@ -609,17 +613,19 @@ impl SpanAttributes {
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
         let aisdk_tags = self.raw_attributes.get("ai.telemetry.metadata.tags");
         match attr_tags.or(aisdk_tags).or(attr_labels) {
-            Some(Value::Array(arr)) => arr
-                .iter()
-                .map(|v| json_value_to_string(v))
-                .collect::<HashSet<String>>()
-                .into_iter()
-                .collect(),
+            Some(Value::Array(arr)) => {
+                let mut tags: Vec<String> = arr.iter().map(json_value_to_string).collect();
+                tags.sort_unstable();
+                tags.dedup();
+                tags
+            }
             _ => Vec::new(),
         }
     }
 
-    pub fn metadata(&self) -> Option<HashMap<String, Value>> {
+    /// Key-ordered, for the same reason as [`Self::tags`]: `spans.trace_metadata` is
+    /// `serde_json::to_string` of this map, and serde honours map iteration order.
+    pub fn metadata(&self) -> Option<BTreeMap<String, Value>> {
         let mut metadata = self.get_flattened_association_properties("metadata");
         let ai_sdk_metadata = self.get_flattened_properties("ai", "telemetry.metadata");
         metadata.extend(ai_sdk_metadata);
@@ -653,7 +659,7 @@ impl SpanAttributes {
             .is_some_and(|v| *v == Value::Bool(true))
     }
 
-    fn get_flattened_association_properties(&self, entity: &str) -> HashMap<String, Value> {
+    fn get_flattened_association_properties(&self, entity: &str) -> BTreeMap<String, Value> {
         self.get_flattened_properties(ASSOCIATION_PROPERTIES_PREFIX, entity)
     }
 
@@ -661,8 +667,8 @@ impl SpanAttributes {
         &self,
         attribute_prefix: &str,
         entity: &str,
-    ) -> HashMap<String, Value> {
-        let mut res = HashMap::new();
+    ) -> BTreeMap<String, Value> {
+        let mut res = BTreeMap::new();
         let prefix = format!("{attribute_prefix}.{entity}.");
         for (key, value) in self.raw_attributes.iter() {
             if key.starts_with(&prefix) {
@@ -4671,5 +4677,50 @@ mod tests {
         let metadata = span.attributes.metadata().expect("metadata expected");
         assert_eq!(metadata.get("score"), Some(&json!(0.85)));
         assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
+    }
+
+    // `spans.tags_array` and `spans.trace_metadata` are built straight from these
+    // two accessors, and both feed ClickHouse insert-block dedup — a content
+    // checksum. Both used to derive their order from a freshly built hash
+    // container, so a retried flush re-deriving them from the same span emitted a
+    // different byte order and was written twice. Order now comes from the values.
+    #[test]
+    fn tags_and_metadata_are_ordered_for_block_dedup() {
+        let tags_key = format!("{ASSOCIATION_PROPERTIES_PREFIX}.tags");
+        let attributes = HashMap::from([(
+            tags_key,
+            json!(["zebra", "mango", "apple", "mango", "banana"]),
+        )]);
+        let tags = SpanAttributes::new(attributes).tags();
+        assert_eq!(tags, vec!["apple", "banana", "mango", "zebra"]);
+
+        // Same metadata, opposite insertion order into the source map: the
+        // serialized form must not be able to tell the two apart.
+        let keys = ["zeta", "mid", "alpha"];
+        let serialized: Vec<String> = [false, true]
+            .into_iter()
+            .map(|reversed| {
+                let mut pairs: Vec<(String, Value)> = keys
+                    .iter()
+                    .enumerate()
+                    .map(|(i, k)| {
+                        (
+                            format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.{k}"),
+                            json!(i),
+                        )
+                    })
+                    .collect();
+                if reversed {
+                    pairs.reverse();
+                }
+                let metadata = SpanAttributes::new(HashMap::from_iter(pairs))
+                    .metadata()
+                    .expect("metadata expected");
+                serde_json::to_string(&metadata).unwrap()
+            })
+            .collect();
+
+        assert_eq!(serialized[0], r#"{"alpha":2,"mid":1,"zeta":0}"#);
+        assert_eq!(serialized[0], serialized[1]);
     }
 }
