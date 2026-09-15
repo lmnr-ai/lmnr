@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence } from "framer-motion";
 import { CirclePlay, Radio } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -13,9 +12,9 @@ import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
+import { HeaderIconButton } from "@/components/traces/trace-view/header/header-icon-button";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
@@ -144,7 +143,9 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
             orientation="vertical"
             // Drop pointer events on the group during a resize so the rrweb session
             // player iframe can't swallow the drag's pointer stream (see trace-panel).
-            className={cn(isResizing && "pointer-events-none")}
+            // `flex-1 min-h-0` so the group yields height to the header when the
+            // signals card opens above it rather than overflowing the column.
+            className={cn("flex-1 min-h-0", isResizing && "pointer-events-none")}
           >
             {condensedTimelineEnabled && (
               <>
@@ -180,46 +181,30 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                   </div>
                   <div className="flex items-center gap-1">
                     {traceSignals.length > 0 && (
-                      <Button
-                        className={cn("h-6 px-1.5 text-xs", {
-                          "border-primary text-primary": signalsPanelOpen,
-                        })}
-                        variant="outline"
+                      <HeaderIconButton
+                        icon={<Radio className={cn({ "text-primary": signalsPanelOpen })} size={14} />}
+                        label={`Signals (${traceSignals.length})`}
+                        active={signalsPanelOpen}
                         onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                      >
-                        <Radio data-icon="inline-start" size={14} className="mr-1" />
-                        Signals ({traceSignals.length})
-                      </Button>
+                      />
                     )}
                     {hasBrowserSession && (
                       <Button
-                        className={cn("h-6 px-1.5 text-xs", {
-                          "border-primary text-primary": browserSession,
-                        })}
-                        variant="outline"
+                        variant="ghost"
+                        className={cn(
+                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
+                          browserSession && "text-primary hover:text-primary"
+                        )}
                         onClick={() => setBrowserSession(!browserSession)}
                       >
-                        <CirclePlay data-icon="inline-start" size={14} className="mr-1" />
-                        Media
+                        <CirclePlay data-icon="inline-start" size={14} className="flex-shrink-0" />
+                        <span className="ml-1 truncate">Media</span>
                       </Button>
                     )}
                     {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
                   </div>
                 </div>
               </div>
-              {/* Below the toolbar rather than beside the header: on the full-page
-                  variant the header collapses to h-0 and floats the timeline
-                  controls over whatever follows it. */}
-              <AnimatePresence>
-                {signalsPanelOpen && (
-                  <SignalEventsPanel
-                    readOnly
-                    traceId={trace.id}
-                    onClose={() => setSignalsPanelOpen(false)}
-                    className="mx-2 mt-2 shrink-0"
-                  />
-                )}
-              </AnimatePresence>
               {tab === "tree" ? (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <Tree onSpanSelect={handleSpanSelect} isShared />
