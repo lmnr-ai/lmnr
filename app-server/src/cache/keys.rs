@@ -12,12 +12,15 @@ pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 /// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
 /// `llm::profiles::service` removes the key on every profile write.
 pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";
-/// `llm_feature_route:{workspace_id}:{feature_id}` → the route the feature
-/// resolves to for that workspace (its own row, its `default` row, or a global
-/// one), and `llm_feature_route:global:{feature_id}` → the resolution with no
-/// workspace. Absence is cached too (as `FeatureRouteEntry::Absent`), since most
-/// resolutions miss. Rows are edited directly in the database, so entries
-/// expire by TTL only (`llm::profiles::store`).
+/// `llm_feature_route:{workspace_id}:{feature_id}` → the workspace's own row
+/// for the feature, and `llm_feature_route:global:{feature_id}` → the
+/// workspace-less row, shared by every workspace that falls through to it.
+/// `feature_id = default` is a scope's fallback row and is read on every other
+/// feature's miss. Absence is cached too (as `FeatureRouteEntry::Absent`), since
+/// most workspaces have no override. Rows are edited directly in the database,
+/// so entries expire by TTL only: 5 minutes, or 30 days for a found `default`
+/// row — delete that key by hand after editing a `default` row
+/// (`llm::profiles::store`).
 pub const LLM_FEATURE_ROUTE_CACHE_KEY: &str = "llm_feature_route";
 /// Gives one signal run exclusive use of a trace for its FIRST step, so the
 /// next signal's request hits the provider prefix cache the first one warmed
