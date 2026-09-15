@@ -151,6 +151,13 @@ impl TraceAggregation {
                 entry.top_span_type = span.span_type.clone().into();
             }
 
+            // An explicit trace name wins over the root span's name: the traces table
+            // renders `top_span_name` as the trace's name, and emitters that send one
+            // (OpenRouter Broadcast) give every root span the same generic name.
+            if let Some(trace_name) = span.attributes.trace_name() {
+                entry.top_span_name = Some(trace_name);
+            }
+
             if entry.top_span_name.is_none() {
                 let path = span.attributes.path().unwrap_or_default();
                 path.first()
@@ -246,5 +253,26 @@ mod tests {
         assert_eq!(agg.total_tokens, 100);
         assert_eq!(agg.total_cost, 1.5);
         assert_eq!(agg.num_spans, 2);
+    }
+
+    // OpenRouter Broadcast names every root span "LLM Generation" and carries the
+    // real name in `trace.name`.
+    #[test]
+    fn explicit_trace_name_overrides_root_span_name() {
+        let trace_id = Uuid::new_v4();
+        let mut root = make_span(trace_id, SpanType::LLM, 100);
+        root.name = "LLM Generation".to_string();
+        root.attributes
+            .raw_attributes
+            .insert("trace.name".to_string(), json!("my-agent-run"));
+
+        let aggregations = TraceAggregation::from_spans(&[root], &[make_usage(100, 1.5)]);
+
+        assert_eq!(
+            aggregations[0].top_span_name,
+            Some("my-agent-run".to_string())
+        );
+        // The span tree itself is untouched.
+        assert!(aggregations[0].span_names.contains("LLM Generation"));
     }
 }

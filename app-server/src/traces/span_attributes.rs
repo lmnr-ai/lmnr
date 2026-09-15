@@ -106,3 +106,16 @@ pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
 pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
 pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
 pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
+
+// Plain OTel keys for trace-level identity. Emitted by OpenRouter Broadcast;
+// our SDKs use the `lmnr.association.properties.*` equivalents.
+pub const SESSION_ID: &str = "session.id";
+pub const USER_ID: &str = "user.id";
+pub const TRACE_NAME: &str = "trace.name";
+
+// OpenRouter Broadcast. Unlike the indexed OpenLLMetry keys
+// (`gen_ai.prompt.0.content`), these are bare and hold the whole conversation
+// as a JSON string. See `traces/openrouter.rs`.
+pub const GEN_AI_PROMPT: &str = "gen_ai.prompt";
+pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
+pub const OPENROUTER_SOURCE: &str = "trace.metadata.openrouter.source";
