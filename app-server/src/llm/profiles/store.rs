@@ -26,34 +26,18 @@ const LLM_PROFILE_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7;
 /// route change takes to reach every process.
 const LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS: u64 = 5 * 60;
 
-/// Cached outcome of one `(scope, feature)` route lookup. Absence is cached
-/// because most lookups miss (few workspaces override anything).
+/// Cached outcome of one `(workspace, feature)` route resolution. Absence is
+/// cached because most resolutions miss (few deployments route every feature).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 enum FeatureRouteEntry {
     Route(FeatureRouteTarget),
     Absent,
 }
 
-/// Which `llm_feature_routes` rows a lookup reads.
-#[derive(Debug, Clone, Copy)]
-enum RouteScope {
-    Workspace(Uuid),
-    Global,
-}
-
-impl RouteScope {
-    fn cache_key(self, feature: LlmFeature) -> String {
-        match self {
-            RouteScope::Workspace(id) => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:{id}:{feature}"),
-            RouteScope::Global => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:global:{feature}"),
-        }
-    }
-
-    fn workspace_id(self) -> Option<Uuid> {
-        match self {
-            RouteScope::Workspace(id) => Some(id),
-            RouteScope::Global => None,
-        }
+fn route_cache_key(workspace_id: Option<Uuid>, feature: LlmFeature) -> String {
+    match workspace_id {
+        Some(id) => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:{id}:{feature}"),
+        None => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:global:{feature}"),
     }
 }
 
@@ -84,9 +68,10 @@ pub struct ResolvedProfile {
 ///   billing/limits already keep warm.
 /// - Profile rows live in the shared cache as `llm_profile:{workspace_id}:{id}`;
 ///   `service` removes the key on every write.
-/// - Feature route rows (and misses) live as
-///   `llm_feature_route:{workspace_id|global}:{feature}`, one key per lookup
-///   scope, expiring after `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`.
+/// - Resolved feature routes (and misses) live as
+///   `llm_feature_route:{workspace_id|global}:{feature}`, one key per
+///   `(workspace, feature)` resolution, expiring after
+///   `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`.
 /// - Lookup failures (project, route, profile) are `RequestError`, i.e.
 ///   retryable; only "the row does not exist / does not match" is `ConfigError`.
 /// - Built `ProviderClient`s are kept in-process, keyed by profile id and reused
@@ -142,21 +127,7 @@ impl LlmProfileStore {
             Some(project_id) => Some(self.project_workspace_id(project_id).await?),
             None => None,
         };
-        let scopes = workspace_id
-            .map(RouteScope::Workspace)
-            .into_iter()
-            .chain([RouteScope::Global]);
-
-        let mut target = None;
-        'scopes: for scope in scopes {
-            for feature in [feature, LlmFeature::Default] {
-                if let Some(found) = self.get_route_cached(scope, feature).await? {
-                    target = Some(found);
-                    break 'scopes;
-                }
-            }
-        }
-        let Some(target) = target else {
+        let Some(target) = self.get_route_cached(workspace_id, feature).await? else {
             return Ok(None);
         };
 
@@ -190,13 +161,15 @@ impl LlmProfileStore {
         }))
     }
 
-    /// Read-through on the scope's route key; both hits and misses are cached.
+    /// Read-through on the `(workspace, feature)` route key; both hits and misses
+    /// are cached. A miss costs one query: the database ranks the workspace and
+    /// global rows for `feature` and `default` and returns the winner.
     async fn get_route_cached(
         &self,
-        scope: RouteScope,
+        workspace_id: Option<Uuid>,
         feature: LlmFeature,
     ) -> ProviderResult<Option<FeatureRouteTarget>> {
-        let cache_key = scope.cache_key(feature);
+        let cache_key = route_cache_key(workspace_id, feature);
         if let Ok(Some(entry)) = self.cache.get::<FeatureRouteEntry>(&cache_key).await {
             return Ok(match entry {
                 FeatureRouteEntry::Route(target) => Some(target),
@@ -204,14 +177,18 @@ impl LlmProfileStore {
             });
         }
 
-        let target =
-            llm_feature_routes::get_route(&self.db.pool, scope.workspace_id(), feature.as_str())
-                .await
-                .map_err(|e| {
-                    ProviderError::RequestError(format!(
-                        "failed to load LLM feature route for '{feature}': {e}"
-                    ))
-                })?;
+        let target = llm_feature_routes::resolve_route(
+            &self.db.pool,
+            workspace_id,
+            feature.as_str(),
+            LlmFeature::Default.as_str(),
+        )
+        .await
+        .map_err(|e| {
+            ProviderError::RequestError(format!(
+                "failed to load LLM feature route for '{feature}': {e}"
+            ))
+        })?;
         let entry = match &target {
             Some(target) => FeatureRouteEntry::Route(target.clone()),
             None => FeatureRouteEntry::Absent,

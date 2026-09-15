@@ -18,11 +18,15 @@ pub struct FeatureRouteTarget {
     pub model: String,
 }
 
-/// `workspace_id = None` reads the global row.
-pub async fn get_route(
+/// The single most specific row among the four that can apply: the workspace's
+/// `feature_id` row, its `default_feature_id` row, then the same two global
+/// (`workspace_id IS NULL`) rows. `workspace_id = None` considers only the
+/// global rows. One round trip; the precedence is the `ORDER BY`.
+pub async fn resolve_route(
     pool: &PgPool,
     workspace_id: Option<Uuid>,
     feature_id: &str,
+    default_feature_id: &str,
 ) -> Result<Option<FeatureRouteTarget>> {
     let row = sqlx::query_as::<_, FeatureRouteTarget>(
         "SELECT
@@ -31,10 +35,14 @@ pub async fn get_route(
             r.model_name AS model
         FROM llm_feature_routes r
         JOIN llm_profiles p ON p.id = r.llm_profile_id
-        WHERE r.workspace_id IS NOT DISTINCT FROM $1 AND r.feature_id = $2",
+        WHERE (r.workspace_id = $1 OR r.workspace_id IS NULL)
+            AND r.feature_id IN ($2, $3)
+        ORDER BY r.workspace_id IS NULL, r.feature_id = $3
+        LIMIT 1",
     )
     .bind(workspace_id)
     .bind(feature_id)
+    .bind(default_feature_id)
     .fetch_optional(pool)
     .await?;
     Ok(row)
