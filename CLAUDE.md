@@ -48,7 +48,7 @@ cargo test -- --nocapture  # Run tests
 
 - The `aws-*` crates in `Cargo.lock` require **rustc ≥ 1.94.1**; on 1.94.0 `cargo check` fails during resolution ("requires rustc 1.94.1") before compiling anything — `rustup update stable`.
 - `cargo check --features signals` and `cargo fmt` on `main.rs` both fail in OSS — the `signals` feature gates modules that live only in `lmnr-private`. Default-feature `cargo check` is the real gate; format leaf files individually with `rustfmt --edition 2024 <file>`. Full stub workaround list: `docs/internal/app-server.md`.
-- NEVER run `cargo fmt`, even as `cargo fmt -- <file>` (the file arg does NOT scope it). The tree is not rustfmt-clean at HEAD, so it rewrites ~40 unrelated files and buries the real diff. Use `rustfmt --edition 2024 <file>` on the files you changed.
+- NEVER run `cargo fmt`, even as `cargo fmt -- <file>` (the file arg does NOT scope it). The tree is not rustfmt-clean at HEAD, so it rewrites ~40 unrelated files and buries the real diff. Use `rustfmt --edition 2024 <file>` on the files you changed — but only on LEAF files: rustfmt on a `mod.rs` recurses into every submodule it declares and reformats unrelated files.
 - `cargo test --lib` fails with "no library targets found" — `app-server` is a binary crate. Use `cargo test --bin app-server <filter>`; the filter takes a single path prefix, not a list.
 
 ## Local Development Setup
