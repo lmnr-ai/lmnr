@@ -51,3 +51,13 @@ pub const HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_HTTP_TIMEOUT_SECS", 
 
 pub const OPENAI_ALLOW_REASONING_WITH_TOOLS: BoolEnv =
     BoolEnv::new("OPENAI_ALLOW_REASONING_WITH_TOOLS", false);
+
+/// Replay each assistant turn's captured reasoning back to the provider as
+/// `reasoning_content` on that message. Interleaved-thinking models served over
+/// OpenAI-compatible APIs (GLM on Fireworks/Zhipu) expect their prior-turn
+/// reasoning echoed back and re-derive it from scratch every turn when it
+/// isn't. On by default so teacher generation, evals and serving all see the
+/// same multi-turn history; set to `false` for providers that reject
+/// `reasoning_content` in INPUT messages (DeepSeek 400s on it).
+pub const OPENAI_REPLAY_REASONING_CONTENT: BoolEnv =
+    BoolEnv::new("OPENAI_REPLAY_REASONING_CONTENT", true);

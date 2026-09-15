@@ -197,7 +197,14 @@ pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> Prov
             max_tokens
         };
 
-        // Build system blocks with cache_control on the last block
+        // Two cache breakpoints (Anthropic allows four): the last system block
+        // and the last block of the opening user turn. Tools carry none — a
+        // breakpoint caches everything before it, so the system one already
+        // covers `tools → system`, the prefix every run of one signal shares.
+        // The opening user turn is what the steps of one run re-send; nothing
+        // inside it gets its own breakpoint (signals used to mark the trace
+        // block so signals on one trace could share it, but the tools now
+        // differ per signal, so that prefix never matches across signals).
         let mut system_blocks: Vec<Value> = request
             .system_instruction
             .as_ref()
@@ -214,8 +221,7 @@ pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> Prov
             last["cache_control"] = cache_control_ephemeral();
         }
 
-        // Build tool definitions with cache_control on the last tool
-        let mut tools: Vec<Value> = request
+        let tools: Vec<Value> = request
             .tools
             .as_ref()
             .map(|tool_groups| {
@@ -232,19 +238,7 @@ pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> Prov
                     .collect()
             })
             .unwrap_or_default();
-        if let Some(last) = tools.last_mut() {
-            if let Some(obj) = last.as_object_mut() {
-                obj.insert("cache_control".to_string(), cache_control_ephemeral());
-            }
-        }
 
-        // Build messages, placing cache_control on the first AND last block of
-        // the first user message. Signals put the rendered trace in block 0 and
-        // the per-signal instructions after it, so the first-block breakpoint is
-        // what lets several signals analysing one trace share its cached tokens;
-        // the last-block one keeps the whole opening turn warm across the steps
-        // of a run. Two here + system + tools is exactly Anthropic's ceiling of
-        // 4 cache breakpoints — don't add a third.
         let mut messages: Vec<Value> = Vec::new();
         for (i, content) in request.contents.iter().enumerate() {
             let role = match content.role.as_deref().unwrap_or("user") {
@@ -258,12 +252,9 @@ pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> Prov
                 .map(|p| build_message_blocks(p))
                 .unwrap_or_default();
 
-            if i == 0 && role == "user" && !blocks.is_empty() {
-                let last = blocks.len() - 1;
-                for index in [0, last] {
-                    if let Some(obj) = blocks[index].as_object_mut() {
-                        obj.insert("cache_control".to_string(), cache_control_ephemeral());
-                    }
+            if i == 0 && role == "user" {
+                if let Some(obj) = blocks.last_mut().and_then(Value::as_object_mut) {
+                    obj.insert("cache_control".to_string(), cache_control_ephemeral());
                 }
             }
 
@@ -578,11 +569,11 @@ fn supports_sampling_params(model: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// The signals request splits the first user message into (trace,
-    /// per-signal instructions); both ends need a breakpoint so signals sharing
-    /// a trace hit the cache on the trace prefix.
+    /// The opening user turn is cached as a whole at its last block; the
+    /// signals request splits it into (trace, per-signal instructions) and
+    /// neither the trace block nor the tools get a breakpoint of their own.
     #[test]
-    fn first_user_message_caches_first_and_last_block() {
+    fn only_system_and_the_opening_user_turn_carry_breakpoints() {
         let text = |t: &str| ProviderPart {
             text: Some(t.to_string()),
             ..Default::default()
@@ -598,8 +589,17 @@ mod tests {
                     parts: Some(vec![text("…")]),
                 },
             ],
-            system_instruction: None,
-            tools: None,
+            system_instruction: Some(ProviderContent {
+                role: None,
+                parts: Some(vec![text("system")]),
+            }),
+            tools: Some(vec![crate::llm::models::ProviderTool {
+                function_declarations: vec![crate::llm::models::ProviderFunctionDeclaration {
+                    name: "grep".to_string(),
+                    description: "search".to_string(),
+                    parameters: serde_json::json!({"type": "object"}),
+                }],
+            }]),
             generation_config: None,
             service_tier: None,
             provider: None,
@@ -608,8 +608,10 @@ mod tests {
         };
 
         let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        assert!(body["tools"][0]["cache_control"].is_null());
         let first = &body["messages"][0]["content"];
-        assert_eq!(first[0]["cache_control"]["type"], "ephemeral");
+        assert!(first[0]["cache_control"].is_null());
         assert_eq!(first[1]["cache_control"]["type"], "ephemeral");
         // Later turns are never cached — nothing follows them in the prefix.
         assert!(body["messages"][1]["content"][0]["cache_control"].is_null());
