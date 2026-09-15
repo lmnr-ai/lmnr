@@ -194,7 +194,10 @@ impl Engine {
         let session = builder
             .commit_from_file(&model_path)
             .with_context(|| format!("loading {}", model_path.display()))?;
-        let needs_token_type_ids = session.inputs().iter().any(|i| i.name() == "token_type_ids");
+        let needs_token_type_ids = session
+            .inputs()
+            .iter()
+            .any(|i| i.name() == "token_type_ids");
 
         let max_batch_size = cfg.max_batch_size;
         let max_queue_delay = cfg.max_queue_delay;
@@ -304,10 +307,7 @@ impl Engine {
     /// post-process) is parallelised across texts via tokio tasks; the
     /// inference itself is serialised through one session for batch
     /// efficiency.
-    pub async fn detect_spans_batch(
-        self: Arc<Self>,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<Span>>> {
+    pub async fn detect_spans_batch(self: Arc<Self>, texts: Vec<String>) -> Result<Vec<Vec<Span>>> {
         if texts.is_empty() {
             return Ok(Vec::new());
         }
@@ -370,9 +370,7 @@ impl Engine {
         // its `text_byte_offset`, then merge across windows.
         let mut all_spans: Vec<Span> = Vec::new();
         for (rx, win) in receivers.into_iter().zip(windows.into_iter()) {
-            let token_labels = rx
-                .await
-                .map_err(|_| anyhow!("batcher dropped reply"))??;
+            let token_labels = rx.await.map_err(|_| anyhow!("batcher dropped reply"))??;
             let label_spans = bioes_spans(&token_labels, &self.labels);
             let char_spans = map_to_char_spans(&win.encoding, &label_spans);
             for s in char_spans {
@@ -492,7 +490,7 @@ async fn batcher_loop(
             match tokio::time::timeout(remaining, rx.recv()).await {
                 Ok(Some(job)) => queue.push_back((job, Instant::now())),
                 Ok(None) => break, // channel closed; drain what we have
-                Err(_) => break,    // delay elapsed
+                Err(_) => break,   // delay elapsed
             }
         }
 
