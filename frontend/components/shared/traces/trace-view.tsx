@@ -1,6 +1,6 @@
 "use client";
 
-import { CirclePlay } from "lucide-react";
+import { CirclePlay, Radio } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -12,6 +12,7 @@ import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
+import { HeaderIconButton } from "@/components/traces/trace-view/header/header-icon-button";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import TraceViewStoreProvider, {
@@ -21,6 +22,7 @@ import TraceViewStoreProvider, {
 } from "@/components/traces/trace-view/store";
 import Transcript from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
+import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,9 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds,
     isResizing,
     setIsResizing,
+    traceSignals,
+    signalsPanelOpen,
+    setSignalsPanelOpen,
   } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
@@ -72,7 +77,12 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     isResizing: state.isResizing,
     setIsResizing: state.setIsResizing,
+    traceSignals: state.traceSignals,
+    signalsPanelOpen: state.signalsPanelOpen,
+    setSignalsPanelOpen: state.setSignalsPanelOpen,
   }));
+
+  useTraceSignals(`/api/shared/traces/${trace.id}/signals`);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -133,7 +143,9 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
             orientation="vertical"
             // Drop pointer events on the group during a resize so the rrweb session
             // player iframe can't swallow the drag's pointer stream (see trace-panel).
-            className={cn(isResizing && "pointer-events-none")}
+            // `flex-1 min-h-0` so the group yields height to the header when the
+            // signals card opens above it rather than overflowing the column.
+            className={cn("flex-1 min-h-0", isResizing && "pointer-events-none")}
           >
             {condensedTimelineEnabled && (
               <>
@@ -168,16 +180,25 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                     />
                   </div>
                   <div className="flex items-center gap-1">
+                    {traceSignals.length > 0 && (
+                      <HeaderIconButton
+                        icon={<Radio className={cn({ "text-primary": signalsPanelOpen })} size={14} />}
+                        label={`Signals (${traceSignals.length})`}
+                        active={signalsPanelOpen}
+                        onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
+                      />
+                    )}
                     {hasBrowserSession && (
                       <Button
-                        className={cn("h-6 px-1.5 text-xs", {
-                          "border-primary text-primary": browserSession,
-                        })}
-                        variant="outline"
+                        variant="ghost"
+                        className={cn(
+                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
+                          browserSession && "text-primary hover:text-primary"
+                        )}
                         onClick={() => setBrowserSession(!browserSession)}
                       >
-                        <CirclePlay data-icon="inline-start" size={14} className="mr-1" />
-                        Media
+                        <CirclePlay data-icon="inline-start" size={14} className="flex-shrink-0" />
+                        <span className="ml-1 truncate">Media</span>
                       </Button>
                     )}
                     {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
