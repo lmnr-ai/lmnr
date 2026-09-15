@@ -151,9 +151,9 @@ const SetTemplateSignalsSchema = z.object({
   subscriberEmail: z.email().optional(),
 });
 
-// Purge a signal's ClickHouse footprint: events, clusters, summaries.
-// signal_events first — backfill-signal-clusters.ts reaches events_to_clusters
-// only by joining it, so a crash mid-purge cannot resurrect this signal's clusters.
+// Events first so a crash mid-purge can't resurrect clusters via the backfill join.
+// Don't scrub traces_agg — a per-signal UPDATE rewrites the whole table; residue is
+// inert (dictHas on cluster_ids, Postgres for signal identity).
 async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]) {
   if (signalIds.length === 0) return;
   try {

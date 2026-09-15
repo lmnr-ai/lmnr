@@ -12,13 +12,16 @@ import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
+import {
+  type TraceSignal,
+  type TraceSignalClusterNode,
+  type TraceSignalEvent,
+} from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
-import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -117,7 +120,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          events: Array<EventRow & { leafClusters?: TraceSignalClusterNode[] | null }>;
+          events: Array<Omit<TraceSignalEvent, "leafClusters"> & { leafClusters?: TraceSignalClusterNode[] | null }>;
         }>;
         if (!Array.isArray(data)) return;
 
@@ -136,9 +139,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 signalId: e.signalId,
                 traceId: e.traceId,
                 payload: e.payload,
-                timestamp: e.timestamp,
                 severity: e.severity,
-                signalVersion: e.signalVersion ?? 0,
                 leafClusters: e.leafClusters ?? [],
               }))
             : [],

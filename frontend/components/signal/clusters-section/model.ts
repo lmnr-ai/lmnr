@@ -43,7 +43,7 @@ export interface ClusterModel {
  * Replace every non-leaf cluster's count with the sum of its children's, finest
  * level first.
  *
- * `events_to_clusters` is many-to-many, so an event can sit in several clusters
+ * `signal_event_summaries` is many-to-many, so an event can sit in several clusters
  * at the same level — summing siblings double-counts the overlap and a parent's
  * own count comes out *below* its children's total. Incremental clustering adds
  * the opposite skew: an event can have an L1 cluster whose L2/L3 ancestors are

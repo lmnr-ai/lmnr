@@ -42,6 +42,24 @@ pub async fn get_datasets(
     Ok(datasets)
 }
 
+pub async fn get_dataset(
+    pool: &PgPool,
+    dataset_id: Uuid,
+    project_id: Uuid,
+) -> Result<Option<Dataset>> {
+    let dataset = sqlx::query_as::<_, Dataset>(
+        "SELECT id, name, project_id, created_at
+         FROM datasets
+         WHERE id = $1 AND project_id = $2",
+    )
+    .bind(dataset_id)
+    .bind(project_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(dataset)
+}
+
 pub async fn create_dataset(pool: &PgPool, name: &str, project_id: Uuid) -> Result<Dataset> {
     let dataset = sqlx::query_as::<_, Dataset>(
         "INSERT INTO datasets (name, project_id) VALUES ($1, $2)
@@ -50,6 +68,45 @@ pub async fn create_dataset(pool: &PgPool, name: &str, project_id: Uuid) -> Resu
     .bind(name)
     .bind(project_id)
     .fetch_one(pool)
+    .await?;
+
+    Ok(dataset)
+}
+
+pub async fn update_dataset(
+    pool: &PgPool,
+    dataset_id: Uuid,
+    project_id: Uuid,
+    name: &str,
+) -> Result<Option<Dataset>> {
+    let dataset = sqlx::query_as::<_, Dataset>(
+        "UPDATE datasets
+         SET name = $1
+         WHERE id = $2 AND project_id = $3
+         RETURNING id, name, project_id, created_at",
+    )
+    .bind(name)
+    .bind(dataset_id)
+    .bind(project_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(dataset)
+}
+
+pub async fn delete_dataset(
+    pool: &PgPool,
+    dataset_id: Uuid,
+    project_id: Uuid,
+) -> Result<Option<Dataset>> {
+    let dataset = sqlx::query_as::<_, Dataset>(
+        "DELETE FROM datasets
+         WHERE id = $1 AND project_id = $2
+         RETURNING id, name, project_id, created_at",
+    )
+    .bind(dataset_id)
+    .bind(project_id)
+    .fetch_optional(pool)
     .await?;
 
     Ok(dataset)

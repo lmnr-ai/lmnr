@@ -1,4 +1,4 @@
-//! Dataset datapoint operations shared by the project-API-key handlers
+//! Dataset CRUD and datapoint operations shared by the project-API-key handlers
 //! (`api::v1::datasets`) and the CLI user-token handlers (`api::v1::cli::datasets`).
 //!
 //! Fat-service / thin-handler: these take plain args and return a domain result
@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -22,6 +22,101 @@ use crate::{
 };
 
 use super::datapoints::{CHQueryEngineDatapoint, Datapoint};
+
+#[derive(Debug, thiserror::Error)]
+pub enum DatasetError {
+    #[error("Dataset name is required")]
+    InvalidName,
+    #[error("Dataset not found")]
+    DatasetNotFound,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}
+
+pub fn error_response(error: DatasetError) -> actix_web::HttpResponse {
+    use actix_web::HttpResponse;
+
+    match error {
+        DatasetError::InvalidName => HttpResponse::BadRequest().json(json!({
+            "error": error.to_string()
+        })),
+        DatasetError::DatasetNotFound => HttpResponse::NotFound().json(json!({
+            "error": error.to_string()
+        })),
+        DatasetError::Internal(error) => {
+            log::error!("dataset CRUD error: {error:?}");
+            HttpResponse::InternalServerError().json(json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+pub async fn create_dataset(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    name: String,
+) -> Result<db::datasets::Dataset, DatasetError> {
+    if name.is_empty() {
+        return Err(DatasetError::InvalidName);
+    }
+    db::datasets::create_dataset(pool, &name, project_id)
+        .await
+        .map_err(DatasetError::Internal)
+}
+
+pub async fn get_dataset(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    dataset_id: Uuid,
+) -> Result<db::datasets::Dataset, DatasetError> {
+    db::datasets::get_dataset(pool, dataset_id, project_id)
+        .await
+        .map_err(DatasetError::Internal)?
+        .ok_or(DatasetError::DatasetNotFound)
+}
+
+pub async fn update_dataset(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    dataset_id: Uuid,
+    name: String,
+) -> Result<db::datasets::Dataset, DatasetError> {
+    if name.is_empty() {
+        return Err(DatasetError::InvalidName);
+    }
+    db::datasets::update_dataset(pool, dataset_id, project_id, &name)
+        .await
+        .map_err(DatasetError::Internal)?
+        .ok_or(DatasetError::DatasetNotFound)
+}
+
+pub async fn delete_dataset(
+    pool: &sqlx::PgPool,
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    dataset_id: Uuid,
+) -> Result<db::datasets::Dataset, DatasetError> {
+    // Match the frontend deletion order: remove Postgres metadata first, then
+    // issue the ClickHouse datapoint mutation. These stores cannot share a transaction.
+    let dataset = db::datasets::delete_dataset(pool, dataset_id, project_id)
+        .await
+        .map_err(DatasetError::Internal)?
+        .ok_or(DatasetError::DatasetNotFound)?;
+
+    clickhouse
+        .query(
+            "DELETE FROM dataset_datapoints
+             WHERE project_id = ? AND dataset_id = ?",
+        )
+        .bind(project_id)
+        .bind(dataset_id)
+        .execute()
+        .await
+        .map_err(anyhow::Error::from)?;
+
+    Ok(dataset)
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
