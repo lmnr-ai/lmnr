@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys::LLM_PROFILE_CACHE_KEY};
 use crate::data_plane::crypto;
-use crate::db::{llm_profiles, projects};
+use crate::db::{llm_feature_routes, llm_profiles, projects};
 
 use super::{
     EncryptedSecrets, LlmProfile, LlmProfileProvider, ProfileConfig, ProfileSecrets,
@@ -39,7 +39,8 @@ pub enum CrudError {
     DuplicateName(String),
     #[error("LLM profile not found")]
     NotFound,
-    /// A delete or model removal blocked by the RESTRICT FK from `signals`.
+    /// A delete or model removal blocked by the RESTRICT FKs from `signals`
+    /// or `llm_feature_routes`.
     #[error("{0}")]
     InUse(String),
     #[error(transparent)]
@@ -257,7 +258,7 @@ pub async fn update_llm_profile(
             .await
             .map_err(|e| match pg_code(&e).as_deref() {
                 Some(PG_FK_VIOLATION) => CrudError::InUse(
-                    "A removed model is used by a signal and cannot be dropped from this profile"
+                    "A removed model is used by a signal or an LLM feature route and cannot be dropped from this profile"
                         .to_string(),
                 ),
                 _ => internal(e),
@@ -290,13 +291,23 @@ pub async fn delete_llm_profile(
             "This profile is used by {count} signal{plural} and cannot be deleted."
         )));
     }
+    let routed = llm_feature_routes::feature_ids_using_profile(pool, profile_id)
+        .await
+        .map_err(CrudError::Internal)?;
+    if !routed.is_empty() {
+        return Err(CrudError::InUse(format!(
+            "This profile is the LLM feature route for {} and cannot be deleted.",
+            routed.join(", ")
+        )));
+    }
 
-    // The RESTRICT FK is the backstop for a signal created between the count and the delete.
+    // The RESTRICT FKs are the backstop for a reference created between the checks and the delete.
     let found = llm_profiles::delete_llm_profile(pool, workspace_id, profile_id)
         .await
         .map_err(|e| match pg_code(&e).as_deref() {
             Some(PG_FK_VIOLATION) => CrudError::InUse(
-                "This profile is used by a signal and cannot be deleted.".to_string(),
+                "This profile is used by a signal or an LLM feature route and cannot be deleted."
+                    .to_string(),
             ),
             _ => internal(e),
         })?;

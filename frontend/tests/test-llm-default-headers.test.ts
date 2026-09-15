@@ -8,7 +8,7 @@ import { generateText } from "ai";
 import {
   azureAnthropicBaseUrl,
   azureOpenAIBaseUrl,
-  getLanguageModel,
+  envLanguageModel,
   isAiProviderConfigured,
   parseLlmDefaultHeaders,
 } from "@/lib/ai/model";
@@ -207,7 +207,7 @@ async function captureRequest(
     process.env.AZURE_BASE_URL = `http://127.0.0.1:${port}`;
     process.env.LLM_MODEL_LARGE = "my-deployment";
 
-    const result = await generateText({ model: getLanguageModel("large"), prompt: "ping" });
+    const result = await generateText({ model: envLanguageModel("large"), prompt: "ping" });
     return { ...captured, text: result.text };
   } finally {
     restoreEnv("LLM_PROVIDER", previous.provider);

@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use crate::llm::{
-    LanguageModelClient, ProviderContent, ProviderError, ProviderGenerationConfig, ProviderPart,
-    ProviderRequest, ProviderResult,
+    LanguageModelClient, LlmRoute, ProviderContent, ProviderError, ProviderGenerationConfig,
+    ProviderPart, ProviderRequest, ProviderResult,
 };
 
 use super::{LlmProfile, build::build_client};
@@ -30,9 +30,7 @@ pub async fn probe(profile: &LlmProfile, model: &str) -> ProviderResult<Duration
             ..Default::default()
         }),
         service_tier: None,
-        provider: None,
-        model_size: None,
-        llm_profile: None,
+        route: LlmRoute::default(),
     };
 
     let started = Instant::now();

@@ -10,7 +10,7 @@ use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_STABLE_PROMPT_REGEX_CACHE_KEY},
     checkpoints::llm::{CheckpointRoot, run_llm},
     llm::{
-        LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
+        LlmClient, LlmFeature, LlmRoute, ProviderContent, ProviderFunctionDeclaration,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
     },
     traces::prompt_hash::structural_skeleton_hash,
@@ -107,7 +107,9 @@ async fn resolve_dynamic_regex(
     if !pattern.is_empty() && Regex::new(&pattern).is_err() {
         pattern = String::new();
     }
-    let _ = cache.insert_with_ttl(&key, &pattern, DYNAMIC_REGEX_TTL_SECONDS).await;
+    let _ = cache
+        .insert_with_ttl(&key, &pattern, DYNAMIC_REGEX_TTL_SECONDS)
+        .await;
 
     Some(pattern)
 }
@@ -147,14 +149,18 @@ async fn generate_dynamic_regex(
             ..Default::default()
         }),
         service_tier: None,
-        provider: None,
-        model_size: Some(ModelSize::Small),
-        llm_profile: None,
+        route: LlmRoute::feature(
+            LlmFeature::CheckpointsSystemPrompt,
+            Some(root.origin_project_id()),
+        ),
     };
 
-    let response = match run_llm(root, llm_client, &request, || {
-        tracing::info_span!(target: "lmnr::internal", "extract_stable_system_prompt")
-    })
+    let response = match run_llm(
+        root,
+        llm_client,
+        &request,
+        || tracing::info_span!(target: "lmnr::internal", "extract_stable_system_prompt"),
+    )
     .await
     {
         Ok(response) => response,
@@ -185,9 +191,10 @@ fn build_regex_tool() -> ProviderTool {
     ProviderTool {
         function_declarations: vec![ProviderFunctionDeclaration {
             name: REGEX_TOOL_NAME.to_string(),
-            description: "REQUIRED: submit a single Rust `regex` crate pattern matching the system \
+            description:
+                "REQUIRED: submit a single Rust `regex` crate pattern matching the system \
                 prompt's dynamic values. Always call this tool; never respond with plain text."
-                .to_string(),
+                    .to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -228,7 +235,10 @@ mod tests {
 
     #[test]
     fn sanitize_strips_fences_and_backticks() {
-        assert_eq!(sanitize_regex("```regex\n\\d{4}-\\d{2}-\\d{2}\n```"), r"\d{4}-\d{2}-\d{2}");
+        assert_eq!(
+            sanitize_regex("```regex\n\\d{4}-\\d{2}-\\d{2}\n```"),
+            r"\d{4}-\d{2}-\d{2}"
+        );
         assert_eq!(sanitize_regex("`\\d+`"), r"\d+");
         assert_eq!(sanitize_regex("   \\w+  "), r"\w+");
         assert_eq!(sanitize_regex(""), "");

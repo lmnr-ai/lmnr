@@ -2,7 +2,8 @@ import { observe } from "@lmnr-ai/lmnr";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 
 import { getGenerationPrompts } from "./prompts";
 import type { GenerationResult } from "./types";
@@ -28,7 +29,7 @@ export async function generateSql(input: z.infer<typeof GenerateSchema>): Promis
     { name: "generateSql", metadata: { feature: "sql-generation" }, input: { projectId, mode } },
     async () =>
       await generateText({
-        model: getLanguageModel("medium"),
+        model: await getLanguageModel(LlmFeature.SQL_GENERATION, projectId),
         output: Output.object({ schema: GenerationResultSchema }),
         system: prompts.system,
         prompt: prompts.user(prompt),

@@ -10,15 +10,18 @@ use std::sync::Arc;
 
 use backon::Retryable;
 use tracing::Instrument;
+use uuid::Uuid;
 
 use super::regex::{ApplyRegexResult, apply_regex, apply_result_to_json};
 use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::llm::models::{
-    ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
+    ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
     ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderResponse,
     ProviderThinkingConfig, ProviderThinkingLevel, ProviderTool,
 };
-use crate::llm::{LlmClient, ModelProvider, request_to_span_input, request_to_tools_attr};
+use crate::llm::{
+    LlmClient, LlmFeature, LlmRoute, ModelProvider, request_to_span_input, request_to_tools_attr,
+};
 use crate::utils::retry;
 
 const REGEX_LLM_TIMEOUT_SECS: u64 = 120;
@@ -146,7 +149,7 @@ pub async fn generate_extraction_regex(
     }];
 
     for _ in 0..MAX_LLM_CALLS {
-        let request = build_request(contents.clone());
+        let request = build_request(contents.clone(), scope.source_project_id);
         let response = call_llm(llm_client, &request, scope, GENERATE_SPAN_NAME).await?;
 
         let model_content = response
@@ -318,7 +321,7 @@ fn probe_extraction_regex(
     response
 }
 
-fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
+fn build_request(contents: Vec<ProviderContent>, project_id: Uuid) -> ProviderRequest {
     ProviderRequest {
         contents,
         system_instruction: Some(ProviderContent {
@@ -370,23 +373,11 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
             ..Default::default()
         }),
         service_tier: None,
-        provider: Some(extraction_provider()),
-        model_size: Some(ModelSize::Small),
-        llm_profile: None,
+        route: LlmRoute::feature(
+            LlmFeature::InputExtractionRegexGeneration,
+            Some(project_id),
+        ),
     }
-}
-
-/// Provider for the regex-generation calls: `INPUT_EXTRACTION_LLM_PROVIDER`,
-/// defaulting to bedrock (medium → Sonnet 5). Either way, a provider without
-/// a registered client (missing credentials) silently falls back to the
-/// `LLM_PROVIDER` default inside `LlmClient::resolve`.
-pub(super) fn extraction_provider() -> String {
-    // `mod env` shadows `std::env`, hence the fully-qualified read.
-    std::env::var(crate::env::user_task::INPUT_EXTRACTION_LLM_PROVIDER)
-        .ok()
-        .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "gemini".to_string())
 }
 
 /// A failed provider call: the message plus whether the failure is worth
@@ -519,7 +510,7 @@ mod tests {
         let mock = MockProviderClient::with_generate_failure(2, GenerateFailureMode::Retryable429);
         let counter = mock.clone();
         let client = mock_llm_client(mock);
-        let request = build_request(vec![]);
+        let request = build_request(vec![], Uuid::new_v4());
 
         let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_ok());
@@ -534,7 +525,7 @@ mod tests {
         );
         let counter = mock.clone();
         let client = mock_llm_client(mock);
-        let request = build_request(vec![]);
+        let request = build_request(vec![], Uuid::new_v4());
 
         let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;
         assert!(result.is_err());
@@ -552,7 +543,7 @@ mod tests {
         );
         let counter = mock.clone();
         let client = mock_llm_client(mock);
-        let request = build_request(vec![]);
+        let request = build_request(vec![], Uuid::new_v4());
 
         let started = tokio::time::Instant::now();
         let result = call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME).await;

@@ -9,8 +9,10 @@ use super::{BoolEnv, NumEnv};
 /// `openai` | `openai_responses` | `gemini` | `bedrock` | `azure_chat_completions` |
 /// `azure_responses` | `azure_anthropic` | `mock`. The single provider switch.
 pub const PROVIDER: &str = "LLM_PROVIDER";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const PARSING_PROVIDER: &str = "SIGNALS_PARSING_LLM_PROVIDER";
+/// Workspace whose LLM profiles back the global (workspace-less) rows of
+/// `llm_feature_routes`. Setting it tells the feature flags that LLM-backed
+/// features have somewhere to run even with no `LLM_PROVIDER`.
+pub const SYSTEM_WORKSPACE_ID: &str = "LLM_SYSTEM_WORKSPACE_ID";
 /// Shared single-provider API key (openai / gemini / azure_*).
 pub const API_KEY: &str = "LLM_API_KEY";
 /// Optional OpenAI-compatible base URL override (provider-specific default).
@@ -30,7 +32,8 @@ pub const AZURE_BASE_URL: &str = "AZURE_BASE_URL";
 /// `preview`) for it.
 pub const AZURE_API_VERSION: &str = "AZURE_API_VERSION";
 
-/// Per-size model id overrides (provider-specific hardcoded defaults).
+/// Per-size model id overrides (provider-specific hardcoded defaults) for the
+/// `LLM_PROVIDER` fallback; each `LlmFeature` maps to one size.
 pub const MODEL_SMALL: &str = "LLM_MODEL_SMALL";
 pub const MODEL_MEDIUM: &str = "LLM_MODEL_MEDIUM";
 pub const MODEL_LARGE: &str = "LLM_MODEL_LARGE";

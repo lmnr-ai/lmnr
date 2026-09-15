@@ -31,6 +31,7 @@ pnpm test           # Run tests (tsx --test tests/**/*.test.ts)
 pnpm build          # Production build
 ```
 
+- Format only the files you changed: `npx oxfmt --write <files>`. `prettier` is present in `node_modules` (transitive dep) but is NOT the project formatter — running it reformats files oxfmt then flags in the pre-commit hook.
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
 - `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
 - `pnpm test` on a clean `dev` already has two red tests (after `pnpm install --frozen-lockfile`, `ai` 7.0.15): `tests/test-ai-sdk-parser.test.ts` "skips empty text/reasoning parts" and `tests/test-normalize-messages.test.ts` "end-to-end: a bare AI-SDK parts array …". Both expect empty `text`/`reasoning` parts to be dropped and get 2 parts instead of 1. Pre-existing — `git stash -u` and re-run before blaming your change.
@@ -157,7 +158,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
-| `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, Vercel AI SDK v7 |
+| `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
 | `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |
 | `docs/internal/debugger.md` | Debugger replay cache, debugger session blocks/timeline |

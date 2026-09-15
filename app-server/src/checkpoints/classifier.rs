@@ -9,7 +9,7 @@ use crate::{
     checkpoints::llm::{CheckpointRoot, run_llm},
     db::agents::AgentVersion,
     llm::{
-        LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
+        LlmClient, LlmFeature, LlmRoute, ProviderContent, ProviderFunctionDeclaration,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
     },
 };
@@ -35,8 +35,7 @@ enum ClassifyError {
     Rejected(anyhow::Error),
 }
 
-const CLASSIFY_INSTRUCTION: &str =
-    "You classify AI agent system prompts. Given an incoming agent's system prompt and a list of \
+const CLASSIFY_INSTRUCTION: &str = "You classify AI agent system prompts. Given an incoming agent's system prompt and a list of \
      existing agents (each with an id and its system prompt), decide whether the incoming prompt is \
      a completely new agent or a modified version of one of the existing agents.\n\n\
      Base your decision ONLY on the agent's specific ROLE and PURPOSE — the sentence(s) describing \
@@ -118,16 +117,22 @@ async fn classify_with_llm(
             ..Default::default()
         }),
         service_tier: None,
-        provider: None,
-        model_size: Some(ModelSize::Small),
-        llm_profile: None,
+        route: LlmRoute::feature(
+            LlmFeature::CheckpointsClassifier,
+            Some(root.origin_project_id()),
+        ),
     };
 
-    let response = run_llm(root, llm_client, &request, || {
-        tracing::info_span!(target: "lmnr::internal", "classify_agent")
-    })
+    let response = run_llm(
+        root,
+        llm_client,
+        &request,
+        || tracing::info_span!(target: "lmnr::internal", "classify_agent"),
+    )
     .await
-    .map_err(|e| ClassifyError::Transport(anyhow::anyhow!("classify_agent LLM call failed: {e:?}")))?;
+    .map_err(|e| {
+        ClassifyError::Transport(anyhow::anyhow!("classify_agent LLM call failed: {e:?}"))
+    })?;
 
     let args = response
         .candidates

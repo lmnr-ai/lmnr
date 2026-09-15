@@ -371,6 +371,7 @@ pub(super) fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::LlmRoute;
     use crate::llm::models::{
         ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderThinkingConfig,
@@ -430,9 +431,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5-mini", &req);
         let messages = body["messages"].as_array().unwrap();
@@ -457,9 +456,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         let messages = body["messages"].as_array().unwrap();
@@ -493,9 +490,7 @@ mod tests {
             }]),
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         let tools = body["tools"].as_array().unwrap();
@@ -522,9 +517,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
 
         // No tools: reasoning_effort forwarded.
@@ -559,9 +552,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
 
         // Function tools + reasoning_effort 400s on gpt-5 chat/completions, on

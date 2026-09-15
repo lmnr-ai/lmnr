@@ -12,6 +12,13 @@ pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 /// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
 /// `llm::profiles::service` removes the key on every profile write.
 pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";
+/// `llm_feature_route:{workspace_id}:{feature_id}` → the route the feature
+/// resolves to for that workspace (its own row, its `default` row, or a global
+/// one), and `llm_feature_route:global:{feature_id}` → the resolution with no
+/// workspace. Absence is cached too (as `FeatureRouteEntry::Absent`), since most
+/// resolutions miss. Rows are edited directly in the database, so entries
+/// expire by TTL only (`llm::profiles::store`).
+pub const LLM_FEATURE_ROUTE_CACHE_KEY: &str = "llm_feature_route";
 /// Gives one signal run exclusive use of a trace for its FIRST step, so the
 /// next signal's request hits the provider prefix cache the first one warmed
 /// instead of racing it. Held only across step 0 and scoped per

@@ -6,10 +6,11 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
 /**
- * Model tiers used across AI features (chat with trace, SQL generation, name generation).
- * Each tier maps to a specific model per provider.
+ * Model tiers of the env-configured provider. Each tier maps to a specific
+ * model per provider; `lib/ai/features.ts` assigns one per feature for the
+ * fallback when no `llm_feature_routes` row applies.
  */
-type ModelTier = "small" | "medium" | "large";
+export type ModelTier = "small" | "medium" | "large";
 
 type LLMProvider = "openai" | "gemini" | "bedrock" | "azure_chat_completions" | "azure_responses" | "azure_anthropic";
 type LlmDefaultHeaders = Record<string, string>;
@@ -125,13 +126,24 @@ export const appendApiVersion =
     return fetch(url, init);
   };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Non-throwing check: true when a supported AI provider has credentials configured.
- * Mirrors the runtime contract of `getLanguageModel` so feature flags gating AI
- * features don't light up UI that will throw on first call.
+ * The Laminar-internal workspace whose LLM profiles back the global
+ * (`workspace_id IS NULL`) rows of `llm_feature_routes`. Same variable as the
+ * app-server's `env::llm::SYSTEM_WORKSPACE_ID`.
+ */
+const hasSystemWorkspace = (): boolean => UUID_RE.test(nonEmptyEnv("LLM_SYSTEM_WORKSPACE_ID") ?? "");
+
+/**
+ * Non-throwing check: true when some LLM backend exists for server-side
+ * features — an env provider with credentials, or a system workspace whose
+ * profiles the feature routes can point at. Mirrors `has_llm_backend()` in
+ * `app-server/src/features/mod.rs` so feature flags don't light up UI that
+ * will throw on first call.
  */
 export function isAiProviderConfigured(): boolean {
-  return getConfiguredLLMProvider() !== null && hasValidLlmDefaultHeaders();
+  return (getConfiguredLLMProvider() !== null && hasValidLlmDefaultHeaders()) || hasSystemWorkspace();
 }
 
 function resolveModelName(provider: LLMProvider, tier: ModelTier): string {
@@ -189,11 +201,17 @@ function validateHeader(name: string, value: string): void {
   }
 }
 
-export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
+/**
+ * The env-configured provider's model at `tier`. Features go through
+ * `getLanguageModel` in `lib/ai/feature-model.ts`, which consults
+ * `llm_feature_routes` first and only lands here when no route applies.
+ */
+export function envLanguageModel(tier: ModelTier = "large"): LanguageModel {
   const provider = getConfiguredLLMProvider();
   if (!provider) {
     throw new Error(
-      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, azure_chat_completions, azure_responses, " +
+      "No LLM route or AI provider configured for this feature. Add an llm_feature_routes row, or set LLM_PROVIDER " +
+        "to openai, gemini, azure_chat_completions, azure_responses, " +
         "azure_anthropic, or bedrock. openai/gemini require LLM_API_KEY (with optional LLM_BASE_URL); " +
         "the azure_* providers require LLM_API_KEY and AZURE_RESOURCE_ID or AZURE_BASE_URL; " +
         "bedrock requires AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION."

@@ -119,6 +119,7 @@ impl LanguageModelClient for OpenAIClient {
 mod tests {
     use super::*;
     use crate::env;
+    use crate::llm::LlmRoute;
     use crate::llm::models::{ProviderContent, ProviderPart};
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -157,9 +158,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let response = client
             .generate_content("my-deployment", &request)
