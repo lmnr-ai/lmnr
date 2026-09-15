@@ -29,7 +29,7 @@ const LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS: u64 = 5 * 60;
 /// A scope's `default` row is its baseline, read on every miss of every other
 /// feature in that scope and almost never edited, so a found one stays warm for
 /// a month. Editing or deleting a `default` row therefore also means deleting
-/// its key (`llm_feature_route:{workspace_id|global}:default`) in Redis.
+/// its key (`llm_feature_route_v2:{workspace_id|global}:default`) in Redis.
 const LLM_DEFAULT_ROUTE_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 /// Cached outcome of one `(scope, feature)` row lookup. Absence is cached
@@ -140,9 +140,11 @@ pub struct ResolvedProfile {
 /// - Profile rows live in the shared cache as `llm_profile:{workspace_id}:{id}`;
 ///   `service` removes the key on every write.
 /// - Feature route rows (and misses) live as
-///   `llm_feature_route:{workspace_id|global}:{feature}`, one key per scope and
-///   feature: the `global:*` keys are shared by every workspace and the
+///   `llm_feature_route_v2:{workspace_id|global}:{feature}`, one key per scope
+///   and feature: the `global:*` keys are shared by every workspace and the
 ///   `*:default` key of a scope by every feature that falls through to it.
+///   Each entry is that scope's own row (or `Absent`), never an inherited one;
+///   the `_v2` prefix keeps these apart from the retired resolved-target layout.
 ///   Entries expire after `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`, except a found
 ///   `default` row (`LLM_DEFAULT_ROUTE_CACHE_TTL_SECONDS`).
 /// - Lookup failures (project, route, profile) are `RequestError`, i.e.
