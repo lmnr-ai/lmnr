@@ -23,14 +23,11 @@ const LLM_PROFILE_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7;
 
 /// `llm_feature_routes` rows are written straight to the database (no app
 /// write path), so nothing invalidates these entries: the TTL is how long a
-/// route change takes to reach every process.
+/// route change takes to reach every process, including ones on the in-memory
+/// cache where no key can be deleted by hand. One TTL for every entry: a
+/// scope's `default` key is rewritten whenever the scope is re-queried, so a
+/// longer TTL on it would save no round trips.
 const LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS: u64 = 5 * 60;
-
-/// A scope's `default` row is its baseline, read on every miss of every other
-/// feature in that scope and almost never edited, so a found one stays warm for
-/// a month. Editing or deleting a `default` row therefore also means deleting
-/// its key (`llm_feature_route_v2:{workspace_id|global}:default`) in Redis.
-const LLM_DEFAULT_ROUTE_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 /// Cached outcome of one `(scope, feature)` row lookup. Absence is cached
 /// because most lookups miss (few workspaces override anything).
@@ -45,17 +42,6 @@ impl FeatureRouteEntry {
         match self {
             FeatureRouteEntry::Route(target) => Some(target),
             FeatureRouteEntry::Absent => None,
-        }
-    }
-
-    /// Only a found `default` row is long-lived: a cached miss must expire fast
-    /// so that a newly added `default` row takes effect.
-    fn ttl_seconds(&self, feature: LlmFeature) -> u64 {
-        match (feature, self) {
-            (LlmFeature::Default, FeatureRouteEntry::Route(_)) => {
-                LLM_DEFAULT_ROUTE_CACHE_TTL_SECONDS
-            }
-            _ => LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS,
         }
     }
 }
@@ -145,8 +131,7 @@ pub struct ResolvedProfile {
 ///   `*:default` key of a scope by every feature that falls through to it.
 ///   Each entry is that scope's own row (or `Absent`), never an inherited one;
 ///   the `_v2` prefix keeps these apart from the retired resolved-target layout.
-///   Entries expire after `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`, except a found
-///   `default` row (`LLM_DEFAULT_ROUTE_CACHE_TTL_SECONDS`).
+///   Every entry expires after `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`.
 /// - Lookup failures (project, route, profile) are `RequestError`, i.e.
 ///   retryable; only "the row does not exist / does not match" is `ConfigError`.
 /// - Built `ProviderClient`s are kept in-process, keyed by profile id and reused
@@ -312,7 +297,11 @@ impl LlmProfileStore {
         let cache_key = scope.cache_key(feature);
         if let Err(e) = self
             .cache
-            .insert_with_ttl(&cache_key, entry.clone(), entry.ttl_seconds(feature))
+            .insert_with_ttl(
+                &cache_key,
+                entry.clone(),
+                LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS,
+            )
             .await
         {
             log::error!("Failed to cache LLM feature route {cache_key}: {e:?}");
@@ -441,22 +430,5 @@ mod tests {
         let rows = [row(LlmFeature::Signals, "pinned")];
         let routes = ScopeRoutes::from_rows(&rows, LlmFeature::AgentChat);
         assert!(model_of(routes).is_none());
-    }
-
-    #[test]
-    fn only_a_found_default_row_is_long_lived() {
-        let found = FeatureRouteEntry::Route(row(LlmFeature::Default, "m").target);
-        assert_eq!(
-            found.ttl_seconds(LlmFeature::Default),
-            LLM_DEFAULT_ROUTE_CACHE_TTL_SECONDS
-        );
-        assert_eq!(
-            found.ttl_seconds(LlmFeature::Signals),
-            LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS
-        );
-        assert_eq!(
-            FeatureRouteEntry::Absent.ttl_seconds(LlmFeature::Default),
-            LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS
-        );
     }
 }
