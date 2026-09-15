@@ -18,34 +18,36 @@ pub struct FeatureRouteTarget {
     pub model: String,
 }
 
-/// The single most specific row among the four that can apply: the workspace's
-/// `feature_id` row, its `default_feature_id` row, then the same two global
-/// (`workspace_id IS NULL`) rows. `workspace_id = None` considers only the
-/// global rows. One round trip; the precedence is the `ORDER BY`.
-pub async fn resolve_route(
+/// A route row with the feature id it is for, so one query can return several.
+#[derive(Debug, Clone, FromRow)]
+pub struct FeatureRouteRow {
+    pub feature_id: String,
+    #[sqlx(flatten)]
+    pub target: FeatureRouteTarget,
+}
+
+/// The scope's rows for `feature_ids`, at most one per id (the unique
+/// constraint). `workspace_id = None` reads the global rows.
+pub async fn get_scope_routes(
     pool: &PgPool,
     workspace_id: Option<Uuid>,
-    feature_id: &str,
-    default_feature_id: &str,
-) -> Result<Option<FeatureRouteTarget>> {
-    let row = sqlx::query_as::<_, FeatureRouteTarget>(
+    feature_ids: &[&str],
+) -> Result<Vec<FeatureRouteRow>> {
+    let rows = sqlx::query_as::<_, FeatureRouteRow>(
         "SELECT
+            r.feature_id,
             r.llm_profile_id AS profile_id,
             p.workspace_id AS profile_workspace_id,
             r.model_name AS model
         FROM llm_feature_routes r
         JOIN llm_profiles p ON p.id = r.llm_profile_id
-        WHERE (r.workspace_id = $1 OR r.workspace_id IS NULL)
-            AND r.feature_id IN ($2, $3)
-        ORDER BY r.workspace_id IS NULL, r.feature_id = $3
-        LIMIT 1",
+        WHERE r.workspace_id IS NOT DISTINCT FROM $1 AND r.feature_id = ANY($2)",
     )
     .bind(workspace_id)
-    .bind(feature_id)
-    .bind(default_feature_id)
-    .fetch_optional(pool)
+    .bind(feature_ids)
+    .fetch_all(pool)
     .await?;
-    Ok(row)
+    Ok(rows)
 }
 
 /// Feature ids routed to `profile_id` (any workspace). Lets profile deletion

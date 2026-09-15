@@ -23,7 +23,7 @@ Cross-cutting rules for app-server changes. The frontend equivalents live in `do
 
 - A fixed, compile-time-known set of candidates is not a loop. Write the fallback order as explicit steps — an `if let … else if let …` chain, a `match`, or `.or_else` — each naming what it binds, instead of building an iterator over the candidates and driving a `let mut x = None` accumulator with a labeled `break`. Repeating a call four times is clearer than a 2×2 loop that hides which lookup won.
 - Prefer immutable bindings produced by an expression over a mutable variable assigned from inside a loop or branch. If you need `let mut` plus a later `let Some(x) = x else`, restructure.
-- When the candidates are rows of one table, push the precedence into the query (`WHERE … IN (…) ORDER BY <specificity> LIMIT 1`) and make one round trip, rather than N sequential lookups that each miss the cache and the database (`db/llm_feature_routes.rs::resolve_route`).
+- When the candidates are rows of one table, fetch them together (`feature_id = ANY($2)`, or `ORDER BY <specificity> LIMIT 1` when only the winner matters) and pick in Rust, rather than one query per candidate that each miss the cache and the database. Group the fetch by cache scope so shared entries stay shared (`llm/profiles/store.rs::scope_route` loads a scope's `feature` and `default` rows in one query and caches both).
 
 ## Types and errors
 
