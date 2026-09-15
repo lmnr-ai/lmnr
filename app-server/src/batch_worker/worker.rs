@@ -10,6 +10,7 @@ use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
+use crate::runtime::shutdown;
 use crate::utils::retry;
 use crate::worker::{HandlerError, QueueConfig};
 
@@ -54,8 +55,13 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         self.id
     }
 
-    /// Main processing loop - runs forever with internal retry
+    /// Main processing loop - runs until shutdown, with internal retry
     pub async fn process(&mut self) {
+        // The process must not exit while this worker is between a flush and the
+        // acks that record it — that pairing is what a redelivery turns into a
+        // duplicate write. `main` waits on the drain registry before returning.
+        let _drain = shutdown::register_drain();
+
         loop {
             if let Err(e) = self.process_inner().await {
                 log::error!(
@@ -64,6 +70,14 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                     self.worker_type,
                     e
                 );
+            }
+            if shutdown::is_requested() {
+                log::info!(
+                    "Worker {} ({:?}) stopped for shutdown",
+                    self.id,
+                    self.worker_type
+                );
+                return;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -95,6 +109,23 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         // Process messages and handle periodic intervals§
         loop {
             tokio::select! {
+                // Graceful shutdown: stop taking deliveries. This arm is only
+                // reachable between messages, so the flush and the acks of the
+                // message we were handling have both completed — being killed
+                // between those two is what makes the redelivery write an already
+                // written batch a second time. Whatever is accumulated but not yet
+                // flushed stays unacked and is redelivered, exactly as on any
+                // reconnect.
+                () = shutdown::cancelled() => {
+                    log::info!(
+                        "Worker {} ({:?}) draining on shutdown after {} unacked deliveries",
+                        self.id,
+                        self.worker_type,
+                        self.ackers.len()
+                    );
+                    return Ok(());
+                }
+
                 // Message arrived from queue
                 result = receiver.receive() => {
                     match result {
