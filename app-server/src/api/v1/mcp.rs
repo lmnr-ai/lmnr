@@ -279,15 +279,11 @@ impl LaminarMcpServer {
         project_id: Uuid,
         trace_id: Uuid,
     ) -> anyhow::Result<String> {
-        use crate::signals::private::compression::{TraceCompressor, render};
+        use crate::signals::private::compression::{
+            CompressPlan, TraceCompressor, budget::BudgetConfig, render, shape,
+        };
         use crate::signals::private::spans::get_trace_ch_spans;
         use crate::traces::previews::PreviewExtractor;
-
-        let llm_client = self.llm_client.clone().ok_or_else(|| {
-            anyhow::anyhow!(
-                "LLM client unavailable; configure LLM_PROVIDER + credentials to use get_trace_context"
-            )
-        })?;
 
         let spans = get_trace_ch_spans(self.clickhouse.clone(), project_id, trace_id).await?;
         if spans.is_empty() {
@@ -296,12 +292,14 @@ impl LaminarMcpServer {
             ));
         }
 
-        let extractor = Arc::new(PreviewExtractor::new());
-        // No clickhouse/queue: chat compression never summarizes, so it never
-        // looks up prompt versions or demands regex generation.
-        let compressor = TraceCompressor::new(extractor, self.cache.clone(), llm_client, None);
+        // Every span, raw prompts.
+        let compressor = TraceCompressor::new(Arc::new(PreviewExtractor::new()));
+        let plan = CompressPlan {
+            budget: BudgetConfig::for_chat(),
+            ..CompressPlan::default()
+        };
         let compressed = compressor
-            .compress_for_chat(&spans, project_id, trace_id, None)
+            .compress(shape(&spans, trace_id), plan)
             .await
             .map_err(|e| anyhow::anyhow!("Trace compression failed: {}", e))?;
 

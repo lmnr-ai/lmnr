@@ -54,3 +54,9 @@ pub const HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_HTTP_TIMEOUT_SECS", 
 
 pub const OPENAI_ALLOW_REASONING_WITH_TOOLS: BoolEnv =
     BoolEnv::new("OPENAI_ALLOW_REASONING_WITH_TOOLS", false);
+
+/// Replays captured assistant reasoning for interleaved-thinking
+/// OpenAI-compatible models. Disable for providers that reject
+/// `reasoning_content` in input messages.
+pub const OPENAI_REPLAY_REASONING_CONTENT: BoolEnv =
+    BoolEnv::new("OPENAI_REPLAY_REASONING_CONTENT", true);

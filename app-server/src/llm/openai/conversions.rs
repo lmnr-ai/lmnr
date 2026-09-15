@@ -32,8 +32,9 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         }
     }
 
+    let replay_reasoning = crate::env::llm::OPENAI_REPLAY_REASONING_CONTENT.get();
     for content in &request.contents {
-        append_content_as_messages(content, &mut messages);
+        append_content_as_messages(content, &mut messages, replay_reasoning);
     }
 
     let mut body = json!({
@@ -138,7 +139,15 @@ fn concat_text_parts(content: &ProviderContent) -> String {
 /// emit them as a single assistant message with both `content` and `tool_calls`.
 /// Any `function_response` parts in the same content (regardless of role) are
 /// flushed as separate `role: "tool"` messages keyed by `tool_call_id`.
-fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
+///
+/// `replay_reasoning` sends assistant thought parts back as `reasoning_content`
+/// (see [`crate::env::llm::OPENAI_REPLAY_REASONING_CONTENT`]); otherwise
+/// thoughts are dropped from the outbound request.
+fn append_content_as_messages(
+    content: &ProviderContent,
+    out: &mut Vec<Value>,
+    replay_reasoning: bool,
+) {
     let raw_role = content.role.as_deref().unwrap_or("user");
     let role = match raw_role {
         "assistant" | "model" => "assistant",
@@ -151,11 +160,17 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
     let parts = content.parts.as_ref().cloned().unwrap_or_default();
 
     let mut text_buf = String::new();
+    let mut reasoning_buf = String::new();
     let mut tool_calls: Vec<Value> = Vec::new();
     let mut tool_results: Vec<Value> = Vec::new();
 
     for part in parts {
         if part.thought == Some(true) {
+            if replay_reasoning && role == "assistant" {
+                if let Some(t) = &part.text {
+                    reasoning_buf.push_str(t);
+                }
+            }
             continue;
         }
         if let Some(fr) = part.function_response {
@@ -201,6 +216,9 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
         };
         if has_tool_calls {
             msg["tool_calls"] = Value::Array(tool_calls);
+        }
+        if !reasoning_buf.is_empty() {
+            msg["reasoning_content"] = Value::String(reasoning_buf);
         }
         out.push(msg);
     }
@@ -615,6 +633,61 @@ mod tests {
                 .any(|p| p.thought == Some(true) && p.text.as_deref() == Some("let me think"))
         );
         assert!(parts.iter().any(|p| p.text.as_deref() == Some("answer")));
+    }
+
+    #[test]
+    fn reasoning_replayed_as_reasoning_content_only_when_enabled() {
+        let content = ProviderContent {
+            role: Some("model".to_string()),
+            parts: Some(vec![
+                ProviderPart {
+                    text: Some("let me think".to_string()),
+                    thought: Some(true),
+                    ..Default::default()
+                },
+                ProviderPart {
+                    function_call: Some(ProviderFunctionCall {
+                        id: Some("call_1".to_string()),
+                        name: "grep".to_string(),
+                        args: Some(json!({"searches": []})),
+                    }),
+                    ..Default::default()
+                },
+            ]),
+        };
+
+        let mut replayed = Vec::new();
+        append_content_as_messages(&content, &mut replayed, true);
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0]["role"], "assistant");
+        assert_eq!(replayed[0]["reasoning_content"], "let me think");
+        assert_eq!(replayed[0]["tool_calls"][0]["id"], "call_1");
+
+        let mut stripped = Vec::new();
+        append_content_as_messages(&content, &mut stripped, false);
+        assert_eq!(stripped.len(), 1);
+        assert!(stripped[0].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn reasoning_never_replayed_on_user_messages() {
+        // Non-assistant roles never emit `reasoning_content`.
+        let content = ProviderContent {
+            role: Some("user".to_string()),
+            parts: Some(vec![
+                ProviderPart {
+                    text: Some("stray thought".to_string()),
+                    thought: Some(true),
+                    ..Default::default()
+                },
+                text_part("hello"),
+            ]),
+        };
+        let mut out = Vec::new();
+        append_content_as_messages(&content, &mut out, true);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0]["content"], "hello");
+        assert!(out[0].get("reasoning_content").is_none());
     }
 
     #[test]
