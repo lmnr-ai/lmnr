@@ -51,15 +51,11 @@ type EventClusterRow = {
   level: number;
 };
 
-/** The trace's own events, off `traces.signal_events`. Reading them from the trace
- *  row prunes on `traces_agg`'s (project_id, id) sort key, where the same read
- *  against `signal_events` — whose sort key starts with the signal, not the trace —
- *  scans the project. */
+// Trace-keyed: `signal_events` is ordered (project_id, signal_id, …) and can't prune by trace.
 const fetchTraceEvents = async (projectId: string, traceId: string): Promise<TraceEventRow[]> => {
   const rows = await executeQuery<TraceEventRow>({
     projectId,
-    // `traces.id`, not a bare `id`: unqualified WHERE columns resolve against the
-    // SELECT aliases first, and `id` is one of them here.
+    // Qualify `traces.id` — a bare `id` would match `e.event_id AS id`.
     query: `
       SELECT
         e.event_id AS id,
@@ -76,9 +72,7 @@ const fetchTraceEvents = async (projectId: string, traceId: string): Promise<Tra
   return rows.map((r) => ({ ...r, severity: Number(r.severity) }));
 };
 
-/** Named leaf clusters (always L1) per event id. The panel shows them per event
- *  rather than per signal, because one signal's findings can cluster apart —
- *  `traces.clusters` is the trace-wide union and would mis-attribute them. */
+// Per-event L1 memberships — `traces.clusters` is the trace-wide union and would mis-attribute.
 const fetchLeafClusters = async (
   projectId: string,
   signalIds: string[],
@@ -86,9 +80,7 @@ const fetchLeafClusters = async (
 ): Promise<Record<string, TraceSignalClusterNode[]>> => {
   const rows = await executeQuery<EventClusterRow>({
     projectId,
-    // The `signal_id` predicate is what the validator turns into
-    // `event_clusters_all_v0`'s `signal_ids` argument, so the view reads only
-    // these signals' memberships instead of every signal in the project.
+    // `signal_id IN (…)` is the view's prune key; without it this scans every signal in the project.
     query: `
       SELECT
         event_id AS eventId,
@@ -108,18 +100,13 @@ const fetchLeafClusters = async (
       eventRows.filter((r) => r.clusterId),
       "clusterId"
     )
-      // Name order keeps the pills stable across requests — the membership read
-      // is unordered.
       .map((r) => ({ id: r.clusterId, name: r.clusterName, level: Number(r.level) }))
+      // Memberships are unordered; name order keeps the pills stable.
       .sort((a, b) => a.name.localeCompare(b.name))
   );
 };
 
-/**
- * Signals (with their events) that fired on a trace, for the trace-view panel.
- * Each event carries its own L1 (finest named) clusters — there is deliberately
- * no signal-level cluster, since one signal's events can land in unrelated ones.
- */
+// Per-event L1 clusters only — one signal's findings can land in unrelated clusters.
 export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchema>): Promise<TraceSignal[]> {
   const { projectId, traceId } = GetTraceSignalsSchema.parse(input);
 
@@ -145,9 +132,7 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
       .where(and(eq(signals.projectId, projectId), inArray(signals.id, signalIds))),
   ]);
 
-  // Driven by the Postgres rows, not by eventsBySignal: a deleted signal's tuples
-  // stay on traces_agg (purging them would rewrite the whole table), so Postgres is
-  // what decides which of the trace's events still belong to a live signal.
+  // Map from Postgres: deleted-signal tuples stay on traces_agg and must not surface.
   return signalRows.map((signal) => ({
     signalId: signal.id,
     signalName: signal.name,

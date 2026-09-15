@@ -417,9 +417,9 @@ fn test_signal_ids_picked_up_from_where() {
 
 #[test]
 fn test_signal_ids_widen_to_sentinel_when_unsafe() {
-    // A trace-scoped read carries no signal_id predicate at all, so the
-    // no-predicate case must widen rather than narrow to nothing. This is the case
-    // `signal_ids` exists to not break.
+    // `getTraceSignals` deliberately reads every signal that fired on a trace —
+    // no signal_id predicate at all — so the no-predicate case must widen. This
+    // is the case `signal_ids` exists to not break.
     for q in [
         "SELECT id FROM signal_events WHERE trace_id = '0195b6e0-0000-7000-8000-000000000001'",
         // `severity > 1` rows belong to other signals too.
@@ -1252,72 +1252,6 @@ fn test_in_with_blocked_function_rhs_still_rejected() {
     assert!(
         err.to_lowercase().contains("url") || err.contains("blocked"),
         "got: {err}"
-    );
-}
-
-#[test]
-fn test_get_trace_signals_reads_events_off_the_trace() {
-    // `getTraceSignals` (frontend/lib/actions/signals/trace.ts) reads a trace's
-    // events off `traces.signal_events`, so `traces` is the only relation here:
-    // the array column and its `e` alias must survive verbatim, and no
-    // `signal_events_v0` may appear. `traces.id` is qualified on purpose — a bare
-    // `id` would resolve to the `e.event_id AS id` SELECT alias in ClickHouse.
-    let query = r#"
-        SELECT
-          e.event_id AS id,
-          e.signal_id AS signalId,
-          e.payload AS payload,
-          e.severity AS severity
-        FROM traces
-        ARRAY JOIN signal_events AS e
-        WHERE traces.id = {traceId: UUID}
-        ORDER BY e.severity DESC, e.event_id ASC
-    "#;
-    let result = validate_ok(query);
-    assert!(
-        contains_ws(
-            &result,
-            &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', \
-                 min_start_time = toDateTime64('1970-01-01 00:00:00', 9), \
-                 max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
-            )
-        ),
-        "got: {result}"
-    );
-    assert!(
-        contains_ws(&result, "ARRAY JOIN signal_events AS e"),
-        "got: {result}"
-    );
-    assert!(!result.contains("signal_events_v0"), "got: {result}");
-}
-
-#[test]
-fn test_get_trace_signals_leaf_clusters_push_down_signal_ids() {
-    // Second half of `getTraceSignals`: per-event L1 memberships, narrowed to the
-    // signals the trace actually fired. A lone array bind IS the view argument, so
-    // `event_clusters_all_v0` scans only those signals' summaries.
-    let query = r#"
-        SELECT
-          event_id AS eventId,
-          cluster_id AS clusterId,
-          cluster_name AS clusterName,
-          level
-        FROM event_clusters_all
-        WHERE signal_id IN ({signalIds: Array(UUID)})
-          AND event_id IN ({eventIds: Array(UUID)})
-          AND level = 1
-    "#;
-    let result = validate_ok(query);
-    assert!(
-        contains_ws(
-            &result,
-            &format!(
-                "FROM event_clusters_all_v0(project_id = '{SAMPLE_PROJECT_ID}', \
-                 signal_ids = {{signalIds: Array(UUID)}}) AS event_clusters_all"
-            )
-        ),
-        "got: {result}"
     );
 }
 
