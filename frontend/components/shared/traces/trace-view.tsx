@@ -1,6 +1,7 @@
 "use client";
 
-import { CirclePlay } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { CirclePlay, Radio } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +15,7 @@ import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
@@ -21,6 +23,7 @@ import TraceViewStoreProvider, {
 } from "@/components/traces/trace-view/store";
 import Transcript from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
+import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -55,6 +58,9 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds,
     isResizing,
     setIsResizing,
+    traceSignals,
+    signalsPanelOpen,
+    setSignalsPanelOpen,
   } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
@@ -72,7 +78,12 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     isResizing: state.isResizing,
     setIsResizing: state.setIsResizing,
+    traceSignals: state.traceSignals,
+    signalsPanelOpen: state.signalsPanelOpen,
+    setSignalsPanelOpen: state.setSignalsPanelOpen,
   }));
+
+  useTraceSignals(`/api/shared/traces/${trace.id}/signals`);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -168,6 +179,18 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                     />
                   </div>
                   <div className="flex items-center gap-1">
+                    {traceSignals.length > 0 && (
+                      <Button
+                        className={cn("h-6 px-1.5 text-xs", {
+                          "border-primary text-primary": signalsPanelOpen,
+                        })}
+                        variant="outline"
+                        onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
+                      >
+                        <Radio data-icon="inline-start" size={14} className="mr-1" />
+                        Signals ({traceSignals.length})
+                      </Button>
+                    )}
                     {hasBrowserSession && (
                       <Button
                         className={cn("h-6 px-1.5 text-xs", {
@@ -184,6 +207,19 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                   </div>
                 </div>
               </div>
+              {/* Below the toolbar rather than beside the header: on the full-page
+                  variant the header collapses to h-0 and floats the timeline
+                  controls over whatever follows it. */}
+              <AnimatePresence>
+                {signalsPanelOpen && (
+                  <SignalEventsPanel
+                    readOnly
+                    traceId={trace.id}
+                    onClose={() => setSignalsPanelOpen(false)}
+                    className="mx-2 mt-2 shrink-0"
+                  />
+                )}
+              </AnimatePresence>
               {tab === "tree" ? (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <Tree onSpanSelect={handleSpanSelect} isShared />

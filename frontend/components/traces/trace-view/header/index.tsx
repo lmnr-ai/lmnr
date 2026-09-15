@@ -3,27 +3,21 @@ import { ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-r
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useLaminarAgentStore } from "@/components/agent";
-import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
-import {
-  type TraceSignal,
-  type TraceSignalClusterNode,
-  type TraceSignalEvent,
-} from "@/components/traces/trace-view/store/base";
+import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +52,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { toast } = useToast();
   const { project } = useProjectContext();
   const featureFlags = useFeatureFlags();
   const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
@@ -74,10 +67,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     signalsPanelOpen,
     setSignalsPanelOpen,
     traceSignals,
-    setTraceSignals,
-    setIsTraceSignalsLoading,
-    setActiveSignalTabId,
-    initialSignalId,
     initialSearch,
   } = useTraceViewStore(
     (state) => ({
@@ -88,85 +77,12 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       signalsPanelOpen: state.signalsPanelOpen,
       setSignalsPanelOpen: state.setSignalsPanelOpen,
       traceSignals: state.traceSignals,
-      setTraceSignals: state.setTraceSignals,
-      setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
-      setActiveSignalTabId: state.setActiveSignalTabId,
-      initialSignalId: state.initialSignalId,
       initialSearch: state.initialSearch,
     }),
     shallow
   );
 
-  // Eagerly fetch signals when the trace loads, populating store + auto-opening the panel
-  // when there are any. Tab selection prefers initialSignalId from the store (set at creation).
-  useEffect(() => {
-    if (!traceId || !projectId) return;
-
-    const fetchSignals = async () => {
-      try {
-        setIsTraceSignalsLoading(true);
-        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/signals`);
-        if (!response.ok) {
-          const errMessage = await response
-            .json()
-            .then((d) => d?.error)
-            .catch(() => null);
-          toast({ variant: "destructive", title: errMessage ?? "Failed to load trace signals" });
-          return;
-        }
-
-        const data = (await response.json()) as Array<{
-          signalId: string;
-          signalName: string;
-          prompt: string;
-          structuredOutput: Record<string, unknown>;
-          events: Array<Omit<TraceSignalEvent, "leafClusters"> & { leafClusters?: TraceSignalClusterNode[] | null }>;
-        }>;
-        if (!Array.isArray(data)) return;
-
-        const mapped: TraceSignal[] = data.map((s) => ({
-          signalId: s.signalId,
-          signalName: s.signalName,
-          prompt: s.prompt ?? "",
-          schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
-            name: f.name,
-            type: f.type,
-            description: f.description,
-          })),
-          events: Array.isArray(s.events)
-            ? s.events.map((e) => ({
-                id: e.id,
-                signalId: e.signalId,
-                traceId: e.traceId,
-                payload: e.payload,
-                severity: e.severity,
-                leafClusters: e.leafClusters ?? [],
-              }))
-            : [],
-        }));
-
-        setTraceSignals(mapped);
-
-        if (mapped.length > 0) {
-          setSignalsPanelOpen(true);
-          // A deep link with eventId points at one specific finding — open the
-          // signal tab that owns it so the highlighted card is visible. Fall
-          // back to the initial signal, then the first signal.
-          const eventId = searchParams.get("eventId");
-          const owner = eventId ? mapped.find((s) => s.events.some((e) => e.id === eventId)) : undefined;
-          const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-          setActiveSignalTabId(owner?.signalId ?? preferred?.signalId ?? mapped[0].signalId);
-        }
-      } catch {
-        toast({ variant: "destructive", title: "Failed to load trace signals" });
-      } finally {
-        setIsTraceSignalsLoading(false);
-      }
-    };
-
-    fetchSignals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useTraceSignals(traceId && projectId ? `/api/projects/${projectId}/traces/${traceId}/signals` : null);
 
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);

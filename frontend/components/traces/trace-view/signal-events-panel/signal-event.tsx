@@ -32,6 +32,8 @@ interface Props {
   validFields: SchemaField[];
   spanRefCallbacks?: SpanReferenceCallbacks;
   highlighted?: boolean;
+  /** Public shared trace: the findings render, the ways into the project don't. */
+  readOnly?: boolean;
 }
 
 /** One event, with no card around it: a signal produces one event per trace in
@@ -44,6 +46,7 @@ export default function SignalEvent({
   validFields,
   spanRefCallbacks,
   highlighted,
+  readOnly,
 }: Props) {
   const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
 
@@ -53,6 +56,28 @@ export default function SignalEvent({
       ref.current?.scrollIntoView({ block: "nearest" });
     }
   }, [highlighted]);
+
+  const clusterChips = event.leafClusters.map((cluster) => (
+    <ClusterButton
+      key={cluster.id}
+      shrinkable
+      cluster={cluster}
+      href={
+        readOnly
+          ? undefined
+          : `/project/${projectId}/signals/${signalId}?clusterId=${cluster.id}&traceId=${traceId}&eventId=${event.id}`
+      }
+    />
+  ));
+
+  // Read-only and unclustered leaves nothing to put in the row, so it goes rather
+  // than sitting there as an empty inset.
+  const chipRow =
+    clusterChips.length > 0 ? (
+      clusterChips
+    ) : readOnly ? null : (
+      <OpenInSignalsButton href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} />
+    );
 
   return (
     <div
@@ -65,25 +90,12 @@ export default function SignalEvent({
           6 + the chip's 6 puts the LABEL on 12, level with the field labels
           under it. The column keeps its one left edge; the text sits on it
           rather than the box. */}
-      <div className="flex min-w-0 items-center gap-1.5 px-1.5 py-2">
-        {event.leafClusters.length > 0 ? (
-          event.leafClusters.map((cluster) => (
-            <ClusterButton
-              key={cluster.id}
-              shrinkable
-              cluster={cluster}
-              href={`/project/${projectId}/signals/${signalId}?clusterId=${cluster.id}&traceId=${traceId}&eventId=${event.id}`}
-            />
-          ))
-        ) : (
-          <OpenInSignalsButton href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} />
-        )}
-      </div>
+      {chipRow && <div className="flex min-w-0 items-center gap-1.5 px-1.5 py-2">{chipRow}</div>}
 
       {/* The span-chip override rides here: the chips come out of shipping
           markdown, so a descendant rule is the only way to reach them. The bottom
           inset clears the resize grip, which is absolute and sits over this. */}
-      <div className={cn("flex min-w-0 flex-col gap-2.5 px-3 pb-2", SPAN_CHIP_SURFACE)}>
+      <div className={cn("flex min-w-0 flex-col gap-2.5 px-3 pb-2", !chipRow && "pt-2", SPAN_CHIP_SURFACE)}>
         {validFields.map((field) => (
           <div key={field.name} className="flex flex-col gap-0.5">
             <div className="text-xs font-medium text-muted-foreground">{field.name}</div>
