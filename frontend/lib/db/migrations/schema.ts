@@ -595,6 +595,9 @@ export const llmProfiles = pgTable(
       name: "llm_profiles_workspace_id_fkey",
     }).onDelete("cascade"),
     unique("llm_profiles_workspace_id_name_key").on(table.workspaceId, table.name),
+    // Redundant with the PK; lets `llm_feature_routes` FK on (workspace_id, id)
+    // so a workspace route can only point at that workspace's own profile.
+    unique("llm_profiles_workspace_id_id_key").on(table.workspaceId, table.id),
   ]
 );
 
@@ -612,6 +615,47 @@ export const llmProfileModels = pgTable(
       foreignColumns: [llmProfiles.id],
       name: "llm_profile_models_profile_id_fkey",
     }).onDelete("cascade"),
+  ]
+);
+
+// Which profile+model each server-side LLM feature (signals, SQL generation,
+// agent, ...) runs on. `workspace_id IS NULL` rows are the global default and
+// may only reference profiles in the Laminar system workspace
+// (LLM_SYSTEM_WORKSPACE_ID). `feature_id` shares one string namespace with
+// `app-server/src/llm/features.rs` and `frontend/lib/ai/features.ts`;
+// `default` is the fallback for features without their own row.
+export const llmFeatureRoutes = pgTable(
+  "llm_feature_routes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id"),
+    featureId: text("feature_id").notNull(),
+    llmProfileId: uuid("llm_profile_id").notNull(),
+    modelName: text("model_name").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "llm_feature_routes_workspace_id_fkey",
+    }).onDelete("cascade"),
+    // MATCH SIMPLE: skipped for global (NULL workspace) rows, which the
+    // app-server checks against the system workspace instead.
+    foreignKey({
+      columns: [table.workspaceId, table.llmProfileId],
+      foreignColumns: [llmProfiles.workspaceId, llmProfiles.id],
+      name: "llm_feature_routes_workspace_profile_fkey",
+    }),
+    // RESTRICT: a routed model cannot be removed from its profile (nor the
+    // profile deleted) without re-pointing the route first.
+    foreignKey({
+      columns: [table.llmProfileId, table.modelName],
+      foreignColumns: [llmProfileModels.profileId, llmProfileModels.name],
+      name: "llm_feature_routes_profile_model_fkey",
+    }).onDelete("restrict"),
+    unique("llm_feature_routes_workspace_id_feature_id_key").on(table.workspaceId, table.featureId).nullsNotDistinct(),
   ]
 );
 

@@ -27,7 +27,7 @@ use crate::db::reports::get_signals_for_workspace;
 use crate::db::workspaces::get_workspace;
 use crate::llm::models::{ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool};
 use crate::llm::{
-    LlmClient, ModelProvider, ProviderContent, ProviderPart, ProviderRequest,
+    LlmClient, LlmFeature, LlmRoute, ModelProvider, ProviderContent, ProviderPart, ProviderRequest,
     ProviderThinkingConfig, ProviderThinkingLevel, request_to_span_input, request_to_tools_attr,
 };
 use crate::mq::MessageQueue;
@@ -237,6 +237,7 @@ async fn process_report_trigger(
                     let signal_scope = traced_project_scope.with_signal(signal.id);
                     match generate_signal_summary(
                         client,
+                        project.id,
                         &project.name,
                         &signal.name,
                         current_count,
@@ -466,6 +467,7 @@ fn build_summary_context(
 /// Returns (summary_text, noteworthy_signal_event_ids).
 async fn generate_signal_summary(
     llm_client: &LlmClient,
+    project_id: Uuid,
     project_name: &str,
     signal_name: &str,
     event_count: u64,
@@ -519,9 +521,7 @@ async fn generate_signal_summary(
             ..Default::default()
         }),
         service_tier: None,
-        provider: None,
-        model_size: None,
-        llm_profile: None,
+        route: LlmRoute::feature(LlmFeature::Reports, Some(project_id)),
     };
 
     let ModelProvider { model, provider } = llm_client.resolve_model_provider(&request).await;

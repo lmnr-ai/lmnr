@@ -393,6 +393,7 @@ fn parse_responses_usage(usage: &Value) -> ProviderUsageMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::LlmRoute;
     use crate::llm::models::{
         ProviderContent, ProviderFunctionCall, ProviderFunctionDeclaration,
         ProviderFunctionResponse, ProviderGenerationConfig, ProviderPart, ProviderRequest,
@@ -448,9 +449,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         }
     }
 

@@ -12,14 +12,15 @@
 
 use std::sync::Arc;
 
-use super::generate::{call_llm, extraction_provider};
+use uuid::Uuid;
+
+use super::generate::call_llm;
 use super::regex::ApplyRegexResult;
 use super::self_tracing::SpanScope;
-use crate::llm::LlmClient;
 use crate::llm::models::{
-    ModelSize, ProviderContent, ProviderGenerationConfig, ProviderPart, ProviderRequest,
-    ProviderResponse,
+    ProviderContent, ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderResponse,
 };
+use crate::llm::{LlmClient, LlmFeature, LlmRoute};
 
 /// Self-tracing span name; must be one of the literals
 /// `self_tracing::SpanBuilder::llm` matches on.
@@ -69,7 +70,7 @@ pub async fn extract_user_task_directly(
     signposted_text: &str,
     scope: &SpanScope,
 ) -> Option<ApplyRegexResult> {
-    let request = build_request(signposted_text);
+    let request = build_request(signposted_text, scope.source_project_id);
     let response = match call_llm(llm_client, &request, scope, EXTRACT_SPAN_NAME).await {
         Ok(response) => response,
         Err(e) => {
@@ -100,7 +101,7 @@ fn response_text(response: &ProviderResponse) -> String {
         .join("")
 }
 
-fn build_request(signposted_text: &str) -> ProviderRequest {
+fn build_request(signposted_text: &str, project_id: Uuid) -> ProviderRequest {
     ProviderRequest {
         contents: vec![ProviderContent {
             role: Some("user".to_string()),
@@ -123,12 +124,10 @@ fn build_request(signposted_text: &str) -> ProviderRequest {
             ..Default::default()
         }),
         service_tier: None,
-        provider: Some(extraction_provider()),
-        // Cheap tier: this fires per trace until a cohort's regex lands, so it is
-        // the recurring cost of the pipeline. Watch the `fallback` resolution
-        // rate before moving it up.
-        model_size: Some(ModelSize::Small),
-        llm_profile: None,
+        // Its own feature so it can be routed to a cheap model: this fires per
+        // trace until a cohort's regex lands, so it is the recurring cost of
+        // the pipeline.
+        route: LlmRoute::feature(LlmFeature::InputExtractionDirect, Some(project_id)),
     }
 }
 

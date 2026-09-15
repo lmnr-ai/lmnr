@@ -577,6 +577,7 @@ fn supports_sampling_params(model: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::LlmRoute;
 
     /// The signals request splits the first user message into (trace,
     /// per-signal instructions); both ends need a breakpoint so signals sharing
@@ -602,9 +603,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
 
         let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
@@ -686,9 +685,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
         assert_eq!(body["thinking"]["type"], "adaptive");
@@ -710,9 +707,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-sonnet-5", &request).unwrap();
         assert!(body.get("temperature").is_none());
@@ -732,9 +727,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-sonnet-4-6", &request).unwrap();
         assert!(body["temperature"].is_number());

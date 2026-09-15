@@ -2,10 +2,6 @@
 
 use super::{BoolEnv, NumEnv};
 
-/// Provider override for the system extraction agent's LLM calls (e.g. `"bedrock"`,
-/// `"gemini"`).
-pub const SP_EXTRACTION_LLM_PROVIDER: &str = "SP_EXTRACTION_LLM_PROVIDER";
-
 /// Number of same-signature system prompts to accumulate before triggering the
 /// extraction agent. More samples let the agent tell static text from dynamic
 /// fragments reliably.

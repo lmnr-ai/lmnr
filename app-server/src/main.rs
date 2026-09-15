@@ -1444,14 +1444,10 @@ fn main() -> anyhow::Result<()> {
         is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
-        let llm_profile_store = if is_feature_enabled(Feature::SignalLlmProfiles) {
-            Some(Arc::new(llm::profiles::LlmProfileStore::new(
-                db.clone(),
-                cache.clone(),
-            )))
-        } else {
-            None
-        };
+        let llm_profile_store = Arc::new(llm::profiles::LlmProfileStore::new(
+            db.clone(),
+            cache.clone(),
+        ));
         match runtime_handle.block_on(llm::LlmClient::new(llm_profile_store)) {
             Ok(client) => Some(Arc::new(client)),
             Err(e) => {

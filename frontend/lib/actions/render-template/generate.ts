@@ -2,7 +2,8 @@ import { observe } from "@lmnr-ai/lmnr";
 import { stepCountIs, ToolLoopAgent } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 
 import { buildGenerateInstructions } from "./prompts";
 import { createVfsTools, FILTER_FILE, TEMPLATE_FILE, type Vfs } from "./tools";
@@ -77,7 +78,7 @@ export const generateTemplate = async (input: GenerateTemplateInput): Promise<Ge
     },
     async () => {
       const agent = new ToolLoopAgent({
-        model: getLanguageModel("medium"),
+        model: await getLanguageModel(LlmFeature.RENDER_TEMPLATE_GENERATION, projectId),
         instructions: buildGenerateInstructions(scope),
         tools: createVfsTools(vfs, allowedPaths),
         stopWhen: stepCountIs(MAX_STEPS),
