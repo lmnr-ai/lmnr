@@ -18,9 +18,7 @@ pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";
 /// `feature_id = default` is a scope's fallback row and is read on every other
 /// feature's miss. Absence is cached too (as `FeatureRouteEntry::Absent`), since
 /// most workspaces have no override. Rows are edited directly in the database,
-/// so entries expire by TTL only: 5 minutes, or 30 days for a found `default`
-/// row — delete that key by hand after editing a `default` row
-/// (`llm::profiles::store`).
+/// so entries expire by TTL only (5 minutes, `llm::profiles::store`).
 /// `_v2` because the retired `llm_feature_route` prefix held the *resolved*
 /// target under the caller's workspace key, where `Absent` meant "no row in any
 /// scope". A replica on that layout reading a v2 `Absent` (this scope has no
