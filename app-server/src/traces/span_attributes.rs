@@ -18,6 +18,8 @@ pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
 // This one is not in the open-telemetry specs. See:
 // https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py#L65
 pub const GEN_AI_TOTAL_COST: &str = "gen_ai.usage.cost";
+// Same meaning, OpenRouter Broadcast's spelling.
+pub const GEN_AI_USAGE_TOTAL_COST: &str = "gen_ai.usage.total_cost";
 
 // These are in neither standard.
 pub const GEN_AI_INPUT_COST: &str = "gen_ai.usage.input_cost";
@@ -74,6 +76,10 @@ pub const GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED: &str =
 pub const GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS: &str = "gen_ai.usage.details.cache_read_tokens";
 pub const GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS: &str = "gen_ai.usage.details.cache_write_tokens";
 
+// OpenRouter Broadcast breakdowns, subsets of the `{input,output}_tokens` totals.
+pub const GEN_AI_USAGE_INPUT_TOKENS_CACHED: &str = "gen_ai.usage.input_tokens.cached";
+pub const GEN_AI_USAGE_OUTPUT_TOKENS_REASONING: &str = "gen_ai.usage.output_tokens.reasoning";
+
 // Additional usage attributes for cost calculation
 pub const GEN_AI_USAGE_AUDIO_INPUT_TOKENS: &str = "gen_ai.usage.audio_input_tokens";
 pub const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: &str = "gen_ai.usage.audio_output_tokens";
@@ -107,24 +113,20 @@ pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
 pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
 pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
 
-// Plain trace-identity keys, read as fallbacks after the
-// `lmnr.association.properties.*` equivalents our SDKs send.
+// Plain trace-identity keys, read after the `lmnr.association.properties.*` ones.
 pub const SESSION_ID: &str = "session.id";
 pub const USER_ID: &str = "user.id";
 pub const TRACE_NAME: &str = "trace.name";
 
-// OpenRouter Broadcast. Unlike the indexed OpenLLMetry keys
-// (`gen_ai.prompt.0.content`), these hold the whole conversation as a JSON
-// string. See `traces/openrouter.rs`.
+// OpenRouter Broadcast: the whole conversation as a JSON string, unlike the
+// indexed OpenLLMetry keys (`gen_ai.prompt.0.content`). See `traces/openrouter.rs`.
 pub const GEN_AI_PROMPT: &str = "gen_ai.prompt";
 pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
 // Duplicate copies of the two above, sent on the same span.
 pub const OPENROUTER_SPAN_INPUT: &str = "span.input";
 pub const OPENROUTER_SPAN_OUTPUT: &str = "span.output";
-// OpenRouter's own span kind: `generation` for the model call, `span` for the
-// `provider attempt N` children.
+// OpenRouter's own span kind: `generation` vs `span` for the child attempts.
 pub const OPENROUTER_SPAN_TYPE: &str = "span.type";
-// Vendor-namespaced attributes. The only Broadcast marker that reaches us on
-// every span of a trace — resource attributes (`service.name = openrouter`)
-// are dropped by `Span::from_otel_span`.
+// The only Broadcast marker present on every span of a trace: resource
+// attributes (`service.name = openrouter`) are dropped by `Span::from_otel_span`.
 pub const OPENROUTER_METADATA_PREFIX: &str = "trace.metadata.openrouter.";

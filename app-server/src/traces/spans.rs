@@ -40,8 +40,10 @@ use super::{
         GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
         GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
-        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
-        TRACE_NAME, USER_ID,
+        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, GEN_AI_USAGE_INPUT_TOKENS_CACHED,
+        GEN_AI_USAGE_OUTPUT_TOKENS_REASONING, GEN_AI_USAGE_REASONING_TOKENS,
+        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE, TRACE_NAME,
+        USER_ID,
     },
     utils::skip_span_name,
 };
@@ -238,6 +240,15 @@ impl SpanAttributes {
             GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
             GEN_AI_CACHE_WRITE_INPUT_TOKENS,
         );
+        // OpenRouter Broadcast's breakdown keys, same subset-of-the-total semantics.
+        self.normalize_if_absent(
+            GEN_AI_USAGE_INPUT_TOKENS_CACHED,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_OUTPUT_TOKENS_REASONING,
+            GEN_AI_USAGE_REASONING_TOKENS,
+        );
 
         let Some(prefix) = self.detect_aisdk_operation_prefix() else {
             return;
@@ -376,10 +387,13 @@ impl SpanAttributes {
     }
 
     pub fn total_cost(&mut self) -> Option<f64> {
-        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_TOTAL_COST) {
-            n.as_f64()
-        } else {
-            None
+        match self
+            .raw_attributes
+            .get(GEN_AI_TOTAL_COST)
+            .or(self.raw_attributes.get(GEN_AI_USAGE_TOTAL_COST))
+        {
+            Some(Value::Number(n)) => n.as_f64(),
+            _ => None,
         }
     }
 
@@ -4750,7 +4764,10 @@ mod tests {
                     key,
                     value: Some(AnyValue {
                         value: Some(match value {
-                            Value::Number(n) => any_value::Value::IntValue(n.as_i64().unwrap()),
+                            Value::Number(n) => match n.as_i64() {
+                                Some(int) => any_value::Value::IntValue(int),
+                                None => any_value::Value::DoubleValue(n.as_f64().unwrap_or(0.0)),
+                            },
                             other => any_value::Value::StringValue(json_value_to_string(&other)),
                         }),
                     }),
@@ -4798,6 +4815,40 @@ mod tests {
             span.attributes.trace_name(),
             Some("OpenRouter Request".to_string())
         );
+    }
+
+    #[test]
+    fn test_openrouter_usage_and_cost_attributes() {
+        // Real numbers from Broadcast's "send test trace", where `input_tokens` (50)
+        // is the total and `input_tokens.cached` (20) a subset of it.
+        let mut attributes = openrouter_generation_attributes();
+        attributes.extend([
+            (GEN_AI_INPUT_TOKENS.to_string(), json!(50)),
+            (GEN_AI_OUTPUT_TOKENS.to_string(), json!(100)),
+            (GEN_AI_USAGE_INPUT_TOKENS_CACHED.to_string(), json!(20)),
+            (GEN_AI_USAGE_OUTPUT_TOKENS_REASONING.to_string(), json!(10)),
+            (GEN_AI_INPUT_COST.to_string(), json!(0.005)),
+            (GEN_AI_OUTPUT_COST.to_string(), json!(0.015)),
+            (GEN_AI_USAGE_TOTAL_COST.to_string(), json!(0.02)),
+        ]);
+
+        let mut span =
+            Span::from_otel_span(otel_span("Test Generation", attributes), Uuid::new_v4());
+        span.parse_and_enrich_attributes();
+        let attributes = &mut span.attributes;
+
+        let input_tokens = attributes.input_tokens();
+        assert_eq!(input_tokens.total(), 50);
+        assert_eq!(input_tokens.cache_read_tokens, 20);
+        // Cached tokens are subtracted from the total rather than added to it.
+        assert_eq!(input_tokens.regular_input_tokens, 30);
+        assert_eq!(attributes.output_tokens(), 100);
+        assert_eq!(attributes.int_attr(GEN_AI_USAGE_REASONING_TOKENS), Some(10));
+
+        assert_eq!(attributes.input_cost(), Some(0.005));
+        assert_eq!(attributes.output_cost(), Some(0.015));
+        // The emitter's own total, not our input + output sum.
+        assert_eq!(attributes.total_cost(), Some(0.02));
     }
 
     #[test]
