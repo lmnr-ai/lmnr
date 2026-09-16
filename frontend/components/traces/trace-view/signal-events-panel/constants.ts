@@ -14,6 +14,10 @@ export const CHIP_ARROW = "size-[13px] shrink-0 opacity-60";
  *  itself ends up on the ramp. */
 export const CHIP_SURFACE = "bg-surface-up-3 hover:bg-surface-up-4";
 
+/** The same fill without the hover, for a chip that has nowhere to go — a shared
+ *  trace's cluster pill. Lighting it would promise the click does something. */
+export const CHIP_SURFACE_STATIC = "bg-surface-up-3";
+
 /**
  * The span-reference badges inside a payload (`Bash ↗`), which ship as
  * `bg-foreground-300/20` — a fixed wash of the TEXT colour that ignores the ramp.
