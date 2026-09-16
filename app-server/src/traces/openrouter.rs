@@ -6,7 +6,9 @@
 //! - `gen_ai.prompt` — JSON string, `{"messages": [<OpenAI chat messages>]}`
 //! - `gen_ai.completion` — JSON string,
 //!   `{"completion": "...", "reasoning": null, "toolCalls": []}`
-//! - `trace.metadata.openrouter.source = "openrouter"` — emitter marker
+//! - `span.input` / `span.output` — duplicates of the two above
+//! - `span.type` — `generation` for the model call, `span` for its children
+//! - `trace.metadata.openrouter.*` — emitter marker
 
 use std::collections::HashMap;
 
@@ -15,51 +17,79 @@ use serde_json::{Value, json};
 
 use crate::{
     traces::{
-        span_attributes::{GEN_AI_COMPLETION, GEN_AI_PROMPT, OPENROUTER_SOURCE},
+        span_attributes::{
+            GEN_AI_COMPLETION, GEN_AI_PROMPT, OPENROUTER_METADATA_PREFIX, OPENROUTER_SPAN_INPUT,
+            OPENROUTER_SPAN_OUTPUT, OPENROUTER_SPAN_TYPE,
+        },
         spans::{self, SpanAttributes},
         utils::serialize_indexmap,
     },
     utils::json_value_to_string,
 };
 
-const OPENROUTER_SOURCE_VALUE: &str = "openrouter";
+const GENERATION_SPAN_TYPE: &str = "generation";
 
-/// Whether the span came from OpenRouter Broadcast. Resource attributes (where
-/// `service.name = openrouter` would live) are not usable — `from_otel_span`
-/// drops them — but OpenRouter replicates this one onto every span.
+/// Whether the span came from OpenRouter Broadcast. Matched on the vendor
+/// prefix, not on `trace.metadata.openrouter.source`: that one is only on the
+/// generation span, while the children carry other keys under the prefix.
 pub fn is_openrouter_span(attributes: &SpanAttributes) -> bool {
+    attributes
+        .raw_attributes
+        .keys()
+        .any(|key| key.starts_with(OPENROUTER_METADATA_PREFIX))
+}
+
+/// Whether the span is a Broadcast span that isn't the model call — the
+/// `provider attempt N: <provider>` children, which carry
+/// `gen_ai.operation.name = "chat"` but no model or usage of their own and so
+/// would otherwise be typed LLM.
+pub fn is_non_generation_span(attributes: &SpanAttributes) -> bool {
     matches!(
-        attributes.raw_attributes.get(OPENROUTER_SOURCE),
-        Some(Value::String(source)) if source == OPENROUTER_SOURCE_VALUE
+        attributes.string_attr(OPENROUTER_SPAN_TYPE),
+        Some(kind) if kind != GENERATION_SPAN_TYPE
+    ) && is_openrouter_span(attributes)
+}
+
+/// Move the input payload out of `attributes` and parse it into span input.
+pub fn take_input(attributes: &mut HashMap<String, Value>) -> Option<Value> {
+    take_payload(
+        attributes,
+        &[GEN_AI_PROMPT, OPENROUTER_SPAN_INPUT],
+        parse_prompt,
     )
 }
 
-/// Move `gen_ai.prompt` out of `attributes` and parse it into span input.
-pub fn take_input(attributes: &mut HashMap<String, Value>) -> Option<Value> {
-    take_payload(attributes, GEN_AI_PROMPT, parse_prompt)
-}
-
-/// Move `gen_ai.completion` out of `attributes` and parse it into span output.
+/// Move the output payload out of `attributes` and parse it into span output.
 pub fn take_output(attributes: &mut HashMap<String, Value>) -> Option<Value> {
-    take_payload(attributes, GEN_AI_COMPLETION, parse_completion)
+    take_payload(
+        attributes,
+        &[GEN_AI_COMPLETION, OPENROUTER_SPAN_OUTPUT],
+        parse_completion,
+    )
 }
 
-/// The payload attributes are removed rather than read: keeping them would
-/// duplicate the whole conversation in the ClickHouse attributes blob. An
-/// unrecognised payload is put back — better a raw attribute than a dropped one.
+/// The payload attributes are removed rather than read: OpenRouter sends the
+/// conversation twice, and keeping either copy would duplicate it in the
+/// ClickHouse attributes blob. An unrecognised payload is put back — better a
+/// raw attribute than a dropped one.
 fn take_payload(
     attributes: &mut HashMap<String, Value>,
-    key: &str,
+    keys: &[&str],
     parse: impl Fn(&Value) -> Option<Value>,
 ) -> Option<Value> {
-    let raw = attributes.remove(key)?;
-    match parse(&raw) {
-        Some(parsed) => Some(parsed),
-        None => {
-            attributes.insert(key.to_string(), raw);
-            None
+    let mut parsed = None;
+    for key in keys {
+        let Some(raw) = attributes.remove(*key) else {
+            continue;
+        };
+        match parse(&raw) {
+            Some(value) => parsed = parsed.or(Some(value)),
+            None => {
+                attributes.insert((*key).to_string(), raw);
+            }
         }
     }
+    parsed
 }
 
 /// Parse `gen_ai.prompt` (`{"messages": [...]}`) into a message array.
@@ -94,6 +124,17 @@ fn parse_prompt(value: &Value) -> Option<Value> {
 fn parse_completion(value: &Value) -> Option<Value> {
     let parsed = spans::parse_genai_messages_attribute(value);
     let completion = parsed.as_object()?;
+
+    // Broadcast's "send test trace" button posts a raw chat-completion object
+    // under the same key; its assistant message renders verbatim, like the prompt.
+    if let Some(message) = completion
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("message"))
+    {
+        return Some(json!([message]));
+    }
 
     let mut parts = Vec::new();
     // Reasoning first — it precedes the answer in the model's own output.
@@ -180,19 +221,52 @@ mod tests {
 
     #[test]
     fn detects_openrouter_spans() {
-        let attributes = SpanAttributes::new(HashMap::from([(
-            OPENROUTER_SOURCE.to_string(),
-            json!("openrouter"),
-        )]));
-        assert!(is_openrouter_span(&attributes));
+        // The generation span carries `source`; its children carry other keys
+        // under the same prefix and nothing else identifying.
+        for key in [
+            "trace.metadata.openrouter.source",
+            "trace.metadata.openrouter.provider_name",
+        ] {
+            let attributes =
+                SpanAttributes::new(HashMap::from([(key.to_string(), json!("openrouter"))]));
+            assert!(is_openrouter_span(&attributes));
+        }
 
         let other = SpanAttributes::new(HashMap::from([(
-            OPENROUTER_SOURCE.to_string(),
-            json!("something-else"),
+            "trace.metadata.environment".to_string(),
+            json!("production"),
         )]));
         assert!(!is_openrouter_span(&other));
 
         assert!(!is_openrouter_span(&SpanAttributes::default()));
+    }
+
+    #[test]
+    fn detects_provider_attempt_spans() {
+        let provider_attempt = SpanAttributes::new(HashMap::from([
+            (
+                "trace.metadata.openrouter.provider_name".to_string(),
+                json!("OpenAI"),
+            ),
+            (OPENROUTER_SPAN_TYPE.to_string(), json!("span")),
+        ]));
+        assert!(is_non_generation_span(&provider_attempt));
+
+        let generation = SpanAttributes::new(HashMap::from([
+            (
+                "trace.metadata.openrouter.source".to_string(),
+                json!("openrouter"),
+            ),
+            (OPENROUTER_SPAN_TYPE.to_string(), json!("generation")),
+        ]));
+        assert!(!is_non_generation_span(&generation));
+
+        // `span.type` alone, from any other emitter, means nothing here.
+        let unmarked = SpanAttributes::new(HashMap::from([(
+            OPENROUTER_SPAN_TYPE.to_string(),
+            json!("span"),
+        )]));
+        assert!(!is_non_generation_span(&unmarked));
     }
 
     #[test]
@@ -296,12 +370,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_completion_from_a_chat_completion_object() {
+        // What the "send test trace" button posts.
+        let completion = json!(
+            r#"{"id":"chatcmpl-test123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"The capital of France is Paris."},"finish_reason":"stop"}],"usage":{"prompt_tokens":50}}"#
+        );
+        assert_eq!(
+            parse_completion(&completion).unwrap(),
+            json!([{"role": "assistant", "content": "The capital of France is Paris."}])
+        );
+    }
+
+    #[test]
     fn take_consumes_recognised_payloads_and_restores_the_rest() {
+        let prompt = json!(r#"{"messages":[{"role":"user","content":"Hi"}]}"#);
         let mut attributes = HashMap::from([
-            (
-                GEN_AI_PROMPT.to_string(),
-                json!(r#"{"messages":[{"role":"user","content":"Hi"}]}"#),
-            ),
+            (GEN_AI_PROMPT.to_string(), prompt.clone()),
+            // OpenRouter sends the same payload twice; both copies must go.
+            (OPENROUTER_SPAN_INPUT.to_string(), prompt),
             (GEN_AI_COMPLETION.to_string(), json!("not an object")),
         ]);
 
@@ -310,6 +396,7 @@ mod tests {
             json!([{"role": "user", "content": "Hi"}])
         );
         assert!(!attributes.contains_key(GEN_AI_PROMPT));
+        assert!(!attributes.contains_key(OPENROUTER_SPAN_INPUT));
 
         assert!(take_output(&mut attributes).is_none());
         // Unparseable payloads stay in the attributes instead of vanishing.

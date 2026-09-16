@@ -118,4 +118,13 @@ pub const TRACE_NAME: &str = "trace.name";
 // string. See `traces/openrouter.rs`.
 pub const GEN_AI_PROMPT: &str = "gen_ai.prompt";
 pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
-pub const OPENROUTER_SOURCE: &str = "trace.metadata.openrouter.source";
+// Duplicate copies of the two above, sent on the same span.
+pub const OPENROUTER_SPAN_INPUT: &str = "span.input";
+pub const OPENROUTER_SPAN_OUTPUT: &str = "span.output";
+// OpenRouter's own span kind: `generation` for the model call, `span` for the
+// `provider attempt N` children.
+pub const OPENROUTER_SPAN_TYPE: &str = "span.type";
+// Vendor-namespaced attributes. The only Broadcast marker that reaches us on
+// every span of a trace — resource attributes (`service.name = openrouter`)
+// are dropped by `Span::from_otel_span`.
+pub const OPENROUTER_METADATA_PREFIX: &str = "trace.metadata.openrouter.";

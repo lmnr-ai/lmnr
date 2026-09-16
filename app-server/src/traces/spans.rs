@@ -446,6 +446,11 @@ impl SpanAttributes {
             return serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default();
         }
 
+        // OpenRouter Broadcast types its own spans, so trust that over the inference below.
+        if openrouter::is_non_generation_span(self) {
+            return SpanType::Default;
+        }
+
         // OTel GenAI semantic conventions — use `gen_ai.operation.name` as the authoritative
         // signal when present (emitted by pydantic_ai v5 and other spec-compliant libraries).
         if let Some(Value::String(op)) = self.raw_attributes.get(GEN_AI_OPERATION_NAME) {
@@ -1719,7 +1724,10 @@ mod tests {
     use super::*;
     use crate::{
         opentelemetry_proto::opentelemetry_proto_common_v1::{AnyValue, KeyValue, any_value},
-        traces::span_attributes::{GEN_AI_COMPLETION, GEN_AI_PROMPT, OPENROUTER_SOURCE},
+        traces::span_attributes::{
+            GEN_AI_COMPLETION, GEN_AI_PROMPT, OPENROUTER_SPAN_INPUT, OPENROUTER_SPAN_OUTPUT,
+            OPENROUTER_SPAN_TYPE,
+        },
     };
     use serde_json::json;
 
@@ -4697,31 +4705,37 @@ mod tests {
         assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
     }
 
-    /// Attributes of an OpenRouter Broadcast generation span, as sent by its
-    /// OpenTelemetry Collector destination.
+    // Payloads copied verbatim from a real Broadcast trace of a tool-calling turn.
+    const OPENROUTER_PROMPT: &str = r#"{"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":null,"refusal":null,"tool_calls":[{"type":"function","index":0,"id":"call_3Fd7i9rG","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},{"role":"tool","tool_call_id":"call_3Fd7i9rG","content":"14°C, light rain."}]}"#;
+    const OPENROUTER_COMPLETION: &str = r#"{"completion":"It is 14°C with light rain in Paris.","reasoning":null,"toolCalls":[],"rawRequest":{"model":"openai/gpt-4o-mini","_skin":"chat-completions"}}"#;
+
+    /// Attributes of an OpenRouter Broadcast generation span, trimmed to the keys
+    /// we read. `session.id` only appears when the caller sets `session_id`.
     fn openrouter_generation_attributes() -> HashMap<String, Value> {
         HashMap::from([
-            (OPENROUTER_SOURCE.to_string(), json!("openrouter")),
+            (
+                "trace.metadata.openrouter.source".to_string(),
+                json!("openrouter"),
+            ),
             (GEN_AI_SYSTEM.to_string(), json!("openrouter")),
+            (GEN_AI_OPERATION_NAME.to_string(), json!("chat")),
+            (OPENROUTER_SPAN_TYPE.to_string(), json!("generation")),
             (
                 GEN_AI_REQUEST_MODEL.to_string(),
-                json!("anthropic/claude-sonnet-4.5"),
+                json!("openai/gpt-4o-mini"),
             ),
+            (GEN_AI_PROMPT.to_string(), json!(OPENROUTER_PROMPT)),
+            (OPENROUTER_SPAN_INPUT.to_string(), json!(OPENROUTER_PROMPT)),
+            (GEN_AI_COMPLETION.to_string(), json!(OPENROUTER_COMPLETION)),
             (
-                GEN_AI_PROMPT.to_string(),
-                json!(
-                    r#"{"messages":[{"role":"system","content":"Be brief."},{"role":"user","content":"Hi"}]}"#
-                ),
-            ),
-            (
-                GEN_AI_COMPLETION.to_string(),
-                json!(r#"{"completion":"Hello!","reasoning":"Greet back.","toolCalls":[]}"#),
+                OPENROUTER_SPAN_OUTPUT.to_string(),
+                json!(OPENROUTER_COMPLETION),
             ),
             (SESSION_ID.to_string(), json!("session-1")),
-            (USER_ID.to_string(), json!("user-1")),
-            (TRACE_NAME.to_string(), json!("my-agent-run")),
-            (GEN_AI_INPUT_TOKENS.to_string(), json!(12)),
-            (GEN_AI_OUTPUT_TOKENS.to_string(), json!(3)),
+            (USER_ID.to_string(), json!("org_33pG5Ufhx")),
+            (TRACE_NAME.to_string(), json!("OpenRouter Request")),
+            (GEN_AI_INPUT_TOKENS.to_string(), json!(16)),
+            (GEN_AI_OUTPUT_TOKENS.to_string(), json!(24)),
         ])
     }
 
@@ -4756,39 +4770,60 @@ mod tests {
 
         span.parse_and_enrich_attributes();
 
-        // Input passes through verbatim in OpenAI format.
-        assert_eq!(
-            span.input.unwrap(),
-            json!([
-                {"role": "system", "content": "Be brief."},
-                {"role": "user", "content": "Hi"}
-            ])
-        );
-        // Output is emitted in the GenAI `parts` shape so reasoning renders as thinking.
+        // Input passes through verbatim, tool calls included.
+        let expected_input =
+            serde_json::from_str::<Value>(OPENROUTER_PROMPT).unwrap()["messages"].clone();
+        assert_eq!(span.input.unwrap(), expected_input);
+        // Output is emitted in the GenAI `parts` shape so reasoning can render as thinking.
         assert_eq!(
             span.output.unwrap(),
             json!([{
                 "role": "assistant",
-                "parts": [
-                    {"type": "thinking", "content": "Greet back."},
-                    {"type": "text", "content": "Hello!"}
-                ]
+                "parts": [{"type": "text", "content": "It is 14°C with light rain in Paris."}]
             }])
         );
-        // The payload attributes are not duplicated into the attributes blob.
-        assert!(!span.attributes.raw_attributes.contains_key(GEN_AI_PROMPT));
-        assert!(
-            !span
-                .attributes
-                .raw_attributes
-                .contains_key(GEN_AI_COMPLETION)
-        );
+        // Neither copy of the payload is duplicated into the attributes blob.
+        for key in [
+            GEN_AI_PROMPT,
+            GEN_AI_COMPLETION,
+            OPENROUTER_SPAN_INPUT,
+            OPENROUTER_SPAN_OUTPUT,
+        ] {
+            assert!(!span.attributes.raw_attributes.contains_key(key));
+        }
 
         assert_eq!(span.attributes.session_id(), Some("session-1".to_string()));
-        assert_eq!(span.attributes.user_id(), Some("user-1".to_string()));
+        assert_eq!(span.attributes.user_id(), Some("org_33pG5Ufhx".to_string()));
         assert_eq!(
             span.attributes.trace_name(),
-            Some("my-agent-run".to_string())
+            Some("OpenRouter Request".to_string())
         );
+    }
+
+    #[test]
+    fn test_openrouter_provider_attempt_span_is_not_llm() {
+        // The child's real attributes: `gen_ai.operation.name = "chat"` with no model
+        // and no usage, so `span.type` is the only thing keeping it out of LLM.
+        let child = HashMap::from([
+            (GEN_AI_OPERATION_NAME.to_string(), json!("chat")),
+            (OPENROUTER_SPAN_TYPE.to_string(), json!("span")),
+            ("span.metadata.attempt_index".to_string(), json!(0)),
+            (
+                "trace.metadata.openrouter.provider_name".to_string(),
+                json!("OpenAI"),
+            ),
+        ]);
+        let span = Span::from_otel_span(
+            otel_span("provider attempt 1: OpenAI", child.clone()),
+            Uuid::new_v4(),
+        );
+        assert_eq!(span.span_type, SpanType::Default);
+        assert!(!span.is_llm_span());
+
+        // Without the vendor marker the same `span.type` must not demote anything.
+        let mut unmarked = child;
+        unmarked.remove("trace.metadata.openrouter.provider_name");
+        let span = Span::from_otel_span(otel_span("chat", unmarked), Uuid::new_v4());
+        assert_eq!(span.span_type, SpanType::LLM);
     }
 }
