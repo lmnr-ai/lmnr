@@ -1,24 +1,16 @@
 //! OpenRouter Broadcast ingestion.
 //!
-//! OpenRouter's "OpenTelemetry Collector" broadcast destination
-//! (<https://openrouter.ai/docs/guides/features/broadcast>) posts OTLP spans to
-//! `/v1/traces` with a vocabulary that overlaps the OTel GenAI conventions only
-//! for model/usage attributes. Everything else is its own:
+//! Its "OpenTelemetry Collector" destination posts OTLP spans whose vocabulary
+//! overlaps the GenAI conventions only for model/usage attributes:
 //!
 //! - `gen_ai.prompt` — JSON string, `{"messages": [<OpenAI chat messages>]}`
 //! - `gen_ai.completion` — JSON string,
 //!   `{"completion": "...", "reasoning": null, "toolCalls": []}`
-//! - `session.id`, `user.id`, `trace.name` — trace-level identity
 //! - `trace.metadata.openrouter.source = "openrouter"` — emitter marker
-//!
-//! The bare `gen_ai.prompt` / `gen_ai.completion` keys are neither the indexed
-//! OpenLLMetry form (`gen_ai.prompt.0.content`) nor the spec's
-//! `gen_ai.input.messages`, so no other handler in the pipeline claims them.
 
-use std::{collections::HashMap, sync::LazyLock};
+use std::collections::HashMap;
 
 use indexmap::IndexMap;
-use regex::Regex;
 use serde_json::{Value, json};
 
 use crate::{
@@ -32,29 +24,14 @@ use crate::{
 
 const OPENROUTER_SOURCE_VALUE: &str = "openrouter";
 
-/// OpenRouter emits one child span per provider it tried, named
-/// `provider attempt 1: anthropic`. Case-insensitive because the label is
-/// display text, not a stable identifier.
-static PROVIDER_ATTEMPT_SPAN_NAME_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^provider attempt \d+:").unwrap());
-
-/// Whether the span came from OpenRouter Broadcast. OpenRouter stamps its own
-/// key into the trace-metadata namespace it exports, and trace-scoped
-/// attributes are replicated onto every span of the trace (OTLP has no
-/// trace-level attribute slot). Resource attributes — where `service.name =
-/// openrouter` would live — are not usable: `push_spans_to_queue` drops them.
+/// Whether the span came from OpenRouter Broadcast. Resource attributes (where
+/// `service.name = openrouter` would live) are not usable — `from_otel_span`
+/// drops them — but OpenRouter replicates this one onto every span.
 pub fn is_openrouter_span(attributes: &SpanAttributes) -> bool {
     matches!(
         attributes.raw_attributes.get(OPENROUTER_SOURCE),
         Some(Value::String(source)) if source == OPENROUTER_SOURCE_VALUE
     )
-}
-
-/// The `provider attempt N: <provider>` children carry the request model but no
-/// usage, so the `gen_ai.request.model` heuristic in `SpanAttributes::span_type`
-/// types them LLM. They are routing bookkeeping, not generations.
-pub fn is_provider_attempt_span(name: &str) -> bool {
-    PROVIDER_ATTEMPT_SPAN_NAME_REGEX.is_match(name)
 }
 
 /// Move `gen_ai.prompt` out of `attributes` and parse it into span input.
@@ -67,10 +44,9 @@ pub fn take_output(attributes: &mut HashMap<String, Value>) -> Option<Value> {
     take_payload(attributes, GEN_AI_COMPLETION, parse_completion)
 }
 
-/// The payload attributes are removed rather than read: their content is copied
-/// into `span.input` / `span.output`, so keeping them would duplicate the whole
-/// conversation in the ClickHouse attributes blob. An unrecognised payload is
-/// put back — better a raw attribute than a silently dropped one.
+/// The payload attributes are removed rather than read: keeping them would
+/// duplicate the whole conversation in the ClickHouse attributes blob. An
+/// unrecognised payload is put back — better a raw attribute than a dropped one.
 fn take_payload(
     attributes: &mut HashMap<String, Value>,
     key: &str,
@@ -89,11 +65,11 @@ fn take_payload(
 /// Parse `gen_ai.prompt` (`{"messages": [...]}`) into a message array.
 ///
 /// The messages are already in OpenAI chat format, which the frontend renders
-/// verbatim, so they are passed through untouched rather than converted to
-/// `ChatMessage` — the conversion would drop assistant `tool_calls`.
+/// verbatim, so they are passed through untouched — `ChatMessage` conversion
+/// would drop assistant `tool_calls`.
 ///
-/// Returns `None` unless the value really holds a non-empty message array, so a
-/// plain-string `gen_ai.prompt` (OpenLIT's meaning of the same key) is left alone.
+/// `None` unless the value really holds a non-empty message array, so a
+/// plain-string `gen_ai.prompt` (OpenLIT's meaning of the key) is left alone.
 fn parse_prompt(value: &Value) -> Option<Value> {
     let parsed = spans::parse_genai_messages_attribute(value);
     let messages = match parsed {
@@ -112,10 +88,9 @@ fn parse_prompt(value: &Value) -> Option<Value> {
 /// (`{"completion": "...", "reasoning": "...", "toolCalls": [...]}`) into a
 /// single-message array.
 ///
-/// Emitted in the OTel GenAI `{role, parts}` shape rather than as a
-/// `ChatMessage`: it is the only format the frontend renders with a distinct
-/// "Thinking" label, and `ChatMessageContentPart` has no reasoning variant, so
-/// OpenRouter's `reasoning` field would otherwise show up as raw JSON.
+/// Emitted in the OTel GenAI `{role, parts}` shape, not as a `ChatMessage`: it
+/// is the only format the frontend renders with a "Thinking" label, and
+/// `ChatMessageContentPart` has no reasoning variant.
 fn parse_completion(value: &Value) -> Option<Value> {
     let parsed = spans::parse_genai_messages_attribute(value);
     let completion = parsed.as_object()?;
@@ -143,8 +118,8 @@ fn parse_completion(value: &Value) -> Option<Value> {
     Some(json!([{"role": "assistant", "parts": parts}]))
 }
 
-/// Text content of a completion field, skipping the `null` / `""` that
-/// OpenRouter sends for the fields the generation didn't use.
+/// Text content of a completion field, skipping the `null` / `""` OpenRouter
+/// sends for the fields the generation didn't use.
 fn text_part_content(value: Option<&Value>) -> Option<String> {
     match value? {
         Value::String(s) => Some(s.clone()).filter(|s| !s.is_empty()),
@@ -185,7 +160,7 @@ fn tool_call_part(tool_call: &Value) -> Option<Value> {
     Some(part)
 }
 
-/// OpenAI-format tool call arguments are a JSON string. Parse them through an
+/// OpenAI-format tool call arguments are a JSON string. Parsed through an
 /// `IndexMap` so argument order survives the round trip.
 fn parse_tool_call_arguments(arguments: &Value) -> Value {
     match arguments {
@@ -218,19 +193,6 @@ mod tests {
         assert!(!is_openrouter_span(&other));
 
         assert!(!is_openrouter_span(&SpanAttributes::default()));
-    }
-
-    #[test]
-    fn detects_provider_attempt_spans() {
-        assert!(is_provider_attempt_span("provider attempt 1: anthropic"));
-        assert!(is_provider_attempt_span(
-            "Provider Attempt 12: Google AI Studio"
-        ));
-        assert!(!is_provider_attempt_span("LLM Generation"));
-        assert!(!is_provider_attempt_span("provider attempt: anthropic"));
-        assert!(!is_provider_attempt_span(
-            "retry provider attempt 1: openai"
-        ));
     }
 
     #[test]

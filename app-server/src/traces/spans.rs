@@ -162,7 +162,6 @@ impl SpanAttributes {
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.session_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.sessionId"))
-            // Plain OTel key, sent by OpenRouter Broadcast.
             .or(self.raw_attributes.get(SESSION_ID));
         match session_id_val {
             Some(Value::String(s)) => Some(s.clone()),
@@ -176,7 +175,6 @@ impl SpanAttributes {
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.userId"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.user_id"))
-            // Plain OTel key, sent by OpenRouter Broadcast.
             .or(self.raw_attributes.get(USER_ID));
         match user_id_val {
             Some(Value::String(s)) => Some(s.clone()),
@@ -184,9 +182,7 @@ impl SpanAttributes {
         }
     }
 
-    /// Explicit trace name, independent of the root span's name. Sent by
-    /// OpenRouter Broadcast as `trace.name`, whose root span is always called
-    /// "LLM Generation".
+    /// Explicit trace name, independent of the root span's name.
     pub fn trace_name(&self) -> Option<String> {
         self.string_attr(TRACE_NAME).filter(|name| !name.is_empty())
     }
@@ -762,20 +758,6 @@ impl Span {
         // Only set span type and handle basic attribute overrides - keep this lightweight
         span.span_type = span.attributes.span_type();
 
-        // OpenRouter's per-provider routing spans carry a request model but no usage, so
-        // the model-attribute heuristic types them LLM. Write the corrected type into the
-        // attributes too: `is_llm_span` consults both, and a span counted as LLM would
-        // also enter the LLM input/output extraction path on the consumer side.
-        if span.span_type == SpanType::LLM
-            && openrouter::is_provider_attempt_span(&span.name)
-            && openrouter::is_openrouter_span(&span.attributes)
-        {
-            span.span_type = SpanType::Default;
-            span.attributes
-                .raw_attributes
-                .insert(SPAN_TYPE.to_string(), json!(SpanType::Default.to_string()));
-        }
-
         // Spans with this attribute are wrapped in a NonRecordingSpan that, and we only
         // do that when we add a new span to a trace as a root span.
         if let Some(Value::Bool(true)) = override_parent_span {
@@ -833,11 +815,8 @@ impl Span {
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
 
-            // OpenRouter Broadcast puts the whole conversation into the bare
-            // `gen_ai.prompt` / `gen_ai.completion` attributes. Gated on the emitter
-            // marker because those keys mean "a plain prompt/completion string" to
-            // other instrumentations. Independent of the branches above: OpenRouter
-            // sends neither the indexed nor the AI SDK attributes.
+            // Gated on the emitter marker: to other instrumentations the same bare
+            // `gen_ai.prompt` / `gen_ai.completion` keys mean a plain string.
             if openrouter::is_openrouter_span(&self.attributes) {
                 if let Some(input) = openrouter::take_input(&mut self.attributes.raw_attributes) {
                     self.input = Some(input);
@@ -4811,33 +4790,5 @@ mod tests {
             span.attributes.trace_name(),
             Some("my-agent-run".to_string())
         );
-    }
-
-    #[test]
-    fn test_openrouter_provider_attempt_span_is_not_llm() {
-        // Routing bookkeeping: model attributes but no usage.
-        let attributes = HashMap::from([
-            (OPENROUTER_SOURCE.to_string(), json!("openrouter")),
-            (
-                GEN_AI_REQUEST_MODEL.to_string(),
-                json!("anthropic/claude-sonnet-4.5"),
-            ),
-        ]);
-        let span = Span::from_otel_span(
-            otel_span("provider attempt 1: anthropic", attributes.clone()),
-            Uuid::new_v4(),
-        );
-        assert_eq!(span.span_type, SpanType::Default);
-        // `is_llm_span` reads the attribute too, so both must agree.
-        assert!(!span.is_llm_span());
-
-        // The same span name without the OpenRouter marker is left alone.
-        let mut other_attributes = attributes;
-        other_attributes.remove(OPENROUTER_SOURCE);
-        let span = Span::from_otel_span(
-            otel_span("provider attempt 1: anthropic", other_attributes),
-            Uuid::new_v4(),
-        );
-        assert_eq!(span.span_type, SpanType::LLM);
     }
 }

@@ -151,9 +151,8 @@ impl TraceAggregation {
                 entry.top_span_type = span.span_type.clone().into();
             }
 
-            // An explicit trace name wins over the root span's name: the traces table
-            // renders `top_span_name` as the trace's name, and emitters that send one
-            // (OpenRouter Broadcast) give every root span the same generic name.
+            // An explicit trace name wins over the root span's name, which emitters
+            // that send one (OpenRouter Broadcast) leave generic.
             if let Some(trace_name) = span.attributes.trace_name() {
                 entry.top_span_name = Some(trace_name);
             }
@@ -255,8 +254,6 @@ mod tests {
         assert_eq!(agg.num_spans, 2);
     }
 
-    // OpenRouter Broadcast names every root span "LLM Generation" and carries the
-    // real name in `trace.name`.
     #[test]
     fn explicit_trace_name_overrides_root_span_name() {
         let trace_id = Uuid::new_v4();
