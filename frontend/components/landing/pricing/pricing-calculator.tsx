@@ -3,10 +3,12 @@
 import { type ReactNode, useState } from "react";
 
 import { ElevatedSurface } from "@/components/ui/surface";
-import { signalInputRate, signalOutputRate, type Tier, TIER_ORDER, TIERS } from "@/lib/billing/tiers";
+import { type Tier, TIER_ORDER, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
+import { estimateSignalCostUsd } from "./signal-cost-estimate";
+import { estimateDataGB } from "./storage-estimate";
 import VolumeInputs from "./volume-inputs";
 import {
   COVERAGE_STEPS,
@@ -16,11 +18,6 @@ import {
   TOKENS_PER_RUN_STEPS,
 } from "./volume-inputs/steps";
 
-// Bytes of stored trace data per agent token: a saturating exponential decay
-// y = a·e^(−b·x) + c fitted to measured traces, x in thousands of tokens. ~2.8
-// bytes on a short run, decaying toward ~0.22 as dedup collapses repeats.
-const BYTES_PER_TOKEN_FIT = { a: 2.548, b: 0.002661, c: 0.2221 };
-
 const PRO_DATA_THRESHOLD_GB = 30;
 // Once the estimated Hobby bill clears this, Pro is the cheaper/safer pick.
 const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
@@ -28,22 +25,6 @@ const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
 // data and Signals, once the best self-serve tier bills more than this it is
 // cheaper to be quoted.
 const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
-
-// Token spend of one Signal run, fitted to the median of measured runs. NEITHER
-// term is proportional to the trace: compression leaves input as mostly fixed
-// prompt overhead growing as √x, and output saturates because a Signal event is
-// a fixed-shape object — its median holds near 3-4K across 1,212 runs.
-const SIGNAL_INPUT_FIT = { a: 892.402, b: 7729.86 }; // y = a·√x + b            SSE 22.1M
-const SIGNAL_OUTPUT_FIT = { a: 3575.6, b: 0.000961453, c: 2080.5 }; // y = a·(1−e^(−b·x)) + c  SSE 1.87M
-
-function signalInputTokens(tokensPerRun: number): number {
-  return SIGNAL_INPUT_FIT.a * Math.sqrt(tokensPerRun / 1_000) + SIGNAL_INPUT_FIT.b;
-}
-
-function signalOutputTokens(tokensPerRun: number): number {
-  const { a, b, c } = SIGNAL_OUTPUT_FIT;
-  return a * (1 - Math.exp((-b * tokensPerRun) / 1_000)) + c;
-}
 
 /** One metered line of one tier's column: what the bill picks up, and the
  *  usage that produced it. */
@@ -67,28 +48,6 @@ interface TierEstimate {
    *  Free simply stops, it does not bill. This is the whole reason the table
    *  shows four columns instead of one: it puts the ceiling on screen. */
   available: boolean;
-}
-
-/** Evaluated at the PER-RUN token count, never the monthly total: dedup works
- *  within a trace, so a month of small runs stores far more per token than one
- *  long run of the same total size. */
-function bytesPerToken(tokensPerRun: number): number {
-  const { a, b, c } = BYTES_PER_TOKEN_FIT;
-  return a * Math.exp((-b * tokensPerRun) / 1_000) + c;
-}
-
-function estimateDataGB(runs: number, tokensPerRun: number): number {
-  return (runs * tokensPerRun * bytesPerToken(tokensPerRun)) / 1_000_000_000;
-}
-
-// Dollar cost of running one Signal over `signalCoveragePct`% of the month's
-// runs, at the given tier's signal token rates (Pro is discounted). Priced per
-// analyzed run, since both fits describe a single Signal run. Returns USD.
-function estimateSignalCostUsd(runs: number, tokensPerRun: number, signalCoveragePct: number, tier: Tier): number {
-  const analyzedRuns = runs * (signalCoveragePct / 100);
-  const inputTokens = analyzedRuns * signalInputTokens(tokensPerRun);
-  const outputTokens = analyzedRuns * signalOutputTokens(tokensPerRun);
-  return (inputTokens / 1_000_000) * signalInputRate(tier) + (outputTokens / 1_000_000) * signalOutputRate(tier);
 }
 
 /** A line costs nothing until usage passes the allowance; past it, the charge
@@ -265,12 +224,13 @@ export default function PricingCalculator() {
   const dataGB = estimateDataGB(runs, tokensPerRun);
   const coveragePct = COVERAGE_STEPS[coverageIdx];
 
-  // Signal cost is tier-dependent (Pro is discounted), so each estimate prices
-  // at its own rate.
+  // The landing estimate uses one provisional price across self-serve tiers;
+  // actual billing metering remains tier-specific and unchanged.
+  const signalCostUsd = estimateSignalCostUsd(runs, tokensPerRun, coveragePct);
   const estimates: Record<Tier, TierEstimate> = {
-    free: buildEstimate("free", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "free")),
-    hobby: buildEstimate("hobby", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "hobby")),
-    pro: buildEstimate("pro", dataGB, estimateSignalCostUsd(runs, tokensPerRun, coveragePct, "pro")),
+    free: buildEstimate("free", dataGB, signalCostUsd),
+    hobby: buildEstimate("hobby", dataGB, signalCostUsd),
+    pro: buildEstimate("pro", dataGB, signalCostUsd),
     enterprise: buildEstimate("enterprise", dataGB, 0),
   };
 
@@ -294,8 +254,8 @@ export default function PricingCalculator() {
         <TierComparison estimates={estimates} recommended={recommended} />
         <p className={cn(microLabel, "text-foreground-300 text-sm")}>
           Prices above are estimates only. Storage costs are not proportional to token count due to trace compression.
-          Signals are billed by tokens used during analysis by our internal Signals Agent. Estimates above are based on
-          real production trace size and cost data.
+          Signals are billed by tokens used during analysis by our internal Signals Agent. Signal estimates use median
+          production costs for each trace-size bucket and provisional unified rates; actual billing rates may differ.
         </p>
       </div>
     </div>
