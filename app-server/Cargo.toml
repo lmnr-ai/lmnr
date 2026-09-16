@@ -102,6 +102,8 @@ url = "2.5"
 uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 # Stream record body compression (mq/stream/encoding.rs).
 zstd = "0.13"
+grep-regex = "0.1.14"
+grep-matcher = "0.1.9"
 
 [build-dependencies]
 tonic-prost-build = "0.14"
