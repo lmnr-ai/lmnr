@@ -1,7 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
@@ -12,6 +13,7 @@ import {
   type TraceSignalEvent,
 } from "@/components/traces/trace-view/store/base";
 import { useToast } from "@/lib/hooks/use-toast";
+import { swrFetcher } from "@/lib/utils";
 
 /** Wire shape of both signal endpoints. `prompt` is absent on the shared one —
  *  nothing renders it, so the public route withholds it. */
@@ -27,10 +29,31 @@ type TraceSignalResponse = {
   >;
 };
 
+const toTraceSignal = (signal: TraceSignalResponse): TraceSignal => ({
+  signalId: signal.signalId,
+  signalName: signal.signalName,
+  prompt: signal.prompt ?? "",
+  schemaFields: jsonSchemaToSchemaFields(signal.structuredOutput).map((field) => ({
+    name: field.name,
+    type: field.type,
+    description: field.description,
+  })),
+  events: Array.isArray(signal.events)
+    ? signal.events.map((event) => ({
+        id: event.id,
+        signalId: event.signalId,
+        traceId: event.traceId,
+        payload: event.payload,
+        severity: event.severity,
+        leafClusters: event.leafClusters ?? [],
+      }))
+    : [],
+});
+
 /**
- * Fetches a trace's signal events once, populates the store and auto-opens the
- * panel when there are any. Pass null while the ids the endpoint needs are still
- * missing — the fetch is one-shot per mount, so it will not run later.
+ * Fetches a trace's signal events, mirrors them into the store and auto-opens
+ * the panel the first time there are any. Pass null while the ids the endpoint
+ * needs are still missing.
  *
  * Tab selection prefers the signal owning a deep-linked `eventId`, then the
  * store's `initialSignalId` (set at store creation), then the first signal.
@@ -39,81 +62,35 @@ export const useTraceSignals = (endpoint: string | null) => {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  const { setTraceSignals, setIsTraceSignalsLoading, setSignalsPanelOpen, setActiveSignalTabId, initialSignalId } =
-    useTraceViewStore(
-      (state) => ({
-        setTraceSignals: state.setTraceSignals,
-        setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
-        setSignalsPanelOpen: state.setSignalsPanelOpen,
-        setActiveSignalTabId: state.setActiveSignalTabId,
-        initialSignalId: state.initialSignalId,
-      }),
-      shallow
-    );
+  const { setTraceSignals, setIsTraceSignalsLoading, initialSignalId } = useTraceViewStore(
+    (state) => ({
+      setTraceSignals: state.setTraceSignals,
+      setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
+      initialSignalId: state.initialSignalId,
+    }),
+    shallow
+  );
+
+  const { data, isLoading } = useSWR<TraceSignalResponse[]>(endpoint, swrFetcher, {
+    // Retries call onError on every attempt; one toast per failure is enough.
+    shouldRetryOnError: false,
+    onError: (error: Error) =>
+      toast({ variant: "destructive", title: error.message || "Failed to load trace signals" }),
+  });
+
+  const signals = useMemo(() => (Array.isArray(data) ? data.map(toTraceSignal) : []), [data]);
 
   useEffect(() => {
-    if (!endpoint) return;
+    setIsTraceSignalsLoading(isLoading);
+  }, [isLoading, setIsTraceSignalsLoading]);
 
-    const fetchSignals = async () => {
-      try {
-        setIsTraceSignalsLoading(true);
-        const response = await fetch(endpoint);
-        if (!response.ok) {
-          const errMessage = await response
-            .json()
-            .then((d) => d?.error)
-            .catch(() => null);
-          toast({
-            variant: "destructive",
-            title: errMessage ?? "Failed to load trace signals",
-          });
-          return;
-        }
-
-        const data = (await response.json()) as TraceSignalResponse[];
-        if (!Array.isArray(data)) return;
-
-        const mapped: TraceSignal[] = data.map((s) => ({
-          signalId: s.signalId,
-          signalName: s.signalName,
-          prompt: s.prompt ?? "",
-          schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
-            name: f.name,
-            type: f.type,
-            description: f.description,
-          })),
-          events: Array.isArray(s.events)
-            ? s.events.map((e) => ({
-                id: e.id,
-                signalId: e.signalId,
-                traceId: e.traceId,
-                payload: e.payload,
-                severity: e.severity,
-                leafClusters: e.leafClusters ?? [],
-              }))
-            : [],
-        }));
-
-        setTraceSignals(mapped);
-
-        if (mapped.length > 0) {
-          setSignalsPanelOpen(true);
-          const eventId = searchParams.get("eventId");
-          const owner = eventId ? mapped.find((s) => s.events.some((e) => e.id === eventId)) : undefined;
-          const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-          setActiveSignalTabId(owner?.signalId ?? preferred?.signalId ?? mapped[0].signalId);
-        }
-      } catch {
-        toast({
-          variant: "destructive",
-          title: "Failed to load trace signals",
-        });
-      } finally {
-        setIsTraceSignalsLoading(false);
-      }
-    };
-
-    fetchSignals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Whether this is the panel's first look at the trace is the store's call —
+  // it compares against the signals it already holds. Here we only name the tab
+  // that look should land on.
+  useEffect(() => {
+    const eventId = searchParams.get("eventId");
+    const owner = eventId ? signals.find((s) => s.events.some((e) => e.id === eventId)) : undefined;
+    const preferred = initialSignalId ? signals.find((s) => s.signalId === initialSignalId) : undefined;
+    setTraceSignals(signals, owner?.signalId ?? preferred?.signalId);
+  }, [signals, searchParams, initialSignalId, setTraceSignals]);
 };

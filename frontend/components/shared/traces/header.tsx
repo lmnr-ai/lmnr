@@ -66,7 +66,7 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
     // no header bar, only the floating timeline control.
     return (
       <div className="flex shrink-0 flex-col">
-        {signalsPanel("mx-2 my-2")}
+        {signalsPanel(cn("mx-2 mt-2", condensedTimelineEnabled && "mb-2"))}
         {!isHideTimelineControls && (
           <div className="relative h-0">
             <CondensedTimelineControls

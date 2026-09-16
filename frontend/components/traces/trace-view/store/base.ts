@@ -172,7 +172,7 @@ export interface BaseTraceViewActions {
   setIsResizing: (isResizing: boolean) => void;
 
   // Signal data actions
-  setTraceSignals: (signals: TraceSignal[]) => void;
+  setTraceSignals: (signals: TraceSignal[], preferredSignalId?: string) => void;
   setIsTraceSignalsLoading: (loading: boolean) => void;
   setActiveSignalTabId: (id: string | null) => void;
 
@@ -377,7 +377,21 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 
     // Signal data actions
-    setTraceSignals: (signals: TraceSignal[]) => set({ traceSignals: signals } as Partial<T>),
+    // The first signals to land for a trace offer the panel once, on the tab the
+    // caller prefers. After that the open state and the active tab are the
+    // user's: the fetch revalidates, and returning the same findings must not
+    // reopen a panel they closed. A trace swap empties the list first, so the
+    // next trace gets its own first look.
+    setTraceSignals: (signals: TraceSignal[], preferredSignalId?: string) =>
+      set((state) => {
+        const isFirstFill = state.traceSignals.length === 0 && signals.length > 0;
+        if (!isFirstFill) return { traceSignals: signals } as Partial<T>;
+        return {
+          traceSignals: signals,
+          signalsPanelOpen: true,
+          activeSignalTabId: preferredSignalId ?? signals[0].signalId,
+        } as Partial<T>;
+      }),
     setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
     setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
   };
