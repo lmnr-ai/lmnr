@@ -122,6 +122,14 @@ export interface BaseTraceViewState {
   isTraceSignalsLoading: boolean;
   activeSignalTabId: string | null;
 
+  // Which fetch's findings the panel has already offered itself for, so a
+  // revalidation doesn't reopen a panel the user closed. Keyed rather than
+  // derived from `traceSignals` being empty: an unkeyed `TraceView` keeps one
+  // store across a trace swap (only `TraceViewSidePanel` keys by trace id), and
+  // a warm SWR cache hands over the next trace's list without ever passing
+  // through empty.
+  signalsOfferedFor: string | null;
+
   // Set once at store creation. When signal data arrives via fetch, the Header
   // checks this value to pick the correct default tab.
   initialSignalId?: string;
@@ -172,7 +180,7 @@ export interface BaseTraceViewActions {
   setIsResizing: (isResizing: boolean) => void;
 
   // Signal data actions
-  setTraceSignals: (signals: TraceSignal[], preferredSignalId?: string) => void;
+  setTraceSignals: (signals: TraceSignal[], sourceKey: string, preferredSignalId?: string) => void;
   setIsTraceSignalsLoading: (loading: boolean) => void;
   setActiveSignalTabId: (id: string | null) => void;
 
@@ -233,6 +241,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     traceSignals: [],
     isTraceSignalsLoading: false,
     activeSignalTabId: null,
+    signalsOfferedFor: null,
     initialSignalId: options?.initialSignalId,
     initialSearch: options?.initialSearch ?? "",
 
@@ -377,17 +386,22 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 
     // Signal data actions
-    // The first signals to land for a trace offer the panel once, on the tab the
-    // caller prefers. After that the open state and the active tab are the
-    // user's: the fetch revalidates, and returning the same findings must not
-    // reopen a panel they closed. A trace swap empties the list first, so the
-    // next trace gets its own first look.
-    setTraceSignals: (signals: TraceSignal[], preferredSignalId?: string) =>
+    // Findings offer the panel once per `sourceKey` (one fetch, so one trace), on
+    // the tab the caller prefers. After that the open state and the active tab are
+    // the user's: the fetch revalidates, and returning the same findings must not
+    // reopen a panel they closed. Keying on the fetch rather than on the list
+    // having been empty is what gives the NEXT trace its own first look — a store
+    // outlives a trace swap under an unkeyed `TraceView`, and a warm SWR cache
+    // replaces the list without it ever passing through empty.
+    // An empty result offers nothing and leaves the key alone, so the panel still
+    // gets its look when that trace's findings arrive.
+    setTraceSignals: (signals: TraceSignal[], sourceKey: string, preferredSignalId?: string) =>
       set((state) => {
-        const isFirstFill = state.traceSignals.length === 0 && signals.length > 0;
-        if (!isFirstFill) return { traceSignals: signals } as Partial<T>;
+        const isFirstLook = signals.length > 0 && state.signalsOfferedFor !== sourceKey;
+        if (!isFirstLook) return { traceSignals: signals } as Partial<T>;
         return {
           traceSignals: signals,
+          signalsOfferedFor: sourceKey,
           signalsPanelOpen: true,
           activeSignalTabId: preferredSignalId ?? signals[0].signalId,
         } as Partial<T>;

@@ -84,13 +84,14 @@ export const useTraceSignals = (endpoint: string | null) => {
     setIsTraceSignalsLoading(isLoading);
   }, [isLoading, setIsTraceSignalsLoading]);
 
-  // Whether this is the panel's first look at the trace is the store's call —
-  // it compares against the signals it already holds. Here we only name the tab
-  // that look should land on.
+  // Whether this is the panel's first look is the store's call — it compares the
+  // endpoint against the one it last offered itself for. Here we only identify the
+  // fetch (one endpoint per trace) and name the tab that look should land on.
   useEffect(() => {
+    if (!endpoint) return;
     const eventId = searchParams.get("eventId");
     const owner = eventId ? signals.find((s) => s.events.some((e) => e.id === eventId)) : undefined;
     const preferred = initialSignalId ? signals.find((s) => s.signalId === initialSignalId) : undefined;
-    setTraceSignals(signals, owner?.signalId ?? preferred?.signalId);
-  }, [signals, searchParams, initialSignalId, setTraceSignals]);
+    setTraceSignals(signals, endpoint, owner?.signalId ?? preferred?.signalId);
+  }, [signals, endpoint, searchParams, initialSignalId, setTraceSignals]);
 };
