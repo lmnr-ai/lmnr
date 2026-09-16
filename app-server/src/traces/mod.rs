@@ -4,6 +4,7 @@ pub mod dedup;
 pub mod grpc_service;
 pub mod input_extraction;
 pub mod metadata;
+pub mod openrouter;
 pub mod opentelemetry_json;
 #[cfg(feature = "signals")]
 pub mod previews;

@@ -31,6 +31,7 @@ use crate::{
 };
 
 use super::{
+    openrouter,
     span_attributes::{
         AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_AGENT_NAME,
         GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
@@ -39,7 +40,10 @@ use super::{
         GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
         GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
-        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, GEN_AI_USAGE_INPUT_TOKENS_CACHED,
+        GEN_AI_USAGE_OUTPUT_TOKENS_REASONING, GEN_AI_USAGE_REASONING_TOKENS,
+        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE, TRACE_NAME,
+        USER_ID,
     },
     utils::skip_span_name,
 };
@@ -159,7 +163,8 @@ impl SpanAttributes {
             .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.session_id"))
-            .or(self.raw_attributes.get("ai.telemetry.metadata.sessionId"));
+            .or(self.raw_attributes.get("ai.telemetry.metadata.sessionId"))
+            .or(self.raw_attributes.get(SESSION_ID));
         match session_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -171,11 +176,17 @@ impl SpanAttributes {
             .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.user_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.userId"))
-            .or(self.raw_attributes.get("ai.telemetry.metadata.user_id"));
+            .or(self.raw_attributes.get("ai.telemetry.metadata.user_id"))
+            .or(self.raw_attributes.get(USER_ID));
         match user_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
+    }
+
+    /// Explicit trace name, independent of the root span's name.
+    pub fn trace_name(&self) -> Option<String> {
+        self.string_attr(TRACE_NAME).filter(|name| !name.is_empty())
     }
 
     pub fn trace_type(&self) -> Option<TraceType> {
@@ -228,6 +239,15 @@ impl SpanAttributes {
         self.normalize_if_absent(
             GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
             GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        // OpenRouter Broadcast's breakdown keys, same subset-of-the-total semantics.
+        self.normalize_if_absent(
+            GEN_AI_USAGE_INPUT_TOKENS_CACHED,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_OUTPUT_TOKENS_REASONING,
+            GEN_AI_USAGE_REASONING_TOKENS,
         );
 
         let Some(prefix) = self.detect_aisdk_operation_prefix() else {
@@ -367,10 +387,13 @@ impl SpanAttributes {
     }
 
     pub fn total_cost(&mut self) -> Option<f64> {
-        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_TOTAL_COST) {
-            n.as_f64()
-        } else {
-            None
+        match self
+            .raw_attributes
+            .get(GEN_AI_TOTAL_COST)
+            .or(self.raw_attributes.get(GEN_AI_USAGE_TOTAL_COST))
+        {
+            Some(Value::Number(n)) => n.as_f64(),
+            _ => None,
         }
     }
 
@@ -435,6 +458,11 @@ impl SpanAttributes {
     pub fn span_type(&self) -> SpanType {
         if let Some(span_type) = self.raw_attributes.get(SPAN_TYPE) {
             return serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default();
+        }
+
+        // OpenRouter Broadcast types its own spans, so trust that over the inference below.
+        if openrouter::is_non_generation_span(self) {
+            return SpanType::Default;
         }
 
         // OTel GenAI semantic conventions — use `gen_ai.operation.name` as the authoritative
@@ -804,6 +832,17 @@ impl Span {
                     self.output = Some(output);
                 }
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
+            }
+
+            // Gated on the emitter marker: to other instrumentations the same bare
+            // `gen_ai.prompt` / `gen_ai.completion` keys mean a plain string.
+            if openrouter::is_openrouter_span(&self.attributes) {
+                if let Some(input) = openrouter::take_input(&mut self.attributes.raw_attributes) {
+                    self.input = Some(input);
+                }
+                if let Some(output) = openrouter::take_output(&mut self.attributes.raw_attributes) {
+                    self.output = Some(output);
+                }
             }
 
             // OTel GenAI semantic conventions — `gen_ai.input.messages` /
@@ -1427,7 +1466,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
 
 /// Parse a `gen_ai.*` attribute that is either a JSON string (the common case
 /// when the SDK serialises a message array) or an already-structured Value.
-fn parse_genai_messages_attribute(value: &Value) -> Value {
+pub(super) fn parse_genai_messages_attribute(value: &Value) -> Value {
     match value {
         Value::String(s) => {
             serde_json::from_str::<Value>(s).unwrap_or_else(|_| Value::String(s.clone()))
@@ -1697,6 +1736,13 @@ fn rename_last_span_in_path(attributes: &mut HashMap<String, Value>, from: &str,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        opentelemetry_proto::opentelemetry_proto_common_v1::{AnyValue, KeyValue, any_value},
+        traces::span_attributes::{
+            GEN_AI_COMPLETION, GEN_AI_PROMPT, OPENROUTER_SPAN_INPUT, OPENROUTER_SPAN_OUTPUT,
+            OPENROUTER_SPAN_TYPE,
+        },
+    };
     use serde_json::json;
 
     #[test]
@@ -4671,5 +4717,164 @@ mod tests {
         let metadata = span.attributes.metadata().expect("metadata expected");
         assert_eq!(metadata.get("score"), Some(&json!(0.85)));
         assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
+    }
+
+    // Payloads copied verbatim from a real Broadcast trace of a tool-calling turn.
+    const OPENROUTER_PROMPT: &str = r#"{"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":null,"refusal":null,"tool_calls":[{"type":"function","index":0,"id":"call_3Fd7i9rG","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},{"role":"tool","tool_call_id":"call_3Fd7i9rG","content":"14°C, light rain."}]}"#;
+    const OPENROUTER_COMPLETION: &str = r#"{"completion":"It is 14°C with light rain in Paris.","reasoning":null,"toolCalls":[],"rawRequest":{"model":"openai/gpt-4o-mini","_skin":"chat-completions"}}"#;
+
+    /// Attributes of an OpenRouter Broadcast generation span, trimmed to the keys
+    /// we read. `session.id` only appears when the caller sets `session_id`.
+    fn openrouter_generation_attributes() -> HashMap<String, Value> {
+        HashMap::from([
+            (
+                "trace.metadata.openrouter.source".to_string(),
+                json!("openrouter"),
+            ),
+            (GEN_AI_SYSTEM.to_string(), json!("openrouter")),
+            (GEN_AI_OPERATION_NAME.to_string(), json!("chat")),
+            (OPENROUTER_SPAN_TYPE.to_string(), json!("generation")),
+            (
+                GEN_AI_REQUEST_MODEL.to_string(),
+                json!("openai/gpt-4o-mini"),
+            ),
+            (GEN_AI_PROMPT.to_string(), json!(OPENROUTER_PROMPT)),
+            (OPENROUTER_SPAN_INPUT.to_string(), json!(OPENROUTER_PROMPT)),
+            (GEN_AI_COMPLETION.to_string(), json!(OPENROUTER_COMPLETION)),
+            (
+                OPENROUTER_SPAN_OUTPUT.to_string(),
+                json!(OPENROUTER_COMPLETION),
+            ),
+            (SESSION_ID.to_string(), json!("session-1")),
+            (USER_ID.to_string(), json!("org_33pG5Ufhx")),
+            (TRACE_NAME.to_string(), json!("OpenRouter Request")),
+            (GEN_AI_INPUT_TOKENS.to_string(), json!(16)),
+            (GEN_AI_OUTPUT_TOKENS.to_string(), json!(24)),
+        ])
+    }
+
+    fn otel_span(name: &str, attributes: HashMap<String, Value>) -> OtelSpan {
+        OtelSpan {
+            trace_id: vec![1u8; 16],
+            span_id: vec![2u8; 8],
+            name: name.to_string(),
+            attributes: attributes
+                .into_iter()
+                .map(|(key, value)| KeyValue {
+                    key,
+                    value: Some(AnyValue {
+                        value: Some(match value {
+                            Value::Number(n) => match n.as_i64() {
+                                Some(int) => any_value::Value::IntValue(int),
+                                None => any_value::Value::DoubleValue(n.as_f64().unwrap_or(0.0)),
+                            },
+                            other => any_value::Value::StringValue(json_value_to_string(&other)),
+                        }),
+                    }),
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_parse_and_enrich_attributes_openrouter_broadcast() {
+        let mut span = Span::from_otel_span(
+            otel_span("LLM Generation", openrouter_generation_attributes()),
+            Uuid::new_v4(),
+        );
+        assert_eq!(span.span_type, SpanType::LLM);
+
+        span.parse_and_enrich_attributes();
+
+        // Input passes through verbatim, tool calls included.
+        let expected_input =
+            serde_json::from_str::<Value>(OPENROUTER_PROMPT).unwrap()["messages"].clone();
+        assert_eq!(span.input.unwrap(), expected_input);
+        // Output is emitted in the GenAI `parts` shape so reasoning can render as thinking.
+        assert_eq!(
+            span.output.unwrap(),
+            json!([{
+                "role": "assistant",
+                "parts": [{"type": "text", "content": "It is 14°C with light rain in Paris."}]
+            }])
+        );
+        // Neither copy of the payload is duplicated into the attributes blob.
+        for key in [
+            GEN_AI_PROMPT,
+            GEN_AI_COMPLETION,
+            OPENROUTER_SPAN_INPUT,
+            OPENROUTER_SPAN_OUTPUT,
+        ] {
+            assert!(!span.attributes.raw_attributes.contains_key(key));
+        }
+
+        assert_eq!(span.attributes.session_id(), Some("session-1".to_string()));
+        assert_eq!(span.attributes.user_id(), Some("org_33pG5Ufhx".to_string()));
+        assert_eq!(
+            span.attributes.trace_name(),
+            Some("OpenRouter Request".to_string())
+        );
+    }
+
+    #[test]
+    fn test_openrouter_usage_and_cost_attributes() {
+        // Real numbers from Broadcast's "send test trace", where `input_tokens` (50)
+        // is the total and `input_tokens.cached` (20) a subset of it.
+        let mut attributes = openrouter_generation_attributes();
+        attributes.extend([
+            (GEN_AI_INPUT_TOKENS.to_string(), json!(50)),
+            (GEN_AI_OUTPUT_TOKENS.to_string(), json!(100)),
+            (GEN_AI_USAGE_INPUT_TOKENS_CACHED.to_string(), json!(20)),
+            (GEN_AI_USAGE_OUTPUT_TOKENS_REASONING.to_string(), json!(10)),
+            (GEN_AI_INPUT_COST.to_string(), json!(0.005)),
+            (GEN_AI_OUTPUT_COST.to_string(), json!(0.015)),
+            (GEN_AI_USAGE_TOTAL_COST.to_string(), json!(0.02)),
+        ]);
+
+        let mut span =
+            Span::from_otel_span(otel_span("Test Generation", attributes), Uuid::new_v4());
+        span.parse_and_enrich_attributes();
+        let attributes = &mut span.attributes;
+
+        let input_tokens = attributes.input_tokens();
+        assert_eq!(input_tokens.total(), 50);
+        assert_eq!(input_tokens.cache_read_tokens, 20);
+        // Cached tokens are subtracted from the total rather than added to it.
+        assert_eq!(input_tokens.regular_input_tokens, 30);
+        assert_eq!(attributes.output_tokens(), 100);
+        assert_eq!(attributes.int_attr(GEN_AI_USAGE_REASONING_TOKENS), Some(10));
+
+        assert_eq!(attributes.input_cost(), Some(0.005));
+        assert_eq!(attributes.output_cost(), Some(0.015));
+        // The emitter's own total, not our input + output sum.
+        assert_eq!(attributes.total_cost(), Some(0.02));
+    }
+
+    #[test]
+    fn test_openrouter_provider_attempt_span_is_not_llm() {
+        // The child's real attributes: `gen_ai.operation.name = "chat"` with no model
+        // and no usage, so `span.type` is the only thing keeping it out of LLM.
+        let child = HashMap::from([
+            (GEN_AI_OPERATION_NAME.to_string(), json!("chat")),
+            (OPENROUTER_SPAN_TYPE.to_string(), json!("span")),
+            ("span.metadata.attempt_index".to_string(), json!(0)),
+            (
+                "trace.metadata.openrouter.provider_name".to_string(),
+                json!("OpenAI"),
+            ),
+        ]);
+        let span = Span::from_otel_span(
+            otel_span("provider attempt 1: OpenAI", child.clone()),
+            Uuid::new_v4(),
+        );
+        assert_eq!(span.span_type, SpanType::Default);
+        assert!(!span.is_llm_span());
+
+        // Without the vendor marker the same `span.type` must not demote anything.
+        let mut unmarked = child;
+        unmarked.remove("trace.metadata.openrouter.provider_name");
+        let span = Span::from_otel_span(otel_span("chat", unmarked), Uuid::new_v4());
+        assert_eq!(span.span_type, SpanType::LLM);
     }
 }
