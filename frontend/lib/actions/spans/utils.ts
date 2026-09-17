@@ -110,6 +110,7 @@ export const TRACE_VIEW_ATTRIBUTE_KEYS = [
   "lmnr.span.path",
   "lmnr.span.ids_path",
   "lmnr.span.prompt_hash",
+  "gen_ai.agent.name",
   "lmnr.internal.has_browser_session",
   "lmnr.association.properties.tags",
   "lmnr.association.properties.langgraph.nodes",
