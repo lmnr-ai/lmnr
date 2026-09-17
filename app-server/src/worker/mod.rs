@@ -257,16 +257,20 @@ impl<H: MessageHandler> QueueWorker<H> {
 
             let acker = delivery.acker();
             let attempt = delivery.retry_attempt();
+            // Read before `data()` consumes the delivery.
+            let priority = delivery.priority();
             let data = delivery.data();
             let result = self.process_message(&data).await;
 
             match result {
                 Ok(()) => acker.ack().await?,
-                Err(e) if e.should_requeue() => match self.park_for_retry(&data, attempt).await {
-                    TransientOutcome::Parked => acker.ack().await?,
-                    TransientOutcome::RequeueNow => acker.reject(true).await?,
-                    TransientOutcome::Drop => acker.reject(false).await?,
-                },
+                Err(e) if e.should_requeue() => {
+                    match self.park_for_retry(&data, attempt, priority).await {
+                        TransientOutcome::Parked => acker.ack().await?,
+                        TransientOutcome::RequeueNow => acker.reject(true).await?,
+                        TransientOutcome::Drop => acker.reject(false).await?,
+                    }
+                }
                 Err(_) => acker.reject(false).await?,
             }
         }
@@ -282,7 +286,20 @@ impl<H: MessageHandler> QueueWorker<H> {
     /// Falls back to an immediate requeue when the queue has no retry target, or
     /// when parking the message fails — some transient causes ARE broker
     /// failures, and the in-memory transport cannot delay at all.
-    async fn park_for_retry(&self, data: &[u8], attempt: u32) -> TransientOutcome {
+    ///
+    /// `priority` is echoed from the delivery rather than recomputed, which is
+    /// what keeps priority out of the `MessageHandler` API: only the publish site
+    /// knows how to rank a payload, and the worker sees opaque bytes. The
+    /// `RequeueNow` fallback below is the one path that cannot preserve it —
+    /// quorum queues requeue returned messages in return order, ignoring
+    /// priority — so a prioritized message that fails to park loses its rank for
+    /// that one redelivery, and regains it on the next republish by the handler.
+    async fn park_for_retry(
+        &self,
+        data: &[u8],
+        attempt: u32,
+        priority: Option<u8>,
+    ) -> TransientOutcome {
         let Some(retry) = self.config.retry else {
             return TransientOutcome::RequeueNow;
         };
@@ -311,6 +328,7 @@ impl<H: MessageHandler> QueueWorker<H> {
                 retry.routing_key,
                 retry.delay_ms,
                 attempt + 1,
+                priority,
             )
             .await
         {
@@ -506,7 +524,7 @@ mod tests {
         let worker = worker(None);
 
         assert_eq!(
-            worker.park_for_retry(&payload(), 0).await,
+            worker.park_for_retry(&payload(), 0, None).await,
             TransientOutcome::RequeueNow
         );
         assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
@@ -519,7 +537,7 @@ mod tests {
         let worker = worker(Some(retry_config(40)));
 
         assert_eq!(
-            worker.park_for_retry(&payload(), 0).await,
+            worker.park_for_retry(&payload(), 0, None).await,
             TransientOutcome::RequeueNow
         );
         assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
@@ -530,7 +548,20 @@ mod tests {
         let worker = worker(Some(retry_config(3)));
 
         assert_eq!(
-            worker.park_for_retry(&payload(), 3).await,
+            worker.park_for_retry(&payload(), 3, None).await,
+            TransientOutcome::Drop
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn a_prioritized_message_at_its_cap_is_still_dropped() {
+        // The attempt cap outranks the priority: a high-priority message that has
+        // spent its budget must not keep coming back just because it sorts first.
+        let worker = worker(Some(retry_config(3)));
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 3, Some(8)).await,
             TransientOutcome::Drop
         );
         assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 1);
@@ -544,7 +575,7 @@ mod tests {
         let worker = worker(Some(retry_config(3)));
 
         assert_eq!(
-            worker.park_for_retry(&payload(), 2).await,
+            worker.park_for_retry(&payload(), 2, None).await,
             TransientOutcome::RequeueNow
         );
         assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
