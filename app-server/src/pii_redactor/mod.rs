@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::Arc;
@@ -129,6 +130,29 @@ impl PiiOutcome {
 
     pub fn span(&self, span_idx: usize) -> SpanPii {
         self.spans.get(&span_idx).cloned().unwrap_or_default()
+    }
+
+    /// `span` with masks spliced into any whole-value field the redactor
+    /// flagged; borrowed when there is nothing to splice. Trace-new messages
+    /// were redacted in place already, and [`Self::is_indexable`] still
+    /// gates the document as a whole.
+    pub fn index_view<'a>(&self, span_idx: usize, span: &'a Span) -> Cow<'a, Span> {
+        let Some(pii) = self.spans.get(&span_idx) else {
+            return Cow::Borrowed(span);
+        };
+        let input = pii.input.as_ref().filter(|m| m.has_pii());
+        let output = pii.output.as_ref().filter(|m| m.has_pii());
+        if input.is_none() && output.is_none() {
+            return Cow::Borrowed(span);
+        }
+        let mut owned = span.clone();
+        if let Some(m) = input {
+            owned.input = m.redacted_value();
+        }
+        if let Some(m) = output {
+            owned.output = m.redacted_value();
+        }
+        Cow::Owned(owned)
     }
 
     /// Whether the span's text may reach the search index: a failed

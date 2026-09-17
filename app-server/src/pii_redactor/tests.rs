@@ -188,6 +188,18 @@ async fn dual_mode_keeps_canonical_text_and_masks() {
     // Search buffers only ever carry spliced text.
     assert_eq!(tn_in[0][0], "\"[REDACTED_SECRET] msg\"");
     assert!(outcome.is_indexable(0));
+
+    // The index sees whole values with masks spliced; a span with nothing to
+    // splice is handed back as-is (no clone), and the raw span is untouched.
+    let view = outcome.index_view(0, &spans[0]);
+    assert!(matches!(view, std::borrow::Cow::Owned(_)));
+    assert_eq!(view.input, Some(json!("a [REDACTED_SECRET]")));
+    assert_eq!(view.output, Some(json!("plain")));
+    assert_eq!(spans[0].input, Some(json!("a secret")));
+    assert!(matches!(
+        outcome.index_view(1, &spans[1]),
+        std::borrow::Cow::Borrowed(_)
+    ));
 }
 
 #[tokio::test]
