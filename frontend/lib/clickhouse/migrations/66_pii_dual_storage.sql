@@ -379,7 +379,7 @@ FROM (
         -- SELECT * cannot be flattened away: min(start_time) below aliases
         -- start_time, which would then resolve inside this WHERE.
         SELECT *
-        FROM traces_agg
+        FROM default.traces_agg
         WHERE project_id = {project_id:UUID}
             AND start_time >= {min_start_time:DateTime64(9)}
             AND start_time <= {max_start_time:DateTime64(9)}
@@ -387,12 +387,12 @@ FROM (
     GROUP BY project_id, id
 ) AS t
 LEFT JOIN (
-    SELECT * FROM trace_tags FINAL WHERE project_id = {project_id:UUID}
+    SELECT * FROM default.trace_tags FINAL WHERE project_id = {project_id:UUID}
 ) AS tt
     ON t.project_id = tt.project_id AND t.id = tt.trace_id
 LEFT JOIN (
     SELECT *
-    FROM traces_static FINAL
+    FROM default.traces_static FINAL
     PREWHERE project_id = {project_id:UUID}
         AND start_time >= {min_start_time:DateTime64(9)}
         AND start_time <= {max_start_time:DateTime64(9)}
