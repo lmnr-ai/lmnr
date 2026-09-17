@@ -53,10 +53,10 @@ pub struct AccessPolicy {
     pub mask_pii: bool,
     /// Row-level scope: a span or trace is visible only if its trace
     /// satisfies every filter (AND). Evaluated by the `trace_visible` UDF
-    /// against `traces_static` (`spans_v1` resolves the trace through
-    /// `trace_access_policy_dict`). A trace with no `traces_static` row, or
-    /// without the filtered value, compares as `''`: `eq` hides it, `ne`
-    /// shows it. No caller sets these yet.
+    /// against the trace's `traces_static` row. A trace without the filtered
+    /// value compares as `''`: `eq` hides it, `ne` shows it. A trace with no
+    /// `traces_static` row at all is hidden by any filter. No caller sets
+    /// these yet.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub trace_filters: Vec<TraceFilter>,
 }

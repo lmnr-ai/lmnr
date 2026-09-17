@@ -40,14 +40,16 @@ pub const MAX_RECURSION_DEPTH: usize = 8;
 const LEAF_SEPARATOR: &str = "\n\n";
 
 /// Default `skip_keys` if the caller omits the field. Tuned for common LLM
-/// agent payload shapes (Anthropic, OpenAI, LangChain tool results).
+/// agent payload shapes (Anthropic, OpenAI, LangChain tool results). `name`
+/// is deliberately absent: it is handled contextually (see
+/// `STRUCTURAL_SIBLING_KEYS`) because outside a tool envelope it holds a
+/// person's name as often as a tool's.
 pub const DEFAULT_SKIP_KEYS: &[&str] = &[
     "type",
     "role",
     "id",
     "tool_use_id",
     "tool_call_id",
-    "name",
     "model",
     "stop_reason",
     "stop_sequence",
@@ -56,6 +58,34 @@ pub const DEFAULT_SKIP_KEYS: &[&str] = &[
     "$summary",
     "stash_id",
 ];
+
+/// The one key whose treatment depends on its neighbours.
+const NAME_KEY: &str = "name";
+
+/// Sibling keys that mark an object as a tool call, tool definition or
+/// provider message envelope, where `name` is a tool/function/participant
+/// identifier and must not be redacted (a redacted tool name breaks replay):
+/// Anthropic `tool_use` (`type`, `input`), OpenAI `function_call`
+/// (`arguments`), tool definitions (`input_schema` / `parameters`), messages
+/// (`role`). A bare record such as `{"name": "…", "email": "…"}` inside a tool
+/// result has none of these and is scanned.
+const STRUCTURAL_SIBLING_KEYS: &[&str] = &[
+    "type",
+    "role",
+    "input",
+    "arguments",
+    "input_schema",
+    "parameters",
+];
+
+/// Parent keys under which an object is a tool/function descriptor regardless
+/// of its own keys (OpenAI `tool_calls[].function`, `tools[]`).
+const STRUCTURAL_PARENT_KEYS: &[&str] = &["function", "tool", "tools", "tool_calls", "tool_choice"];
+
+fn is_structural_object(map: &serde_json::Map<String, Value>, parent_key: Option<&str>) -> bool {
+    STRUCTURAL_SIBLING_KEYS.iter().any(|k| map.contains_key(*k))
+        || parent_key.is_some_and(|p| STRUCTURAL_PARENT_KEYS.contains(&p))
+}
 
 /// Reference to one string leaf within the (possibly mutated) JSON tree.
 #[derive(Debug, Clone)]
@@ -147,8 +177,9 @@ fn walk(
 ) {
     match value {
         Value::Object(map) => {
+            let structural = is_structural_object(map, parent_key);
             for (k, v) in map.iter_mut() {
-                if skip_keys.contains(k) {
+                if skip_keys.contains(k) || (k == NAME_KEY && structural) {
                     continue;
                 }
                 let child_pointer = format!("{}/{}", pointer, escape_pointer_token(k));
@@ -540,6 +571,61 @@ mod tests {
         assert!(!w.rendered.contains("user"));
         assert!(!w.rendered.contains("text"));
         assert!(w.rendered.contains("content: hello"));
+    }
+
+    #[test]
+    fn name_is_scanned_in_plain_records() {
+        // A tool result / structured output naming a person: `name` is content.
+        let w = walk_and_render(
+            r#"{"answer":"Paris","name":"Jonathan Redfield","customer":{"name":"Ada Lovelace","email":"a@x.io"}}"#,
+            &build_skip_keys(&[]),
+        )
+        .unwrap();
+        assert!(
+            w.rendered.contains("name: Jonathan Redfield"),
+            "rendered: {}",
+            w.rendered
+        );
+        assert!(
+            w.rendered.contains("name: Ada Lovelace"),
+            "rendered: {}",
+            w.rendered
+        );
+    }
+
+    #[test]
+    fn name_is_skipped_in_tool_envelopes() {
+        for input in [
+            // Anthropic tool_use block
+            r#"{"type":"tool_use","id":"toolu_1","name":"get_weather","input":{"city":"Paris"}}"#,
+            // OpenAI tool call
+            r#"{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{}"}}]}"#,
+            // OpenAI legacy function_call
+            r#"{"function_call":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}"#,
+            // Anthropic / OpenAI tool definitions
+            r#"{"tools":[{"name":"get_weather","description":"Weather lookup","input_schema":{"type":"object"}}]}"#,
+            r#"{"name":"get_weather","description":"Weather lookup","parameters":{"type":"object"}}"#,
+            // Message envelope with a participant name
+            r#"{"role":"tool","name":"get_weather","content":"sunny"}"#,
+        ] {
+            let w = walk_and_render(input, &build_skip_keys(&[])).unwrap();
+            assert!(
+                !w.rendered.contains("get_weather"),
+                "tool name leaked into rendered for {input}: {}",
+                w.rendered
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_skip_keys_still_skip_name_everywhere() {
+        let w = walk_and_render(
+            r#"{"name":"Jonathan Redfield","email":"j@x.io"}"#,
+            &skip_keys(&["name"]),
+        )
+        .unwrap();
+        assert_eq!(w.leaves.len(), 1);
+        assert_eq!(w.leaves[0].original, "j@x.io");
     }
 
     #[test]

@@ -61,6 +61,14 @@ export function parseStoredProjectSettings(raw: unknown): ProjectSettings {
   return { ...DEFAULT_PROJECT_SETTINGS, ...(parsed.success ? parsed.data : {}) };
 }
 
+export const getProjectSettings = async (projectId: string): Promise<ProjectSettings | null> => {
+  const row = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: { settings: true },
+  });
+  return row ? parseStoredProjectSettings(row.settings) : null;
+};
+
 export const UpdateProjectSettingsSchema = z.object({
   projectId: z.guid(),
   // `Partial` so callers can update one key without re-sending all of them.

@@ -18,7 +18,9 @@ ALTER TABLE unique_content ADD COLUMN IF NOT EXISTS pii_checked Bool DEFAULT fal
 
 -- SQL UDFs are macro-expanded into the calling query (replicated across a
 -- ClickHouse Cloud service). Lambda parameters carry a `pii_` prefix so they
--- cannot capture a caller's column of the same name.
+-- cannot capture a caller's column of the same name. A view inlines the UDF
+-- body when it is created, so a later change to a UDF must also re-create
+-- `spans_v1` / `traces_v1`.
 --
 -- Read-time twin of app-server's `pii_redactor::masks::apply_masks`; the two
 -- must produce identical output. Masks are sorted and non-overlapping; each
@@ -59,19 +61,21 @@ CREATE FUNCTION IF NOT EXISTS pii_str_op AS (actual, op, expected) -> multiIf(
 -- Row-level scope from `policy.traceFilters` (AND of every filter) over a
 -- trace's `user_id` and `metadata` (`''` when the trace has none). Outer
 -- `if` first so a policy without `traceFilters` folds to a constant at
--- analysis time and the dictionary lookup feeding `user_id`/`metadata` is
--- never evaluated. A policy that is not JSON, a `traceFilters` that is not
--- an array, or a filter with an unknown column/operator all hide the row.
+-- analysis time. Fail-closed: a policy that is not a JSON object, a
+-- `traceFilters` that is not an array, a filter with an unknown
+-- column/operator, or a `metadata` filter without a `key` (which would
+-- otherwise compare `''` against `''` and match every trace) all hide the
+-- row.
 CREATE FUNCTION IF NOT EXISTS trace_visible AS (user_id, metadata, policy) -> if(
     NOT JSONHas(policy, 'traceFilters'),
-    isValidJSON(policy),
+    JSONType(policy) = 'Object',
     if(
         JSONType(policy, 'traceFilters') = 'Array',
         arrayAll(
             pii_f -> multiIf(
                 tupleElement(pii_f, 'column') = 'user_id',
                     pii_str_op(user_id, tupleElement(pii_f, 'operator'), tupleElement(pii_f, 'value')),
-                tupleElement(pii_f, 'column') = 'metadata',
+                tupleElement(pii_f, 'column') = 'metadata' AND tupleElement(pii_f, 'key') != '',
                     pii_str_op(pii_json_scalar(metadata, tupleElement(pii_f, 'key')), tupleElement(pii_f, 'operator'), tupleElement(pii_f, 'value')),
                 false
             ),
@@ -84,9 +88,8 @@ CREATE FUNCTION IF NOT EXISTS trace_visible AS (user_id, metadata, policy) -> if
 -- `spans_v1` = `spans_v0` (migration 64) plus a `policy` param: a JSON object
 -- built server-side from the caller's role (`AccessPolicy` in app-server).
 -- `'{}'` means unrestricted and yields exactly `spans_v0`'s output. The
--- dictionaries this view reads (`unique_content_dict` attributes
--- `content_masks` / `pii_checked`, and `trace_access_policy_dict` over
--- `traces_static`) are created by `ensureContentDicts`
+-- dictionary this view reads (`unique_content_dict`, attributes
+-- `content_masks` / `pii_checked`) is created by `ensureContentDicts`
 -- (frontend/instrumentation.ts) right after migrations run; CREATE VIEW does
 -- not resolve dictionaries, so the ordering within one boot is fine.
 -- `spans_v0` stays until every caller has moved to `spans_v1`.
@@ -98,19 +101,19 @@ CREATE FUNCTION IF NOT EXISTS trace_visible AS (user_id, metadata, policy) -> if
 -- unavailable value renders as the JSON string `"[PII_MASKED_UNAVAILABLE]"`
 -- (whole or per message) so the column stays parseable.
 --
--- Scope (`policy.traceFilters`): the span's trace is resolved through
--- `trace_access_policy_dict` and `trace_visible` decides in WHERE; the
--- predicate lands in PREWHERE and, being row-local, keeps projections and
--- lazy materialization usable.
+-- Scope (`policy.traceFilters`): the visible trace ids are computed once per
+-- query from `traces_static FINAL` (one PK range scan over the project's
+-- traces, `trace_visible` evaluated per trace) and the span predicate is a
+-- set membership test, which stays row-local and lands in PREWHERE. The
+-- alternative — resolving every span's trace through a DIRECT dictionary
+-- inside `trace_visible` — re-queried `traces_static` for every block and
+-- every expansion of the UDF and was ~60x slower on 40k spans. Without
+-- `traceFilters` the `OR` folds to true at analysis time and the subquery is
+-- never planned. A trace with no `traces_static` row is hidden by any filter,
+-- including `ne` (fail-closed).
 CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
     WITH
-        if(session_id != '', session_id, toString(trace_id)) AS dedup_group,
-        dictGetOrDefault(
-            'trace_access_policy_dict',
-            ('user_id', 'metadata'),
-            (project_id, trace_id),
-            ('', '')
-        ) AS trace_scope
+        if(session_id != '', session_id, toString(trace_id)) AS dedup_group
     SELECT
         span_id,
         name,
@@ -258,7 +261,18 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
         events
     FROM spans
     WHERE project_id = {project_id:UUID}
-        AND trace_visible(tupleElement(trace_scope, 1), tupleElement(trace_scope, 2), {policy:String});
+        -- Same fail-closed rule as `trace_visible`: a policy that is not a
+        -- JSON object hides every row.
+        AND JSONType({policy:String}) = 'Object'
+        AND (
+            NOT JSONHas({policy:String}, 'traceFilters')
+            OR trace_id IN (
+                SELECT trace_id
+                FROM traces_static FINAL
+                WHERE project_id = {project_id:UUID}
+                    AND trace_visible(ifNull(user_id, ''), ifNull(metadata, ''), {policy:String})
+            )
+        );
 
 -- `traces_v1` = `traces_v0` (migration 65) plus the same `policy` param.
 -- `traceFilters` are evaluated on the joined `traces_static` row directly.

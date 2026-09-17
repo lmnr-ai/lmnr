@@ -92,7 +92,12 @@ destroys its accuracy, so the service pre-processes each input:
 1. **Parse** the input as JSON. Reject with `INVALID_ARGUMENT` if it isn't.
 2. **Walk** the tree depth-first. Recursively parse string leaves that
    themselves contain valid JSON objects/arrays (capped at 8 nesting levels).
-   Drop string values whose object key matches `skip_keys`.
+   Drop string values whose object key matches `skip_keys`. `name` is
+   dropped only inside tool-call / tool-definition / message envelopes
+   (an object with a `type`, `role`, `input`, `arguments`, `input_schema`
+   or `parameters` sibling, or under `function` / `tools` / `tool_calls`);
+   in a plain record such as `{"name": "Jane Doe", "email": …}` it is
+   content and is scanned.
 3. **Render** all redaction-eligible string leaves into a single
    `key: value\n\nkey: value\n\n...` document that gives the model the same
    structural cue it has seen thousands of times in training data
