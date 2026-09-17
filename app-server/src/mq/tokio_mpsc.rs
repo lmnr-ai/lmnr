@@ -40,6 +40,11 @@ impl MessageQueueDeliveryTrait for TokioMpscDelivery {
     fn retry_attempt(&self) -> u32 {
         0
     }
+
+    /// An mpsc channel has no ordering to influence, so nothing is ever stamped.
+    fn priority(&self) -> Option<u8> {
+        None
+    }
 }
 
 impl MessageQueueReceiverTrait for TokioMpscReceiver {
@@ -78,16 +83,10 @@ impl TokioMpscQueue {
         let key = self.key(exchange, routing_key);
         self.senders.entry(key).or_default();
     }
-}
 
-impl MessageQueueTrait for TokioMpscQueue {
-    async fn publish(
-        &self,
-        message: &[u8],
-        exchange: &str,
-        routing_key: &str,
-        _ttl_ms: Option<u64>, // TTL is ignored for in-memory queue (local dev only)
-    ) -> anyhow::Result<()> {
+    /// TTL and priority are both ignored here (local dev only): an mpsc channel
+    /// has no expiry and no ordering to influence.
+    async fn send(&self, message: &[u8], exchange: &str, routing_key: &str) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
 
         let Some(senders) = self.senders.get(&key) else {
@@ -122,6 +121,29 @@ impl MessageQueueTrait for TokioMpscQueue {
 
         Ok(())
     }
+}
+
+impl MessageQueueTrait for TokioMpscQueue {
+    async fn publish(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        _ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()> {
+        self.send(message, exchange, routing_key).await
+    }
+
+    async fn publish_with_priority(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        _ttl_ms: Option<u64>,
+        _priority: u8,
+    ) -> anyhow::Result<()> {
+        self.send(message, exchange, routing_key).await
+    }
 
     /// Unsupported: the in-memory queue has neither TTL nor dead-lettering, so a
     /// message parked here would be delivered immediately or not at all. Callers
@@ -133,6 +155,7 @@ impl MessageQueueTrait for TokioMpscQueue {
         _routing_key: &str,
         _ttl_ms: u64,
         _attempt: u32,
+        _priority: Option<u8>,
     ) -> anyhow::Result<()> {
         Err(anyhow::anyhow!(
             "In-memory queue cannot delay retries (no TTL, no dead-lettering)"

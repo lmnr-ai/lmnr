@@ -37,14 +37,27 @@ static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
 /// into the origin queue.
 const RETRY_ATTEMPT_HEADER: &str = "x-lmnr-retry-attempt";
 
-fn retry_properties(ttl_ms: u64, attempt: u32) -> BasicProperties {
+/// Properties common to every publish: `delivery_mode=2` is persistent, and the
+/// TTL and priority are applied only when the caller asked for them — an absent
+/// priority is what lets a quorum queue apply its own default (4).
+fn properties(ttl_ms: Option<u64>, priority: Option<u8>) -> BasicProperties {
+    let mut properties = BasicProperties::default().with_delivery_mode(2);
+
+    if let Some(ttl_ms) = ttl_ms {
+        properties = properties.with_expiration(ShortString::from(ttl_ms.to_string()));
+    }
+    if let Some(priority) = priority {
+        properties = properties.with_priority(priority);
+    }
+
+    properties
+}
+
+fn retry_properties(ttl_ms: u64, attempt: u32, priority: Option<u8>) -> BasicProperties {
     let mut headers = FieldTable::default();
     headers.insert(RETRY_ATTEMPT_HEADER.into(), AMQPValue::LongUInt(attempt));
 
-    BasicProperties::default()
-        .with_delivery_mode(2)
-        .with_expiration(ShortString::from(ttl_ms.to_string()))
-        .with_headers(headers)
+    properties(Some(ttl_ms), priority).with_headers(headers)
 }
 
 /// Anything but the `LongUInt` written by `retry_properties` reads as a first
@@ -127,6 +140,7 @@ pub struct RabbitMQDelivery {
     data: Vec<u8>,
     delivery_tag: u64,
     retry_attempt: u32,
+    priority: Option<u8>,
 }
 
 impl MessageQueueDeliveryTrait for RabbitMQDelivery {
@@ -145,6 +159,10 @@ impl MessageQueueDeliveryTrait for RabbitMQDelivery {
     fn retry_attempt(&self) -> u32 {
         self.retry_attempt
     }
+
+    fn priority(&self) -> Option<u8> {
+        self.priority
+    }
 }
 
 impl MessageQueueReceiverTrait for RabbitMQReceiver {
@@ -161,6 +179,7 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
                 data: delivery.data,
                 delivery_tag: delivery.delivery_tag,
                 retry_attempt: retry_attempt_of(&delivery.properties),
+                priority: *delivery.properties.priority(),
             })))
         } else {
             None
@@ -281,15 +300,25 @@ impl MessageQueueTrait for RabbitMQ {
         routing_key: &str,
         ttl_ms: Option<u64>,
     ) -> anyhow::Result<()> {
-        // delivery_mode=2 is persistent
-        let properties = BasicProperties::default().with_delivery_mode(2);
-        let properties = match ttl_ms {
-            Some(ttl) => properties.with_expiration(ShortString::from(ttl.to_string())),
-            None => properties,
-        };
-
-        self.publish_inner(message, exchange, routing_key, properties)
+        self.publish_inner(message, exchange, routing_key, properties(ttl_ms, None))
             .await
+    }
+
+    async fn publish_with_priority(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: Option<u64>,
+        priority: u8,
+    ) -> anyhow::Result<()> {
+        self.publish_inner(
+            message,
+            exchange,
+            routing_key,
+            properties(ttl_ms, Some(priority)),
+        )
+        .await
     }
 
     async fn publish_retry(
@@ -299,12 +328,13 @@ impl MessageQueueTrait for RabbitMQ {
         routing_key: &str,
         ttl_ms: u64,
         attempt: u32,
+        priority: Option<u8>,
     ) -> anyhow::Result<()> {
         self.publish_inner(
             message,
             exchange,
             routing_key,
-            retry_properties(ttl_ms, attempt),
+            retry_properties(ttl_ms, attempt, priority),
         )
         .await
     }
@@ -435,7 +465,37 @@ mod tests {
 
     #[test]
     fn retry_attempt_round_trips_through_message_properties() {
-        assert_eq!(retry_attempt_of(&retry_properties(30_000, 7)), 7);
+        assert_eq!(retry_attempt_of(&retry_properties(30_000, 7, None)), 7);
+    }
+
+    #[test]
+    fn a_parked_message_keeps_the_priority_it_arrived_with() {
+        // The park is the round trip a priority is most easily lost on: the
+        // worker republishes raw bytes, so anything not re-stamped here is gone
+        // by the time the broker dead-letters the message back.
+        let parked = retry_properties(30_000, 1, Some(8));
+
+        assert_eq!(*parked.priority(), Some(8));
+        assert_eq!(retry_attempt_of(&parked), 1);
+    }
+
+    #[test]
+    fn an_unprioritized_publish_sets_no_priority_at_all() {
+        // Absent, not zero: the quorum queue reads an absent property as 4, and
+        // an explicit 0 would sort BELOW everything instead of alongside it.
+        assert_eq!(*properties(None, None).priority(), None);
+        assert_eq!(*retry_properties(30_000, 0, None).priority(), None);
+    }
+
+    #[test]
+    fn a_priority_publish_carries_both_the_ttl_and_the_priority() {
+        let properties = properties(Some(30_000), Some(8));
+
+        assert_eq!(*properties.priority(), Some(8));
+        assert_eq!(
+            properties.expiration().as_ref().map(|e| e.to_string()),
+            Some("30000".to_string())
+        );
     }
 
     #[test]
