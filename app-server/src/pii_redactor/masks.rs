@@ -3,6 +3,7 @@
 //! twin of [`apply_masks`]; both must produce identical output.
 
 use anyhow::{Result, anyhow};
+use serde_json::Value;
 
 use super::pii_redactor;
 
@@ -38,6 +39,14 @@ impl MaskedText {
     /// `text` with `[REDACTED_<LABEL>]` spliced over every mask.
     pub fn redacted(&self) -> Result<String> {
         apply_masks(&self.text, &self.masks)
+    }
+
+    /// [`Self::redacted`] parsed back to JSON; `None` when the splice or the
+    /// parse fails.
+    pub fn redacted_value(&self) -> Option<Value> {
+        self.redacted()
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
     }
 
     /// Errors like [`apply_masks`] would. Run before storing masks verbatim:
@@ -176,5 +185,16 @@ mod tests {
         assert!(hit.has_pii());
         assert_eq!(hit.redacted().unwrap(), "\"[REDACTED_SECRET]\"");
         assert_eq!(hit.ch_masks(), vec![(1, 7, "secret".to_string())]);
+        assert_eq!(
+            hit.redacted_value(),
+            Some(Value::String("[REDACTED_SECRET]".into()))
+        );
+
+        // A malformed mask or a non-JSON result yields no value, never raw text.
+        let bad = MaskedText {
+            text: "\"secret\"".into(),
+            masks: vec![mask(5, 3, "secret")],
+        };
+        assert_eq!(bad.redacted_value(), None);
     }
 }

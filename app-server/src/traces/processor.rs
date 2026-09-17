@@ -22,7 +22,7 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
-        MaskedText, PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
+        PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
     },
     pubsub::PubSub,
     quickwit::{
@@ -782,32 +782,16 @@ pub async fn process_span_messages(
                     None
                 };
                 // `dual` mode: whole-value text reaches the index only with its
-                // masks spliced in (a splice failure drops the text), and a span
-                // whose redaction failed contributes no text at all.
+                // masks spliced in; trace-new messages were redacted in place.
                 let span_idx = recordable_indices[dedup_idx];
-                let pii = pii_outcome.span(span_idx);
-                let input_pii = pii.input.as_ref().filter(|m| m.has_pii());
-                let output_pii = pii.output.as_ref().filter(|m| m.has_pii());
-                let redacted_copy = (input_pii.is_some() || output_pii.is_some()).then(|| {
-                    let spliced = |m: &MaskedText| -> Option<Value> {
-                        m.redacted()
-                            .ok()
-                            .and_then(|text| serde_json::from_str(&text).ok())
-                    };
-                    let mut owned = (*s).clone();
-                    if let Some(m) = input_pii {
-                        owned.input = spliced(m);
-                    }
-                    if let Some(m) = output_pii {
-                        owned.output = spliced(m);
-                    }
-                    owned
-                });
+                let view = pii_outcome.index_view(span_idx, s);
                 let mut doc = QuickwitIndexedSpan::from_span(
-                    redacted_copy.as_ref().unwrap_or(s),
+                    &view,
                     new_input_messages.as_deref(),
                     new_output_messages.as_deref(),
                 );
+                // Fail closed: a raw-stored span whose redaction failed has no
+                // safe text, whichever source it would have come from.
                 if !pii_outcome.is_indexable(span_idx) {
                     doc.input = None;
                     doc.output = None;
