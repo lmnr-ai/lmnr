@@ -1,10 +1,32 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { getProjectWorkspaceId } from "@/lib/actions/project";
+import { getProjectSettings } from "@/lib/actions/project/settings";
 import { createProjectApiKey } from "@/lib/api-keys";
+import { getWorkspaceRole } from "@/lib/authorization";
 import { cache, PROJECT_API_KEY_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys } from "@/lib/db/migrations/schema";
+
+export const DUAL_PII_API_KEY_ERROR =
+  "Only workspace owners and admins can create API keys for a project in dual PII mode";
+
+/**
+ * A project API key reads raw text (the public SQL/MCP routes are
+ * unrestricted), so in a `dual` PII project only the roles that may see raw
+ * text can mint one. Every route that calls `createApiKey` for a session user
+ * must check this first; membership is the caller's responsibility.
+ */
+export const canMintApiKey = async (projectId: string, userId: string | null | undefined): Promise<boolean> => {
+  const settings = await getProjectSettings(projectId);
+  if (settings?.piiMode !== "dual") {
+    return true;
+  }
+  const workspaceId = await getProjectWorkspaceId(projectId);
+  const role = workspaceId && userId ? await getWorkspaceRole(workspaceId, userId) : null;
+  return role === "owner" || role === "admin";
+};
 
 const CreateProjectApiKeySchema = z.object({
   projectId: z.guid(),

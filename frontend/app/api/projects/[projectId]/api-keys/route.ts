@@ -1,11 +1,14 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getProjectWorkspaceId } from "@/lib/actions/project";
-import { createApiKey, deleteApiKey, getApiKeys } from "@/lib/actions/project-api-keys";
-import { getProjectSettings } from "@/lib/actions/project/settings";
+import {
+  canMintApiKey,
+  createApiKey,
+  deleteApiKey,
+  DUAL_PII_API_KEY_ERROR,
+  getApiKeys,
+} from "@/lib/actions/project-api-keys";
 import { getServerSession } from "@/lib/auth-session";
-import { getWorkspaceRole } from "@/lib/authorization";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -14,19 +17,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     const body = await req.json();
     const session = await getServerSession();
 
-    // A project API key reads raw text (public SQL/MCP routes are
-    // unrestricted), so in a `dual` PII project only the roles that may see
-    // raw text can mint one. The proxy already guarantees membership.
-    const settings = await getProjectSettings(params.projectId);
-    if (settings?.piiMode === "dual") {
-      const workspaceId = await getProjectWorkspaceId(params.projectId);
-      const role = workspaceId && session?.user.id ? await getWorkspaceRole(workspaceId, session.user.id) : null;
-      if (role !== "owner" && role !== "admin") {
-        return Response.json(
-          { error: "Only workspace owners and admins can create API keys for a project in dual PII mode" },
-          { status: 403 }
-        );
-      }
+    // The proxy already guarantees membership; this adds the dual-PII role gate.
+    if (!(await canMintApiKey(params.projectId, session?.user.id))) {
+      return Response.json({ error: DUAL_PII_API_KEY_ERROR }, { status: 403 });
     }
 
     // expiresDays: positive integer days, or null/undefined for "never".

@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod/v4";
 
-import { createApiKey } from "@/lib/actions/project-api-keys";
+import { canMintApiKey, createApiKey, DUAL_PII_API_KEY_ERROR } from "@/lib/actions/project-api-keys";
 import { auth } from "@/lib/auth";
 import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
       if (!project) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
+      if (!(await canMintApiKey(project.id, userId))) {
+        return NextResponse.json({ error: DUAL_PII_API_KEY_ERROR }, { status: 403 });
+      }
       const key = await createApiKey({
         projectId: project.id,
         name: keyName,
@@ -98,6 +101,9 @@ export async function POST(req: NextRequest) {
     }
 
     const project = userProjects[0];
+    if (!(await canMintApiKey(project.id, userId))) {
+      return NextResponse.json({ error: DUAL_PII_API_KEY_ERROR }, { status: 403 });
+    }
     const key = await createApiKey({
       projectId: project.id,
       name: keyName,
