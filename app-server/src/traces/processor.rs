@@ -645,11 +645,14 @@ pub async fn process_span_messages(
     // "first occurrence per trace" semantic. Stamped ONLY after both inserts.
     // Rows whose redaction failed get no storage mark, so the next occurrence
     // is a storage miss and re-inserts them (RMT keeps the latest), healing
-    // the row once the redactor is back.
+    // the row once the redactor is back. A span whose text was kept out of
+    // the index likewise gets no trace-new marks: its messages stay
+    // trace-new so a later span in the trace carries them to Quickwit.
     let mut seen_marks = SeenMarks::default();
     shared_content.storage_marks(&mut seen_marks, |i| pii_outcome.shared_row_failed(i));
-    input_batch.trace_new_marks(&recordable_refs, &mut seen_marks);
-    output_batch.trace_new_marks(&recordable_refs, &mut seen_marks);
+    let unindexable = |dedup_idx: usize| !pii_outcome.is_indexable(recordable_indices[dedup_idx]);
+    input_batch.trace_new_marks(&recordable_refs, &mut seen_marks, unindexable);
+    output_batch.trace_new_marks(&recordable_refs, &mut seen_marks, unindexable);
 
     let span_branch = async {
         // Strict order: unique_content -> spans -> stamp. `spans` is plain
