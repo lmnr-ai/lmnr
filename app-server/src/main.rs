@@ -52,7 +52,7 @@ use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use query_engine::QueryEngine;
 use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_ROUTING_KEY};
-use runtime::{create_general_purpose_runtime, wait_stop_signal};
+use runtime::{create_general_purpose_runtime, shutdown, wait_stop_signal};
 #[cfg(feature = "signals")]
 use signals::private::{
     SignalWorkerConfig,
@@ -1436,6 +1436,13 @@ fn main() -> anyhow::Result<()> {
         ));
     }
 
+    // Start the drain the moment SIGTERM lands, not once the servers below have
+    // finished stopping: the consumer's HTTP server holds long-lived SSE streams,
+    // so its own shutdown can burn most of the pod's grace period and the readers
+    // would be killed mid-flush anyway. The wait for the drain to COMPLETE is at
+    // the end of main, after the server threads have joined.
+    shutdown::listen_for_stop_signal(&runtime_handle);
+
     // == LLM Client ==
     // Shared by every LLM-backed feature — gate on the union of their flags,
     // not on any single feature, so the flags' conditions can diverge later
@@ -2699,6 +2706,19 @@ fn main() -> anyhow::Result<()> {
         );
         handle.join().expect("thread is not panicking")?;
     }
+
+    // The servers are down but the stream readers and queue workers are runtime
+    // TASKS: returning here kills them wherever they are, including between a
+    // ClickHouse insert and the offset store / ack that records it — which is how
+    // a pod rotation duplicates spans (LAM-2219). Give them a bounded window to
+    // finish what they had already started.
+    //
+    // `request` is called again (idempotently) because the process may be going
+    // down for a reason the signal listener never saw, and because the listener
+    // task is not guaranteed to have been scheduled before actix returned.
+    shutdown::request();
+    let drain_timeout = Duration::from_secs(env::server::SHUTDOWN_DRAIN_TIMEOUT_SECS.get());
+    general_runtime.block_on(shutdown::wait_drained(drain_timeout));
 
     // Servers have stopped (SIGTERM); the runtime + ingest deps are still alive here.
     // Flush buffered internal spans so freshly-minted signal.run roots aren't lost on a
