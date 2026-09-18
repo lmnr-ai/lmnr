@@ -414,4 +414,8 @@ LEFT JOIN (
     ON t.project_id = ts.project_id AND t.id = ts.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)}
-    AND trace_visible(ifNull(ts.user_id, ''), ifNull(ts.metadata, ''), {policy:String});
+    AND trace_visible(ifNull(ts.user_id, ''), ifNull(ts.metadata, ''), {policy:String})
+    -- Same rule as `spans_v1`: with `traceFilters` present, a trace that has no
+    -- `traces_static` row is hidden rather than matched on the join's empty
+    -- defaults (which `ne` and an empty filter list would otherwise pass).
+    AND (NOT JSONHas({policy:String}, 'traceFilters') OR ts.trace_id = t.id);
