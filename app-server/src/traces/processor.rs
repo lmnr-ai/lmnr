@@ -790,8 +790,8 @@ pub async fn process_span_messages(
                     new_input_messages.as_deref(),
                     new_output_messages.as_deref(),
                 );
-                // Fail closed: a raw-stored span whose redaction failed has no
-                // safe text, whichever source it would have come from.
+                // Fail closed: a policy-hidden span whose redaction failed has
+                // no safe text, whichever source it would have come from.
                 if !pii_outcome.is_indexable(span_idx) {
                     doc.input = None;
                     doc.output = None;
