@@ -346,21 +346,28 @@ fn without_redactor_only_off_and_redact_spans_stay_indexable() {
     ]);
     let outcome = PiiOutcome::without_redactor(&spans, &[0, 1, 2, 3], &project_modes);
 
-    assert!(!outcome.span(0).checked);
-    assert!(outcome.is_indexable(0), "off: nothing to hide");
-    assert!(!outcome.span(1).checked);
-    assert!(
-        outcome.is_indexable(1),
-        "redact: stored raw for everyone anyway"
-    );
-    assert!(!outcome.span(2).checked);
-    assert!(
-        !outcome.is_indexable(2),
-        "dual: masked in CH, must not leak via search"
-    );
-    assert!(!outcome.span(3).checked);
-    assert!(!outcome.is_indexable(3), "unknown: assumed dual");
+    // `off` is unchecked but not failed: never attempted, nothing to hide.
+    let off = outcome.span(0);
+    assert_eq!(off.mode, Some(PiiMode::Off));
+    assert!(!off.checked && !off.failed());
+    assert!(outcome.is_indexable(0));
+    // Non-`off` spans all read as failed; only the policy-hidden ones are
+    // kept out of the index.
+    for (idx, mode, indexable) in [
+        (1, Some(PiiMode::Redact), true),
+        (2, Some(PiiMode::Dual), false),
+        (3, None, false),
+    ] {
+        let pii = outcome.span(idx);
+        assert_eq!(pii.mode, mode, "span {idx}");
+        assert!(!pii.checked && pii.failed(), "span {idx}");
+        assert_eq!(outcome.is_indexable(idx), indexable, "span {idx}");
+    }
     assert!(!outcome.shared_row_failed(0));
+
+    // A span the batch never saw fails closed.
+    assert!(!outcome.is_indexable(99));
+    assert!(outcome.span(99).failed());
 }
 
 #[tokio::test]
