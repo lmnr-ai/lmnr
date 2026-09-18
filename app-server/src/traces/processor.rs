@@ -22,7 +22,8 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
-        PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
+        PiiOutcome, PiiRedactorClient, SpanVerdict, redact_spans_in_place,
+        resolve_project_pii_modes,
     },
     pubsub::PubSub,
     quickwit::{
@@ -500,15 +501,17 @@ pub async fn process_span_messages(
 
                 // `dual` mode: the canonical text replaces the row's own
                 // serialization so the masks index the stored bytes.
-                let pii = pii_outcome.span(span_idx);
-                ch_span.pii_checked = pii.checked;
-                if let Some(masked) = pii.input {
-                    ch_span.input_masks = masked.ch_masks();
-                    ch_span.input = masked.text;
-                }
-                if let Some(masked) = pii.output {
-                    ch_span.output_masks = masked.ch_masks();
-                    ch_span.output = masked.text;
+                let verdict = pii_outcome.verdict(span_idx);
+                ch_span.pii_checked = verdict.pii_checked();
+                if let SpanVerdict::Masked { input, output } = verdict {
+                    if let Some(masked) = input {
+                        ch_span.input_masks = masked.ch_masks();
+                        ch_span.input = masked.text.clone();
+                    }
+                    if let Some(masked) = output {
+                        ch_span.output_masks = masked.ch_masks();
+                        ch_span.output = masked.text.clone();
+                    }
                 }
 
                 let input_hashes = input_batch

@@ -123,97 +123,70 @@ impl From<HashMap<Uuid, PiiMode>> for ProjectModes {
     }
 }
 
-/// Per-span verdict for the ClickHouse row and the Quickwit document.
+/// What one span's stored text is after redaction, for the ClickHouse row
+/// and the Quickwit document.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SpanPii {
-    /// The project's mode as resolved for this batch.
-    pub mode: PiiMode,
+pub enum SpanVerdict {
+    /// `off`: stored as received, never screened.
+    Off,
+    /// `redact`: `span.input`/`output` were spliced in place; the stored
+    /// text is the safe text and there is nothing else to carry.
+    Redacted,
+    /// `dual`: the `Span` stays raw. These are the redactor's canonical
+    /// whole values with their masks, written verbatim as `CHSpan::input`
+    /// / `input_masks` (`None` where the span has no such field).
+    Masked {
+        input: Option<MaskedText>,
+        output: Option<MaskedText>,
+    },
+    /// Redaction was attempted and did not complete: stored as received and
+    /// unchecked, which the masked read path renders as unavailable.
+    Failed { mode: PiiMode },
+}
+
+impl SpanVerdict {
+    /// The verdict a batch starts from for `mode`; `fail` takes it from
+    /// there.
+    fn optimistic(mode: PiiMode) -> Self {
+        match mode {
+            PiiMode::Off => Self::Off,
+            PiiMode::Redact => Self::Redacted,
+            PiiMode::Dual => Self::Masked {
+                input: None,
+                output: None,
+            },
+        }
+    }
+
     /// Persisted as `pii_checked`: the redactor screened every text of this
-    /// span. In `redact` mode the raw text was replaced; in `dual` mode the
-    /// masks say exactly where PII sits, so a checked row with no masks is
-    /// safe as-is. `false` for `off` projects and for any failure; the
-    /// masked read path treats unchecked rows as unavailable.
-    pub checked: bool,
-    /// Canonical whole `span.input` with its masks; `dual` mode only.
-    /// Written verbatim as `CHSpan::input` / `input_masks` — the masks
-    /// index this exact string.
-    pub input: Option<MaskedText>,
-    /// Same for `span.output`.
-    pub output: Option<MaskedText>,
-}
-
-impl SpanPii {
-    fn new(mode: PiiMode) -> Self {
-        Self {
-            mode,
-            checked: false,
-            input: None,
-            output: None,
-        }
+    /// span, so the stored text (and masks, if any) can be trusted. A
+    /// checked `dual` row with no masks is safe as-is.
+    pub fn pii_checked(&self) -> bool {
+        matches!(self, Self::Redacted | Self::Masked { .. })
     }
 
-    /// Redaction was attempted and did not complete. `off` spans are
-    /// unchecked but were never attempted.
-    pub fn failed(&self) -> bool {
-        self.mode != PiiMode::Off && !self.checked
-    }
-
-    /// The stored text is raw and hidden only by the read policy. `redact`
-    /// text is already safe for everyone, and `off` text is raw by the
-    /// project's own choice.
-    fn policy_hidden(&self) -> bool {
-        self.mode == PiiMode::Dual
-    }
-}
-
-/// Result of one batch pass: one [`SpanPii`] per recordable span.
-#[derive(Debug, Default)]
-pub struct PiiOutcome {
-    /// Keyed by `span_idx` (position in the batch's `spans` slice).
-    spans: HashMap<usize, SpanPii>,
-    /// Positions in the `shared_content` slice whose redaction did not
-    /// complete. These must not be stamped storage-present so the next
-    /// occurrence re-inserts.
-    failed_shared_rows: HashSet<usize>,
-}
-
-impl PiiOutcome {
-    /// Verdicts for a batch no redactor will see: every span is unchecked,
-    /// so non-`off` spans read as failed and policy-hidden ones stay out of
-    /// the index. Shared rows keep their storage marks: with no redactor
-    /// configured, re-inserting them on every occurrence would heal nothing.
-    pub fn without_redactor(
-        spans: &[Span],
-        recordable_indices: &[usize],
-        project_modes: &ProjectModes,
-    ) -> Self {
-        let mut outcome = Self::default();
-        for &span_idx in recordable_indices {
-            let mode = project_modes.get(&spans[span_idx].project_id);
-            outcome.spans.insert(span_idx, SpanPii::new(mode));
-        }
-        outcome
-    }
-
-    /// A span this batch never saw reads as `dual` and unchecked, i.e.
-    /// fail-closed.
-    pub fn span(&self, span_idx: usize) -> SpanPii {
-        self.spans
-            .get(&span_idx)
-            .cloned()
-            .unwrap_or_else(|| SpanPii::new(PiiMode::Dual))
+    /// Whether the span's text may reach the search index. Only a failed
+    /// `dual` span holds raw PII that no redacted copy shadows; a failed
+    /// `redact` span's raw text is stored for every reader anyway.
+    pub fn is_indexable(&self) -> bool {
+        !matches!(
+            self,
+            Self::Failed {
+                mode: PiiMode::Dual
+            }
+        )
     }
 
     /// `span` with masks spliced into any whole-value field the redactor
     /// flagged; borrowed when there is nothing to splice. Trace-new messages
     /// were redacted in place already, and [`Self::is_indexable`] still
     /// gates the document as a whole.
-    pub fn index_view<'a>(&self, span_idx: usize, span: &'a Span) -> Cow<'a, Span> {
-        let Some(pii) = self.spans.get(&span_idx) else {
+    pub fn index_view<'a>(&self, span: &'a Span) -> Cow<'a, Span> {
+        let Self::Masked { input, output } = self else {
             return Cow::Borrowed(span);
         };
-        let input = pii.input.as_ref().filter(|m| m.has_pii());
-        let output = pii.output.as_ref().filter(|m| m.has_pii());
+        let input = input.as_ref().filter(|m| m.has_pii());
+        let output = output.as_ref().filter(|m| m.has_pii());
         if input.is_none() && output.is_none() {
             return Cow::Borrowed(span);
         }
@@ -227,31 +200,75 @@ impl PiiOutcome {
         Cow::Owned(owned)
     }
 
-    /// Whether the span's text may reach the search index: a failed
-    /// policy-hidden span holds PII that no redacted copy shadows.
+    fn fail(&mut self) {
+        *self = match self {
+            Self::Off => Self::Off,
+            Self::Redacted => Self::Failed {
+                mode: PiiMode::Redact,
+            },
+            Self::Masked { .. } => Self::Failed {
+                mode: PiiMode::Dual,
+            },
+            Self::Failed { mode } => Self::Failed { mode: *mode },
+        };
+    }
+}
+
+/// What a span the batch never saw reads as: a failed `dual` span, i.e.
+/// unchecked and kept out of the index.
+const FAIL_CLOSED: SpanVerdict = SpanVerdict::Failed {
+    mode: PiiMode::Dual,
+};
+
+/// Result of one batch pass: one [`SpanVerdict`] per recordable span.
+#[derive(Debug, Default)]
+pub struct PiiOutcome {
+    /// Keyed by `span_idx` (position in the batch's `spans` slice).
+    spans: HashMap<usize, SpanVerdict>,
+    /// Positions in the `shared_content` slice whose redaction did not
+    /// complete. These must not be stamped storage-present so the next
+    /// occurrence re-inserts.
+    failed_shared_rows: HashSet<usize>,
+}
+
+impl PiiOutcome {
+    /// Verdicts for a batch no redactor will see: every non-`off` span is
+    /// failed, so `dual` spans stay out of the index. Shared rows keep their
+    /// storage marks: with no redactor configured, re-inserting them on
+    /// every occurrence would heal nothing.
+    pub fn without_redactor(
+        spans: &[Span],
+        recordable_indices: &[usize],
+        project_modes: &ProjectModes,
+    ) -> Self {
+        let mut outcome = Self::default();
+        for &span_idx in recordable_indices {
+            let mut verdict =
+                SpanVerdict::optimistic(project_modes.get(&spans[span_idx].project_id));
+            verdict.fail();
+            outcome.spans.insert(span_idx, verdict);
+        }
+        outcome
+    }
+
+    pub fn verdict(&self, span_idx: usize) -> &SpanVerdict {
+        self.spans.get(&span_idx).unwrap_or(&FAIL_CLOSED)
+    }
+
     pub fn is_indexable(&self, span_idx: usize) -> bool {
-        self.spans
-            .get(&span_idx)
-            .is_some_and(|pii| !(pii.policy_hidden() && pii.failed()))
+        self.verdict(span_idx).is_indexable()
+    }
+
+    pub fn index_view<'a>(&self, span_idx: usize, span: &'a Span) -> Cow<'a, Span> {
+        self.verdict(span_idx).index_view(span)
     }
 
     pub fn shared_row_failed(&self, row_idx: usize) -> bool {
         self.failed_shared_rows.contains(&row_idx)
     }
 
-    /// Optimistic mark before the RPC; any later `fail` wins.
-    fn check(&mut self, span_idx: usize) {
-        if let Some(pii) = self.spans.get_mut(&span_idx) {
-            pii.checked = true;
-        }
-    }
-
-    /// A span with no entry is recorded as `dual` so it fails closed.
     fn fail(&mut self, span_idx: usize) {
-        self.spans
-            .entry(span_idx)
-            .or_insert_with(|| SpanPii::new(PiiMode::Dual))
-            .checked = false;
+        self.spans.entry(span_idx).or_insert(FAIL_CLOSED).fail();
     }
 }
 
@@ -370,12 +387,14 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         let span = &spans[span_idx];
         let mode = project_modes.get(&span.project_id);
-        outcome.spans.insert(span_idx, SpanPii::new(mode));
+        // Optimistic: a span with nothing to check is safe by definition, and
+        // any failure below downgrades it.
+        outcome
+            .spans
+            .insert(span_idx, SpanVerdict::optimistic(mode));
         if mode == PiiMode::Off {
             continue;
         }
-        // A span with nothing to check is safe by definition.
-        outcome.check(span_idx);
 
         if let Some(contents) = input_trace_new_contents.get(dedup_idx) {
             for (offset, c) in contents.iter().enumerate() {
@@ -461,13 +480,12 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                             outcome.fail(idx);
                             continue;
                         }
-                        let Some(entry) = outcome.spans.get_mut(&idx) else {
-                            continue;
-                        };
-                        if is_input {
-                            entry.input = Some(masked);
-                        } else {
-                            entry.output = Some(masked);
+                        // A span another of its texts already failed stays
+                        // failed: stored as received, masks dropped.
+                        if let Some(SpanVerdict::Masked { input, output }) =
+                            outcome.spans.get_mut(&idx)
+                        {
+                            *if is_input { input } else { output } = Some(masked);
                         }
                     }
                     _ => {

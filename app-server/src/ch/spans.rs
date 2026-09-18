@@ -173,7 +173,7 @@ pub struct CHSpan {
     pub input_masks: Vec<(u32, u32, String)>,
     #[serde(default)]
     pub output_masks: Vec<(u32, u32, String)>,
-    /// The redactor screened this row (`crate::pii_redactor::SpanPii`);
+    /// The redactor screened this row (`crate::pii_redactor::SpanVerdict::pii_checked`);
     /// drives the masked branch of `spans_v1`.
     #[serde(default)]
     pub pii_checked: bool,
