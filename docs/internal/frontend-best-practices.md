@@ -17,6 +17,12 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 `TimeSeriesChart` (and every chart built on it) uses a categorical `<XAxis dataKey="timestamp">`, so a `<ReferenceLine x={…}>` renders **only** when `x` is byte-identical to one of the bucket labels in `data`. An arbitrary instant (an annotation's `created_at`) silently renders nothing. Snap it first — find the last bucket whose start is `<= at`, drop anything past the last bucket's end, and merge labels that land in the same bucket into one line. That is what `TimeSeriesChartProps.markers` / `snappedMarkers` does; reuse it rather than passing raw timestamps. A lone bucket has no measurable width — treat it as unbounded to the right so a marker later in that window still snaps. Clickable labels (`TimeSeriesMarker.href`) must `stopPropagation` on mouseDown/pointerDown so the chart's drag-zoom does not start; last marker's href wins when several snap to one bar.
 
+### `data-icon` is decorative — Button does NOT space its own icons
+
+`<Icon data-icon="inline-start" />` inside a `<Button>` appears in ~36 files and looks like it wires up spacing. It does not: no CSS rule anywhere in the repo matches `[data-icon]`, and `buttonVariants`' base class list has no `gap`. An icon+label button therefore renders with the glyph jammed against the text unless the call site adds `className="gap-2"` (the idiom in `components/signals/create-signal-drawer/`) or a `mr-1`/`mr-1.5` on the icon. Only the `icon={…}` prop form self-spaces (it injects `mr-1` itself). Keep the attribute if you like — it's a marker for a future codemod — but treat spacing as your job.
+
+Size ladder worth knowing before picking one for a toolbar: `sm` is `h-[22px]` (chip-sized, too small for a primary action), `default` `h-7`, `md` `h-8` (the comfortable size for Run/Export-style buttons), `lg` `h-10`.
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).
@@ -68,6 +74,16 @@ Use it for: an older response overwriting newer state (user paginates, then chan
 - Conversely, when one action aborts another, the ABORTING action must clear any loading flag the aborted one left behind.
 - In the `finally`, only null out the shared controller ref if it still points at your own controller — otherwise a newer operation has already replaced it and you'd clobber its handle.
 - On the success path use functional `set((state) => ...)` rather than closing over `state.data`, so you merge with the latest value rather than a snapshot.
+
+### Debounced autosave
+
+A debounce that lives in a component (`useMemo(() => debounce(save, 500), [deps])` + `cancel()` on cleanup) loses the queued write whenever a dep changes, the component remounts, or the user navigates — and users type right up to the moment they do all three. Keep the queue (`pending`, the timer, the in-flight promise) at MODULE scope next to the store instead: it has one lifetime, and the only way out is a completed request. Rules the SQL editor's implementation encodes (`components/sql/sql-editor-store.ts`, notes in `docs/internal/sql-query-engine.md`):
+
+- **Key every piece of that state by entity id (`Map`s, not single variables).** Switching entities flushes the previous one without awaiting it, so two entities can have work outstanding at once. One global slot means a failed retry for the entity you left is dropped by the pending edit on the one you moved to, and its status update relabels the wrong indicator. Gate status writes on "is this still the entity on screen?".
+- Serialize requests for the same entity (await the in-flight one, then re-run) so two saves can't land out of order, and re-queue the payload on failure so the next flush retries rather than dropping the edit.
+- Expose an explicit `flush()` and call it from every path that ends the debounce window: an action that depends on the saved value, switching entities, and `visibilitychange` / `pagehide` / unmount (pass `keepalive: true` on those so the request outlives the page). Deletion is the exception — discard the queue for that id instead, or the flush chases a row that no longer exists and toasts a save error for something the user just deleted. Discarding has to abort the in-flight request too (keep an `AbortController` per save and bail out of the catch on `signal.aborted`): a request already on the wire when the delete fires fails against the missing row, and the requeue-on-failure rule above then hands it straight back to the next flush.
+- Patch the SWR cache the saved value came from (`revalidate: false`), and when a revalidation returns the same entity, keep the local field the user is editing — otherwise a background refetch overwrites in-flight keystrokes. Keep the unconfirmed text keyed by id too: until the request resolves the cache still holds the pre-edit value, so leaving and coming back inside that window reloads it and the next keystroke saves it back over the edit that just landed.
+- Let each writer PUT only the fields it owns (an optional-fields schema with a "at least one" refine). Two UI paths that both send the whole object will clobber each other with whatever stale copy they happened to hold.
 
 ### Server actions and Zod schemas
 
