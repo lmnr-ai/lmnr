@@ -26,6 +26,8 @@ export type SaveStatus = "saved" | "unsaved" | "saving" | "error";
 const AUTOSAVE_DEBOUNCE_MS = 500;
 
 type PendingSave = { projectId: string; templateId: string; query: string };
+/** The request itself, plus the handle that lets a delete cancel it. */
+type InFlightSave = { promise: Promise<void>; abort: AbortController };
 
 /**
  * Autosave state deliberately lives outside React. The previous implementation rebuilt its debounced
@@ -38,7 +40,7 @@ type PendingSave = { projectId: string; templateId: string; query: string };
  */
 const pendingSaves = new Map<string, PendingSave>();
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const inFlightSaves = new Map<string, Promise<void>>();
+const inFlightSaves = new Map<string, InFlightSave>();
 
 /**
  * Query text this tab has typed but not confirmed persisted yet. The templates list lags until the PUT
@@ -57,13 +59,14 @@ const clearSaveTimer = (templateId: string) => {
   }
 };
 
-const putQuery = async ({ projectId, templateId, query }: PendingSave, keepalive: boolean) => {
+const putQuery = async ({ projectId, templateId, query }: PendingSave, keepalive: boolean, signal: AbortSignal) => {
   const res = await fetch(`/api/projects/${projectId}/sql/templates/${templateId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     // The query only. The rename path PUTs the name only, so the two can't clobber each other.
     body: JSON.stringify({ query }),
     keepalive,
+    signal,
   });
 
   if (!res.ok) {
@@ -80,16 +83,17 @@ const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean
 
   const save = pendingSaves.get(templateId);
   const inFlight = inFlightSaves.get(templateId);
-  if (!save) return inFlight ?? Promise.resolve();
+  if (!save) return inFlight?.promise ?? Promise.resolve();
   // Serialize PUTs of the same template so two saves can't land out of order.
-  if (inFlight) return inFlight.then(() => runSave(templateId, setStatus, keepalive));
+  if (inFlight) return inFlight.promise.then(() => runSave(templateId, setStatus, keepalive));
 
   pendingSaves.delete(templateId);
   setStatus(templateId, "saving");
 
+  const abort = new AbortController();
   const promise = (async () => {
     try {
-      await putQuery(save, keepalive);
+      await putQuery(save, keepalive, abort.signal);
       // Keep the templates list in sync. The rename path reads its copy of the query, and a stale
       // copy there is what used to travel back to the server and undo the edit.
       await mutate<SQLTemplate[]>(
@@ -101,6 +105,9 @@ const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean
       if (unconfirmedQueries.get(templateId) === save.query) unconfirmedQueries.delete(templateId);
       setStatus(templateId, pendingSaves.has(templateId) ? "unsaved" : "saved");
     } catch (e) {
+      // Aborted means the template is being deleted: there is no row left to retry against, and a
+      // "failed to save" toast for a query the user just removed is noise. Drop it silently.
+      if (abort.signal.aborted) return;
       // Requeue the edit so the next flush retries it instead of losing it, unless a newer edit for
       // this same query is already queued.
       if (!pendingSaves.has(templateId)) pendingSaves.set(templateId, save);
@@ -112,10 +119,10 @@ const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean
       });
     }
   })().finally(() => {
-    if (inFlightSaves.get(templateId) === promise) inFlightSaves.delete(templateId);
+    if (inFlightSaves.get(templateId)?.promise === promise) inFlightSaves.delete(templateId);
   });
 
-  inFlightSaves.set(templateId, promise);
+  inFlightSaves.set(templateId, { promise, abort });
   return promise;
 };
 
@@ -133,7 +140,7 @@ export type SqlEditorActions = {
   setQuery: (projectId: string, query: string) => void;
   /** Save anything queued right now — before a rename, a run, or leaving the page. */
   flushQuerySave: (options?: { keepalive?: boolean }) => Promise<void>;
-  /** Forget anything queued for a template that is going away, so no PUT chases a deleted row. */
+  /** Drop queued and in-flight saves for a template that is going away, so no PUT chases a deleted row. */
   discardQuerySave: (templateId: string) => void;
   setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
@@ -223,6 +230,10 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
       clearSaveTimer(templateId);
       pendingSaves.delete(templateId);
       unconfirmedQueries.delete(templateId);
+      // Clearing the queue is not enough — a PUT already on the wire would 404 against the deleted
+      // row, and its catch would requeue the payload for the next flush to send again. Abort it.
+      inFlightSaves.get(templateId)?.abort.abort();
+      inFlightSaves.delete(templateId);
       setStatus(templateId, "saved");
     },
     setParameterValue: (name, value) => {

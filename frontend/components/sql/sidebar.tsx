@@ -41,7 +41,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
 
   const handleDelete = useCallback(
     async (template: SQLTemplate) => {
-      // The row is about to stop existing, so drop its queued autosave — flushing it on the way out
+      // The row is about to stop existing, so drop its autosave — queued and in flight. Either one
       // would PUT a deleted id, fail, and toast a save error for a query the user just removed.
       discardQuerySave(template.id);
 
