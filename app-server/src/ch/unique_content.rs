@@ -10,8 +10,8 @@ use super::{
 /// One `unique_content` row: any JSON blob the spans table references by
 /// hash (input / output messages, tool-definition arrays). Keyed by
 /// `(project_id, group_id, content_hash)` — see `traces::dedup` for the group.
-/// Field order is the table's column order: the clickhouse crate binds by
-/// position.
+/// Inserted as `INSERT INTO unique_content(<field names>)`, so fields bind
+/// by name; `last_seen_at` is not a field and keeps its DEFAULT.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHUniqueContent {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -19,6 +19,31 @@ pub struct CHUniqueContent {
     pub group_id: String,
     pub content_hash: [u8; 32],
     pub content: String,
+    /// PII byte ranges into `content` (`crate::pii_redactor::PiiMask` as
+    /// `(start, end, label)`), filled only in `dual` PII mode.
+    #[serde(default)]
+    pub content_masks: Vec<(u32, u32, String)>,
+    /// The redactor screened `content`; see `crate::pii_redactor::SpanPii`.
+    #[serde(default)]
+    pub pii_checked: bool,
+}
+
+impl CHUniqueContent {
+    pub fn new(
+        project_id: Uuid,
+        group_id: String,
+        content_hash: [u8; 32],
+        content: String,
+    ) -> Self {
+        Self {
+            project_id,
+            group_id,
+            content_hash,
+            content,
+            content_masks: Vec::new(),
+            pii_checked: false,
+        }
+    }
 }
 
 /// Resolve one blob by hash: the group-scoped table first, then the legacy

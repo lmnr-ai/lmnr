@@ -163,13 +163,23 @@ impl MessageBatch {
     }
 
     /// Trace-new marks for every position this batch recorded as a first
-    /// occurrence, storage hit or not.
-    pub fn trace_new_marks(&self, spans: &[&Span], marks: &mut SeenMarks) {
-        for ((span, hashes), positions) in spans
+    /// occurrence, storage hit or not. `skip(i)` leaves batch entry `i`
+    /// unstamped so its messages are trace-new again on the next span.
+    pub fn trace_new_marks(
+        &self,
+        spans: &[&Span],
+        marks: &mut SeenMarks,
+        skip: impl Fn(usize) -> bool,
+    ) {
+        for (i, ((span, hashes), positions)) in spans
             .iter()
             .zip(&self.span_hashes)
             .zip(&self.span_new_indices)
+            .enumerate()
         {
+            if skip(i) {
+                continue;
+            }
             for &pos in positions {
                 if let Some(hash) = hashes.get(pos as usize) {
                     marks.trace_new(span.project_id, span.trace_id, hash);
@@ -392,8 +402,12 @@ mod tests {
         assert!(batch.span_trace_new_contents[0][0].contains("you are helpful"));
 
         let mut marks = SeenMarks::default();
-        batch.trace_new_marks(&[&span], &mut marks);
+        batch.trace_new_marks(&[&span], &mut marks, |_| false);
         assert!(!marks.is_empty());
+
+        let mut skipped = SeenMarks::default();
+        batch.trace_new_marks(&[&span], &mut skipped, |_| true);
+        assert!(skipped.is_empty(), "a skipped entry stamps nothing");
     }
 
     #[test]
