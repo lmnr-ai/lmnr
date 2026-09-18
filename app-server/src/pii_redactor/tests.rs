@@ -71,6 +71,11 @@ fn modes(project_id: Uuid, mode: PiiMode) -> ProjectModes {
     HashMap::from([(project_id, mode)]).into()
 }
 
+/// The recordable view the processor hands to `redact_spans_in_place`.
+fn refs(spans: &mut [Span]) -> Vec<&mut Span> {
+    spans.iter_mut().collect()
+}
+
 fn secret_mask(start: u32, end: u32) -> PiiMask {
     PiiMask {
         start,
@@ -87,11 +92,10 @@ async fn off_project_is_untouched_and_unchecked() {
     let redactor = FakeRedactor::new(false);
     let outcome = redact_spans_in_place(
         &redactor,
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut [vec![]],
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Off),
     )
     .await;
@@ -112,11 +116,10 @@ async fn redact_mode_splices_masks_into_raw_and_stamps_checked() {
     let mut tn_in = [vec!["\"secret msg\"".to_string()]];
     let outcome = redact_spans_in_place(
         &FakeRedactor::new(false),
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut tn_in,
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Redact),
     )
     .await;
@@ -146,11 +149,10 @@ async fn dual_mode_keeps_canonical_text_and_masks() {
     let mut tn_in = [vec!["\"secret msg\"".to_string()], vec![]];
     let outcome = redact_spans_in_place(
         &FakeRedactor::new(false),
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut tn_in,
         &mut [vec![], vec![]],
-        &[0, 1],
         &modes(p, PiiMode::Dual),
     )
     .await;
@@ -224,11 +226,10 @@ async fn dual_mode_stores_the_redactor_text_verbatim_not_resanitized() {
     let mut rows = vec![row(p, "\"secret\"")];
     let outcome = redact_spans_in_place(
         &Emits85,
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut [vec![]],
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Dual),
     )
     .await;
@@ -255,11 +256,10 @@ async fn span_text_is_sanitized_before_the_rpc() {
     let redactor = FakeRedactor::new(false);
     redact_spans_in_place(
         &redactor,
-        &mut spans,
+        &mut refs(&mut spans),
         &mut [],
         &mut [vec![]],
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Dual),
     )
     .await;
@@ -274,11 +274,10 @@ async fn rpc_failure_leaves_raw_unchecked_and_unstamped() {
     let mut rows = vec![row(p, "\"secret\"")];
     let outcome = redact_spans_in_place(
         &FakeRedactor::new(true),
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut [vec![]],
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Dual),
     )
     .await;
@@ -302,11 +301,10 @@ async fn failed_redact_mode_span_stays_indexable() {
     let mut spans = vec![span(p, Some(json!("secret")), None)];
     let outcome = redact_spans_in_place(
         &FakeRedactor::new(true),
-        &mut spans,
+        &mut refs(&mut spans),
         &mut [],
         &mut [vec![]],
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Redact),
     )
     .await;
@@ -333,7 +331,7 @@ fn without_redactor_only_off_and_redact_spans_stay_indexable() {
         (dual, PiiMode::Dual),
     ])
     .into();
-    let outcome = PiiOutcome::without_redactor(&spans, &[0, 1, 2], &project_modes);
+    let outcome = PiiOutcome::without_redactor(spans.iter().map(|s| s.project_id), &project_modes);
 
     // `off` is never attempted, so it is not a failure: nothing to hide.
     assert_eq!(outcome.verdict(0), &SpanVerdict::Off);
@@ -382,11 +380,10 @@ async fn garbage_canonical_text_leaves_the_span_unchecked() {
         let mut rows = vec![row(p, "\"secret\"")];
         let outcome = redact_spans_in_place(
             &Garbage,
-            &mut spans,
+            &mut refs(&mut spans),
             &mut rows,
             &mut [vec![]],
             &mut [vec![]],
-            &[0],
             &modes(p, mode),
         )
         .await;
@@ -424,11 +421,10 @@ async fn malformed_masks_fail_closed() {
     let mut tn_in = [vec!["\"secret\"".to_string()]];
     let outcome = redact_spans_in_place(
         &BadMasks,
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut tn_in,
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Redact),
     )
     .await;
@@ -449,11 +445,10 @@ async fn dual_mode_rejects_malformed_masks_before_storing_them() {
     let mut rows = vec![row(p, "\"secret\"")];
     let outcome = redact_spans_in_place(
         &BadMasks,
-        &mut spans,
+        &mut refs(&mut spans),
         &mut rows,
         &mut [vec![]],
         &mut [vec![]],
-        &[0],
         &modes(p, PiiMode::Dual),
     )
     .await;
