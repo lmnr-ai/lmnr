@@ -1,3 +1,37 @@
+//! PII redaction at ingest: one redactor RPC per batch, with the results
+//! routed back to the three places span text lives before it is stored or
+//! indexed. What happens to each depends on the project's [`PiiMode`]:
+//!
+//! | text                    | `off`     | `redact`            | `dual`                           |
+//! |-------------------------|-----------|---------------------|----------------------------------|
+//! | whole `input`/`output`  | untouched | spliced into `Span` | raw; text+masks via `PiiOutcome` |
+//! | `unique_content` row    | untouched | spliced in place    | canonical text+masks in place    |
+//! | trace-new search buffer | untouched | spliced in place    | spliced in place                 |
+//! | stored `pii_checked`    | `false`   | `true`              | `true`                           |
+//!
+//! "Spliced" is `[REDACTED_<LABEL>]` written over each mask
+//! ([`MaskedText::redacted`]). A `dual` whole value cannot go back into
+//! `Span`: `Span.input` is a `serde_json::Value` and re-serializing it would
+//! move the byte offsets the masks index, so the raw `Span` (read by realtime
+//! and everything else) and the `MaskedText` in [`PiiOutcome`] (written
+//! verbatim to `CHSpan`) coexist. Search buffers get spliced text in every
+//! mode so Quickwit never sees raw `dual` text.
+//!
+//! Failure (RPC error, oversize, unparsable canonical text, malformed masks)
+//! leaves the span or row as it arrived and unchecked (`pii_checked =
+//! false`), which the masked read path renders as unavailable. A failed
+//! `unique_content` row gets no `s2:` mark so the next occurrence re-inserts
+//! it; a failed `dual` or unresolved-mode span gets no `tn:` marks and no
+//! text in its Quickwit document ([`PiiOutcome::is_indexable`]). A failed
+//! `redact` span stays indexable: its raw text is stored for every reader
+//! anyway. Redaction never blocks ingestion.
+//!
+//! Two index spaces meet here: `span_idx` is a position in the batch's
+//! `spans` slice and keys [`PiiOutcome`]; `dedup_idx` is a position in
+//! `recordable_indices` and indexes the trace-new buffers
+//! (`recordable_indices[dedup_idx] == span_idx`). Shared rows are indexed by
+//! position in `shared_content`, unrelated to either.
+
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -114,9 +148,11 @@ impl SpanPii {
 /// Result of one batch pass: one [`SpanPii`] per recordable span.
 #[derive(Debug, Default)]
 pub struct PiiOutcome {
+    /// Keyed by `span_idx` (position in the batch's `spans` slice).
     spans: HashMap<usize, SpanPii>,
-    /// `shared_content` indices whose redaction did not complete. These must
-    /// not be stamped storage-present so the next occurrence re-inserts.
+    /// Positions in the `shared_content` slice whose redaction did not
+    /// complete. These must not be stamped storage-present so the next
+    /// occurrence re-inserts.
     failed_shared_rows: HashSet<usize>,
 }
 
@@ -275,18 +311,10 @@ pub async fn resolve_project_pii_modes(
 ///   redacted before indexing.
 ///
 /// The redactor returns each text's canonical re-serialization plus PII
-/// masks (byte ranges into it). `redact` mode overwrites the raw buffers
-/// with the masks spliced in (the stored text IS the safe text). `dual`
-/// mode stores the canonical text verbatim next to its masks and ClickHouse
-/// splices at read time; the text is not passed through `sanitize_string`
-/// again because that would shift the offsets (inputs are sanitized before
-/// the RPC instead). Both stamp `pii_checked`; the Quickwit buffers get the
-/// spliced text in both modes so the search index only ever sees redacted
-/// text. Any RPC, parse or mask failure leaves the affected rows unchecked
-/// and the raw buffers untouched: redaction must never block ingestion,
-/// unchecked rows fail closed under a masking policy, and failed shared
-/// rows are not stamped in the dedup presence cache, so the next occurrence
-/// retries.
+/// masks (byte ranges into it); the module doc has the per-mode routing
+/// matrix. `dual` text is not passed through `sanitize_string` again because
+/// that would shift the offsets (inputs are sanitized before the RPC
+/// instead).
 ///
 /// Storage-miss content is duplicated across the shared rows and
 /// `span_trace_new_contents`; both copies are redacted independently
