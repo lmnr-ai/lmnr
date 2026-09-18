@@ -21,7 +21,7 @@ use crate::{
     db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
-    pii_redactor::{PiiRedactorClient, redact_spans_in_place},
+    pii_redactor::{PiiRedactorClient, redact_spans_in_place, resolve_opted_in_projects},
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
@@ -414,6 +414,8 @@ pub async fn process_span_messages(
     // schemas) plus the per-span Quickwit content. Best-effort: failures are
     // logged inside `redact_spans_in_place` and do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
+        let opted_in =
+            resolve_opted_in_projects(&spans, &recordable_indices, db.clone(), cache.clone()).await;
         redact_spans_in_place(
             redactor,
             &mut spans,
@@ -421,8 +423,7 @@ pub async fn process_span_messages(
             &mut input_batch.span_trace_new_contents,
             &mut output_batch.span_trace_new_contents,
             &recordable_indices,
-            db.clone(),
-            cache.clone(),
+            &opted_in,
         )
         .await;
     }
