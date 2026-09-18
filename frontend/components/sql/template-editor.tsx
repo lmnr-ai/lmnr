@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ElevatedSurface } from "@/components/ui/surface";
 
 interface TemplateEditorProps {
-  /** Run / export controls, rendered in the card header next to the query name. */
+  /** Run / export controls, rendered in the editor header next to the query name. */
   actions?: ReactNode;
 }
 
@@ -48,9 +48,9 @@ const TemplateEditor = ({ actions }: TemplateEditorProps) => {
   }, [flushQuerySave]);
 
   return (
-    <ElevatedSurface className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-        <SquareTerminal className="size-3.5 shrink-0 text-muted-foreground" />
+        <SquareTerminal className="size-4 shrink-0 text-muted-foreground" />
         <span title={template?.name} className="truncate text-sm font-medium">
           {template?.name ?? "Query"}
         </span>
@@ -88,7 +88,7 @@ const TemplateEditor = ({ actions }: TemplateEditorProps) => {
           </div>
         </div>
       )}
-    </ElevatedSurface>
+    </div>
   );
 };
 

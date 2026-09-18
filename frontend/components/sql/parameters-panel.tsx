@@ -21,7 +21,7 @@ const ParametersPanel = ({ parameters, onChange }: ParametersPanelProps) => (
         <p className="text">No variables configured</p>
       </div>
     ) : (
-      <div className="rounded-lg border max-w-5xl">
+      <div className="size-full overflow-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 font-medium">
@@ -34,7 +34,7 @@ const ParametersPanel = ({ parameters, onChange }: ParametersPanelProps) => (
           </TableHeader>
           <TableBody>
             {parameters.map((parameter) => (
-              <TableRow className="last:border-b-0" key={parameter.name}>
+              <TableRow className="border-b last:border-b-0" key={parameter.name}>
                 <TableCell className="font-medium">
                   <code className="bg-muted px-2 py-1 rounded text-sm">{parameter.name}</code>
                 </TableCell>

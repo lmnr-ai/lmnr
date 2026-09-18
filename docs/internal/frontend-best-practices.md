@@ -21,7 +21,7 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 `<Icon data-icon="inline-start" />` inside a `<Button>` appears in ~36 files and looks like it wires up spacing. It does not: no CSS rule anywhere in the repo matches `[data-icon]`, and `buttonVariants`' base class list has no `gap`. An icon+label button therefore renders with the glyph jammed against the text unless the call site adds `className="gap-2"` (the idiom in `components/signals/create-signal-drawer/`) or a `mr-1`/`mr-1.5` on the icon. Only the `icon={…}` prop form self-spaces (it injects `mr-1` itself). Keep the attribute if you like — it's a marker for a future codemod — but treat spacing as your job.
 
-Size ladder worth knowing before picking one for a toolbar: `sm` is `h-[22px]` (chip-sized, too small for a primary action), `default` `h-7`, `md` `h-8` (the comfortable size for Run/Export-style buttons), `lg` `h-10`.
+Size ladder worth knowing before picking one for a toolbar: `sm` is `h-[22px]` (chip-sized, too small for a primary action), `default` `h-7` (SQL editor Run/Export), `md` `h-8`, `lg` `h-10`.
 
 ### One component per file
 

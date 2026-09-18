@@ -107,7 +107,7 @@ const ChartControls = () => {
 
       <div className="border-t p-2">
         <ExportChartDialog>
-          <Button variant="outline" size="sm" className="w-full" disabled={!isValidChartConfiguration()}>
+          <Button variant="outline" className="w-full gap-2" disabled={!isValidChartConfiguration()}>
             <Upload data-icon="inline-start" className="size-3.5" />
             Export to dashboard
           </Button>

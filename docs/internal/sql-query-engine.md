@@ -31,8 +31,8 @@
 
 ## SQL Editor Page Layout
 
-- Exactly TWO painted surfaces on the page: the query card (`template-editor.tsx`) and the results card (`editor-panel.tsx`). The queries list (`sidebar.tsx`) is deliberately surface-LESS — a plain transparent column on the page plane, no `ElevatedSurface`, no border, no card. Wrapping it in a third card was the earlier design and reads as visual noise: the list is navigation, not content. Because the rows then sit on the page plane instead of a sidebar surface, `query-item.tsx` splits its states (`hover:bg-surface-up`, selected `bg-surface-up-2`) — with both on `-up-2` the selected row is indistinguishable from a hovered one.
-- The sidebar's "QUERIES" caption row and the query card's header are both `h-12` on purpose, so the label baseline lines up with the query name across the gap. Changing one height without the other visibly breaks that alignment.
+- Exactly ONE painted surface on the page: the editor card (`editor-panel.tsx`) wrapping query + results in a single `ElevatedSurface`, split by a resize handle. The queries list (`sidebar.tsx`) is deliberately surface-LESS — a plain transparent column on the page plane, no `ElevatedSurface`, no border, no card. Wrapping it in a second card was the earlier design and reads as visual noise: the list is navigation, not content. Because the rows then sit on the page plane instead of a sidebar surface, `query-item.tsx` splits its states (`hover:bg-surface-up`, selected `bg-surface-up-2`) — with both on `-up-2` the selected row is indistinguishable from a hovered one. The results table sits flush on that card (`scrollContentClassName` has no `border`/`rounded`) so it does not paint a nested box against the card's bottom edge.
+- The sidebar's "QUERIES" caption row and the editor header are both `h-12` on purpose, so the label baseline lines up with the query name across the gap. Changing one height without the other visibly breaks that alignment.
 
 ## SQL Editor Results Table
 

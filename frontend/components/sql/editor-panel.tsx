@@ -190,41 +190,41 @@ export default function EditorPanel() {
   );
 
   return (
-    <ResizablePanelGroup id="sql-editor-panels" orientation="vertical">
-      <ResizablePanel className="flex min-h-0 flex-col" defaultSize={40} minSize={20}>
-        <TemplateEditor
-          actions={
-            <QueryActions
-              query={template?.query || ""}
-              templateId={template?.id}
-              results={results}
-              isLoading={isLoading}
-              onRun={executeQuery}
-              onCancel={cancelQuery}
-            />
-          }
-        />
-      </ResizablePanel>
-      <ResizableHandle className="z-30 my-1.5 bg-transparent transition-colors duration-200" withHandle />
-      <ResizablePanel className="flex min-h-0 flex-col" defaultSize={60} minSize={20}>
-        <ElevatedSurface className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border">
+    <ElevatedSurface className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border">
+      <ResizablePanelGroup id="sql-editor-panels" orientation="vertical">
+        <ResizablePanel className="flex min-h-0 flex-col" defaultSize={40} minSize={20}>
+          <TemplateEditor
+            actions={
+              <QueryActions
+                query={template?.query || ""}
+                templateId={template?.id}
+                results={results}
+                isLoading={isLoading}
+                onRun={executeQuery}
+                onCancel={cancelQuery}
+              />
+            }
+          />
+        </ResizablePanel>
+        <ResizableHandle className="z-30" withHandle />
+        <ResizablePanel className="flex min-h-0 flex-col" defaultSize={60} minSize={20}>
           <Tabs className="flex h-full min-h-0 flex-col gap-0" defaultValue="table">
-            <div className="flex h-10 shrink-0 items-center gap-3 border-b px-2">
-              <TabsList size="sm" className="bg-surface-up-2">
+            <div className="flex h-12 shrink-0 items-center gap-3 border-b px-2">
+              <TabsList className="bg-surface-up-2">
                 <TabsTrigger value="table">
-                  <TableProperties className="size-3.5" />
+                  <TableProperties />
                   <span>Table</span>
                 </TabsTrigger>
                 <TabsTrigger value="json">
-                  <FileJson2 className="size-3.5" />
+                  <FileJson2 />
                   <span>JSON</span>
                 </TabsTrigger>
                 <TabsTrigger value="chart">
-                  <ChartArea className="size-3.5" />
+                  <ChartArea />
                   <span>Chart</span>
                 </TabsTrigger>
                 <TabsTrigger value="parameters">
-                  <Braces className="size-3.5" />
+                  <Braces />
                   <span>Parameters</span>
                 </TabsTrigger>
               </TabsList>
@@ -255,7 +255,14 @@ export default function EditorPanel() {
             <TabsContent asChild value="json">
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {renderContent({
-                  success: <ContentRenderer readOnly value={JSON.stringify(results, null, 2)} defaultMode="json" />,
+                  success: (
+                    <ContentRenderer
+                      className="border-none"
+                      readOnly
+                      value={JSON.stringify(results, null, 2)}
+                      defaultMode="json"
+                    />
+                  ),
                   loadingText: "Processing results...",
                   default: emptyState(<FileJson2 className="size-5 opacity-60" />, "Run the query to see raw JSON"),
                 })}
@@ -263,7 +270,7 @@ export default function EditorPanel() {
             </TabsContent>
 
             <TabsContent asChild value="chart">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {renderContent({
                   success: (
                     <ChartBuilder
@@ -284,8 +291,8 @@ export default function EditorPanel() {
               </div>
             </TabsContent>
           </Tabs>
-        </ElevatedSurface>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </ElevatedSurface>
   );
 }

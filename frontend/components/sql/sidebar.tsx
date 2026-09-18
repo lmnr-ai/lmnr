@@ -71,8 +71,8 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
     selectTemplate(id ? templates?.find((q) => q.id === id) : undefined);
   }, [id, templates, selectTemplate]);
 
-  // No surface of its own: the list is navigation, so it sits on the page plane and lets the two
-  // cards to its right (query + results) carry the only elevation on the screen.
+  // No surface of its own: the list is navigation, so it sits on the page plane and lets the
+  // editor card to its right carry the only elevation on the screen.
   return (
     <div className="flex w-60 shrink-0 flex-col">
       <div className="flex h-12 shrink-0 items-center px-2">
