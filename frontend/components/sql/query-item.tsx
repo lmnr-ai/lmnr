@@ -105,7 +105,9 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
   return (
     <div
       className={cn(
-        "group flex h-8 cursor-pointer items-center rounded-lg px-2 transition-colors hover:bg-surface-up-2",
+        // One step up on hover, two when selected, so the two states stay distinguishable now that
+        // the row sits directly on the page plane rather than on a sidebar surface.
+        "group flex h-8 cursor-pointer items-center rounded-lg px-2 transition-colors hover:bg-surface-up",
         selected && "bg-surface-up-2"
       )}
       onClick={() => router.push(`/project/${projectId}/sql/${template.id}`)}

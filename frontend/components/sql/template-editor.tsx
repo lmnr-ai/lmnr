@@ -49,7 +49,7 @@ const TemplateEditor = ({ actions }: TemplateEditorProps) => {
 
   return (
     <ElevatedSurface className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border">
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
         <SquareTerminal className="size-3.5 shrink-0 text-muted-foreground" />
         <span title={template?.name} className="truncate text-sm font-medium">
           {template?.name ?? "Query"}

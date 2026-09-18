@@ -11,7 +11,6 @@ import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor
 import { useCreateTemplate } from "@/components/sql/use-create-template";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ElevatedSurface } from "@/components/ui/surface";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const deleteTemplate = async (projectId: string, id: string) => {
@@ -72,24 +71,26 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
     selectTemplate(id ? templates?.find((q) => q.id === id) : undefined);
   }, [id, templates, selectTemplate]);
 
+  // No surface of its own: the list is navigation, so it sits on the page plane and lets the two
+  // cards to its right (query + results) carry the only elevation on the screen.
   return (
-    <ElevatedSurface className="flex w-60 shrink-0 flex-col overflow-hidden rounded-xl border">
-      <div className="flex h-10 shrink-0 items-center border-b px-3">
-        <span className="text-sm font-medium">Queries</span>
+    <div className="flex w-60 shrink-0 flex-col">
+      <div className="flex h-12 shrink-0 items-center px-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Queries</span>
         <Button
           aria-label="New query"
           onClick={createTemplate}
           variant="ghost"
-          className="ml-auto size-6 p-0 hover:bg-surface-up-2"
+          className="ml-auto size-7 p-0 hover:bg-surface-up-2"
         >
           <Plus className="size-4" />
         </Button>
       </div>
 
       <ScrollArea className="flex-1 [&>*>div]:block!">
-        <div className="flex flex-col gap-0.5 p-1.5">
+        <div className="flex flex-col gap-0.5 pb-1.5">
           {isLoading ? (
-            [1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-surface-up-2" />)
+            [1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-surface-up" />)
           ) : isEmpty(templates) ? (
             <span className="px-2 py-6 text-center text-xs text-muted-foreground">No queries yet</span>
           ) : (
@@ -99,7 +100,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
           )}
         </div>
       </ScrollArea>
-    </ElevatedSurface>
+    </div>
   );
 };
 

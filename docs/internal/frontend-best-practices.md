@@ -17,6 +17,12 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 `TimeSeriesChart` (and every chart built on it) uses a categorical `<XAxis dataKey="timestamp">`, so a `<ReferenceLine x={…}>` renders **only** when `x` is byte-identical to one of the bucket labels in `data`. An arbitrary instant (an annotation's `created_at`) silently renders nothing. Snap it first — find the last bucket whose start is `<= at`, drop anything past the last bucket's end, and merge labels that land in the same bucket into one line. That is what `TimeSeriesChartProps.markers` / `snappedMarkers` does; reuse it rather than passing raw timestamps. A lone bucket has no measurable width — treat it as unbounded to the right so a marker later in that window still snaps. Clickable labels (`TimeSeriesMarker.href`) must `stopPropagation` on mouseDown/pointerDown so the chart's drag-zoom does not start; last marker's href wins when several snap to one bar.
 
+### `data-icon` is decorative — Button does NOT space its own icons
+
+`<Icon data-icon="inline-start" />` inside a `<Button>` appears in ~36 files and looks like it wires up spacing. It does not: no CSS rule anywhere in the repo matches `[data-icon]`, and `buttonVariants`' base class list has no `gap`. An icon+label button therefore renders with the glyph jammed against the text unless the call site adds `className="gap-2"` (the idiom in `components/signals/create-signal-drawer/`) or a `mr-1`/`mr-1.5` on the icon. Only the `icon={…}` prop form self-spaces (it injects `mr-1` itself). Keep the attribute if you like — it's a marker for a future codemod — but treat spacing as your job.
+
+Size ladder worth knowing before picking one for a toolbar: `sm` is `h-[22px]` (chip-sized, too small for a primary action), `default` `h-7`, `md` `h-8` (the comfortable size for Run/Export-style buttons), `lg` `h-10`.
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).

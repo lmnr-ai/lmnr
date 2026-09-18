@@ -21,22 +21,22 @@ const QueryActions = ({ query, templateId, results, isLoading, onRun, onCancel }
   return (
     <>
       {isLoading ? (
-        <Button size="sm" variant="outline" onClick={onCancel}>
-          <Square data-icon="inline-start" className="size-3" fill="currentColor" />
+        <Button size="md" variant="outline" className="gap-2" onClick={onCancel}>
+          <Square data-icon="inline-start" className="size-3.5" fill="currentColor" />
           Cancel
         </Button>
       ) : (
-        <Button size="sm" disabled={!hasQuery} onClick={onRun}>
-          <PlayIcon data-icon="inline-start" className="size-3" />
+        <Button size="md" className="gap-2" disabled={!hasQuery} onClick={onRun}>
+          <PlayIcon data-icon="inline-start" className="size-3.5" />
           Run
-          <span className="ml-1 text-xs opacity-75">⌘ + ⏎</span>
+          <span className="text-[11px] opacity-70">⌘ + ⏎</span>
         </Button>
       )}
       <ExportSqlDialog results={results} sqlQuery={query} sqlTemplateId={templateId}>
-        <Button size="sm" variant="outline" disabled={!hasQuery}>
+        <Button size="md" variant="outline" className="gap-2" disabled={!hasQuery}>
           <Database data-icon="inline-start" className="size-3.5" />
           Export
-          <ChevronDown data-icon="inline-end" className="size-3.5" />
+          <ChevronDown data-icon="inline-end" className="size-3.5 opacity-70" />
         </Button>
       </ExportSqlDialog>
     </>
