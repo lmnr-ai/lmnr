@@ -21,10 +21,12 @@ import { track } from "@/lib/posthog";
 export default function EditorPanel() {
   const { projectId } = useParams();
   const [results, setResults] = useState<Record<string, any>[] | null>(null);
-  // Template that PRODUCED the current results. `results` survives a template
-  // switch (no remount on /sql/[id] nav), so keying storage off the selected
-  // template would save the old result shape's widths under the new template.
+  // Template and SQL that PRODUCED the current results. `results` survives a
+  // template switch (no remount on /sql/[id] nav) and the editor text keeps
+  // changing, so keying storage or the chart's exported query off the selected
+  // template would pair one query's SQL with another's rows.
   const [resultsTemplateId, setResultsTemplateId] = useState<string | null>(null);
+  const [resultsQuery, setResultsQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -102,6 +104,7 @@ export default function EditorPanel() {
 
       setResults(Array.isArray(data) ? data : []);
       setResultsTemplateId(template?.id ?? null);
+      setResultsQuery(query);
       track("sql_editor", "query_executed");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -264,7 +267,7 @@ export default function EditorPanel() {
                 {renderContent({
                   success: (
                     <ChartBuilder
-                      query={template?.query || ""}
+                      query={resultsQuery}
                       data={results || []}
                       storageKey={resultsTemplateId ?? undefined}
                     />

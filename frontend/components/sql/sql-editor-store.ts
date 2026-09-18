@@ -32,10 +32,30 @@ type PendingSave = { projectId: string; templateId: string; query: string };
  * saver whenever the template name changed and cancelled the old one on cleanup, so renaming right
  * after typing dropped the queued query. Module state has exactly one lifetime — the tab's — so no
  * render, remount or navigation can drop a queued edit; the only way out is a completed PUT.
+ *
+ * Everything is keyed by template id: a save queued or in flight for one query must not be dropped
+ * by, retried against, or reported as the save status of another.
  */
-let pendingSave: PendingSave | null = null;
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let inFlightSave: Promise<void> | null = null;
+const pendingSaves = new Map<string, PendingSave>();
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const inFlightSaves = new Map<string, Promise<void>>();
+
+/**
+ * Query text this tab has typed but not confirmed persisted yet. The templates list lags until the PUT
+ * resolves and patches SWR, so switching away and back inside that window would otherwise reload the
+ * pre-edit query from the cache and let the next keystroke undo the save that just landed.
+ */
+const unconfirmedQueries = new Map<string, string>();
+
+type StatusSetter = (templateId: string, status: SaveStatus) => void;
+
+const clearSaveTimer = (templateId: string) => {
+  const timer = saveTimers.get(templateId);
+  if (timer) {
+    clearTimeout(timer);
+    saveTimers.delete(templateId);
+  }
+};
 
 const putQuery = async ({ projectId, templateId, query }: PendingSave, keepalive: boolean) => {
   const res = await fetch(`/api/projects/${projectId}/sql/templates/${templateId}`, {
@@ -55,46 +75,48 @@ const putQuery = async ({ projectId, templateId, query }: PendingSave, keepalive
   }
 };
 
-const runSave = (setStatus: (status: SaveStatus) => void, keepalive: boolean): Promise<void> => {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-  }
+const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean): Promise<void> => {
+  clearSaveTimer(templateId);
 
-  const save = pendingSave;
-  if (!save) return inFlightSave ?? Promise.resolve();
+  const save = pendingSaves.get(templateId);
+  const inFlight = inFlightSaves.get(templateId);
+  if (!save) return inFlight ?? Promise.resolve();
   // Serialize PUTs of the same template so two saves can't land out of order.
-  if (inFlightSave) return inFlightSave.then(() => runSave(setStatus, keepalive));
+  if (inFlight) return inFlight.then(() => runSave(templateId, setStatus, keepalive));
 
-  pendingSave = null;
-  setStatus("saving");
+  pendingSaves.delete(templateId);
+  setStatus(templateId, "saving");
 
-  inFlightSave = (async () => {
+  const promise = (async () => {
     try {
       await putQuery(save, keepalive);
       // Keep the templates list in sync. The rename path reads its copy of the query, and a stale
       // copy there is what used to travel back to the server and undo the edit.
       await mutate<SQLTemplate[]>(
         `/api/projects/${save.projectId}/sql/templates`,
-        (current) => current?.map((t) => (t.id === save.templateId ? { ...t, query: save.query } : t)),
+        (current) => current?.map((t) => (t.id === templateId ? { ...t, query: save.query } : t)),
         { revalidate: false }
       );
-      setStatus(pendingSave ? "unsaved" : "saved");
+      // Only this exact text is confirmed; a newer edit typed mid-flight stays unconfirmed.
+      if (unconfirmedQueries.get(templateId) === save.query) unconfirmedQueries.delete(templateId);
+      setStatus(templateId, pendingSaves.has(templateId) ? "unsaved" : "saved");
     } catch (e) {
-      // Requeue the edit so the next flush retries it instead of losing it.
-      pendingSave ??= save;
-      setStatus("error");
+      // Requeue the edit so the next flush retries it instead of losing it, unless a newer edit for
+      // this same query is already queued.
+      if (!pendingSaves.has(templateId)) pendingSaves.set(templateId, save);
+      setStatus(templateId, "error");
       toast({
         variant: "destructive",
         title: "Failed to save query",
         description: e instanceof Error ? e.message : undefined,
       });
-    } finally {
-      inFlightSave = null;
     }
-  })();
+  })().finally(() => {
+    if (inFlightSaves.get(templateId) === promise) inFlightSaves.delete(templateId);
+  });
 
-  return inFlightSave;
+  inFlightSaves.set(templateId, promise);
+  return promise;
 };
 
 export type SqlEditorState = {
@@ -111,6 +133,8 @@ export type SqlEditorActions = {
   setQuery: (projectId: string, query: string) => void;
   /** Save anything queued right now — before a rename, a run, or leaving the page. */
   flushQuerySave: (options?: { keepalive?: boolean }) => Promise<void>;
+  /** Forget anything queued for a template that is going away, so no PUT chases a deleted row. */
+  discardQuerySave: (templateId: string) => void;
   setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
 };
@@ -134,64 +158,98 @@ const initialState: SqlEditorState = {
 
 export type SqlEditorStore = SqlEditorState & SqlEditorActions;
 
-export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => ({
-  ...initialState,
+export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
+  // The indicator belongs to the query in the editor: a save landing for one the user has already
+  // left must not relabel the one they are looking at.
+  const setStatus: StatusSetter = (templateId, saveStatus) => {
+    if (get().currentTemplate?.id === templateId) set({ saveStatus });
+  };
 
-  setEditTemplate: (template) => {
-    set({ editTemplate: template });
-  },
-  selectTemplate: (template) => {
-    const current = get().currentTemplate;
+  return {
+    ...initialState,
 
-    if (template && current?.id === template.id) {
-      // Same query, refreshed from the list: adopt server-side fields (a rename) but keep the text
-      // in the editor, which may hold keystrokes the list hasn't caught up with yet.
-      set({ currentTemplate: { ...template, query: current.query } });
-      return;
-    }
+    setEditTemplate: (template) => {
+      set({ editTemplate: template });
+    },
+    selectTemplate: (template) => {
+      const current = get().currentTemplate;
 
-    // Switching away: land whatever is still queued for the previous query.
-    if (pendingSave) {
-      void runSave((saveStatus) => set({ saveStatus }), false);
-    }
+      if (template && current?.id === template.id) {
+        // Same query, refreshed from the list: adopt server-side fields (a rename) but keep the text
+        // in the editor, which may hold keystrokes the list hasn't caught up with yet.
+        set({ currentTemplate: { ...template, query: current.query } });
+        return;
+      }
 
-    set({ currentTemplate: template, saveStatus: "saved" });
-  },
-  setQuery: (projectId, query) => {
-    const current = get().currentTemplate;
-    if (!current || current.query === query) return;
+      // Switching away: land whatever is still queued for the previous query.
+      if (current && pendingSaves.has(current.id)) {
+        void runSave(current.id, setStatus, false);
+      }
 
-    set({ currentTemplate: { ...current, query }, saveStatus: "unsaved" });
+      if (!template) {
+        set({ currentTemplate: undefined, saveStatus: "saved" });
+        return;
+      }
 
-    pendingSave = { projectId, templateId: current.id, query };
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => runSave((saveStatus) => set({ saveStatus }), false), AUTOSAVE_DEBOUNCE_MS);
-  },
-  flushQuerySave: (options) => runSave((saveStatus) => set({ saveStatus }), options?.keepalive ?? false),
-  setParameterValue: (name, value) => {
-    set((state) => ({
-      parameters: state.parameters.map((param) =>
-        param.name === name ? { ...param, value: value } : param
-      ) as SQLParameter[],
-    }));
-  },
-  getFormattedParameters: () => {
-    const { parameters } = get();
+      // The list copy lags a save this tab hasn't confirmed yet (switch away and straight back inside
+      // the PUT), so the text we know we typed wins over the one the cache holds.
+      const unconfirmed = unconfirmedQueries.get(template.id);
+      set({
+        currentTemplate: unconfirmed === undefined ? template : { ...template, query: unconfirmed },
+        saveStatus: pendingSaves.has(template.id) ? "unsaved" : inFlightSaves.has(template.id) ? "saving" : "saved",
+      });
+    },
+    setQuery: (projectId, query) => {
+      const current = get().currentTemplate;
+      if (!current || current.query === query) return;
+      const { id: templateId } = current;
 
-    return parameters.reduce(
-      (formatted, param) => {
-        if (!isNil(param.value)) {
-          if (isDate(param.value)) {
-            formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
-          } else if (param.type === "number") {
-            formatted[param.name] = Number(param.value);
-          } else {
-            formatted[param.name] = param.value;
+      set({ currentTemplate: { ...current, query }, saveStatus: "unsaved" });
+
+      pendingSaves.set(templateId, { projectId, templateId, query });
+      unconfirmedQueries.set(templateId, query);
+      clearSaveTimer(templateId);
+      saveTimers.set(
+        templateId,
+        setTimeout(() => runSave(templateId, setStatus, false), AUTOSAVE_DEBOUNCE_MS)
+      );
+    },
+    flushQuerySave: (options) => {
+      const current = get().currentTemplate;
+      if (!current) return Promise.resolve();
+      return runSave(current.id, setStatus, options?.keepalive ?? false);
+    },
+    discardQuerySave: (templateId) => {
+      clearSaveTimer(templateId);
+      pendingSaves.delete(templateId);
+      unconfirmedQueries.delete(templateId);
+      setStatus(templateId, "saved");
+    },
+    setParameterValue: (name, value) => {
+      set((state) => ({
+        parameters: state.parameters.map((param) =>
+          param.name === name ? { ...param, value: value } : param
+        ) as SQLParameter[],
+      }));
+    },
+    getFormattedParameters: () => {
+      const { parameters } = get();
+
+      return parameters.reduce(
+        (formatted, param) => {
+          if (!isNil(param.value)) {
+            if (isDate(param.value)) {
+              formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
+            } else if (param.type === "number") {
+              formatted[param.name] = Number(param.value);
+            } else {
+              formatted[param.name] = param.value;
+            }
           }
-        }
-        return formatted;
-      },
-      {} as Record<string, string | number>
-    );
-  },
-}));
+          return formatted;
+        },
+        {} as Record<string, string | number>
+      );
+    },
+  };
+});

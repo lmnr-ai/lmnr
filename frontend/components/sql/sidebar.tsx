@@ -34,10 +34,17 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   const { toast } = useToast();
   const createTemplate = useCreateTemplate();
 
-  const selectTemplate = useSqlEditorStore((state) => state.selectTemplate);
+  const { selectTemplate, discardQuerySave } = useSqlEditorStore((state) => ({
+    selectTemplate: state.selectTemplate,
+    discardQuerySave: state.discardQuerySave,
+  }));
 
   const handleDelete = useCallback(
     async (template: SQLTemplate) => {
+      // The row is about to stop existing, so drop its queued autosave — flushing it on the way out
+      // would PUT a deleted id, fail, and toast a save error for a query the user just removed.
+      discardQuerySave(template.id);
+
       try {
         router.push(`/project/${projectId}/sql`);
 
@@ -56,7 +63,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         }
       }
     },
-    [mutate, projectId, router, toast]
+    [discardQuerySave, mutate, projectId, router, toast]
   );
 
   // Route is the source of truth for which query is open. `selectTemplate` keeps unsaved keystrokes
