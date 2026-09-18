@@ -21,10 +21,12 @@
 //! leaves the span or row as it arrived and unchecked (`pii_checked =
 //! false`), which the masked read path renders as unavailable. A failed
 //! `unique_content` row gets no `s2:` mark so the next occurrence re-inserts
-//! it; a failed `dual` or unresolved-mode span gets no `tn:` marks and no
-//! text in its Quickwit document ([`PiiOutcome::is_indexable`]). A failed
-//! `redact` span stays indexable: its raw text is stored for every reader
-//! anyway. Redaction never blocks ingestion.
+//! it; a failed `dual` span gets no `tn:` marks and no text in its Quickwit
+//! document ([`PiiOutcome::is_indexable`]). A failed `redact` span stays
+//! indexable: its raw text is stored for every reader anyway. Redactor
+//! failures never block ingestion; a failed *mode lookup* does fail the
+//! batch ([`resolve_project_pii_modes`]), since a span stored on a guessed
+//! mode is permanent while a retry is not.
 //!
 //! Two index spaces meet here: `span_idx` is a position in the batch's
 //! `spans` slice and keys [`PiiOutcome`]; `dedup_idx` is a position in
@@ -101,12 +103,31 @@ impl RedactTexts for PiiRedactorClient {
     }
 }
 
+/// Effective PII mode of every project a recordable span in the batch
+/// belongs to. Built by [`resolve_project_pii_modes`]; a batch whose modes
+/// could not all be resolved never gets one.
+#[derive(Debug, Default)]
+pub struct ProjectModes(HashMap<Uuid, PiiMode>);
+
+impl ProjectModes {
+    /// A project the batch did not resolve reads as `dual`, the strictest.
+    /// Unreachable when the map came from [`resolve_project_pii_modes`].
+    pub fn get(&self, project_id: &Uuid) -> PiiMode {
+        self.0.get(project_id).copied().unwrap_or(PiiMode::Dual)
+    }
+}
+
+impl From<HashMap<Uuid, PiiMode>> for ProjectModes {
+    fn from(modes: HashMap<Uuid, PiiMode>) -> Self {
+        Self(modes)
+    }
+}
+
 /// Per-span verdict for the ClickHouse row and the Quickwit document.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpanPii {
-    /// The project's mode as resolved for this batch; `None` when the
-    /// settings lookup failed, which is treated as `dual`, the strictest.
-    pub mode: Option<PiiMode>,
+    /// The project's mode as resolved for this batch.
+    pub mode: PiiMode,
     /// Persisted as `pii_checked`: the redactor screened every text of this
     /// span. In `redact` mode the raw text was replaced; in `dual` mode the
     /// masks say exactly where PII sits, so a checked row with no masks is
@@ -122,7 +143,7 @@ pub struct SpanPii {
 }
 
 impl SpanPii {
-    fn new(mode: Option<PiiMode>) -> Self {
+    fn new(mode: PiiMode) -> Self {
         Self {
             mode,
             checked: false,
@@ -134,14 +155,14 @@ impl SpanPii {
     /// Redaction was attempted and did not complete. `off` spans are
     /// unchecked but were never attempted.
     pub fn failed(&self) -> bool {
-        self.mode != Some(PiiMode::Off) && !self.checked
+        self.mode != PiiMode::Off && !self.checked
     }
 
-    /// The stored text is raw and hidden only by the read policy: `dual`, or
-    /// an unresolved mode. `redact` text is already safe for everyone, and
-    /// `off` text is raw by the project's own choice.
+    /// The stored text is raw and hidden only by the read policy. `redact`
+    /// text is already safe for everyone, and `off` text is raw by the
+    /// project's own choice.
     fn policy_hidden(&self) -> bool {
-        matches!(self.mode, Some(PiiMode::Dual) | None)
+        self.mode == PiiMode::Dual
     }
 }
 
@@ -164,26 +185,23 @@ impl PiiOutcome {
     pub fn without_redactor(
         spans: &[Span],
         recordable_indices: &[usize],
-        project_modes: &HashMap<Uuid, Option<PiiMode>>,
+        project_modes: &ProjectModes,
     ) -> Self {
         let mut outcome = Self::default();
         for &span_idx in recordable_indices {
-            let mode = project_modes
-                .get(&spans[span_idx].project_id)
-                .copied()
-                .flatten();
+            let mode = project_modes.get(&spans[span_idx].project_id);
             outcome.spans.insert(span_idx, SpanPii::new(mode));
         }
         outcome
     }
 
-    /// A span this batch never resolved reads as unresolved and unchecked,
-    /// i.e. fail-closed.
+    /// A span this batch never saw reads as `dual` and unchecked, i.e.
+    /// fail-closed.
     pub fn span(&self, span_idx: usize) -> SpanPii {
         self.spans
             .get(&span_idx)
             .cloned()
-            .unwrap_or_else(|| SpanPii::new(None))
+            .unwrap_or_else(|| SpanPii::new(PiiMode::Dual))
     }
 
     /// `span` with masks spliced into any whole-value field the redactor
@@ -228,11 +246,11 @@ impl PiiOutcome {
         }
     }
 
-    /// A span with no entry is recorded as unresolved so it fails closed.
+    /// A span with no entry is recorded as `dual` so it fails closed.
     fn fail(&mut self, span_idx: usize) {
         self.spans
             .entry(span_idx)
-            .or_insert_with(|| SpanPii::new(None))
+            .or_insert_with(|| SpanPii::new(PiiMode::Dual))
             .checked = false;
     }
 }
@@ -267,34 +285,30 @@ enum Dir {
 }
 
 /// Effective PII mode for every unique project in `recordable_indices`,
-/// through the cached billing-info path so repeat batches are free. `None`
-/// means the lookup failed: the caller cannot tell whether the project is
-/// protected, so its spans are left unchecked and skipped.
+/// through the cached billing-info path so repeat batches are free. A failed
+/// lookup is an error: the caller cannot tell whether the project is
+/// protected, and storing its spans on a guess would be permanent, so the
+/// batch is retried instead.
 pub async fn resolve_project_pii_modes(
     spans: &[Span],
     recordable_indices: &[usize],
     db: Arc<DB>,
     cache: Arc<Cache>,
-) -> HashMap<Uuid, Option<PiiMode>> {
+) -> Result<ProjectModes> {
     let unique: HashSet<Uuid> = recordable_indices
         .iter()
         .map(|&i| spans[i].project_id)
         .collect();
     let mut modes = HashMap::with_capacity(unique.len());
     for project_id in unique {
-        let mode =
-            match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-                Ok(Some(info)) => Some(info.settings.pii_mode()),
-                // Unknown project: nothing to protect.
-                Ok(None) => Some(PiiMode::Off),
-                Err(e) => {
-                    log::warn!("pii-redactor: lookup project[{project_id}] settings: {e:#}");
-                    None
-                }
-            };
+        let mode = get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id)
+            .await
+            .map_err(|e| anyhow!("lookup project[{project_id}] settings: {e:#}"))?
+            // Unknown project: nothing to protect.
+            .map_or(PiiMode::Off, |info| info.settings.pii_mode());
         modes.insert(project_id, mode);
     }
-    modes
+    Ok(ProjectModes(modes))
 }
 
 /// Run PII redaction for every span whose project is in `redact` or `dual`
@@ -339,37 +353,26 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
     input_trace_new_contents: &mut [Vec<String>],
     output_trace_new_contents: &mut [Vec<String>],
     recordable_indices: &[usize],
-    project_modes: &HashMap<Uuid, Option<PiiMode>>,
+    project_modes: &ProjectModes,
 ) -> PiiOutcome {
     let mut outcome = PiiOutcome::default();
-    let mode_for = |project_id: &Uuid| project_modes.get(project_id).copied().flatten();
 
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
 
     for (idx, row) in shared_content.iter_mut().enumerate() {
-        match mode_for(&row.project_id) {
-            Some(PiiMode::Off) => {}
-            Some(_) => {
-                targets.push(Target::SharedRow(idx));
-                texts.push(row.content.clone());
-            }
-            None => {
-                outcome.failed_shared_rows.insert(idx);
-            }
+        if project_modes.get(&row.project_id) != PiiMode::Off {
+            targets.push(Target::SharedRow(idx));
+            texts.push(row.content.clone());
         }
     }
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         let span = &spans[span_idx];
-        let mode = mode_for(&span.project_id);
+        let mode = project_modes.get(&span.project_id);
         outcome.spans.insert(span_idx, SpanPii::new(mode));
-        match mode {
-            Some(PiiMode::Off) => continue,
-            // Unresolved: left unchecked, so it reads as failed and, being
-            // possibly `dual`, stays out of the index.
-            None => continue,
-            Some(_) => {}
+        if mode == PiiMode::Off {
+            continue;
         }
         // A span with nothing to check is safe by definition.
         outcome.check(span_idx);
@@ -451,8 +454,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
         let is_input = matches!(target, Target::Input(_));
         match target {
             Target::Input(idx) | Target::Output(idx) => {
-                let mode = mode_for(&spans[idx].project_id).unwrap_or(PiiMode::Redact);
-                match mode {
+                match project_modes.get(&spans[idx].project_id) {
                     PiiMode::Dual => {
                         if let Err(e) = masked.validate_for_storage() {
                             log::warn!("pii-redactor: canonical span[{idx}]: {e:#}");
@@ -492,8 +494,8 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 let Some(row) = shared_content.get_mut(idx) else {
                     continue;
                 };
-                match mode_for(&row.project_id) {
-                    Some(PiiMode::Dual) => {
+                match project_modes.get(&row.project_id) {
+                    PiiMode::Dual => {
                         if let Err(e) = masked.validate_for_storage() {
                             log::warn!("pii-redactor: shared row[{idx}]: {e:#}");
                             outcome.failed_shared_rows.insert(idx);

@@ -413,14 +413,21 @@ pub async fn process_span_messages(
     // were redacted on first emit and ride the wire as hashes only. The
     // redactor walks every shared row of `redact`/`dual` projects (so tool
     // defs ARE screened along with messages — acceptable, the redactor is
-    // no-op on schemas) plus the per-span Quickwit content. Best-effort:
+    // no-op on schemas) plus the per-span Quickwit content. Redactor
     // failures leave rows unchecked inside `redact_spans_in_place` and do
-    // not fail the batch. Without a redactor every non-`off` row stays
-    // unchecked (unavailable under a masking policy) and `dual` text stays
-    // out of the search index; modes are resolved either way so that
-    // decision does not depend on the redactor being up.
+    // not fail the batch; a failed *mode lookup* does, since storing a span
+    // on a guessed mode is permanent while a retry is not. Without a
+    // redactor every non-`off` row stays unchecked (unavailable under a
+    // masking policy) and `dual` text stays out of the search index; modes
+    // are resolved either way so that decision does not depend on the
+    // redactor being up.
     let pii_modes =
-        resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone()).await;
+        resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone())
+            .await
+            .map_err(|e| {
+                log::error!("Failed to resolve project PII modes: {e:#}");
+                HandlerError::transient(e)
+            })?;
     let pii_outcome = match pii_redactor.as_ref() {
         Some(redactor) => {
             redact_spans_in_place(

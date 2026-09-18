@@ -67,8 +67,8 @@ fn row(project_id: Uuid, content: &str) -> CHUniqueContent {
     CHUniqueContent::new(project_id, "g".to_string(), [0u8; 32], content.to_string())
 }
 
-fn modes(project_id: Uuid, mode: Option<PiiMode>) -> HashMap<Uuid, Option<PiiMode>> {
-    HashMap::from([(project_id, mode)])
+fn modes(project_id: Uuid, mode: PiiMode) -> ProjectModes {
+    HashMap::from([(project_id, mode)]).into()
 }
 
 fn secret_mask(start: u32, end: u32) -> PiiMask {
@@ -92,7 +92,7 @@ async fn off_project_is_untouched_and_unchecked() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Off)),
+        &modes(p, PiiMode::Off),
     )
     .await;
     assert!(redactor.calls.lock().unwrap().is_empty());
@@ -116,7 +116,7 @@ async fn redact_mode_splices_masks_into_raw_and_stamps_checked() {
         &mut tn_in,
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Redact)),
+        &modes(p, PiiMode::Redact),
     )
     .await;
     let verdict = outcome.span(0);
@@ -150,7 +150,7 @@ async fn dual_mode_keeps_canonical_text_and_masks() {
         &mut tn_in,
         &mut [vec![], vec![]],
         &[0, 1],
-        &modes(p, Some(PiiMode::Dual)),
+        &modes(p, PiiMode::Dual),
     )
     .await;
 
@@ -226,7 +226,7 @@ async fn dual_mode_stores_the_redactor_text_verbatim_not_resanitized() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Dual)),
+        &modes(p, PiiMode::Dual),
     )
     .await;
     let masked = outcome.span(0).input.unwrap();
@@ -251,7 +251,7 @@ async fn span_text_is_sanitized_before_the_rpc() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Dual)),
+        &modes(p, PiiMode::Dual),
     )
     .await;
     let sent = redactor.calls.lock().unwrap();
@@ -270,7 +270,7 @@ async fn rpc_failure_leaves_raw_unchecked_and_unstamped() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Dual)),
+        &modes(p, PiiMode::Dual),
     )
     .await;
     assert!(!outcome.span(0).checked);
@@ -293,71 +293,37 @@ async fn failed_redact_mode_span_stays_indexable() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Redact)),
+        &modes(p, PiiMode::Redact),
     )
     .await;
     assert!(!outcome.span(0).checked);
     assert!(outcome.is_indexable(0));
-}
-
-#[tokio::test]
-async fn unknown_mode_is_failed_without_rpc() {
-    let p = Uuid::new_v4();
-    let mut spans = vec![span(p, Some(json!("secret")), None)];
-    let mut rows = vec![row(p, "\"secret\"")];
-    let redactor = FakeRedactor::new(false);
-    let outcome = redact_spans_in_place(
-        &redactor,
-        &mut spans,
-        &mut rows,
-        &mut [vec![]],
-        &mut [vec![]],
-        &[0],
-        &modes(p, None),
-    )
-    .await;
-    assert!(redactor.calls.lock().unwrap().is_empty());
-    assert!(!outcome.span(0).checked);
-    assert!(!rows[0].pii_checked);
-    assert!(outcome.shared_row_failed(0));
-    // The project may be `dual`: its raw text must not reach the index.
-    assert!(!outcome.is_indexable(0));
 }
 
 #[test]
 fn without_redactor_only_off_and_redact_spans_stay_indexable() {
-    let (off, redact, dual, unknown) = (
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-    );
+    let (off, redact, dual) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let spans = vec![
         span(off, Some(json!("secret")), None),
         span(redact, Some(json!("secret")), None),
         span(dual, Some(json!("secret")), None),
-        span(unknown, Some(json!("secret")), None),
     ];
-    let project_modes = HashMap::from([
-        (off, Some(PiiMode::Off)),
-        (redact, Some(PiiMode::Redact)),
-        (dual, Some(PiiMode::Dual)),
-        (unknown, None),
-    ]);
-    let outcome = PiiOutcome::without_redactor(&spans, &[0, 1, 2, 3], &project_modes);
+    let project_modes: ProjectModes = HashMap::from([
+        (off, PiiMode::Off),
+        (redact, PiiMode::Redact),
+        (dual, PiiMode::Dual),
+    ])
+    .into();
+    let outcome = PiiOutcome::without_redactor(&spans, &[0, 1, 2], &project_modes);
 
     // `off` is unchecked but not failed: never attempted, nothing to hide.
     let off = outcome.span(0);
-    assert_eq!(off.mode, Some(PiiMode::Off));
+    assert_eq!(off.mode, PiiMode::Off);
     assert!(!off.checked && !off.failed());
     assert!(outcome.is_indexable(0));
-    // Non-`off` spans all read as failed; only the policy-hidden ones are
-    // kept out of the index.
-    for (idx, mode, indexable) in [
-        (1, Some(PiiMode::Redact), true),
-        (2, Some(PiiMode::Dual), false),
-        (3, None, false),
-    ] {
+    // Non-`off` spans all read as failed; only `dual` is kept out of the
+    // index.
+    for (idx, mode, indexable) in [(1, PiiMode::Redact, true), (2, PiiMode::Dual, false)] {
         let pii = outcome.span(idx);
         assert_eq!(pii.mode, mode, "span {idx}");
         assert!(!pii.checked && pii.failed(), "span {idx}");
@@ -365,9 +331,11 @@ fn without_redactor_only_off_and_redact_spans_stay_indexable() {
     }
     assert!(!outcome.shared_row_failed(0));
 
-    // A span the batch never saw fails closed.
+    // A span the batch never saw, and a project the modes never covered,
+    // both fail closed.
     assert!(!outcome.is_indexable(99));
     assert!(outcome.span(99).failed());
+    assert_eq!(project_modes.get(&Uuid::new_v4()), PiiMode::Dual);
 }
 
 #[tokio::test]
@@ -395,7 +363,7 @@ async fn garbage_canonical_text_leaves_the_span_unchecked() {
             &mut [vec![]],
             &mut [vec![]],
             &[0],
-            &modes(p, Some(mode)),
+            &modes(p, mode),
         )
         .await;
         assert!(!outcome.span(0).checked);
@@ -438,7 +406,7 @@ async fn malformed_masks_fail_closed() {
         &mut tn_in,
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Redact)),
+        &modes(p, PiiMode::Redact),
     )
     .await;
     assert!(!outcome.span(0).checked);
@@ -463,7 +431,7 @@ async fn dual_mode_rejects_malformed_masks_before_storing_them() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &modes(p, Some(PiiMode::Dual)),
+        &modes(p, PiiMode::Dual),
     )
     .await;
     assert!(!outcome.span(0).checked);
