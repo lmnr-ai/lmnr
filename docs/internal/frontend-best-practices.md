@@ -69,6 +69,15 @@ Use it for: an older response overwriting newer state (user paginates, then chan
 - In the `finally`, only null out the shared controller ref if it still points at your own controller — otherwise a newer operation has already replaced it and you'd clobber its handle.
 - On the success path use functional `set((state) => ...)` rather than closing over `state.data`, so you merge with the latest value rather than a snapshot.
 
+### Debounced autosave
+
+A debounce that lives in a component (`useMemo(() => debounce(save, 500), [deps])` + `cancel()` on cleanup) loses the queued write whenever a dep changes, the component remounts, or the user navigates — and users type right up to the moment they do all three. Keep the queue (`pending`, the timer, the in-flight promise) at MODULE scope next to the store instead: it has one lifetime, and the only way out is a completed request. Rules the SQL editor's implementation encodes (`components/sql/sql-editor-store.ts`, notes in `docs/internal/sql-query-engine.md`):
+
+- Serialize requests for the same entity (await the in-flight one, then re-run) so two saves can't land out of order, and re-queue the payload on failure so the next flush retries rather than dropping the edit.
+- Expose an explicit `flush()` and call it from every path that ends the debounce window: an action that depends on the saved value, switching entities, and `visibilitychange` / `pagehide` / unmount (pass `keepalive: true` on those so the request outlives the page).
+- Patch the SWR cache the saved value came from (`revalidate: false`), and when a revalidation returns the same entity, keep the local field the user is editing — otherwise a background refetch overwrites in-flight keystrokes.
+- Let each writer PUT only the fields it owns (an optional-fields schema with a "at least one" refine). Two UI paths that both send the whole object will clobber each other with whatever stale copy they happened to hold.
+
 ### Server actions and Zod schemas
 
 - Logic another surface may need (CLI, public API, agent) belongs behind an app-server route, not in a server action. Server actions are for UI-only plumbing.

@@ -1,152 +1,95 @@
 "use client";
 
-import { debounce } from "lodash";
 import { Plus, SquareTerminal } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
-import { useSWRConfig } from "swr";
-import { v4 } from "uuid";
+import { useParams } from "next/navigation";
+import { type ReactNode, useCallback, useEffect } from "react";
 
+import SaveStatusIndicator from "@/components/sql/save-status-indicator";
 import SQLEditor from "@/components/sql/sql-editor";
-import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
+import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
+import { useCreateTemplate } from "@/components/sql/use-create-template";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/lib/hooks/use-toast";
+import { ElevatedSurface } from "@/components/ui/surface";
 
 interface TemplateEditorProps {
-  className?: string;
+  /** Run / export controls, rendered in the card header next to the query name. */
+  actions?: ReactNode;
 }
 
-export default function TemplateEditor({ className }: TemplateEditorProps) {
-  const { projectId, id } = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const { mutate } = useSWRConfig();
-  const { template, onChange } = useSqlEditorStore((state) => ({
+const TemplateEditor = ({ actions }: TemplateEditorProps) => {
+  const { projectId } = useParams();
+  const createTemplate = useCreateTemplate();
+
+  const { template, saveStatus, setQuery, flushQuerySave } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
-    onChange: state.onCurrentTemplateChange,
+    saveStatus: state.saveStatus,
+    setQuery: state.setQuery,
+    flushQuerySave: state.flushQuerySave,
   }));
 
-  // Extract stable values to avoid recreating the callback on every keystroke
-  const templateId = template?.id;
-  const templateName = template?.name;
+  const handleQueryChange = useCallback((query: string) => setQuery(projectId as string, query), [projectId, setQuery]);
 
-  const autoSaveTemplate = useCallback(
-    async (query: string) => {
-      if (!query.trim()) return;
-
-      try {
-        if (templateId && id) {
-          await fetch(`/api/projects/${projectId}/sql/templates/${templateId}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: templateName,
-              query: query,
-            }),
-          });
-        }
-      } catch (error) {
-        toast({
-          title: "Save failed",
-          description: "Failed to save template. Please try again.",
-          variant: "destructive",
-        });
-      }
-    },
-    [projectId, templateId, templateName, id, toast]
-  );
-
-  const handleCreate = useCallback(async () => {
-    const optimisticData: SQLTemplate = {
-      id: v4(),
-      name: "Untitled Query",
-      query: "",
-      createdAt: new Date().toISOString(),
-      projectId: projectId as string,
+  // A debounced save can still be pending when the tab is hidden, the page goes away or the editor
+  // unmounts, so every one of those paths flushes it. `keepalive` lets the request outlive the page.
+  useEffect(() => {
+    const flushOnHide = () => {
+      if (document.visibilityState === "hidden") void flushQuerySave({ keepalive: true });
     };
+    const flushOnPageHide = () => void flushQuerySave({ keepalive: true });
 
-    await mutate<SQLTemplate[]>(
-      `/api/projects/${projectId}/sql/templates`,
-      (currentData = []) => [optimisticData, ...currentData],
-      {
-        revalidate: false,
-      }
-    );
+    document.addEventListener("visibilitychange", flushOnHide);
+    window.addEventListener("pagehide", flushOnPageHide);
 
-    router.push(`/project/${projectId}/sql/${optimisticData.id}`);
-
-    try {
-      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: optimisticData.id,
-          name: `Untitled Query`,
-          query: optimisticData.query,
-        }),
-      });
-      if (!res.ok) {
-        const errMessage = await res
-          .json()
-          .then((d) => d?.error)
-          .catch(() => null);
-        toast({ variant: "destructive", title: errMessage ?? "Failed to create query" });
-      }
-    } catch {
-      toast({ variant: "destructive", title: "Failed to create query" });
-    }
-  }, [mutate, projectId, router, toast]);
-
-  const debouncedAutoSave = useMemo(() => debounce(autoSaveTemplate, 500), [autoSaveTemplate]);
-
-  const handleQueryChange = useCallback(
-    (query: string) => {
-      onChange(query);
-
-      if (query !== template?.query && query.trim()) {
-        debouncedAutoSave(query);
-      }
-    },
-    [onChange, debouncedAutoSave, template?.query]
-  );
-
-  useEffect(
-    () => () => {
-      debouncedAutoSave.cancel();
-    },
-    [debouncedAutoSave]
-  );
+    return () => {
+      document.removeEventListener("visibilitychange", flushOnHide);
+      window.removeEventListener("pagehide", flushOnPageHide);
+      void flushQuerySave({ keepalive: true });
+    };
+  }, [flushQuerySave]);
 
   return (
-    <div className="flex border rounded bg-secondary overflow-auto w-full h-full">
+    <ElevatedSurface className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
+        <SquareTerminal className="size-3.5 shrink-0 text-muted-foreground" />
+        <span title={template?.name} className="truncate text-sm font-medium">
+          {template?.name ?? "Query"}
+        </span>
+        {template && <SaveStatusIndicator status={saveStatus} />}
+        {actions && <div className="ml-auto flex items-center gap-2 pl-2">{actions}</div>}
+      </div>
+
       {template ? (
-        <SQLEditor
-          value={template?.query ?? ""}
-          onChange={handleQueryChange}
-          editable
-          autoFocus
-          projectId={projectId as string}
-          aiButtonVariant="full"
-        />
+        <div className="flex min-h-0 flex-1 overflow-auto">
+          <SQLEditor
+            value={template.query ?? ""}
+            onChange={handleQueryChange}
+            editable
+            autoFocus
+            projectId={projectId as string}
+            aiButtonVariant="full"
+          />
+        </div>
       ) : (
-        <div className="flex items-center justify-center w-full h-full">
-          <div className="text-center space-y-4">
-            <SquareTerminal className="w-12 h-12 text-muted-foreground mx-auto" />
-            <div>
-              <h3 className="text-lg font-medium text-foreground mb-2">No query selected</h3>
-              <p className="text-sm text-muted-foreground">Create a new query or select one from the sidebar</p>
+        <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+          <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+            <ElevatedSurface className="flex size-9 items-center justify-center rounded-xl border">
+              <SquareTerminal className="size-4 text-muted-foreground" />
+            </ElevatedSurface>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">No query selected</span>
+              <span className="text-xs text-muted-foreground">
+                Create a query or pick one from the list to explore your traces with SQL.
+              </span>
             </div>
-            <Button onClick={handleCreate} variant="secondaryLight" size="sm" className="gap-2">
-              <Plus data-icon="inline-start" className="w-4 h-4" />
-              New Query
+            <Button onClick={createTemplate} variant="outline" size="sm">
+              <Plus data-icon="inline-start" className="size-3.5" />
+              New query
             </Button>
           </div>
         </div>
       )}
-    </div>
+    </ElevatedSurface>
   );
-}
+};
+
+export default TemplateEditor;
