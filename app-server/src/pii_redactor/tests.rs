@@ -96,7 +96,8 @@ async fn off_project_is_untouched_and_unchecked() {
     )
     .await;
     assert!(redactor.calls.lock().unwrap().is_empty());
-    assert!(!outcome.span(0).checked);
+    assert_eq!(outcome.verdict(0), &SpanVerdict::Off);
+    assert!(!outcome.verdict(0).pii_checked());
     assert!(!rows[0].pii_checked);
     // Never attempted is not a failure: the row is still stamped present.
     assert!(!outcome.shared_row_failed(0));
@@ -119,9 +120,9 @@ async fn redact_mode_splices_masks_into_raw_and_stamps_checked() {
         &modes(p, PiiMode::Redact),
     )
     .await;
-    let verdict = outcome.span(0);
-    assert!(verdict.checked);
-    assert_eq!(verdict.input, None, "redact mode keeps no masks");
+    // `redact` keeps no masks: the spliced text is the stored text.
+    assert_eq!(outcome.verdict(0), &SpanVerdict::Redacted);
+    assert!(outcome.verdict(0).pii_checked());
     assert_eq!(spans[0].input, Some(json!("a [REDACTED_SECRET]")));
     assert_eq!(spans[0].output, Some(json!("plain")));
     assert_eq!(rows[0].content, "{\"content\":\"[REDACTED_SECRET]\"}");
@@ -154,30 +155,32 @@ async fn dual_mode_keeps_canonical_text_and_masks() {
     )
     .await;
 
-    let hit = outcome.span(0);
-    assert!(hit.checked);
-    assert_eq!(
-        hit.input,
-        Some(MaskedText {
-            text: "\"a secret\"".to_string(),
-            masks: vec![secret_mask(3, 9)],
-        })
-    );
     // Every screened text is carried, masks or not, so the row stores the
     // canonical bytes the masks index.
+    assert!(outcome.verdict(0).pii_checked());
     assert_eq!(
-        hit.output,
-        Some(MaskedText {
-            text: "\"plain\"".to_string(),
-            masks: vec![],
-        })
+        outcome.verdict(0),
+        &SpanVerdict::Masked {
+            input: Some(MaskedText {
+                text: "\"a secret\"".to_string(),
+                masks: vec![secret_mask(3, 9)],
+            }),
+            output: Some(MaskedText {
+                text: "\"plain\"".to_string(),
+                masks: vec![],
+            }),
+        }
     );
     // The raw `Span` is left alone.
     assert_eq!(spans[0].input, Some(json!("a secret")));
 
-    let clean = outcome.span(1);
-    assert!(clean.checked);
-    assert!(!clean.input.as_ref().unwrap().has_pii());
+    let SpanVerdict::Masked {
+        input: Some(clean), ..
+    } = outcome.verdict(1)
+    else {
+        panic!("checked dual span");
+    };
+    assert!(!clean.has_pii());
 
     assert_eq!(rows[0].content, "{\"content\":\"secret\"}");
     assert_eq!(rows[0].content_masks, vec![(12, 18, "secret".to_string())]);
@@ -229,7 +232,13 @@ async fn dual_mode_stores_the_redactor_text_verbatim_not_resanitized() {
         &modes(p, PiiMode::Dual),
     )
     .await;
-    let masked = outcome.span(0).input.unwrap();
+    let SpanVerdict::Masked {
+        input: Some(masked),
+        ..
+    } = outcome.verdict(0)
+    else {
+        panic!("checked dual span");
+    };
     assert_eq!(masked.text, "\"\u{85}secret\"");
     assert_ne!(sanitize_string(&masked.text), masked.text);
     assert_eq!(masked.masks, vec![secret_mask(3, 9)]);
@@ -273,8 +282,13 @@ async fn rpc_failure_leaves_raw_unchecked_and_unstamped() {
         &modes(p, PiiMode::Dual),
     )
     .await;
-    assert!(!outcome.span(0).checked);
-    assert_eq!(outcome.span(0).input, None);
+    assert_eq!(
+        outcome.verdict(0),
+        &SpanVerdict::Failed {
+            mode: PiiMode::Dual
+        }
+    );
+    assert!(!outcome.verdict(0).pii_checked());
     assert!(!rows[0].pii_checked);
     assert!(rows[0].content_masks.is_empty());
     assert!(outcome.shared_row_failed(0));
@@ -296,7 +310,12 @@ async fn failed_redact_mode_span_stays_indexable() {
         &modes(p, PiiMode::Redact),
     )
     .await;
-    assert!(!outcome.span(0).checked);
+    assert_eq!(
+        outcome.verdict(0),
+        &SpanVerdict::Failed {
+            mode: PiiMode::Redact
+        }
+    );
     assert!(outcome.is_indexable(0));
 }
 
@@ -316,25 +335,30 @@ fn without_redactor_only_off_and_redact_spans_stay_indexable() {
     .into();
     let outcome = PiiOutcome::without_redactor(&spans, &[0, 1, 2], &project_modes);
 
-    // `off` is unchecked but not failed: never attempted, nothing to hide.
-    let off = outcome.span(0);
-    assert_eq!(off.mode, PiiMode::Off);
-    assert!(!off.checked && !off.failed());
+    // `off` is never attempted, so it is not a failure: nothing to hide.
+    assert_eq!(outcome.verdict(0), &SpanVerdict::Off);
     assert!(outcome.is_indexable(0));
-    // Non-`off` spans all read as failed; only `dual` is kept out of the
-    // index.
+    // Non-`off` spans all fail; only `dual` is kept out of the index.
     for (idx, mode, indexable) in [(1, PiiMode::Redact, true), (2, PiiMode::Dual, false)] {
-        let pii = outcome.span(idx);
-        assert_eq!(pii.mode, mode, "span {idx}");
-        assert!(!pii.checked && pii.failed(), "span {idx}");
+        assert_eq!(
+            outcome.verdict(idx),
+            &SpanVerdict::Failed { mode },
+            "span {idx}"
+        );
+        assert!(!outcome.verdict(idx).pii_checked(), "span {idx}");
         assert_eq!(outcome.is_indexable(idx), indexable, "span {idx}");
     }
     assert!(!outcome.shared_row_failed(0));
 
     // A span the batch never saw, and a project the modes never covered,
     // both fail closed.
+    assert_eq!(
+        outcome.verdict(99),
+        &SpanVerdict::Failed {
+            mode: PiiMode::Dual
+        }
+    );
     assert!(!outcome.is_indexable(99));
-    assert!(outcome.span(99).failed());
     assert_eq!(project_modes.get(&Uuid::new_v4()), PiiMode::Dual);
 }
 
@@ -365,8 +389,7 @@ async fn garbage_canonical_text_leaves_the_span_unchecked() {
             &modes(p, mode),
         )
         .await;
-        assert!(!outcome.span(0).checked);
-        assert_eq!(outcome.span(0).input, None);
+        assert_eq!(outcome.verdict(0), &SpanVerdict::Failed { mode });
         assert_eq!(spans[0].input, Some(json!("secret")));
     }
 }
@@ -403,7 +426,7 @@ async fn malformed_masks_fail_closed() {
         &modes(p, PiiMode::Redact),
     )
     .await;
-    assert!(!outcome.span(0).checked);
+    assert!(!outcome.verdict(0).pii_checked());
     assert_eq!(spans[0].input, Some(json!("secret")));
     assert!(!rows[0].pii_checked);
     assert!(outcome.shared_row_failed(0));
@@ -428,8 +451,13 @@ async fn dual_mode_rejects_malformed_masks_before_storing_them() {
         &modes(p, PiiMode::Dual),
     )
     .await;
-    assert!(!outcome.span(0).checked);
-    assert_eq!(outcome.span(0).input, None, "no masks handed to the CH row");
+    assert_eq!(
+        outcome.verdict(0),
+        &SpanVerdict::Failed {
+            mode: PiiMode::Dual
+        },
+        "no masks handed to the CH row"
+    );
     assert!(!rows[0].pii_checked);
     assert!(rows[0].content_masks.is_empty());
     assert!(outcome.shared_row_failed(0));
