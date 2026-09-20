@@ -23,7 +23,7 @@ pub struct CHUniqueContent {
     /// `(start, end, label)`), filled only in `dual` PII mode.
     #[serde(default)]
     pub content_masks: Vec<(u32, u32, String)>,
-    /// The redactor screened `content`; see `crate::pii_redactor::SpanPii`.
+    /// The redactor screened `content`; see `crate::pii_redactor::SpanVerdict::pii_checked`.
     #[serde(default)]
     pub pii_checked: bool,
 }

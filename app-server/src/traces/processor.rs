@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -22,7 +22,8 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
-        PiiOutcome, PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes,
+        PiiOutcome, PiiRedactorClient, SpanVerdict, redact_spans_in_place,
+        resolve_project_pii_modes,
     },
     pubsub::PubSub,
     quickwit::{
@@ -413,28 +414,50 @@ pub async fn process_span_messages(
     // were redacted on first emit and ride the wire as hashes only. The
     // redactor walks every shared row of `redact`/`dual` projects (so tool
     // defs ARE screened along with messages — acceptable, the redactor is
-    // no-op on schemas) plus the per-span Quickwit content. Best-effort:
+    // no-op on schemas) plus the per-span Quickwit content. Redactor
     // failures leave rows unchecked inside `redact_spans_in_place` and do
-    // not fail the batch. Without a redactor every non-`off` row stays
-    // unchecked (unavailable under a masking policy) and `dual` text stays
-    // out of the search index; modes are resolved either way so that
-    // decision does not depend on the redactor being up.
-    let pii_modes =
-        resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone()).await;
-    let pii_outcome = match pii_redactor.as_ref() {
-        Some(redactor) => {
-            redact_spans_in_place(
-                redactor,
-                &mut spans,
-                shared_content.rows_mut(),
-                &mut input_batch.span_trace_new_contents,
-                &mut output_batch.span_trace_new_contents,
-                &recordable_indices,
-                &pii_modes,
-            )
-            .await
+    // not fail the batch; a failed *mode lookup* does, since storing a span
+    // on a guessed mode is permanent while a retry is not. Without a
+    // redactor every non-`off` row stays unchecked (unavailable under a
+    // masking policy) and `dual` text stays out of the search index; modes
+    // are resolved either way so that decision does not depend on the
+    // redactor being up.
+    let pii_modes = resolve_project_pii_modes(
+        recordable_indices.iter().map(|&i| spans[i].project_id),
+        db.clone(),
+        cache.clone(),
+    )
+    .await
+    .map_err(|e| {
+        log::error!("Failed to resolve project PII modes: {e:#}");
+        HandlerError::transient(e)
+    })?;
+    // The redactor works on the recordable spans in `recordable_indices`
+    // order, so `PiiOutcome` is keyed by `dedup_idx` like the dedup batches.
+    let pii_outcome = {
+        let recordable_set: HashSet<usize> = recordable_indices.iter().copied().collect();
+        let mut recordable: Vec<&mut Span> = spans
+            .iter_mut()
+            .enumerate()
+            .filter(|(i, _)| recordable_set.contains(i))
+            .map(|(_, s)| s)
+            .collect();
+        match pii_redactor.as_ref() {
+            Some(redactor) => {
+                redact_spans_in_place(
+                    redactor,
+                    &mut recordable,
+                    shared_content.rows_mut(),
+                    &mut input_batch.span_trace_new_contents,
+                    &mut output_batch.span_trace_new_contents,
+                    &pii_modes,
+                )
+                .await
+            }
+            None => {
+                PiiOutcome::without_redactor(recordable.iter().map(|s| s.project_id), &pii_modes)
+            }
         }
-        None => PiiOutcome::without_redactor(&spans, &recordable_indices, &pii_modes),
     };
 
     for span in &mut spans {
@@ -493,15 +516,17 @@ pub async fn process_span_messages(
 
                 // `dual` mode: the canonical text replaces the row's own
                 // serialization so the masks index the stored bytes.
-                let pii = pii_outcome.span(span_idx);
-                ch_span.pii_checked = pii.checked;
-                if let Some(masked) = pii.input {
-                    ch_span.input_masks = masked.ch_masks();
-                    ch_span.input = masked.text;
-                }
-                if let Some(masked) = pii.output {
-                    ch_span.output_masks = masked.ch_masks();
-                    ch_span.output = masked.text;
+                let verdict = pii_outcome.verdict(dedup_idx);
+                ch_span.pii_checked = verdict.pii_checked();
+                if let SpanVerdict::Masked { input, output } = verdict {
+                    if let Some(masked) = input {
+                        ch_span.input_masks = masked.ch_masks();
+                        ch_span.input = masked.text.clone();
+                    }
+                    if let Some(masked) = output {
+                        ch_span.output_masks = masked.ch_masks();
+                        ch_span.output = masked.text.clone();
+                    }
                 }
 
                 let input_hashes = input_batch
@@ -650,7 +675,7 @@ pub async fn process_span_messages(
     // trace-new so a later span in the trace carries them to Quickwit.
     let mut seen_marks = SeenMarks::default();
     shared_content.storage_marks(&mut seen_marks, |i| pii_outcome.shared_row_failed(i));
-    let unindexable = |dedup_idx: usize| !pii_outcome.is_indexable(recordable_indices[dedup_idx]);
+    let unindexable = |dedup_idx: usize| !pii_outcome.is_indexable(dedup_idx);
     input_batch.trace_new_marks(&recordable_refs, &mut seen_marks, unindexable);
     output_batch.trace_new_marks(&recordable_refs, &mut seen_marks, unindexable);
 
@@ -783,8 +808,7 @@ pub async fn process_span_messages(
                 };
                 // `dual` mode: whole-value text reaches the index only with its
                 // masks spliced in; trace-new messages were redacted in place.
-                let span_idx = recordable_indices[dedup_idx];
-                let view = pii_outcome.index_view(span_idx, s);
+                let view = pii_outcome.index_view(dedup_idx, s);
                 let mut doc = QuickwitIndexedSpan::from_span(
                     &view,
                     new_input_messages.as_deref(),
@@ -792,7 +816,7 @@ pub async fn process_span_messages(
                 );
                 // Fail closed: a policy-hidden span whose redaction failed has
                 // no safe text, whichever source it would have come from.
-                if !pii_outcome.is_indexable(span_idx) {
+                if !pii_outcome.is_indexable(dedup_idx) {
                     doc.input = None;
                     doc.output = None;
                 }
