@@ -33,8 +33,8 @@ export default function Pricing() {
       answer: (
         <>
           Signals are billed by the tokens the agent spends to read a trace and generate a structured event: $
-          {signalInputRate("free")} per 1M input tokens, ${signalCacheReadRate("free")} per 1M cached input tokens, and
-          ${signalOutputRate("free")} per 1M output tokens. Each plan includes a dollar amount of Signals usage (
+          {signalInputRate()} per 1M input tokens, ${signalCacheReadRate()} per 1M cached input tokens, and $
+          {signalOutputRate()} per 1M output tokens. Each plan includes a dollar amount of Signals usage (
           {formatSignalsCount("free")} Free, {formatSignalsCount("hobby")} Starter, {formatSignalsCount("pro")} Pro);
           usage past that is billed at the applicable per-token rates. You pay for what a Signal reads and writes, not
           for the spans your agent emits. Read more in the{" "}

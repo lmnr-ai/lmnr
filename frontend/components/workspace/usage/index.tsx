@@ -84,7 +84,7 @@ const getUsageDescription = (tierName?: string): string => {
   const tierHintOverages =
     "If you exceed these limits, " +
     (tierHintInfo.isOverageAllowed
-      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate(tier)} / 1M input tokens, $${signalCacheReadRate(tier)} / 1M cached input tokens, and $${signalOutputRate(tier)} / 1M output tokens for additional Signals usage.`
+      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate()} / 1M input tokens, $${signalCacheReadRate()} / 1M cached input tokens, and $${signalOutputRate()} / 1M output tokens for additional Signals usage.`
       : "you won't be able to send any more data during current billing cycle.");
   return `${tierHint} ${tierHintOverages}`;
 };
