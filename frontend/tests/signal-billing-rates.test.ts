@@ -3,11 +3,10 @@ import test from "node:test";
 
 import { formatSignalsOverage, formatSignalsOverageShort, signalTokenCostMicroUsd } from "../lib/billing/tiers";
 
-test("uses unified signal rates for standard and Pro metering", () => {
+test("uses unified signal rates", () => {
   // 1M prompt tokens includes 200K cached tokens, so only 800K is fresh.
   const expectedMicroUsd = Math.round(800_000 * 0.05 + 200_000 * 0.005 + 100_000 * 0.3);
-  assert.equal(signalTokenCostMicroUsd(1_000_000, 200_000, 100_000, "hobby"), expectedMicroUsd);
-  assert.equal(signalTokenCostMicroUsd(1_000_000, 200_000, 100_000, "pro"), expectedMicroUsd);
+  assert.equal(signalTokenCostMicroUsd(1_000_000, 200_000, 100_000), expectedMicroUsd);
 });
 
 test("shows input, cached-input, and output overage rates", () => {

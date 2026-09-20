@@ -53,11 +53,8 @@ interface TierData {
 // signal pricing env defaults before enabling the rates for production billing.
 export const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
 export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
-export const PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
-export const PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
 // Cache-read tokens are a subset of input and cost 0.1x the fresh-input rate.
 export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.005;
-export const PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.005;
 
 // Mirror the app-server `env::var(...).parse().ok().unwrap_or(DEFAULT)` logic:
 // an unset or unparseable override falls back to the published default, a valid
@@ -69,34 +66,24 @@ const resolveRate = (raw: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-// Cost in micro-USD (1e-6 USD) of the given signal token spend, priced at the
-// configured rate for `tier`. Tokens are persisted raw and priced at read time so a future
-// rate change re-prices history. `inputTokens` is the provider prompt total and
-// *includes* `cacheReadTokens` as a subset; the cached portion is split out and
-// billed at the discounted cache rate while only the fresh remainder is billed
-// at the input rate. Mirrors the app-server `signal_token_cost_micro_usd`
-// (`app-server/src/utils/mod.rs`) including its env overrides and Pro tiering, so
-// that the frontend usage totals and limit checks — which share the
-// `workspace_signal_runs_usage_*` caches with the Rust path — agree.
-export const signalTokenCostMicroUsd = (
-  inputTokens: number,
-  cacheReadTokens: number,
-  outputTokens: number,
-  tier: Tier
-): number => {
-  const isPro = tier === "pro";
-  const inputRate = isPro
-    ? resolveRate(process.env.PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION, PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION)
-    : resolveRate(process.env.SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION, SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION);
-  const cacheReadRate = isPro
-    ? resolveRate(
-        process.env.PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION,
-        PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION
-      )
-    : resolveRate(process.env.SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION, SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION);
-  const outputRate = isPro
-    ? resolveRate(process.env.PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION, PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION)
-    : resolveRate(process.env.SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION, SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION);
+// Cost in micro-USD (1e-6 USD) of the given signal token spend. Tokens are
+// persisted raw and priced at read time so a future rate change re-prices
+// history. `inputTokens` is the provider prompt total and *includes*
+// `cacheReadTokens` as a subset; the cached portion is split out and billed at
+// the discounted cache rate while only the fresh remainder is billed at the
+// input rate. Mirrors the app-server `signal_token_cost_micro_usd`
+// (`app-server/src/utils/mod.rs`) including its env overrides, so the frontend
+// usage totals and limit checks agree with backend enforcement.
+export const signalTokenCostMicroUsd = (inputTokens: number, cacheReadTokens: number, outputTokens: number): number => {
+  const inputRate = resolveRate(process.env.SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION, SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION);
+  const cacheReadRate = resolveRate(
+    process.env.SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION,
+    SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION
+  );
+  const outputRate = resolveRate(
+    process.env.SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION,
+    SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION
+  );
   // Clamp cache reads to the prompt total so malformed provider usage metadata
   // (cache reads above the reported prompt) can never bill more tokens than the
   // prompt actually contained. Mirrors the app-server clamp.
@@ -153,17 +140,12 @@ export const TIERS: Record<Tier, TierData> = {
 // Display order for surfaces that render tiers as columns/cards.
 export const TIER_ORDER: Tier[] = ["free", "hobby", "pro", "enterprise"];
 
-// Per-tier published signal token rates (USD / 1M tokens) for pricing surfaces.
-// The tier-specific constants remain separate so future rates can diverge without
-// changing callers, but all self-serve tiers currently display the same rates.
-export const signalInputRate = (tier: Tier): number =>
-  tier === "pro" ? PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION : SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION;
+// Published signal token rates (USD / 1M tokens) for pricing surfaces.
+export const signalInputRate = (): number => SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION;
 
-export const signalCacheReadRate = (tier: Tier): number =>
-  tier === "pro" ? PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION : SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION;
+export const signalCacheReadRate = (): number => SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION;
 
-export const signalOutputRate = (tier: Tier): number =>
-  tier === "pro" ? PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION : SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION;
+export const signalOutputRate = (): number => SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION;
 
 // `$2` for whole-number rates, `$1.50` for one-decimal rates. Centralised so
 // every pricing surface uses the same currency formatting (no drift between

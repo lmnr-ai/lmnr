@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { retentionCutoff } from "@/lib/billing/retention";
-import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
+import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 import {
   cache,
   PROJECT_CACHE_KEY,
@@ -187,7 +187,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
   }
 
-  const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens, normalizeTier(tierName));
+  const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
 
   if (totalSignalCost >= effectiveLimit) {
     const formatUsd = (microUsd: number) =>
