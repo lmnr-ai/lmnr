@@ -14,18 +14,24 @@ import { ElevatedSurface } from "@/components/ui/surface";
 interface TemplateEditorProps {
   /** Run / export controls, rendered in the editor header next to the query name. */
   actions?: ReactNode;
+  /** Opens a parameter's value input from a placeholder in the query. */
+  onRevealParameter?: (name: string, returnFocus: () => void) => void;
 }
 
-const TemplateEditor = ({ actions }: TemplateEditorProps) => {
+const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => {
   const { projectId } = useParams();
   const createTemplate = useCreateTemplate();
 
-  const { template, saveStatus, setQuery, flushQuerySave } = useSqlEditorStore((state) => ({
-    template: state.currentTemplate,
-    saveStatus: state.saveStatus,
-    setQuery: state.setQuery,
-    flushQuerySave: state.flushQuerySave,
-  }));
+  const { template, saveStatus, setQuery, flushQuerySave, parameters, parameterConflicts } = useSqlEditorStore(
+    (state) => ({
+      template: state.currentTemplate,
+      saveStatus: state.saveStatus,
+      setQuery: state.setQuery,
+      flushQuerySave: state.flushQuerySave,
+      parameters: state.parameters,
+      parameterConflicts: state.parameterConflicts,
+    })
+  );
 
   const handleQueryChange = useCallback((query: string) => setQuery(projectId as string, query), [projectId, setQuery]);
 
@@ -67,6 +73,9 @@ const TemplateEditor = ({ actions }: TemplateEditorProps) => {
             autoFocus
             projectId={projectId as string}
             aiButtonVariant="full"
+            parameters={parameters}
+            parameterConflicts={parameterConflicts}
+            onRevealParameter={onRevealParameter}
           />
         </div>
       ) : (

@@ -9,7 +9,7 @@ import { createStore, useStore } from "zustand";
 import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
 import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
 import { type DashboardChart } from "@/components/dashboards/types";
-import { type SQLParameter } from "@/components/sql/sql-editor-store";
+import { type SQLParameter } from "@/components/sql/parameters";
 
 type DashboardEditorState = {
   chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;

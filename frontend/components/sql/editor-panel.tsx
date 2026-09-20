@@ -1,12 +1,13 @@
 "use client";
 
 import ChartBuilder from "components/chart-builder";
-import { AlertCircle, Braces, ChartArea, FileJson2, Loader2, TableProperties } from "lucide-react";
+import { AlertCircle, ChartArea, FileJson2, Loader2, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import ParametersPanel from "@/components/sql/parameters-panel";
+import { isParameterUnset } from "@/components/sql/parameters";
+import ParametersBar from "@/components/sql/parameters-bar";
 import QueryActions from "@/components/sql/query-actions";
 import ResultsTable from "@/components/sql/results-table";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
@@ -29,18 +30,37 @@ export default function EditorPanel() {
   const [resultsQuery, setResultsQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set by a placeholder click, or by a run blocked on a missing value; opens that chip's input.
+  const [focusedParameter, setFocusedParameter] = useState<string | null>(null);
+  // Set only when the editor opened it, so Escape drops the caret back where the click landed.
+  const returnEditorFocusRef = useRef<(() => void) | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
-  const { template, getFormattedParameters, parameters, onChange, flushQuerySave } = useSqlEditorStore((state) => ({
-    template: state.currentTemplate,
-    getFormattedParameters: state.getFormattedParameters,
-    parameters: state.parameters,
-    onChange: state.setParameterValue,
-    flushQuerySave: state.flushQuerySave,
-  }));
+  const { template, getFormattedParameters, parameters, parameterConflicts, onChange, flushQuerySave } =
+    useSqlEditorStore((state) => ({
+      template: state.currentTemplate,
+      getFormattedParameters: state.getFormattedParameters,
+      parameters: state.parameters,
+      parameterConflicts: state.parameterConflicts,
+      onChange: state.setParameterValue,
+      flushQuerySave: state.flushQuerySave,
+    }));
 
   const hasResults = results !== null && results.length > 0;
+
+  const revealParameter = useCallback((name: string, returnFocus: () => void) => {
+    returnEditorFocusRef.current = returnFocus;
+    setFocusedParameter(name);
+  }, []);
+
+  const handleParameterEditClosed = useCallback(() => {
+    setFocusedParameter(null);
+    const returnFocus = returnEditorFocusRef.current;
+    returnEditorFocusRef.current = null;
+    returnFocus?.();
+    return returnFocus !== null;
+  }, []);
 
   const cancelQuery = useCallback(() => {
     if (abortControllerRef.current) {
@@ -61,6 +81,20 @@ export default function EditorPanel() {
         description: "Please enter a SQL query first.",
         variant: "destructive",
       });
+      return;
+    }
+
+    // ClickHouse would answer `Code: 456, Substitution 'x' is not set`, naming nothing actionable.
+    const unset = parameters.filter(isParameterUnset);
+    if (unset.length > 0) {
+      const names = unset.map((parameter) => parameter.name);
+      toast({
+        title: names.length === 1 ? `${names[0]} has no value` : `${names.length} parameters have no value`,
+        description: `Set ${names.join(", ")} before running the query.`,
+        variant: "destructive",
+      });
+      // The toast names all of them; open the first so there's somewhere to start typing.
+      setFocusedParameter(names[0]);
       return;
     }
 
@@ -130,7 +164,7 @@ export default function EditorPanel() {
         setIsLoading(false);
       }
     }
-  }, [projectId, template?.query, template?.id, toast, getFormattedParameters, flushQuerySave]);
+  }, [projectId, template?.query, template?.id, toast, parameters, getFormattedParameters, flushQuerySave]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input"],
@@ -194,6 +228,7 @@ export default function EditorPanel() {
       <ResizablePanelGroup id="sql-editor-panels" orientation="vertical">
         <ResizablePanel className="flex min-h-0 flex-col" defaultSize={40} minSize={20}>
           <TemplateEditor
+            onRevealParameter={revealParameter}
             actions={
               <QueryActions
                 query={template?.query || ""}
@@ -209,8 +244,10 @@ export default function EditorPanel() {
         <ResizableHandle className="z-30" withHandle />
         <ResizablePanel className="flex min-h-0 flex-col" defaultSize={60} minSize={20}>
           <Tabs className="flex h-full min-h-0 flex-col gap-0" defaultValue="table">
-            <div className="flex h-12 shrink-0 items-center gap-3 border-b px-2">
-              <TabsList className="bg-surface-up-2">
+            {/* Not flex-wrap: line breaking uses unshrunk sizes, so it would bump the whole chip group
+                to a second line instead of letting it narrow and wrap its own chips. */}
+            <div className="flex min-h-12 shrink-0 items-center gap-3 border-b px-2 py-1.5">
+              <TabsList className="shrink-0 bg-surface-up-2">
                 <TabsTrigger value="table">
                   <TableProperties />
                   <span>Table</span>
@@ -223,16 +260,21 @@ export default function EditorPanel() {
                   <ChartArea />
                   <span>Chart</span>
                 </TabsTrigger>
-                <TabsTrigger value="parameters">
-                  <Braces />
-                  <span>Parameters</span>
-                </TabsTrigger>
               </TabsList>
               {results !== null && !isLoading && !error && (
-                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                   {results.length} {results.length === 1 ? "row" : "rows"}
                 </span>
               )}
+              {/* Right-anchored so the row count appearing after a run doesn't shift the chips. */}
+              <ParametersBar
+                className="ml-auto"
+                parameters={parameters}
+                onChange={onChange}
+                conflicts={parameterConflicts}
+                focusedParameter={focusedParameter}
+                onFocusedParameterHandled={handleParameterEditClosed}
+              />
             </div>
 
             <TabsContent asChild value="table">
@@ -282,12 +324,6 @@ export default function EditorPanel() {
                   loadingText: "Generating chart...",
                   default: emptyState(<ChartArea className="size-5 opacity-60" />, "Run the query to build a chart"),
                 })}
-              </div>
-            </TabsContent>
-
-            <TabsContent asChild value="parameters">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <ParametersPanel parameters={parameters} onChange={onChange} />
               </div>
             </TabsContent>
           </Tabs>

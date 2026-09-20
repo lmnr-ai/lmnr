@@ -1,8 +1,16 @@
-import { format, startOfToday, subDays } from "date-fns";
-import { isDate, isNil } from "lodash";
+import { isEqual } from "lodash";
 import { mutate } from "swr";
 import { create } from "zustand";
 
+import {
+  defaultParameterValues,
+  deriveParameters,
+  formatParameters,
+  loadParameterValues,
+  type ParameterValues,
+  saveParameterValues,
+  type SQLParameter,
+} from "@/components/sql/parameters";
 import { toast } from "@/lib/hooks/use-toast";
 
 export interface SQLTemplate {
@@ -12,14 +20,6 @@ export interface SQLTemplate {
   createdAt: string;
   projectId: string;
 }
-
-export type SQLParameter = {
-  name: string;
-} & (DateParameter | StringParameter | NumberParameter);
-
-type DateParameter = { value?: Date; type: "date" };
-type StringParameter = { value?: string; type: "string" };
-type NumberParameter = { value?: number; type: "number" };
 
 export type SaveStatus = "saved" | "unsaved" | "saving" | "error";
 
@@ -129,7 +129,10 @@ const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean
 export type SqlEditorState = {
   editTemplate: SQLTemplate | undefined;
   currentTemplate: SQLTemplate | undefined;
+  /** Derived from the query text — exactly the `{name:Type}` placeholders it references. */
   parameters: SQLParameter[];
+  /** Names the query declares under two different types. Keyed by name, listing every type seen. */
+  parameterConflicts: Record<string, string[]>;
   saveStatus: SaveStatus;
 };
 
@@ -146,20 +149,18 @@ export type SqlEditorActions = {
   getFormattedParameters: () => Record<string, string | number>;
 };
 
-const initialParameters: SQLParameter[] = [
-  { name: "start_time", value: subDays(startOfToday(), 7), type: "date" },
-  { name: "end_time", value: startOfToday(), type: "date" },
-  {
-    name: "interval_unit",
-    value: "HOUR",
-    type: "string",
-  },
-];
+/**
+ * Outlives both the query text and the selected template: `start_time` is the window you work in, not
+ * a property of one query. Nothing renders from it directly (the UI reads the derived `parameters`),
+ * so it sits beside the autosave state rather than in the store.
+ */
+let parameterValues: ParameterValues = { ...defaultParameterValues(), ...loadParameterValues() };
 
 const initialState: SqlEditorState = {
   editTemplate: undefined,
   currentTemplate: undefined,
-  parameters: initialParameters,
+  parameters: [],
+  parameterConflicts: {},
   saveStatus: "saved",
 };
 
@@ -170,6 +171,14 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
   // left must not relabel the one they are looking at.
   const setStatus: StatusSetter = (templateId, saveStatus) => {
     if (get().currentTemplate?.id === templateId) set({ saveStatus });
+  };
+
+  // Bails when unchanged: a keystroke that misses a placeholder must not hand out a new array identity.
+  const syncParameters = () => {
+    const { currentTemplate, parameters, parameterConflicts } = get();
+    const derived = deriveParameters(currentTemplate?.query ?? "", parameterValues);
+    if (isEqual(derived.parameters, parameters) && isEqual(derived.conflicts, parameterConflicts)) return;
+    set({ parameters: derived.parameters, parameterConflicts: derived.conflicts });
   };
 
   return {
@@ -185,6 +194,7 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
         // Same query, refreshed from the list: adopt server-side fields (a rename) but keep the text
         // in the editor, which may hold keystrokes the list hasn't caught up with yet.
         set({ currentTemplate: { ...template, query: current.query } });
+        syncParameters();
         return;
       }
 
@@ -195,6 +205,7 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
 
       if (!template) {
         set({ currentTemplate: undefined, saveStatus: "saved" });
+        syncParameters();
         return;
       }
 
@@ -205,6 +216,7 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
         currentTemplate: unconfirmed === undefined ? template : { ...template, query: unconfirmed },
         saveStatus: pendingSaves.has(template.id) ? "unsaved" : inFlightSaves.has(template.id) ? "saving" : "saved",
       });
+      syncParameters();
     },
     setQuery: (projectId, query) => {
       const current = get().currentTemplate;
@@ -212,6 +224,7 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
       const { id: templateId } = current;
 
       set({ currentTemplate: { ...current, query }, saveStatus: "unsaved" });
+      syncParameters();
 
       pendingSaves.set(templateId, { projectId, templateId, query });
       unconfirmedQueries.set(templateId, query);
@@ -237,30 +250,14 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => {
       setStatus(templateId, "saved");
     },
     setParameterValue: (name, value) => {
+      parameterValues = { ...parameterValues, [name]: value };
+      saveParameterValues(parameterValues);
       set((state) => ({
         parameters: state.parameters.map((param) =>
-          param.name === name ? { ...param, value: value } : param
-        ) as SQLParameter[],
+          param.name === name ? ({ ...param, value } as SQLParameter) : param
+        ),
       }));
     },
-    getFormattedParameters: () => {
-      const { parameters } = get();
-
-      return parameters.reduce(
-        (formatted, param) => {
-          if (!isNil(param.value)) {
-            if (isDate(param.value)) {
-              formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
-            } else if (param.type === "number") {
-              formatted[param.name] = Number(param.value);
-            } else {
-              formatted[param.name] = param.value;
-            }
-          }
-          return formatted;
-        },
-        {} as Record<string, string | number>
-      );
-    },
+    getFormattedParameters: () => formatParameters(get().parameters),
   };
 });
