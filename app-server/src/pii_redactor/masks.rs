@@ -3,6 +3,7 @@
 //! twin of [`apply_masks`]; both must produce identical output.
 
 use anyhow::{Result, anyhow};
+use serde::de::IgnoredAny;
 use serde_json::Value;
 
 use super::pii_redactor;
@@ -53,6 +54,16 @@ impl MaskedText {
     /// the ClickHouse splice assumes well-formed ranges and has no guard.
     pub fn validate(&self) -> Result<()> {
         validate_masks(&self.text, &self.masks)
+    }
+
+    /// What `dual` storage requires of a text stored verbatim: it is the JSON
+    /// the views hand out (a shared row is spliced into a message array, so
+    /// a non-JSON row would break the whole value) and its masks can be
+    /// spliced.
+    pub fn validate_for_storage(&self) -> Result<()> {
+        serde_json::from_str::<IgnoredAny>(&self.text)
+            .map_err(|e| anyhow!("canonical text is not JSON: {e}"))?;
+        self.validate()
     }
 
     /// Row-binary shape of the ClickHouse mask columns.

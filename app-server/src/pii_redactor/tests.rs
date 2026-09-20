@@ -387,10 +387,11 @@ async fn garbage_canonical_text_leaves_the_span_unchecked() {
     let p = Uuid::new_v4();
     for mode in [PiiMode::Dual, PiiMode::Redact] {
         let mut spans = vec![span(p, Some(json!("secret")), None)];
+        let mut rows = vec![row(p, "\"secret\"")];
         let outcome = redact_spans_in_place(
             &Garbage,
             &mut spans,
-            &mut [],
+            &mut rows,
             &mut [vec![]],
             &mut [vec![]],
             &[0],
@@ -400,6 +401,11 @@ async fn garbage_canonical_text_leaves_the_span_unchecked() {
         assert!(!outcome.span(0).checked);
         assert_eq!(outcome.span(0).input, None);
         assert_eq!(spans[0].input, Some(json!("secret")));
+        // A shared row is spliced into a message array by the view, so a
+        // non-JSON canonical text must not be stored as checked either.
+        assert_eq!(rows[0].content, "\"secret\"", "{mode:?}: row left as-is");
+        assert!(!rows[0].pii_checked, "{mode:?}");
+        assert!(outcome.shared_row_failed(0), "{mode:?}: not stamped, heals");
     }
 }
 

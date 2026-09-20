@@ -454,12 +454,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 let mode = mode_for(&spans[idx].project_id).unwrap_or(PiiMode::Redact);
                 match mode {
                     PiiMode::Dual => {
-                        // Stored verbatim; check it is the JSON the view
-                        // will hand out and that the masks can be spliced.
-                        if let Err(e) = serde_json::from_str::<IgnoredAny>(&masked.text)
-                            .map_err(anyhow::Error::from)
-                            .and_then(|_| masked.validate())
-                        {
+                        if let Err(e) = masked.validate_for_storage() {
                             log::warn!("pii-redactor: canonical span[{idx}]: {e:#}");
                             outcome.fail(idx);
                             continue;
@@ -499,7 +494,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                 };
                 match mode_for(&row.project_id) {
                     Some(PiiMode::Dual) => {
-                        if let Err(e) = masked.validate() {
+                        if let Err(e) = masked.validate_for_storage() {
                             log::warn!("pii-redactor: shared row[{idx}]: {e:#}");
                             outcome.failed_shared_rows.insert(idx);
                             continue;
@@ -508,8 +503,14 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
                         row.content = masked.text;
                     }
                     // Spliced text is re-sanitized to match the non-redact
-                    // path's `sanitize_string(&item.to_string())`.
-                    _ => match masked.redacted() {
+                    // path's `sanitize_string(&item.to_string())`. It must
+                    // still be JSON: the view splices the row into a message
+                    // array.
+                    _ => match masked.redacted().and_then(|text| {
+                        serde_json::from_str::<IgnoredAny>(&text)
+                            .map_err(|e| anyhow!("redacted text is not JSON: {e}"))?;
+                        Ok(text)
+                    }) {
                         Ok(text) => row.content = sanitize_string(&text),
                         Err(e) => {
                             log::warn!("pii-redactor: shared row[{idx}]: {e:#}");
