@@ -18,11 +18,14 @@ use crate::{
         traces_static::CHTraceStatic,
         utils::chrono_to_nanoseconds,
     },
-    db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
+    db::{
+        DB, debugger_session_blocks, projects::PiiMode, spans::Span,
+        workspaces::WorkspaceDeployment,
+    },
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
-        PiiOutcome, PiiRedactorClient, SpanVerdict, redact_spans_in_place,
+        PiiOutcome, PiiRedactorClient, ProjectModes, SpanVerdict, redact_spans_in_place,
         resolve_project_pii_modes,
     },
     pubsub::PubSub,
@@ -296,9 +299,6 @@ pub async fn process_span_messages(
     }
     messages.retain(|m| !m.span.attributes.is_metadata_only());
 
-    // Live agent_input — the stat delta can't carry it (extraction is async).
-    dispatch_input_realtime_updates(&raw_trace_io, cache.clone(), &pubsub).await;
-
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
@@ -422,8 +422,14 @@ pub async fn process_span_messages(
     // masking policy) and `dual` text stays out of the search index; modes
     // are resolved either way so that decision does not depend on the
     // redactor being up.
+    // Extraction spans (`raw_trace_io`) usually arrive in a batch of their
+    // own, so their projects are resolved here as well: the live agent_input
+    // dispatch below needs the mode.
     let pii_modes = resolve_project_pii_modes(
-        recordable_indices.iter().map(|&i| spans[i].project_id),
+        recordable_indices
+            .iter()
+            .map(|&i| spans[i].project_id)
+            .chain(raw_trace_io.iter().map(|io| io.project_id)),
         db.clone(),
         cache.clone(),
     )
@@ -432,6 +438,9 @@ pub async fn process_span_messages(
         log::error!("Failed to resolve project PII modes: {e:#}");
         HandlerError::transient(e)
     })?;
+
+    // Live agent_input — the stat delta can't carry it (extraction is async).
+    dispatch_input_realtime_updates(&raw_trace_io, &pii_modes, cache.clone(), &pubsub).await;
     // The redactor works on the recordable spans in `recordable_indices`
     // order, so `PiiOutcome` is keyed by `dedup_idx` like the dedup batches.
     let pii_outcome = {
@@ -965,8 +974,20 @@ async fn dispatch_trace_realtime_updates(
 }
 
 /// Dispatch each trace's extracted agent_input to its realtime channels.
-async fn dispatch_input_realtime_updates(io: &[RawTraceIo], cache: Arc<Cache>, pubsub: &PubSub) {
+/// Skipped for `dual` projects: the value is PII-bearing text, pubsub cannot
+/// know who is subscribed, and members of a `dual` project must only ever see
+/// it through `traces_v1` under their policy. `off`/`redact` readers are all
+/// unrestricted, so the stored value is safe to push (`docs/internal/rbac.md`).
+async fn dispatch_input_realtime_updates(
+    io: &[RawTraceIo],
+    modes: &ProjectModes,
+    cache: Arc<Cache>,
+    pubsub: &PubSub,
+) {
     for entry in io {
+        if modes.get(&entry.project_id) == PiiMode::Dual {
+            continue;
+        }
         if let Some(value) = &entry.input {
             send_agent_input_update(
                 pubsub,
