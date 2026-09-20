@@ -2,7 +2,8 @@
 
 CPU-only gRPC service that takes a list of stringified-JSON texts and returns
 each one re-serialized together with the byte ranges of the PII it found.
-Callers splice `[REDACTED_<LABEL>]` over those ranges.
+Callers (app-server at ingest, ClickHouse at read time) splice
+`[REDACTED_<LABEL>]` over those ranges.
 
 It loads any HuggingFace token-classification model exported to ONNX:
 

@@ -1,7 +1,10 @@
 //! PII masks: byte ranges into a canonical text, and the splice that renders
-//! them.
+//! them. The ClickHouse UDF `apply_pii_masks` (migration 66) is the read-time
+//! twin of [`apply_masks`]; both must produce identical output.
 
 use anyhow::{Result, anyhow};
+use serde::de::IgnoredAny;
+use serde_json::Value;
 
 use super::pii_redactor;
 
@@ -10,7 +13,8 @@ pub const PII_PLACEHOLDER_PREFIX: &str = "[REDACTED_";
 
 /// One PII entity: `start..end` are byte offsets into the owning
 /// [`MaskedText::text`] (UTF-8 char boundaries), `label` the model's base
-/// label (`private_email`).
+/// label (`private_email`). Persisted as one element of a ClickHouse
+/// `Array(Tuple(start UInt32, end UInt32, label String))` column.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PiiMask {
     pub start: u32,
@@ -19,7 +23,8 @@ pub struct PiiMask {
 }
 
 /// The redactor's canonical compact re-serialization of one stringified-JSON
-/// text plus the PII ranges into it; the masks index this exact string.
+/// text plus the PII ranges into it. `text` must be stored byte-for-byte
+/// (no `sanitize_string`, no re-serialization) for the masks to hold.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MaskedText {
     pub text: String,
@@ -28,9 +33,45 @@ pub struct MaskedText {
 }
 
 impl MaskedText {
+    pub fn has_pii(&self) -> bool {
+        !self.masks.is_empty()
+    }
+
     /// `text` with `[REDACTED_<LABEL>]` spliced over every mask.
     pub fn redacted(&self) -> Result<String> {
         apply_masks(&self.text, &self.masks)
+    }
+
+    /// [`Self::redacted`] parsed back to JSON; `None` when the splice or the
+    /// parse fails.
+    pub fn redacted_value(&self) -> Option<Value> {
+        self.redacted()
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+    }
+
+    /// Errors like [`apply_masks`] would. Run before storing masks verbatim:
+    /// the ClickHouse splice assumes well-formed ranges and has no guard.
+    pub fn validate(&self) -> Result<()> {
+        validate_masks(&self.text, &self.masks)
+    }
+
+    /// What `dual` storage requires of a text stored verbatim: it is the JSON
+    /// the views hand out (a shared row is spliced into a message array, so
+    /// a non-JSON row would break the whole value) and its masks can be
+    /// spliced.
+    pub fn validate_for_storage(&self) -> Result<()> {
+        serde_json::from_str::<IgnoredAny>(&self.text)
+            .map_err(|e| anyhow!("canonical text is not JSON: {e}"))?;
+        self.validate()
+    }
+
+    /// Row-binary shape of the ClickHouse mask columns.
+    pub fn ch_masks(&self) -> Vec<(u32, u32, String)> {
+        self.masks
+            .iter()
+            .map(|m| (m.start, m.end, m.label.clone()))
+            .collect()
     }
 }
 
@@ -140,17 +181,31 @@ mod tests {
     }
 
     #[test]
-    fn masked_text_redacted() {
+    fn masked_text_helpers() {
         let clean = MaskedText {
             text: "\"x\"".into(),
             masks: vec![],
         };
+        assert!(!clean.has_pii());
         assert_eq!(clean.redacted().unwrap(), "\"x\"");
 
         let hit = MaskedText {
             text: "\"secret\"".into(),
             masks: vec![mask(1, 7, "secret")],
         };
+        assert!(hit.has_pii());
         assert_eq!(hit.redacted().unwrap(), "\"[REDACTED_SECRET]\"");
+        assert_eq!(hit.ch_masks(), vec![(1, 7, "secret".to_string())]);
+        assert_eq!(
+            hit.redacted_value(),
+            Some(Value::String("[REDACTED_SECRET]".into()))
+        );
+
+        // A malformed mask or a non-JSON result yields no value, never raw text.
+        let bad = MaskedText {
+            text: "\"secret\"".into(),
+            masks: vec![mask(5, 3, "secret")],
+        };
+        assert_eq!(bad.redacted_value(), None);
     }
 }
