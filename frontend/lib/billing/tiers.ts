@@ -177,14 +177,14 @@ export const formatSignalsCount = (tier: Tier): string =>
 export const formatSignalsOverage = (tier: Tier): string => {
   if (tier === "enterprise") return "Custom";
   if (tier === "free") return "—";
-  return `$${signalInputRate(tier)} / 1M input tokens, $${signalCacheReadRate(tier)} / 1M cached input tokens, $${signalOutputRate(tier)} / 1M output tokens`;
+  return `$${signalInputRate()} / 1M input tokens, $${signalCacheReadRate()} / 1M cached input tokens, $${signalOutputRate()} / 1M output tokens`;
 };
 
 // Compact form for comparison-table cells where the row label supplies context.
 export const formatSignalsOverageShort = (tier: Tier): string => {
   if (tier === "enterprise") return "Custom";
   if (tier === "free") return "—";
-  return `$${signalInputRate(tier)} / $${signalCacheReadRate(tier)} cached / $${signalOutputRate(tier)} per 1M tok`;
+  return `$${signalInputRate()} / $${signalCacheReadRate()} cached / $${signalOutputRate()} per 1M tok`;
 };
 
 export const formatSupport = (tier: Tier): string => `${TIERS[tier].support} support`;
