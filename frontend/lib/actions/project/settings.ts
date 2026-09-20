@@ -18,11 +18,13 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+import { PII_MODES } from "./types";
+
 export const ProjectSettingsSchema = z
   .object({
-    /// Route every span on this project through the pii-redactor before
-    /// storage. Pro-tier gated server-side.
-    removePii: z.boolean(),
+    /// PII handling for span input/output. Pro-tier gated server-side. Only
+    /// workspace owners/admins may change it (enforced in the settings route).
+    piiMode: z.enum(PII_MODES),
     /// Per-project manual overrides of eval-score direction (score name ->
     /// isHigherBetter). Layered over the app-wide LLM-inferred defaults.
     /// Frontend-only; the Rust app-server ignores this key. Write the FULL
@@ -39,9 +41,25 @@ export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 /// Defaults applied when the row's JSONB is missing a key. Mirror of the
 /// Rust `Default for ProjectSettings`.
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
-  removePii: false,
+  piiMode: "off",
   scoreDirectionOverrides: {},
 };
+
+/**
+ * Stored JSONB → typed settings. Unknown or malformed keys fall back to
+ * defaults. The pre-`piiMode` `removePii` toggle is not migrated: `true`
+ * reads as `redact` when `piiMode` is absent (the Rust reader applies the
+ * same fallback), and `updateProjectSettings` keeps it mirrored for
+ * app-server pods on the previous binary, which read only that boolean.
+ */
+export function parseStoredProjectSettings(raw: unknown): ProjectSettings {
+  const { removePii, ...rest } = (raw ?? {}) as Record<string, unknown>;
+  if (rest.piiMode === undefined && removePii === true) {
+    rest.piiMode = "redact";
+  }
+  const parsed = ProjectSettingsSchema.partial().safeParse(rest);
+  return { ...DEFAULT_PROJECT_SETTINGS, ...(parsed.success ? parsed.data : {}) };
+}
 
 export const UpdateProjectSettingsSchema = z.object({
   projectId: z.guid(),
@@ -49,9 +67,12 @@ export const UpdateProjectSettingsSchema = z.object({
   settings: ProjectSettingsSchema.partial(),
 });
 
-/// Per-key tier gate. A setting whose key is absent here is allowed on every
-/// tier; a present key requires the workspace tier to match the predicate.
-const PRO_TIER_KEYS = new Set<keyof ProjectSettings>(["removePii"]);
+/// Per-key tier gate: a present key requires the Pro tier whenever the
+/// predicate says the value turns the feature on. Keys absent here are
+/// allowed on every tier.
+const PRO_TIER_GATES: Partial<{ [K in keyof ProjectSettings]: (value: ProjectSettings[K]) => boolean }> = {
+  piiMode: (mode) => mode !== "off",
+};
 
 const PRO_LIKE_TIERS = new Set(["pro", "enterprise"]);
 
@@ -69,7 +90,10 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
   // gate doesn't apply there — skip it entirely off Laminar Cloud.
   const enablesGatedKey =
     isFeatureEnabled(Feature.LAMINAR_CLOUD) &&
-    (Object.keys(settings) as (keyof ProjectSettings)[]).some((k) => PRO_TIER_KEYS.has(k) && settings[k] === true);
+    (Object.keys(settings) as (keyof ProjectSettings)[]).some((k) => {
+      const gate = PRO_TIER_GATES[k] as ((value: unknown) => boolean) | undefined;
+      return gate !== undefined && settings[k] !== undefined && gate(settings[k]);
+    });
   if (enablesGatedKey) {
     const rows = await db
       .select({ tierName: subscriptionTiers.name })
@@ -87,12 +111,16 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
     }
   }
 
+  // Mirror `piiMode` into the legacy `removePii` so an app-server pod still on
+  // the previous binary, which reads only that boolean, follows the change.
+  const stored = settings.piiMode === undefined ? settings : { ...settings, removePii: settings.piiMode !== "off" };
+
   // JSONB `||` is the natural partial-update primitive — top-level keys in
   // the incoming object overwrite their counterparts in the stored object,
   // unspecified keys are left alone. No read-modify-write race.
   const result = await db
     .update(projects)
-    .set({ settings: sql`${projects.settings} || ${JSON.stringify(settings)}::jsonb` })
+    .set({ settings: sql`${projects.settings} || ${JSON.stringify(stored)}::jsonb` })
     .where(eq(projects.id, projectId));
   if (result.count === 0) {
     throw new Error("Project not found");

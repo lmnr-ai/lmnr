@@ -90,12 +90,12 @@ fn row(project_id: Uuid, content: &str) -> CHUniqueContent {
     }
 }
 
-fn opted_in(project_id: Uuid) -> HashSet<Uuid> {
-    HashSet::from([project_id])
+fn modes(project_id: Uuid, mode: Option<PiiMode>) -> HashMap<Uuid, Option<PiiMode>> {
+    HashMap::from([(project_id, mode)])
 }
 
 #[tokio::test]
-async fn project_not_opted_in_is_untouched_without_rpc() {
+async fn off_project_is_untouched_without_rpc() {
     let p = Uuid::new_v4();
     let mut spans = vec![span(p, Some(json!("secret")), None)];
     let mut rows = vec![row(p, "\"secret\"")];
@@ -107,12 +107,48 @@ async fn project_not_opted_in_is_untouched_without_rpc() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &HashSet::new(),
+        &modes(p, Some(PiiMode::Off)),
     )
     .await;
     assert!(redactor.calls.lock().unwrap().is_empty());
     assert_eq!(spans[0].input, Some(json!("secret")));
     assert_eq!(rows[0].content, "\"secret\"");
+}
+
+#[tokio::test]
+async fn failed_settings_lookup_skips_the_project() {
+    let p = Uuid::new_v4();
+    let mut spans = vec![span(p, Some(json!("secret")), None)];
+    let redactor = FakeRedactor::new(false);
+    redact_spans_in_place(
+        &redactor,
+        &mut spans,
+        &mut [],
+        &mut [vec![]],
+        &mut [vec![]],
+        &[0],
+        &modes(p, None),
+    )
+    .await;
+    assert!(redactor.calls.lock().unwrap().is_empty());
+    assert_eq!(spans[0].input, Some(json!("secret")));
+}
+
+#[tokio::test]
+async fn dual_is_ingested_like_redact_for_now() {
+    let p = Uuid::new_v4();
+    let mut spans = vec![span(p, Some(json!("a secret")), None)];
+    redact_spans_in_place(
+        &FakeRedactor::new(false),
+        &mut spans,
+        &mut [],
+        &mut [vec![]],
+        &mut [vec![]],
+        &[0],
+        &modes(p, Some(PiiMode::Dual)),
+    )
+    .await;
+    assert_eq!(spans[0].input, Some(json!("a [REDACTED_SECRET]")));
 }
 
 #[tokio::test]
@@ -128,7 +164,7 @@ async fn masks_are_spliced_into_every_buffer() {
         &mut tn_in,
         &mut [vec![]],
         &[0],
-        &opted_in(p),
+        &modes(p, Some(PiiMode::Redact)),
     )
     .await;
     assert_eq!(spans[0].input, Some(json!("a [REDACTED_SECRET]")));
@@ -150,7 +186,7 @@ async fn span_text_is_sanitized_before_the_rpc() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &opted_in(p),
+        &modes(p, Some(PiiMode::Redact)),
     )
     .await;
     let calls = redactor.calls.lock().unwrap();
@@ -170,7 +206,7 @@ async fn rpc_failure_leaves_every_buffer_untouched() {
         &mut tn_in,
         &mut [vec![]],
         &[0],
-        &opted_in(p),
+        &modes(p, Some(PiiMode::Redact)),
     )
     .await;
     assert_eq!(spans[0].input, Some(json!("secret")));
@@ -192,7 +228,7 @@ async fn malformed_masks_leave_the_field_as_is() {
         &mut [vec![]],
         &mut [vec![]],
         &[0],
-        &opted_in(p),
+        &modes(p, Some(PiiMode::Redact)),
     )
     .await;
     assert_eq!(spans[0].input, Some(json!("secret")));

@@ -21,7 +21,7 @@ use crate::{
     db::{DB, debugger_session_blocks, spans::Span, workspaces::WorkspaceDeployment},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
-    pii_redactor::{PiiRedactorClient, redact_spans_in_place, resolve_opted_in_projects},
+    pii_redactor::{PiiRedactorClient, redact_spans_in_place, resolve_project_pii_modes},
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
@@ -404,18 +404,18 @@ pub async fn process_span_messages(
         )
     };
 
-    // Project-level PII redaction. Triggered by `projects.settings.removePii`
+    // Project-level PII redaction. Driven by `projects.settings.piiMode`
     // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup and
     // BEFORE the `unique_content` insert / Quickwit indexing so every
     // storage tier holds the redacted content. Already-seen-in-trace messages
     // were redacted on first emit and ride the wire as hashes only. The
-    // redactor walks every shared row of opted-in projects (so tool defs ARE
+    // redactor walks every shared row of `redact`/`dual` projects (so tool defs ARE
     // redacted along with messages — acceptable, the redactor is no-op on
     // schemas) plus the per-span Quickwit content. Best-effort: failures are
     // logged inside `redact_spans_in_place` and do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
-        let opted_in =
-            resolve_opted_in_projects(&spans, &recordable_indices, db.clone(), cache.clone()).await;
+        let modes =
+            resolve_project_pii_modes(&spans, &recordable_indices, db.clone(), cache.clone()).await;
         redact_spans_in_place(
             redactor,
             &mut spans,
@@ -423,7 +423,7 @@ pub async fn process_span_messages(
             &mut input_batch.span_trace_new_contents,
             &mut output_batch.span_trace_new_contents,
             &recordable_indices,
-            &opted_in,
+            &modes,
         )
         .await;
     }

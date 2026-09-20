@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::Arc;
 
@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::cache::Cache;
 use crate::ch::unique_content::CHUniqueContent;
 use crate::db::DB;
+use crate::db::projects::PiiMode;
 use crate::db::spans::Span;
 use crate::utils::limits::get_workspace_info_for_project_id;
 use crate::utils::sanitize_string;
@@ -92,36 +93,48 @@ enum Dir {
     Output,
 }
 
-/// Resolve `settings.remove_pii` for every unique project in `recordable_indices`,
-/// going through the cached billing-info path so repeat batches are free.
-/// Returns the set of opted-in project ids — empty set means "no work".
-pub async fn resolve_opted_in_projects(
+/// PII mode for every unique project in `recordable_indices`, through the
+/// cached billing-info path so repeat batches are free. `None` means the
+/// lookup failed: the caller cannot tell whether the project is protected,
+/// so its spans are skipped.
+pub async fn resolve_project_pii_modes(
     spans: &[Span],
     recordable_indices: &[usize],
     db: Arc<DB>,
     cache: Arc<Cache>,
-) -> HashSet<Uuid> {
+) -> HashMap<Uuid, Option<PiiMode>> {
     let unique: HashSet<Uuid> = recordable_indices
         .iter()
         .map(|&i| spans[i].project_id)
         .collect();
-    let mut opted_in: HashSet<Uuid> = HashSet::with_capacity(unique.len());
+    let mut modes = HashMap::with_capacity(unique.len());
     for project_id in unique {
-        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(Some(info)) if info.settings.remove_pii => {
-                opted_in.insert(project_id);
-            }
-            Ok(_) => {}
-            Err(e) => {
-                log::warn!("pii-redactor: lookup project[{project_id}] settings: {e:#}");
-            }
-        }
+        let mode =
+            match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
+                Ok(Some(info)) => Some(info.settings.pii_mode()),
+                // Unknown project: nothing to protect.
+                Ok(None) => Some(PiiMode::Off),
+                Err(e) => {
+                    log::warn!("pii-redactor: lookup project[{project_id}] settings: {e:#}");
+                    None
+                }
+            };
+        modes.insert(project_id, mode);
     }
-    opted_in
+    modes
+}
+
+/// Whether the project's spans go through the redactor. `dual` is ingested
+/// like `redact` until the mask columns exist.
+fn is_redacted(project_modes: &HashMap<Uuid, Option<PiiMode>>, project_id: &Uuid) -> bool {
+    matches!(
+        project_modes.get(project_id),
+        Some(Some(PiiMode::Redact | PiiMode::Dual))
+    )
 }
 
 /// Redact `span.input` / `span.output` for every span whose project is in
-/// `opted_in`. Three buffer kinds are redacted in lockstep:
+/// `redact` or `dual` mode. Three buffer kinds are redacted in lockstep:
 ///
 /// - **Whole `span.input` / `span.output`**: kept on root spans for the
 ///   trace-list preview and on non-LLM / non-array-input spans.
@@ -171,9 +184,12 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
     input_trace_new_contents: &mut [Vec<String>],
     output_trace_new_contents: &mut [Vec<String>],
     recordable_indices: &[usize],
-    opted_in: &HashSet<Uuid>,
+    project_modes: &HashMap<Uuid, Option<PiiMode>>,
 ) {
-    if opted_in.is_empty() {
+    if !project_modes
+        .values()
+        .any(|m| matches!(m, Some(PiiMode::Redact | PiiMode::Dual)))
+    {
         return;
     }
 
@@ -181,7 +197,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
     let mut texts: Vec<String> = Vec::new();
 
     for (idx, row) in shared_content.iter().enumerate() {
-        if opted_in.contains(&row.project_id) {
+        if is_redacted(project_modes, &row.project_id) {
             targets.push(Target::SharedRow(idx));
             texts.push(row.content.clone());
         }
@@ -189,7 +205,7 @@ pub async fn redact_spans_in_place<R: RedactTexts>(
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         let span = &spans[span_idx];
-        if !opted_in.contains(&span.project_id) {
+        if !is_redacted(project_modes, &span.project_id) {
             continue;
         }
 
