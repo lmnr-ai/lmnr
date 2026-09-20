@@ -48,29 +48,16 @@ interface TierData {
   support: "Community" | "Email" | "Slack" | "Dedicated";
 }
 
-// Published per-million-token rates for signal cost overage, in USD. These are
-// the advertised defaults shown on every pricing surface and match the
-// app-server defaults (`SIGNAL_*_TOKEN_PRICE_PER_MILLION` in
-// `app-server/src/env/private/signals.rs`). They apply to every tier except Pro,
-// which is metered at the discounted `PRO_*` rates below.
-export const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.5;
-export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 3;
-// Pro gets discounted signal token rates to stay attractive for scale-ups
-// running Signals over a large share of their traffic. These feed the actual
-// metering path (`signalTokenCostMicroUsd` + app-server
-// `signal_token_cost_micro_usd`), so Pro accumulated cost matches what the
-// workspace is billed — metering Pro at the standard rate would over-count and
-// trip hard limits / soft warnings before the workspace reaches its budget.
-// Mirror `PRO_SIGNAL_*_TOKEN_PRICE_PER_MILLION` in `app-server/src/env/private/signals.rs`.
-export const PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.4;
-export const PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 2.5;
-// Cache-read input tokens are a subset of the input total billed at a
-// discounted rate (0.1x input by default). Mirrors
-// `SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION` in
-// `app-server/src/env/private/signals.rs`. Pro's cache-read rate is the same
-// $0.05 by default but is independently overridable.
-export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.05;
-export const PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.05;
+// Published per-million-token rates for signal cost overage, in USD. Every
+// tier currently uses the same defaults. Keep these aligned with the app-server
+// signal pricing env defaults before enabling the rates for production billing.
+export const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
+export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
+export const PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
+export const PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
+// Cache-read tokens are a subset of input and cost 0.1x the fresh-input rate.
+export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.005;
+export const PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.005;
 
 // Mirror the app-server `env::var(...).parse().ok().unwrap_or(DEFAULT)` logic:
 // an unset or unparseable override falls back to the published default, a valid
@@ -83,8 +70,7 @@ const resolveRate = (raw: string | undefined, fallback: number): number => {
 };
 
 // Cost in micro-USD (1e-6 USD) of the given signal token spend, priced at the
-// per-token rate for `tier` (Pro is discounted; every other tier uses the
-// standard rate). Tokens are persisted raw and priced at read time so a future
+// configured rate for `tier`. Tokens are persisted raw and priced at read time so a future
 // rate change re-prices history. `inputTokens` is the provider prompt total and
 // *includes* `cacheReadTokens` as a subset; the cached portion is split out and
 // billed at the discounted cache rate while only the fresh remainder is billed
@@ -167,12 +153,14 @@ export const TIERS: Record<Tier, TierData> = {
 // Display order for surfaces that render tiers as columns/cards.
 export const TIER_ORDER: Tier[] = ["free", "hobby", "pro", "enterprise"];
 
-// Per-tier published signal token rates (USD / 1M tokens) for pricing-surface
-// display. Pro is discounted to stay attractive at scale; everyone else is on
-// the standard rate. The metering path (`signalTokenCostMicroUsd`) applies the
-// same per-tier rate — see the comment on `PRO_SIGNAL_*_TOKEN_PRICE_PER_MILLION`.
+// Per-tier published signal token rates (USD / 1M tokens) for pricing surfaces.
+// The tier-specific constants remain separate so future rates can diverge without
+// changing callers, but all self-serve tiers currently display the same rates.
 export const signalInputRate = (tier: Tier): number =>
   tier === "pro" ? PRO_SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION : SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION;
+
+export const signalCacheReadRate = (tier: Tier): number =>
+  tier === "pro" ? PRO_SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION : SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION;
 
 export const signalOutputRate = (tier: Tier): number =>
   tier === "pro" ? PRO_SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION : SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION;
@@ -201,21 +189,20 @@ export const formatDataOverage = (tier: Tier): string => {
 export const formatSignalsCount = (tier: Tier): string =>
   tier === "enterprise" ? "Custom" : `$${TIERS[tier].includedSignalCostUsd}`;
 
-// "$0.50 / 1M input tokens, $3 / 1M output tokens" — overage past the included
-// signal budget is billed at the per-million-token rates. Used by cards-style
-// surfaces (landing pricing cards, onboarding plans, workspace billing cards).
+// Overage past the included signal budget is billed at per-million-token rates.
+// Cached input is listed separately because it is a subset of input charged at
+// the lower cache-read rate.
 export const formatSignalsOverage = (tier: Tier): string => {
   if (tier === "enterprise") return "Custom";
   if (tier === "free") return "—";
-  return `$${signalInputRate(tier)} / 1M input tokens, $${signalOutputRate(tier)} / 1M output tokens`;
+  return `$${signalInputRate(tier)} / 1M input tokens, $${signalCacheReadRate(tier)} / 1M cached input tokens, $${signalOutputRate(tier)} / 1M output tokens`;
 };
 
-// "$0.50 / $3 per 1M tok" — compact form for the comparison-table column cells
-// where the row label already supplies context and column width is tight.
+// Compact form for comparison-table cells where the row label supplies context.
 export const formatSignalsOverageShort = (tier: Tier): string => {
   if (tier === "enterprise") return "Custom";
   if (tier === "free") return "—";
-  return `$${signalInputRate(tier)} / $${signalOutputRate(tier)} per 1M tok`;
+  return `$${signalInputRate(tier)} / $${signalCacheReadRate(tier)} cached / $${signalOutputRate(tier)} per 1M tok`;
 };
 
 export const formatSupport = (tier: Tier): string => `${TIERS[tier].support} support`;

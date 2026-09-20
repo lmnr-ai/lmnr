@@ -18,6 +18,6 @@ test("uses the 1M bucket for 1M and larger traces", () => {
 
 test("prices landing estimates with unified rates and cached prompt adjustment", () => {
   // At 1M: fresh input = 68,804 - 4,000 - 38,752 = 26,052.
-  const expectedPerRun = (26_052 * 0.04 + 38_752 * 0.004 + 6_760 * 0.24) / 1_000_000;
+  const expectedPerRun = (26_052 * 0.05 + 38_752 * 0.005 + 6_760 * 0.3) / 1_000_000;
   assert.ok(Math.abs(estimateSignalCostUsd(1_000, 1_000_000, 50) - expectedPerRun * 500) < 1e-12);
 });
