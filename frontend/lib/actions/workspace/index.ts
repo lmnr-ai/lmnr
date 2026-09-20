@@ -6,7 +6,7 @@ import { deleteProject } from "@/lib/actions/project";
 import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
-import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
+import { cache, MEMBER_ROLE_CACHE_KEY, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -212,6 +212,10 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
     .set({ memberRole: role })
     .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)));
 
+  await cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, userId)).catch((e) => {
+    console.error("Error clearing member role cache after role update", e);
+  });
+
   return { success: true, message: "User role updated successfully" };
 };
 
@@ -250,6 +254,12 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
       .where(and(eq(membersOfWorkspaces.userId, newOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
   });
 
+  await Promise.all(
+    [currentOwnerId, newOwnerId].map((id) => cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, id)))
+  ).catch((e) => {
+    console.error("Error clearing member role cache after ownership transfer", e);
+  });
+
   return { success: true };
 }
 
@@ -273,6 +283,7 @@ export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSc
 
   try {
     await cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId));
+    await cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, userId));
 
     const workspaceProjects = await db.query.projects.findMany({
       where: eq(projects.workspaceId, workspaceId),
