@@ -288,7 +288,14 @@ impl LaminarMcpServer {
         use crate::signals::private::spans::get_trace_ch_spans;
         use crate::traces::previews::PreviewExtractor;
 
-        let spans = get_trace_ch_spans(self.clickhouse.clone(), project_id, trace_id).await?;
+        // Project API keys are admin-level credentials (docs/internal/rbac.md).
+        let spans = get_trace_ch_spans(
+            self.clickhouse.clone(),
+            project_id,
+            trace_id,
+            &AccessPolicy::UNRESTRICTED,
+        )
+        .await?;
         if spans.is_empty() {
             return Ok(format!(
                 "No spans found for trace {trace_id}. Either the trace does not exist in this project or there are no spans in the trace."
@@ -379,6 +386,8 @@ impl LaminarMcpServer {
             system_note: None,
             source: AgentSource::Mcp,
             user_external_id: None,
+            // Same admin-level credential as every other MCP tool.
+            policy: AccessPolicy::UNRESTRICTED,
         };
 
         // Persistence mode: the agent loop loads prior history; send only the new user turn. `_rx` is
