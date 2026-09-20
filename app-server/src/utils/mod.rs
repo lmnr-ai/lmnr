@@ -16,17 +16,15 @@ use crate::{db::projects::WorkspaceTierName, env::private::signals};
 /// cached portion is split out and billed at the cheaper cache rate; only the
 /// remaining fresh input is billed at the input rate.
 ///
-/// Pro workspaces are metered at the discounted Pro rates so accumulated cost
-/// matches the cheaper rates they're actually billed at; every other tier uses
-/// the standard rate. Metering Pro at the standard rate would over-count and
-/// trip hard limits / soft warnings before the workspace reaches its budget.
+/// The metering path remains tier-aware even while the published defaults are
+/// unified, so operators can override Pro and standard rates independently.
 ///
 /// Tokens are persisted raw and cost is derived here at read time, so a future
 /// rate change re-prices historical runs. Micro-USD keeps billing arithmetic
 /// in integers: it's the unit compared against tier allowances, cached, and
 /// reported to Stripe (divided back to dollars only at the meter boundary).
-/// At the default rates one fresh input token costs 0.5 µ$, one cached-read
-/// token 0.05 µ$, and one output token 3 µ$.
+/// At the default rates one fresh input token costs 0.05 µ$, one cached-read
+/// token 0.005 µ$, and one output token 0.3 µ$.
 #[cfg(feature = "signals")]
 pub fn signal_token_cost_micro_usd(
     input_tokens: u64,

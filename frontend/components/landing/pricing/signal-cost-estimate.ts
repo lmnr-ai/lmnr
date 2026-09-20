@@ -1,8 +1,8 @@
 // Landing-calculator estimates only. These rates intentionally do not feed
 // billing metering; update them when the public estimate or measured data changes.
-const ESTIMATE_INPUT_RATE_PER_MILLION = 0.04;
-const ESTIMATE_CACHE_READ_RATE_PER_MILLION = 0.004;
-const ESTIMATE_OUTPUT_RATE_PER_MILLION = 0.24;
+const ESTIMATE_INPUT_RATE_PER_MILLION = 0.05;
+const ESTIMATE_CACHE_READ_RATE_PER_MILLION = 0.005;
+const ESTIMATE_OUTPUT_RATE_PER_MILLION = 0.3;
 const CACHED_SYSTEM_PROMPT_TOKENS = 4_000;
 
 interface SignalTokenEstimate {
