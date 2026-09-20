@@ -2,7 +2,7 @@ import { addMonths } from "date-fns";
 import { eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
+import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 import {
   cache,
   WORKSPACE_BYTES_USAGE_CACHE_KEY,
@@ -28,7 +28,6 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   }
 
   const workspace = workspaceRows[0];
-  const tier = normalizeTier(workspace.tierName);
 
   const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
@@ -66,7 +65,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
 
   let totalSignalCostMicroUsd =
     signalInputTokens !== null && signalCacheReadTokens !== null && signalOutputTokens !== null
-      ? signalTokenCostMicroUsd(signalInputTokens, signalCacheReadTokens, signalOutputTokens, tier)
+      ? signalTokenCostMicroUsd(signalInputTokens, signalCacheReadTokens, signalOutputTokens)
       : null;
 
   // If both came from cache, return early
@@ -138,8 +137,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
         ? signalTokenCostMicroUsd(
             Number(signalRunsRows[0].inputTokens),
             Number(signalRunsRows[0].cacheReadTokens),
-            Number(signalRunsRows[0].outputTokens),
-            tier
+            Number(signalRunsRows[0].outputTokens)
           )
         : 0;
   }
