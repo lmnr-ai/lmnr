@@ -1387,27 +1387,30 @@ fn main() -> anyhow::Result<()> {
     // == PII redactor ==
     // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
     // redacted via the pii-redactor gRPC service for projects whose
-    // `settings.piiMode` is not `off`. Failure to connect at startup
-    // disables the feature without blocking app-server boot.
+    // `settings.piiMode` is not `off`. The channel connects lazily and
+    // reconnects on its own: a redactor still rolling out when this pod boots
+    // must not disable redaction for the pod's lifetime. While it is
+    // unreachable, each batch's RPC fails and its rows are stored unchecked
+    // (fail-closed for `dual`), which `redact_spans_in_place` logs per batch.
     let pii_redactor: Option<pii_redactor::PiiRedactorClient> = if is_feature_enabled(
         Feature::PiiRedaction,
     ) {
         let url = std::env::var(env::connections::PII_REDACTOR_URL)
             .expect("PII_REDACTOR_URL must be set");
-        match runtime_handle.block_on(
-                pii_redactor::pii_redactor::pii_redactor_service_client::PiiRedactorServiceClient::connect(url.clone()),
-            ) {
-                Ok(client) => {
-                    log::info!("pii-redactor client connected to {url}");
-                    Some(pii_redactor::PiiRedactorClient::new(client))
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to connect to pii-redactor at {url} (PII redaction disabled): {e:?}"
-                    );
-                    None
-                }
+        match tonic::transport::Endpoint::from_shared(url.clone()) {
+            Ok(endpoint) => {
+                log::info!("pii-redactor client configured for {url}");
+                Some(pii_redactor::PiiRedactorClient::new(
+                    pii_redactor::pii_redactor::pii_redactor_service_client::PiiRedactorServiceClient::new(
+                        endpoint.connect_lazy(),
+                    ),
+                ))
             }
+            Err(e) => {
+                log::error!("Invalid PII_REDACTOR_URL {url} (PII redaction disabled): {e:?}");
+                None
+            }
+        }
     } else {
         None
     };
