@@ -184,7 +184,7 @@ export const formatSignalsOverage = (tier: Tier): string => {
 export const formatSignalsOverageShort = (tier: Tier): string => {
   if (tier === "enterprise") return "Custom";
   if (tier === "free") return "—";
-  return `$${signalInputRate()} / $${signalCacheReadRate()} cached / $${signalOutputRate()} per 1M tok`;
+  return `$${signalInputRate()} per 1M input tok\n$${signalCacheReadRate()} per 1M cached input tok\n$${signalOutputRate()} per 1M output tok`;
 };
 
 export const formatSupport = (tier: Tier): string => `${TIERS[tier].support} support`;

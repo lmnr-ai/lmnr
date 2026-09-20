@@ -80,5 +80,5 @@ function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
 function FeatureCell({ value }: { value: FeatureValue }) {
   if (value === true) return <Check className="size-4 text-foreground-50" strokeWidth={2.5} />;
   if (value === false || value === null) return <Minus className="size-4 text-foreground-500" />;
-  return <span>{value}</span>;
+  return <span className="whitespace-pre-line">{value}</span>;
 }

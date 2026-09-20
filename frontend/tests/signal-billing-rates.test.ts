@@ -14,5 +14,8 @@ test("shows input, cached-input, and output overage rates", () => {
     formatSignalsOverage("pro"),
     "$0.05 / 1M input tokens, $0.005 / 1M cached input tokens, $0.3 / 1M output tokens"
   );
-  assert.equal(formatSignalsOverageShort("pro"), "$0.05 / $0.005 cached / $0.3 per 1M tok");
+  assert.equal(
+    formatSignalsOverageShort("pro"),
+    "$0.05 per 1M input tok\n$0.005 per 1M cached input tok\n$0.3 per 1M output tok"
+  );
 });
