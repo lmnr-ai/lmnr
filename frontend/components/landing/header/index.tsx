@@ -80,7 +80,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           <div className={cn("flex md:gap-3 items-center", "gap-2")}>
             {hasSession ? (
               <Link href="/projects">
-                <LandingButton variant="outline" size="xs">
+                <LandingButton variant="outline" size="xs" className="py-2 sm:py-1 px-4 sm:px-3">
                   Dashboard
                 </LandingButton>
               </Link>

@@ -8,7 +8,8 @@ import { PANELS } from "./panel-layout";
 import { type TraceViewPanels } from "./trace-view-panels";
 
 const DEFAULT_TRACE_FRACTION = 0.6;
-const STACK_THRESHOLD = 760;
+// Below this container width the span takes over the whole column (see `stacked`).
+export const STACK_THRESHOLD = 760;
 // Ease the stack collapse (→0); keep resize/expand instant so the panel tracks the cursor 1:1.
 const instant = { duration: 0 } as const;
 const eased = { duration: 0.2, ease: "easeOut" } as const;

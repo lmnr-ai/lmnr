@@ -1,30 +1,20 @@
 "use client";
 
-import { CirclePlay, Radio } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect } from "react";
+import { shallow } from "zustand/shallow";
 
-import Header from "@/components/shared/traces/header";
-import SharedPageHeader from "@/components/shared/traces/page-header";
-import SessionPlayer from "@/components/shared/traces/session-player";
+import LandingHeader from "@/components/landing/header";
 import { SpanView } from "@/components/shared/traces/span-view";
-import { TraceStatsShields } from "@/components/traces/stats-shields";
-import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
-import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
-import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import TracePanel from "@/components/shared/traces/trace-panel";
+import FillWidthLayout, { STACK_THRESHOLD } from "@/components/traces/trace-view/fill-width-layout";
 import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import Transcript from "@/components/traces/trace-view/transcript";
-import Tree from "@/components/traces/trace-view/tree";
 import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
-import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { cn } from "@/lib/utils";
 
 interface TraceViewProps {
   trace: TraceViewTrace;
@@ -40,55 +30,21 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
   const router = useRouter();
   const pathName = usePathname();
 
-  const {
-    tab,
-    setSpans,
-    setTrace,
-    selectedSpan,
-    setSelectedSpan,
-    browserSession,
-    setBrowserSession,
-    setLangGraph,
-    langGraph,
-    getHasLangGraph,
-    hasBrowserSession,
-    setHasBrowserSession,
-    condensedTimelineEnabled,
-    condensedTimelineVisibleSpanIds,
-    isResizing,
-    setIsResizing,
-    traceSignals,
-    signalsPanelOpen,
-    setSignalsPanelOpen,
-  } = useTraceViewStore((state) => ({
-    tab: state.tab,
-    setSpans: state.setSpans,
-    setTrace: state.setTrace,
-    selectedSpan: state.selectedSpan,
-    setSelectedSpan: state.setSelectedSpan,
-    browserSession: state.browserSession,
-    setBrowserSession: state.setBrowserSession,
-    setLangGraph: state.setLangGraph,
-    langGraph: state.langGraph,
-    getHasLangGraph: state.getHasLangGraph,
-    hasBrowserSession: state.hasBrowserSession,
-    setHasBrowserSession: state.setHasBrowserSession,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    isResizing: state.isResizing,
-    setIsResizing: state.setIsResizing,
-    traceSignals: state.traceSignals,
-    signalsPanelOpen: state.signalsPanelOpen,
-    setSignalsPanelOpen: state.setSignalsPanelOpen,
-  }));
+  const { setSpans, setTrace, selectedSpan, setSelectedSpan, spanPanelOpen, setBrowserSession, setHasBrowserSession } =
+    useTraceViewStore(
+      (state) => ({
+        setSpans: state.setSpans,
+        setTrace: state.setTrace,
+        selectedSpan: state.selectedSpan,
+        setSelectedSpan: state.setSelectedSpan,
+        spanPanelOpen: state.spanPanelOpen,
+        setBrowserSession: state.setBrowserSession,
+        setHasBrowserSession: state.setHasBrowserSession,
+      }),
+      shallow
+    );
 
   useTraceSignals(`/api/shared/traces/${trace.id}/signals`);
-
-  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
-  const filteredSpansForStats = useMemo(() => {
-    if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
-    return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-  }, [spans, condensedTimelineVisibleSpanIds]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -102,6 +58,15 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
     [pathName, router, searchParams, setSelectedSpan]
   );
 
+  const handleSpanPanelClose = useCallback(() => {
+    setSelectedSpan(undefined);
+    if (searchParams.has("spanId")) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("spanId");
+      router.replace(`${pathName}?${params.toString()}`);
+    }
+  }, [setSelectedSpan, searchParams, router, pathName]);
+
   useEffect(() => {
     if (trace.hasBrowserSession) {
       setHasBrowserSession(true);
@@ -110,141 +75,43 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
   }, []);
 
   useEffect(() => {
-    const enrichedSpans = enrichSpansWithPending(spans);
-    setSpans(enrichedSpans);
+    setSpans(enrichSpansWithPending(spans));
     setTrace(trace);
 
     const spanId = searchParams.get("spanId");
-    const span = spans?.find((s) => s.spanId === spanId) || spans?.[0];
-
+    const linkedSpan = spanId ? spans.find((s) => s.spanId === spanId) : undefined;
+    // Auto-select only on the full page (container = viewport) when the layout won't stack.
+    const span = linkedSpan ?? (!onClose && window.innerWidth >= STACK_THRESHOLD ? spans[0] : undefined);
     if (span) {
       setSelectedSpan({ ...span, collapsed: false });
     }
   }, []);
 
+  const panels = {
+    tracePanel: <TracePanel trace={trace} spans={spans} onClose={onClose} onSpanSelect={handleSpanSelect} />,
+    spanPanel: selectedSpan ? (
+      <SpanView
+        key={selectedSpan.spanId}
+        spanId={selectedSpan.spanId}
+        traceId={trace.id}
+        onClose={handleSpanPanelClose}
+      />
+    ) : null,
+    showSpan: spanPanelOpen,
+  };
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {!onClose && <SharedPageHeader hasSession={hasSession} />}
-      <ResizablePanelGroup
-        id="shared-trace-horizontal"
-        orientation="horizontal"
-        className="h-full w-full overflow-hidden"
-      >
-        <ResizablePanel id="shared-trace" defaultSize="50%" className="flex flex-col h-full overflow-hidden">
-          <Header onClose={onClose} />
-          <ResizablePanelGroup
-            id="shared-trace-panels"
-            orientation="vertical"
-            // Drop pointer events on the group during a resize so the rrweb session
-            // player iframe can't swallow the drag's pointer stream (see trace-panel).
-            // `flex-1 min-h-0` so the group yields height to the header when the
-            // signals card opens above it rather than overflowing the column.
-            className={cn("flex-1 min-h-0", isResizing && "pointer-events-none")}
-          >
-            {condensedTimelineEnabled && (
-              <>
-                <ResizablePanel defaultSize={200} minSize={80}>
-                  <div className="border-t h-full">
-                    <CondensedTimeline />
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle
-                  onDragChange={setIsResizing}
-                  className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
-                />
-              </>
-            )}
-            <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-              <div
-                className={cn(
-                  "flex items-center gap-2 pb-2  border-b box-border transition-[padding] duration-200",
-                  condensedTimelineEnabled ? "pl-2 pr-2" : "pl-2 pr-[96px]",
-                  {
-                    "pt-2": !onClose || condensedTimelineEnabled,
-                  }
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <ViewDropdown tabs={["tree", "transcript"]} />
-                    <TraceStatsShields
-                      className="min-w-0 overflow-hidden"
-                      trace={trace}
-                      spans={filteredSpansForStats}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {/* The full-page variant has no header row, so Signals sits in the
-                        stats row and takes Media's labelled-pill styling instead of the
-                        header's icon-only HeaderIconButton. */}
-                    {traceSignals.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        className={cn(
-                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
-                          signalsPanelOpen && "text-primary hover:text-primary"
-                        )}
-                        onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                      >
-                        <Radio data-icon="inline-start" size={14} className="flex-shrink-0" />
-                        <span className="ml-1 truncate">Signals ({traceSignals.length})</span>
-                      </Button>
-                    )}
-                    {hasBrowserSession && (
-                      <Button
-                        variant="ghost"
-                        className={cn(
-                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
-                          browserSession && "text-primary hover:text-primary"
-                        )}
-                        onClick={() => setBrowserSession(!browserSession)}
-                      >
-                        <CirclePlay data-icon="inline-start" size={14} className="flex-shrink-0" />
-                        <span className="ml-1 truncate">Media</span>
-                      </Button>
-                    )}
-                    {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
-                  </div>
-                </div>
-              </div>
-              {tab === "tree" ? (
-                <div className="flex flex-1 h-full overflow-hidden relative">
-                  <Tree onSpanSelect={handleSpanSelect} isShared />
-                </div>
-              ) : (
-                // Falls back to transcript for any other persisted tab value
-                // ("custom" is not available on the shared page).
-                <div className="flex flex-1 h-full overflow-hidden relative">
-                  <Transcript onSpanSelect={handleSpanSelect} isShared />
-                </div>
-              )}
-            </ResizablePanel>
-            {browserSession && hasBrowserSession && (
-              <>
-                <ResizableHandle onDragChange={setIsResizing} className="z-50" withHandle />
-                <ResizablePanel>
-                  <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />
-                </ResizablePanel>
-              </>
-            )}
-            {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-          </ResizablePanelGroup>
-        </ResizablePanel>
-        <ResizableHandle
-          onDragChange={setIsResizing}
-          className="hover:bg-blue-400 z-10 transition-colors hover:scale-200"
-        />
-        <ResizablePanel id="shared-span" className="flex flex-col h-full overflow-hidden">
-          {selectedSpan ? (
-            <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
-          ) : (
-            <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
-              <span className="text-xl font-medium mb-2">No span selected</span>
-              <span className="text-base">Select a span from the trace tree to view its details</span>
-            </div>
-          )}
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      {!onClose && (
+        <div className="flex-none border-b">
+          {/* py-4 keeps the header at the 60px the mobile menu overlay is pinned to. */}
+          <LandingHeader hasSession={hasSession} className="w-full px-4 py-4 md:px-6" />
+        </div>
+      )}
+      {/* isolate: inner z-indexed handles must not cover the header's mobile menu overlay. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden isolate">
+        <FillWidthLayout panels={panels} />
+      </div>
     </div>
   );
 };
