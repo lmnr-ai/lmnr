@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
+import { z } from "zod/v4";
 
 import {
   buildEvalQuery,
@@ -21,6 +22,9 @@ import {
 } from "@/lib/evaluation/types";
 
 export async function getSharedEvaluation({ evaluationId }: { evaluationId: string }) {
+  // Non-UUID → not found, rather than a Postgres cast error (500) in every caller.
+  if (!z.guid().safeParse(evaluationId).success) return undefined;
+
   const publicEval = await db.query.sharedEvals.findFirst({
     where: eq(sharedEvals.id, evaluationId),
   });

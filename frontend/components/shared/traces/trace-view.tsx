@@ -95,7 +95,7 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
       if (span) {
         const params = new URLSearchParams(searchParams);
         params.set("spanId", span.spanId);
-        router.push(`${pathName}?${params.toString()}`);
+        router.replace(`${pathName}?${params.toString()}`);
       }
       setSelectedSpan(span);
     },
