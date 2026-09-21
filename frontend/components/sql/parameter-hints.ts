@@ -1,7 +1,8 @@
-import { type Extension, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { EditorState, type Extension, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 
 import { findParameterRefs, isParameterUnset, type ParameterRef, type SQLParameter } from "@/components/sql/parameters";
+import { setSignatureTooltip } from "@/components/ui/content-renderer/lang-clickhouse";
 
 export interface ParameterHints {
   parameters: SQLParameter[];
@@ -75,6 +76,19 @@ const refAt = (view: EditorView, pos: number): ParameterRef | null =>
   findParameterRefs(view.state.doc.toString()).find((ref) => pos > ref.from && pos < ref.to) ?? null;
 
 /**
+ * A placeholder is a bound value, not an argument being authored, so the enclosing call's signature
+ * help is noise there — and it otherwise pops up behind the value input for the whole mousedown.
+ * Appending the effect beats dismissing it afterwards: the signature field checks effects before it
+ * recomputes from the caret, and the caret is set on mousedown, one transaction ahead of any click.
+ */
+const suppressSignatureHelpInsidePlaceholder = EditorState.transactionExtender.of((tr) => {
+  if (!tr.selection && !tr.docChanged) return null;
+  const pos = tr.newSelection.main.head;
+  const inside = findParameterRefs(tr.newDoc.toString()).some((ref) => pos > ref.from && pos < ref.to);
+  return inside ? { effects: setSignatureTooltip.of(null) } : null;
+});
+
+/**
  * Returns `false` so CodeMirror still places the caret — that is what makes hijacking click
  * acceptable, since Escape then leaves you positioned to edit the placeholder's text. On `click`
  * rather than `mousedown` so a drag or shift-click through a placeholder has already set a selection.
@@ -98,4 +112,9 @@ const revealOnClick = EditorView.domEventHandlers({
   },
 });
 
-export const parameterHints: Extension = [parameterHintsField, parameterDecorations, revealOnClick];
+export const parameterHints: Extension = [
+  parameterHintsField,
+  parameterDecorations,
+  revealOnClick,
+  suppressSignatureHelpInsidePlaceholder,
+];

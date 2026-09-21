@@ -86,11 +86,11 @@ const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => 
             </ElevatedSurface>
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">No query selected</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground max-w-xs">
                 Create a query or pick one from the list to explore your traces with SQL.
               </span>
             </div>
-            <Button onClick={createTemplate} variant="outline" size="sm">
+            <Button className="gap-1" onClick={createTemplate} variant="ghost">
               <Plus data-icon="inline-start" className="size-3.5" />
               New query
             </Button>
