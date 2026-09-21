@@ -75,16 +75,13 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
   }, []);
 
   useEffect(() => {
-    const enrichedSpans = enrichSpansWithPending(spans);
-    setSpans(enrichedSpans);
+    setSpans(enrichSpansWithPending(spans));
     setTrace(trace);
 
     const spanId = searchParams.get("spanId");
-    const linkedSpan = spanId ? spans?.find((s) => s.spanId === spanId) : undefined;
-    // Narrow layouts stack the span over the tree, so only a linked span opens on load.
-    const narrow = window.innerWidth < STACK_THRESHOLD;
-    const span = linkedSpan ?? (narrow ? undefined : spans?.[0]);
-
+    const linkedSpan = spanId ? spans.find((s) => s.spanId === spanId) : undefined;
+    // Auto-select only on the full page (container = viewport) when the layout won't stack.
+    const span = linkedSpan ?? (!onClose && window.innerWidth >= STACK_THRESHOLD ? spans[0] : undefined);
     if (span) {
       setSelectedSpan({ ...span, collapsed: false });
     }
