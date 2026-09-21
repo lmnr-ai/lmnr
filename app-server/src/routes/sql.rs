@@ -10,7 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    access_policy::{self, AccessPolicy, Actor},
+    access_policy::{self, Actor},
     cache::Cache,
     db::DB,
     query_engine::{QueryEngine, QueryEngineValidationResult},
@@ -38,25 +38,6 @@ pub struct SqlQueryRequest {
 pub struct SqlValidateRequest {
     pub query: String,
     pub actor: Actor,
-}
-
-/// Fail closed: if the policy cannot be derived, the reader gets the most
-/// restrictive one rather than an unrestricted query.
-async fn policy_for(
-    actor: &Actor,
-    project_id: Uuid,
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-) -> AccessPolicy {
-    access_policy::for_actor(actor, project_id, db, cache)
-        .await
-        .unwrap_or_else(|e| {
-            log::warn!("access policy for project {project_id}: {e:#}; masking");
-            AccessPolicy {
-                mask_pii: true,
-                ..Default::default()
-            }
-        })
 }
 
 #[derive(Serialize)]
@@ -120,7 +101,8 @@ pub async fn execute_sql_query(
 
     let db = db.into_inner();
     let cache = cache.into_inner();
-    let policy = policy_for(&actor, project_id, db.clone(), cache.clone()).await;
+    let policy =
+        access_policy::for_actor_or_masked(&actor, project_id, db.clone(), cache.clone()).await;
 
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
@@ -156,7 +138,9 @@ pub async fn validate_sql_query(
 ) -> ResponseResult {
     let project_id = path.into_inner();
     let SqlValidateRequest { query, actor } = req.into_inner();
-    let policy = policy_for(&actor, project_id, db.into_inner(), cache.into_inner()).await;
+    let policy =
+        access_policy::for_actor_or_masked(&actor, project_id, db.into_inner(), cache.into_inner())
+            .await;
 
     match query_engine
         .into_inner()
