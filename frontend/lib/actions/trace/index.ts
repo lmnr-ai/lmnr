@@ -78,6 +78,9 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
 }
 
 export async function isTracePublic(traceId: string): Promise<boolean> {
+  // Non-UUID → not public, rather than a Postgres cast error (500) in the proxy.
+  if (!z.guid().safeParse(traceId).success) return false;
+
   const sharedTrace = await db.query.sharedTraces.findFirst({
     where: eq(sharedTraces.id, traceId),
   });
