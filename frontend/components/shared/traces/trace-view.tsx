@@ -1,18 +1,15 @@
 "use client";
 
 import { CirclePlay, Radio } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import fullLogo from "@/assets/logo/laminar-wordmark.svg";
 import Header from "@/components/shared/traces/header";
+import SharedPageHeader from "@/components/shared/traces/page-header";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
-import { HeaderIconButton } from "@/components/traces/trace-view/header/header-icon-button";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import TraceViewStoreProvider, {
@@ -33,9 +30,12 @@ interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
   onClose?: () => void;
+  /** Drives the page header's Dashboard vs Sign in/up buttons. Only read on the
+   *  full-page variant (no `onClose`); the eval side-panel renders no page header. */
+  hasSession?: boolean;
 }
 
-export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
+export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -124,13 +124,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {!onClose && (
-        <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
-          <Link className="mr-2" href="/projects">
-            <Image alt="Laminar logo" src={fullLogo} className="w-[120px] h-auto" />
-          </Link>
-        </div>
-      )}
+      {!onClose && <SharedPageHeader hasSession={hasSession} />}
       <ResizablePanelGroup
         id="shared-trace-horizontal"
         orientation="horizontal"
@@ -180,13 +174,21 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                     />
                   </div>
                   <div className="flex items-center gap-1">
+                    {/* The full-page variant has no header row, so Signals sits in the
+                        stats row and takes Media's labelled-pill styling instead of the
+                        header's icon-only HeaderIconButton. */}
                     {traceSignals.length > 0 && (
-                      <HeaderIconButton
-                        icon={<Radio className={cn({ "text-primary": signalsPanelOpen })} size={14} />}
-                        label={`Signals (${traceSignals.length})`}
-                        active={signalsPanelOpen}
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
+                          signalsPanelOpen && "text-primary hover:text-primary"
+                        )}
                         onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-                      />
+                      >
+                        <Radio data-icon="inline-start" size={14} className="flex-shrink-0" />
+                        <span className="ml-1 truncate">Signals ({traceSignals.length})</span>
+                      </Button>
                     )}
                     {hasBrowserSession && (
                       <Button

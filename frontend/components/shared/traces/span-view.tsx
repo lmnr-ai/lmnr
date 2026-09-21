@@ -1,22 +1,15 @@
 "use client";
-import { X } from "lucide-react";
-import React, { useMemo } from "react";
+import { CircleAlert } from "lucide-react";
+import React, { useCallback, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
-import ErrorCard from "@/components/traces/error-card";
-import { getSpanModel, ModelIndicator } from "@/components/traces/model-indicator";
-import SpanTypeIcon from "@/components/traces/span-type-icon";
-import SpanContent from "@/components/traces/span-view/span-content.tsx";
-import SpanStatsShields from "@/components/traces/stats-shields";
-import { StructuredOutputSchema } from "@/components/traces/structured-output-schema";
-import { resolveTools, ToolList } from "@/components/traces/tool-list";
-import { Button } from "@/components/ui/button";
-import ContentRenderer from "@/components/ui/content-renderer";
-import MonoWithCopy from "@/components/ui/mono-with-copy";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SpanControls } from "@/components/traces/span-controls";
+import { SpanViewTabs } from "@/components/traces/span-view";
+import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
+import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { type Span } from "@/lib/traces/types";
-import { type ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface SpanViewProps {
@@ -25,100 +18,47 @@ interface SpanViewProps {
   onClose?: () => void;
 }
 
+// Public counterpart of components/traces/span-view: same controls + tabs,
+// fetched from the shared endpoint with project-scoped actions stripped.
 export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
-  const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { data: span, isLoading, error } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
 
-  const errorEventAttributes = useMemo(
-    () => span?.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
-    [span?.events]
-  );
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  if (isLoading || !span) {
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    searchRef.current?.focus();
+  }, []);
+
+  useHotkeys("meta+f", openSearch, { enableOnFormTags: ["input"], preventDefault: true });
+  useHotkeys("esc", () => setSearchOpen(false), { enableOnFormTags: ["input"], preventDefault: true });
+
+  if (isLoading) {
+    return <SpanViewSkeleton />;
+  }
+
+  if (error || !span) {
     return (
-      <div className="flex flex-col space-y-2 p-4">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
+      <div className="p-4">
+        <Alert variant="destructive">
+          <div className="flex items-start gap-4">
+            <CircleAlert className="w-4 h-4" />
+            <div className="flex-1 space-y-1">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error instanceof Error ? error.message : "Failed to load span"}</AlertDescription>
+            </div>
+          </div>
+        </Alert>
       </div>
     );
   }
 
-  const tools = resolveTools(span);
-  const schema = span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"];
-
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      <div className="flex flex-col px-2 pt-2 gap-1">
-        <div className="flex flex-col gap-1">
-          <div className="flex flex-none items-center space-x-2">
-            <SpanTypeIcon spanType={span.spanType} />
-            <div className="text-base items-center font-medium truncate">{span.name}</div>
-            {onClose && (
-              <Button
-                variant="ghost"
-                className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
-                onClick={onClose}
-                aria-label="Close span panel"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-          <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
-        </div>
-        <div className="flex flex-col gap-1.5 py-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <SpanStatsShields span={span} />
-            <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
-              {new Date(span.startTime).toLocaleString()}
-            </div>
-          </div>
-          {(getSpanModel(span.attributes) || tools.length > 0 || schema) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <ModelIndicator attributes={span.attributes} />
-              <ToolList tools={tools} />
-              <StructuredOutputSchema schema={schema} />
-            </div>
-          )}
-        </div>
-        {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
-      </div>
-      <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input">
-        <div className="px-2 pb-2 mt-2 border-b w-full">
-          <TabsList size="sm">
-            <TabsTrigger value="span-input">Span Input</TabsTrigger>
-            <TabsTrigger value="span-output">Span Output</TabsTrigger>
-            <TabsTrigger value="attributes">Attributes</TabsTrigger>
-            <TabsTrigger value="events">Events</TabsTrigger>
-          </TabsList>
-        </div>
-        <div className="grow flex overflow-hidden">
-          <TabsContent value="span-input" className="w-full h-full">
-            <SpanContent span={span} type="input" />
-          </TabsContent>
-          <TabsContent value="span-output" className="w-full h-full">
-            <SpanContent span={span} type="output" />
-          </TabsContent>
-          <TabsContent value="attributes" className="w-full h-full">
-            <ContentRenderer
-              className="rounded-none border-0"
-              codeEditorClassName="rounded-none border-none bg-background contain-strict"
-              readOnly
-              value={JSON.stringify(span.attributes)}
-              defaultMode="yaml"
-            />
-          </TabsContent>
-          <TabsContent value="events" className="w-full h-full">
-            <ContentRenderer
-              className="rounded-none border-0"
-              codeEditorClassName="rounded-none border-none bg-background contain-strict"
-              readOnly
-              value={JSON.stringify(span.events)}
-              defaultMode="yaml"
-            />
-          </TabsContent>
-        </div>
-      </Tabs>
-    </div>
+    <SpanSearchProvider>
+      <SpanControls span={span} onClose={onClose} isShared>
+        <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
+      </SpanControls>
+    </SpanSearchProvider>
   );
 }

@@ -6,6 +6,7 @@ import PageViewTracker from "@/components/common/page-view-tracker";
 import TraceView from "@/components/shared/traces/trace-view";
 import { getSharedSpans } from "@/lib/actions/shared/spans";
 import { getSharedTrace } from "@/lib/actions/shared/trace";
+import { getServerSession } from "@/lib/auth-session";
 
 const getCachedSharedTrace = cache((traceId: string) => getSharedTrace({ traceId }));
 
@@ -65,12 +66,15 @@ export default async function SharedTracePage(props: {
     return notFound();
   }
 
-  const spans = await getSharedSpans({ traceId }).catch(() => []);
+  const [spans, session] = await Promise.all([
+    getSharedSpans({ traceId }).catch(() => []),
+    getServerSession().catch(() => null),
+  ]);
 
   return (
     <>
       <PageViewTracker feature="shared" action="trace_viewed" properties={{ traceId }} />
-      <TraceView trace={trace} spans={spans} />
+      <TraceView trace={trace} spans={spans} hasSession={session !== null} />
     </>
   );
 }
