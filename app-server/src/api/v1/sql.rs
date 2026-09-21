@@ -11,7 +11,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    access_policy::AccessPolicy,
+    access_policy::{self, Actor},
     cache::{Cache, CacheTrait, keys::SQL_RATE_LIMIT_CACHE_KEY},
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
@@ -97,6 +97,7 @@ pub async fn execute_sql_query(
 ) -> ResponseResult {
     handle_sql_query(
         project_api_key.project_id,
+        Actor::ApiKey,
         req,
         limiter,
         db,
@@ -109,14 +110,16 @@ pub async fn execute_sql_query(
 }
 
 /// Shared handler body for `/v1/sql/query` and its CLI twin `/v1/cli/sql/query`.
-/// Both surfaces differ only in how they authenticate and resolve `project_id`;
-/// everything after that — per-project rate limiting (shared `ratelimit:<id>`
-/// key, fail-open), the query span, and the response shape — lives here so the
-/// two endpoints can't drift. Rate limiting is inline (not scope middleware)
-/// because `project_id` is only known after the auth extractor runs.
+/// Both surfaces differ only in how they authenticate and resolve `project_id`
+/// and `actor`; everything after that — per-project rate limiting (shared
+/// `ratelimit:<id>` key, fail-open), the access policy, the query span, and the
+/// response shape — lives here so the two endpoints can't drift. Rate limiting
+/// is inline (not scope middleware) because `project_id` is only known after
+/// the auth extractor runs.
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_sql_query(
     project_id: Uuid,
+    actor: Actor,
     req: web::Json<SqlQueryRequest>,
     limiter: Option<web::Data<SqlRateLimiter>>,
     db: web::Data<DB>,
@@ -144,6 +147,11 @@ pub async fn handle_sql_query(
     let span = tracer.start("api_sql_query");
     let _guard = mark_span_as_active(span);
 
+    let db = db.into_inner();
+    let cache = cache.into_inner();
+    let policy =
+        access_policy::for_actor_or_masked(&actor, project_id, db.clone(), cache.clone()).await;
+
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
             match sql::execute_sql_query(
@@ -151,14 +159,12 @@ pub async fn handle_sql_query(
                 project_id,
                 parameters,
                 SqlQuerySource::Public,
-                // Project API keys and CLI user tokens are admin-level
-                // credentials (docs/internal/rbac.md).
-                AccessPolicy::UNRESTRICTED,
+                policy,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),
-                db.into_inner(),
-                cache.into_inner(),
+                db,
+                cache,
             )
             .await
             {

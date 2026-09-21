@@ -15,7 +15,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    access_policy::AccessPolicy,
+    access_policy::{self, AccessPolicy, Actor},
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
@@ -191,8 +191,7 @@ impl LaminarMcpServer {
             project_id,
             params.parameters,
             SqlQuerySource::Public,
-            // Project API keys are admin-level credentials (docs/internal/rbac.md).
-            AccessPolicy::UNRESTRICTED,
+            self.policy(project_id).await,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),
@@ -275,6 +274,20 @@ impl LaminarMcpServer {
     }
 }
 
+impl LaminarMcpServer {
+    /// Every MCP tool authenticates with a project API key, so every read
+    /// runs under the `ApiKey` actor's policy (docs/internal/rbac.md).
+    async fn policy(&self, project_id: Uuid) -> AccessPolicy {
+        access_policy::for_actor_or_masked(
+            &Actor::ApiKey,
+            project_id,
+            self.db.clone(),
+            self.cache.clone(),
+        )
+        .await
+    }
+}
+
 #[cfg(feature = "signals")]
 impl LaminarMcpServer {
     async fn get_trace_context_for_mcp(
@@ -288,7 +301,13 @@ impl LaminarMcpServer {
         use crate::signals::private::spans::get_trace_ch_spans;
         use crate::traces::previews::PreviewExtractor;
 
-        let spans = get_trace_ch_spans(self.clickhouse.clone(), project_id, trace_id).await?;
+        let spans = get_trace_ch_spans(
+            self.clickhouse.clone(),
+            project_id,
+            trace_id,
+            &self.policy(project_id).await,
+        )
+        .await?;
         if spans.is_empty() {
             return Ok(format!(
                 "No spans found for trace {trace_id}. Either the trace does not exist in this project or there are no spans in the trace."
@@ -379,6 +398,7 @@ impl LaminarMcpServer {
             system_note: None,
             source: AgentSource::Mcp,
             user_external_id: None,
+            policy: self.policy(project_id).await,
         };
 
         // Persistence mode: the agent loop loads prior history; send only the new user turn. `_rx` is

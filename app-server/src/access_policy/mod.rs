@@ -27,8 +27,10 @@ use crate::{
 /// the TTL only bounds staleness if that call is lost.
 const MEMBER_ROLE_TTL_SECONDS: u64 = 60 * 60;
 
-/// Who is reading. Sent by the frontend on every `/sql/query` and
-/// `/sql/validate` call; the route rejects requests without one.
+/// Who is reading. The frontend sends `User`/`Shared` on every `/sql/query`
+/// and `/sql/validate` call (the route rejects requests without one); the
+/// credential variants are constructed by the `/v1` routes from their auth
+/// extractor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Actor {
@@ -39,6 +41,15 @@ pub enum Actor {
     },
     /// A public share-link viewer: gets the most restrictive policy.
     Shared,
+    /// A project API key (SDK, public `/v1` API, MCP). Keys carry no
+    /// permissions yet, so they mask in `dual` regardless of who minted
+    /// them; per-key permissions are the extension point.
+    ApiKey,
+    /// A CLI user token. The user's role is known but deliberately not
+    /// consulted: a CLI session may be driven by an AI agent rather than the
+    /// person, and the two are indistinguishable today, so the stricter
+    /// policy applies.
+    Cli,
 }
 
 /// Restrictions the views apply. Serialized as the `policy` view argument;
@@ -164,16 +175,35 @@ pub async fn for_actor(
         return Ok(AccessPolicy::UNRESTRICTED);
     }
     let permissions = match actor {
-        Actor::Shared => permissions_for_role(None),
         Actor::User { user_id } => {
             let role = cached_member_role(project.workspace_id, *user_id, &db, &cache).await;
             permissions_for_role(role.as_deref())
         }
+        Actor::Shared | Actor::ApiKey | Actor::Cli => permissions_for_role(None),
     };
     Ok(AccessPolicy {
         mask_pii: !permissions.view_pii,
         ..Default::default()
     })
+}
+
+/// [`for_actor`] for routes that must answer rather than error: a
+/// derivation failure yields the masking policy, never an unrestricted one.
+pub async fn for_actor_or_masked(
+    actor: &Actor,
+    project_id: Uuid,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+) -> AccessPolicy {
+    for_actor(actor, project_id, db, cache)
+        .await
+        .unwrap_or_else(|e| {
+            log::warn!("access policy for {actor:?} on project {project_id}: {e:#}; masking");
+            AccessPolicy {
+                mask_pii: true,
+                ..Default::default()
+            }
+        })
 }
 
 /// Only `dual` stores something the policy can hide (raw text next to its
@@ -296,5 +326,17 @@ mod tests {
         let shared: Actor = serde_json::from_str(r#"{"type":"shared"}"#).unwrap();
         assert_eq!(shared, Actor::Shared);
         assert!(serde_json::from_str::<Actor>(r#"{"type":"admin"}"#).is_err());
+    }
+
+    #[test]
+    fn credential_actors_get_member_permissions() {
+        // Mirrors the `for_actor` arm: no role lookup, member-level view.
+        for actor in [Actor::Shared, Actor::ApiKey, Actor::Cli] {
+            let permissions = match actor {
+                Actor::User { .. } => unreachable!(),
+                Actor::Shared | Actor::ApiKey | Actor::Cli => permissions_for_role(None),
+            };
+            assert!(!permissions.view_pii, "{actor:?}");
+        }
     }
 }
