@@ -1,0 +1,755 @@
+openapi: 3.1.0
+info:
+  title: Laminar API
+  version: 1.0.0
+  description: Public HTTP API for ingesting and managing data in a Laminar project.
+  license:
+    name: Apache 2.0
+    identifier: Apache-2.0
+servers:
+  - url: https://api.lmnr.ai
+    description: Laminar Cloud
+security:
+  - projectApiKey: []
+tags:
+  - name: Ingestion
+    description: Send telemetry and browser session data to Laminar.
+  - name: Traces
+    description: Update trace data after ingestion.
+  - name: SQL
+    description: Query project data with read-only SQL.
+  - name: Projects
+    description: Resolve project information.
+  - name: Datasets
+    description: Read datasets and add datapoints.
+  - name: Evaluations
+    description: Create evaluation runs and record their results.
+  - name: Labeling queues
+    description: Add items to labeling queues.
+  - name: Signals
+    description: Manage automated evaluations of project traces.
+paths:
+  /v1/browser-sessions/events:
+    post:
+      tags: [Ingestion]
+      summary: Ingest browser session events
+      description: Ingests a batch of rrweb browser replay events associated with a trace and session.
+      operationId: createBrowserSessionEvents
+      security: [{projectApiKey: []}, {ingestApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BrowserEventBatch'}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+  /v1/traces:
+    post:
+      tags: [Ingestion]
+      summary: Ingest OpenTelemetry traces
+      description: Accepts an OTLP ExportTraceServiceRequest encoded as protobuf or OTLP JSON.
+      operationId: ingestTraces
+      security: [{projectApiKey: []}, {ingestApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/x-protobuf:
+            schema: {type: string, contentMediaType: application/x-protobuf}
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '200': {description: Trace batch accepted.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '429': {description: Ingestion rate limit exceeded.}
+  /v1/traces/metadata:
+    post:
+      tags: [Traces]
+      summary: Update trace metadata
+      description: Shallow-merges metadata fields onto an existing trace.
+      operationId: updateTraceMetadata
+      security: [{projectApiKey: []}, {ingestApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateTraceMetadataRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/spans:
+    post:
+      tags: [Ingestion]
+      summary: Create spans
+      description: Ingests a batch of spans using Laminar's JSON span format.
+      operationId: createSpans
+      security: [{projectApiKey: []}, {ingestApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: {$ref: '#/components/schemas/CreateSpanRequest'}
+      responses:
+        '200':
+          description: Spans accepted.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CreateSpanResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+  /v1/logs:
+    post:
+      tags: [Ingestion]
+      summary: Ingest OpenTelemetry logs
+      description: Accepts an OTLP ExportLogsServiceRequest encoded as protobuf.
+      operationId: ingestLogs
+      security: [{projectApiKey: []}, {ingestApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/x-protobuf:
+            schema: {type: string, contentMediaType: application/x-protobuf}
+      responses:
+        '200': {description: Log batch accepted.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+  /v1/labeling_queues/{queue_id}/items:
+    post:
+      tags: [Labeling queues]
+      summary: Add labeling queue items
+      description: Adds items to a labeling queue, optionally deduplicating them with idempotency keys.
+      operationId: createLabelingQueueItems
+      security: [{projectApiKey: []}, {ingestApiKey: []}]
+      parameters:
+        - {$ref: '#/components/parameters/QueueId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateLabelingQueueItemsRequest'}
+      responses:
+        '201':
+          description: Items created.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/LabelingQueueItemResponse'}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/sql/query:
+    post:
+      tags: [SQL]
+      summary: Query project data
+      description: Executes a validated, read-only SQL query scoped to the authenticated project.
+      operationId: executeSqlQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SqlQueryRequest'}
+      responses:
+        '200':
+          description: Query results.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SqlQueryResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '429': {description: SQL query rate limit exceeded.}
+  /v1/project:
+    get:
+      tags: [Projects]
+      summary: Get the current project
+      description: Returns the project ID associated with the supplied API key.
+      operationId: getCurrentProject
+      responses:
+        '200':
+          description: Current project.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projectId]
+                properties:
+                  projectId: {$ref: '#/components/schemas/Uuid'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /v1/datasets:
+    get:
+      tags: [Datasets]
+      summary: List datasets
+      description: Lists project datasets, optionally filtered by dataset ID or name.
+      operationId: listDatasets
+      parameters:
+        - {name: id, in: query, schema: {$ref: '#/components/schemas/Uuid'}}
+        - {name: name, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Matching datasets.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Dataset'}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /v1/datasets/datapoints:
+    get:
+      tags: [Datasets]
+      summary: List dataset datapoints
+      description: Returns a paginated page of datapoints from a dataset identified by ID or name.
+      operationId: listDatasetDatapoints
+      parameters:
+        - {name: datasetId, in: query, schema: {$ref: '#/components/schemas/Uuid'}}
+        - {name: datasetName, in: query, schema: {type: string}}
+        - {name: limit, in: query, required: true, schema: {type: integer, format: int64}}
+        - {name: offset, in: query, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200':
+          description: A page of datapoints.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DatapointPage'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [Datasets]
+      summary: Create dataset datapoints
+      description: Adds datapoints to a dataset and can optionally create the dataset when identified by name.
+      operationId: createDatasetDatapoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateDatapointsRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/DatapointsCreated'}
+        '201': {$ref: '#/components/responses/DatapointsCreated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: A dataset with the requested name already exists.}
+  /v1/signals:
+    post:
+      tags: [Signals]
+      summary: Create a Signal
+      description: Creates a Signal with the first server-managed definition version.
+      operationId: createSignal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSignalRequest'}
+      responses:
+        '201':
+          description: Signal created.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Signal'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    get:
+      tags: [Signals]
+      summary: List Signals
+      description: Lists Signals in the project, optionally filtering by a name substring.
+      operationId: listSignals
+      parameters:
+        - name: name
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Project Signals.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SignalList'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /v1/signals/{signal_id}:
+    parameters:
+      - {$ref: '#/components/parameters/SignalId'}
+    get:
+      tags: [Signals]
+      summary: Get a Signal
+      description: Returns a Signal in the authenticated project.
+      operationId: getSignal
+      responses:
+        '200':
+          description: Signal details.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Signal'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [Signals]
+      summary: Update a Signal
+      description: Updates a Signal; only prompt or structuredOutput changes increment currentVersion.
+      operationId: updateSignal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateSignalRequest'}
+      responses:
+        '200':
+          description: Signal updated.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Signal'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    delete:
+      tags: [Signals]
+      summary: Delete a Signal
+      description: Deletes a Signal and returns its final state.
+      operationId: deleteSignal
+      responses:
+        '200':
+          description: Signal deleted.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Signal'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/evals:
+    post:
+      tags: [Evaluations]
+      summary: Create an evaluation
+      description: Creates an evaluation run, generating a name when none is supplied.
+      operationId: createEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateEvaluationRequest'}
+      responses:
+        '200':
+          description: Evaluation created.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Evaluation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /v1/evals/{eval_id}:
+    post:
+      tags: [Evaluations]
+      summary: Update an evaluation
+      description: Updates an evaluation's name and/or metadata; omitted fields remain unchanged.
+      operationId: updateEvaluation
+      parameters:
+        - {$ref: '#/components/parameters/EvaluationId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateEvaluationRequest'}
+      responses:
+        '200':
+          description: Evaluation updated.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Evaluation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/evals/{eval_id}/datapoints:
+    post:
+      tags: [Evaluations]
+      summary: Add evaluation datapoints
+      description: Adds result datapoints to an evaluation run.
+      operationId: createEvaluationDatapoints
+      parameters:
+        - {$ref: '#/components/parameters/EvaluationId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateEvaluationDatapointsRequest'}
+      responses:
+        '200':
+          description: Datapoints added; returns the evaluation ID.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Uuid'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /v1/evals/{eval_id}/datapoints/{datapoint_id}:
+    post:
+      tags: [Evaluations]
+      summary: Update an evaluation datapoint
+      description: Updates a datapoint's executor output, scores, and optional trace association.
+      operationId: updateEvaluationDatapoint
+      parameters:
+        - {$ref: '#/components/parameters/EvaluationId'}
+        - {$ref: '#/components/parameters/DatapointId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateEvaluationDatapointRequest'}
+      responses:
+        '200':
+          description: Datapoint updated; returns the datapoint ID.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Uuid'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+components:
+  securitySchemes:
+    projectApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: Project API key
+      description: A Laminar project API key.
+    ingestApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: Ingest-only API key
+      description: A project API key restricted to ingestion operations.
+  parameters:
+    QueueId:
+      name: queue_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Uuid'}
+    EvaluationId:
+      name: eval_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Uuid'}
+    DatapointId:
+      name: datapoint_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Uuid'}
+    SignalId:
+      name: signal_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Uuid'}
+  responses:
+    Success: {description: Request completed successfully.}
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Unauthorized:
+      description: Missing or invalid API key.
+    NotFound:
+      description: The requested resource was not found in this project.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    PayloadTooLarge: {description: The request exceeds the configured HTTP payload limit.}
+    Conflict:
+      description: A resource with the requested name already exists.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    DatapointsCreated:
+      description: Datapoints created; status 201 means the dataset was also created.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/CreateDatapointsResponse'}
+  schemas:
+    Uuid: {type: string, format: uuid}
+    JsonValue: {}
+    Error:
+      oneOf:
+        - {type: object, properties: {error: {type: string}}, required: [error]}
+        - {type: string}
+    BrowserEventBatch:
+      type: object
+      required: [events, sessionId, traceId]
+      properties:
+        events:
+          type: array
+          items: {$ref: '#/components/schemas/BrowserEvent'}
+        sessionId: {$ref: '#/components/schemas/Uuid'}
+        traceId: {$ref: '#/components/schemas/Uuid'}
+        source: {type: [string, 'null']}
+        sdkVersion: {type: [string, 'null']}
+    BrowserEvent:
+      type: object
+      required: [type, timestamp, data]
+      properties:
+        type: {type: integer, minimum: 0, maximum: 255}
+        timestamp: {type: number, format: double}
+        data:
+          oneOf:
+            - {type: string, contentEncoding: base64}
+            - {type: array, items: {type: integer, minimum: 0, maximum: 255}}
+    UpdateTraceMetadataRequest:
+      type: object
+      required: [traceId, metadata]
+      properties:
+        traceId: {$ref: '#/components/schemas/Uuid'}
+        metadata: {type: object, additionalProperties: true, minProperties: 1}
+    CreateSpanRequest:
+      type: object
+      required: [name, startTime, endTime, traceId, spanId]
+      properties:
+        name: {type: string}
+        spanType:
+          type: [string, 'null']
+          enum: [DEFAULT, LLM, PIPELINE, EXECUTOR, EVALUATOR, HUMAN_EVALUATOR, EVALUATION, TOOL, CACHED, null]
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        input: {$ref: '#/components/schemas/JsonValue'}
+        output: {$ref: '#/components/schemas/JsonValue'}
+        attributes: {type: [object, 'null'], additionalProperties: true}
+        traceId: {$ref: '#/components/schemas/Uuid'}
+        spanId: {$ref: '#/components/schemas/Uuid'}
+        parentSpanId: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+    CreateSpanResponse:
+      type: object
+      required: [spanId, traceId]
+      properties:
+        spanId: {$ref: '#/components/schemas/Uuid'}
+        traceId: {$ref: '#/components/schemas/Uuid'}
+    CreateLabelingQueueItemsRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/LabelingQueueItemRequest'}
+    LabelingQueueItemRequest:
+      type: object
+      required: [data, target]
+      properties:
+        data: {$ref: '#/components/schemas/JsonValue'}
+        target: {$ref: '#/components/schemas/JsonValue'}
+        metadata: {type: object, additionalProperties: true, default: {}}
+        idempotencyKey: {type: [string, 'null']}
+    LabelingQueueItemResponse:
+      type: object
+      required: [id, createdAt]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        createdAt: {type: string, format: date-time}
+    SqlQueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query: {type: string}
+        parameters: {type: object, additionalProperties: true, default: {}}
+    SqlQueryResponse:
+      type: object
+      required: [data]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/JsonValue'}}
+    Dataset:
+      type: object
+      required: [id, name, projectId, createdAt]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        name: {type: string}
+        projectId: {$ref: '#/components/schemas/Uuid'}
+        createdAt: {type: string, format: date-time}
+    Datapoint:
+      type: object
+      required: [id, datasetId, data, metadata, createdAt]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        datasetId: {$ref: '#/components/schemas/Uuid'}
+        data: {$ref: '#/components/schemas/JsonValue'}
+        target: {$ref: '#/components/schemas/JsonValue'}
+        metadata: {type: object, additionalProperties: true}
+        createdAt: {type: string, format: date-time}
+    DatapointPage:
+      type: object
+      required: [totalCount, items, anyInProject]
+      properties:
+        totalCount: {type: integer, format: int64}
+        items: {type: array, items: {$ref: '#/components/schemas/Datapoint'}}
+        anyInProject: {type: boolean}
+    NewDatapoint:
+      type: object
+      required: [data]
+      properties:
+        id: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+        data: {$ref: '#/components/schemas/JsonValue'}
+        target: {$ref: '#/components/schemas/JsonValue'}
+        metadata: {type: object, additionalProperties: true, default: {}}
+    CreateDatapointsRequest:
+      type: object
+      required: [datapoints]
+      description: Supply exactly one of datasetId or datasetName.
+      properties:
+        datasetId: {$ref: '#/components/schemas/Uuid'}
+        datasetName: {type: string}
+        datapoints: {type: array, items: {$ref: '#/components/schemas/NewDatapoint'}}
+        createDataset: {type: boolean, default: false}
+      oneOf:
+        - {required: [datasetId]}
+        - {required: [datasetName]}
+    CreateDatapointsResponse:
+      type: object
+      required: [message, datasetId, count, datapointInfo]
+      properties:
+        message: {type: string}
+        datasetId: {$ref: '#/components/schemas/Uuid'}
+        count: {type: integer}
+        datapointInfo:
+          type: array
+          items:
+            type: object
+            required: [id, createdAt]
+            properties:
+              id: {$ref: '#/components/schemas/Uuid'}
+              createdAt: {type: string, format: date-time}
+    SignalTrigger:
+      oneOf:
+        - type: object
+          required: [type]
+          properties:
+            type: {type: string, const: rootSpanFinished}
+        - type: object
+          required: [type, spanNames]
+          properties:
+            type: {type: string, const: spanName}
+            spanNames:
+              type: array
+              minItems: 1
+              items: {type: string}
+    SignalFilter:
+      type: object
+      required: [column, operator, value]
+      properties:
+        column:
+          type: string
+          enum: [total_token_count, status, span_names, tags]
+        operator:
+          type: string
+          enum: [eq, ne, gt, gte, lt, lte, includes, not_includes]
+        value: {$ref: '#/components/schemas/JsonValue'}
+      description: Operators and value shapes are validated for the selected column.
+    SignalDefinitionFields:
+      type: object
+      properties:
+        name: {type: string, maxLength: 255}
+        prompt: {type: string}
+        structuredOutput:
+          type: object
+          additionalProperties: true
+          description: JSON Schema for the Signal's structured result.
+        sampleRate:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 95
+          description: Percentage of matching traces to sample; null clears sampling on update.
+        disabled: {type: boolean}
+        trigger: {$ref: '#/components/schemas/SignalTrigger'}
+        filters:
+          type: array
+          items: {$ref: '#/components/schemas/SignalFilter'}
+        mode: {type: string, enum: [batch, realtime]}
+    CreateSignalRequest:
+      allOf:
+        - {$ref: '#/components/schemas/SignalDefinitionFields'}
+        - type: object
+          required: [name, prompt, structuredOutput]
+    UpdateSignalRequest:
+      $ref: '#/components/schemas/SignalDefinitionFields'
+    Signal:
+      allOf:
+        - {$ref: '#/components/schemas/SignalDefinitionFields'}
+        - type: object
+          required: [id, projectId, name, prompt, structuredOutput, disabled, createdAt, trigger, filters, mode, currentVersion]
+          properties:
+            id: {$ref: '#/components/schemas/Uuid'}
+            projectId: {$ref: '#/components/schemas/Uuid'}
+            createdAt: {type: string, format: date-time}
+            currentVersion:
+              type: integer
+              format: int32
+              minimum: 1
+              readOnly: true
+              description: Server-managed version of the prompt and structured output definition.
+    SignalList:
+      type: object
+      required: [signals]
+      properties:
+        signals:
+          type: array
+          items: {$ref: '#/components/schemas/Signal'}
+    CreateEvaluationRequest:
+      type: object
+      properties:
+        name: {type: [string, 'null']}
+        groupName: {type: [string, 'null'], default: default}
+        metadata: {$ref: '#/components/schemas/JsonValue'}
+    UpdateEvaluationRequest:
+      type: object
+      properties:
+        name: {type: [string, 'null']}
+        metadata:
+          description: Replaces the complete evaluation metadata object when supplied.
+          $ref: '#/components/schemas/JsonValue'
+    Evaluation:
+      type: object
+      required: [id, createdAt, name, projectId, groupId]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        createdAt: {type: string, format: date-time}
+        name: {type: string}
+        projectId: {$ref: '#/components/schemas/Uuid'}
+        groupId: {type: string}
+        metadata: {$ref: '#/components/schemas/JsonValue'}
+    CreateEvaluationDatapointsRequest:
+      type: object
+      required: [points]
+      properties:
+        groupName: {type: [string, 'null'], default: default}
+        points:
+          type: array
+          items: {$ref: '#/components/schemas/EvaluationDatapoint'}
+    EvaluationDatapoint:
+      type: object
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/JsonValue'}
+        index: {type: integer, format: int32, default: 0}
+        id: {$ref: '#/components/schemas/Uuid'}
+        target: {$ref: '#/components/schemas/JsonValue'}
+        metadata: {type: [object, 'null'], additionalProperties: true}
+        executorOutput: {$ref: '#/components/schemas/JsonValue'}
+        traceId: {$ref: '#/components/schemas/Uuid'}
+        scores:
+          type: object
+          additionalProperties: {type: [number, 'null'], format: double}
+        datasetLink:
+          oneOf:
+            - {$ref: '#/components/schemas/EvaluationDatasetLink'}
+            - {type: 'null'}
+    EvaluationDatasetLink:
+      type: object
+      required: [datasetId, datapointId, createdAt]
+      properties:
+        datasetId: {$ref: '#/components/schemas/Uuid'}
+        datapointId: {$ref: '#/components/schemas/Uuid'}
+        createdAt: {type: string, format: date-time}
+    UpdateEvaluationDatapointRequest:
+      type: object
+      required: [scores]
+      properties:
+        executorOutput: {$ref: '#/components/schemas/JsonValue'}
+        scores:
+          type: object
+          additionalProperties: {type: [number, 'null'], format: double}
+        traceId: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}

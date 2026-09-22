@@ -1,0 +1,128 @@
+openapi: 3.1.0
+info:
+  title: Laminar Signal API
+  version: 0.1.0
+servers:
+  - url: https://api.lmnr.ai
+paths:
+  /v1/signals:
+    post:
+      operationId: createSignal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSignalRequest'
+      responses:
+        '201':
+          description: Signal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+  /v1/signals/{signal_id}:
+    parameters:
+      - name: signal_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getSignal
+      responses:
+        '200':
+          description: Signal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+    patch:
+      operationId: updateSignal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSignalRequest'
+      responses:
+        '200':
+          description: Signal updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+    delete:
+      operationId: deleteSignal
+      responses:
+        '200':
+          description: Signal deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+components:
+  schemas:
+    Trigger:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [rootSpanFinished, spanName]
+        spanNames:
+          type: array
+          items: {type: string}
+    Filter:
+      type: object
+      required: [column, operator, value]
+      properties:
+        column: {type: string}
+        operator: {type: string}
+        value: {type: string}
+    CreateSignalRequest:
+      type: object
+      required: [name, prompt, structuredOutput]
+      properties:
+        name: {type: string}
+        prompt: {type: string}
+        structuredOutput: {type: string, description: JSON-encoded JSON Schema for the Signal result.}
+        sampleRate: {type: integer}
+        disabled: {type: boolean}
+        trigger: {$ref: '#/components/schemas/Trigger'}
+        filters:
+          type: array
+          items: {$ref: '#/components/schemas/Filter'}
+        mode: {type: string, enum: [batch, realtime]}
+    UpdateSignalRequest:
+      type: object
+      properties:
+        name: {type: string}
+        prompt: {type: string}
+        structuredOutput: {type: string}
+        sampleRate: {type: integer}
+        disabled: {type: boolean}
+        trigger: {$ref: '#/components/schemas/Trigger'}
+        filters:
+          type: array
+          items: {$ref: '#/components/schemas/Filter'}
+        mode: {type: string, enum: [batch, realtime]}
+    Signal:
+      type: object
+      required: [id, projectId, name, prompt, structuredOutput, disabled, createdAt, trigger, filters, mode, currentVersion]
+      properties:
+        id: {type: string, format: uuid}
+        projectId: {type: string, format: uuid}
+        name: {type: string}
+        prompt: {type: string}
+        structuredOutput: {type: string, description: JSON-encoded JSON Schema for the Signal result.}
+        sampleRate: {type: integer}
+        disabled: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        trigger: {$ref: '#/components/schemas/Trigger'}
+        filters:
+          type: array
+          items: {$ref: '#/components/schemas/Filter'}
+        mode: {type: string, enum: [batch, realtime]}
+        currentVersion: {type: integer}

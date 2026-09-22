@@ -1,0 +1,274 @@
+{
+	"datasources": [
+		{
+			"name": "signal",
+			"schema": {
+				"attributes": [
+					{
+						"name": "id",
+						"string": {
+							"computed_optional_required": "required"
+						}
+					},
+					{
+						"name": "created_at",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "current_version",
+						"int64": {
+							"computed_optional_required": "computed",
+							"description": "Server-managed version of the prompt and structured output definition."
+						}
+					},
+					{
+						"name": "disabled",
+						"bool": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "filters",
+						"list_nested": {
+							"computed_optional_required": "computed",
+							"nested_object": {
+								"attributes": [
+									{
+										"name": "column",
+										"string": {
+											"computed_optional_required": "computed"
+										}
+									},
+									{
+										"name": "operator",
+										"string": {
+											"computed_optional_required": "computed"
+										}
+									},
+									{
+										"name": "value",
+										"string": {
+											"computed_optional_required": "computed"
+										}
+									}
+								]
+							}
+						}
+					},
+					{
+						"name": "mode",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "name",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "project_id",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "prompt",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "sample_rate",
+						"int64": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "structured_output",
+						"string": {
+							"computed_optional_required": "computed",
+							"description": "JSON Schema for the Signal's structured result."
+						}
+					},
+					{
+						"name": "trigger",
+						"single_nested": {
+							"computed_optional_required": "computed",
+							"attributes": [
+								{
+									"name": "span_names",
+									"list": {
+										"computed_optional_required": "computed",
+										"element_type": {
+											"string": {}
+										}
+									}
+								},
+								{
+									"name": "type",
+									"string": {
+										"computed_optional_required": "computed"
+									}
+								}
+							]
+						}
+					}
+				]
+			}
+		}
+	],
+	"provider": {
+		"name": "laminar"
+	},
+	"resources": [
+		{
+			"name": "signal",
+			"schema": {
+				"attributes": [
+					{
+						"name": "disabled",
+						"bool": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "filters",
+						"list_nested": {
+							"computed_optional_required": "computed_optional",
+							"nested_object": {
+								"attributes": [
+									{
+										"name": "column",
+										"string": {
+											"computed_optional_required": "required"
+										}
+									},
+									{
+										"name": "operator",
+										"string": {
+											"computed_optional_required": "required"
+										}
+									},
+									{
+										"name": "value",
+										"string": {
+											"computed_optional_required": "required"
+										}
+									}
+								]
+							}
+						}
+					},
+					{
+						"name": "mode",
+						"string": {
+							"computed_optional_required": "computed_optional",
+							"validators": [
+								{
+									"custom": {
+										"imports": [
+											{
+												"path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+											}
+										],
+										"schema_definition": "stringvalidator.OneOf(\n\"batch\",\n\"realtime\",\n)"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "name",
+						"string": {
+							"computed_optional_required": "required"
+						}
+					},
+					{
+						"name": "prompt",
+						"string": {
+							"computed_optional_required": "required"
+						}
+					},
+					{
+						"name": "sample_rate",
+						"int64": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "structured_output",
+						"string": {
+							"computed_optional_required": "required",
+							"description": "JSON Schema for the Signal's structured result."
+						}
+					},
+					{
+						"name": "trigger",
+						"single_nested": {
+							"computed_optional_required": "computed_optional",
+							"attributes": [
+								{
+									"name": "span_names",
+									"list": {
+										"computed_optional_required": "computed_optional",
+										"element_type": {
+											"string": {}
+										}
+									}
+								},
+								{
+									"name": "type",
+									"string": {
+										"computed_optional_required": "required",
+										"validators": [
+											{
+												"custom": {
+													"imports": [
+														{
+															"path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+														}
+													],
+													"schema_definition": "stringvalidator.OneOf(\n\"rootSpanFinished\",\n\"spanName\",\n)"
+												}
+											}
+										]
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "created_at",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "current_version",
+						"int64": {
+							"computed_optional_required": "computed",
+							"description": "Server-managed version of the prompt and structured output definition."
+						}
+					},
+					{
+						"name": "id",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "project_id",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					}
+				]
+			}
+		}
+	],
+	"version": "0.1"
+}

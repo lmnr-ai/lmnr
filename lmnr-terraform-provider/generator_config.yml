@@ -1,0 +1,41 @@
+provider:
+  name: laminar
+
+resources:
+  signal:
+    create:
+      path: /v1/signals
+      method: POST
+    read:
+      path: /v1/signals/{signal_id}
+      method: GET
+    update:
+      path: /v1/signals/{signal_id}
+      method: PATCH
+    delete:
+      path: /v1/signals/{signal_id}
+      method: DELETE
+    schema:
+      attributes:
+        aliases:
+          signal_id: id
+        overrides:
+          structuredOutput:
+            description: JSON Schema for the Signal's structured result.
+          currentVersion:
+            description: Server-managed version of the prompt and structured output definition.
+
+data_sources:
+  signal:
+    read:
+      path: /v1/signals/{signal_id}
+      method: GET
+    schema:
+      attributes:
+        aliases:
+          signal_id: id
+        overrides:
+          structuredOutput:
+            description: JSON Schema for the Signal's structured result.
+          currentVersion:
+            description: Server-managed version of the prompt and structured output definition.

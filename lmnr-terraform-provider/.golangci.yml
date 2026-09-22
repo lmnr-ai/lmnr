@@ -1,0 +1,61 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errcheck
+    - forcetypeassert
+    - godot
+    - ineffassign
+    - makezero
+    - misspell
+    - nilerr
+    - predeclared
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - usetesting
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+  settings:
+    depguard:
+      rules:
+        main:
+          list-mode: lax # a package is allowed if it doesn't match the deny list or the allow rule is more specific (longer) than the deny rule.
+          deny:
+            - pkg: "github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest" # prefix
+              desc: "Use github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+
+            - pkg: "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource" # prefix
+              desc: "Use github.com/hashicorp/terraform-plugin-testing/helper/resource"
+
+            - pkg: "github.com/hashicorp/terraform-plugin-sdk/v2/terraform" # prefix
+              desc: "Use github.com/hashicorp/terraform-plugin-testing/terraform"
+
+            - pkg: "github.com/hashicorp/terraform-plugin-sdk/v2" # prefix
+              desc: "Use Terraform Plugin Framework"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
