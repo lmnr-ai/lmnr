@@ -95,13 +95,13 @@
   --color-card: var(--color-surface-100);
   --color-card-foreground: hsl(var(--card-foreground));
 
-  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar: var(--color-surface-100);
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
   --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent: var(--color-surface-300);
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-border: var(--color-surface-300);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
   --color-tool: hsl(var(--tool));
@@ -570,10 +570,8 @@
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;
 
-    --card: 0 0% 7%;
     --card-foreground: 240 8% 80%;
 
-    --popover: 0 0% 8%;
     --popover-foreground: 0 8% 90%;
 
     --primary: 18 59% 55%;
@@ -606,13 +604,10 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 7%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --tool: 42 93% 46%;
