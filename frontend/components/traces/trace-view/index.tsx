@@ -102,21 +102,12 @@ export function TraceViewSidePanel({
  * so the resize math matches what's rendered.
  */
 function SidePanelLeftResizeHandle() {
-  const { resizePanel, spanPanelOpen, isAlwaysSelectSpan, isTraceLoading, hasTrace, spansLength } = useTraceViewStore(
-    (s) => ({
-      resizePanel: s.resizePanel,
-      spanPanelOpen: s.spanPanelOpen,
-      isAlwaysSelectSpan: s.isAlwaysSelectSpan,
-      isTraceLoading: s.isTraceLoading,
-      hasTrace: !!s.trace,
-      spansLength: s.spans.length,
-    }),
+  const { resizePanel, spanPanelOpen } = useTraceViewStore(
+    (s) => ({ resizePanel: s.resizePanel, spanPanelOpen: s.spanPanelOpen }),
     shallow
   );
 
-  const isLoading = isTraceLoading && !hasTrace;
-  const showSpan = spanPanelOpen || (isAlwaysSelectSpan && !isLoading && spansLength > 0);
-  const visible = useMemo(() => ({ span: showSpan }), [showSpan]);
+  const visible = useMemo(() => ({ span: spanPanelOpen }), [spanPanelOpen]);
 
   const drag = useCallback(
     (panel: ResizablePanel, delta: number) => resizePanel(panel, delta, visible),

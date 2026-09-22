@@ -18,15 +18,12 @@ export const STACK_THRESHOLD = 760;
  * drag resizes the split (mirrors DynamicWidthLayout's manual pattern; no react-resizable-panels, so
  * there's no overlay / z-index stacking to bleed through). Below the combined pixel minimums the
  * trace collapses to width 0 (kept mounted, its content pinned to min-width so it doesn't reflow)
- * and the span takes the full column. On the dedicated page (`isAlwaysSelectSpan`) the span column
- * is otherwise permanent, so when stacked it only shows while a span is selected — closing it is
- * the way back to the tree (the close button surfaces via the `@container` query in SpanControls).
+ * and the span takes the full column; closing the span is the way back to the tree (on the dedicated
+ * page the close button only surfaces when stacked, via the `@container` query in SpanControls).
  */
 export default function FillWidthLayout({ panels }: { panels: TraceViewPanels }) {
   // Drag-resize highlight (keeps working when the cursor crosses an iframe — dev #2031).
   const setIsResizing = useTraceViewStore((s) => s.setIsResizing);
-  const isAlwaysSelectSpan = useTraceViewStore((s) => s.isAlwaysSelectSpan);
-  const spanPanelOpen = useTraceViewStore((s) => s.spanPanelOpen);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -44,10 +41,9 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
     return () => observer.disconnect();
   }, []);
 
+  const { showSpan } = panels;
   const measured = width > 0;
-  const narrow = measured && width < STACK_THRESHOLD;
-  const showSpan = panels.showSpan && !(narrow && isAlwaysSelectSpan && !spanPanelOpen);
-  const stacked = showSpan && narrow;
+  const stacked = showSpan && measured && width < STACK_THRESHOLD;
 
   // Trace width: full when there's no span; 0 (collapsed, still mounted) when stacked; otherwise the
   // dragged width clamped so the span keeps its pixel minimum.
