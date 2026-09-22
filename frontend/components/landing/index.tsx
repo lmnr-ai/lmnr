@@ -13,6 +13,7 @@ import CTA from "./sections/cta";
 import DidMyFixWork from "./sections/did-my-fix-work";
 import Divider from "./sections/divider";
 import FeaturesForEveryStep from "./sections/features-for-every-step";
+import FlowOne from "./sections/flow-one";
 import HasThisIssue from "./sections/has-this-issue";
 import OpenSource from "./sections/open-source";
 import Quote from "./sections/quote";
@@ -45,6 +46,7 @@ const Landing = ({ className, hasSession }: Props) => (
         <div className="md:hidden w-full">
           <HasThisIssue />
         </div>
+        <FlowOne />
         <AskInSlack />
         <ClaudeFixMyAgent />
         <DidMyFixWork />
