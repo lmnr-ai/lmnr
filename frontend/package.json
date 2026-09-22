@@ -18,6 +18,7 @@
     "db:strip-schema": "sed -i.bak 's/\"public\"\\.//g' lib/db/migrations/*.sql && rm -f lib/db/migrations/*.sql.bak",
     "db:generate": "drizzle-kit generate && pnpm db:strip-schema",
     "db:migrate-provider-api-keys": "tsx scripts/migrate-provider-api-keys.ts",
+    "slack:mint-broker-key": "tsx scripts/mint-slack-broker-key.ts",
     "prepare": "cd .. && husky frontend/.husky"
   },
   "lint-staged": {
