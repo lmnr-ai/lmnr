@@ -93,6 +93,7 @@ services:
     environment:
       PORT: 8000
       GRPC_PORT: 8001
+      NEXT_INTERNAL_URL: http://frontend:3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/%2f
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}

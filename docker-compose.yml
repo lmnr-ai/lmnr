@@ -131,6 +131,7 @@ services:
     environment:
       PORT: 8000
       GRPC_PORT: 8001
+      NEXT_INTERNAL_URL: http://frontend:5667
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       CLICKHOUSE_URL: http://clickhouse:8123
