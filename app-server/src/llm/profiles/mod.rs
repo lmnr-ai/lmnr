@@ -13,7 +13,6 @@ mod probe;
 pub mod service;
 mod store;
 
-#[cfg_attr(not(feature = "signals"), allow(unused_imports))]
 pub use probe::probe;
 pub use store::LlmProfileStore;
 

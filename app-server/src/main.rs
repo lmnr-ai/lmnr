@@ -2628,7 +2628,6 @@ fn main() -> anyhow::Result<()> {
                         );
                         // Workspace-scoped internal routes; like projects/{project_id}, the
                         // Next.js route checks the caller's workspace membership.
-                        #[cfg(feature = "signals")]
                         let app = app.service(
                             web::scope("/api/v1/workspaces/{workspace_id}")
                                 .service(routes::llm_profiles::probe_llm_profile)
