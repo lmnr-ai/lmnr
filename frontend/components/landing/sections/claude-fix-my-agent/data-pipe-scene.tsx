@@ -9,6 +9,7 @@ import type { TransferProgress } from "./debugger-types";
 
 const SOURCE_BLOCK = { x: 754, y: 405, size: 76, iconSize: 29 } as const;
 const PIPE_PATH = `M${SOURCE_BLOCK.x + SOURCE_BLOCK.size / 2} ${SOURCE_BLOCK.y + SOURCE_BLOCK.size}V443H740`;
+const responsiveSceneLeft = (offset: number) => `calc(${offset}px + max(32px, (100% - 600px) / 2) - 140px)`;
 
 const DataPipeScene = () => {
   const [transfer, setTransfer] = useState<TransferProgress>();
@@ -21,11 +22,12 @@ const DataPipeScene = () => {
       <div className="relative mx-auto w-full max-w-[880px]">
         <svg
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0"
+          className="pointer-events-none absolute top-0 z-0"
           width="880"
           height="624"
           viewBox="0 0 880 624"
           fill="none"
+          style={{ left: responsiveSceneLeft(0) }}
         >
           <path d={PIPE_PATH} stroke="var(--color-foreground-600)" strokeWidth="1" />
           <path
@@ -49,7 +51,7 @@ const DataPipeScene = () => {
           style={{
             backgroundColor: "var(--color-surface-150)",
             height: SOURCE_BLOCK.size,
-            left: SOURCE_BLOCK.x,
+            left: responsiveSceneLeft(SOURCE_BLOCK.x),
             top: SOURCE_BLOCK.y,
             width: SOURCE_BLOCK.size,
           }}

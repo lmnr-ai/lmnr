@@ -36,17 +36,20 @@ export const DEBUGGER_SEQUENCE: Step[] = [
     entry: { kind: "result", text: "1 row · write_file span found", transferLabel: "span", transferTotal: 1 },
     delay: 440,
   },
-  { entry: { kind: "status", text: "Step 6: Inspecting the tool output" }, delay: 700 },
+  { entry: { kind: "status", text: "Step 6: Reviewing recent write_file outputs" }, delay: 700 },
   {
-    entry: { kind: "tool", text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' LIMIT 1"` },
+    entry: {
+      kind: "tool",
+      text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' ORDER BY start_time DESC LIMIT 12"`,
+    },
     delay: 240,
   },
   {
     entry: {
       kind: "result",
-      text: "Successfully wrote 58 bytes to MEMORY.md",
-      transferLabel: "row",
-      transferTotal: 1,
+      text: "12 rows · latest: Successfully wrote 58 bytes to MEMORY.md",
+      transferLabel: "outputs",
+      transferTotal: 12,
     },
     delay: 440,
   },

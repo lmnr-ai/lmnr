@@ -32,10 +32,11 @@ describe("debugger timeline", () => {
 
     assert.deepEqual(finalQuery, {
       kind: "tool",
-      text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' LIMIT 1"`,
+      text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' ORDER BY start_time DESC LIMIT 12"`,
     });
     assert.ok(finalResult?.kind === "result");
-    assert.equal(finalResult.text, "Successfully wrote 58 bytes to MEMORY.md");
+    assert.equal(finalResult.text, "12 rows · latest: Successfully wrote 58 bytes to MEMORY.md");
+    assert.equal(finalResult.transferTotal, 12);
   });
 
   it("reveals the complete transcript at the end", () => {
