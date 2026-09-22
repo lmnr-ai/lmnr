@@ -26,6 +26,18 @@ describe("debugger timeline", () => {
     assert.ok(afterPipe.transfer?.progressBar !== undefined);
   });
 
+  it("finishes by querying and showing the write_file output", () => {
+    const finalQuery = DEBUGGER_SEQUENCE.at(-3)?.entry;
+    const finalResult = DEBUGGER_SEQUENCE.at(-2)?.entry;
+
+    assert.deepEqual(finalQuery, {
+      kind: "tool",
+      text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' LIMIT 1"`,
+    });
+    assert.ok(finalResult?.kind === "result");
+    assert.equal(finalResult.text, "Successfully wrote 58 bytes to MEMORY.md");
+  });
+
   it("reveals the complete transcript at the end", () => {
     const frame = frameAtElapsed(
       DEBUGGER_PROMPT,

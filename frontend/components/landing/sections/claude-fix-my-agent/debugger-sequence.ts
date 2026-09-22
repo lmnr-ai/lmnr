@@ -27,14 +27,28 @@ export const DEBUGGER_SEQUENCE: Step[] = [
   { entry: { kind: "status", text: "Step 4: Re-running with cached spans" }, delay: 740 },
   { entry: { kind: "tool", text: "LMNR_DEBUG=true LMNR_DEBUG_CACHE_UNTIL=a91c… uv run agent.py" }, delay: 240 },
   { entry: { kind: "result", text: "Replayed 8 cached spans · 4 ran live" }, delay: 420 },
-  { entry: { kind: "status", text: "Step 5: Verifying the fix" }, delay: 700 },
+  { entry: { kind: "status", text: "Step 5: Checking the write_file tool ran" }, delay: 700 },
   {
     entry: { kind: "tool", text: `lmnr-cli sql query "SELECT count() FROM spans WHERE name='write_file'"` },
     delay: 240,
   },
   {
-    entry: { kind: "result", text: "1 row · write_file → MEMORY.md", transferLabel: "span", transferTotal: 1 },
+    entry: { kind: "result", text: "1 row · write_file span found", transferLabel: "span", transferTotal: 1 },
     delay: 440,
   },
-  { entry: { kind: "status", text: "Step 6: Fix confirmed!" }, delay: 740 },
+  { entry: { kind: "status", text: "Step 6: Inspecting the tool output" }, delay: 700 },
+  {
+    entry: { kind: "tool", text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' LIMIT 1"` },
+    delay: 240,
+  },
+  {
+    entry: {
+      kind: "result",
+      text: "Successfully wrote 58 bytes to MEMORY.md",
+      transferLabel: "row",
+      transferTotal: 1,
+    },
+    delay: 440,
+  },
+  { entry: { kind: "status", text: "Step 7: Fix confirmed!" }, delay: 740 },
 ];
