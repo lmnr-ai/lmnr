@@ -63,7 +63,6 @@ export const collectViewCounts = async (): Promise<Record<string, number>> => {
 export const collectFeatureFlags = (): Record<string, boolean> => {
   const flags: Feature[] = [
     Feature.SIGNALS,
-    Feature.CLUSTERING,
     Feature.AGENT,
     Feature.SLACK,
     Feature.GITHUB_AUTH,

@@ -300,8 +300,6 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
     return { created: 0, deleted: 0 };
   }
 
-  const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
-
   const deletedSignals = await db.transaction(async (tx) => {
     // Sequential, not Promise.all: drizzle serialises statements on a single
     // connection, and we want a deterministic abort point on failure.
@@ -326,20 +324,17 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
           sourceId: signal.id,
           metadata: {
             severities: [SEVERITY_LEVEL.CRITICAL],
-            skipSimilar: clusteringEnabled,
+            skipSimilar: true,
           },
         },
-      ];
-
-      if (clusteringEnabled) {
-        alertsToInsert.push({
+        {
           projectId,
           name: `${template.name} cluster alert`,
           type: "NEW_CLUSTER",
           sourceId: signal.id,
           metadata: {},
-        });
-      }
+        },
+      ];
 
       const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
 
@@ -710,8 +705,6 @@ export async function createSignal(
       })
     );
 
-    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
-
     const alertsToInsert: (typeof alerts.$inferInsert)[] = [
       {
         projectId,
@@ -720,22 +713,17 @@ export async function createSignal(
         sourceId: signal.id,
         metadata: {
           severities: [SEVERITY_LEVEL.CRITICAL],
-          // skipSimilar depends on the clustering service; default to false when
-          // clustering is disabled so the backend doesn't silently drop notifications.
-          skipSimilar: clusteringEnabled,
+          skipSimilar: true,
         },
       },
-    ];
-
-    if (clusteringEnabled) {
-      alertsToInsert.push({
+      {
         projectId,
         name: `${name} cluster alert`,
         type: "NEW_CLUSTER",
         sourceId: signal.id,
         metadata: {},
-      });
-    }
+      },
+    ];
 
     const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
 
