@@ -1,5 +1,5 @@
 .styled-scrollbar {
-  scrollbar-color: hsl(var(--border)) hsl(var(--border) / 0.2);
+  scrollbar-color: var(--color-border) color-mix(in oklab, var(--color-border) 20%, transparent);
 }
 
 .styled-scrollbar::-webkit-scrollbar {
@@ -8,16 +8,16 @@
 }
 
 .styled-scrollbar::-webkit-scrollbar-track {
-  background: hsl(var(--secondary));
+  background: var(--color-secondary);
 }
 
 .styled-scrollbar::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: var(--color-border);
   border-radius: 10px;
 }
 
 .styled-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--border) / 0.8);
+  background: color-mix(in oklab, var(--color-border) 80%, transparent);
 }
 
 .minimal-scrollbar {
