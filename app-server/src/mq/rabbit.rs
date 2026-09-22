@@ -3,7 +3,10 @@ use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
     Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
-    options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
+    options::{
+        BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions,
+        QueueDeclareOptions,
+    },
     types::{AMQPValue, FieldTable, ShortString},
 };
 use std::sync::{Arc, LazyLock};
@@ -14,6 +17,38 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
+
+/// Prepare a durable queue before producers can publish, even when no consumer
+/// process has started yet.
+pub(crate) async fn declare_bound_queue(
+    channel: &Channel,
+    queue_name: &str,
+    exchange: &str,
+    routing_key: &str,
+    arguments: FieldTable,
+) -> anyhow::Result<()> {
+    channel
+        .queue_declare(
+            queue_name.into(),
+            QueueDeclareOptions {
+                durable: true,
+                ..Default::default()
+            },
+            arguments,
+        )
+        .await?;
+
+    channel
+        .queue_bind(
+            queue_name.into(),
+            exchange.into(),
+            routing_key.into(),
+            QueueBindOptions::default(),
+            FieldTable::default(),
+        )
+        .await?;
+    Ok(())
+}
 
 /// `backon` decides retryability from the error value alone, so the publish
 /// closure's failures — all `anyhow::Error` — need the transient/permanent
@@ -462,6 +497,100 @@ fn connection_state(status: &ConnectionStatus) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    #[ignore = "needs a live RabbitMQ at RABBITMQ_URL"]
+    async fn producer_only_startup_retains_messages_before_a_consumer_subscribes() {
+        use lapin::{
+            ConnectionProperties, ExchangeKind,
+            options::{
+                BasicGetOptions, ExchangeDeclareOptions, ExchangeDeleteOptions, QueueDeleteOptions,
+            },
+        };
+
+        let url = std::env::var(crate::env::mq::URL).expect("set RABBITMQ_URL to a test broker");
+        let connection = Arc::new(
+            Connection::connect(&url, ConnectionProperties::default())
+                .await
+                .unwrap(),
+        );
+        let channel = connection.create_channel().await.unwrap();
+        let name = format!("lmnr-test-producer-topology-{}", uuid::Uuid::new_v4());
+        let exchange = format!("{name}-exchange");
+        let queue_name = format!("{name}-queue");
+        let routing_key = "test";
+
+        channel
+            .exchange_declare(
+                exchange.as_str().into(),
+                ExchangeKind::Fanout,
+                ExchangeDeclareOptions {
+                    durable: true,
+                    ..Default::default()
+                },
+                FieldTable::default(),
+            )
+            .await
+            .unwrap();
+
+        let result = async {
+            let mut arguments = FieldTable::default();
+            arguments.insert(
+                "x-queue-type".into(),
+                AMQPValue::LongString("quorum".into()),
+            );
+            // A second startup must preserve the binding without duplicating messages.
+            for _ in 0..2 {
+                declare_bound_queue(
+                    &channel,
+                    &queue_name,
+                    &exchange,
+                    routing_key,
+                    arguments.clone(),
+                )
+                .await?;
+            }
+
+            let producer = RabbitMQ::new(Arc::clone(&connection), None, 1);
+            producer
+                .publish(b"before-consumer", &exchange, routing_key, None)
+                .await?;
+            // Inspect through the same publisher channel to preserve broker ordering.
+            let publisher_channel = producer
+                .publisher_channel_pool
+                .get()
+                .await
+                .map_err(|error| anyhow::anyhow!("{error}"))?;
+            let delivery = publisher_channel
+                .basic_get(queue_name.as_str().into(), BasicGetOptions { no_ack: true })
+                .await?;
+            anyhow::ensure!(
+                delivery.is_some(),
+                "publish before consumer subscription was lost"
+            );
+            anyhow::ensure!(delivery.unwrap().delivery.data == b"before-consumer");
+            anyhow::ensure!(
+                publisher_channel
+                    .basic_get(queue_name.as_str().into(), BasicGetOptions { no_ack: true })
+                    .await?
+                    .is_none(),
+                "redeclaring the binding duplicated the message"
+            );
+            anyhow::Ok(())
+        }
+        .await;
+
+        channel
+            .queue_delete(queue_name.as_str().into(), QueueDeleteOptions::default())
+            .await
+            .unwrap();
+        channel
+            .exchange_delete(exchange.as_str().into(), ExchangeDeleteOptions::default())
+            .await
+            .unwrap();
+        connection.close(200, "test complete".into()).await.unwrap();
+        result.unwrap();
+    }
 
     #[test]
     fn retry_attempt_round_trips_through_message_properties() {
