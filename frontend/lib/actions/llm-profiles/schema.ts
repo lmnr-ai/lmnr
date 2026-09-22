@@ -65,8 +65,13 @@ const BedrockConfigSchema = z.object({
   ]),
 });
 
+/** Which OpenAI-compatible endpoint a custom gateway speaks. Mirrors `ApiShape` in `app-server/src/llm/profiles/mod.rs`. */
+export const CUSTOM_API_SHAPES = ["chat_completions", "responses"] as const;
+export type CustomApiShape = (typeof CUSTOM_API_SHAPES)[number];
+
 const CustomConfigSchema = z.object({
   baseUrl: HttpUrlSchema,
+  apiShape: z.enum(CUSTOM_API_SHAPES).default("chat_completions"),
   headerNames: z
     .array(HeaderNameSchema)
     .max(32)
@@ -170,6 +175,14 @@ export const PROVIDER_LABELS: Record<LlmProfileProvider, string> = {
   azure_anthropic: "Azure AI Foundry (Anthropic Messages)",
   custom: "Custom (OpenAI-compatible)",
 };
+
+/** `PROVIDER_LABELS`, plus the API shape for a custom gateway on the Responses API. */
+export function profileProviderLabel(profile: LlmProfileConfig): string {
+  if (profile.provider === "custom" && profile.config.apiShape === "responses") {
+    return "Custom (OpenAI-compatible, Responses)";
+  }
+  return PROVIDER_LABELS[profile.provider];
+}
 
 /** Vendor family: the icon to show and the `gen_ai.system` value the playground reports. */
 export type LlmProviderFamily = "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "bedrock" | "azure";

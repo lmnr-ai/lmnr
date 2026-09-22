@@ -5,7 +5,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createMistral } from "@ai-sdk/mistral";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { LanguageModel } from "ai";
+import { defaultSettingsMiddleware, type LanguageModel, wrapLanguageModel } from "ai";
 
 import { type LlmProfileConfig, type LlmProfileSecrets } from "@/lib/actions/llm-profiles/schema";
 
@@ -70,7 +70,13 @@ export function languageModelFromProfile(
       for (const name of profile.config.headerNames) {
         headers[name] = requireSecret(secrets.headers?.[name], `value for header "${name}"`);
       }
-      return createOpenAI({ apiKey: apiKey(), baseURL: profile.config.baseUrl, headers }).chat(model);
+      const gateway = createOpenAI({ apiKey: apiKey(), baseURL: profile.config.baseUrl, headers });
+      if (profile.config.apiShape === "chat_completions") return gateway.chat(model);
+      // Gateways rarely persist responses, so multi-step calls must resend prior items, not `item_reference` ids.
+      return wrapLanguageModel({
+        model: gateway.responses(model),
+        middleware: defaultSettingsMiddleware({ settings: { providerOptions: { openai: { store: false } } } }),
+      });
     }
   }
 }

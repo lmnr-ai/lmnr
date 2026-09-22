@@ -7,7 +7,13 @@ import { type LlmProfile, type SecretKey } from "@/lib/actions/llm-profiles/sche
 
 import { CustomHeadersFields } from "./custom-headers-fields";
 import { Field, SecretField, ShapeSelect, TextField } from "./field";
-import { AZURE_SHAPE_OPTIONS, type LlmProfileFormValues, OPENAI_SHAPE_OPTIONS, sameProviderFamily } from "./types";
+import {
+  AZURE_SHAPE_OPTIONS,
+  CUSTOM_SHAPE_OPTIONS,
+  type LlmProfileFormValues,
+  OPENAI_SHAPE_OPTIONS,
+  sameProviderFamily,
+} from "./types";
 
 /** Hardcoded field set per provider. `existing` drives the "keep stored secret" affordance. */
 export function ProviderFields({ existing }: { existing?: LlmProfile | null }) {
@@ -103,11 +109,16 @@ export function ProviderFields({ existing }: { existing?: LlmProfile | null }) {
     case "custom":
       return (
         <>
+          <ShapeSelect name="customShape" options={CUSTOM_SHAPE_OPTIONS} />
           <TextField
             name="baseUrl"
             label="Base URL"
             placeholder="https://gateway.example.com/v1"
-            hint="OpenAI Chat Completions root; /chat/completions is appended."
+            hint={
+              values.customShape === "responses"
+                ? "OpenAI Responses root; /responses is appended."
+                : "OpenAI Chat Completions root; /chat/completions is appended."
+            }
             required
           />
           <SecretField name="apiKey" label="API key" stored={stored("apiKey")} required />

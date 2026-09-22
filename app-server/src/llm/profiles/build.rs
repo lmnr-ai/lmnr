@@ -8,7 +8,7 @@ use crate::llm::{
     openai::OpenAIExplicitConfig,
 };
 
-use super::{LlmProfile, LlmProfileProvider, ProfileAuth, ProfileSecrets};
+use super::{ApiShape, LlmProfile, LlmProfileProvider, ProfileAuth, ProfileSecrets};
 
 /// Decrypts the profile's secrets and builds the matching provider client.
 /// Every failure is a `ConfigError` — a bad profile is never retryable.
@@ -119,14 +119,22 @@ pub(super) fn build_client(profile: &LlmProfile) -> ProviderResult<ProviderClien
                 .map(str::trim)
                 .filter(|u| !u.is_empty())
                 .ok_or_else(|| ctx("base URL is missing"))?;
-            ProviderClient::OpenAI(OpenAIClient::from_config(OpenAIExplicitConfig {
+            let explicit = OpenAIExplicitConfig {
                 api_key: required_secret(profile, &secrets.api_key, "API key")?,
                 api_base_url: base_url.to_string(),
                 api_version: None,
                 default_headers: custom_headers(&config.header_names, &secrets)
                     .map_err(|e| ctx(&e))?,
                 azure: false,
-            })?)
+            };
+            match config.api_shape.unwrap_or_default() {
+                ApiShape::ChatCompletions => {
+                    ProviderClient::OpenAI(OpenAIClient::from_config(explicit)?)
+                }
+                ApiShape::Responses => {
+                    ProviderClient::OpenAIResponses(OpenAIResponsesClient::from_config(explicit)?)
+                }
+            }
         }
     };
     Ok(client)
@@ -267,6 +275,27 @@ mod tests {
             panic!("missing header value must fail");
         };
         assert!(matches!(err, ProviderError::ConfigError(msg) if msg.contains("X-Tenant")));
+    }
+
+    #[test]
+    fn custom_gateway_api_shape_picks_the_client() {
+        let build = |api_shape| {
+            build_client(&profile(
+                LlmProfileProvider::Custom,
+                ProfileConfig {
+                    base_url: Some("https://gw.example.com/v1".to_string()),
+                    api_shape,
+                    ..Default::default()
+                },
+                r#"{"apiKey":"sk-test"}"#,
+            ))
+            .unwrap()
+        };
+        assert!(matches!(build(None), ProviderClient::OpenAI(_)));
+        let ProviderClient::OpenAIResponses(client) = build(Some(ApiShape::Responses)) else {
+            panic!("responses shape must build the Responses client");
+        };
+        assert_eq!(client.api_base_url(), "https://gw.example.com/v1");
     }
 
     #[test]

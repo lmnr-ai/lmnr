@@ -1,5 +1,6 @@
 import {
   type AzureProvider,
+  type CustomApiShape,
   isAzureProvider,
   isOpenAIProvider,
   type LlmProfile,
@@ -35,11 +36,17 @@ export const AZURE_SHAPE_OPTIONS: Array<{ value: AzureProvider; label: string }>
   { value: "azure_anthropic", label: "Anthropic Messages" },
 ];
 
+export const CUSTOM_SHAPE_OPTIONS: Array<{ value: CustomApiShape; label: string }> = [
+  { value: "chat_completions", label: "Chat Completions" },
+  { value: "responses", label: "Responses API" },
+];
+
 export type LlmProfileFormValues = {
   name: string;
   uiProvider: UiProvider;
   openaiShape: OpenAIProvider;
   azureShape: AzureProvider;
+  customShape: CustomApiShape;
   azureEndpoint: "resourceId" | "baseUrl";
   bedrockAuth: "aws_keys" | "bearer_token";
   region: string;

@@ -7,6 +7,7 @@ export const EMPTY_VALUES: LlmProfileFormValues = {
   uiProvider: "openai",
   openaiShape: "openai_completions",
   azureShape: "azure_chat_completions",
+  customShape: "chat_completions",
   azureEndpoint: "resourceId",
   bedrockAuth: "aws_keys",
   region: "us-east-1",
@@ -51,6 +52,7 @@ export function buildDefaultValues(profile?: LlmProfile | null): LlmProfileFormV
       break;
     case "custom":
       values.uiProvider = "custom";
+      values.customShape = profile.config.apiShape;
       values.baseUrl = profile.config.baseUrl;
       values.headers = profile.config.headerNames.map((name) => ({ name, value: "" }));
       break;
@@ -93,6 +95,7 @@ function buildConfig(values: LlmProfileFormValues): LlmProfileConfig {
       config: {
         ...apiKeyAuth,
         baseUrl: values.baseUrl,
+        apiShape: values.customShape,
         headerNames: values.headers.map((h) => h.name.trim()).filter(Boolean),
       },
     };

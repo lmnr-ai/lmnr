@@ -48,7 +48,7 @@ pub async fn probe(profile: &LlmProfile, model: &str) -> ProviderResult<Duration
 mod tests {
     use super::*;
     use crate::data_plane::crypto;
-    use crate::llm::profiles::{EncryptedSecrets, LlmProfileProvider, ProfileConfig};
+    use crate::llm::profiles::{ApiShape, EncryptedSecrets, LlmProfileProvider, ProfileConfig};
     use chrono::Utc;
     use uuid::Uuid;
     use wiremock::matchers::{header, method, path};
@@ -57,6 +57,10 @@ mod tests {
     const TEST_KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     fn custom_profile(base_url: &str) -> LlmProfile {
+        custom_profile_with_shape(base_url, None)
+    }
+
+    fn custom_profile_with_shape(base_url: &str, api_shape: Option<ApiShape>) -> LlmProfile {
         let id = Uuid::new_v4();
         unsafe { std::env::set_var(crate::env::secrets::AEAD_SECRET_KEY, TEST_KEY) };
         let (nonce, value) = crypto::encrypt(
@@ -72,6 +76,7 @@ mod tests {
             config: ProfileConfig {
                 base_url: Some(base_url.to_string()),
                 header_names: vec!["X-Tenant".to_string()],
+                api_shape,
                 ..Default::default()
             },
             secrets: EncryptedSecrets { nonce, value },
@@ -103,6 +108,37 @@ mod tests {
         let body: serde_json::Value = requests[0].body_json().unwrap();
         assert_eq!(body["model"], "gpt-test");
         assert!(body["tools"].is_null());
+    }
+
+    #[tokio::test]
+    async fn probe_uses_the_responses_endpoint_for_a_responses_gateway() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/responses"))
+            .and(header("authorization", "Bearer sk-probe"))
+            .and(header("x-tenant", "acme"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status": "completed",
+                "output": [{
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "OK"}],
+                }],
+            })))
+            .mount(&server)
+            .await;
+
+        probe(
+            &custom_profile_with_shape(&server.uri(), Some(ApiShape::Responses)),
+            "gpt-test",
+        )
+        .await
+        .unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        let body: serde_json::Value = requests[0].body_json().unwrap();
+        assert_eq!(body["model"], "gpt-test");
+        assert_eq!(body["max_output_tokens"], 16);
     }
 
     #[tokio::test]

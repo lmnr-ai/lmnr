@@ -6,6 +6,7 @@ import {
   LlmProfileModelsSchema,
   LlmProfileSecretsSchema,
   maskSecret,
+  profileProviderLabel,
   requiredSecretKey,
   secretsPresence,
 } from "@/lib/actions/llm-profiles/schema";
@@ -62,6 +63,15 @@ describe("LlmProfileConfigSchema", () => {
     });
     assert.equal(parsed.provider, "custom");
     assert.equal(parsed.config.baseUrl, "https://gw.example.com/v1");
+    assert.equal(parsed.config.apiShape, "chat_completions");
+    assert.equal(profileProviderLabel(parsed), "Custom (OpenAI-compatible)");
+
+    const responses = LlmProfileConfigSchema.parse({
+      provider: "custom",
+      config: { baseUrl: "https://gw.example.com/v1", apiShape: "responses", auth: { type: "api_key" } },
+    });
+    assert.ok(responses.provider === "custom" && responses.config.apiShape === "responses");
+    assert.equal(profileProviderLabel(responses), "Custom (OpenAI-compatible, Responses)");
 
     const bad = (config: Record<string, unknown>) =>
       !LlmProfileConfigSchema.safeParse({ provider: "custom", config: { ...config, auth: { type: "api_key" } } })
@@ -69,6 +79,7 @@ describe("LlmProfileConfigSchema", () => {
     assert.ok(bad({ baseUrl: "ftp://gw.example.com" }));
     assert.ok(bad({ baseUrl: "https://gw.example.com", headerNames: ["Bad Header"] }));
     assert.ok(bad({ baseUrl: "https://gw.example.com", headerNames: ["X-A", "x-a"] }));
+    assert.ok(bad({ baseUrl: "https://gw.example.com", apiShape: "messages" }));
   });
 
   it("rejects unknown providers", () => {

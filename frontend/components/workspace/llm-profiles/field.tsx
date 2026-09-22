@@ -67,7 +67,7 @@ export function TextField({
   );
 }
 
-type ShapeName = Extract<FieldPath<LlmProfileFormValues>, "openaiShape" | "azureShape">;
+type ShapeName = Extract<FieldPath<LlmProfileFormValues>, "openaiShape" | "azureShape" | "customShape">;
 
 /** Which of a provider's API endpoints the profile's deployments speak. */
 export function ShapeSelect<N extends ShapeName>({

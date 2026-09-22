@@ -150,6 +150,7 @@ pub(super) fn normalize_config(
             Ok(ProfileConfig {
                 base_url: Some(base_url),
                 header_names,
+                api_shape: config.api_shape,
                 ..ProfileConfig::default()
             })
         }
@@ -217,6 +218,7 @@ pub(super) fn validate_secret_values(secrets: &ProfileSecrets) -> Result<(), Cru
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::profiles::ApiShape;
 
     fn custom(header_names: &[&str]) -> ProfileConfig {
         ProfileConfig {
@@ -264,11 +266,23 @@ mod tests {
             LlmProfileProvider::Gemini,
             ProfileConfig {
                 region: Some("ignored".into()),
+                api_shape: Some(ApiShape::Responses),
                 ..Default::default()
             },
         )
         .unwrap();
         assert!(stray.region.is_none());
+        assert!(stray.api_shape.is_none());
+
+        let responses = normalize_config(
+            LlmProfileProvider::Custom,
+            ProfileConfig {
+                api_shape: Some(ApiShape::Responses),
+                ..custom(&[])
+            },
+        )
+        .unwrap();
+        assert_eq!(responses.api_shape, Some(ApiShape::Responses));
 
         let dup = normalize_config(LlmProfileProvider::Custom, custom(&["X-A", "x-a"]));
         assert!(matches!(dup, Err(CrudError::Validation(m)) if m.contains("unique")));
