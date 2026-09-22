@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { type LlmProfile, profileProviderLabel } from "@/lib/actions/llm-profiles/schema";
+import { type LlmProfile, PROVIDER_LABELS } from "@/lib/actions/llm-profiles/schema";
 import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
 
@@ -68,7 +68,7 @@ export default function LlmProfiles({ workspaceId }: LlmProfilesProps) {
             <td className="px-4 text-sm text-muted-foreground whitespace-nowrap">
               <span className="inline-flex items-center gap-2">
                 <ProviderIcon provider={profile.provider} />
-                {profileProviderLabel(profile)}
+                {PROVIDER_LABELS[profile.provider]}
               </span>
             </td>
             <td className="px-4">

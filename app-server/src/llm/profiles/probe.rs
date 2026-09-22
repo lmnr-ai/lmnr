@@ -48,7 +48,7 @@ pub async fn probe(profile: &LlmProfile, model: &str) -> ProviderResult<Duration
 mod tests {
     use super::*;
     use crate::data_plane::crypto;
-    use crate::llm::profiles::{ApiShape, EncryptedSecrets, LlmProfileProvider, ProfileConfig};
+    use crate::llm::profiles::{EncryptedSecrets, LlmProfileProvider, ProfileConfig};
     use chrono::Utc;
     use uuid::Uuid;
     use wiremock::matchers::{header, method, path};
@@ -57,10 +57,10 @@ mod tests {
     const TEST_KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     fn custom_profile(base_url: &str) -> LlmProfile {
-        custom_profile_with_shape(base_url, None)
+        gateway_profile(LlmProfileProvider::Custom, base_url)
     }
 
-    fn custom_profile_with_shape(base_url: &str, api_shape: Option<ApiShape>) -> LlmProfile {
+    fn gateway_profile(provider: LlmProfileProvider, base_url: &str) -> LlmProfile {
         let id = Uuid::new_v4();
         unsafe { std::env::set_var(crate::env::secrets::AEAD_SECRET_KEY, TEST_KEY) };
         let (nonce, value) = crypto::encrypt(
@@ -72,11 +72,10 @@ mod tests {
             id,
             workspace_id: Uuid::new_v4(),
             name: "gateway".to_string(),
-            provider: LlmProfileProvider::Custom,
+            provider,
             config: ProfileConfig {
                 base_url: Some(base_url.to_string()),
                 header_names: vec!["X-Tenant".to_string()],
-                api_shape,
                 ..Default::default()
             },
             secrets: EncryptedSecrets { nonce, value },
@@ -128,7 +127,7 @@ mod tests {
             .await;
 
         probe(
-            &custom_profile_with_shape(&server.uri(), Some(ApiShape::Responses)),
+            &gateway_profile(LlmProfileProvider::CustomResponses, &server.uri()),
             "gpt-test",
         )
         .await

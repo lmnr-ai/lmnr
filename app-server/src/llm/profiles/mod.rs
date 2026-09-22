@@ -36,7 +36,10 @@ pub enum LlmProfileProvider {
     AzureChatCompletions,
     AzureResponses,
     AzureAnthropic,
+    /// OpenAI-compatible gateway over Chat Completions.
     Custom,
+    /// OpenAI-compatible gateway over the Responses API.
+    CustomResponses,
 }
 
 impl LlmProfileProvider {
@@ -54,7 +57,13 @@ impl LlmProfileProvider {
             Self::AzureResponses => "azure_responses",
             Self::AzureAnthropic => "azure_anthropic",
             Self::Custom => "custom",
+            Self::CustomResponses => "custom_responses",
         }
+    }
+
+    /// A user-supplied base URL plus optional custom headers, whichever API shape it speaks.
+    pub fn is_custom_gateway(self) -> bool {
+        matches!(self, Self::Custom | Self::CustomResponses)
     }
 
     /// Provider name reported on spans and used for cost keying: the `model_costs`
@@ -62,7 +71,10 @@ impl LlmProfileProvider {
     /// in `LlmClient::resolve_model_provider`.
     pub fn reported_name(self) -> &'static str {
         match self {
-            Self::OpenaiCompletions | Self::OpenaiResponses | Self::Custom => "openai",
+            Self::OpenaiCompletions
+            | Self::OpenaiResponses
+            | Self::Custom
+            | Self::CustomResponses => "openai",
             Self::Anthropic => "anthropic",
             Self::Gemini => "gemini",
             Self::Groq => "groq",
@@ -93,18 +105,6 @@ pub struct ProfileConfig {
     pub api_version: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub header_names: Vec<String>,
-    /// `custom` only; absent means Chat Completions.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub api_shape: Option<ApiShape>,
-}
-
-/// Which OpenAI-compatible endpoint a `custom` gateway speaks.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ApiShape {
-    #[default]
-    ChatCompletions,
-    Responses,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -194,8 +194,8 @@ mod tests {
                 r#"{"baseUrl":"https://gw.example.com/v1","headerNames":["X-Tenant"],"auth":{"type":"api_key"}}"#,
             ),
             (
-                "custom",
-                r#"{"baseUrl":"https://gw.example.com/v1","apiShape":"responses","auth":{"type":"api_key"}}"#,
+                "custom_responses",
+                r#"{"baseUrl":"https://gw.example.com/v1","headerNames":["X-Tenant"],"auth":{"type":"api_key"}}"#,
             ),
         ];
         for (provider, config) in cases {
@@ -206,22 +206,7 @@ mod tests {
             let back = serde_json::to_string(&parsed).unwrap();
             let again: ProfileConfig = serde_json::from_str(&back).unwrap();
             assert_eq!(again.header_names, parsed.header_names);
-            assert_eq!(again.api_shape, parsed.api_shape);
         }
-    }
-
-    #[test]
-    fn custom_api_shape_defaults_to_chat_completions() {
-        let legacy: ProfileConfig =
-            serde_json::from_str(r#"{"baseUrl":"https://gw.example.com/v1"}"#).unwrap();
-        assert_eq!(legacy.api_shape, None);
-        assert_eq!(
-            legacy.api_shape.unwrap_or_default(),
-            ApiShape::ChatCompletions
-        );
-
-        let responses: ProfileConfig = serde_json::from_str(r#"{"apiShape":"responses"}"#).unwrap();
-        assert_eq!(responses.api_shape, Some(ApiShape::Responses));
     }
 
     #[test]

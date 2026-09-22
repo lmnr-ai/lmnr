@@ -49,10 +49,10 @@ const CHAT_REPLY = {
   usage: { prompt_tokens: 1, completion_tokens: 1 },
 };
 
-const customProfile = (apiShape?: "chat_completions" | "responses"): LlmProfileConfig =>
+const customProfile = (provider: "custom" | "custom_responses"): LlmProfileConfig =>
   LlmProfileConfigSchema.parse({
-    provider: "custom",
-    config: { baseUrl: "https://gw.example.com/v1", apiShape, headerNames: ["X-Tenant"], auth: { type: "api_key" } },
+    provider,
+    config: { baseUrl: "https://gw.example.com/v1", headerNames: ["X-Tenant"], auth: { type: "api_key" } },
   });
 
 const secrets = { apiKey: "sk-gw", headers: { "X-Tenant": "acme" } };
@@ -62,10 +62,10 @@ describe("languageModelFromProfile (custom gateway)", () => {
     globalThis.fetch = realFetch;
   });
 
-  it("responses shape posts to /responses with store disabled", async () => {
+  it("custom_responses posts to /responses with store disabled", async () => {
     const calls = stubFetch(RESPONSES_REPLY);
     const { text } = await generateText({
-      model: languageModelFromProfile(customProfile("responses"), secrets, "gw-model"),
+      model: languageModelFromProfile(customProfile("custom_responses"), secrets, "gw-model"),
       prompt: "ping",
     });
 
@@ -79,7 +79,7 @@ describe("languageModelFromProfile (custom gateway)", () => {
   it("call-level openai options still merge over store: false", async () => {
     const calls = stubFetch(RESPONSES_REPLY);
     await generateText({
-      model: languageModelFromProfile(customProfile("responses"), secrets, "gw-model"),
+      model: languageModelFromProfile(customProfile("custom_responses"), secrets, "gw-model"),
       prompt: "ping",
       providerOptions: { openai: { user: "u-1" } },
     });
@@ -88,10 +88,10 @@ describe("languageModelFromProfile (custom gateway)", () => {
     assert.equal(calls[0].body.user, "u-1");
   });
 
-  it("defaults to chat completions when apiShape is absent", async () => {
+  it("custom posts to /chat/completions", async () => {
     const calls = stubFetch(CHAT_REPLY);
     const { text } = await generateText({
-      model: languageModelFromProfile(customProfile(), secrets, "gw-model"),
+      model: languageModelFromProfile(customProfile("custom"), secrets, "gw-model"),
       prompt: "ping",
     });
 

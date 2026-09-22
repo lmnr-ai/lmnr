@@ -115,7 +115,7 @@ export function ProviderFields({ existing }: { existing?: LlmProfile | null }) {
             label="Base URL"
             placeholder="https://gateway.example.com/v1"
             hint={
-              values.customShape === "responses"
+              values.customShape === "custom_responses"
                 ? "OpenAI Responses root; /responses is appended."
                 : "OpenAI Chat Completions root; /chat/completions is appended."
             }

@@ -65,13 +65,14 @@ export function languageModelFromProfile(
       });
       return profile.provider === "azure_responses" ? azure(model) : azure.chat(model);
     }
-    case "custom": {
+    case "custom":
+    case "custom_responses": {
       const headers: Record<string, string> = {};
       for (const name of profile.config.headerNames) {
         headers[name] = requireSecret(secrets.headers?.[name], `value for header "${name}"`);
       }
       const gateway = createOpenAI({ apiKey: apiKey(), baseURL: profile.config.baseUrl, headers });
-      if (profile.config.apiShape === "chat_completions") return gateway.chat(model);
+      if (profile.provider === "custom") return gateway.chat(model);
       // Gateways rarely persist responses, so multi-step calls must resend prior items, not `item_reference` ids.
       return wrapLanguageModel({
         model: gateway.responses(model),

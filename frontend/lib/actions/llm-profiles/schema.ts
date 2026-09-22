@@ -13,6 +13,7 @@ export const LLM_PROFILE_PROVIDERS = [
   "azure_responses",
   "azure_anthropic",
   "custom",
+  "custom_responses",
 ] as const;
 
 export type LlmProfileProvider = (typeof LLM_PROFILE_PROVIDERS)[number];
@@ -22,6 +23,10 @@ export type OpenAIProvider = (typeof OPENAI_PROVIDERS)[number];
 
 export const AZURE_PROVIDERS = ["azure_chat_completions", "azure_responses", "azure_anthropic"] as const;
 export type AzureProvider = (typeof AZURE_PROVIDERS)[number];
+
+/** OpenAI-compatible gateways: `custom` speaks Chat Completions, `custom_responses` the Responses API. */
+export const CUSTOM_PROVIDERS = ["custom", "custom_responses"] as const;
+export type CustomProvider = (typeof CUSTOM_PROVIDERS)[number];
 
 /** Providers whose whole config is an API key. */
 const API_KEY_PROVIDERS = ["openai_completions", "openai_responses", "anthropic", "gemini", "groq", "mistral"] as const;
@@ -65,13 +70,8 @@ const BedrockConfigSchema = z.object({
   ]),
 });
 
-/** Which OpenAI-compatible endpoint a custom gateway speaks. Mirrors `ApiShape` in `app-server/src/llm/profiles/mod.rs`. */
-export const CUSTOM_API_SHAPES = ["chat_completions", "responses"] as const;
-export type CustomApiShape = (typeof CUSTOM_API_SHAPES)[number];
-
 const CustomConfigSchema = z.object({
   baseUrl: HttpUrlSchema,
-  apiShape: z.enum(CUSTOM_API_SHAPES).default("chat_completions"),
   headerNames: z
     .array(HeaderNameSchema)
     .max(32)
@@ -91,7 +91,7 @@ export const LlmProfileConfigSchema = z.discriminatedUnion("provider", [
   z.object({ provider: z.literal(API_KEY_PROVIDERS), config: ApiKeyConfigSchema }),
   z.object({ provider: z.literal(AZURE_PROVIDERS), config: AzureConfigSchema }),
   z.object({ provider: z.literal("bedrock"), config: BedrockConfigSchema }),
-  z.object({ provider: z.literal("custom"), config: CustomConfigSchema }),
+  z.object({ provider: z.literal(CUSTOM_PROVIDERS), config: CustomConfigSchema }),
 ]);
 
 export type LlmProfileConfig = z.infer<typeof LlmProfileConfigSchema>;
@@ -173,16 +173,9 @@ export const PROVIDER_LABELS: Record<LlmProfileProvider, string> = {
   azure_chat_completions: "Azure AI Foundry (Chat Completions)",
   azure_responses: "Azure AI Foundry (Responses)",
   azure_anthropic: "Azure AI Foundry (Anthropic Messages)",
-  custom: "Custom (OpenAI-compatible)",
+  custom: "Custom (Chat Completions)",
+  custom_responses: "Custom (Responses)",
 };
-
-/** `PROVIDER_LABELS`, plus the API shape for a custom gateway on the Responses API. */
-export function profileProviderLabel(profile: LlmProfileConfig): string {
-  if (profile.provider === "custom" && profile.config.apiShape === "responses") {
-    return "Custom (OpenAI-compatible, Responses)";
-  }
-  return PROVIDER_LABELS[profile.provider];
-}
 
 /** Vendor family: the icon to show and the `gen_ai.system` value the playground reports. */
 export type LlmProviderFamily = "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "bedrock" | "azure";
@@ -192,6 +185,7 @@ export function providerFamily(provider: LlmProfileProvider): LlmProviderFamily 
     case "openai_completions":
     case "openai_responses":
     case "custom":
+    case "custom_responses":
       return "openai";
     case "azure_chat_completions":
     case "azure_responses":
@@ -207,3 +201,6 @@ export const isOpenAIProvider = (provider: LlmProfileProvider): provider is Open
 
 export const isAzureProvider = (provider: LlmProfileProvider): provider is AzureProvider =>
   (AZURE_PROVIDERS as readonly string[]).includes(provider);
+
+export const isCustomProvider = (provider: LlmProfileProvider): provider is CustomProvider =>
+  (CUSTOM_PROVIDERS as readonly string[]).includes(provider);
