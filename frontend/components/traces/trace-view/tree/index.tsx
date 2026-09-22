@@ -157,49 +157,60 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     return <span className="text-base text-secondary-foreground mx-auto mt-4 text-center">No spans found.</span>;
   }
 
+  // No rows until the scroller is measured (SSR); placeholders stay inside the ref'd scroller.
+  const unmeasured = items.length === 0 && treeSpans.length > 0;
+
   return (
     <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
-      <div className="flex flex-col pb-[100px] pt-1">
-        <div
-          className="relative"
-          style={{
-            height: virtualizer.getTotalSize(),
-            width: "100%",
-            position: "relative",
-          }}
-        >
+      {unmeasured ? (
+        <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+          {times(3, (i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col pb-[100px] pt-1">
           <div
+            className="relative"
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
+              height: virtualizer.getTotalSize(),
               width: "100%",
-              transform: `translateY(${items[0]?.start ?? 0}px)`,
+              position: "relative",
             }}
           >
-            {items.map((virtualRow) => {
-              const spanItem = treeSpans[virtualRow.index];
-              if (!spanItem) return null;
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${items[0]?.start ?? 0}px)`,
+              }}
+            >
+              {items.map((virtualRow) => {
+                const spanItem = treeSpans[virtualRow.index];
+                if (!spanItem) return null;
 
-              return (
-                <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
-                  <SpanCard
-                    span={spanItem.span}
-                    branchMask={spanItem.branchMask}
-                    output={previews[spanItem.span.spanId]}
-                    depth={spanItem.depth}
-                    hasChildren={spanItem.hasChildren}
-                    isSelected={spanItem.span.spanId === selectedSpan?.spanId}
-                    showTreeContent={showTreeContent ?? true}
-                    onToggleCollapse={toggleCollapse}
-                    onSpanSelect={onSpanSelect}
-                  />
-                </div>
-              );
-            })}
+                return (
+                  <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
+                    <SpanCard
+                      span={spanItem.span}
+                      branchMask={spanItem.branchMask}
+                      output={previews[spanItem.span.spanId]}
+                      depth={spanItem.depth}
+                      hasChildren={spanItem.hasChildren}
+                      isSelected={spanItem.span.spanId === selectedSpan?.spanId}
+                      showTreeContent={showTreeContent ?? true}
+                      onToggleCollapse={toggleCollapse}
+                      onSpanSelect={onSpanSelect}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache } from "react";
-import { z } from "zod/v4";
 
 import PageViewTracker from "@/components/common/page-view-tracker";
 import TraceView from "@/components/shared/traces/trace-view";
 import { getSharedSpans } from "@/lib/actions/shared/spans";
-import { getSharedTrace } from "@/lib/actions/shared/trace";
-import { getServerSession } from "@/lib/auth-session";
 
-const getCachedSharedTrace = cache((traceId: string) => getSharedTrace({ traceId }));
+import { getCachedSharedTrace, isValidTraceId } from "./shared-trace";
 
 const NOINDEX: Metadata["robots"] = { index: false, follow: false };
-const isValidTraceId = (traceId: string) => z.guid().safeParse(traceId).success;
 
 export const generateMetadata = async (props: { params: Promise<{ traceId: string }> }): Promise<Metadata> => {
   const { traceId } = await props.params;
@@ -68,8 +63,6 @@ export default async function SharedTracePage(props: {
 }) {
   const { traceId } = await props.params;
 
-  // getSharedTrace throws a ZodError on a non-UUID, which would surface as the
-  // error boundary rather than a 404.
   if (!isValidTraceId(traceId)) {
     return notFound();
   }
@@ -80,15 +73,12 @@ export default async function SharedTracePage(props: {
     return notFound();
   }
 
-  const [spans, session] = await Promise.all([
-    getSharedSpans({ traceId }).catch(() => []),
-    getServerSession().catch(() => null),
-  ]);
+  const spans = await getSharedSpans({ traceId }).catch(() => []);
 
   return (
     <>
       <PageViewTracker feature="shared" action="trace_viewed" properties={{ traceId }} />
-      <TraceView trace={trace} spans={spans} hasSession={session !== null} />
+      <TraceView trace={trace} spans={spans} />
     </>
   );
 }

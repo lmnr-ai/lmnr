@@ -10,6 +10,7 @@ import SpanCopyIdDropdown from "@/components/traces/span-copy-id-dropdown";
 import { Button } from "@/components/ui/button";
 import { type Span } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
@@ -55,11 +56,12 @@ export function SpanControls({
             )}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {!isAlwaysSelectSpan && onClose && (
+            {onClose && (
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="flex-shrink-0 hover:bg-surface-up"
+                // Always-select layouts only stack below STACK_THRESHOLD; that's the only time closing makes sense.
+                className={cn("flex-shrink-0 hover:bg-surface-up", isAlwaysSelectSpan && "@min-[760px]:hidden")}
                 onClick={onClose}
                 aria-label="Close span panel"
               >
