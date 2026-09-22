@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { shallow } from "zustand/shallow";
 
 import Header from "@/components/shared/traces/header";
@@ -21,7 +21,16 @@ interface TracePanelProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 
+const useHydrated = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
 export default function TracePanel({ trace, spans, onClose, onSpanSelect }: TracePanelProps) {
+  const hydrated = useHydrated();
+
   const {
     tab,
     browserSession,
@@ -63,11 +72,16 @@ export default function TracePanel({ trace, spans, onClose, onSpanSelect }: Trac
         id="shared-trace-panels"
         orientation="vertical"
         // pointer-events-none during a drag so the rrweb iframe can't swallow the pointer stream.
-        className={cn("flex-1 min-h-0", isResizing && "pointer-events-none")}
+        className={cn(
+          "flex-1 min-h-0",
+          isResizing && "pointer-events-none",
+          // Panels render flex-grow:1 (a 50/50 split) until measured; hold the timeline at its defaultSize.
+          !hydrated && "[&>[data-timeline]]:!max-h-[200px]"
+        )}
       >
         {condensedTimelineEnabled && (
           <>
-            <ResizablePanel defaultSize={200} minSize={80}>
+            <ResizablePanel defaultSize={200} minSize={80} data-timeline="">
               <div className="border-t h-full">
                 <CondensedTimeline />
               </div>

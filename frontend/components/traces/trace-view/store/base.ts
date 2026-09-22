@@ -202,6 +202,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
   get: () => T,
   options?: {
     initialTrace?: TraceViewTrace;
+    initialSpans?: TraceViewSpan[];
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
     initialSearch?: string;
@@ -211,7 +212,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     trace: options?.initialTrace,
     isTraceLoading: false,
     traceError: undefined,
-    spans: [],
+    spans: (options?.initialSpans ?? []).map((span) => ({ ...span, collapsed: false })),
     isSpansLoading: false,
     spansError: undefined,
     selectedSpan: undefined,
