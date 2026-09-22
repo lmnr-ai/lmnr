@@ -40,7 +40,7 @@ export const DEBUGGER_SEQUENCE: Step[] = [
   {
     entry: {
       kind: "tool",
-      text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file' ORDER BY start_time DESC LIMIT 12"`,
+      text: `lmnr-cli sql query "SELECT output FROM spans WHERE name='write_file'..."`,
     },
     delay: 240,
   },
