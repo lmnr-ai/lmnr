@@ -15,7 +15,6 @@ export enum Feature {
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
   BATCH_SIGNALS = "BATCH_SIGNALS",
-  CLUSTERING = "CLUSTERING",
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
@@ -107,10 +106,6 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.BATCH_SIGNALS) {
     return false;
-  }
-
-  if (feature === Feature.CLUSTERING) {
-    return process.env.CLUSTERING_ENABLED === "true";
   }
 
   if (feature === Feature.SEND_EMAIL) {
