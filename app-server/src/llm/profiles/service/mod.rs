@@ -24,6 +24,7 @@ use super::{
     build::decrypt_secrets,
 };
 
+mod provider_fields;
 mod secrets;
 mod validate;
 
