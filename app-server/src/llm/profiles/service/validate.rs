@@ -208,7 +208,7 @@ fn reject_unused_fields(
 
 /// Header values are only sent for a custom gateway, and only for names listed in
 /// `headerNames`; anything else would be silently discarded on save.
-pub(super) fn reject_unused_header_secrets(
+fn reject_unused_header_secrets(
     provider: LlmProfileProvider,
     config: &ProfileConfig,
     secrets: &ProfileSecrets,
@@ -269,7 +269,13 @@ fn validate_header_name(name: &str) -> Result<(), CrudError> {
     Ok(())
 }
 
-pub(super) fn validate_secret_values(secrets: &ProfileSecrets) -> Result<(), CrudError> {
+/// Checks the secrets a request carries (before they are merged with the stored
+/// ones): value shape, header names, and that every header value will be sent.
+pub(super) fn validate_secrets(
+    provider: LlmProfileProvider,
+    config: &ProfileConfig,
+    secrets: &ProfileSecrets,
+) -> Result<(), CrudError> {
     let check = |v: &String| -> Result<(), CrudError> {
         if v.is_empty() || v.len() > SECRET_MAX {
             return Err(CrudError::Validation(format!(
@@ -293,7 +299,7 @@ pub(super) fn validate_secret_values(secrets: &ProfileSecrets) -> Result<(), Cru
         validate_header_name(name)?;
         check(value)?;
     }
-    Ok(())
+    reject_unused_header_secrets(provider, config, secrets)
 }
 
 #[cfg(test)]
@@ -416,30 +422,29 @@ mod tests {
     }
 
     #[test]
-    fn header_values_need_a_listed_gateway_header() {
+    fn secrets_need_a_listed_gateway_header() {
         let secrets = ProfileSecrets {
             headers: std::collections::HashMap::from([("X-A".to_string(), "1".to_string())]),
             ..Default::default()
         };
-        let azure = reject_unused_header_secrets(
+        let azure = validate_secrets(
             LlmProfileProvider::AzureResponses,
             &ProfileConfig::default(),
             &secrets,
         );
         assert!(matches!(azure, Err(CrudError::Validation(m)) if m.contains("custom headers")));
 
-        let unlisted =
-            reject_unused_header_secrets(LlmProfileProvider::Custom, &custom(&["X-B"]), &secrets);
+        let unlisted = validate_secrets(LlmProfileProvider::Custom, &custom(&["X-B"]), &secrets);
         assert!(matches!(unlisted, Err(CrudError::Validation(m)) if m.contains("X-A")));
 
         for provider in [
             LlmProfileProvider::Custom,
             LlmProfileProvider::CustomResponses,
         ] {
-            assert!(reject_unused_header_secrets(provider, &custom(&["X-A"]), &secrets).is_ok());
+            assert!(validate_secrets(provider, &custom(&["X-A"]), &secrets).is_ok());
         }
         assert!(
-            reject_unused_header_secrets(
+            validate_secrets(
                 LlmProfileProvider::Gemini,
                 &ProfileConfig::default(),
                 &ProfileSecrets::default()

@@ -29,10 +29,7 @@ mod validate;
 
 pub use secrets::SecretsPresence;
 use secrets::{assert_secrets_complete, merge_secrets, presence, prune_secrets};
-use validate::{
-    normalize_config, reject_unused_header_secrets, validate_models, validate_name,
-    validate_secret_values,
-};
+use validate::{normalize_config, validate_models, validate_name, validate_secrets};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CrudError {
@@ -176,8 +173,7 @@ pub async fn create_llm_profile(
     let name = validate_name(&input.name)?;
     let models = validate_models(input.models)?;
     let config = normalize_config(input.provider, input.config)?;
-    validate_secret_values(&input.secrets)?;
-    reject_unused_header_secrets(input.provider, &config, &input.secrets)?;
+    validate_secrets(input.provider, &config, &input.secrets)?;
     let secrets = prune_secrets(input.provider, &config, input.secrets);
     assert_secrets_complete(input.provider, &config, &secrets)?;
 
@@ -228,8 +224,7 @@ pub async fn update_llm_profile(
         (None, None) => existing.config.clone(),
     };
 
-    validate_secret_values(&input.secrets)?;
-    reject_unused_header_secrets(provider, &config, &input.secrets)?;
+    validate_secrets(provider, &config, &input.secrets)?;
     let stored = decrypt_stored(&existing)?;
     let secrets = prune_secrets(provider, &config, merge_secrets(stored, input.secrets));
     assert_secrets_complete(provider, &config, &secrets)?;
@@ -344,8 +339,7 @@ pub async fn probe_llm_profile(
         return Err(CrudError::Validation("model is required".to_string()));
     }
     let config = normalize_config(input.provider, input.config)?;
-    validate_secret_values(&input.secrets)?;
-    reject_unused_header_secrets(input.provider, &config, &input.secrets)?;
+    validate_secrets(input.provider, &config, &input.secrets)?;
 
     let stored = match input.profile_id {
         Some(profile_id) => {
