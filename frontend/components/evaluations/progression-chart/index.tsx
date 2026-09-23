@@ -1,9 +1,8 @@
 import { useParams } from "next/navigation";
 import { useQueryState } from "nuqs";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
-import { spacedPalette } from "@/lib/colors";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +23,11 @@ interface ProgressionChartProps {
   hiddenEvaluationIds?: string[];
   baselineEvaluationId?: string;
   hoveredEvaluationId?: string;
+  /** Score → color, owned by the parent so the table's headers match the lines. */
+  chartConfig: ChartConfig;
+  /** Spotlighted score. Set by this chart's legend AND by the table's score cells. */
+  hoveredScore?: string | null;
+  onHoverScore?: (score: string | null) => void;
   onPointClick?: (evaluationId: string) => void;
   /** When on, every score stretches to its own min/max (fills full height). */
   fillHeight?: boolean;
@@ -39,12 +43,14 @@ export default function ProgressionChart({
   hiddenEvaluationIds = EMPTY_IDS,
   baselineEvaluationId,
   hoveredEvaluationId,
+  chartConfig,
+  hoveredScore,
+  onHoverScore,
   onPointClick,
   fillHeight,
 }: ProgressionChartProps) {
   const [groupId] = useQueryState("groupId");
   const params = useParams();
-  const [hoveredScore, setHoveredScore] = useState<string | null>(null);
 
   // Persist deselected scores (not selected) so newly-appearing scores default to visible.
   const [hiddenScores, setHiddenScores] = useLocalStorage<string[]>(
@@ -102,11 +108,6 @@ export default function ProgressionChart({
     [points, hiddenEvaluationIds]
   );
 
-  const chartConfig = useMemo<ChartConfig>(() => {
-    const colors = spacedPalette(scoreKeys.length);
-    return Object.fromEntries(scoreKeys.map((key, i) => [key, { color: colors[i], label: key }]));
-  }, [scoreKeys]);
-
   const toggleScore = useCallback(
     (key: string) => {
       setHiddenScores((prev) => (prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]));
@@ -130,7 +131,7 @@ export default function ProgressionChart({
           visibleScores={scores}
           chartConfig={chartConfig}
           onToggle={toggleScore}
-          onHoverScore={setHoveredScore}
+          onHoverScore={onHoverScore}
           className="w-32 shrink-0 overflow-y-auto"
         />
         <div className="min-w-0 flex-1">

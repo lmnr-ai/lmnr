@@ -226,7 +226,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
-    isCostHeatmapVisible: false,
+    isCostHeatmapVisible: true,
     scrollStartTime: undefined,
     scrollEndTime: undefined,
 
