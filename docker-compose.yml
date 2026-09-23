@@ -86,6 +86,7 @@ services:
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:5667
       ENVIRONMENT: LITE # this disables some runtime dependencies
+      LAMINAR_TELEMETRY_DISABLED: "${LAMINAR_TELEMETRY_DISABLED:-false}"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}

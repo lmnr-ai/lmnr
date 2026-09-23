@@ -159,6 +159,8 @@ intervention, since Drizzle's migration journal is versioned per-schema.
 
 Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
 
+For shipped Docker Compose stacks, set the variable in the repository-root `.env` and recreate the frontend container. For a manually run frontend or Helm deployment, set it in the frontend process or pod environment.
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
