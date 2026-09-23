@@ -7,6 +7,9 @@ services:
   rabbitmq:
     image: rabbitmq
     pull_policy: always
+    hostname: rabbitmq
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     ports:
       - "5672:5672"
     environment:
@@ -80,6 +83,7 @@ services:
       - quickwit-data:/quickwit/qwdata
 
 volumes:
+  rabbitmq-data:
   clickhouse-data:
   clickhouse-logs:
   postgres-data:
