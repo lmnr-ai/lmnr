@@ -29,7 +29,10 @@ mod validate;
 
 pub use secrets::SecretsPresence;
 use secrets::{assert_secrets_complete, merge_secrets, presence, prune_secrets};
-use validate::{normalize_config, validate_models, validate_name, validate_secret_values};
+use validate::{
+    normalize_config, reject_unused_header_secrets, validate_models, validate_name,
+    validate_secret_values,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CrudError {
@@ -43,6 +46,10 @@ pub enum CrudError {
     /// or `llm_feature_routes`.
     #[error("{0}")]
     InUse(String),
+    /// Server-side setup the operator must fix (e.g. a malformed
+    /// `AEAD_SECRET_KEY`); the message names the problem, never a secret.
+    #[error("{0}")]
+    Misconfigured(String),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -54,6 +61,10 @@ pub fn error_response(e: CrudError) -> HttpResponse {
             HttpResponse::Conflict().json(json!({ "error": e.to_string() }))
         }
         e @ CrudError::NotFound => HttpResponse::NotFound().json(json!({ "error": e.to_string() })),
+        CrudError::Misconfigured(m) => {
+            log::error!("LLM profile crud error: {m}");
+            HttpResponse::InternalServerError().json(json!({ "error": m }))
+        }
         CrudError::Internal(err) => {
             log::error!("LLM profile crud error: {err:?}");
             HttpResponse::InternalServerError().json(json!({ "error": "Internal server error" }))
@@ -166,6 +177,7 @@ pub async fn create_llm_profile(
     let models = validate_models(input.models)?;
     let config = normalize_config(input.provider, input.config)?;
     validate_secret_values(&input.secrets)?;
+    reject_unused_header_secrets(input.provider, &config, &input.secrets)?;
     let secrets = prune_secrets(input.provider, &config, input.secrets);
     assert_secrets_complete(input.provider, &config, &secrets)?;
 
@@ -217,6 +229,7 @@ pub async fn update_llm_profile(
     };
 
     validate_secret_values(&input.secrets)?;
+    reject_unused_header_secrets(provider, &config, &input.secrets)?;
     let stored = decrypt_stored(&existing)?;
     let secrets = prune_secrets(provider, &config, merge_secrets(stored, input.secrets));
     assert_secrets_complete(provider, &config, &secrets)?;
@@ -332,6 +345,7 @@ pub async fn probe_llm_profile(
     }
     let config = normalize_config(input.provider, input.config)?;
     validate_secret_values(&input.secrets)?;
+    reject_unused_header_secrets(input.provider, &config, &input.secrets)?;
 
     let stored = match input.profile_id {
         Some(profile_id) => {
@@ -383,7 +397,7 @@ fn describe(profile: LlmProfile) -> Result<LlmProfileResponse, CrudError> {
 }
 
 fn decrypt_stored(profile: &LlmProfile) -> Result<ProfileSecrets, CrudError> {
-    decrypt_secrets(profile).map_err(|e| CrudError::Internal(anyhow::anyhow!("{e}")))
+    decrypt_secrets(profile).map_err(|e| CrudError::Misconfigured(e.to_string()))
 }
 
 async fn invalidate(cache: &Cache, workspace_id: Uuid, profile_id: Uuid) {
@@ -394,6 +408,7 @@ async fn invalidate(cache: &Cache, workspace_id: Uuid, profile_id: Uuid) {
 }
 
 fn encrypt_secrets(id: Uuid, secrets: &ProfileSecrets) -> Result<EncryptedSecrets, CrudError> {
+    crypto::check_key().map_err(|e| CrudError::Misconfigured(e.to_string()))?;
     let raw = serde_json::to_string(secrets).map_err(internal)?;
     let (nonce, value) = crypto::encrypt(&id.to_string(), &raw).map_err(CrudError::Internal)?;
     Ok(EncryptedSecrets { nonce, value })

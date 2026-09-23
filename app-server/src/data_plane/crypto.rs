@@ -22,6 +22,11 @@ fn cipher_from_env() -> Result<XChaCha20Poly1305> {
     Ok(XChaCha20Poly1305::new(&key))
 }
 
+/// Whether `AEAD_SECRET_KEY` is set and decodes to a 32-byte key.
+pub fn check_key() -> Result<()> {
+    cipher_from_env().map(|_| ())
+}
+
 /// `aad` is bound into the ciphertext: the data plane and Slack use the workspace id,
 /// LLM profiles use the profile id (frontend `lib/crypto.ts` `encryptValue(aad, …)`).
 #[allow(dead_code)]

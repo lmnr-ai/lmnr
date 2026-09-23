@@ -60,8 +60,8 @@ pub(super) fn validate_models(models: Vec<String>) -> Result<Vec<String>, CrudEr
     Ok(models)
 }
 
-/// Keeps only the fields the provider uses, trimmed, and checks the same
-/// rules as `LlmProfileConfigSchema`.
+/// Trims the provider's fields and checks the same rules as
+/// `LlmProfileConfigSchema`; a field the provider would never send is an error.
 pub(super) fn normalize_config(
     provider: LlmProfileProvider,
     config: ProfileConfig,
@@ -70,6 +70,7 @@ pub(super) fn normalize_config(
     let invalid = |m: &str| CrudError::Validation(m.to_string());
     let trimmed = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
 
+    reject_unused_fields(provider, &config)?;
     match provider {
         OpenaiCompletions | OpenaiResponses | Anthropic | Gemini | Groq | Mistral => {
             require_api_key_auth(&config.auth)?;
@@ -154,6 +155,87 @@ pub(super) fn normalize_config(
             })
         }
     }
+}
+
+const GATEWAY_HINT: &str = "for a gateway with a custom base URL and headers use provider `custom` \
+                            (Chat Completions) or `custom_responses` (Responses API)";
+
+fn reject_unused_fields(
+    provider: LlmProfileProvider,
+    config: &ProfileConfig,
+) -> Result<(), CrudError> {
+    use LlmProfileProvider::*;
+    let is_azure = matches!(
+        provider,
+        AzureChatCompletions | AzureResponses | AzureAnthropic
+    );
+    let set = |v: &Option<String>| v.as_deref().is_some_and(|s| !s.trim().is_empty());
+
+    let mut unused = Vec::new();
+    if provider != Bedrock && set(&config.region) {
+        unused.push("region");
+    }
+    if !is_azure && set(&config.resource_id) {
+        unused.push("resourceId");
+    }
+    if !is_azure && set(&config.api_version) {
+        unused.push("apiVersion");
+    }
+    if !is_azure && !provider.is_custom_gateway() && set(&config.base_url) {
+        unused.push("baseUrl");
+    }
+    if !provider.is_custom_gateway() && !config.header_names.is_empty() {
+        unused.push("headerNames");
+    }
+    if unused.is_empty() {
+        return Ok(());
+    }
+
+    let mut message = format!(
+        "Provider `{}` does not use {}",
+        provider.wire_name(),
+        unused.join(", ")
+    );
+    if unused
+        .iter()
+        .any(|f| matches!(*f, "baseUrl" | "headerNames"))
+    {
+        message.push_str("; ");
+        message.push_str(GATEWAY_HINT);
+    }
+    Err(CrudError::Validation(message))
+}
+
+/// Header values are only sent for a custom gateway, and only for names listed in
+/// `headerNames`; anything else would be silently discarded on save.
+pub(super) fn reject_unused_header_secrets(
+    provider: LlmProfileProvider,
+    config: &ProfileConfig,
+    secrets: &ProfileSecrets,
+) -> Result<(), CrudError> {
+    if secrets.headers.is_empty() {
+        return Ok(());
+    }
+    if !provider.is_custom_gateway() {
+        return Err(CrudError::Validation(format!(
+            "Provider `{}` does not send custom headers; {GATEWAY_HINT}",
+            provider.wire_name()
+        )));
+    }
+    let mut unlisted: Vec<&str> = secrets
+        .headers
+        .keys()
+        .filter(|name| !config.header_names.contains(name))
+        .map(String::as_str)
+        .collect();
+    if unlisted.is_empty() {
+        return Ok(());
+    }
+    unlisted.sort();
+    Err(CrudError::Validation(format!(
+        "Header values given for names not in headerNames: {}",
+        unlisted.join(", ")
+    )))
 }
 
 fn require_api_key_auth(auth: &ProfileAuth) -> Result<(), CrudError> {
@@ -263,12 +345,11 @@ mod tests {
         let stray = normalize_config(
             LlmProfileProvider::Gemini,
             ProfileConfig {
-                region: Some("ignored".into()),
+                region: Some("eu-west-1".into()),
                 ..Default::default()
             },
-        )
-        .unwrap();
-        assert!(stray.region.is_none());
+        );
+        assert!(matches!(stray, Err(CrudError::Validation(m)) if m.contains("region")));
 
         let responses =
             normalize_config(LlmProfileProvider::CustomResponses, custom(&["X-A"])).unwrap();
@@ -289,6 +370,82 @@ mod tests {
             },
         );
         assert!(matches!(bad_url, Err(CrudError::Validation(_))));
+    }
+
+    #[test]
+    fn unused_fields_are_rejected_not_dropped() {
+        let azure_headers = normalize_config(
+            LlmProfileProvider::AzureResponses,
+            ProfileConfig {
+                header_names: vec!["X-Attribution".into()],
+                ..custom(&[])
+            },
+        );
+        assert!(matches!(
+            azure_headers,
+            Err(CrudError::Validation(m)) if m.contains("headerNames") && m.contains("custom_responses")
+        ));
+
+        let openai_gateway =
+            normalize_config(LlmProfileProvider::OpenaiResponses, custom(&["X-A"]));
+        assert!(matches!(
+            openai_gateway,
+            Err(CrudError::Validation(m)) if m.contains("baseUrl, headerNames")
+        ));
+
+        let custom_api_version = normalize_config(
+            LlmProfileProvider::Custom,
+            ProfileConfig {
+                api_version: Some("preview".into()),
+                ..custom(&[])
+            },
+        );
+        assert!(matches!(
+            custom_api_version,
+            Err(CrudError::Validation(m)) if m.contains("apiVersion")
+        ));
+
+        let blank_is_absent = normalize_config(
+            LlmProfileProvider::Gemini,
+            ProfileConfig {
+                base_url: Some("  ".into()),
+                ..Default::default()
+            },
+        );
+        assert!(blank_is_absent.is_ok());
+    }
+
+    #[test]
+    fn header_values_need_a_listed_gateway_header() {
+        let secrets = ProfileSecrets {
+            headers: std::collections::HashMap::from([("X-A".to_string(), "1".to_string())]),
+            ..Default::default()
+        };
+        let azure = reject_unused_header_secrets(
+            LlmProfileProvider::AzureResponses,
+            &ProfileConfig::default(),
+            &secrets,
+        );
+        assert!(matches!(azure, Err(CrudError::Validation(m)) if m.contains("custom headers")));
+
+        let unlisted =
+            reject_unused_header_secrets(LlmProfileProvider::Custom, &custom(&["X-B"]), &secrets);
+        assert!(matches!(unlisted, Err(CrudError::Validation(m)) if m.contains("X-A")));
+
+        for provider in [
+            LlmProfileProvider::Custom,
+            LlmProfileProvider::CustomResponses,
+        ] {
+            assert!(reject_unused_header_secrets(provider, &custom(&["X-A"]), &secrets).is_ok());
+        }
+        assert!(
+            reject_unused_header_secrets(
+                LlmProfileProvider::Gemini,
+                &ProfileConfig::default(),
+                &ProfileSecrets::default()
+            )
+            .is_ok()
+        );
     }
 
     #[test]

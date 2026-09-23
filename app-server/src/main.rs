@@ -229,6 +229,15 @@ fn main() -> anyhow::Result<()> {
             &runtime_handle,
         );
 
+    // Unset is fine (only LLM profiles, the data plane and Slack need it); malformed is not.
+    if std::env::var(env::secrets::AEAD_SECRET_KEY).is_ok()
+        && let Err(e) = data_plane::crypto::check_key()
+    {
+        log::error!(
+            "{e}. LLM profile, data plane and Slack credentials cannot be encrypted or decrypted until it is fixed."
+        );
+    }
+
     let http_payload_limit: usize = env::server::HTTP_PAYLOAD_LIMIT.get();
 
     log::info!("HTTP payload limit: {}", http_payload_limit);
