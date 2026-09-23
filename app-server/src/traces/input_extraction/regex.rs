@@ -23,6 +23,9 @@ use crate::env::user_task::USER_TASK_REGEX_MAX_CONSECUTIVE_MISSES;
 use crate::llm::LlmClient;
 
 const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+/// How long a trace stays marked as already counted toward its regex's misses;
+/// only needs to outlive the broker's redeliveries of one message.
+const MISS_DEDUP_TTL_SECONDS: u64 = 60 * 60;
 /// Backtracking budget per regex application. LLM-generated patterns can
 /// backtrack heavily on large inputs; exceeding the budget aborts the
 /// match (treated as `NoMatch`) instead of burning CPU indefinitely.
@@ -365,10 +368,24 @@ pub async fn try_apply_cached_regex(
 /// Count a consecutive miss of the regex under `key` and evict it at
 /// `USER_TASK_REGEX_MAX_CONSECUTIVE_MISSES`. Returns whether the regex is still
 /// cached. Only the worker calls this: a producer miss is always re-applied by
-/// the worker, so counting on both sides would count every outlier twice. A
-/// cache error keeps the regex — a lost count only delays an eviction.
-pub async fn record_cached_regex_miss(cache: &Cache, key: &str) -> bool {
+/// the worker, so counting on both sides would count every outlier twice. Each
+/// trace counts once, so redeliveries of one message (a failed publish after the
+/// count) can't evict on their own. A cache error keeps the regex — a lost count
+/// only delays an eviction.
+pub async fn record_cached_regex_miss(cache: &Cache, key: &str, trace_id: Uuid) -> bool {
     let misses_key = regex_misses_key(key);
+    let counted_key = format!("{misses_key}:{trace_id}");
+    match cache
+        .try_acquire_lock(&counted_key, MISS_DEDUP_TTL_SECONDS)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => return true,
+        Err(e) => {
+            log::warn!("user-task: regex miss dedup failed for {key}: {e:?}");
+            return true;
+        }
+    }
     let misses = match cache.increment(&misses_key, 1).await {
         Ok(misses) => misses,
         Err(e) => {
@@ -576,7 +593,7 @@ mod tests {
                 apply_cached(&cache, &key, "no anchor").await,
                 CachedRegex::Missed
             ));
-            assert!(record_cached_regex_miss(&cache, &key).await);
+            assert!(record_cached_regex_miss(&cache, &key, Uuid::new_v4()).await);
         }
         // A hit resets the streak, so eviction needs a full run of misses again.
         assert!(matches!(
@@ -584,12 +601,33 @@ mod tests {
             CachedRegex::Applied(_)
         ));
         for _ in 0..threshold - 1 {
-            assert!(record_cached_regex_miss(&cache, &key).await);
+            assert!(record_cached_regex_miss(&cache, &key, Uuid::new_v4()).await);
         }
-        assert!(!record_cached_regex_miss(&cache, &key).await);
+        assert!(!record_cached_regex_miss(&cache, &key, Uuid::new_v4()).await);
         assert!(matches!(
             apply_cached(&cache, &key, "<env>x</env> task").await,
             CachedRegex::Absent
+        ));
+    }
+
+    /// A redelivered message re-applies the same trace; its retries must not
+    /// add up to an eviction.
+    #[tokio::test]
+    async fn redelivered_trace_counts_one_miss() {
+        let cache = make_cache();
+        let key = versioned_regex_cache_key(Uuid::new_v4(), "agent01", "deadbeef", false);
+        cache
+            .insert(&key, r"(?s)</env>\s*(.*)".to_string())
+            .await
+            .unwrap();
+        let trace_id = Uuid::new_v4();
+
+        for _ in 0..USER_TASK_REGEX_MAX_CONSECUTIVE_MISSES.get() * 2 {
+            assert!(record_cached_regex_miss(&cache, &key, trace_id).await);
+        }
+        assert!(matches!(
+            apply_cached(&cache, &key, "no anchor").await,
+            CachedRegex::Missed
         ));
     }
 

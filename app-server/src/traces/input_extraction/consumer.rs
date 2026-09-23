@@ -188,7 +188,7 @@ impl InputExtractionHandler {
         )
         .await;
         if matches!(lookup, CachedRegex::Missed)
-            && !record_cached_regex_miss(&self.cache, key).await
+            && !record_cached_regex_miss(&self.cache, key, message.trace_id).await
         {
             return CachedRegex::Absent;
         }
