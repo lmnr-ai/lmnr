@@ -5,12 +5,12 @@ import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/
 
 export async function GET(
   _req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
+  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
 ): Promise<Response> {
-  const { projectId, id } = await props.params;
+  const { projectId, dashboardId, chartId: id } = await props.params;
 
   try {
-    const chart = await getChart({ projectId, id });
+    const chart = await getChart({ projectId, dashboardId, id });
 
     if (!chart) {
       return Response.json({ error: "Chart not found" }, { status: 404 });
@@ -31,12 +31,12 @@ export async function GET(
 
 export async function DELETE(
   _req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
+  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
 ): Promise<Response> {
-  const { projectId, id } = await props.params;
+  const { projectId, dashboardId, chartId: id } = await props.params;
 
   try {
-    await deleteDashboardChart({ projectId, id });
+    await deleteDashboardChart({ projectId, dashboardId, id });
 
     return Response.json({ success: true });
   } catch (error) {
@@ -53,15 +53,15 @@ export async function DELETE(
 
 export async function PATCH(
   req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
+  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
 ): Promise<Response> {
-  const { projectId, id } = await props.params;
+  const { projectId, dashboardId, chartId: id } = await props.params;
 
   try {
     const body = await req.json();
 
     // PATCH is used for partial updates (name only)
-    await updateChartName({ projectId, id, ...body });
+    await updateChartName({ ...body, projectId, dashboardId, id });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -78,14 +78,14 @@ export async function PATCH(
 
 export async function PUT(
   req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
+  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
 ): Promise<Response> {
-  const { projectId, id } = await props.params;
+  const { projectId, dashboardId, chartId: id } = await props.params;
 
   try {
     const body = await req.json();
 
-    const chart = await updateChart({ projectId, id, ...body });
+    const chart = await updateChart({ ...body, projectId, dashboardId, id });
 
     return NextResponse.json(chart);
   } catch (error) {

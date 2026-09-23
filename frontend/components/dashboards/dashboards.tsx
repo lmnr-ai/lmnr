@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import AddChartDropdown from "@/components/dashboards/add-chart-dropdown";
 import { DashboardSelectionProvider } from "@/components/dashboards/dashboard-selection-store";
+import DashboardSwitcher from "@/components/dashboards/dashboard-switcher";
 import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import GridLayout from "@/components/dashboards/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
@@ -47,7 +48,11 @@ function DashboardContent() {
   return (
     <>
       <Header path={"Dashboards"}>
-        <div className="h-12 flex gap-2 w-full items-center">
+        <div className="text-secondary-foreground/40">/</div>
+        <div className="ml-1">
+          <DashboardSwitcher />
+        </div>
+        <div className="h-12 flex gap-2 w-full items-center ml-2">
           <DateRangeFilter />
           <GroupByPeriodSelect />
           <div className="ml-auto">

@@ -11,7 +11,7 @@ import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import SelectionToolbar from "@/components/dashboards/selection-toolbar";
-import { type DashboardChart } from "@/components/dashboards/types";
+import { type DashboardChart, getChartsUrl } from "@/components/dashboards/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
@@ -25,7 +25,7 @@ interface ChartProps {
 }
 
 const Chart = ({ chart }: ChartProps) => {
-  const { id, name, settings, query } = chart;
+  const { id, dashboardId, name, settings, query } = chart;
   // Columns flagged hidden on their metric — set by the editor when a chart
   // was saved with auto-injected click-target IDs.
   const hiddenColumns = useMemo(
@@ -236,7 +236,7 @@ const Chart = ({ chart }: ChartProps) => {
   const persistColumnConfig = useMemo(
     () =>
       debounce(async (config: TableColumnConfig) => {
-        const key = `/api/projects/${projectId}/dashboard-charts`;
+        const key = getChartsUrl(projectId as string, dashboardId);
         // Derive next state from the *current* SWR cache rather than a
         // closure-captured `settings`, so a concurrent layout-drag write
         // doesn't get overwritten with a stale layout.
@@ -277,7 +277,7 @@ const Chart = ({ chart }: ChartProps) => {
           toast({ variant: "destructive", title: "Failed to save column layout" });
         }
       }, 500),
-    [id, projectId, toast, swrMutate]
+    [id, dashboardId, projectId, toast, swrMutate]
   );
 
   const handleBarClick = useCallback(
@@ -296,7 +296,7 @@ const Chart = ({ chart }: ChartProps) => {
   return (
     <div className="relative h-full">
       <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-border relative">
-        <ChartHeader name={name} id={id} projectId={projectId as string} />
+        <ChartHeader name={name} id={id} projectId={projectId as string} dashboardId={dashboardId} />
         {error ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
             <p className="text text-muted-foreground">Error loading chart data</p>

@@ -1,11 +1,11 @@
-import { type Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import Dashboard from "@/components/dashboards/dashboards";
+import { getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
 
-export const metadata: Metadata = {
-  title: "Dashboards",
-};
+export default async function DashboardsPage(props: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await props.params;
 
-export default async function DashboardPage() {
-  return <Dashboard />;
+  const dashboard = await getOrCreateDefaultDashboard({ projectId });
+
+  redirect(`/project/${projectId}/dashboards/${dashboard.id}`);
 }
