@@ -10,7 +10,7 @@ use regex::Regex;
 use crate::llm::profiles::{LlmProfileProvider, ProfileAuth, ProfileConfig, ProfileSecrets};
 
 use super::CrudError;
-use super::provider_fields::{GATEWAY_HINT, reject_unused_fields};
+use super::provider_fields::reject_unused_fields;
 
 const NAME_MAX: usize = 255;
 const MODEL_MAX: usize = 256;
@@ -170,7 +170,7 @@ fn reject_unused_header_secrets(
     }
     if !provider.is_custom_gateway() {
         return Err(CrudError::Validation(format!(
-            "Provider `{}` does not send custom headers; {GATEWAY_HINT}",
+            "Provider `{}` does not send custom headers",
             provider.wire_name()
         )));
     }
@@ -341,7 +341,7 @@ mod tests {
         );
         assert!(matches!(
             azure_headers,
-            Err(CrudError::Validation(m)) if m.contains("headerNames") && m.contains("custom_responses")
+            Err(CrudError::Validation(m)) if m == "Provider `azure_responses` does not use headerNames"
         ));
 
         let openai_gateway =

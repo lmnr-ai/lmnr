@@ -5,9 +5,6 @@ use crate::llm::profiles::{LlmProfileProvider, ProfileConfig};
 
 use super::CrudError;
 
-pub(super) const GATEWAY_HINT: &str = "for a gateway with a custom base URL and headers use provider `custom` \
-                            (Chat Completions) or `custom_responses` (Responses API)";
-
 /// The optional `config` fields; `auth` is checked per provider in `normalize_config`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ConfigField {
@@ -78,16 +75,8 @@ pub(super) fn reject_unused_fields(
     }
 
     let names: Vec<&str> = unused.iter().map(|field| field.wire_name()).collect();
-    let gateway_field = unused
-        .iter()
-        .any(|field| matches!(field, ConfigField::BaseUrl | ConfigField::HeaderNames));
-    let hint = if gateway_field {
-        format!("; {GATEWAY_HINT}")
-    } else {
-        String::new()
-    };
     Err(CrudError::Validation(format!(
-        "Provider `{}` does not use {}{hint}",
+        "Provider `{}` does not use {}",
         provider.wire_name(),
         names.join(", ")
     )))
