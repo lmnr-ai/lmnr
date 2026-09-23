@@ -1,5 +1,5 @@
 # Build stage with cargo chef for dependency caching
-FROM rust:1.96-slim-trixie AS chef
+FROM rust:1.98-slim-trixie AS chef
 WORKDIR /app-server
 
 # Install build dependencies and cargo-chef
