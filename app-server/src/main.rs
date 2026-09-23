@@ -378,17 +378,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    OBSERVATIONS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                OBSERVATIONS_QUEUE,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.1a Spans data plane message queue ====
             channel
@@ -404,17 +402,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    SPANS_DATA_PLANE_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                SPANS_DATA_PLANE_QUEUE,
+                SPANS_DATA_PLANE_EXCHANGE,
+                SPANS_DATA_PLANE_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.1b Spans indexer message queue ====
             channel
@@ -430,17 +426,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    SPANS_INDEXER_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                SPANS_INDEXER_QUEUE,
+                SPANS_INDEXER_EXCHANGE,
+                SPANS_INDEXER_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.2 Browser events message queue ====
             channel
@@ -456,17 +450,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    BROWSER_SESSIONS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                BROWSER_SESSIONS_QUEUE,
+                BROWSER_SESSIONS_EXCHANGE,
+                BROWSER_SESSIONS_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.5b Input extraction message queue ====
             channel
@@ -482,17 +474,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    INPUT_EXTRACTION_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                INPUT_EXTRACTION_QUEUE,
+                INPUT_EXTRACTION_EXCHANGE,
+                INPUT_EXTRACTION_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.5c User-task regex agent queue ====
             // Separate from the extraction queue: an agent run takes minutes
@@ -512,17 +502,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    USER_TASK_REGEX_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                USER_TASK_REGEX_QUEUE,
+                USER_TASK_REGEX_EXCHANGE,
+                USER_TASK_REGEX_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.6 Notifications message queue ====
             channel
@@ -538,17 +526,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    NOTIFICATIONS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                NOTIFICATIONS_QUEUE,
+                NOTIFICATIONS_EXCHANGE,
+                NOTIFICATIONS_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.6b Notification Deliveries message queue ====
             channel
@@ -564,17 +550,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    NOTIFICATION_DELIVERIES_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                NOTIFICATION_DELIVERIES_QUEUE,
+                NOTIFICATION_DELIVERIES_EXCHANGE,
+                NOTIFICATION_DELIVERIES_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.7 Event Clustering message queue ====
             #[cfg(feature = "signals")]
@@ -592,17 +576,15 @@ fn main() -> anyhow::Result<()> {
                     .await
                     .unwrap();
 
-                channel
-                    .queue_declare(
-                        EVENT_CLUSTERING_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
+                mq::rabbit::declare_bound_queue(
+                    &channel,
+                    EVENT_CLUSTERING_QUEUE,
+                    EVENT_CLUSTERING_EXCHANGE,
+                    EVENT_CLUSTERING_ROUTING_KEY,
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
 
                 // ==== 3.7b Event Clustering Batch message queue ====
                 channel
@@ -618,17 +600,15 @@ fn main() -> anyhow::Result<()> {
                     .await
                     .unwrap();
 
-                channel
-                    .queue_declare(
-                        EVENT_CLUSTERING_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
+                mq::rabbit::declare_bound_queue(
+                    &channel,
+                    EVENT_CLUSTERING_BATCH_QUEUE,
+                    EVENT_CLUSTERING_BATCH_EXCHANGE,
+                    EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
             }
 
             // ==== 3.8 Signals Realtime message queue ====
@@ -647,23 +627,20 @@ fn main() -> anyhow::Result<()> {
                     .await
                     .unwrap();
 
-                channel
-                    .queue_declare(
-                        SIGNALS_REALTIME_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
+                mq::rabbit::declare_bound_queue(
+                    &channel,
+                    SIGNALS_REALTIME_QUEUE,
+                    SIGNALS_REALTIME_EXCHANGE,
+                    SIGNALS_REALTIME_ROUTING_KEY,
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
 
                 // Parking lot for runs waiting on a sibling to warm the trace's
                 // prefix cache. No consumer — messages expire via their
                 // per-message TTL and dead-letter back into the realtime
-                // exchange. (The realtime queue itself is bound to that exchange
-                // by `get_receiver` when a consumer subscribes.)
+                // exchange, whose queue is already bound during startup.
                 channel
                     .exchange_declare(
                         SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
@@ -778,23 +755,20 @@ fn main() -> anyhow::Result<()> {
                     .await
                     .unwrap();
 
-                channel
-                    .queue_declare(
-                        SIGNALS_ADMISSION_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
+                mq::rabbit::declare_bound_queue(
+                    &channel,
+                    SIGNALS_ADMISSION_QUEUE,
+                    SIGNALS_ADMISSION_EXCHANGE,
+                    SIGNALS_ADMISSION_ROUTING_KEY,
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
 
                 // Parking lot for runs waiting on their trace to settle. No
                 // consumer — messages expire via their per-message TTL and
-                // dead-letter back into the admission exchange. (The admission
-                // queue itself is bound to that exchange by `get_receiver` when
-                // a consumer subscribes.)
+                // dead-letter back into the admission exchange, whose queue is
+                // already bound during startup.
                 channel
                     .exchange_declare(
                         SIGNALS_ADMISSION_WAITING_EXCHANGE.into(),
@@ -902,17 +876,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    LOGS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                LOGS_QUEUE,
+                LOGS_EXCHANGE,
+                LOGS_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.12 Reports message queue ====
             channel
@@ -928,17 +900,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    REPORT_TRIGGERS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                REPORT_TRIGGERS_QUEUE,
+                REPORT_TRIGGERS_EXCHANGE,
+                REPORT_TRIGGERS_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.13 Checkpoints message queue ====
             channel
@@ -954,17 +924,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    CHECKPOINTS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                CHECKPOINTS_QUEUE,
+                CHECKPOINTS_EXCHANGE,
+                CHECKPOINTS_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.14 Static prompt message queue ====
             channel
@@ -980,17 +948,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    STATIC_PROMPT_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                STATIC_PROMPT_QUEUE,
+                STATIC_PROMPT_EXCHANGE,
+                STATIC_PROMPT_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // ==== 3.15 SP versioning queues ====
             channel
@@ -1006,17 +972,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    SP_VERSIONING_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                SP_VERSIONING_QUEUE,
+                SP_VERSIONING_EXCHANGE,
+                SP_VERSIONING_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             // Delay queue for messages that can't resolve yet. No consumer
             // — messages expire via their per-message TTL and dead-letter
@@ -1080,17 +1044,15 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            channel
-                .queue_declare(
-                    SP_REGEX_EXTRACTION_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+            mq::rabbit::declare_bound_queue(
+                &channel,
+                SP_REGEX_EXTRACTION_QUEUE,
+                SP_REGEX_EXTRACTION_EXCHANGE,
+                SP_REGEX_EXTRACTION_ROUTING_KEY,
+                quorum_queue_args.clone(),
+            )
+            .await
+            .unwrap();
 
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
