@@ -4,7 +4,9 @@
 //!
 //!   1. resolve the prompt's version — the producer's inline verdict, else the
 //!      memo, else the `system_prompt_versions` row for the winning span;
-//!   2. a cached regex for that version → apply it;
+//!   2. a cached regex for that version → apply it; a miss is counted and the
+//!      trace extracted directly, and only a run of consecutive misses evicts
+//!      the regex;
 //!   3. no regex yet → record the user text as a cohort sample (triggering the
 //!      multi-sample agent once the cohort fills) and extract directly with one
 //!      LLM call;
@@ -25,8 +27,9 @@ use super::lock::{UserTaskLockState, lock_cache_key, write_lock_merged};
 use super::metadata::extraction_outcome_value;
 use super::queue::InputExtractionMessage;
 use super::regex::{
-    ApplyRegexResult, RegexTarget, Resolution, generate_and_apply_regex, is_passthrough_regex,
-    record_resolution, regex_target, try_apply_cached_regex,
+    ApplyRegexResult, CachedRegex, RegexTarget, Resolution, generate_and_apply_regex,
+    is_passthrough_regex, record_cached_regex_miss, record_resolution, regex_target,
+    try_apply_cached_regex,
 };
 use super::regex_agent::request_user_task_regex;
 use super::self_tracing::{self, RunKind, SpanBuilder, SpanContextCarrier, SpanScope};
@@ -66,22 +69,8 @@ impl MessageHandler for InputExtractionHandler {
         // Another worker may have populated the cache since this message was
         // enqueued, on any keying — a hit is pure regex application and emits no
         // self-tracing.
-        let cached = match &target {
-            RegexTarget::Keyed { key, .. } => {
-                try_apply_cached_regex(
-                    &self.cache,
-                    key,
-                    &message.signposted_text,
-                    message.project_id,
-                    message.trace_id,
-                )
-                .await
-            }
-            RegexTarget::Unversioned => None,
-        };
-
-        let result = match cached {
-            Some(result) => {
+        let result = match self.lookup_cached_regex(&message, &target).await {
+            CachedRegex::Applied(result) => {
                 // Recorded only for the versioned pipeline: the legacy keying
                 // serves prompts that can never have a version, so counting its
                 // hits would inflate the denominator of the fallback-rate metric.
@@ -105,13 +94,16 @@ impl MessageHandler for InputExtractionHandler {
                 }
                 result
             }
-            None => match self
-                .resolve_uncached(&message, &target, version_hash.as_deref())
-                .await
-            {
-                Some(result) => result,
-                None => return Ok(()),
-            },
+            lookup => {
+                let regex_kept = matches!(lookup, CachedRegex::Missed);
+                match self
+                    .resolve_uncached(&message, &target, version_hash.as_deref(), regex_kept)
+                    .await
+                {
+                    Some(result) => result,
+                    None => return Ok(()),
+                }
+            }
         };
 
         let value = extraction_outcome_value(&result);
@@ -176,6 +168,33 @@ impl InputExtractionHandler {
         })
     }
 
+    /// The cached-regex lookup, with the miss counted here: `Missed` means the
+    /// regex missed this text but stays cached, and a miss that evicts it reads
+    /// as `Absent`.
+    async fn lookup_cached_regex(
+        &self,
+        message: &InputExtractionMessage,
+        target: &RegexTarget,
+    ) -> CachedRegex {
+        let RegexTarget::Keyed { key, .. } = target else {
+            return CachedRegex::Absent;
+        };
+        let lookup = try_apply_cached_regex(
+            &self.cache,
+            key,
+            &message.signposted_text,
+            message.project_id,
+            message.trace_id,
+        )
+        .await;
+        if matches!(lookup, CachedRegex::Missed)
+            && !record_cached_regex_miss(&self.cache, key).await
+        {
+            return CachedRegex::Absent;
+        }
+        lookup
+    }
+
     /// Whether a later batch superseded this candidate (published its own
     /// metadata inline and rewrote the winner lock) while this message sat in the
     /// queue. The check is order-aware (`supersedes`), not bare inequality: the
@@ -205,11 +224,16 @@ impl InputExtractionHandler {
     /// candidate was superseded, or the extraction call failed outright (an absent
     /// `lmnr_user_task` means "never ran"; an empty string would claim the message
     /// carried no user request).
+    ///
+    /// `regex_kept`: a cached regex missed this text but stays cached, so this
+    /// trace is extracted directly — no sample is recorded and no legacy
+    /// generation overwrites the regex.
     async fn resolve_uncached(
         &self,
         message: &InputExtractionMessage,
         target: &RegexTarget,
         version_hash: Option<&str>,
+        regex_kept: bool,
     ) -> Option<ApplyRegexResult> {
         // A cohort exists only when the prompt HAS a version — that is what the
         // regex is keyed on, so it is also what samples accumulate under.
@@ -224,7 +248,7 @@ impl InputExtractionHandler {
             _ => None,
         };
 
-        if let Some((agent_hash, version)) = cohort {
+        if !regex_kept && let Some((agent_hash, version)) = cohort {
             // Cohort-level, so it is recorded even for a candidate this trace
             // will drop as superseded: the sample is valid for the cohort either
             // way and needs no LLM call to produce.
@@ -236,7 +260,8 @@ impl InputExtractionHandler {
         // shape, so its work outlives this candidate and the supersession check
         // stays after it. A direct extraction caches nothing, so a superseded
         // candidate's call is pure waste — check first.
-        let legacy_generation = matches!(target, RegexTarget::Keyed { version: None, .. });
+        let legacy_generation =
+            !regex_kept && matches!(target, RegexTarget::Keyed { version: None, .. });
         if !legacy_generation && self.superseded(message).await {
             return None;
         }
@@ -253,17 +278,23 @@ impl InputExtractionHandler {
             };
         }
 
-        record_resolution(
-            if cohort.is_some() {
-                Resolution::Fallback
-            } else {
-                Resolution::NoVersion
-            },
-            message.project_id,
-            message.trace_id,
-            version_hash,
-            message.has_history,
-        );
+        // A kept legacy regex is not part of the versioned metric (see the
+        // cache-hit arm in `handle`).
+        let resolution = match (cohort.is_some(), regex_kept) {
+            (true, true) => Some(Resolution::RegexMiss),
+            (true, false) => Some(Resolution::Fallback),
+            (false, true) => None,
+            (false, false) => Some(Resolution::NoVersion),
+        };
+        if let Some(resolution) = resolution {
+            record_resolution(
+                resolution,
+                message.project_id,
+                message.trace_id,
+                version_hash,
+                message.has_history,
+            );
+        }
 
         let scope = SpanScope::new(
             message.project_id,
@@ -276,6 +307,7 @@ impl InputExtractionHandler {
         if let Some(version) = version_hash {
             self_tracing::set_attr_str(&root, "user_task.version_hash", version);
         }
+        self_tracing::set_metadata_bool(&root, "cached_regex_missed", regex_kept);
         let scope = scope.with_parent(SpanContextCarrier::from_span(&root));
 
         let result =

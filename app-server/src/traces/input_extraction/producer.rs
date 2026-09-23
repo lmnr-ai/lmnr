@@ -35,7 +35,7 @@ use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
-use crate::traces::sp_versioning::producer::VersionVerdicts;
+use crate::traces::sp_versioning::producer::{VersionVerdicts, internal_project_ids};
 use crate::traces::spans::SpanAttributes;
 
 /// The span's system-prompt identity, threaded from the ingest producer. The
@@ -150,16 +150,11 @@ pub async fn process_user_task_candidates(
     cache: Arc<Cache>,
     spans_stream_publisher: Option<Arc<StreamPublisher>>,
 ) {
-    // Do not run on self-tracing project to avoid infinite looping
+    // Never run on self-tracing projects: our own one would loop, and the
+    // others carry internal pipeline spans that can never get a version.
     if std::env::var(crate::env::user_task::USER_TASK_INTERNAL_PROJECT_ID)
         .is_ok_and(|internal_project_id_str| internal_project_id_str == project_id.to_string())
-    {
-        return;
-    }
-
-    #[cfg(feature = "signals")]
-    if std::env::var(crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID)
-        .is_ok_and(|internal_project_id_str| internal_project_id_str == project_id.to_string())
+        || internal_project_ids().contains(&project_id)
     {
         return;
     }
@@ -462,16 +457,15 @@ async fn process_trace_inputs(
             candidate.has_history,
         );
         let inline_result = match &target {
-            RegexTarget::Keyed { key, .. } => {
-                try_apply_cached_regex(
-                    &cache,
-                    key,
-                    &candidate.signposted_text,
-                    project_id,
-                    trace_id,
-                )
-                .await
-            }
+            RegexTarget::Keyed { key, .. } => try_apply_cached_regex(
+                &cache,
+                key,
+                &candidate.signposted_text,
+                project_id,
+                trace_id,
+            )
+            .await
+            .applied(),
             RegexTarget::Unversioned => None,
         };
         // Recorded only for the versioned pipeline: the legacy keying serves

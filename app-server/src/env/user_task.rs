@@ -8,6 +8,12 @@ use super::NumEnv;
 /// (`TRACE_OUTPUT_LOCK_CACHE_KEY`).
 pub const USER_TASK_LOCK_TTL_SECONDS: NumEnv<u64> = NumEnv::new("USER_TASK_LOCK_TTL_SECONDS", 5400);
 
+/// Consecutive `NoMatch` applications that evict a cached user-task regex; any
+/// hit resets the count. Below it the missed trace is extracted directly and the
+/// regex stays, so a rare outlier can't discard a regex that fits its cohort.
+pub const USER_TASK_REGEX_MAX_CONSECUTIVE_MISSES: NumEnv<i64> =
+    NumEnv::new("USER_TASK_REGEX_MAX_CONSECUTIVE_MISSES", 10);
+
 /// Destination project for user-task internal (self-)tracing spans. Unset /
 /// unparsable ⇒ `None` ⇒ the spans are no-ops in the internal exporter.
 /// Deliberately distinct from other internal-tracing project ids (e.g.

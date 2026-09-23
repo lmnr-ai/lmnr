@@ -23,6 +23,9 @@ pub const USER_FACING_SEPARATOR: &str = "\n\n";
 /// regex-generation LLM call — keeps pathological inputs bounded.
 const REGEX_INPUT_CAP_CHARS: usize = 200_000;
 
+/// Spliced between the kept head and tail of a text cut by [`truncate_middle`].
+pub(super) const TRUNCATION_MARKER: &str = "\n\n[... middle omitted ...]\n\n";
+
 /// Fingerprint prefix for last turns preceded by assistant/model history.
 /// First prompts of a conversation usually have a different shape than
 /// follow-ups, and the tag-based fingerprint alone doesn't always capture
@@ -119,11 +122,30 @@ pub fn canonicalize_user_parts(parts: Vec<String>) -> Vec<String> {
     keyed.into_iter().map(|(_, p)| p).collect()
 }
 
-fn truncate_for_regex(mut text: String) -> String {
-    if let Some((byte_pos, _)) = text.char_indices().nth(REGEX_INPUT_CAP_CHARS) {
-        text.truncate(byte_pos);
+/// Head+tail truncation on char boundaries. Static anchors sit at both ends of
+/// scaffolded text, so a prefix cut would drop every trailing anchor and fail
+/// a regex that matches the rest of its cohort.
+pub(super) fn truncate_middle(text: String, max_chars: usize) -> String {
+    let total = text.chars().count();
+    if total <= max_chars {
+        return text;
     }
-    text
+    let keep = max_chars / 2;
+    let head_end = text
+        .char_indices()
+        .nth(keep)
+        .map(|(i, _)| i)
+        .unwrap_or(text.len());
+    let tail_start = text
+        .char_indices()
+        .nth(total - keep)
+        .map(|(i, _)| i)
+        .unwrap_or(text.len());
+    format!(
+        "{}{TRUNCATION_MARKER}{}",
+        &text[..head_end],
+        &text[tail_start..]
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +193,7 @@ pub fn prepare_user_task_input(input: &Value) -> Option<UserTaskInput> {
     // hash is stable across arrival order.
     let content_hash = hex::encode(blake3::hash(user_text.as_bytes()).as_bytes());
     Some(UserTaskInput {
-        signposted_text: truncate_for_regex(user_text),
+        signposted_text: truncate_middle(user_text, REGEX_INPUT_CAP_CHARS),
         fingerprint,
         has_history,
         content_hash,
@@ -450,5 +472,43 @@ mod tests {
         });
         let prepared = prepare_user_task_input(&v).unwrap();
         assert_eq!(prepared.fingerprint, "has_history|plain");
+    }
+
+    #[test]
+    fn truncate_middle_keeps_head_and_tail() {
+        let text = format!("HEAD{}TAIL", "x".repeat(100));
+        let cut = truncate_middle(text.clone(), 20);
+        assert!(cut.starts_with("HEAD"));
+        assert!(cut.ends_with("TAIL"));
+        assert!(cut.contains(TRUNCATION_MARKER));
+        assert_eq!(truncate_middle("short".to_string(), 20), "short");
+    }
+
+    #[test]
+    fn truncate_middle_is_char_safe_on_multibyte_input() {
+        let cut = truncate_middle("é".repeat(100), 20);
+        assert!(cut.contains(TRUNCATION_MARKER));
+        assert!(cut.starts_with('é') && cut.ends_with('é'));
+    }
+
+    /// An over-cap input must still carry the template's trailing anchor, or a
+    /// cohort regex anchored on it misses every oversized trace.
+    #[test]
+    fn oversized_input_keeps_trailing_anchor_for_the_regex() {
+        use super::super::regex::{ApplyRegexResult, apply_regex};
+
+        let body = "x".repeat(REGEX_INPUT_CAP_CHARS * 2);
+        let v = json!([{
+            "role": "user",
+            "content": format!("Summarize the following text:\n\n{body}\n\nKeep it short.")
+        }]);
+        let prepared = prepare_user_task_input(&v).unwrap();
+        assert!(matches!(
+            apply_regex(
+                r"(?s)Summarize the following text:\s*(.*?)\s*Keep it short\.",
+                &prepared.signposted_text
+            ),
+            ApplyRegexResult::Extracted(_)
+        ));
     }
 }
