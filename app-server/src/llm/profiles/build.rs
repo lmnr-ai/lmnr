@@ -112,21 +112,26 @@ pub(super) fn build_client(profile: &LlmProfile) -> ProviderResult<ProviderClien
                 &root,
             )?)
         }
-        LlmProfileProvider::Custom => {
+        LlmProfileProvider::Custom | LlmProfileProvider::CustomResponses => {
             let base_url = config
                 .base_url
                 .as_deref()
                 .map(str::trim)
                 .filter(|u| !u.is_empty())
                 .ok_or_else(|| ctx("base URL is missing"))?;
-            ProviderClient::OpenAI(OpenAIClient::from_config(OpenAIExplicitConfig {
+            let explicit = OpenAIExplicitConfig {
                 api_key: required_secret(profile, &secrets.api_key, "API key")?,
                 api_base_url: base_url.to_string(),
                 api_version: None,
                 default_headers: custom_headers(&config.header_names, &secrets)
                     .map_err(|e| ctx(&e))?,
                 azure: false,
-            })?)
+            };
+            if profile.provider == LlmProfileProvider::Custom {
+                ProviderClient::OpenAI(OpenAIClient::from_config(explicit)?)
+            } else {
+                ProviderClient::OpenAIResponses(OpenAIResponsesClient::from_config(explicit)?)
+            }
         }
     };
     Ok(client)
@@ -267,6 +272,30 @@ mod tests {
             panic!("missing header value must fail");
         };
         assert!(matches!(err, ProviderError::ConfigError(msg) if msg.contains("X-Tenant")));
+    }
+
+    #[test]
+    fn custom_gateway_provider_picks_the_api_shape() {
+        let build = |provider| {
+            build_client(&profile(
+                provider,
+                ProfileConfig {
+                    base_url: Some("https://gw.example.com/v1".to_string()),
+                    ..Default::default()
+                },
+                r#"{"apiKey":"sk-test"}"#,
+            ))
+            .unwrap()
+        };
+        assert!(matches!(
+            build(LlmProfileProvider::Custom),
+            ProviderClient::OpenAI(_)
+        ));
+        let ProviderClient::OpenAIResponses(client) = build(LlmProfileProvider::CustomResponses)
+        else {
+            panic!("responses shape must build the Responses client");
+        };
+        assert_eq!(client.api_base_url(), "https://gw.example.com/v1");
     }
 
     #[test]

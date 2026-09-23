@@ -125,7 +125,7 @@ pub(super) fn normalize_config(
                 ..ProfileConfig::default()
             })
         }
-        Custom => {
+        Custom | CustomResponses => {
             require_api_key_auth(&config.auth)?;
             let base_url = trimmed(config.base_url)
                 .ok_or_else(|| invalid("Base URL is required"))
@@ -269,6 +269,14 @@ mod tests {
         )
         .unwrap();
         assert!(stray.region.is_none());
+
+        let responses =
+            normalize_config(LlmProfileProvider::CustomResponses, custom(&["X-A"])).unwrap();
+        assert_eq!(
+            responses.base_url.as_deref(),
+            Some("https://gw.example.com")
+        );
+        assert_eq!(responses.header_names, vec!["X-A"]);
 
         let dup = normalize_config(LlmProfileProvider::Custom, custom(&["X-A", "x-a"]));
         assert!(matches!(dup, Err(CrudError::Validation(m)) if m.contains("unique")));

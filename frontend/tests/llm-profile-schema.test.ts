@@ -5,6 +5,7 @@ import {
   LlmProfileConfigSchema,
   LlmProfileModelsSchema,
   LlmProfileSecretsSchema,
+  isCustomProvider,
   maskSecret,
   requiredSecretKey,
   secretsPresence,
@@ -63,12 +64,23 @@ describe("LlmProfileConfigSchema", () => {
     assert.equal(parsed.provider, "custom");
     assert.equal(parsed.config.baseUrl, "https://gw.example.com/v1");
 
+    const responses = LlmProfileConfigSchema.parse({
+      provider: "custom_responses",
+      config: { baseUrl: "https://gw.example.com/v1/", headerNames: ["X-Tenant"], auth: { type: "api_key" } },
+    });
+    assert.equal(responses.provider, "custom_responses");
+    assert.equal(requiredSecretKey(responses), "apiKey");
+    assert.ok(isCustomProvider(responses.provider) && responses.config.baseUrl === "https://gw.example.com/v1");
+
     const bad = (config: Record<string, unknown>) =>
       !LlmProfileConfigSchema.safeParse({ provider: "custom", config: { ...config, auth: { type: "api_key" } } })
         .success;
     assert.ok(bad({ baseUrl: "ftp://gw.example.com" }));
     assert.ok(bad({ baseUrl: "https://gw.example.com", headerNames: ["Bad Header"] }));
     assert.ok(bad({ baseUrl: "https://gw.example.com", headerNames: ["X-A", "x-a"] }));
+    assert.ok(
+      !LlmProfileConfigSchema.safeParse({ provider: "custom_responses", config: { auth: { type: "api_key" } } }).success
+    );
   });
 
   it("rejects unknown providers", () => {

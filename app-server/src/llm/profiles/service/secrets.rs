@@ -72,7 +72,7 @@ pub(super) fn prune_secrets(
         SecretKey::SecretAccessKey => pruned.secret_access_key = value,
         SecretKey::Token => pruned.token = value,
     }
-    if provider == LlmProfileProvider::Custom {
+    if provider.is_custom_gateway() {
         pruned.headers = config
             .header_names
             .iter()
@@ -112,7 +112,7 @@ pub(super) fn assert_secrets_complete(
             key.label()
         )));
     }
-    if provider == LlmProfileProvider::Custom
+    if provider.is_custom_gateway()
         && let Some(missing) = config
             .header_names
             .iter()
@@ -203,8 +203,13 @@ mod tests {
         assert_eq!(pruned.token.as_deref(), Some("t"));
         assert!(pruned.api_key.is_none());
 
-        let pruned = prune_secrets(LlmProfileProvider::Custom, &custom(&["X-A"]), secrets);
-        assert_eq!(pruned.headers.get("X-A").map(String::as_str), Some("1"));
+        for provider in [
+            LlmProfileProvider::Custom,
+            LlmProfileProvider::CustomResponses,
+        ] {
+            let pruned = prune_secrets(provider, &custom(&["X-A"]), secrets.clone());
+            assert_eq!(pruned.headers.get("X-A").map(String::as_str), Some("1"));
+        }
     }
 
     #[test]
@@ -226,16 +231,21 @@ mod tests {
 
     #[test]
     fn complete_requires_the_providers_key_and_every_listed_header() {
-        let err = assert_secrets_complete(
+        for provider in [
             LlmProfileProvider::Custom,
-            &custom(&["X-A"]),
-            &ProfileSecrets {
-                api_key: Some("k".into()),
-                ..Default::default()
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, CrudError::Validation(m) if m.contains("X-A")));
+            LlmProfileProvider::CustomResponses,
+        ] {
+            let err = assert_secrets_complete(
+                provider,
+                &custom(&["X-A"]),
+                &ProfileSecrets {
+                    api_key: Some("k".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+            assert!(matches!(err, CrudError::Validation(m) if m.contains("X-A")));
+        }
 
         let err = assert_secrets_complete(
             LlmProfileProvider::OpenaiCompletions,

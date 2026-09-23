@@ -1,6 +1,8 @@
 import {
   type AzureProvider,
+  type CustomProvider,
   isAzureProvider,
+  isCustomProvider,
   isOpenAIProvider,
   type LlmProfile,
   type LlmProfileConfig,
@@ -10,8 +12,12 @@ import {
   type SecretKey,
 } from "@/lib/actions/llm-profiles/schema";
 
-/** Provider select entries; the OpenAI and Azure API shapes each collapse into one entry with a sub-select. */
-export type UiProvider = Exclude<LlmProfileProvider, OpenAIProvider | AzureProvider> | "openai" | "azure";
+/** Provider select entries; the OpenAI, Azure and custom API shapes each collapse into one entry with a sub-select. */
+export type UiProvider =
+  | Exclude<LlmProfileProvider, OpenAIProvider | AzureProvider | CustomProvider>
+  | "openai"
+  | "azure"
+  | "custom";
 
 export const UI_PROVIDER_OPTIONS: Array<{ value: UiProvider; label: string }> = [
   { value: "openai", label: "OpenAI" },
@@ -35,11 +41,17 @@ export const AZURE_SHAPE_OPTIONS: Array<{ value: AzureProvider; label: string }>
   { value: "azure_anthropic", label: "Anthropic Messages" },
 ];
 
+export const CUSTOM_SHAPE_OPTIONS: Array<{ value: CustomProvider; label: string }> = [
+  { value: "custom", label: "Chat Completions" },
+  { value: "custom_responses", label: "Responses API" },
+];
+
 export type LlmProfileFormValues = {
   name: string;
   uiProvider: UiProvider;
   openaiShape: OpenAIProvider;
   azureShape: AzureProvider;
+  customShape: CustomProvider;
   azureEndpoint: "resourceId" | "baseUrl";
   bedrockAuth: "aws_keys" | "bearer_token";
   region: string;
@@ -67,6 +79,8 @@ export const toProvider = (values: LlmProfileFormValues): LlmProfileProvider => 
       return values.openaiShape;
     case "azure":
       return values.azureShape;
+    case "custom":
+      return values.customShape;
     default:
       return values.uiProvider;
   }
@@ -76,6 +90,7 @@ export const toProvider = (values: LlmProfileFormValues): LlmProfileProvider => 
 export const toUiProvider = (provider: LlmProfileProvider): UiProvider => {
   if (isOpenAIProvider(provider)) return "openai";
   if (isAzureProvider(provider)) return "azure";
+  if (isCustomProvider(provider)) return "custom";
   return provider;
 };
 

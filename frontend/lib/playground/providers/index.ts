@@ -10,6 +10,7 @@ export function thinkingNamespace(provider: LlmProfileProvider | undefined): Thi
     case "azure_chat_completions":
     case "azure_responses":
     case "custom":
+    case "custom_responses":
       return "openai";
     case "anthropic":
     case "azure_anthropic":
