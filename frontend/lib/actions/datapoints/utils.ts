@@ -11,6 +11,7 @@ import {
   type QueryParams,
   type QueryResult,
   type SelectQueryOptions,
+  splitJsonKeyValueFilter,
 } from "@/lib/actions/common/query-builder";
 
 // Datapoint table column mapping
@@ -47,7 +48,7 @@ const DATAPOINTS_TABLE = "dataset_datapoints";
 const jsonKeyValueFilter = (column: string): ColumnFilterProcessor =>
   createCustomFilter(
     (filter, paramKey) => {
-      const [key, val] = String(filter.value).split("=", 2);
+      const [key, val] = splitJsonKeyValueFilter(filter.value);
       if (key && val) {
         return (
           `(simpleJSONExtractString(${DATAPOINTS_TABLE}.${column}, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
@@ -57,7 +58,7 @@ const jsonKeyValueFilter = (column: string): ColumnFilterProcessor =>
       return "";
     },
     (filter, paramKey) => {
-      const [key, val] = String(filter.value).split("=", 2);
+      const [key, val] = splitJsonKeyValueFilter(filter.value);
       if (key && val) {
         return {
           [`${paramKey}_key`]: key,
