@@ -73,6 +73,27 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "timestamp", type: "number", description: "When the signal event occurred" },
     { name: "severity", type: "number", description: "Severity of the signal event" },
   ],
+  signals: [
+    { name: "id", type: "string", description: "Unique identifier for the signal" },
+    { name: "name", type: "string", description: "Signal name" },
+    { name: "prompt", type: "string", description: "Signal definition prompt" },
+    { name: "structured_output_schema", type: "string", description: "JSON schema of the signal's output" },
+    { name: "metadata", type: "string", description: "Signal metadata, as a JSON object" },
+    { name: "llm_model", type: "string", description: "Model the signal runs on" },
+    { name: "created_at", type: "string", description: "When the signal was created" },
+    { name: "version", type: "number", description: "Current definition version" },
+  ],
+  evaluations: [
+    { name: "id", type: "string", description: "Unique identifier for the evaluation" },
+    { name: "name", type: "string", description: "Evaluation name" },
+    { name: "group_id", type: "string", description: "Group identifier of the evaluation run" },
+    { name: "created_at", type: "string", description: "When the evaluation was created" },
+  ],
+  datasets: [
+    { name: "id", type: "string", description: "Unique identifier for the dataset" },
+    { name: "name", type: "string", description: "Dataset name" },
+    { name: "created_at", type: "string", description: "When the dataset was created" },
+  ],
 };
 
 const requiresNumericColumn = (fn: string): boolean =>
