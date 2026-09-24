@@ -62,6 +62,10 @@ use signals::private::{
         SIGNALS_ADMISSION_RETRY_QUEUE, SIGNALS_ADMISSION_RETRY_ROUTING_KEY,
         SIGNALS_ADMISSION_ROUTING_KEY, SIGNALS_ADMISSION_WAITING_EXCHANGE,
         SIGNALS_ADMISSION_WAITING_QUEUE, SIGNALS_ADMISSION_WAITING_ROUTING_KEY,
+        SIGNALS_BACKFILL_EXCHANGE, SIGNALS_BACKFILL_QUEUE, SIGNALS_BACKFILL_RETRY_EXCHANGE,
+        SIGNALS_BACKFILL_RETRY_QUEUE, SIGNALS_BACKFILL_RETRY_ROUTING_KEY,
+        SIGNALS_BACKFILL_ROUTING_KEY, SIGNALS_BACKFILL_WAITING_EXCHANGE,
+        SIGNALS_BACKFILL_WAITING_QUEUE, SIGNALS_BACKFILL_WAITING_ROUTING_KEY,
         SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_RETRY_EXCHANGE,
         SIGNALS_REALTIME_RETRY_QUEUE, SIGNALS_REALTIME_RETRY_ROUTING_KEY,
         SIGNALS_REALTIME_ROUTING_KEY, SIGNALS_REALTIME_WAITING_EXCHANGE,
@@ -636,138 +640,177 @@ fn main() -> anyhow::Result<()> {
                     .unwrap();
             }
 
-            // ==== 3.8 Signals Realtime message queue ====
+            // ==== 3.8 Signals agent message queues (realtime + backfill) ====
             #[cfg(feature = "signals")]
             {
-                channel
-                    .exchange_declare(
-                        SIGNALS_REALTIME_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+                // The agent's two lanes, declared identically: realtime for
+                // trigger runs, backfill for job runs, so a large backfill
+                // scales on its own workers and never queues realtime traffic
+                // behind it.
+                for (
+                    exchange,
+                    queue,
+                    routing_key,
+                    waiting_exchange,
+                    waiting_queue,
+                    waiting_routing_key,
+                    retry_exchange,
+                    retry_queue,
+                    retry_routing_key,
+                ) in [
+                    (
+                        SIGNALS_REALTIME_EXCHANGE,
+                        SIGNALS_REALTIME_QUEUE,
+                        SIGNALS_REALTIME_ROUTING_KEY,
+                        SIGNALS_REALTIME_WAITING_EXCHANGE,
+                        SIGNALS_REALTIME_WAITING_QUEUE,
+                        SIGNALS_REALTIME_WAITING_ROUTING_KEY,
+                        SIGNALS_REALTIME_RETRY_EXCHANGE,
+                        SIGNALS_REALTIME_RETRY_QUEUE,
+                        SIGNALS_REALTIME_RETRY_ROUTING_KEY,
+                    ),
+                    (
+                        SIGNALS_BACKFILL_EXCHANGE,
+                        SIGNALS_BACKFILL_QUEUE,
+                        SIGNALS_BACKFILL_ROUTING_KEY,
+                        SIGNALS_BACKFILL_WAITING_EXCHANGE,
+                        SIGNALS_BACKFILL_WAITING_QUEUE,
+                        SIGNALS_BACKFILL_WAITING_ROUTING_KEY,
+                        SIGNALS_BACKFILL_RETRY_EXCHANGE,
+                        SIGNALS_BACKFILL_RETRY_QUEUE,
+                        SIGNALS_BACKFILL_RETRY_ROUTING_KEY,
+                    ),
+                ] {
+                    channel
+                        .exchange_declare(
+                            exchange.into(),
+                            ExchangeKind::Fanout,
+                            ExchangeDeclareOptions {
+                                durable: true,
+                                ..Default::default()
+                            },
+                            FieldTable::default(),
+                        )
+                        .await
+                        .unwrap();
 
-                channel
-                    .queue_declare(
-                        SIGNALS_REALTIME_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
+                    channel
+                        .queue_declare(
+                            queue.into(),
+                            QueueDeclareOptions {
+                                durable: true,
+                                ..Default::default()
+                            },
+                            quorum_queue_args.clone(),
+                        )
+                        .await
+                        .unwrap();
 
-                // Parking lot for runs waiting on a sibling to warm the trace's
-                // prefix cache. No consumer — messages expire via their
-                // per-message TTL and dead-letter back into the realtime
-                // exchange. (The realtime queue itself is bound to that exchange
-                // by `get_receiver` when a consumer subscribes.)
-                channel
-                    .exchange_declare(
-                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+                    // Parking lot for runs waiting on a sibling to warm the
+                    // trace's prefix cache. No consumer — messages expire via
+                    // their per-message TTL and dead-letter back into the lane's
+                    // exchange. (The lane's queue itself is bound to that
+                    // exchange by `get_receiver` when a consumer subscribes.)
+                    channel
+                        .exchange_declare(
+                            waiting_exchange.into(),
+                            ExchangeKind::Fanout,
+                            ExchangeDeclareOptions {
+                                durable: true,
+                                ..Default::default()
+                            },
+                            FieldTable::default(),
+                        )
+                        .await
+                        .unwrap();
 
-                let mut realtime_waiting_args = quorum_queue_args.clone();
-                realtime_waiting_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_EXCHANGE.into()),
-                );
+                    let mut waiting_args = quorum_queue_args.clone();
+                    waiting_args.insert(
+                        "x-dead-letter-exchange".into(),
+                        lapin::types::AMQPValue::LongString(exchange.into()),
+                    );
 
-                channel
-                    .queue_declare(
-                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        realtime_waiting_args,
-                    )
-                    .await
-                    .unwrap();
+                    channel
+                        .queue_declare(
+                            waiting_queue.into(),
+                            QueueDeclareOptions {
+                                durable: true,
+                                ..Default::default()
+                            },
+                            waiting_args,
+                        )
+                        .await
+                        .unwrap();
 
-                channel
-                    .queue_bind(
-                        SIGNALS_REALTIME_WAITING_QUEUE.into(),
-                        SIGNALS_REALTIME_WAITING_EXCHANGE.into(),
-                        SIGNALS_REALTIME_WAITING_ROUTING_KEY.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+                    channel
+                        .queue_bind(
+                            waiting_queue.into(),
+                            waiting_exchange.into(),
+                            waiting_routing_key.into(),
+                            lapin::options::QueueBindOptions::default(),
+                            FieldTable::default(),
+                        )
+                        .await
+                        .unwrap();
 
-                // Holding pen for transiently-failed realtime steps. Same
-                // shape as the waiting queue above — no consumer, messages
-                // dead-letter back into the realtime exchange once their TTL
-                // expires — but separate so the retry delay and the park delay
-                // stay independent knobs.
-                channel
-                    .exchange_declare(
-                        SIGNALS_REALTIME_RETRY_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+                    // Holding pen for transiently-failed steps. Same shape as
+                    // the waiting queue above — no consumer, messages
+                    // dead-letter back into the lane's exchange once their TTL
+                    // expires — but separate so the retry delay and the park
+                    // delay stay independent knobs.
+                    channel
+                        .exchange_declare(
+                            retry_exchange.into(),
+                            ExchangeKind::Fanout,
+                            ExchangeDeclareOptions {
+                                durable: true,
+                                ..Default::default()
+                            },
+                            FieldTable::default(),
+                        )
+                        .await
+                        .unwrap();
 
-                let mut realtime_retry_args = quorum_queue_args.clone();
-                realtime_retry_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_EXCHANGE.into()),
-                );
-                // The target is a fanout exchange, which ignores routing keys —
-                // set explicitly so the return path doesn't silently depend on
-                // that if the exchange kind ever changes.
-                realtime_retry_args.insert(
-                    "x-dead-letter-routing-key".into(),
-                    lapin::types::AMQPValue::LongString(SIGNALS_REALTIME_ROUTING_KEY.into()),
-                );
+                    let mut retry_args = quorum_queue_args.clone();
+                    retry_args.insert(
+                        "x-dead-letter-exchange".into(),
+                        lapin::types::AMQPValue::LongString(exchange.into()),
+                    );
+                    // The target is a fanout exchange, which ignores routing
+                    // keys — set explicitly so the return path doesn't silently
+                    // depend on that if the exchange kind ever changes.
+                    retry_args.insert(
+                        "x-dead-letter-routing-key".into(),
+                        lapin::types::AMQPValue::LongString(routing_key.into()),
+                    );
 
-                channel
-                    .queue_declare(
-                        SIGNALS_REALTIME_RETRY_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        realtime_retry_args,
-                    )
-                    .await
-                    .unwrap();
+                    channel
+                        .queue_declare(
+                            retry_queue.into(),
+                            QueueDeclareOptions {
+                                durable: true,
+                                ..Default::default()
+                            },
+                            retry_args,
+                        )
+                        .await
+                        .unwrap();
 
-                channel
-                    .queue_bind(
-                        SIGNALS_REALTIME_RETRY_QUEUE.into(),
-                        SIGNALS_REALTIME_RETRY_EXCHANGE.into(),
-                        SIGNALS_REALTIME_RETRY_ROUTING_KEY.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
+                    channel
+                        .queue_bind(
+                            retry_queue.into(),
+                            retry_exchange.into(),
+                            retry_routing_key.into(),
+                            lapin::options::QueueBindOptions::default(),
+                            FieldTable::default(),
+                        )
+                        .await
+                        .unwrap();
+                }
 
                 // Admission gate in front of the realtime queue: claim, settle
                 // and filter trigger-based runs, then publish the survivors on.
-                // Same three-queue shape as the realtime side (main + park +
+                // Same three-queue shape as the agent lanes (main + park +
                 // retry), because the gate parks and retries for its own
                 // reasons and must not push that churn onto the agent's queue.
                 channel
@@ -1146,6 +1189,8 @@ fn main() -> anyhow::Result<()> {
             queue.register_queue(SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE);
             // ==== 3.8b Signals Realtime message queue ====
             queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
+            // ==== 3.8c Signals Backfill message queue ====
+            queue.register_queue(SIGNALS_BACKFILL_EXCHANGE, SIGNALS_BACKFILL_QUEUE);
         }
         // ==== 3.11 Logs message queue ====
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
@@ -1964,43 +2009,74 @@ fn main() -> anyhow::Result<()> {
                         }
                     }
 
-                    // Spawn LLM realtime workers
+                    // Spawn LLM agent workers: one pool per lane (realtime for
+                    // trigger runs, backfill for job runs), same handler, so
+                    // each lane scales independently.
                     #[cfg(feature = "signals")]
                     if let Some(llm_client) = llm_provider_client.as_ref() {
-                        let db = db_for_consumer.clone();
-                        let queue = mq_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client_clone = llm_client.clone();
-                        let cache = cache_for_consumer.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
-                        worker_pool_clone.spawn(
-                            WorkerType::SignalJobRealtime,
-                            env::workers::NUM_SIGNAL_JOB_REALTIME.get(),
-                            move || {
-                                SignalJobRealtimeHandler::new(
-                                    db.clone(),
-                                    cache.clone(),
-                                    queue.clone(),
-                                    clickhouse.clone(),
-                                    llm_client_clone.clone(),
-                                    config.clone(),
+                        for (worker_type, num_workers, queue_config) in [
+                            (
+                                WorkerType::SignalJobRealtime,
+                                env::workers::NUM_SIGNAL_JOB_REALTIME.get(),
+                                QueueConfig::new(
+                                    SIGNALS_REALTIME_QUEUE,
+                                    SIGNALS_REALTIME_EXCHANGE,
+                                    SIGNALS_REALTIME_ROUTING_KEY,
                                 )
-                            },
-                            QueueConfig::new(
-                                SIGNALS_REALTIME_QUEUE,
-                                SIGNALS_REALTIME_EXCHANGE,
-                                SIGNALS_REALTIME_ROUTING_KEY,
-                            )
-                            .with_retry(RetryConfig {
-                                exchange: SIGNALS_REALTIME_RETRY_EXCHANGE,
-                                routing_key: SIGNALS_REALTIME_RETRY_ROUTING_KEY,
-                                delay_ms: env::private::signals::TRANSIENT_RETRY_DELAY_MS.get(),
-                                max_attempts: env::private::signals::TRANSIENT_RETRY_MAX_ATTEMPTS
-                                    .get(),
-                            }),
-                        );
+                                .with_retry(RetryConfig {
+                                    exchange: SIGNALS_REALTIME_RETRY_EXCHANGE,
+                                    routing_key: SIGNALS_REALTIME_RETRY_ROUTING_KEY,
+                                    delay_ms: env::private::signals::TRANSIENT_RETRY_DELAY_MS
+                                        .get(),
+                                    max_attempts:
+                                        env::private::signals::TRANSIENT_RETRY_MAX_ATTEMPTS.get(),
+                                }),
+                            ),
+                            (
+                                WorkerType::SignalJobBackfill,
+                                env::workers::NUM_SIGNAL_JOB_BACKFILL.get(),
+                                QueueConfig::new(
+                                    SIGNALS_BACKFILL_QUEUE,
+                                    SIGNALS_BACKFILL_EXCHANGE,
+                                    SIGNALS_BACKFILL_ROUTING_KEY,
+                                )
+                                .with_retry(RetryConfig {
+                                    exchange: SIGNALS_BACKFILL_RETRY_EXCHANGE,
+                                    routing_key: SIGNALS_BACKFILL_RETRY_ROUTING_KEY,
+                                    delay_ms: env::private::signals::TRANSIENT_RETRY_DELAY_MS
+                                        .get(),
+                                    max_attempts:
+                                        env::private::signals::TRANSIENT_RETRY_MAX_ATTEMPTS.get(),
+                                }),
+                            ),
+                        ] {
+                            let db = db_for_consumer.clone();
+                            let queue = mq_for_consumer.clone();
+                            let clickhouse = clickhouse_for_consumer.clone();
+                            let llm_client_clone = llm_client.clone();
+                            let cache = cache_for_consumer.clone();
+                            let config = config.clone();
+                            worker_pool_clone.spawn(
+                                worker_type,
+                                num_workers,
+                                move || {
+                                    SignalJobRealtimeHandler::new(
+                                        db.clone(),
+                                        cache.clone(),
+                                        queue.clone(),
+                                        clickhouse.clone(),
+                                        llm_client_clone.clone(),
+                                        config.clone(),
+                                    )
+                                },
+                                queue_config,
+                            );
+                        }
                     } else {
-                        log::warn!("LLM provider not available - skipping realtime workers");
+                        log::warn!(
+                            "LLM provider not available - skipping realtime and backfill workers"
+                        );
                     }
 
                     // Spawn admission workers (the gate in front of the agent).
