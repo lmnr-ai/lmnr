@@ -83,12 +83,23 @@ pub fn setup_tracing_and_logging(
 ) -> (Option<SdkTracerProvider>, SharedIngestDeps) {
     // Built fresh per layer (`EnvFilter` isn't `Clone`); applied to both the fmt logger and the
     // Sentry OTEL layer so neither bridges TRACE/DEBUG library spans.
+    //
+    // The `clickhouse` crate emits its own `INFO`-level `clickhouse.insert`/`response` spans inside
+    // `insert_batch`, duplicating our own `#[instrument]`ed span in Sentry/logs. Their target-scoped
+    // directives win over the blanket `info` level regardless of order (`EnvFilter` picks the most
+    // specific target match), and survive a caller-supplied `RUST_LOG` too since they're appended
+    // after it.
     let build_env_filter = || {
-        if std::env::var(crate::env::observability::RUST_LOG).is_ok_and(|s| !s.is_empty()) {
-            EnvFilter::from_default_env()
-        } else {
-            EnvFilter::new("info")
-        }
+        let filter =
+            if std::env::var(crate::env::observability::RUST_LOG).is_ok_and(|s| !s.is_empty()) {
+                EnvFilter::from_default_env()
+            } else {
+                EnvFilter::new("info")
+            };
+        filter
+            .add_directive("clickhouse::insert_formatted=off".parse().unwrap())
+            .add_directive("clickhouse::response=off".parse().unwrap())
+            .add_directive("clickhouse::query=off".parse().unwrap())
     };
 
     let sentry_dsn_set =
