@@ -50,6 +50,15 @@ pub trait CacheTrait {
     async fn insert_with_ttl<T>(&self, key: &str, value: T, seconds: u64) -> Result<(), CacheError>
     where
         T: Serialize + Send;
+    /// Bulk `insert_with_ttl`, one TTL for every entry.
+    /// Uses pipelining for Redis, sequential for InMemory
+    async fn batch_insert_with_ttl<T>(
+        &self,
+        entries: &[(&str, T)],
+        seconds: u64,
+    ) -> Result<(), CacheError>
+    where
+        T: Serialize + Sync;
     /// Atomically increment a numeric value by the given amount.
     /// If the key doesn't exist, it will be created with value 0 before incrementing.
     /// Returns the new value after incrementing.

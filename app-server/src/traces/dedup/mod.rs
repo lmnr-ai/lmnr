@@ -38,6 +38,7 @@ use crate::{
 pub type ContentHash = [u8; 32];
 
 const SEEN_TTL_SECONDS: u64 = 3600;
+const STAMP_BATCH_SIZE: usize = 1000;
 
 /// Locality group of a span's deduped content. Mirrors the view-side
 /// `if(session_id != '', session_id, toString(trace_id))` exactly — both sides
@@ -160,9 +161,12 @@ impl SeenMarks {
         self.keys.push(trace_new_key(project_id, trace_id, hash));
     }
 
+    /// Best-effort: a failed chunk only costs its keys a redundant insert later.
+    #[tracing::instrument(skip_all, fields(keys_count = self.keys.len()))]
     pub async fn stamp(&self, cache: &Cache) {
-        for key in &self.keys {
-            let _ = cache.insert_with_ttl(key, "1", SEEN_TTL_SECONDS).await;
+        for chunk in self.keys.chunks(STAMP_BATCH_SIZE) {
+            let entries: Vec<(&str, &str)> = chunk.iter().map(|k| (k.as_str(), "1")).collect();
+            let _ = cache.batch_insert_with_ttl(&entries, SEEN_TTL_SECONDS).await;
         }
     }
 }
