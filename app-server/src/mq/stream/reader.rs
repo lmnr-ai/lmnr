@@ -68,6 +68,13 @@
 //! window is a flush already in flight at abort time (insert landed, store
 //! didn't).
 //!
+//! Graceful shutdown (SIGTERM) closes that window without draining either: the
+//! reader stops taking records, each batcher finishes the flush it is IN (insert
+//! AND offset store) and exits without flushing what it still holds, and only
+//! then is the consumer closed — so the successor activates on an offset that
+//! covers everything this pod wrote. A batcher still in flight after
+//! `GRACEFUL_SHUTDOWN_TIMEOUT_MS` (a transient-retry loop) falls back to abort.
+//!
 //! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
 //! partition whenever its tail is poison: nothing later would ever store a higher
@@ -79,7 +86,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use backon::{BackoffBuilder, Retryable};
-use futures_util::StreamExt;
+use futures_util::{StreamExt, future};
 use rabbitmq_stream_client::{
     Client,
     error::ClientError,
@@ -87,6 +94,8 @@ use rabbitmq_stream_client::{
 };
 use serde::de::DeserializeOwned;
 use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc};
+use tokio::task::{AbortHandle, JoinHandle};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::encoding;
@@ -105,6 +114,10 @@ const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
 /// partition (revoked, so nothing is ingested for it) and reconnects the reader
 /// so the fresh activation re-queries — never a guessed start position.
 const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
+
+/// Bound on the explicit consumer close at shutdown; past it the process exit
+/// drops the connection anyway.
+const CONSUMER_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// One record off a partition.
 ///
@@ -203,6 +216,7 @@ pub struct StreamReader<H: StreamBatchHandler> {
     environment: StreamEnvironment,
     handler: Arc<H>,
     num_batchers: usize,
+    shutdown: CancellationToken,
 }
 
 impl<H: StreamBatchHandler> StreamReader<H> {
@@ -212,6 +226,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         environment: StreamEnvironment,
         handler: H,
         num_batchers: usize,
+        shutdown: CancellationToken,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -220,6 +235,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             environment,
             handler: Arc::new(handler),
             num_batchers: num_batchers.max(1),
+            shutdown,
         }
     }
 
@@ -238,9 +254,9 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         );
     }
 
-    /// Runs forever, reconnecting on stream end / connection loss.
+    /// Runs until shutdown, reconnecting on stream end / connection loss.
     pub async fn run(self) {
-        loop {
+        while !self.shutdown.is_cancelled() {
             if let Err(e) = self.run_once().await {
                 log::error!(
                     "Stream reader {} ({}) failed: {:?}, reconnecting...",
@@ -249,8 +265,12 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                     e
                 );
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = self.shutdown.cancelled() => {}
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            }
         }
+        log::info!("Stream reader {} ({}) stopped", self.id, self.super_stream);
     }
 
     async fn run_once(&self) -> anyhow::Result<()> {
@@ -273,7 +293,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         // handle: `SuperStreamConsumer` multiplexes every partition into one
         // delivery stream, so the (reference, partition stream) pair has to be
         // named explicitly per store.
-        let mut consumer = self
+        let mut builder = self
             .environment
             .inner()
             .super_stream_consumer()
@@ -359,9 +379,11 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                         }
                     }
                 }
-            }})
-            .build(self.super_stream)
-            .await?;
+            }});
+        let mut consumer = tokio::select! {
+            _ = self.shutdown.cancelled() => return Ok(()),
+            consumer = builder.build(self.super_stream) => consumer?,
+        };
 
         let client = consumer.client();
 
@@ -378,6 +400,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 self.handler.clone(),
                 client.clone(),
                 self.consumer_name,
+                self.shutdown.clone(),
             )));
         }
 
@@ -395,6 +418,12 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         let mut result: anyhow::Result<()> = Ok(());
         loop {
             let delivery = tokio::select! {
+                // First, so a busy stream can't starve it. The batchers watch the
+                // same token; the teardown below waits for their in-flight flushes.
+                biased;
+
+                _ = self.shutdown.cancelled() => break,
+
                 // An activation failed to resolve its stored offset; that
                 // partition is parked. Tear down and reconnect so the fresh
                 // activation re-queries instead of ingesting from a guessed
@@ -473,8 +502,13 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             // consumer and lets credit-based flow control park the backlog on
             // the broker. A skipped record holds nothing, so it costs nothing —
             // its offset must reach the batcher even when the budget is spent.
+            // A record abandoned here never reaches a batcher, so its offset is
+            // never stored and the successor replays it.
             let permit = match &message {
-                Some(_) => Some(budget.admit(decoded_len).await),
+                Some(_) => tokio::select! {
+                    _ = self.shutdown.cancelled() => break,
+                    permit = budget.admit(decoded_len) => Some(permit),
+                },
                 None => None,
             };
 
@@ -489,7 +523,10 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 })
                 .is_err()
             {
-                log::error!("Stream batcher {} died, reconnecting reader", batcher);
+                // Batchers also exit on shutdown, which isn't a failure.
+                if !self.shutdown.is_cancelled() {
+                    log::error!("Stream batcher {} died, reconnecting reader", batcher);
+                }
                 break;
             }
         }
@@ -504,15 +541,68 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         // `store_offset` could otherwise confirm after the next generation
         // started. The await is what makes "generation N is gone" true before
         // N+1 spawns.
+        //
+        // On shutdown, first give the batchers (which saw the same token) time to
+        // finish the flush + store they're in, so nothing written goes unstored.
         drop(senders);
-        for handle in batcher_handles {
-            handle.abort();
-            // Ignore the JoinError — a cancelled task always yields one.
-            let _ = handle.await;
+        let stopping = self.shutdown.is_cancelled();
+        let drain_timeout = stopping
+            .then(|| Duration::from_millis(env::server::GRACEFUL_SHUTDOWN_TIMEOUT_MS.get()));
+        if !stop_batchers(batcher_handles, drain_timeout).await && stopping {
+            log::warn!(
+                "Stream reader {} ({}) batchers still flushing after {:?}; aborted them — an in-flight insert may be replayed",
+                self.id,
+                self.super_stream,
+                drain_timeout
+            );
+        }
+
+        // Close explicitly (rather than on process exit) so the broker hands our
+        // partitions over only after every store above was sent on this client.
+        if stopping {
+            match tokio::time::timeout(CONSUMER_CLOSE_TIMEOUT, consumer.handle().close()).await {
+                Ok(Ok(())) => log::info!(
+                    "Stream reader {} ({}) closed its consumer after shutdown",
+                    self.id,
+                    self.super_stream
+                ),
+                Ok(Err(e)) => log::warn!(
+                    "Stream reader {} ({}) failed to close its consumer: {:?}",
+                    self.id,
+                    self.super_stream,
+                    e
+                ),
+                Err(_) => log::warn!(
+                    "Stream reader {} ({}) timed out closing its consumer",
+                    self.id,
+                    self.super_stream
+                ),
+            }
         }
 
         result
     }
+}
+
+/// Wait up to `drain_timeout` for the batchers to exit on their own (`None` = don't
+/// wait), then abort whatever is left and AWAIT the cancellation. Returns whether
+/// every batcher exited without being aborted.
+async fn stop_batchers(handles: Vec<JoinHandle<()>>, drain_timeout: Option<Duration>) -> bool {
+    let abort_handles: Vec<AbortHandle> = handles.iter().map(JoinHandle::abort_handle).collect();
+    let mut batchers = future::join_all(handles);
+    if let Some(drain_timeout) = drain_timeout
+        && tokio::time::timeout(drain_timeout, &mut batchers)
+            .await
+            .is_ok()
+    {
+        return true;
+    }
+    for handle in &abort_handles {
+        handle.abort();
+    }
+    // Ignore the JoinErrors — a cancelled task always yields one.
+    let _ = batchers.await;
+    false
 }
 
 /// Re-query the stored offset after a transient failure during SAC activation.
@@ -607,6 +697,7 @@ async fn run_batcher<H: StreamBatchHandler>(
     handler: Arc<H>,
     client: Client,
     consumer_name: &'static str,
+    shutdown: CancellationToken,
 ) {
     // Each record keeps its partition name so a flush can discard work for
     // partitions revoked after it was batched.
@@ -622,6 +713,13 @@ async fn run_batcher<H: StreamBatchHandler>(
     loop {
         let batch_size = handler.batch_size();
         tokio::select! {
+            // Flushes run in the arm bodies below, outside this select, so an
+            // in-flight flush + offset store always completes before shutdown is
+            // seen. What we still hold is dropped and replayed by the successor.
+            biased;
+
+            _ = shutdown.cancelled() => return,
+
             received = rx.recv() => {
                 match received {
                     Some(delivery) => {
@@ -1190,6 +1288,43 @@ mod tests {
             !flag.load(std::sync::atomic::Ordering::SeqCst),
             "the aborted task must never reach its post-sleep work (e.g. store_offset)"
         );
+    }
+
+    /// Graceful stop lets a batcher finish the flush + store it is in; only one
+    /// still running at the deadline is aborted.
+    #[tokio::test(start_paused = true)]
+    async fn stop_batchers_waits_for_in_flight_work_then_aborts_stragglers() {
+        let finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let finished_in_task = finished.clone();
+        let quick = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            finished_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        assert!(stop_batchers(vec![quick], Some(Duration::from_secs(5))).await);
+        assert!(
+            finished.load(std::sync::atomic::Ordering::SeqCst),
+            "a batcher that finishes within the timeout must not be aborted"
+        );
+
+        let stuck_finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stuck_finished_in_task = stuck_finished.clone();
+        let stuck = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            stuck_finished_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        let started = tokio::time::Instant::now();
+        assert!(!stop_batchers(vec![stuck], Some(Duration::from_secs(5))).await);
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(!stuck_finished.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    /// Non-shutdown teardown (`None`) never waits: it aborts immediately.
+    #[tokio::test(start_paused = true)]
+    async fn stop_batchers_without_timeout_aborts_immediately() {
+        let started = tokio::time::Instant::now();
+        let task = tokio::spawn(tokio::time::sleep(Duration::from_secs(1)));
+        assert!(!stop_batchers(vec![task], None).await);
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 
     /// A skipped record must still advance its partition. Without this a trailing

@@ -122,6 +122,7 @@ use std::{
     time::Duration,
 };
 use storage::{Storage, mock::MockStorage};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
@@ -196,6 +197,18 @@ fn main() -> anyhow::Result<()> {
     let runtime_handle = general_runtime.handle().clone();
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
+
+    // Batch/stream consumers stop on SIGTERM and finish their in-flight flush + ack
+    // or offset store; `main` waits on `worker_tasks` before the runtime drops them.
+    let shutdown = CancellationToken::new();
+    let worker_tasks = TaskTracker::new();
+    {
+        let shutdown = shutdown.clone();
+        runtime_handle.spawn(async move {
+            wait_stop_signal("batch and stream consumers").await;
+            shutdown.cancel();
+        });
+    }
 
     // == Sentry ==
     let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
@@ -1505,7 +1518,11 @@ fn main() -> anyhow::Result<()> {
         }
 
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
-        let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
+        let batch_worker_pool = Arc::new(BatchWorkerPool::new(
+            queue.clone(),
+            shutdown.clone(),
+            worker_tasks.clone(),
+        ));
 
         let num_spans_workers = env::workers::NUM_SPANS.get();
 
@@ -1569,6 +1586,8 @@ fn main() -> anyhow::Result<()> {
         let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
         let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
         let quickwit_indexing_enabled_for_consumer = quickwit_indexing_enabled;
+        let shutdown_for_consumer = shutdown.clone();
+        let worker_tasks_for_consumer = worker_tasks.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1723,8 +1742,9 @@ fn main() -> anyhow::Result<()> {
                                     },
                                 },
                                 env::streams::SPANS_BATCHERS.get(),
+                                shutdown_for_consumer.clone(),
                             );
-                            tokio::spawn(reader.run());
+                            worker_tasks_for_consumer.spawn(reader.run());
 
                             // This pod's own decision, independent of whatever any
                             // producer pod decided (producer/consumer are separate
@@ -1778,8 +1798,9 @@ fn main() -> anyhow::Result<()> {
                                             ),
                                         },
                                         env::streams::SPANS_INDEXER_BATCHERS.get(),
+                                        shutdown_for_consumer.clone(),
                                     );
-                                    tokio::spawn(reader.run());
+                                    worker_tasks_for_consumer.spawn(reader.run());
                                 }
                             }
 
@@ -2712,6 +2733,20 @@ fn main() -> anyhow::Result<()> {
             handle.thread().name().unwrap()
         );
         handle.join().expect("thread is not panicking")?;
+    }
+
+    // Also covers a server exiting on its own, not just SIGTERM.
+    shutdown.cancel();
+    worker_tasks.close();
+    let shutdown_timeout = Duration::from_millis(env::server::GRACEFUL_SHUTDOWN_TIMEOUT_MS.get());
+    if general_runtime
+        .block_on(tokio::time::timeout(shutdown_timeout, worker_tasks.wait()))
+        .is_err()
+    {
+        log::warn!(
+            "Batch/stream consumers did not stop within {:?}; exiting anyway",
+            shutdown_timeout
+        );
     }
 
     // Servers have stopped (SIGTERM); the runtime + ingest deps are still alive here.
