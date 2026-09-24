@@ -263,7 +263,12 @@ fn main() -> anyhow::Result<()> {
     // it in ResilientRedisConnection which PINGs periodically, listens for
     // op-level error notifications from callers, and atomically swaps in a
     // fresh connection on failure with uncapped exponential backoff.
-    let redis_client = if let Ok(redis_url) = std::env::var(env::connections::REDIS_URL) {
+    // Empty counts as unset: docker compose passes `REDIS_URL=` when the opt-in
+    // line in the root .env is left commented out.
+    let redis_client = if let Some(redis_url) = std::env::var(env::connections::REDIS_URL)
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
         log::info!("Initializing Redis client");
         match redis::Client::open(redis_url.as_str()) {
             Ok(client) => Some(client),
