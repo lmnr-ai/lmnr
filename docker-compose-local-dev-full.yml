@@ -67,6 +67,19 @@ services:
       timeout: 5s
       retries: 5
 
+  valkey:
+    image: valkey/valkey:9.1
+    pull_policy: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   quickwit:
     image: quickwit/quickwit:v0.8.2
     pull_policy: always
@@ -84,3 +97,4 @@ volumes:
   clickhouse-logs:
   postgres-data:
   quickwit-data:
+  valkey-data:
