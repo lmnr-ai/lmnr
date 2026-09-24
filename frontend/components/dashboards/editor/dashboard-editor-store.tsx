@@ -12,7 +12,10 @@ import { type DashboardChart } from "@/components/dashboards/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
 
 type DashboardEditorState = {
-  chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;
+  chart: { id?: string; createdAt?: string; dashboardId?: string } & Omit<
+    DashboardChart,
+    "id" | "createdAt" | "dashboardId"
+  >;
   isLoading: boolean;
   error: string | null;
   loadError: string | null;

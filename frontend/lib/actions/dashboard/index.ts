@@ -5,10 +5,11 @@ import { ChartType } from "@/components/chart-builder/types";
 import { type DashboardChart, GRID_COLS } from "@/components/dashboards/types";
 import { QueryStructureSchema } from "@/lib/actions/sql/types";
 import { db } from "@/lib/db/drizzle";
-import { dashboardCharts } from "@/lib/db/migrations/schema";
+import { dashboardCharts, dashboards } from "@/lib/db/migrations/schema";
 
 const GetChartsSchema = z.object({
   projectId: z.guid(),
+  dashboardId: z.guid(),
 });
 
 const ChartSettingsSchema = z.object({
@@ -45,6 +46,7 @@ export const ChartUpdatesSchema = z.array(
 
 const UpdateChartsLayoutSchema = z.object({
   projectId: z.guid(),
+  dashboardId: z.guid(),
   updates: z.array(
     z.object({
       id: z.guid(),
@@ -53,19 +55,22 @@ const UpdateChartsLayoutSchema = z.object({
   ),
 });
 
-const DeleteChartSchema = z.object({
+const ChartSchema = z.object({
   projectId: z.guid(),
+  dashboardId: z.guid(),
   id: z.guid(),
 });
 
 const UpdateChartNameSchema = z.object({
   projectId: z.guid(),
+  dashboardId: z.guid(),
   id: z.guid(),
   name: z.string().min(1, "Name is required"),
 });
 
 const UpdateChartSchema = z.object({
   projectId: z.guid(),
+  dashboardId: z.guid(),
   id: z.guid(),
   name: z.string().min(1, "Name is required"),
   query: z.string(),
@@ -75,32 +80,63 @@ const UpdateChartSchema = z.object({
 
 const CreateChartSchema = z.object({
   projectId: z.guid(),
+  dashboardId: z.guid(),
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],
   queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
-export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
-  const { projectId } = GetChartsSchema.parse(input);
+const inDashboard = (projectId: string, dashboardId: string) =>
+  and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.dashboardId, dashboardId));
 
-  const charts = await db.select().from(dashboardCharts).where(eq(dashboardCharts.projectId, projectId));
+const chartScope = ({ projectId, dashboardId, id }: z.infer<typeof ChartSchema>) =>
+  and(inDashboard(projectId, dashboardId), eq(dashboardCharts.id, id));
+
+export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
+  const { projectId, dashboardId } = GetChartsSchema.parse(input);
+
+  const charts = await db.select().from(dashboardCharts).where(inDashboard(projectId, dashboardId));
 
   return charts as DashboardChart[];
 };
 
-export const getChart = async (input: z.infer<typeof DeleteChartSchema>) => {
-  const { projectId, id } = DeleteChartSchema.parse(input);
+export const getChart = async (input: z.infer<typeof ChartSchema>) => {
+  const scope = ChartSchema.parse(input);
 
-  const chart = await db.query.dashboardCharts.findFirst({
-    where: and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)),
-  });
+  const chart = await db.query.dashboardCharts.findFirst({ where: chartScope(scope) });
 
   return chart as DashboardChart | undefined;
 };
 
+// Resolves pre-multi-dashboard editor links (`/dashboards/<chartId>`), which
+// carry no dashboard id.
+export const findChartDashboardId = async (input: { projectId: string; id: string }) => {
+  const parsed = z.object({ projectId: z.guid(), id: z.guid() }).safeParse(input);
+
+  if (!parsed.success) return undefined;
+
+  const chart = await db.query.dashboardCharts.findFirst({
+    where: and(eq(dashboardCharts.projectId, parsed.data.projectId), eq(dashboardCharts.id, parsed.data.id)),
+    columns: { dashboardId: true },
+  });
+
+  return chart?.dashboardId;
+};
+
+const assertDashboardInProject = async (projectId: string, dashboardId: string) => {
+  const dashboard = await db.query.dashboards.findFirst({
+    where: and(eq(dashboards.projectId, projectId), eq(dashboards.id, dashboardId)),
+    columns: { id: true },
+  });
+
+  if (!dashboard) {
+    throw new Error("Dashboard not found");
+  }
+};
+
 export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayoutSchema>) => {
-  const { projectId, updates } = UpdateChartsLayoutSchema.parse(input);
+  const { projectId, dashboardId, updates } = UpdateChartsLayoutSchema.parse(input);
 
   if (updates.length === 0) return;
 
@@ -115,26 +151,23 @@ export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayou
       settings: sql`update_data.settings`,
     })
     .from(sql`(VALUES ${values}) AS update_data(id, settings)`)
-    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, sql`update_data.id`)));
+    .where(and(inDashboard(projectId, dashboardId), eq(dashboardCharts.id, sql`update_data.id`)));
 };
 
-export const deleteDashboardChart = async (input: z.infer<typeof DeleteChartSchema>) => {
-  const { id, projectId } = DeleteChartSchema.parse(input);
+export const deleteDashboardChart = async (input: z.infer<typeof ChartSchema>) => {
+  const scope = ChartSchema.parse(input);
 
-  await db.delete(dashboardCharts).where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+  await db.delete(dashboardCharts).where(chartScope(scope));
 };
 
 export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchema>) => {
-  const { projectId, name, id } = UpdateChartNameSchema.parse(input);
+  const { name, ...scope } = UpdateChartNameSchema.parse(input);
 
-  await db
-    .update(dashboardCharts)
-    .set({ name })
-    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+  await db.update(dashboardCharts).set({ name }).where(chartScope(scope));
 };
 
 export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
-  const { projectId, id, name, query, config, queryStructure } = UpdateChartSchema.parse(input);
+  const { name, query, config, queryStructure, ...scope } = UpdateChartSchema.parse(input);
 
   // Patch config and queryStructure on the existing settings jsonb without
   // clobbering layout. Nested jsonb_set: inner call replaces {config},
@@ -152,9 +185,9 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
       query,
       settings: settingsUpdate,
     })
-    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+    .where(chartScope(scope));
 
-  return await getChart({ projectId, id });
+  return await getChart(scope);
 };
 
 type ChartLayout = DashboardChart["settings"]["layout"];
@@ -183,15 +216,15 @@ export const resolveDuplicateLayout = (source: ChartLayout, others: ChartLayout[
   return { x, y: y + h, w, h };
 };
 
-export const duplicateChart = async (input: z.infer<typeof DeleteChartSchema>) => {
-  const { projectId, id } = DeleteChartSchema.parse(input);
+export const duplicateChart = async (input: z.infer<typeof ChartSchema>) => {
+  const { projectId, dashboardId, id } = ChartSchema.parse(input);
 
-  const source = await getChart({ projectId, id });
+  const source = await getChart({ projectId, dashboardId, id });
 
   if (!source) return undefined;
 
   const siblings = (await db.query.dashboardCharts.findMany({
-    where: eq(dashboardCharts.projectId, projectId),
+    where: inDashboard(projectId, dashboardId),
   })) as DashboardChart[];
 
   const others = siblings.filter((chart) => chart.id !== id).map((chart) => chart.settings.layout);
@@ -215,6 +248,7 @@ export const duplicateChart = async (input: z.infer<typeof DeleteChartSchema>) =
         name: `${source.name} (copy)`,
         query: source.query,
         projectId,
+        dashboardId,
         settings: {
           config: source.settings.config,
           layout,
@@ -227,7 +261,7 @@ export const duplicateChart = async (input: z.infer<typeof DeleteChartSchema>) =
       await tx
         .update(dashboardCharts)
         .set({ settings })
-        .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, displacedId)));
+        .where(chartScope({ projectId, dashboardId, id: displacedId }));
     }
 
     return inserted;
@@ -237,10 +271,12 @@ export const duplicateChart = async (input: z.infer<typeof DeleteChartSchema>) =
 };
 
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
-  const { name, config, projectId, query, queryStructure } = CreateChartSchema.parse(input);
+  const { name, config, projectId, dashboardId, query, queryStructure } = CreateChartSchema.parse(input);
+
+  await assertDashboardInProject(projectId, dashboardId);
 
   const existingCharts = (await db.query.dashboardCharts.findMany({
-    where: eq(dashboardCharts.projectId, projectId),
+    where: inDashboard(projectId, dashboardId),
     columns: { settings: true },
   })) as Pick<DashboardChart, "settings">[];
 
@@ -266,6 +302,7 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
       name,
       query,
       projectId,
+      dashboardId,
       settings: {
         config,
         layout: { x: bestSlot.x, y: bestSlot.y, w: chartW, h: 6 },
