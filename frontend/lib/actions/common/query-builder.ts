@@ -18,6 +18,13 @@ export interface ConditionResult {
   params: QueryParams;
 }
 
+/** Split a JSON key=value filter without discarding equals signs in the value. */
+export const splitJsonKeyValueFilter = (value: Filter["value"]): [string, string] => {
+  const input = String(value);
+  const separator = input.indexOf("=");
+  return separator < 0 ? ["", ""] : [input.slice(0, separator), input.slice(separator + 1)];
+};
+
 export interface TimeRangeOptions {
   startTime?: string;
   endTime?: string;
