@@ -678,6 +678,22 @@ impl TableRegistry {
             "updated_at",
         ];
 
+        // Postgres entity definitions, reached through the `pg` PostgreSQL
+        // database engine and the matching `_v0` views. Do not add `pg` or a
+        // wildcard — the engine mirrors the whole schema.
+        let signals_columns = [
+            "id",
+            "name",
+            "prompt",
+            "structured_output_schema",
+            "metadata",
+            "llm_model",
+            "created_at",
+            "version",
+        ];
+        let evaluations_columns = ["id", "name", "group_id", "created_at"];
+        let datasets_columns = ["id", "name", "created_at"];
+
         tables.insert("spans", schema(&spans_columns));
         tables.insert("traces", schema(&traces_columns));
         tables.insert("trace_outputs", schema(&trace_outputs_columns));
@@ -703,6 +719,9 @@ impl TableRegistry {
         // L0-inclusive variants
         tables.insert("signal_events_all", schema(&signal_events_columns));
         tables.insert("event_clusters_all", schema(&event_clusters_all_columns));
+        tables.insert("signals", schema(&signals_columns));
+        tables.insert("evaluations", schema(&evaluations_columns));
+        tables.insert("datasets", schema(&datasets_columns));
 
         Self { tables }
     }
