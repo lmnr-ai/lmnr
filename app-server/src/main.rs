@@ -2739,8 +2739,10 @@ fn main() -> anyhow::Result<()> {
     shutdown.cancel();
     worker_tasks.close();
     let shutdown_timeout = Duration::from_millis(env::server::GRACEFUL_SHUTDOWN_TIMEOUT_MS.get());
+    // Build the timeout inside the async block: `tokio::time::timeout` registers
+    // its timer on construction, which panics outside the runtime context.
     if general_runtime
-        .block_on(tokio::time::timeout(shutdown_timeout, worker_tasks.wait()))
+        .block_on(async { tokio::time::timeout(shutdown_timeout, worker_tasks.wait()).await })
         .is_err()
     {
         log::warn!(
