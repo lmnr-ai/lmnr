@@ -39,6 +39,12 @@ pub const SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY: &str = "signal_trace_exclusive_
 /// heuristic: too long merely costs a cache miss, too short a needless wait.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
+/// Operator-written JSON map `{project_id: q}`; `q` is the probability that a
+/// publish of one of that project's runs to `signals_realtime_queue` is demoted
+/// one priority band (`signals/private/throttle.rs`). Absent means nobody is
+/// throttled. Not written by any code path — `redis-cli SET` only.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_THROTTLED_PROJECTS_CACHE_KEY: &str = "signal_throttled_projects";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
