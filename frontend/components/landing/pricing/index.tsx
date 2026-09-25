@@ -4,7 +4,7 @@ import { usePostHog } from "posthog-js/react";
 
 import Footer from "@/components/landing/footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { formatSignalsCount, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
+import { formatSignalsCount, signalCacheReadRate, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, subSection } from "../class-names";
@@ -33,12 +33,11 @@ export default function Pricing() {
       answer: (
         <>
           Signals are billed by the tokens the agent spends to read a trace and generate a structured event: $
-          {signalInputRate("free")} per 1M input tokens and ${signalOutputRate("free")} per 1M output tokens ($
-          {signalInputRate("pro")} per 1M input tokens and ${signalOutputRate("pro")} per 1M output tokens on the Pro
-          tier). Each plan includes a dollar amount of Signals usage ({formatSignalsCount("free")} Free,{" "}
-          {formatSignalsCount("hobby")} Starter, {formatSignalsCount("pro")} Pro); usage past that is billed at the
-          applicable per-token rates. You pay for what a Signal reads and writes, not for the spans your agent emits.
-          Read more in the{" "}
+          {signalInputRate()} per 1M input tokens, ${signalCacheReadRate()} per 1M cached input tokens, and $
+          {signalOutputRate()} per 1M output tokens. Each plan includes a dollar amount of Signals usage (
+          {formatSignalsCount("free")} Free, {formatSignalsCount("hobby")} Starter, {formatSignalsCount("pro")} Pro);
+          usage past that is billed at the applicable per-token rates. You pay for what a Signal reads and writes, not
+          for the spans your agent emits. Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"
             target="_blank"

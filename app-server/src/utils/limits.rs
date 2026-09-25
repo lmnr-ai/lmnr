@@ -207,13 +207,10 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
 
     // Tokens are stored raw; price into micro-USD here so the hard limit
     // compares against the same unit as `effective_limit` (also micro-USD).
-    // Priced at the workspace's tier rate (Pro discounted) so the cost matches
-    // what the workspace is actually billed.
     let signal_cost = crate::utils::signal_token_cost_micro_usd(
         input_tokens,
         cache_read_tokens,
         output_tokens,
-        &project_info.tier_name,
     ) as i64;
 
     log::debug!(
@@ -626,12 +623,11 @@ pub async fn update_workspace_signal_tokens(
     };
 
     // Soft limits are denominated in micro-USD; derive cost from the running
-    // token totals at the workspace's tier rate (Pro discounted).
+    // token totals.
     let current_cost = crate::utils::signal_token_cost_micro_usd(
         total_input,
         total_cache_read,
         total_output,
-        &project_info.tier_name,
     ) as i64;
 
     check_soft_limits(

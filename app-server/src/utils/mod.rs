@@ -5,10 +5,10 @@ pub mod text_cleaning;
 use serde_json::Value;
 
 #[cfg(feature = "signals")]
-use crate::{db::projects::WorkspaceTierName, env::private::signals};
+use crate::env::private::signals;
 
-/// Cost in micro-USD (1e-6 USD) of the given signal token spend, priced at the
-/// per-token rate for `tier` (see `env::private::signals`).
+/// Cost in micro-USD (1e-6 USD) of the given signal token spend (see
+/// `env::private::signals`).
 ///
 /// `input_tokens` is the provider-reported prompt token count, which *includes*
 /// `cache_read_tokens` as a subset (every provider sums cached reads into the
@@ -16,40 +16,21 @@ use crate::{db::projects::WorkspaceTierName, env::private::signals};
 /// cached portion is split out and billed at the cheaper cache rate; only the
 /// remaining fresh input is billed at the input rate.
 ///
-/// Pro workspaces are metered at the discounted Pro rates so accumulated cost
-/// matches the cheaper rates they're actually billed at; every other tier uses
-/// the standard rate. Metering Pro at the standard rate would over-count and
-/// trip hard limits / soft warnings before the workspace reaches its budget.
-///
 /// Tokens are persisted raw and cost is derived here at read time, so a future
 /// rate change re-prices historical runs. Micro-USD keeps billing arithmetic
 /// in integers: it's the unit compared against tier allowances, cached, and
 /// reported to Stripe (divided back to dollars only at the meter boundary).
-/// At the default rates one fresh input token costs 0.5 µ$, one cached-read
-/// token 0.05 µ$, and one output token 3 µ$.
+/// At the default rates one fresh input token costs 0.05 µ$, one cached-read
+/// token 0.005 µ$, and one output token 0.3 µ$.
 #[cfg(feature = "signals")]
 pub fn signal_token_cost_micro_usd(
     input_tokens: u64,
     cache_read_tokens: u64,
     output_tokens: u64,
-    tier: &WorkspaceTierName,
 ) -> u64 {
-    let is_pro = *tier == WorkspaceTierName::Pro;
-    let input_rate = if is_pro {
-        signals::PRO_INPUT_TOKEN_PRICE_PER_MILLION.get()
-    } else {
-        signals::INPUT_TOKEN_PRICE_PER_MILLION.get()
-    };
-    let cache_read_rate = if is_pro {
-        signals::PRO_CACHE_READ_TOKEN_PRICE_PER_MILLION.get()
-    } else {
-        signals::CACHE_READ_TOKEN_PRICE_PER_MILLION.get()
-    };
-    let output_rate = if is_pro {
-        signals::PRO_OUTPUT_TOKEN_PRICE_PER_MILLION.get()
-    } else {
-        signals::OUTPUT_TOKEN_PRICE_PER_MILLION.get()
-    };
+    let input_rate = signals::INPUT_TOKEN_PRICE_PER_MILLION.get();
+    let cache_read_rate = signals::CACHE_READ_TOKEN_PRICE_PER_MILLION.get();
+    let output_rate = signals::OUTPUT_TOKEN_PRICE_PER_MILLION.get();
 
     // Cache reads are a subset of the input total; bill the non-cached
     // remainder at the input rate and the cached portion at the cache rate.
