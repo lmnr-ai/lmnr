@@ -15,17 +15,16 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::input::truncate_middle;
 use crate::cache::keys::USER_TASK_SAMPLES_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 
 /// Per-sample cap. `signposted_text` is capped at 200k chars, so five uncapped
 /// samples could be a megabyte — past any model's input budget. Head and tail
-/// are kept rather than a prefix because the static anchors the agent needs sit
-/// at the boundaries, and the patterns it produces (`(?s).*END\s*(.*)` and
-/// friends) still match the untruncated text.
+/// are kept because the static anchors the agent needs sit at the boundaries,
+/// and the patterns it produces (`(?s).*END\s*(.*)` and friends) still match
+/// the untruncated text.
 const SAMPLE_MAX_CHARS: usize = 24_000;
-
-const TRUNCATION_MARKER: &str = "\n\n[... middle omitted ...]\n\n";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SampleAccumulator {
@@ -47,30 +46,6 @@ pub fn cohort_cache_key(
 ) -> String {
     let history = if has_history { "h" } else { "n" };
     format!("{USER_TASK_SAMPLES_CACHE_KEY}:{project_id}:{agent_hash}:{version_hash}:{history}")
-}
-
-/// Head+tail truncation on char boundaries.
-fn cap_sample(text: &str) -> String {
-    let total = text.chars().count();
-    if total <= SAMPLE_MAX_CHARS {
-        return text.to_string();
-    }
-    let keep = SAMPLE_MAX_CHARS / 2;
-    let head_end = text
-        .char_indices()
-        .nth(keep)
-        .map(|(i, _)| i)
-        .unwrap_or(text.len());
-    let tail_start = text
-        .char_indices()
-        .nth(total - keep)
-        .map(|(i, _)| i)
-        .unwrap_or(text.len());
-    format!(
-        "{}{TRUNCATION_MARKER}{}",
-        &text[..head_end],
-        &text[tail_start..]
-    )
 }
 
 /// Whether the accumulator may publish an agent request now: enough distinct
@@ -102,7 +77,7 @@ pub async fn record_sample(cache: &Cache, key: &str, text: &str, target: usize) 
         }
     };
 
-    let sample = cap_sample(text);
+    let sample = truncate_middle(text.to_string(), SAMPLE_MAX_CHARS);
     if accumulator.samples.len() < target && !accumulator.samples.contains(&sample) {
         accumulator.samples.push(sample);
     }
@@ -204,23 +179,5 @@ mod tests {
         // A later trace neither clears nor grows the capped set.
         record_sample(&cache, &key, "c", 2).await;
         assert_eq!(load_samples(&cache, &key).await, vec!["a", "b"]);
-    }
-
-    #[test]
-    fn oversized_samples_keep_head_and_tail() {
-        let text = format!("HEAD{}TAIL", "x".repeat(SAMPLE_MAX_CHARS * 2));
-        let capped = cap_sample(&text);
-        assert!(capped.starts_with("HEAD"));
-        assert!(capped.ends_with("TAIL"));
-        assert!(capped.contains(TRUNCATION_MARKER));
-        assert!(capped.chars().count() < text.chars().count());
-    }
-
-    #[test]
-    fn cap_is_char_safe_on_multibyte_input() {
-        let text = "é".repeat(SAMPLE_MAX_CHARS * 2);
-        let capped = cap_sample(&text);
-        assert!(capped.contains(TRUNCATION_MARKER));
-        assert!(capped.starts_with('é'));
     }
 }

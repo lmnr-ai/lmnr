@@ -100,6 +100,9 @@ pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
 /// Deliberately a different prefix from `USER_TASK_REGEX_CACHE_KEY` so the two
 /// keyings never read each other's entries.
 pub const USER_TASK_VERSION_REGEX_CACHE_KEY: &str = "user_task_version_regex";
+/// `{prefix}:{regex_key} → i64` — consecutive misses of the cached user-task
+/// regex under `regex_key` (either keying); reset on a hit.
+pub const USER_TASK_REGEX_MISSES_CACHE_KEY: &str = "user_task_regex_misses";
 /// `(project, agent_hash, version_hash, has_history) → SampleAccumulator` — the
 /// distinct user-message samples feeding the multi-sample regex agent.
 pub const USER_TASK_SAMPLES_CACHE_KEY: &str = "user_task_samples";
