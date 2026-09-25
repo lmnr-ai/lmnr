@@ -1,5 +1,5 @@
-import {BEAT, type ScoreCues} from './cues';
-import {bass, bell, clap, hat, kick, pad, piano, pluck, reverseSwell, riser, shaker, type Mix, type Route} from './voices';
+import {BEAT, type ScoreCues} from '../cues';
+import {bass, bell, clap, hat, kick, pad, piano, pluck, reverseSwell, riser, shaker, type Mix, type Route} from '../voices';
 
 /*
  * "Tactile Glass" — D major, 120 BPM. Each chapter is laid out in beats from

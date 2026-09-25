@@ -34,6 +34,39 @@ export class Mix {
       for (const [send, amount] of sends) if (amount) { send.l[n] += l * amount; send.r[n] += r * amount; }
     }
   }
+  /** Buses touched by bus-level edits. Composition runs before foley, so the sends hold music only at that point. */
+  private get musicBuses() { return [this.music, this.hall, this.room, this.delay]; }
+  /**
+   * Tape stop: everything emitted so far slows to a halt over `duration` and is then silent.
+   * Call it mid-composition — notes emitted afterwards are untouched.
+   */
+  tapeStop(time: number, duration: number, curve = 1.6) {
+    const start = samples(time), total = samples(duration), fade = 480;
+    for (const bus of this.musicBuses) for (const channel of [bus.l, bus.r]) {
+      if (start >= channel.length) continue;
+      const source = channel.slice(start, Math.min(channel.length, start + total + 2));
+      let position = 0;
+      for (let i = 0; i < total && start + i < channel.length; i++) {
+        const index = Math.floor(position), fraction = position - index;
+        const value = index + 1 < source.length ? source[index] + (source[index + 1] - source[index]) * fraction : 0;
+        channel[start + i] = value * (i > total - fade ? (total - i) / fade : 1);
+        position += (1 - i / total) ** curve;
+      }
+      channel.fill(0, Math.min(channel.length, start + total));
+    }
+  }
+  /** Repeat the `slice` that starts at `time`, `repeats` times, with 2 ms edges — a buffer glitch. */
+  stutter(time: number, slice: number, repeats: number) {
+    const start = samples(time), size = samples(slice), edge = 96;
+    for (const bus of this.musicBuses) for (const channel of [bus.l, bus.r]) {
+      const source = channel.slice(start, start + size);
+      for (let k = 1; k < repeats; k++) for (let i = 0; i < size; i++) {
+        const n = start + k * size + i; if (n >= channel.length) break;
+        const window = Math.min(1, i / edge, (size - i) / edge);
+        channel[n] = source[i] * window;
+      }
+    }
+  }
   /** Dip the score under a foley moment; overlapping dips keep the deepest one. Must run before music is emitted. */
   duck(time: number, depth: number, attack: number, hold: number, release: number) {
     const start = samples(time - attack), total = samples(attack + hold + release);
@@ -46,6 +79,14 @@ export class Mix {
 }
 
 const buffer = (duration: number) => new Float32Array(Math.max(1, samples(duration)));
+
+/** Sidechain-style pump: dips on every `period` from `origin`, recovering over ~60% of the period. */
+export type Pump = {origin: number; period: number; depth: number};
+const pumpGain = (pump: Pump | undefined, time: number) => {
+  if (!pump || time < pump.origin) return 1;
+  const phase = ((time - pump.origin) % pump.period) / pump.period;
+  return 1 - pump.depth * (1 - clamp(phase / .6)) ** 2;
+};
 const noise = (random: Rng) => random() * 2 - 1;
 
 // ---------------------------------------------------------------- music
@@ -70,7 +111,7 @@ export function piano(mix: Mix, time: number, midi: number, velocity: number, ro
 }
 
 /** Warm analog pad: three detuned saws per note, slow filter bloom, wide stereo. */
-export function pad(mix: Mix, start: number, end: number, notes: readonly number[], route: Route, options: {attack?: number; release?: number; cutoff?: [number, number]; level?: number} = {}) {
+export function pad(mix: Mix, start: number, end: number, notes: readonly number[], route: Route, options: {attack?: number; release?: number; cutoff?: [number, number]; level?: number; pump?: Pump} = {}) {
   const attack = options.attack ?? 1.2, release = options.release ?? 1.6;
   const duration = end - start + release;
   const left = buffer(duration), right = buffer(duration);
@@ -95,7 +136,7 @@ export function pad(mix: Mix, start: number, end: number, notes: readonly number
     }
   });
   const level = (options.level ?? 1) * .06 / Math.sqrt(notes.length);
-  for (let i = 0; i < left.length; i++) { left[i] *= level; right[i] *= level; }
+  for (let i = 0; i < left.length; i++) { const g = level * pumpGain(options.pump, start + i / 48_000); left[i] *= g; right[i] *= g; }
   mix.emit(start, route, left, right); mix.count('pad');
 }
 
@@ -141,6 +182,83 @@ export function bass(mix: Mix, time: number, midi: number, duration: number, vel
     out[i] = filter.process(value) * gateEnv(t, .006, Math.max(0, duration - .006), .1) * velocity * .34;
   }
   mix.emit(time, route, out); mix.count('bass');
+}
+
+/**
+ * Bowed string section: four detuned saws per note, each with its own delayed vibrato, through a
+ * body filter that opens with the dynamic. `dynamics` is the [start, end] level of a hairpin.
+ */
+export function strings(mix: Mix, start: number, end: number, notes: readonly number[], route: Route, options: {
+  attack?: number; release?: number; level?: number; bright?: number; dynamics?: [number, number]; pump?: Pump;
+} = {}) {
+  const attack = options.attack ?? .8, release = options.release ?? 1.2, bright = options.bright ?? .5;
+  const [from, to] = options.dynamics ?? [1, 1];
+  const length = end - start, left = buffer(length + release), right = buffer(length + release);
+  notes.forEach((midi, noteIndex) => {
+    const players = [-11, -4, 5, 12].map((cents, i) => ({
+      saw: new Saw(mix.random()), hz: mtof(midi + cents / 100), rate: 4.6 + mix.random() * 1.1, phase: mix.random() * 6.28,
+      pan: (i - 1.5) * .45 + (noteIndex % 2 ? .12 : -.12),
+    }));
+    const bodyLeft = new Svf(), bodyRight = new Svf(), lowLeft = OnePole.lowpass(9000), lowRight = OnePole.lowpass(9000);
+    for (let i = 0; i < left.length; i++) {
+      const t = i / 48_000;
+      const envelope = gateEnv(t, attack, Math.max(0, length - attack), release);
+      if (envelope === 0 && t > attack) continue;
+      const progress = clamp(t / Math.max(.1, length));
+      const dynamic = from + (to - from) * (progress * progress * (3 - 2 * progress));
+      const depth = 9 * clamp((t - .35) / .6);
+      let l = 0, r = 0;
+      for (const player of players) {
+        const value = player.saw.next(player.hz * 2 ** (depth * Math.sin(2 * Math.PI * player.rate * t + player.phase) / 1200));
+        const [gl, gr] = panGains(player.pan); l += value * gl; r += value * gr;
+      }
+      const cutoff = mtof(midi) * 2 + (600 + 3400 * bright) * (.35 + .65 * dynamic);
+      const g = envelope * dynamic;
+      left[i] += lowLeft.process(bodyLeft.process(l, cutoff, .7)) * g;
+      right[i] += lowRight.process(bodyRight.process(r, cutoff, .7)) * g;
+    }
+  });
+  const level = (options.level ?? 1) * .055 / Math.sqrt(notes.length);
+  for (let i = 0; i < left.length; i++) { const g = level * pumpGain(options.pump, start + i / 48_000); left[i] *= g; right[i] *= g; }
+  mix.emit(start, route, left, right); mix.count('strings');
+}
+
+/** Tuned timpani: inharmonic membrane partials, a slight pitch sag, and a felt mallet. */
+export function timpani(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {decay?: number} = {}) {
+  const decay = options.decay ?? 1.6, out = buffer(decay * 3), hz = mtof(midi), mallet = new Svf();
+  const partials = [[1, 1, 1], [1.504, .55, .7], [1.742, .35, .5], [2, .22, .45], [2.245, .14, .35]].map(([ratio, gain, tau]) => ({osc: new Sine(), ratio, gain, tau}));
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000, sag = 1 + .035 * Math.exp(-t / .05);
+    let value = 0;
+    for (const partial of partials) value += partial.osc.next(hz * partial.ratio * sag) * partial.gain * Math.exp(-t / (decay * partial.tau));
+    mallet.process(noise(mix.random), 900 + 1400 * velocity, .8);
+    out[i] = (Math.tanh(value * .9) + mallet.lp * Math.exp(-t / .012) * .8) * pluckEnv(t, .002, decay * 3) * velocity * .4;
+  }
+  mix.emit(time, route, out); mix.count('timpani');
+}
+
+/**
+ * Clean electronic beep: sine, or additive square/triangle (band-limited under 9 kHz).
+ * `glide` bends the pitch by that many semitones across the note.
+ */
+export function beep(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {
+  length?: number; wave?: 'sine' | 'square' | 'triangle'; attack?: number; glide?: number;
+} = {}) {
+  const length = options.length ?? .07, attack = options.attack ?? .002, wave = options.wave ?? 'sine';
+  const out = buffer(length + .02);
+  const base = mtof(midi), harmonics = wave === 'sine' ? [1] : [1, 3, 5, 7, 9, 11, 13].filter(k => k * base * 2 ** ((options.glide ?? 0) / 12) < 9000);
+  const oscillators = harmonics.map(() => new Sine()), soften = OnePole.lowpass(7000);
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000;
+    const hz = base * 2 ** ((options.glide ?? 0) * clamp(t / length) / 12);
+    let value = 0;
+    harmonics.forEach((k, index) => {
+      const amplitude = wave === 'square' ? 1 / k : (index % 2 ? -1 : 1) / (k * k);
+      value += oscillators[index].next(hz * k) * amplitude;
+    });
+    out[i] = soften.process(value) * gateEnv(t, attack, Math.max(0, length - attack - .012), .012) * velocity * (wave === 'square' ? .12 : .2);
+  }
+  mix.emit(time, route, out); mix.count('beep');
 }
 
 // ---------------------------------------------------------------- drums

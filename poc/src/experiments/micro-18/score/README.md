@@ -1,9 +1,10 @@
-# Ultimate 3 score — "Tactile Glass"
+# Ultimate 3 scores
 
-The final soundtrack for Animation 18: an original score plus foley, rendered offline in pure TypeScript (no browser, no Web Audio).
+Soundtracks for Animation 18: original scores plus foley, rendered offline in pure TypeScript (no browser, no Web Audio).
 
 ```sh
-pnpm ultimate3:score                                   # -> out/ultimate3-score.wav
+pnpm ultimate3:score                                   # Tactile Glass -> out/ultimate3-score.wav
+pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: --style signal)
 pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux (video stream-copied, AAC 320k)
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score:test
@@ -11,21 +12,30 @@ pnpm ultimate3:score:test
 
 Rendering takes about 15 seconds. The output is a deterministic function of settings, the piano samples and the seed (`score.test.ts` asserts identical hashes across runs), and it is mastered to -14 LUFS integrated with true peak ≤ -1 dBTP.
 
-## Style
+## Styles
 
-- **Palette:** felt piano (Salamander), warm detuned-saw pads, FM glass bells, muted synth plucks, and soft electronic drums. Every UI event gets tactile foley: ticks, pops, thocks, key clicks, and airy whooshes.
-- **Harmony:** D major / Lydian at 120 BPM. The four-note Laminar motif (D–E–F♯–A) is hinted at the Ultimate 2 zoom-out, sung at the Flow-1 drop and resolved as the logo sting.
-- **Arc:**
-  - Ultimate 2 is curious: the agent "motor" arpeggio, then it darkens at the failure.
-  - Cost starts bouncy, turns into a heavy B-minor pulse and ends in a cold drain.
-  - The Flow-1 title is the drop (30.518s). A I–vi–IV–V groove follows, stopping on the door slam.
-  - Issues carries a lighter groove, with pentatonic pops pitched by each triangle's height and panned by its x position, then a Dmaj9 bell per cluster lock.
-  - The conclusion builds IV → V into the logo's I.
+Each style is a `ScoreStyle` (`style.ts`) in its own folder: `ducks`, then `compose` (music bus), then `design` (foley bus), plus optional reverb/delay/EQ overrides. `render.ts` lists them in `SCORE_STYLES`.
+
+### `tactile-glass` — playful, D major
+
+- **Palette:** felt piano, detuned-saw pads, FM glass bells, muted synth plucks, soft electronic drums, and tactile foley (ticks, pops, thocks, key clicks, whooshes).
+- **Arc:** the agent "motor" arpeggio, a bouncy-then-heavy Cost section, a drop on the Flow-1 title, pentatonic pops in Issues, and IV → V → I into the logo. The Laminar motif (D–E–F♯–A) resolves as the logo sting.
+
+### `nocturne` — neo-classical piano, E♭ major
+
+- **Palette:** Salamander piano, a synthesized string section and timpani. The machine only speaks in quiet sine beeps; foley is breath and felt.
+- **Story in harmony:** the stream is a Bach-style prelude that breaks off onto A♭m when the agent fails. The cheap model is a thin toccata that trips on wrong notes and a tritone. The expensive one is heavy C minor. The budget drains down a lament bass to a G-major half cadence, and "Until now" pivots on that G into E♭ for Flow-1. The theme (G–B♭–E♭–D…) is spoken at the insights, sung in octaves at the drop, and its D resolves to E♭ on the logo.
+
+### `signal` — electronic neo-classical, A major
+
+- **Palette:** felt piano with delay over a 16th saw sequencer, sidechain-pumped pads, sub bass, soft four-on-the-floor, FM blips and sample-and-hold data chatter.
+- **Story in texture:** the music breaks the way software does. It stutters and tape-stops at the failure, glitches out when the cheap model misses the issue, and slows to a halt as the budget drains. After "Until now" the sequencer reboots into the drop and never breaks again; on the logo it thins to one A.
 
 ## Pipeline
 
 - `cues.ts` derives every picture event from the settings. It reuses the `sound.ts` window helpers and samples the Issues scene for per-triangle pop times and positions, so retiming a clip retimes the score.
-- `composition.ts` holds the music. `design.ts` holds the foley plus `planDucks`, which dips the music bus under key foley moments and runs before any music is emitted.
+- `<style>/composition.ts` holds the music. `<style>/design.ts` holds the foley plus the duck plan, which dips the music bus under key foley moments and runs before any music is emitted.
+- `writing.ts` holds the piano-writing helpers: rolled chords, broken-chord figures over a `Progression`, and melodies in beats.
 - `voices.ts` contains the synth/sample voices and the `Mix` buses and sends. `dsp.ts` provides the filters, FDN reverb, ping-pong delay, look-around limiter, BS.1770 loudness and master EQ.
 - `render.ts` sums the dry buses and returns, applies the master EQ, normalises, limits, and adds the final fade.
 

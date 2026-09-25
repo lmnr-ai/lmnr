@@ -1,5 +1,5 @@
-import type {ScoreCues} from './cues';
-import {bell, dive, drain, impact, keyClick, marker, pop, puff, thock, tick, whoosh, type Mix, type Route} from './voices';
+import type {ScoreCues} from '../cues';
+import {bell, dive, drain, impact, keyClick, marker, pop, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
 
 /*
  * Foley for the picture: every move, lock and error has a physical sound. It

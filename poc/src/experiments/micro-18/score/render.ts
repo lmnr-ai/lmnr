@@ -1,13 +1,17 @@
 import {ultimate3ScoreCues} from './cues';
-import {composeScore} from './composition';
-import {planDucks, designSound} from './design';
+import {nocturne} from './nocturne';
+import {signal} from './signal';
+import type {ScoreStyle} from './style';
+import {tactileGlass} from './tactile-glass';
 import {Stereo, db, integratedLufs, limit, masterEq, pingPong, reverb, samples, seeded, toDb, truePeak} from './dsp';
 import {Mix, type PianoBank} from './voices';
 import type {Ultimate3Settings} from '../settings';
 
-export type ScoreRenderOptions = {seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean};
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal].map(style => [style.id, style]));
+
+export type ScoreRenderOptions = {style?: string; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean};
 export type ScoreReport = {
-  duration: number; lufs: number; truePeakDb: number; limiterDb: number;
+  style: string; duration: number; lufs: number; truePeakDb: number; limiterDb: number;
   stems: Record<string, {lufs: number; peakDb: number}>; counts: Record<string, number>;
 };
 
@@ -22,17 +26,22 @@ const peakDb = (buffer: Stereo) => { let peak = 0; for (let n = 0; n < buffer.le
 export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBank, options: ScoreRenderOptions = {}) {
   const cues = ultimate3ScoreCues(settings);
   const length = samples(cues.duration);
+  const style = SCORE_STYLES[options.style ?? tactileGlass.id];
+  if (!style) throw new Error(`Unknown score style "${options.style}". Available: ${Object.keys(SCORE_STYLES).join(', ')}`);
   const mix = new Mix(length, seeded(options.seed ?? 0x1a31a), piano);
 
-  planDucks(mix, cues);
-  composeScore(mix, cues);
-  designSound(mix, cues);
+  style.ducks(mix, cues);
+  style.compose(mix, cues);
+  style.design(mix, cues);
 
-  const hall = reverb(mix.hall, {rt60: 3.1, predelay: .025, damping: 5200, size: 1.35, lowCut: 220});
-  const room = reverb(mix.room, {rt60: .65, predelay: .006, damping: 7000, size: .55, lowCut: 250});
-  const echo = pingPong(mix.delay, .375, .38, 3800);
-  const master = sum(length, [[mix.music, 1], [mix.sfx, 1], [hall, 2.4], [room, 2], [echo, 1.4]]);
-  masterEq(master, {highpass: 26, lowShelf: [70, -2.5], highShelf: [7000, 3.5]});
+  const space = style.space ?? {};
+  const hall = reverb(mix.hall, space.hall ?? {rt60: 3.1, predelay: .025, damping: 5200, size: 1.35, lowCut: 220});
+  const room = reverb(mix.room, space.room ?? {rt60: .65, predelay: .006, damping: 7000, size: .55, lowCut: 250});
+  const delay = space.delay ?? {time: .375, feedback: .38, damping: 3800};
+  const echo = pingPong(mix.delay, delay.time, delay.feedback, delay.damping);
+  const [hallReturn, roomReturn, echoReturn] = space.returns ?? [2.4, 2, 1.4];
+  const master = sum(length, [[mix.music, 1], [mix.sfx, 1], [hall, hallReturn], [room, roomReturn], [echo, echoReturn]]);
+  masterEq(master, style.eq ?? {highpass: 26, lowShelf: [70, -2.5], highShelf: [7000, 3.5]});
 
   // Normalise, brickwall, then correct once for what the limiter shaved off.
   const target = options.targetLufs ?? -14, ceiling = db(options.ceilingDb ?? -1.2);
@@ -46,7 +55,7 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
   for (let n = length - fade; n < length; n++) { const g = (length - n) / fade; master.l[n] *= g; master.r[n] *= g; }
 
   const report: ScoreReport = {
-    duration: cues.duration, lufs: integratedLufs(master), truePeakDb: toDb(truePeak(master)), limiterDb,
+    style: style.id, duration: cues.duration, lufs: integratedLufs(master), truePeakDb: toDb(truePeak(master)), limiterDb,
     stems: {}, counts: mix.counts,
   };
   const stems = {music: mix.music, sfx: mix.sfx, hall, room, delay: echo};

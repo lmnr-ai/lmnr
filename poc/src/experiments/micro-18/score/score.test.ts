@@ -5,7 +5,7 @@ import {START_CELLS} from '../../micro-15/starting-positions';
 import {ULTIMATE_3_DEFAULTS} from '../settings';
 import {BEAT, ultimate3ScoreCues} from './cues';
 import {integratedLufs, SR, toDb, truePeak} from './dsp';
-import {renderUltimate3Score} from './render';
+import {renderUltimate3Score, SCORE_STYLES} from './render';
 import type {PianoBank} from './voices';
 
 const cues = ultimate3ScoreCues(ULTIMATE_3_DEFAULTS);
@@ -31,10 +31,14 @@ const piano: PianoBank = [33, 48, 60, 72, 84, 96].map(midi => {
   return {midi, data};
 });
 const hash = (audio: {l: Float32Array; r: Float32Array}) => createHash('sha256').update(audio.l).update(audio.r).digest('hex');
-const first = renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano), second = renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano);
-assert.equal(hash(first.master), hash(second.master), 'the score is a pure function of settings, samples and seed');
-assert.notEqual(hash(renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {seed: 7}).master), hash(first.master), 'the seed only varies noise and humanisation');
-assert.equal(first.master.length, Math.round(cues.duration * SR), 'audio length matches the composition');
-assert.ok(Math.abs(integratedLufs(first.master) + 14) < .3, 'mastered to -14 LUFS');
-assert.ok(toDb(truePeak(first.master)) <= -1, 'true peak stays under -1 dBTP');
+for (const style of Object.keys(SCORE_STYLES)) {
+  const render = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed}).master;
+  const first = render();
+  assert.equal(hash(first), hash(render()), `${style}: the score is a pure function of settings, samples and seed`);
+  assert.notEqual(hash(render(7)), hash(first), `${style}: the seed only varies noise and humanisation`);
+  assert.equal(first.length, Math.round(cues.duration * SR), `${style}: audio length matches the composition`);
+  assert.ok(Math.abs(integratedLufs(first) + 14) < .3, `${style}: mastered to -14 LUFS`);
+  assert.ok(toDb(truePeak(first)) <= -1, `${style}: true peak stays under -1 dBTP`);
+}
+assert.throws(() => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style: 'nope'}), /Unknown score style/);
 console.log('score tests passed');

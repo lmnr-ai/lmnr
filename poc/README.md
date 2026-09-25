@@ -29,8 +29,9 @@ Open `http://localhost:5173/?experiment=micro-18`. The composition lives in
 Its required runtime media is under `public/`. Generated renders, large sound
 study exports, dependency folders, and MP4 files are intentionally excluded.
 See `src/experiments/micro-18/README.md` and `AUDIO_EXPORT.md` before changing
-sound scheduling or export behavior. The final video soundtrack is the offline
-"Tactile Glass" score in `src/experiments/micro-18/score/` (`pnpm ultimate3:score`).
+sound scheduling or export behavior. The final video soundtrack is an offline
+score in `src/experiments/micro-18/score/` (`pnpm ultimate3:score --style
+tactile-glass|nocturne|signal`).
 
 Rendering the video on Linux: `AUDIO_EXPORT.md`'s browser exporter hardcodes a Mac
 Chrome path. Render silent video with Remotion's own Chrome instead:
@@ -39,7 +40,10 @@ Chrome path. Render silent video with Remotion's own Chrome instead:
 `pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4`.
 
 - Chapter starts after Ultimate 2 fall on x.518s (it runs 14.518s), not on the
-  absolute 0.5s grid; score code anchors beats per chapter (`beats(chapter.start)`).
+  absolute 0.5s grid. Newer styles use one film-wide grid (`gridOf`/`beatOf` in
+  `score/style.ts`: beat 29 = Cost start, 61 = Flow-1 drop, 104 = logo).
+- `Mix.tapeStop`/`Mix.stutter` rewrite everything already emitted on the music
+  buses, so call them in timeline order: emit what should break, cut, then emit the rest.
 - Retiming clips in settings retimes the score (cues are derived, never hardcoded);
   pass the same `--settings` JSON used for the video render.
 - `tsconfig` requires `types: ["node"]`, so `@types/node` must stay a direct devDependency.
