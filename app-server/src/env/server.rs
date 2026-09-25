@@ -14,3 +14,10 @@ pub const CONSUMER_PORT: NumEnv<u16> = NumEnv::new("CONSUMER_PORT", 8002);
 pub const HTTP_PAYLOAD_LIMIT: NumEnv<usize> = NumEnv::new("HTTP_PAYLOAD_LIMIT", 5_242_880);
 /// Max gRPC request payload in bytes. Default 25 MB.
 pub const GRPC_PAYLOAD_LIMIT: NumEnv<usize> = NumEnv::new("GRPC_PAYLOAD_LIMIT", 26_214_400);
+
+/// How long queue/stream consumers get after SIGTERM to finish an in-flight
+/// message or flush and commit its ack/offset. Keep it under the pod's
+/// `terminationGracePeriodSeconds` (k8s default 30s) so the drain completes
+/// before SIGKILL.
+pub const GRACEFUL_SHUTDOWN_TIMEOUT_MS: NumEnv<u64> =
+    NumEnv::new("GRACEFUL_SHUTDOWN_TIMEOUT_MS", 20_000);

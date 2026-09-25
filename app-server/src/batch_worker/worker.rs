@@ -2,6 +2,7 @@ use backon::Retryable;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::batch_worker::BatchWorkerType;
@@ -21,6 +22,11 @@ use crate::worker::{HandlerError, QueueConfig};
 /// - Runs periodic `handle_interval` checks for time-based processing
 ///
 /// On reconnection, state is reset and unacked messages are redelivered by the queue.
+///
+/// On `shutdown` the worker stops receiving but lets an in-flight
+/// `handle_message`/`handle_interval` (flush + ack) finish, so a batch that was
+/// written is also acked. Held-but-unflushed messages are simply never acked and
+/// get redelivered once, to the successor.
 pub struct BatchQueueWorker<H: BatchMessageHandler> {
     id: Uuid,
     worker_type: BatchWorkerType,
@@ -29,6 +35,7 @@ pub struct BatchQueueWorker<H: BatchMessageHandler> {
     config: QueueConfig,
     state: H::State,
     ackers: HashMap<u64, MessageQueueAcker>,
+    shutdown: CancellationToken,
 }
 
 impl<H: BatchMessageHandler> BatchQueueWorker<H> {
@@ -37,6 +44,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         handler: H,
         queue: Arc<MessageQueue>,
         config: QueueConfig,
+        shutdown: CancellationToken,
     ) -> Self {
         let initial_state = handler.initial_state();
         Self {
@@ -47,6 +55,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
             config,
             state: initial_state,
             ackers: HashMap::new(),
+            shutdown,
         }
     }
 
@@ -54,9 +63,9 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         self.id
     }
 
-    /// Main processing loop - runs forever with internal retry
+    /// Main processing loop - runs until shutdown with internal retry
     pub async fn process(&mut self) {
-        loop {
+        while !self.shutdown.is_cancelled() {
             if let Err(e) = self.process_inner().await {
                 log::error!(
                     "Worker {} ({:?}) failed: {:?}, reconnecting...",
@@ -65,8 +74,12 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                     e
                 );
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = self.shutdown.cancelled() => {}
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            }
         }
+        log::info!("Worker {} ({:?}) stopped", self.id, self.worker_type);
     }
 
     /// Inner processing loop - connects to the queue and processes messages indefinitely.
@@ -75,7 +88,10 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         self.state = self.handler.initial_state();
         self.ackers.clear();
 
-        let mut receiver: MessageQueueReceiver = self.connect().await?;
+        let mut receiver: MessageQueueReceiver = tokio::select! {
+            _ = self.shutdown.cancelled() => return Ok(()),
+            receiver = self.connect() => receiver?,
+        };
 
         log::info!(
             "Worker {} ({:?}) connected and ready to process messages",
@@ -95,6 +111,13 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         // Process messages and handle periodic intervals§
         loop {
             tokio::select! {
+                // Checked first so a busy queue can't starve it. Handler calls run
+                // in the arm bodies, outside this select, so an in-flight flush
+                // and its acks always complete before we get here.
+                biased;
+
+                _ = self.shutdown.cancelled() => return Ok(()),
+
                 // Message arrived from queue
                 result = receiver.receive() => {
                     match result {
@@ -355,6 +378,7 @@ mod tests {
             handler,
             queue,
             QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            CancellationToken::new(),
         )
     }
 
@@ -537,5 +561,91 @@ mod tests {
 
         // All ackers should be removed
         assert!(worker.ackers.is_empty());
+    }
+
+    /// Flushes every message immediately, but slowly, so shutdown can land mid-flush.
+    struct SlowFlushHandler {
+        flush_started: Arc<tokio::sync::Notify>,
+        flushed: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl BatchMessageHandler for SlowFlushHandler {
+        type Message = TestMessage;
+        type State = ();
+
+        fn interval(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+
+        fn initial_state(&self) -> Self::State {}
+
+        async fn handle_message(
+            &self,
+            delivery: MessageDelivery<Self::Message>,
+            _state: &mut Self::State,
+        ) -> HandlerResult<Self::Message> {
+            self.flush_started.notify_one();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            self.flushed
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            HandlerResult::ack(vec![delivery])
+        }
+
+        async fn handle_interval(&self, _state: &mut Self::State) -> HandlerResult<Self::Message> {
+            HandlerResult::empty()
+        }
+    }
+
+    /// Shutdown must not cut a flush short (it'd be written but never acked, then
+    /// redelivered and written again), and must stop the worker taking new work.
+    #[tokio::test]
+    async fn shutdown_finishes_the_in_flight_flush_then_stops() {
+        let queue = create_test_queue();
+        let flush_started = Arc::new(tokio::sync::Notify::new());
+        let flushed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let shutdown = CancellationToken::new();
+        let mut worker = BatchQueueWorker::new(
+            BatchWorkerType::BrowserEvents,
+            SlowFlushHandler {
+                flush_started: flush_started.clone(),
+                flushed: flushed.clone(),
+            },
+            queue.clone(),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            shutdown.clone(),
+        );
+        let running = tokio::spawn(async move { worker.process().await });
+
+        let message = serde_json::to_vec(&TestMessage {
+            id: "msg-1".to_string(),
+            value: 1,
+        })
+        .unwrap();
+        // The receiver registers asynchronously; retry until the publish lands.
+        while queue
+            .publish(&message, TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .is_err()
+        {
+            tokio::task::yield_now().await;
+        }
+        flush_started.notified().await;
+
+        shutdown.cancel();
+        queue
+            .publish(&message, TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .unwrap();
+
+        tokio::time::timeout(Duration::from_secs(5), running)
+            .await
+            .expect("worker must stop after shutdown")
+            .unwrap();
+        assert_eq!(
+            flushed.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "the in-flight flush completes; the message sent after shutdown is not taken"
+        );
     }
 }
