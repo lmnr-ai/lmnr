@@ -63,10 +63,10 @@
      at the top of the ladder (surface-800). This is the base-plane fallback for bare elements. The global
      `* { @apply border-border }` means borders lighten with elevation everywhere. */
   --color-border: var(--color-surface-250);
-  --color-input: hsl(var(--input));
+  --color-input: var(--color-surface-350);
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-00);
-  --color-foreground: hsl(var(--foreground));
+  --color-foreground: var(--color-foreground-100);
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
@@ -87,21 +87,20 @@
   --color-muted-foreground: var(--color-foreground-400);
 
   --color-accent: var(--color-surface-300);
-  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-foreground: var(--color-foreground-50);
 
   --color-popover: var(--color-surface-100);
-  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-foreground: var(--color-foreground-100);
 
   --color-card: var(--color-surface-100);
-  --color-card-foreground: hsl(var(--card-foreground));
 
-  --color-sidebar: hsl(var(--sidebar-background));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar: var(--color-surface-100);
+  --color-sidebar-foreground: var(--color-foreground-50);
   --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary-foreground: var(--color-foreground-50);
+  --color-sidebar-accent: var(--color-surface-300);
+  --color-sidebar-accent-foreground: var(--color-foreground-50);
+  --color-sidebar-border: var(--color-surface-300);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
   --color-tool: hsl(var(--tool));
@@ -567,26 +566,7 @@
   :root {
     --radius: 0.5rem;
 
-    --background: 0 0% 4%;
-    --foreground: 0 8% 90%;
-
-    --card: 0 0% 7%;
-    --card-foreground: 240 8% 80%;
-
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 8% 90%;
-
     --primary: 18 59% 55%;
-    --primary-foreground: 16 0% 91%;
-
-    --secondary: 0 0% 7%;
-    --secondary-foreground: 0 0% 71%;
-
-    --muted: 240 6% 14%;
-    --muted-foreground: 0 0% 52%;
-
-    --accent: 232 9% 17%;
-    --accent-foreground: 210 100% 100%;
 
     --destructive: 0 60% 50%;
     --destructive-foreground: 210 40% 98%;
@@ -596,8 +576,6 @@
     --success-foreground: 355.7 100% 97.3%;
     --success-bright: 158 64% 52%;
 
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
     --ring: 212 96% 78%;
 
     --chart-1: 220 70% 50%;
@@ -606,13 +584,7 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --tool: 42 93% 46%;
@@ -621,10 +593,6 @@
     --subagent: 187 94% 43%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-  }
 }
 
 @keyframes landing-caret-blink {

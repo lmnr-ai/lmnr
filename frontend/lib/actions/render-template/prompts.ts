@@ -14,7 +14,7 @@ the platform; avoid them.)
 Available semantic tokens (exhaustive — these are what twind knows about; nothing else is wired)
 - Surface / foreground pairs (use as \`bg-<name>\` for the background, \`text-<name>-foreground\` for legible text on top):
   - \`background\` / \`foreground\` — the page itself.
-  - \`card\` / \`card-foreground\` — main content card.
+  - \`card\` — main content card; text inherits \`foreground\`.
   - \`popover\` / \`popover-foreground\` — floating surfaces.
   - \`secondary\` / \`secondary-foreground\` — subtle inset surface (nested rows, kv blocks).
   - \`muted\` / \`muted-foreground\` — slightly more pronounced inset (hover rows, side panels).
@@ -23,7 +23,7 @@ Available semantic tokens (exhaustive — these are what twind knows about; noth
   - \`destructive\` / \`destructive-foreground\` — error banners.
   - \`success\` / \`success-foreground\` — success banners.
 - Plain text colours (no companion surface — use on top of \`bg-background\` / \`bg-card\` / etc.):
-  - \`text-foreground\` (primary text) · \`text-secondary-foreground\` (one notch down) · \`text-muted-foreground\` (de-emphasised) · \`text-card-foreground\` / \`text-popover-foreground\` / \`text-accent-foreground\` / \`text-primary-foreground\` / \`text-destructive-foreground\` / \`text-success-foreground\` (each pairs with its matching \`bg-*\`).
+  - \`text-foreground\` (primary text) · \`text-secondary-foreground\` (one notch down) · \`text-muted-foreground\` (de-emphasised) · \`text-popover-foreground\` / \`text-accent-foreground\` / \`text-primary-foreground\` / \`text-destructive-foreground\` / \`text-success-foreground\` (each pairs with its matching \`bg-*\`).
   - Signal text: \`text-primary\` (highlight), \`text-success\`, \`text-destructive\`, \`text-destructive-bright\`, \`text-success-bright\`.
   - Domain-only text (see "Domain signal tokens" below): \`text-user\`, \`text-llm\` (+ \`text-llm-foreground\`), \`text-tool\`, \`text-subagent\`.
 - Borders / rings: \`border-border\`, \`border-input\`, \`ring-ring\`.
@@ -31,7 +31,7 @@ Available semantic tokens (exhaustive — these are what twind knows about; noth
 
 Surfaces (recipes)
 - Root container: \`w-full min-h-full p-4 text-sm text-foreground bg-background\` (use \`min-h-full\`, NOT \`h-full\`, so taller content can scroll vertically)
-- Cards / panels: \`rounded-md border border-border bg-card text-card-foreground p-3\`
+- Cards / panels: \`rounded-md border border-border bg-card p-3\` (text inherits \`text-foreground\`)
 - Popovers / floating surfaces: \`rounded-md border border-border bg-popover text-popover-foreground\`
 - Subtle inset surfaces (nested rows, kv-style blocks): \`bg-secondary text-secondary-foreground\`
 - Muted surfaces (hovered rows, side panels): \`bg-muted text-muted-foreground\`

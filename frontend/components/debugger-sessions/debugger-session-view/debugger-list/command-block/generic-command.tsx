@@ -10,12 +10,12 @@ export default function GenericCommand({ command }: { command: CommandBlockConte
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
   return (
-    <div className="flex flex-col border-t border-[rgba(232,232,232,0.1)]">
+    <div className="flex flex-col border-t border-foreground-100/10">
       <SectionLabel>command</SectionLabel>
       <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5 text-primary-foreground">
         {input}
       </pre>
-      <div className="border-t border-[rgba(232,232,232,0.1)]">
+      <div className="border-t border-foreground-100/10">
         <SectionLabel>stdout</SectionLabel>
         <CommandOutput output={command.output} failed={failed} />
       </div>
