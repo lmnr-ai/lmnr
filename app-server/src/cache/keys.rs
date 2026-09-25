@@ -39,7 +39,7 @@ pub const SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY: &str = "signal_trace_exclusive_
 /// heuristic: too long merely costs a cache miss, too short a needless wait.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
-/// JSON map `{project_id: runs}` of elected-but-unfinished signal runs per
+/// JSON map `{project_id: runs}` of signal runs waiting for the agent per
 /// project, read through from `signal_runs` with a short TTL. Drives fair-share
 /// demotion on `signals_realtime_queue` (`signals/private/fairness.rs`).
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
