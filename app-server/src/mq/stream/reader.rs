@@ -506,6 +506,9 @@ impl<H: StreamBatchHandler> StreamReader<H> {
             // never stored and the successor replays it.
             let permit = match &message {
                 Some(_) => tokio::select! {
+                    // Either arm is safe (a forwarded record is dropped unflushed);
+                    // bias just skips the pointless send.
+                    biased;
                     _ = self.shutdown.cancelled() => break,
                     permit = budget.admit(decoded_len) => Some(permit),
                 },
