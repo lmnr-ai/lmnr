@@ -59,6 +59,19 @@ Additional rules:
   signal_events: ARRAY JOIN signal_events AS e, ARRAY JOIN clusters AS c
 </task>
 
+<parameters>
+The editor binds these ClickHouse query parameters, and the user can change their values without
+editing the SQL. Use them instead of hardcoding a time window or a bucket size:
+- {start_time:DateTime64} - start of the time window
+- {end_time:DateTime64} - end of the time window
+- {interval_unit:String} - time-series bucket unit, used as toInterval(1, {interval_unit:String})
+
+Filter on a time range with: start_time >= {start_time:DateTime64} AND start_time <= {end_time:DateTime64}
+Bucket a time series with: toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time
+
+Do NOT invent other parameter names - the user would have to fill each one in before the query runs.
+</parameters>
+
 <examples>
 Recent traces:
 SELECT id, start_time, total_cost

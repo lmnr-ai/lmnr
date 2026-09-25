@@ -6,7 +6,7 @@ import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
-import { formatMetricValue } from "./format-value";
+import ChartTotal from "./chart-total";
 import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 interface HorizontalBarChartProps {
@@ -62,7 +62,7 @@ const HorizontalBarChart = ({
   );
 
   const { displayValue, totalMax } = useMemo(
-    () => calculateDisplayValue(data, [valueColumn], displayMode),
+    () => calculateDisplayValue(data, [valueColumn], displayMode === "none" ? "total" : displayMode),
     [data, valueColumn, displayMode]
   );
 
@@ -76,11 +76,7 @@ const HorizontalBarChart = ({
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {displayValue !== null && (
-        <span className="font-medium text-2xl mb-2 truncate min-h-fit">
-          {formatMetricValue(displayValue, metricColumn)}
-        </span>
-      )}
+      <ChartTotal value={displayValue ?? 0} metricColumn={metricColumn} visible={displayMode !== "none"} />
       <ChartContainer config={chartConfig} className="w-full min-h-0" style={{ height: chartHeight }}>
         <RechartsBarChart
           barSize={32}

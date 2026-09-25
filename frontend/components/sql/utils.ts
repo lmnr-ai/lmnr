@@ -17,6 +17,7 @@ import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
+import { BUILT_IN_PARAMETERS, findParameterRefs } from "@/components/sql/parameters";
 import {
   ClickHouseDialect,
   clickhouseFunctions,
@@ -503,6 +504,30 @@ const customCompletions = (textBefore: string, searchTerm: string) => {
   return [...buildEnumOptions(allEnumTypes, searchTerm, (v) => `'${v}'`), ...clickhouseFunctionCompletions(searchTerm)];
 };
 
+// --- Query parameters ---------------------------------------------------------
+// Completing on `{` is the main way anyone discovers parameters exist, so it offers the built-ins
+// plus any name already in the query, and applies the full `{name:Type}` form.
+const parameterCompletions = (docText: string, partial: string) => {
+  const declared = new Map<string, string>(
+    Object.entries(BUILT_IN_PARAMETERS).map(([name, spec]) => [name, spec.declaredType])
+  );
+  for (const ref of findParameterRefs(docText)) {
+    if (!declared.has(ref.name)) declared.set(ref.name, ref.declaredType);
+  }
+
+  return Array.from(declared.entries())
+    .filter(([name]) => matchesSearch(name, partial))
+    .map(([name, declaredType]) => ({
+      label: `{${name}:${declaredType}}`,
+      type: "variable",
+      detail: "parameter",
+      info:
+        BUILT_IN_PARAMETERS[name]?.description ??
+        "Query parameter. Give it a value in the parameters bar below the editor.",
+      apply: `{${name}:${declaredType}}`,
+    }));
+};
+
 // --- Sorting -----------------------------------------------------------------
 const relevanceScore = (label: string, search: string) => {
   const a = label.toLowerCase();
@@ -628,6 +653,13 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
         options: sortByRelevance(options, partialText),
         validFor: /^\w*$/,
       };
+    }
+
+    const brace = context.matchBefore(/\{\w*/);
+    if (brace) {
+      const options = parameterCompletions(context.state.doc.toString(), brace.text.slice(1).toLowerCase());
+      if (options.length === 0) return null;
+      return { from: brace.from, options, validFor: /^\{\w*$/ };
     }
 
     const word = context.matchBefore(/\w*/);
@@ -840,6 +872,14 @@ const autocompleteStyles = {
     fontWeight: "600",
     fontSize: "11px",
   },
+  ".cm-completionIcon-variable": {
+    color: "hsl(var(--primary))",
+  },
+  ".cm-completionIcon-variable::after": {
+    content: "'{}'",
+    fontSize: "10px",
+    fontWeight: "600",
+  },
   ".cm-completionLabel": {
     color: "hsl(var(--foreground))",
   },
@@ -936,12 +976,38 @@ const signatureHelpStyles = {
   },
 };
 
+// A pill so `{start_time:DateTime64}` reads as a knob, amber when nothing has filled it in. The
+// pointer cursor is the only clickability hint, so the extension must stay scoped to editors that
+// have a value input to open.
+const parameterStyles = {
+  ".cm-content .cm-sql-parameter": {
+    color: "hsl(var(--primary))",
+    background: "hsl(var(--primary) / 0.12)",
+    borderRadius: "3px",
+    padding: "1px 0",
+    boxShadow: "0 0 0 1px hsl(var(--primary) / 0.25)",
+    cursor: "pointer",
+  },
+  ".cm-content .cm-sql-parameter:hover": {
+    background: "hsl(var(--primary) / 0.2)",
+    boxShadow: "0 0 0 1px hsl(var(--primary) / 0.45)",
+  },
+  ".cm-content .cm-sql-parameter-unset": {
+    color: "#E2B341",
+    background: "#E2B34120",
+    boxShadow: "0 0 0 1px #E2B34166",
+    textDecoration: "underline wavy #E2B34199",
+    textUnderlineOffset: "3px",
+  },
+};
+
 // Combined editor theme
 export const editorTheme = EditorView.theme({
   ...editorBaseStyles,
   ...syntaxHighlightStyles,
   ...autocompleteStyles,
   ...signatureHelpStyles,
+  ...parameterStyles,
 });
 
 // CodeMirror extension bundle for the SQL editor, optionally scoped by `config`.

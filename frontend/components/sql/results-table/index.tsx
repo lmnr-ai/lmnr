@@ -53,7 +53,8 @@ export default function ResultsTable({ results, storageKey }: ResultsTableProps)
     <InfiniteDataTableProvider key={storageKey} defaults={defaults}>
       <ColumnSizingPersistence storageKey={storageKey} initial={defaults} />
       <InfiniteDataTable
-        className="w-full"
+        className="h-full min-h-0 w-full"
+        scrollContentClassName="h-full"
         columns={columns}
         data={results}
         hasMore={false}
