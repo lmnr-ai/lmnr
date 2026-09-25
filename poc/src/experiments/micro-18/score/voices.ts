@@ -3,6 +3,9 @@ import {OnePole, Saw, Sine, Stereo, Svf, clamp, gateEnv, mtof, panGains, pluckEn
 export type BusName = 'music' | 'sfx';
 export type Route = {bus: BusName; gain?: number; pan?: number; hall?: number; room?: number; delay?: number};
 export type PianoBank = readonly {midi: number; data: Float32Array}[];
+export type StringSection = 'violin' | 'violins' | 'celli' | 'pizz';
+/** VSCO-2 strings: each section holds a soft and a loud layer per sampled pitch (pizz is loud only). */
+export type StringBanks = Partial<Record<StringSection, readonly {midi: number; dynamic: 'soft' | 'loud'; data: Float32Array}[]>>;
 
 /** Dry buses plus three shared sends. Voices render mono or stereo buffers and `emit` them here. */
 export class Mix {
@@ -10,7 +13,7 @@ export class Mix {
   /** Gain multiplier applied to the music bus (and its sends) — lets foley breathe through the score. */
   readonly musicGain: Float32Array;
   readonly counts: Record<string, number> = {};
-  constructor(readonly length: number, readonly random: Rng, readonly piano: PianoBank) {
+  constructor(readonly length: number, readonly random: Rng, readonly piano: PianoBank, readonly strings: StringBanks = {}) {
     this.music = new Stereo(length); this.sfx = new Stereo(length);
     this.hall = new Stereo(length); this.room = new Stereo(length); this.delay = new Stereo(length);
     this.musicGain = new Float32Array(length).fill(1);
@@ -88,12 +91,23 @@ const pumpGain = (pump: Pump | undefined, time: number) => {
   return 1 - pump.depth * (1 - clamp(phase / .6)) ** 2;
 };
 const noise = (random: Rng) => random() * 2 - 1;
+/** Paul Kellet's economy pink filter: -3 dB/octave, so noise sounds like air rather than hiss. */
+class Pink {
+  private b0 = 0; private b1 = 0; private b2 = 0;
+  next(random: Rng) {
+    const white = noise(random);
+    this.b0 = .99765 * this.b0 + white * .099046; this.b1 = .963 * this.b1 + white * .2965164; this.b2 = .57 * this.b2 + white * 1.0526913;
+    return (this.b0 + this.b1 + this.b2 + white * .1848) * .25;
+  }
+}
 
 // ---------------------------------------------------------------- music
 
+const nearest = <T extends {midi: number}>(bank: readonly T[], midi: number) => bank.reduce((best, note) => Math.abs(note.midi - midi) < Math.abs(best.midi - midi) ? note : best);
+
 /** Salamander felt-piano: nearest sample, resampled ≤ 1.5 semitones, darkened by velocity. */
 export function piano(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {length?: number; bright?: number} = {}) {
-  const source = mix.piano.reduce((best, note) => Math.abs(note.midi - midi) < Math.abs(best.midi - midi) ? note : best);
+  const source = nearest(mix.piano, midi);
   const ratio = 2 ** ((midi - source.midi) / 12);
   const length = Math.min(options.length ?? 4, (source.data.length - 2) / ratio / 48_000);
   const out = buffer(length);
@@ -108,6 +122,61 @@ export function piano(mix: Mix, time: number, midi: number, velocity: number, ro
     out[i] = value * (.35 + .65 * velocity);
   }
   mix.emit(time, route, out); mix.count('piano');
+}
+
+const layersOf = (mix: Mix, section: StringSection, midi: number) => {
+  const bank = mix.strings[section];
+  if (!bank?.length) throw new Error(`Missing "${section}" string samples (poc/sound-sources/vsco2-strings)`);
+  const loud = nearest(bank.filter(note => note.dynamic === 'loud'), midi);
+  const soft = bank.some(note => note.dynamic === 'soft') ? nearest(bank.filter(note => note.dynamic === 'soft'), midi) : loud;
+  return {soft, loud};
+};
+// Loaders level sustains to -24 dBFS RMS (loud layer); this puts a mezzo string note beside a mezzo piano note.
+const STRING_LOOP = [2.2, 4.6] as const, STRING_FADE = .35, STRING_GAIN = 1.4;
+/** Linear-interpolated read that crossfades back into a mid-sustain loop, so a 6 s sample can hold any note length. */
+const sustainAt = (data: Float32Array, position: number) => {
+  const start = STRING_LOOP[0] * 48_000, end = Math.min(STRING_LOOP[1] * 48_000, data.length - 2), span = end - start, fade = STRING_FADE * 48_000;
+  const read = (p: number) => { const i = Math.floor(p), f = p - i; return data[i] + (data[i + 1] - data[i]) * f; };
+  if (span <= fade) return position < data.length - 1 ? read(position) : 0;
+  let p = position;
+  while (p >= end) p -= span;
+  if (p < end - fade || position < end - fade) return read(p);
+  const x = (p - (end - fade)) / fade;
+  return read(p) * Math.cos(x * Math.PI / 2) + read(p - span) * Math.sin(x * Math.PI / 2);
+};
+
+/**
+ * Sampled bowed note (VSCO-2): soft and loud layers crossfaded by the dynamic, which can swell across
+ * the note. `offset` skips into the bow stroke so legato lines connect without re-articulating.
+ */
+export function bowed(mix: Mix, start: number, end: number, midi: number, route: Route, options: {
+  section?: Exclude<StringSection, 'pizz'>; dynamics?: [number, number]; attack?: number; release?: number; offset?: number; level?: number; bright?: number;
+} = {}) {
+  const section = options.section ?? 'violin', [from, to] = options.dynamics ?? [.6, .6];
+  const attack = options.attack ?? .08, release = options.release ?? .45, length = Math.max(.02, end - start);
+  const {soft, loud} = layersOf(mix, section, midi);
+  const out = buffer(length + release), offset = (options.offset ?? 0) * 48_000;
+  const ratios = [soft, loud].map(note => 2 ** ((midi - note.midi) / 12));
+  const tone = OnePole.lowpass(2500 + 9000 * (options.bright ?? .6));
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000, progress = clamp(t / length);
+    const dynamic = clamp(from + (to - from) * progress * progress * (3 - 2 * progress));
+    const blend = clamp((dynamic - .25) / .55);
+    const value = sustainAt(soft.data, offset + i * ratios[0]) * Math.cos(blend * Math.PI / 2) + sustainAt(loud.data, offset + i * ratios[1]) * Math.sin(blend * Math.PI / 2);
+    out[i] = tone.process(value) * gateEnv(t, attack, Math.max(0, length - attack), release) * (.3 + .7 * dynamic) * (options.level ?? 1) * STRING_GAIN;
+  }
+  mix.emit(start, route, out); mix.count(section);
+}
+
+/** Sampled violin pizzicato, pitched from the nearest string. */
+export function pizz(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {length?: number} = {}) {
+  const {loud} = layersOf(mix, 'pizz', midi), ratio = 2 ** ((midi - loud.midi) / 12);
+  const out = buffer(Math.min(options.length ?? 1.2, (loud.data.length - 2) / ratio / 48_000)), tone = OnePole.lowpass(2200 + 6000 * velocity);
+  for (let i = 0; i < out.length; i++) {
+    const position = i * ratio, index = Math.floor(position), fraction = position - index;
+    out[i] = tone.process(loud.data[index] + (loud.data[index + 1] - loud.data[index]) * fraction) * (.3 + .7 * velocity) * STRING_GAIN;
+  }
+  mix.emit(time, route, out); mix.count('pizz');
 }
 
 /** Warm analog pad: three detuned saws per note, slow filter bloom, wide stereo. */
@@ -309,49 +378,65 @@ export function shaker(mix: Mix, time: number, velocity: number, route: Route) {
 
 // ---------------------------------------------------------------- foley / motion
 
+const WHOOSH_CAP = 2400, WHOOSH_GAIN = 1.7;
+
 export type WhooshOptions = {
   from: number; to: number; level: number; q?: number; panFrom?: number; panTo?: number;
   /** 0..1: where the swell peaks inside the window. */
   peak?: number; air?: number; tone?: number;
 };
 
-/** Filtered-noise pass-by: dual band-pass sweep, skewed swell, travelling pan, optional tonal body. */
+/**
+ * Air pass-by. Pink noise (decorrelated per ear) through a broad, gently resonant band-pass whose
+ * centre rides the swell, over a low band that gives the move some mass. `from`/`to` are soft-capped
+ * under 2.4 kHz and the hiss rolled off at 4.2 kHz: narrow white noise in the 2–5 kHz band, where
+ * hearing is most sensitive, is what whistles.
+ */
 export function whoosh(mix: Mix, time: number, duration: number, route: Route, options: WhooshOptions) {
-  const left = buffer(duration + .25), right = buffer(duration + .25);
-  const main = new Svf(), air = new Svf(), body = new Sine(), pink = OnePole.lowpass(2400);
-  const peak = options.peak ?? .6, q = options.q ?? 1.3;
+  const tail = .35, left = buffer(duration + tail), right = buffer(duration + tail);
+  const peak = options.peak ?? .6, resonance = .7 + .35 * clamp(((options.q ?? 1.3) - .8) / 1.6);
+  const ears = [0, 1].map(() => ({pink: new Pink(), sweep: new Svf(), mass: new Svf(), air: new Svf(), hiss: OnePole.lowpass(4200), rumble: new Svf()}));
+  const body = new Sine(), soft = (hz: number) => hz * WHOOSH_CAP / (hz + WHOOSH_CAP);
   for (let i = 0; i < left.length; i++) {
     const t = i / 48_000, progress = clamp(t / duration);
     const shaped = progress < peak ? Math.sin(progress / peak * Math.PI / 2) ** 2 : Math.cos((progress - peak) / (1 - peak) * Math.PI / 2) ** 1.4;
-    const envelope = t > duration ? shaped * Math.exp(-(t - duration) / .05) : shaped;
+    const envelope = t > duration ? shaped * Math.exp(-(t - duration) / .09) : shaped;
     const sweep = progress < peak ? progress / peak : 1 - (progress - peak) / (1 - peak) * .35;
-    const hz = options.from * (options.to / options.from) ** clamp(sweep);
-    const white = noise(mix.random), coloured = pink.process(white) * 2.2 + white * .25;
-    main.process(coloured, hz, q); air.process(white, Math.min(hz * 3.1, 9000), .9);
-    let value = main.bp + air.bp * (options.air ?? .2) * .7;
-    if (options.tone) value += body.next(mtof(options.tone) * (.94 + .12 * sweep)) * .18;
+    const cutoff = soft(options.from * (options.to / options.from) ** clamp(sweep));
+    const [a, b] = ears.map(ear => {
+      const source = ear.pink.next(mix.random);
+      ear.sweep.process(source, cutoff, resonance);
+      ear.mass.process(source, clamp(cutoff * .35, 90, 300), .7);
+      ear.air.process(source, Math.min(cutoff * 1.8, 3000), .7);
+      ear.rumble.process(ear.sweep.bp + ear.mass.bp * .35 + ear.air.bp * (options.air ?? .2) * .35, 70, .7);
+      return ear.hiss.process(ear.rumble.hp);
+    });
+    let mid = (a + b) * .5;
+    const side = (a - b) * .4;
+    if (options.tone) mid += body.next(mtof(options.tone) * (.94 + .12 * sweep)) * .12;
     const pan = (options.panFrom ?? 0) + ((options.panTo ?? 0) - (options.panFrom ?? 0)) * progress;
-    const [gl, gr] = panGains(pan);
-    left[i] = value * envelope * gl * options.level; right[i] = value * envelope * gr * options.level;
+    const [gl, gr] = panGains(pan), g = envelope * options.level * WHOOSH_GAIN;
+    left[i] = (mid + side) * gl * Math.SQRT2 * g; right[i] = (mid - side) * gr * Math.SQRT2 * g;
   }
   mix.emit(time, route, left, right); mix.count('whoosh');
 }
 
-/** Noise + detuned saw riser that ends exactly at `end` (optionally sucking out to silence). */
+/** Riser that ends exactly at `end`: dark noise opening upward under a detuned saw, all under ~3 kHz. */
 export function riser(mix: Mix, start: number, end: number, route: Route, options: {level: number; fromMidi: number; toMidi: number}) {
   const duration = end - start;
   // Durations derive from cue gaps; a retime can invert them, and a negative buffer length throws.
   if (duration <= 0) return;
   const left = buffer(duration), right = buffer(duration);
-  const n1 = new Svf(), n2 = new Svf(), sawA = new Saw(), sawB = new Saw(), tone = new Svf();
+  const ears = [0, 1].map(() => ({pink: new Pink(), filter: new Svf(), hiss: OnePole.lowpass(4200)}));
+  const sawA = new Saw(), sawB = new Saw(), tone = new Svf();
   for (let i = 0; i < left.length; i++) {
     const t = i / 48_000, progress = t / duration;
     const envelope = progress ** 2.4 * (i > left.length - 240 ? (left.length - i) / 240 : 1);
-    const hz = 500 * 18 ** progress;
-    n1.process(noise(mix.random), hz, 2.2); n2.process(noise(mix.random), hz * 1.07, 2.2);
+    const cutoff = 300 * 8 ** progress;
+    const [a, b] = ears.map(ear => { ear.filter.process(ear.pink.next(mix.random), cutoff, .9); return ear.hiss.process(ear.filter.bp); });
     const pitch = mtof(options.fromMidi + (options.toMidi - options.fromMidi) * progress ** 1.6);
-    const synth = tone.process(sawA.next(pitch * 1.004) - sawB.next(pitch * .996), 600 + 5000 * progress, 1.4) * .22;
-    left[i] = (n1.bp + synth) * envelope * options.level; right[i] = (n2.bp + synth) * envelope * options.level;
+    const synth = tone.process(sawA.next(pitch * 1.004) - sawB.next(pitch * .996), 500 + 2400 * progress, .9) * .22;
+    left[i] = (a + synth) * envelope * options.level; right[i] = (b + synth) * envelope * options.level;
   }
   mix.emit(start, route, left, right); mix.count('riser');
 }
@@ -359,7 +444,7 @@ export function riser(mix: Mix, start: number, end: number, route: Route, option
 /** Reversed bell chord that blooms into `end` — the "breath in" before a downbeat. */
 export function reverseSwell(mix: Mix, end: number, duration: number, notes: readonly number[], route: Route) {
   if (duration <= 0) return;
-  const scratch = new Mix(samples(duration + .01), mix.random, mix.piano);
+  const scratch = new Mix(samples(duration + .01), mix.random, mix.piano, mix.strings);
   notes.forEach((midi, i) => bell(scratch, 0, midi, .8 - i * .06, {bus: 'music', pan: (i % 2 ? .45 : -.45)}, {decay: duration * .6, ratio: 2, index: .9}));
   const {l, r} = scratch.music;
   const left = buffer(duration), right = buffer(duration);
@@ -468,7 +553,7 @@ export function dive(mix: Mix, time: number, duration: number, route: Route, opt
   mix.emit(time, route, out); mix.count('dive');
 }
 
-/** Gentle highlighter swipe: bright noise sweep that rises across the phrase. */
+/** Gentle highlighter swipe: a soft sweep that brightens across the phrase. */
 export function marker(mix: Mix, time: number, duration: number, route: Route, level = .5) {
-  whoosh(mix, time, duration, route, {from: 2400, to: 6800, level, q: 2.4, peak: .35, air: .6, panFrom: -.3, panTo: .3});
+  whoosh(mix, time, duration, route, {from: 900, to: 2400, level, q: 1.2, peak: .35, air: .5, panFrom: -.3, panTo: .3});
 }

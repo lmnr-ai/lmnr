@@ -1,4 +1,4 @@
-import {piano, type Mix, type Route} from './voices';
+import {bowed, piano, type Mix, type Route, type StringSection} from './voices';
 
 /** A piano voicing: a bass note for the left hand plus the tones a figure walks through, low → high. */
 export type Chord = {bass: number; tones: readonly number[]};
@@ -68,4 +68,20 @@ export function melody(mix: Mix, grid: (beat: number) => number, notes: readonly
     piano(mix, time, midi, v, route, hold);
     if (options.octave) piano(mix, time + .006, midi - 12, v * .7, {...route, pan: (route.pan ?? 0) - .15}, hold);
   }
+}
+
+/**
+ * A bowed line as [beat, midi, length-in-beats, dynamic?] events. Notes that start where the previous
+ * one ends are slurred: they enter past the next sample's bow change and overlap the release, so the line never re-articulates.
+ */
+export function legato(mix: Mix, grid: (beat: number) => number, notes: readonly (readonly [number, number, number, (number | [number, number])?])[], route: Route,
+  options: {section?: Exclude<StringSection, 'pizz'>; dynamic?: number; bright?: number; level?: number; release?: number} = {}) {
+  notes.forEach(([beat, midi, length, dynamic], i) => {
+    const slurred = i > 0 && Math.abs(notes[i - 1][0] + notes[i - 1][2] - beat) < 1e-6;
+    const slurs = i + 1 < notes.length && Math.abs(beat + length - notes[i + 1][0]) < 1e-6;
+    const level = dynamic ?? options.dynamic ?? .6, dynamics: [number, number] = typeof level === 'number' ? [level, level * .92] : level;
+    bowed(mix, grid(beat), grid(beat + length) + (slurs ? .05 : 0), midi, route, {
+      section: options.section, dynamics, attack: slurred ? .06 : .1, release: slurs ? .09 : options.release ?? .6, offset: slurred ? .12 : 0, bright: options.bright, level: options.level,
+    });
+  });
 }

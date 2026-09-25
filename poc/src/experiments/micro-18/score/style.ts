@@ -6,6 +6,8 @@ import type {Mix} from './voices';
 export type ScoreStyle = {
   id: string;
   title: string;
+  /** Needs the VSCO-2 string banks; the render script only decodes them for these styles. */
+  strings?: boolean;
   ducks(mix: Mix, cues: ScoreCues): void;
   compose(mix: Mix, cues: ScoreCues): void;
   design(mix: Mix, cues: ScoreCues): void;

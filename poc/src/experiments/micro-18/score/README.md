@@ -4,13 +4,13 @@ Soundtracks for Animation 18: original scores plus foley, rendered offline in pu
 
 ```sh
 pnpm ultimate3:score                                   # Tactile Glass -> out/ultimate3-score.wav
-pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: --style signal)
+pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque)
 pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux (video stream-copied, AAC 320k)
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score:test
 ```
 
-Rendering takes about 15 seconds. The output is a deterministic function of settings, the piano samples and the seed (`score.test.ts` asserts identical hashes across runs), and it is mastered to -14 LUFS integrated with true peak ≤ -1 dBTP.
+Rendering takes 15–40 seconds. The output is a deterministic function of settings, the samples and the seed (`score.test.ts` asserts identical hashes across runs), and it is mastered to -14 LUFS integrated with true peak ≤ -1 dBTP.
 
 ## Styles
 
@@ -31,6 +31,20 @@ Each style is a `ScoreStyle` (`style.ts`) in its own folder: `ducks`, then `comp
 - **Palette:** felt piano with delay over a 16th saw sequencer, sidechain-pumped pads, sub bass, soft four-on-the-floor, FM blips and sample-and-hold data chatter.
 - **Story in texture:** the music breaks the way software does. It stutters and tape-stops at the failure, glitches out when the cheap model misses the issue, and slows to a halt as the budget drains. After "Until now" the sequencer reboots into the drop and never breaks again; on the logo it thins to one A.
 
+### `aria` — violin and string orchestra, D major
+
+- **Palette:** VSCO-2 solo violin, violin section, celli and pizzicato, with timpani and Nocturne's beeps a semitone down. Sustains crossfade soft/loud layers by dynamic and loop their bodies, so a note holds as long as the picture needs.
+- **Story in the bow:** the trace is the violin's moto perpetuo, bariolage against the open A, that breaks onto a borrowed G minor and sighs B♭ → A at the failure. The cheap model is high pizzicato that trips onto a tritone; the expensive one is heavy celli on every beat. The cost falls down a lament bass until one violin F♯ is left; it cuts for a breath and becomes the third of D for Flow-1, where the celli motor starts. The theme's C♯ waits until the logo.
+
+### `arabesque` — impressionist solo piano, E major
+
+- **Palette:** Salamander piano only, plus a sine sub and triplet delay echoes; Nocturne's beeps a semitone up.
+- **Story in figuration:** the trace is a flowing triplet arabesque that melts into a whole-tone blur at the failure. The insights are low parallel chords (a sunken cathedral). The cheap model is shallow staccato up high; the powerful one massive bass octaves. The cost slows the arabesque (triplets → eighths → quarters → halves) until one B rings into the drop, where both hands sweep. The theme's D♯ waits until the logo.
+
+## Foley
+
+Whooshes are pink noise through a broad, gently resonant band-pass whose centre is soft-capped under 2.4 kHz, with a low "body" band and the hiss rolled off above 4.2 kHz. Narrow white-noise sweeps put most of their energy at 2–5 kHz, where hearing is most sensitive, and read as a whistle. Nocturne, Aria and Arabesque share one foley design (`nocturne/design.ts`, `designInKey`) transposed into each score's key.
+
 ## Pipeline
 
 - `cues.ts` derives every picture event from the settings. It reuses the `sound.ts` window helpers and samples the Issues scene for per-triangle pop times and positions, so retiming a clip retimes the score.
@@ -43,4 +57,4 @@ The live `?experiment=micro-18` preview still uses the earlier Web Audio sound e
 
 ## Credits
 
-Piano: [Salamander Grand Piano](https://github.com/Tonejs/audio) by Alexander Holm, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Sources and hashes are in `sound-sources/salamander-tonejs/source-manifest.json`. Every other sound is synthesized in `voices.ts`.
+Piano: [Salamander Grand Piano](https://github.com/Tonejs/audio) by Alexander Holm, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Sources and hashes are in `sound-sources/salamander-tonejs/source-manifest.json`. Strings: [VSCO-2 Community Edition](https://github.com/sgossner/VSCO-2-CE) by Sam Gossner and Simon Dalzell, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/); trimmed and re-encoded in `sound-sources/vsco2-strings/` (see its `source-manifest.json`). Every other sound is synthesized in `voices.ts`.

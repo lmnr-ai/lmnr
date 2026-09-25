@@ -6,7 +6,7 @@ import {ULTIMATE_3_DEFAULTS} from '../settings';
 import {BEAT, ultimate3ScoreCues} from './cues';
 import {integratedLufs, SR, toDb, truePeak} from './dsp';
 import {renderUltimate3Score, SCORE_STYLES} from './render';
-import {Mix, reverseSwell, riser, type PianoBank} from './voices';
+import {bowed, Mix, reverseSwell, riser, type PianoBank, type StringBanks} from './voices';
 import {chordAt, progression, type Chord} from './writing';
 
 const cues = ultimate3ScoreCues(ULTIMATE_3_DEFAULTS);
@@ -31,9 +31,20 @@ const piano: PianoBank = [33, 48, 60, 72, 84, 96].map(midi => {
   for (let n = 0; n < data.length; n++) data[n] = Math.sin(2 * Math.PI * hz * n / SR) * Math.exp(-n / SR / .8) * .5;
   return {midi, data};
 });
+// Sustained saws (with a two-second loop body) stand in for the VSCO strings; pizz reuses the piano decay.
+const sustain = (midi: number, gain: number) => {
+  const data = new Float32Array(SR * 6), hz = 440 * 2 ** ((midi - 69) / 12);
+  for (let n = 0; n < data.length; n++) data[n] = ((n * hz / SR) % 1 - .5) * gain * Math.min(1, n / 2400);
+  return data;
+};
+const layers = (pitches: number[]) => pitches.flatMap(midi => [{midi, dynamic: 'soft' as const, data: sustain(midi, .03)}, {midi, dynamic: 'loud' as const, data: sustain(midi, .08)}]);
+const strings: StringBanks = {
+  violin: layers([55, 64, 72, 81, 88, 96]), violins: layers([43, 50, 57, 64, 71, 74]), celli: layers([24, 31, 38, 45, 52, 59, 65]),
+  pizz: piano.filter(note => note.midi >= 48).map(note => ({...note, dynamic: 'loud' as const})),
+};
 const hash = (audio: {l: Float32Array; r: Float32Array}) => createHash('sha256').update(audio.l).update(audio.r).digest('hex');
 for (const style of Object.keys(SCORE_STYLES)) {
-  const render = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed}).master;
+  const render = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed, strings: SCORE_STYLES[style].strings ? strings : undefined}).master;
   const first = render();
   assert.equal(hash(first), hash(render()), `${style}: the score is a pure function of settings, samples and seed`);
   assert.notEqual(hash(render(7)), hash(first), `${style}: the seed only varies noise and humanisation`);
@@ -51,5 +62,11 @@ assert.equal(chordAt([[4, V], [0, I]], 2)[1], I, 'chordAt does not depend on lis
 const scratch = new Mix(4800, () => .5, []);
 assert.doesNotThrow(() => { reverseSwell(scratch, .05, -.2, [60], {bus: 'music'}); riser(scratch, .06, .05, {bus: 'music'}, {level: 1, fromMidi: 60, toMidi: 72}); });
 
+// A bowed note longer than its sample loops the sustain instead of falling silent.
+const held = new Mix(SR * 10, () => .5, [], strings);
+bowed(held, 0, 9, 72, {bus: 'music'}, {dynamics: [.8, .8], release: .1});
+const rms = (from: number, to: number) => Math.sqrt(held.music.l.subarray(from * SR, to * SR).reduce((sum, value) => sum + value * value, 0) / ((to - from) * SR));
+assert.ok(rms(7, 8.5) > rms(1, 2) * .7, 'long bowed notes keep sounding past the 6 s sample');
+assert.throws(() => bowed(new Mix(SR, () => .5, []), 0, .5, 72, {bus: 'music'}), /Missing "violin" string samples/);
 assert.throws(() => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style: 'nope'}), /Unknown score style/);
 console.log('score tests passed');

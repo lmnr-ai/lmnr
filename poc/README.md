@@ -31,7 +31,7 @@ study exports, dependency folders, and MP4 files are intentionally excluded.
 See `src/experiments/micro-18/README.md` and `AUDIO_EXPORT.md` before changing
 sound scheduling or export behavior. The final video soundtrack is an offline
 score in `src/experiments/micro-18/score/` (`pnpm ultimate3:score --style
-tactile-glass|nocturne|signal`).
+tactile-glass|nocturne|signal|aria|arabesque`).
 
 Rendering the video on Linux: `AUDIO_EXPORT.md`'s browser exporter hardcodes a Mac
 Chrome path. Render silent video with Remotion's own Chrome instead:
