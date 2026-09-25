@@ -118,20 +118,24 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
 /** Sample the Issues scene once to learn when and where each triangle appears. */
 function issuePops(settings: Ultimate3Settings, native: number): IssuePop[] {
   const appearance = settings.issues.timing.appearance;
-  const seen = new Map<string, number>();
+  // Token ids name home (cluster) cells; the triangle pops wherever the token is drawn at that moment.
+  const seen = new Map<string, {time: number; x: number; y: number}>();
   const step = 1 / 240;
   let last: ReturnType<typeof sampleUltimate3> | undefined;
   for (let time = native; time <= native + appearance.at + appearance.duration + .1; time += step) {
     last = sampleUltimate3(time, settings);
-    for (const [cell, value] of Object.entries(last.issues?.sample.warningAppearance ?? {})) if (value > 0 && !seen.has(cell)) seen.set(cell, round(time - step / 2));
+    const sample = last.issues?.sample;
+    for (const [id, value] of Object.entries(sample?.warningAppearance ?? {})) {
+      if (value <= 0 || seen.has(id)) continue;
+      const pose = sample!.tokens.find(item => item.token.id === id)!;
+      seen.set(id, {time: round(time - step / 2), x: pose.x, y: pose.y});
+    }
   }
   const dots = last?.issues?.sample.groundDots ?? [];
   const xs = dots.map(dot => dot.x), ys = dots.map(dot => dot.y);
   const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  return [...seen].map(([cell, time]) => {
-    const dot = dots.find(item => `cell-${item.cell}` === cell);
-    return {at: time, pan: dot ? ((dot.x - minX) / (maxX - minX || 1)) * 1.6 - .8 : 0, height: dot ? 1 - (dot.y - minY) / (maxY - minY || 1) : .5};
-  }).sort((a, b) => a.at - b.at);
+  return [...seen.values()].map(({time, x, y}) =>
+    ({at: time, pan: ((x - minX) / (maxX - minX || 1)) * 1.6 - .8, height: 1 - (y - minY) / (maxY - minY || 1)})).sort((a, b) => a.at - b.at);
 }
 
 function clusterLocks(settings: Ultimate3Settings, native: number) {
