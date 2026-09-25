@@ -1,0 +1,8 @@
+{
+  "intermediateNode": "4763:6297",
+  "endNode": "4763:5274",
+  "viewport": [1280, 720],
+  "assetSource": "Captured exact localhost:3845 Figma export URLs; copied locally with no runtime Figma dependency",
+  "smallNativeSize": [25.41796875, 23.604496002197266],
+  "referenceException": "The purple warning at grid cell (0,1) is a singleton in both frames and remains small."
+}

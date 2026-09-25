@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build, render, and test output
+dist/
+out/
+coverage/
+*.tsbuildinfo
+
+# Large generated sound-study exports
+public/sound-studies/
+public/ultimate-3-silk/default/
+public/ultimate-3-silk/exports/
+
+# Rendered video must never be committed
+*.mp4

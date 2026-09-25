@@ -1,0 +1,7 @@
+.micro11-app{position:fixed;inset:0 0 256px;display:grid;place-items:center;overflow:hidden;background:#080808}
+.micro11-stage{position:relative;width:min(100%,calc((100vh - 256px)*16/9));aspect-ratio:16/9;overflow:hidden}
+.micro11-composition{position:absolute;inset:0;overflow:hidden;background:#1a1a1a;isolation:isolate}
+.micro11-grid,.micro11-scene{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:hidden}
+.micro11-grid{z-index:0}
+.micro11-scene{z-index:1}
+.micro11-label{fill:#0e0f21;font-family:"Micro11Mono",monospace;font-size:48px;font-weight:400}

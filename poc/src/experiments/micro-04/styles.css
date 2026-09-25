@@ -1,0 +1,39 @@
+.micro04-app{position:fixed;inset:0 0 256px;display:grid;place-items:center;overflow:hidden;background:#080808}
+.micro04-stage{position:relative;width:min(100%,calc((100vh - 256px)*16/9));aspect-ratio:16/9;overflow:hidden}
+.micro04-scene{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;background:hsl(0 0% 6.27451%);container-type:size}
+.micro04-shell{position:relative;overflow:visible;background:#1a1a1a;color:#f4f8f8;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:400}
+.micro04-clip-viewport{position:absolute;inset:0;overflow:hidden}
+.micro04-content{position:absolute;left:0;top:0;display:flex;flex-direction:column;width:41.09375cqw;height:50cqh;will-change:transform}
+.micro04-row{position:relative;display:flex;flex:0 0 16.6667cqh;width:41.09375cqw;min-width:0;height:16.6667cqh;min-height:0}
+.micro04-outro-block{will-change:transform}
+.micro04-noise{position:absolute;inset:0;width:100%;height:100%;z-index:9;overflow:hidden;pointer-events:none;mix-blend-mode:soft-light}
+.micro04-row-thinking{background:transparent}
+.micro04-thinking-icon{position:relative;display:grid;place-items:center;width:9.375cqw;flex:0 0 9.375cqw;background:linear-gradient(142.825745764deg,var(--m04-loader-from) 5.5707%,var(--m04-loader-to) 95.148%)}
+.micro04-thinking-icon img{width:6.25cqw;height:11.1111cqh;max-width:none}
+.micro04-thinking-label,.micro04-time-label{display:flex;align-items:center;min-width:0;padding:0 2.5cqw;font-size:3.75cqw;line-height:normal;white-space:nowrap}
+.micro04-thinking-label{flex:1;background:linear-gradient(90deg,var(--m04-thinking-from),var(--m04-thinking-to))}
+.micro04-row-grid{background:transparent}
+.micro04-row-two-block{position:relative;display:flex;height:16.6667cqh;will-change:transform}
+.micro04-row-two-orb-block{width:9.375cqw;flex:0 0 9.375cqw;background:var(--m04-row-two-orb-block)}
+.micro04-grid-tail-block{width:22.34375cqw;flex:0 0 22.34375cqw;overflow:visible;background:transparent;transform-origin:center}
+.micro04-orb{width:9.375cqw;flex:0 0 9.375cqw;border-radius:500px;background:linear-gradient(136.207456626deg,var(--m04-orb-from) 11.002%,var(--m04-orb-mid) 55.501%,var(--m04-orb-to) 100%)}
+.micro04-grid-tail{display:flex;width:100%;height:100%;align-items:center;min-width:0}
+.micro04-grid-tail-shape{position:absolute;left:50%;top:50%;height:16.6667cqh;overflow:visible;transform:translate(-50%,-50%);transform-origin:center}
+.micro04-dot-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1.09375cqw);grid-template-rows:repeat(3,1.94444cqh);gap:1.09375cqw;margin-left:1.953125cqw}
+.micro04-dot-grid i{width:1.09375cqw;height:1.94444cqh;background:#f4f8f8;transform-origin:center;will-change:transform}
+.micro04-module-icon{position:relative;display:block;width:9.375cqw;height:16.6667cqh;flex:0 0 9.375cqw}
+.micro04-module-icon img{position:absolute;inset:0;width:100%;height:100%;max-width:none}
+.micro04-middle-icon{background:linear-gradient(135.939deg,var(--m04-middle-icon-from),var(--m04-dark-teal))}
+.micro04-time-icon{background:linear-gradient(131.845deg,var(--m04-time-icon-from),var(--m04-dark-teal))}
+.micro04-row-time{background:transparent}
+.micro04-time-label{flex:1;background:linear-gradient(115.395057195deg,var(--m04-time-from) 8.5851%,var(--m04-dark-teal) 107.55%)}
+.micro04-time-orb-wrap{display:flex;align-items:center;justify-content:center;width:9.375cqw;flex:0 0 9.375cqw;height:16.6667cqh;transform-origin:center;will-change:transform}
+.micro04-time-orb{width:9.375cqw;height:16.6667cqh;flex:0 0 9.375cqw;border-radius:500px;background:linear-gradient(137.740023755deg,var(--m04-end-orb-from) 10.953%,var(--m04-end-orb-to) 93.851%)}
+.micro04-corner{position:absolute;width:0;height:0;z-index:10;pointer-events:none}
+.micro04-corner-tl{left:0;top:0}.micro04-corner-tr{right:0;top:0}.micro04-corner-bl{left:0;bottom:0}.micro04-corner-br{right:0;bottom:0}
+.micro04-cross{position:absolute;left:-.78125cqw;top:-1.38889cqh;width:1.5625cqw;height:2.77778cqh;max-width:none}
+.micro04-ray{position:absolute;display:block;background:#2c3b3b}
+.micro04-ray-h{top:0;height:1px;width:220vw;transform-origin:right center}
+.micro04-ray-v{left:0;width:1px;height:220vh;transform-origin:center bottom}
+.micro04-corner-tl .micro04-ray-h,.micro04-corner-bl .micro04-ray-h{right:0}.micro04-corner-tr .micro04-ray-h,.micro04-corner-br .micro04-ray-h{left:0;transform-origin:left center}
+.micro04-corner-tl .micro04-ray-v,.micro04-corner-tr .micro04-ray-v{bottom:0}.micro04-corner-bl .micro04-ray-v,.micro04-corner-br .micro04-ray-v{top:0;transform-origin:center top}

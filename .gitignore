@@ -10,3 +10,12 @@ target/
 .lmnr/
 .cursor/
 .agents/
+.pi/
+
+# Dependencies and generated build/render output
+**/node_modules/
+**/dist/
+**/out/
+artifacts/
+transcript-output/
+*.mp4

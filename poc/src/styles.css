@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+/* Tokens lifted from lmnr/frontend/app/globals.css so the POC reads as Laminar. */
+@theme {
+  --color-bg: #0a0a0a;
+  --color-card: #121212;
+  --color-line: #2f2f2f;
+  --color-hairline: #1e1e1e;
+  --color-fg: #e8e6e6;
+  --color-fg-200: #b5b5b5;
+  --color-fg-300: #9d9d9d;
+  --color-fg-400: #6b7280;
+  --color-brand: #d07149;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-bg);
+}
