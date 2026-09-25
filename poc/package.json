@@ -1,0 +1,41 @@
+{
+  "name": "trace-view-poc",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tune": "vite",
+    "studio": "remotion studio src/video/index.ts",
+    "render": "remotion render src/video/index.ts TraceView out/trace-view.mp4",
+    "soundtrack:timings": "tsx scripts/generate-soundtrack-timings.ts",
+    "soundtrack:timings:check": "tsx scripts/generate-soundtrack-timings.ts --check",
+    "ultimate3:audio": "tsx scripts/export-ultimate3-audio.ts",
+    "ultimate3:score": "tsx scripts/render-ultimate3-score.ts",
+    "ultimate3:score:test": "tsx src/experiments/micro-18/score/score.test.ts",
+    "parity": "tsx src/parity.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dialkit": "^1.4.3",
+    "flubber": "^0.4.2",
+    "heerich": "0.16.0",
+    "motion": "^13.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "^4.0.516"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.516",
+    "@remotion/tailwind-v4": "^4.0.516",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/flubber": "^0.4.0",
+    "@types/node": "26.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2"
+  }
+}

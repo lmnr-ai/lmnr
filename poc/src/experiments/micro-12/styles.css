@@ -1,0 +1,13 @@
+.micro12-app{position:fixed;inset:0 0 256px;display:grid;place-items:center;overflow:hidden;background:#080808}
+.micro12-stage{position:relative;width:min(100%,calc((100vh - 256px)*16/9));aspect-ratio:16/9;overflow:hidden}
+.micro12-composition{position:absolute;inset:0;overflow:hidden;background:#1a1a1a;isolation:isolate}
+.micro12-world,.micro12-finale{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
+.micro12-label{font:400 48px Micro12Mono,monospace;fill:#0e0f21}
+.micro12-paper{box-sizing:border-box;height:260px;padding:4px 12px;background:transparent;color:#969696;font:400 24px/normal Micro12Mono,monospace;overflow-wrap:normal}
+.micro12-paper-line{position:relative;white-space:pre}
+.micro12-highlight{position:absolute;box-sizing:border-box;display:block;color:#0e0f21;background:#f47069;white-space:pre}
+.micro12-finale .micro09-composition{background:transparent}
+.micro12-finale .micro09-grid,.micro12-finale .micro09-title{opacity:var(--grid-blend)}
+.micro12-subtitle-layer{position:absolute;z-index:4;inset:0;pointer-events:none}
+.micro12-subtitle{position:absolute;left:50%;bottom:32px;box-sizing:border-box;max-width:calc(100% - 64px);transform:translateX(-50%);padding:8px 16px;background:#000;color:#fff;font:400 24px/normal Micro12Mono,monospace;text-align:center;white-space:normal;transition:none}
+.micro12-warning{position:absolute;left:12px;bottom:12px;color:#f5b369;background:#1a1a1a;padding:8px;font:12px monospace;z-index:5}

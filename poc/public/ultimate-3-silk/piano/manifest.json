@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "sampleRate": 48000,
+  "format": "mono little-endian float32",
+  "provenance": {
+    "instrument": "Salamander Grand Piano / Yamaha C5",
+    "author": "Alexander Holm",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "repository": "https://github.com/Tonejs/audio",
+    "commit": "efd8296360f9526e379bfbe5c1698ff54d6a1d34",
+    "readmeUrl": "https://raw.githubusercontent.com/Tonejs/audio/efd8296360f9526e379bfbe5c1698ff54d6a1d34/salamander/README",
+    "notes": "Tonejs MP3 distribution: one source per sampled pitch, not the original full 16-velocity-layer bank."
+  },
+  "modifications": "Hash-verified local MP3 decoded once with ffmpeg to mono 48k float PCM, retained first second. Renderer removes onset +9ms, transposes <=1 semitone, filters and softly envelopes with glass and reflections.",
+  "files": [
+    {
+      "name": "78.f32",
+      "midi": 78,
+      "samples": 48000,
+      "onset": 504,
+      "sha256": "e5c0363f41793100f690efcfc0be189e201506d5eb2e7d2f4ad79f6e8636c4fb",
+      "source": {
+        "name": "Fs5.mp3",
+        "midi": 78,
+        "url": "https://raw.githubusercontent.com/Tonejs/audio/efd8296360f9526e379bfbe5c1698ff54d6a1d34/salamander/Fs5.mp3",
+        "bytes": 51597,
+        "sha256": "ed2fdf543274ea72ddd4eb634a16356531a5f4040b2a60d34fb12a5c72cbf22f"
+      }
+    },
+    {
+      "name": "81.f32",
+      "midi": 81,
+      "samples": 48000,
+      "onset": 268,
+      "sha256": "508802eba21e4ba053f432e50807a5cefe2a6d92fc9be49bbb78054f6ba5c9a3",
+      "source": {
+        "name": "A5.mp3",
+        "midi": 81,
+        "url": "https://raw.githubusercontent.com/Tonejs/audio/efd8296360f9526e379bfbe5c1698ff54d6a1d34/salamander/A5.mp3",
+        "bytes": 45747,
+        "sha256": "9e5cee1fe9cf68b7193623d46a27c8956e572c1ff234ca0e11599b556050dec6"
+      }
+    },
+    {
+      "name": "87.f32",
+      "midi": 87,
+      "samples": 48000,
+      "onset": 243,
+      "sha256": "c0d076c44b83ea58b918bbc5c8310d8784807a00609f719238041cf6324006c6",
+      "source": {
+        "name": "Ds6.mp3",
+        "midi": 87,
+        "url": "https://raw.githubusercontent.com/Tonejs/audio/efd8296360f9526e379bfbe5c1698ff54d6a1d34/salamander/Ds6.mp3",
+        "bytes": 31395,
+        "sha256": "eb643014d9f926f1a5f9f51fc4a1ed8c07c6da36ce164d5b221d7b878a53f142"
+      }
+    },
+    {
+      "name": "90.f32",
+      "midi": 90,
+      "samples": 48000,
+      "onset": 310,
+      "sha256": "d63c1be33f5f606547326f886f195c69f7b5bdd3e3a156696fc1c1db4afc904a",
+      "source": {
+        "name": "Fs6.mp3",
+        "midi": 90,
+        "url": "https://raw.githubusercontent.com/Tonejs/audio/efd8296360f9526e379bfbe5c1698ff54d6a1d34/salamander/Fs6.mp3",
+        "bytes": 26478,
+        "sha256": "c584d2b4e96a37b12c920ed3212d149abedf25342389bfdc557b2fac847ab11c"
+      }
+    }
+  ]
+}

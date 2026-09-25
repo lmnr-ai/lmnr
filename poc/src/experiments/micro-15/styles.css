@@ -1,0 +1,23 @@
+.micro15-app{inset:0 0 var(--micro15-timeline-height,418px)}
+.micro15-app .micro14-stage{width:min(100%,calc((100vh - var(--micro15-timeline-height,418px))*16/9))}
+.micro15-app .micro14-note{bottom:calc(var(--micro15-timeline-height,418px) + 8px)}
+.micro15-composition{position:absolute;inset:0;overflow:hidden;isolation:isolate}
+.micro15-agent-overlay{position:absolute;inset:0;z-index:1;width:100%;height:100%;display:block;overflow:hidden;pointer-events:none}
+.micro15-subtitle-layer{position:absolute;z-index:2;inset:0;pointer-events:none}
+.micro15-subtitle{position:absolute;left:50%;bottom:32px;box-sizing:border-box;max-width:calc(100% - 64px);transform:translateX(-50%);padding:8px 16px;background:#000;color:#fff;font:400 24px/normal Micro15AgentMono,monospace;text-align:center;white-space:normal;transition:none}
+.micro15-agent-window,.micro15-agent-window *{box-sizing:border-box}
+.micro15-agent-window{position:relative;width:807px;height:604px;overflow:hidden;background:#1f1f1f;box-shadow:inset 0 0 0 1px #3d3d3d;color:#fff;font-family:Micro15AgentMono,monospace;font-size:40px;font-weight:400;font-synthesis:none;line-height:58px;letter-spacing:0}
+.micro15-agent-line{height:58px;white-space:pre;flex-shrink:0}
+.micro15-prompt-second{display:flex;gap:20px;align-items:center}
+.micro15-issue-reference{position:relative;display:inline-flex;align-items:center;flex-shrink:0;height:58px;white-space:pre}
+.micro15-agent-warning{display:block;flex-shrink:0;transform-origin:center}
+.micro15-issue-icon{position:absolute;left:12px;top:9.319112777709961px}
+.micro15-agent-transcript{position:absolute;left:1px;top:1px;width:805px;display:flex;flex-direction:column;justify-content:flex-end}
+.micro15-sent-message{height:116px;padding:0 30px;flex-shrink:0;display:flex;flex-direction:column;justify-content:flex-end}
+.micro15-agent-cli{padding:0 30px;flex-shrink:0;display:flex;flex-direction:column;justify-content:flex-end}
+.micro15-cli-row{display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;flex-shrink:0}
+.micro15-agent-muted{color:#808080}
+.micro15-predicate{display:flex;align-items:center}
+.micro15-predicate-prefix{width:288px;flex-shrink:0}
+.micro15-agent-empty-composer{position:absolute;left:1px;top:429px;width:805px;height:99px;border-top:1px solid #333}
+.micro15-agent-footer{position:absolute;left:1px;top:528px;width:805px;height:75px;display:flex;justify-content:space-between;align-items:flex-start;border-top:1px solid #333;padding:20px 30px 30px;color:#808080;font-size:18px;line-height:24px;white-space:pre}

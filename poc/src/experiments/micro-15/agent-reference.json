@@ -1,0 +1,20 @@
+{
+  "fileKey": "VEbMxK1qMXzqjAVJaSQMPs",
+  "promptFrame": "4779:13118",
+  "sentFrame": "4779:13549",
+  "promptWindow": "4779:13536",
+  "sentWindow": "4779:13967",
+  "canvas": {"width": 1280, "height": 720},
+  "window": {"x": 237, "y": -41, "width": 807, "height": 604, "background": "#1f1f1f", "border": "#3d3d3d", "borderWidth": 1},
+  "type": {"family": "JetBrains Mono", "weight": 400, "size": 40, "lineHeight": 58, "color": "#ffffff", "muted": "#808080"},
+  "footerType": {"size": 18, "lineHeight": 24},
+  "composer": {"x": 1, "y": 371, "width": 805, "height": 157, "paddingX": 30, "paddingY": 20, "borderTop": "#333333"},
+  "issueReference": {"secondLineX": 188, "width": 322.3858337402344, "height": 58, "paddingX": 12, "gap": 16, "background": "#474747", "sentBackground": "#333333"},
+  "warning": {"width": 42.38583755493164, "height": 39.36177444458008, "color": "#4685e7", "asset": "micro-15/issue-warning.svg", "figmaAsset": "f9d0c58594fbf09f2f7b2defefaed5f697e12094.svg"},
+  "transcript": {"node": "4779:13968", "x": 1, "y": 59, "width": 805, "height": 370, "userMessageHeight": 116, "cliHeight": 174, "gap": 40, "paddingX": 30, "paddingBottom": 40, "justifyContent": "flex-end"},
+  "emptyComposer": {"x": 1, "y": 429, "width": 805, "height": 99},
+  "footer": {"x": 1, "y": 528, "width": 805, "height": 75, "left": "fix/my-agent", "right": "claude-opus-5.5"},
+  "prompt": ["Use Laminar CLI to investigate", "and fix", "this issue"],
+  "command": ["lmnr-cli sql query", "“SELECT * FROM TRACES WHERE", "arrayExists(", "[warning icon]", ", clusters)“"],
+  "note": "Only the overlay is reproduced. The Figma grid is a placeholder; the existing final Animation 15 grid stays beneath it. The window's top crop and the reference's curly quote glyphs are intentional."
+}
