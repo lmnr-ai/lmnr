@@ -1,8 +1,8 @@
 import type {ScoreCues} from '../cues';
 import {clamp} from '../dsp';
 import {beatOf, gridOf} from '../style';
-import {beep, piano, strings, timpani, type Mix, type Route} from '../voices';
-import {drainLine, figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
+import {bass, beep, bowed as bow, kick, piano, strings, timpani, type Mix, type Route} from '../voices';
+import {drainLine, figure, legato, melody, progression, rolled, type Chord, type Progression} from '../writing';
 
 /*
  * "Nocturne" — E♭ major, a piano-led chamber score. The story is told in harmony:
@@ -18,6 +18,9 @@ const CLOSE: Route = {bus: 'music', hall: .26, room: .08};
 const STRINGS: Route = {bus: 'music', hall: .5};
 const DRUM: Route = {bus: 'music', hall: .35};
 const DATA: Route = {bus: 'music', gain: .8, hall: .3, delay: .25};
+const SOLO: Route = {bus: 'music', hall: .4, room: .06, pan: .12};
+// Bowed samples sit ~6.5 dB over the synthesized section at the same level.
+const ENSEMBLE = .47;
 
 const C = {
   Eb: {bass: 39, tones: [51, 58, 62, 63, 67]}, BbD: {bass: 38, tones: [50, 58, 62, 65, 70]},
@@ -33,8 +36,37 @@ const bowed = (chord: Chord, top = 3) => [chord.bass - 12, chord.bass, ...chord.
 const PRELUDE = [0, 1, 2, 3, 4, 2, 3, 4];
 const OSTINATO = [0, 2, 4, 2];
 
-/** `acoustic` drops every electronic voice: no telemetry beeps, and the budget drains as a piano line. */
-export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) {
+/** The string sections' chord on the VSCO samples: celli up to G3, the violin section to E5, the solo violin above. */
+const ensemble: typeof strings = (mix, start, end, notes, route, options = {}) => {
+  const [from, to] = options.dynamics ?? [1, 1], level = (options.level ?? 1) * ENSEMBLE / Math.sqrt(notes.length);
+  for (const midi of notes) bow(mix, start, end, midi, {...route, pan: -.4 + .8 * clamp((midi - 36) / 48)}, {
+    section: midi <= 55 ? 'celli' : midi <= 76 ? 'violins' : 'violin', dynamics: [from * .9, to * .9],
+    attack: options.attack, release: options.release, bright: options.bright, level: midi > 76 ? level * .6 : level,
+  });
+};
+/** The timpani as a sub that bends down into the note under a soft kick. */
+const boom: typeof timpani = (mix, time, midi, velocity, route, options = {}) => {
+  bass(mix, time, midi, (options.decay ?? 1.6) * .5, velocity * .9, route, {glide: 7, drive: 1.8});
+  kick(mix, time, velocity * .6, route);
+};
+
+export type NocturneOptions = {
+  /** No electronic voices: no telemetry beeps, and the budget drains as a line. */
+  acoustic?: boolean;
+  /** The VSCO strings replace the synthesized section, and the solo violin sings every melody over the piano. */
+  violin?: boolean;
+  /** Synth sub and kick for the timpani. */
+  digital?: boolean;
+};
+
+export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false, violin = false, digital = false}: NocturneOptions = {}) {
+  const section = violin ? ensemble : strings, drum = digital ? boom : timpani;
+  const theme: typeof melody = (mix, grid, notes, route, options = {}) => {
+    if (!violin) return melody(mix, grid, notes, route, options);
+    legato(mix, grid, notes.map(([beat, midi, length, velocity]) => [beat, midi, length, clamp(.15 + (velocity ?? options.velocity ?? .5))] as const), {...SOLO, pan: route.pan ?? SOLO.pan}, {release: .5});
+    // The piano keeps the octave below, so the line stays anchored in the keyboard.
+    if (options.octave) melody(mix, grid, notes.map(([beat, midi, length, velocity]) => [beat, midi - 12, length, velocity] as const), route, {...options, octave: false, velocity: (options.velocity ?? .5) * .7});
+  };
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
@@ -60,30 +92,30 @@ export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = 
   // ── When your agent fails: the prelude breaks off onto the minor subdominant.
   rolled(mix, u2.failure, [36, 48], .5, PIANO, {length: 3.6, bright: .35, spread: .006});
   rolled(mix, u2.failure + .05, [59, 63, 68], .3, PIANO, {length: 2.6, bright: .35});
-  strings(mix, u2.failure, u2.backtrack.at + .5, [24, 36, 43], STRINGS, {attack: .7, release: 1.2, dynamics: [.5, .85], bright: .2, level: .9});
-  melody(mix, g, [[at(u2.upwardTurn.at) + .5, 60, 1], [at(u2.upwardTurn.at) + 1.5, 63, 1], [at(u2.upwardTurn.at) + 2.5, 65, 1.5]], {...CLOSE, pan: .1}, {velocity: .3, bright: .4});
+  section(mix, u2.failure, u2.backtrack.at + .5, [24, 36, 43], STRINGS, {attack: .7, release: 1.2, dynamics: [.5, .85], bright: .2, level: .9});
+  theme(mix, g, [[at(u2.upwardTurn.at) + .5, 60, 1], [at(u2.upwardTurn.at) + 1.5, 63, 1], [at(u2.upwardTurn.at) + 2.5, 65, 1.5]], {...CLOSE, pan: .1}, {velocity: .3, bright: .4});
 
   // ── The trace can tell you why: rewind, then three drawers spell out C minor 9.
   [79, 75, 72, 67, 63, 60, 55, 51].forEach((midi, i) => piano(mix, u2.backtrack.at + i * .055, midi, .3 - i * .02, {...CLOSE, pan: .3 - i * .08}, {length: .8, bright: .5}));
   rolled(mix, u2.drawers[0], [36, 48, 55], .34, PIANO, {length: 5, bright: .35});
   u2.drawers.forEach((time, i) => piano(mix, time, [67, 70, 74][i], .38 + i * .05, {...PIANO, pan: -.2 + i * .2}, {length: 3.2, bright: .5}));
-  strings(mix, u2.backtrack.at + .3, u2.highlight.at + .4, bowed(C.Cm9, 2), STRINGS, {attack: 1.4, release: 1, dynamics: [.3, .55], bright: .3, level: .8});
+  section(mix, u2.backtrack.at + .3, u2.highlight.at + .4, bowed(C.Cm9, 2), STRINGS, {attack: 1.4, release: 1, dynamics: [.3, .55], bright: .3, level: .8});
   rolled(mix, u2.highlight.at, [44, 51, 55, 60], .34, PIANO, {length: 3, bright: .4});
-  strings(mix, u2.highlight.at, u2.insights + .3, bowed(C.Ab, 3), STRINGS, {attack: .8, release: 1, dynamics: [.5, .4], bright: .35, level: .8});
+  section(mix, u2.highlight.at, u2.insights + .3, bowed(C.Ab, 3), STRINGS, {attack: .8, release: 1, dynamics: [.5, .4], bright: .35, level: .8});
 
   // ── The insights are hidden across thousands of traces: strings open and the theme is first spoken.
   const insights = at(u2.insights, 1), ifOnly = at(u2.ifOnly, 1);
   const hidden: Progression = [[insights, C.Ab], [insights + 2, C.EbG], [insights + 4, C.Fm9], [insights + 6, C.Bb7sus]];
   figure(mix, g, insights, ifOnly, hidden, {step: .5, pattern: [0, 2, 1, 3], route: PIANO, bright: .45, length: 1.4,
     velocity: beat => .24 + .1 * Math.sin(Math.PI * (beat - insights) / (ifOnly - insights)), bass: {velocity: .42, length: 2.4}});
-  hidden.forEach(([beat, chord], i) => strings(mix, g(beat), g(i < 3 ? hidden[i + 1][0] : ifOnly) + .05, bowed(chord), STRINGS,
+  hidden.forEach(([beat, chord], i) => section(mix, g(beat), g(i < 3 ? hidden[i + 1][0] : ifOnly) + .05, bowed(chord), STRINGS,
     {attack: i ? .35 : 1.2, release: .9, dynamics: [[.35, .6], [.6, .85], [.85, 1], [1, .6]][i] as [number, number], bright: .5}));
-  melody(mix, g, [[insights + 1, 67, 1], [insights + 2, 70, 1], [insights + 3, 75, 1.5], [insights + 4.5, 74, .5], [insights + 5, 72, 2], [insights + 7, 70, 2]],
+  theme(mix, g, [[insights + 1, 67, 1], [insights + 2, 70, 1], [insights + 3, 75, 1.5], [insights + 4.5, 74, .5], [insights + 5, 72, 2], [insights + 7, 70, 2]],
     {...PIANO, pan: .15}, {velocity: .48, bright: .6});
 
   // ── If only someone could read them all: an unresolved A♭maj9♯11 — the question hangs.
   rolled(mix, g(ifOnly), [44, 51, 58, 67, 74], .32, PIANO, {length: 4, bright: .45, spread: .04});
-  strings(mix, g(ifOnly), g(ifOnly + 2.5), [32, 44, 51, 60], STRINGS, {attack: .3, release: 1.4, dynamics: [.55, .25], bright: .3});
+  section(mix, g(ifOnly), g(ifOnly + 2.5), [32, 44, 51, 60], STRINGS, {attack: .3, release: 1.4, dynamics: [.55, .25], bright: .3});
   piano(mix, g(ifOnly + 1.5), 86, .26, {...PIANO, pan: .3}, {length: 3, bright: .5});
 
   // ── Cheap LLMs read traces efficiently: a light, thin toccata high on the keyboard.
@@ -94,7 +126,7 @@ export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = 
   // …but fail to find crucial issues: the run trips over wrong notes and lands on a tritone.
   [[0, 79], [.25, 76], [.5, 73]].forEach(([beat, midi]) => piano(mix, g(miss + beat), midi, .36, CLOSE, {length: .3, bright: .6}));
   rolled(mix, g(miss + 1), [36, 42], .38, PIANO, {length: 2.5, bright: .3, spread: .01});
-  strings(mix, g(miss + 1), cost.cameraToBash.at + cost.cameraToBash.duration, [24, 36, 43], STRINGS, {attack: 1.2, release: .6, dynamics: [.2, .6], bright: .15, level: .8});
+  section(mix, g(miss + 1), cost.cameraToBash.at + cost.cameraToBash.duration, [24, 36, 43], STRINGS, {attack: 1.2, release: .6, dynamics: [.2, .6], bright: .15, level: .8});
 
   // ── Powerful LLMs find deep issues: the floor drops to C minor, octaves in the bass, deliberate.
   const heavyFrom = Math.ceil(at(cost.powerful)), budgetBeat = at(cost.cameraToBudget.at, 1);
@@ -103,44 +135,46 @@ export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = 
     const [, chord] = heavy[Math.min(heavy.length - 1, (beat - heavyFrom) / 2)];
     rolled(mix, g(beat), [chord.bass - 12, chord.bass], .42, PIANO, {length: 1.9, bright: .35, spread: .005});
     rolled(mix, g(beat + 1), chord.tones.slice(-3), .34, PIANO, {length: 1, bright: .4, spread: .01});
-    strings(mix, g(beat), g(beat + 2) + .05, [chord.bass - 12, chord.bass, chord.tones.at(-2)!], STRINGS, {attack: .15, release: .6, dynamics: [.7, .5], bright: .3});
+    section(mix, g(beat), g(beat + 2) + .05, [chord.bass - 12, chord.bass, chord.tones.at(-2)!], STRINGS, {attack: .15, release: .6, dynamics: [.7, .5], bright: .3});
   }
-  timpani(mix, cost.bashStop, 36, .5, DRUM);
+  drum(mix, cost.bashStop, 36, .5, DRUM);
 
   // ── …but the costs are unsustainable: a warm A♭ for a moment, then the budget drains down a lament bass.
   const drain = cost.depletion, drainBeat = at(drain.at, 1);
   rolled(mix, g(budgetBeat), [44, 51, 60, 67, 72], .36, PIANO, {length: 3, bright: .45});
-  strings(mix, g(budgetBeat), g(drainBeat), bowed(C.Ab), STRINGS, {attack: .6, release: .4, dynamics: [.6, .75], bright: .45});
+  section(mix, g(budgetBeat), g(drainBeat), bowed(C.Ab), STRINGS, {attack: .6, release: .4, dynamics: [.6, .75], bright: .45});
   const lament: [number, number[], number][] = [[36, [63, 67, 72], .5], [34, [62, 67, 70], .44], [32, [60, 65, 68], .38], [31, [59, 62, 67], .34]];
   const stepBeats = 1.5;
   lament.forEach(([bass, tones, velocity], i) => {
     const time = g(drainBeat + i * stepBeats);
     rolled(mix, time, [bass, bass + 12], velocity, PIANO, {length: i === 3 ? 5 : 1.9, bright: .3, spread: .006});
     rolled(mix, time + .06, tones, velocity * .8, PIANO, {length: i === 3 ? 4.5 : 1.8, bright: .35});
-    strings(mix, time, i === 3 ? g(at(flow.entry.at, 1) - .5) : g(drainBeat + (i + 1) * stepBeats) + .05, [bass + 12, ...tones.slice(0, 2)], STRINGS,
+    section(mix, time, i === 3 ? g(at(flow.entry.at, 1) - .5) : g(drainBeat + (i + 1) * stepBeats) + .05, [bass + 12, ...tones.slice(0, 2)], STRINGS,
       {attack: .25, release: i === 3 ? 1.2 : .5, dynamics: i === 3 ? [.45, .12] : [.8 - i * .12, .7 - i * .12], bright: .25});
   });
-  // The counter itself, high on the piano: a line that falls through each lament chord and runs down into the G.
+  // The counter itself, high on the piano (the duet's solo violin): a line that falls through each lament chord and runs down into the G.
   if (acoustic) drainLine(drain.at, drain.duration, 91, 24, time => lament[clamp(Math.floor((time - g(drainBeat)) / (stepBeats * .5)), 0, 3)][1])
-    .forEach(({time, midi, progress}) => piano(mix, time, midi, .3 - .12 * progress, {...CLOSE, pan: .3 - .4 * progress}, {length: .6 + progress, bright: .55}));
+    .forEach(({time, midi, progress}) => violin
+      ? bow(mix, time, time + .1 + .25 * progress, midi, {...SOLO, pan: .22 - .2 * progress}, {dynamics: [.85, .75 - .2 * progress], attack: .006, release: .08 + .2 * progress, level: .75 - .25 * progress})
+      : piano(mix, time, midi, .3 - .12 * progress, {...CLOSE, pan: .3 - .4 * progress}, {length: .6 + progress, bright: .55}));
 
   // ── Until now. The G hangs alone; the same G becomes the third of E♭.
   const drop = at(flow.reveal, 1), entry = at(flow.entry.at, 1);
   piano(mix, g(entry - 1), 67, .28, {...PIANO, pan: .15}, {length: 3, bright: .45});
-  strings(mix, g(entry), g(drop) + .02, [55, 67], STRINGS, {attack: .9, release: .15, dynamics: [.1, 1], bright: .6});
+  section(mix, g(entry), g(drop) + .02, [55, 67], STRINGS, {attack: .9, release: .15, dynamics: [.1, 1], bright: .6});
   [63, 67, 70, 75, 79, 82, 87, 91].forEach((midi, i) => acoustic
     ? piano(mix, g(drop - 1) + i * .0625, midi, .16 + i * .025, {...CLOSE, pan: -.4 + i * .11}, {length: 1.2, bright: .55})
     : beep(mix, g(drop - 1) + i * .0625, midi + 12, .06 + i * .012, {...DATA, pan: -.4 + i * .11}, {length: .05}));
 
   // ── Introducing Flow-1: E♭ at last, the full theme sung in octaves.
-  timpani(mix, flow.reveal, 39, .62, DRUM, {decay: 2});
+  drum(mix, flow.reveal, 39, .62, DRUM, {decay: 2});
   rolled(mix, flow.reveal, [39, 51], .78, PIANO, {length: 6, bright: .5, spread: .004});
   rolled(mix, flow.reveal + .03, [58, 63, 67, 70], .55, PIANO, {length: 4.5, bright: .55});
   const sung: Progression = [[drop, C.Eb], [drop + 2, C.Cm], [drop + 4, C.Ab], [drop + 6, C.Bb]];
-  sung.forEach(([beat, chord], i) => strings(mix, g(beat), g(beat + 2) + .05, [chord.bass - 12, chord.bass, ...chord.tones.slice(-3), chord.tones.at(-1)! + 12], STRINGS,
+  sung.forEach(([beat, chord], i) => section(mix, g(beat), g(beat + 2) + .05, [chord.bass - 12, chord.bass, ...chord.tones.slice(-3), chord.tones.at(-1)! + 12], STRINGS,
     {attack: i ? .3 : .05, release: .7, dynamics: [[1, .8], [.8, .75], [.75, .8], [.8, .85]][i] as [number, number], bright: .7}));
   figure(mix, g, drop + 2, drop + 8, sung, {step: .5, pattern: [0, 2, 3, 2], route: PIANO, bright: .5, length: 1.2, velocity: () => .32, bass: {velocity: .5, length: 2}});
-  melody(mix, g, [[drop + 1, 79, 1], [drop + 2, 82, 1], [drop + 3, 87, 1.5], [drop + 4.5, 86, .5], [drop + 5, 84, 1], [drop + 6, 82, 2]], {...PIANO, pan: .2}, {velocity: .58, octave: true, bright: .65});
+  theme(mix, g, [[drop + 1, 79, 1], [drop + 2, 82, 1], [drop + 3, 87, 1.5], [drop + 4.5, 86, .5], [drop + 5, 84, 1], [drop + 6, 82, 2]], {...PIANO, pan: .2}, {velocity: .58, octave: true, bright: .65});
 
   // ── Matching Sonnet-5 at 2% of the cost: a Glass-like ostinato, the harmony lifting on "2%".
   const pulse = drop + 8, swap = at(flow.numberSwap.at, 1), signals = at(flow.cameraToEngine.at, 1), shut = flow.coverShut;
@@ -148,16 +182,16 @@ export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = 
   const bench = progression([pulse, C.Eb], [pulse + 2, C.BbD], [pulse + 4, C.Cm7], [swap, C.Ab], [swap + 2, C.Bb], [swap + 4, C.EbG], [signals, C.Cm], [signals + 2, C.Ab]);
   figure(mix, g, pulse, shutBeat, bench, {step: .25, pattern: OSTINATO, route: CLOSE, bright: .55, length: .5,
     velocity: beat => .24 + .12 * (beat - pulse) / (shutBeat - pulse), bass: {velocity: .48, length: 1.9, octave: true}});
-  bench.forEach(([beat, chord], i) => strings(mix, g(beat), g(i + 1 < bench.length ? bench[i + 1][0] : shutBeat) + .05, bowed(chord, 2), STRINGS,
+  bench.forEach(([beat, chord], i) => section(mix, g(beat), g(i + 1 < bench.length ? bench[i + 1][0] : shutBeat) + .05, bowed(chord, 2), STRINGS,
     {attack: .25, release: .5, dynamics: [.45 + i * .04, .5 + i * .04], bright: .5, level: .8}));
   // The bars grow: one bright scale up the keyboard, landing on high E♭.
   const scale = [63, 65, 67, 68, 70, 72, 74, 75, 77, 79, 80, 82, 84, 86, 87];
   scale.forEach((midi, i) => piano(mix, flow.barsGrow.at + flow.barsGrow.duration * (i / (scale.length - 1)) ** 1.15, midi, .3 + i * .016, {...CLOSE, pan: -.4 + i * .055}, {length: i === scale.length - 1 ? 2.6 : .5, bright: .7}));
   // Flow-1 powers Signals: the theme climbs in octaves over the engine, the door closes on B♭.
-  melody(mix, g, [[signals, 75, 1], [signals + 1, 77, 1], [signals + 2, 79, .5], [signals + 2.5, 80, .5]], {...PIANO, pan: .2}, {velocity: .5, octave: true, bright: .6});
-  timpani(mix, shut, 34, .6, DRUM);
+  theme(mix, g, [[signals, 75, 1], [signals + 1, 77, 1], [signals + 2, 79, .5], [signals + 2.5, 80, .5]], {...PIANO, pan: .2}, {velocity: .5, octave: true, bright: .6});
+  drum(mix, shut, 34, .6, DRUM);
   rolled(mix, shut, [34, 46, 53, 58, 63, 65], .5, PIANO, {length: 4, bright: .45, spread: .012});
-  strings(mix, shut, issues.native + .1, [34, 46, 53, 58, 65], STRINGS, {attack: .05, release: 1, dynamics: [.7, .2], bright: .4});
+  section(mix, shut, issues.native + .1, [34, 46, 53, 58, 65], STRINGS, {attack: .05, release: 1, dynamics: [.7, .2], bright: .4});
 
   // ── It finds deep issues, in every trace: a harp-like run through the appearing triangles.
   const pentatonic = [63, 65, 67, 70, 72, 75, 77, 79, 82, 84, 87];
@@ -174,25 +208,25 @@ export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = 
   const patterns = progression([gather, C.Ab], [gather + 2, C.Bb7sus], [lockBeat, C.Eb], [lockBeat + 2.5, C.Ab], [lockBeat + 4.5, C.Bb7sus]);
   figure(mix, g, gather, at(end.start, 1), patterns, {step: .5, pattern: [0, 2, 3, 4, 3, 2], route: PIANO, bright: .5, length: 1.1,
     velocity: beat => beat < lockBeat ? .24 + .1 * (beat - gather) / (lockBeat - gather) : .26, bass: {velocity: .42, length: 2.2}});
-  strings(mix, g(gather), lock + .02, [32, 44, 51, 60, 63], STRINGS, {attack: 1.2, release: .2, dynamics: [.25, .85], bright: .5});
+  section(mix, g(gather), lock + .02, [32, 44, 51, 60, 63], STRINGS, {attack: 1.2, release: .2, dynamics: [.25, .85], bright: .5});
   rolled(mix, lock, [39, 51, 58, 63, 67, 70], .48, PIANO, {length: 4, bright: .55});
   // Ready for you or your coding agent: the room settles, warm and close.
-  strings(mix, lock, g(at(end.start, 1)) + .1, [39, 51, 58, 67], STRINGS, {attack: .1, release: .8, dynamics: [.75, .45], bright: .45});
-  melody(mix, g, [[lockBeat + 2.5, 72, 1.5], [lockBeat + 4, 70, 1], [lockBeat + 5, 67, 2]], {...PIANO, pan: .2}, {velocity: .36, bright: .5});
+  section(mix, lock, g(at(end.start, 1)) + .1, [39, 51, 58, 67], STRINGS, {attack: .1, release: .8, dynamics: [.75, .45], bright: .45});
+  theme(mix, g, [[lockBeat + 2.5, 72, 1.5], [lockBeat + 4, 70, 1], [lockBeat + 5, 67, 2]], {...PIANO, pan: .2}, {velocity: .36, bright: .5});
 
   // ── Unlock the insights hiding in millions of traces: IV → V, and the theme's D waits for the logo.
   const unlock = at(end.start, 1), logo = end.logo, logoBeat = (logo - g(0)) / .5;
   const build: Progression = [[unlock, C.Ab], [unlock + 2, C.Bb]];
   figure(mix, g, unlock, logoBeat, build, {step: .25, pattern: OSTINATO, route: PIANO, bright: .55, length: .6,
     velocity: beat => .26 + .16 * (beat - unlock) / (logoBeat - unlock), bass: {velocity: .52, length: 2, octave: true}});
-  build.forEach(([beat, chord], i) => strings(mix, g(beat), g(beat + 2) + .03, bowed(chord), STRINGS, {attack: .3, release: .15, dynamics: i ? [.7, 1] : [.45, .7], bright: .6}));
-  melody(mix, g, [[unlock, 67, 1], [unlock + 1, 70, 1], [unlock + 2, 75, 1.5], [unlock + 3.5, 74, .5]], {...PIANO, pan: .2}, {velocity: .55, octave: true, bright: .6});
-  for (let beat = logoBeat - 2; beat < logoBeat; beat += .125) timpani(mix, g(beat), 34, .08 + .3 * ((beat - logoBeat + 2) / 2) ** 2, DRUM, {decay: .5});
+  build.forEach(([beat, chord], i) => section(mix, g(beat), g(beat + 2) + .03, bowed(chord), STRINGS, {attack: .3, release: .15, dynamics: i ? [.7, 1] : [.45, .7], bright: .6}));
+  theme(mix, g, [[unlock, 67, 1], [unlock + 1, 70, 1], [unlock + 2, 75, 1.5], [unlock + 3.5, 74, .5]], {...PIANO, pan: .2}, {velocity: .55, octave: true, bright: .6});
+  for (let beat = logoBeat - 2; beat < logoBeat; beat += .125) drum(mix, g(beat), 34, .08 + .3 * ((beat - logoBeat + 2) / 2) ** 2, DRUM, {decay: .5});
 
   // ── With Laminar: D → E♭. The whole instrument answers, then high E♭–G–B♭ glints as it fades.
-  timpani(mix, logo, 39, .6, DRUM, {decay: 2.2});
+  drum(mix, logo, 39, .6, DRUM, {decay: 2.2});
   rolled(mix, logo, [39, 51], .72, PIANO, {length: end.end - logo + .4, bright: .5, spread: .004});
   rolled(mix, logo + .025, [58, 63, 67, 75, 87], .56, PIANO, {length: end.end - logo, bright: .6, spread: .02});
-  strings(mix, logo, end.end - 1.1, [27, 39, 51, 58, 63, 67, 70, 75], STRINGS, {attack: .06, release: 1.1, dynamics: [1, .25], bright: .7});
+  section(mix, logo, end.end - 1.1, [27, 39, 51, 58, 63, 67, 70, 75], STRINGS, {attack: .06, release: 1.1, dynamics: [1, .25], bright: .7});
   [[1.1, 87], [1.45, 91], [1.8, 94]].forEach(([delay, midi], i) => piano(mix, logo + delay, midi, .24 - i * .03, {...PIANO, pan: -.2 + i * .25}, {length: 2.2, bright: .5}));
 }

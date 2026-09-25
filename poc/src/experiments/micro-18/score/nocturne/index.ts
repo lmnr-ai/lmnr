@@ -1,4 +1,5 @@
 import type {ScoreStyle} from '../style';
+import {electricPiano} from '../voices';
 import {composeNocturne} from './composition';
 import {designAcoustic, designNocturne, planNocturneDucks} from './design';
 
@@ -24,4 +25,23 @@ export const nocturneAcoustic: ScoreStyle = {
   compose: (mix, cues) => composeNocturne(mix, cues, {acoustic: true}),
   // The composition's piano takes every third issue pop.
   design: designAcoustic(0, 'piano', index => index % 3 === 0),
+};
+
+/** Nocturne as a piano and violin duet: sampled strings, the solo violin sings the theme and plays the budget draining. */
+export const nocturneDuet: ScoreStyle = {
+  ...nocturne,
+  id: 'nocturne-duet',
+  title: 'Nocturne (piano & violin)',
+  strings: true,
+  compose: (mix, cues) => composeNocturne(mix, cues, {acoustic: true, violin: true}),
+  design: designAcoustic(0, 'piano', index => index % 3 === 0),
+};
+
+/** Nocturne all digital: the same writing on an FM electric piano, synth strings and a sub for the timpani, under the electronic foley. */
+export const nocturneDigital: ScoreStyle = {
+  ...nocturne,
+  id: 'nocturne-digital',
+  title: 'Nocturne (digital)',
+  keys: electricPiano,
+  compose: (mix, cues) => composeNocturne(mix, cues, {digital: true}),
 };

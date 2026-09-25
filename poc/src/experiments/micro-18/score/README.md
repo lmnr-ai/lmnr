@@ -4,7 +4,7 @@ Soundtracks for Animation 18: original scores plus foley, rendered offline in pu
 
 ```sh
 pnpm ultimate3:score                                   # Tactile Glass -> out/ultimate3-score.wav
-pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque, *-acoustic)
+pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque, *-acoustic, nocturne-duet, nocturne-digital)
 pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux (video stream-copied, AAC 320k)
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score:test
@@ -47,6 +47,14 @@ The same three scores with no electronics:
 - **No telemetry:** every beep and tick in the foley is played by the score's own instrument (piano, or pizzicato in Aria). The notes are snapped into the key, folded into the instrument's range, and thinned to at least 48 ms apart. The deliberate wrong note ("…fail to find crucial issues") keeps its pitch.
 - **The budget drain:** instead of the gliding drain tone, each composition plays it as a line (`drainLine`) that falls through the lament chords and slows like a counter running out. In Nocturne it's high piano, in Aria the solo violin in spiccato into its lone F♯, and in Arabesque the slowing arabesque itself.
 - **No synth music:** the stream's data beeps are gone, the run into the drop is piano (Aria: pizzicato), and Arabesque loses its sine sub.
+
+### `nocturne-duet` — piano and violin
+
+Nocturne's acoustic cut with the synthesized string section replaced by VSCO-2 celli, violin section and solo violin (picked by register). The solo violin sings every melody legato while the piano keeps the octave below, and it plays the budget drain in spiccato.
+
+### `nocturne-digital` — all synthesized
+
+The same Nocturne writing with every sound synthesized. The piano becomes an FM electric piano (`electricPiano()`, a generated bank passed through the style's `keys`, so the piano writing is unchanged), the strings stay synthesized, the timpani become a sub plus kick, and the electronic foley and telemetry beeps stay in.
 
 ## Foley
 

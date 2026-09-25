@@ -50,7 +50,9 @@ for (const style of Object.keys(SCORE_STYLES)) {
   const full = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed, strings: SCORE_STYLES[style].strings ? strings : undefined});
   const render = (seed?: number) => full(seed).master;
   const {master: first, report} = full();
-  if (style.endsWith('-acoustic')) for (const voice of ['beep', 'tick', 'drain', 'bass']) assert.ok(!report.counts[voice], `${style}: no electronic ${voice}`);
+  if (style.endsWith('-acoustic') || style === 'nocturne-duet') for (const voice of ['beep', 'tick', 'drain', 'bass']) assert.ok(!report.counts[voice], `${style}: no electronic ${voice}`);
+  if (style === 'nocturne-duet') assert.ok(!report.counts.strings && report.counts.violin && report.counts.celli, 'the duet bows sampled strings only');
+  if (style === 'nocturne-digital') for (const voice of ['timpani', 'violin', 'violins', 'celli', 'pizz']) assert.ok(!report.counts[voice], `${style}: no acoustic ${voice}`);
   assert.equal(hash(first), hash(render()), `${style}: the score is a pure function of settings, samples and seed`);
   assert.notEqual(hash(render(7)), hash(first), `${style}: the seed only varies noise and humanisation`);
   assert.equal(first.length, Math.round(cues.duration * SR), `${style}: audio length matches the composition`);

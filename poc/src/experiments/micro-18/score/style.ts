@@ -1,6 +1,6 @@
 import type {ScoreCues} from './cues';
 import type {ReverbOptions} from './dsp';
-import type {Mix} from './voices';
+import type {Mix, PianoBank} from './voices';
 
 /** One complete soundtrack. `ducks` runs first, then `compose` (music bus), then `design` (foley bus). */
 export type ScoreStyle = {
@@ -8,6 +8,8 @@ export type ScoreStyle = {
   title: string;
   /** Needs the VSCO-2 string banks; the render script only decodes them for these styles. */
   strings?: boolean;
+  /** Replaces the sampled piano, so the same piano writing plays on another keyboard. */
+  keys?: () => PianoBank;
   ducks(mix: Mix, cues: ScoreCues): void;
   compose(mix: Mix, cues: ScoreCues): void;
   design(mix: Mix, cues: ScoreCues): void;

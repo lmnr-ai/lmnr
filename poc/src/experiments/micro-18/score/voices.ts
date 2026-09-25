@@ -124,6 +124,22 @@ export function piano(mix: Mix, time: number, midi: number, velocity: number, ro
   mix.emit(time, route, out); mix.count('piano');
 }
 
+/**
+ * A DX-style FM electric piano rendered as a bank every three semitones, so `piano()` and all the piano
+ * writing play it unchanged: a 1:1 body whose index decays into a sine, plus a short metallic tine.
+ */
+export const electricPiano = (): PianoBank => Array.from({length: 22}, (_, i) => 33 + 3 * i).map(midi => {
+  const hz = mtof(midi), data = new Float32Array(48_000 * 8), decay = 2.6 * 2 ** (-(midi - 60) / 30);
+  const carrier = new Sine(), modulator = new Sine(), tine = new Sine(), strike = new Sine();
+  for (let i = 0; i < data.length; i++) {
+    const t = i / 48_000;
+    const body = carrier.next(hz + modulator.next(hz) * hz * 1.4 * Math.exp(-t / .35));
+    const bark = tine.next(hz * 4 + strike.next(Math.min(hz * 14, 18_000)) * hz * 3 * Math.exp(-t / .01)) * Math.exp(-t / .06);
+    data[i] = (body * Math.exp(-t / decay) + bark * .18) * Math.min(1, t / .0015) * .11;
+  }
+  return {midi, data};
+});
+
 const layersOf = (mix: Mix, section: StringSection, midi: number) => {
   const bank = mix.strings[section];
   if (!bank?.length) throw new Error(`Missing "${section}" string samples (poc/sound-sources/vsco2-strings)`);
