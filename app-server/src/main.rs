@@ -198,14 +198,15 @@ fn main() -> anyhow::Result<()> {
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
-    // Batch/stream consumers stop on SIGTERM and finish their in-flight flush + ack
-    // or offset store; `main` waits on `worker_tasks` before the runtime drops them.
+    // Queue/stream consumers stop on SIGTERM and finish their in-flight message or
+    // flush + ack/offset store; `main` waits on `worker_tasks` before the runtime
+    // drops them.
     let shutdown = CancellationToken::new();
     let worker_tasks = TaskTracker::new();
     {
         let shutdown = shutdown.clone();
         runtime_handle.spawn(async move {
-            wait_stop_signal("batch and stream consumers").await;
+            wait_stop_signal("queue and stream consumers").await;
             shutdown.cancel();
         });
     }
@@ -1517,7 +1518,11 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
-        let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
+        let worker_pool = Arc::new(WorkerPool::new(
+            queue.clone(),
+            shutdown.clone(),
+            worker_tasks.clone(),
+        ));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(
             queue.clone(),
             shutdown.clone(),
@@ -2746,7 +2751,7 @@ fn main() -> anyhow::Result<()> {
         .is_err()
     {
         log::warn!(
-            "Batch/stream consumers did not stop within {:?}; exiting anyway",
+            "Queue/stream consumers did not stop within {:?}; exiting anyway",
             shutdown_timeout
         );
     }
