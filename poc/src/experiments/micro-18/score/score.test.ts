@@ -6,6 +6,9 @@ import {ULTIMATE_3_DEFAULTS} from '../settings';
 import {BEAT, ultimate3ScoreCues} from './cues';
 import {integratedLufs, SR, toDb, truePeak} from './dsp';
 import {renderUltimate3Score, SCORE_STYLES} from './render';
+import {composeAria} from './aria/composition';
+import {composeNocturne} from './nocturne/composition';
+import {beatOf, gridOf} from './style';
 import {bowed, Mix, reverseSwell, riser, type PianoBank, type StringBanks} from './voices';
 import {chordAt, progression, type Chord} from './writing';
 
@@ -54,6 +57,10 @@ for (const style of Object.keys(SCORE_STYLES)) {
   assert.ok(Math.abs(integratedLufs(first) + 14) < .3, `${style}: mastered to -14 LUFS`);
   assert.ok(toDb(truePeak(first)) <= -1, `${style}: true peak stays under -1 dBTP`);
 }
+// A depletion that starts just before the beat it rounds to must not index the lament before its first chord.
+const early = {...cues, cost: {...cues.cost, depletion: {...cues.cost.depletion, at: gridOf(cues, beatOf(cues, cues.cost.depletion.at)) - .2}}};
+assert.equal(beatOf(early, early.cost.depletion.at), beatOf(cues, cues.cost.depletion.at), 'the retimed depletion rounds forward onto the same beat');
+for (const compose of [composeNocturne, composeAria]) assert.doesNotThrow(() => compose(new Mix(Math.round(cues.duration * SR), () => .5, piano, strings), early, {acoustic: true}), `${compose.name}: early depletion`);
 // A retimed anchor that lands before the fixed offsets listed ahead of it overrides them.
 const [I, IV, V, vi] = [60, 65, 67, 69].map((bass): Chord => ({bass, tones: [bass]}));
 const retimed = progression([8, I], [10, IV], [12, V], [11, vi]);

@@ -1,4 +1,5 @@
 import type {ScoreCues} from '../cues';
+import {clamp} from '../dsp';
 import {beatOf, gridOf} from '../style';
 import {beep, bowed, pizz, timpani, type Mix, type Route} from '../voices';
 import {chordAt, drainLine, humanize, legato, progression, type Chord, type Progression} from '../writing';
@@ -148,7 +149,7 @@ export function composeAria(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) 
     if (!last && !acoustic) legato(mix, g, [[drainBeat + i * stepBeats, top, stepBeats, .55 - i * .07]], SOLO);
   });
   // The counter as spiccato: the solo violin runs down through each lament chord, slowing, into its lone F♯.
-  if (acoustic) drainLine(cost.depletion.at, g(drainBeat + 3 * stepBeats) - cost.depletion.at, 90, 12, time => lament[Math.min(3, Math.floor((time - g(drainBeat)) / (stepBeats * .5)))][0].tones)
+  if (acoustic) drainLine(cost.depletion.at, g(drainBeat + 3 * stepBeats) - cost.depletion.at, 90, 12, time => lament[clamp(Math.floor((time - g(drainBeat)) / (stepBeats * .5)), 0, 3)][0].tones)
     .forEach(({time, midi, progress}) => bowed(mix, time, time + .1 + .25 * progress, midi, {...SOLO, pan: .22 - .2 * progress}, {dynamics: [.85, .75 - .2 * progress], attack: .006, release: .08 + .2 * progress, level: .75 - .25 * progress}));
   // ── Until now: the last F♯ holds alone, swells, and stops dead for a breath before the drop.
   bowed(mix, g(drainBeat + 3 * stepBeats), g(drop) - .24, 78, SOLO, {dynamics: [.35, .95], attack: .2, release: .05, offset: .12, level: .85});

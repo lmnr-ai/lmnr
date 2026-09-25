@@ -1,4 +1,5 @@
 import type {ScoreCues} from '../cues';
+import {clamp} from '../dsp';
 import {beatOf, gridOf} from '../style';
 import {beep, piano, strings, timpani, type Mix, type Route} from '../voices';
 import {drainLine, figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
@@ -120,7 +121,7 @@ export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = 
       {attack: .25, release: i === 3 ? 1.2 : .5, dynamics: i === 3 ? [.45, .12] : [.8 - i * .12, .7 - i * .12], bright: .25});
   });
   // The counter itself, high on the piano: a line that falls through each lament chord and runs down into the G.
-  if (acoustic) drainLine(drain.at, drain.duration, 91, 24, time => lament[Math.min(3, Math.floor((time - g(drainBeat)) / (stepBeats * .5)))][1])
+  if (acoustic) drainLine(drain.at, drain.duration, 91, 24, time => lament[clamp(Math.floor((time - g(drainBeat)) / (stepBeats * .5)), 0, 3)][1])
     .forEach(({time, midi, progress}) => piano(mix, time, midi, .3 - .12 * progress, {...CLOSE, pan: .3 - .4 * progress}, {length: .6 + progress, bright: .55}));
 
   // ── Until now. The G hangs alone; the same G becomes the third of E♭.
