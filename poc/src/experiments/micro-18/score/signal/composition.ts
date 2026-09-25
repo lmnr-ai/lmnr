@@ -1,7 +1,7 @@
 import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
 import {bass, beep, hat, kick, pad, piano, pluck, reverseSwell, riser, strings, type Mix, type Pump, type Route} from '../voices';
-import {melody, rolled, type Chord, type Progression, chordAt} from '../writing';
+import {melody, progression, rolled, type Chord, type Progression, chordAt} from '../writing';
 
 /*
  * "Signal" — A major, electronic neo-classical. A felt piano carries the melody over a pulsing
@@ -132,7 +132,7 @@ export function composeSignal(mix: Mix, cues: ScoreCues) {
 
   // ── …but the costs are unsustainable: a brief lift on the budget, then the tape runs down.
   const drain = at(cost.depletion.at, 1), untilNow = at(cost.depletion.at + cost.depletion.duration, 1);
-  const spend: Progression = [[budget, C.A], [budget + 2, C.EGs], [drain, C.Fsm], [drain + 2, C.D]];
+  const spend = progression([budget, C.A], [budget + 2, C.EGs], [drain, C.Fsm], [drain + 2, C.D]);
   sequence({from: budget, to: untilNow, progression: spend, velocity: () => .42, bright: () => .45});
   pads(spend, untilNow, {level: .75});
   subs(spend, untilNow, .55);

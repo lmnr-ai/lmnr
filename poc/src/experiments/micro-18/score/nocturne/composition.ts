@@ -1,7 +1,7 @@
 import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
 import {beep, piano, strings, timpani, type Mix, type Route} from '../voices';
-import {figure, melody, rolled, type Chord, type Progression} from '../writing';
+import {figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
 
 /*
  * "Nocturne" — E♭ major, a piano-led chamber score. The story is told in harmony:
@@ -138,7 +138,7 @@ export function composeNocturne(mix: Mix, cues: ScoreCues) {
   // ── Matching Sonnet-5 at 2% of the cost: a Glass-like ostinato, the harmony lifting on "2%".
   const pulse = drop + 8, swap = at(flow.numberSwap.at, 1), signals = at(flow.cameraToEngine.at, 1), shut = flow.coverShut;
   const shutBeat = (shut - g(0)) / .5;
-  const bench: Progression = [[pulse, C.Eb], [pulse + 2, C.BbD], [pulse + 4, C.Cm7], [swap, C.Ab], [swap + 2, C.Bb], [swap + 4, C.EbG], [signals, C.Cm], [signals + 2, C.Ab]];
+  const bench = progression([pulse, C.Eb], [pulse + 2, C.BbD], [pulse + 4, C.Cm7], [swap, C.Ab], [swap + 2, C.Bb], [swap + 4, C.EbG], [signals, C.Cm], [signals + 2, C.Ab]);
   figure(mix, g, pulse, shutBeat, bench, {step: .25, pattern: OSTINATO, route: CLOSE, bright: .55, length: .5,
     velocity: beat => .24 + .12 * (beat - pulse) / (shutBeat - pulse), bass: {velocity: .48, length: 1.9, octave: true}});
   bench.forEach(([beat, chord], i) => strings(mix, g(beat), g(i + 1 < bench.length ? bench[i + 1][0] : shutBeat) + .05, bowed(chord, 2), STRINGS,
@@ -164,7 +164,7 @@ export function composeNocturne(mix: Mix, cues: ScoreCues) {
   // …and clusters them into high-level patterns: motion returns, rising into the lock.
   const lock = issues.clusters[0], lockBeat = (lock - g(0)) / .5;
   const gather = Math.ceil(at(issues.travel.at));
-  const patterns: Progression = [[gather, C.Ab], [gather + 2, C.Bb7sus], [lockBeat, C.Eb], [lockBeat + 2.5, C.Ab], [lockBeat + 4.5, C.Bb7sus]];
+  const patterns = progression([gather, C.Ab], [gather + 2, C.Bb7sus], [lockBeat, C.Eb], [lockBeat + 2.5, C.Ab], [lockBeat + 4.5, C.Bb7sus]);
   figure(mix, g, gather, at(end.start, 1), patterns, {step: .5, pattern: [0, 2, 3, 4, 3, 2], route: PIANO, bright: .5, length: 1.1,
     velocity: beat => beat < lockBeat ? .24 + .1 * (beat - gather) / (lockBeat - gather) : .26, bass: {velocity: .42, length: 2.2}});
   strings(mix, g(gather), lock + .02, [32, 44, 51, 60, 63], STRINGS, {attack: 1.2, release: .2, dynamics: [.25, .85], bright: .5});

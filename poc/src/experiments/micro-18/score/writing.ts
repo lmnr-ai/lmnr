@@ -4,9 +4,21 @@ import {piano, type Mix, type Route} from './voices';
 export type Chord = {bass: number; tones: readonly number[]};
 export type Progression = readonly (readonly [beat: number, chord: Chord])[];
 
+/**
+ * Build a progression that mixes fixed offsets with picture-derived anchors. Listing order is intent:
+ * an entry that starts at or before an earlier-listed one overrides it, so a retimed anchor cuts the
+ * chords ahead of it short instead of leaving the list unsorted.
+ */
+export function progression(...entries: (readonly [beat: number, chord: Chord])[]): Progression {
+  const kept: (readonly [number, Chord])[] = [];
+  for (let i = entries.length - 1; i >= 0; i--) if (!kept.length || entries[i][0] < kept[0][0] - 1e-9) kept.unshift(entries[i]);
+  return kept;
+}
+
+/** The chord sounding at `beat`: the latest entry starting at or before it (the first one before the progression starts). */
 export const chordAt = (progression: Progression, beat: number) => {
   let current = progression[0];
-  for (const entry of progression) if (beat >= entry[0] - 1e-9) current = entry;
+  for (const entry of progression) if (entry[0] <= beat + 1e-9 && (current[0] > beat + 1e-9 || entry[0] >= current[0])) current = entry;
   return current;
 };
 

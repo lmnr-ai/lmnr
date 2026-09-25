@@ -340,6 +340,8 @@ export function whoosh(mix: Mix, time: number, duration: number, route: Route, o
 /** Noise + detuned saw riser that ends exactly at `end` (optionally sucking out to silence). */
 export function riser(mix: Mix, start: number, end: number, route: Route, options: {level: number; fromMidi: number; toMidi: number}) {
   const duration = end - start;
+  // Durations derive from cue gaps; a retime can invert them, and a negative buffer length throws.
+  if (duration <= 0) return;
   const left = buffer(duration), right = buffer(duration);
   const n1 = new Svf(), n2 = new Svf(), sawA = new Saw(), sawB = new Saw(), tone = new Svf();
   for (let i = 0; i < left.length; i++) {
@@ -356,6 +358,7 @@ export function riser(mix: Mix, start: number, end: number, route: Route, option
 
 /** Reversed bell chord that blooms into `end` — the "breath in" before a downbeat. */
 export function reverseSwell(mix: Mix, end: number, duration: number, notes: readonly number[], route: Route) {
+  if (duration <= 0) return;
   const scratch = new Mix(samples(duration + .01), mix.random, mix.piano);
   notes.forEach((midi, i) => bell(scratch, 0, midi, .8 - i * .06, {bus: 'music', pan: (i % 2 ? .45 : -.45)}, {decay: duration * .6, ratio: 2, index: .9}));
   const {l, r} = scratch.music;
