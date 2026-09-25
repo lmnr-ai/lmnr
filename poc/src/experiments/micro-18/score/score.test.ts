@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {ULTIMATE_3_DEFAULTS} from '../settings';
+import {BEAT, ultimate3ScoreCues} from './cues';
+import {integratedLufs, SR, toDb, truePeak} from './dsp';
+import {renderUltimate3Score} from './render';
+import type {PianoBank} from './voices';
+
+const cues = ultimate3ScoreCues(ULTIMATE_3_DEFAULTS);
+// Ultimate 2 runs 14.518s, so everything after it shares one grid phased from the Cost start.
+const onBeat = (time: number) => { const beats = (time - cues.chapter.cost.start) / BEAT; return Math.abs(beats - Math.round(beats)) < 1e-6; };
+for (const [id, chapter] of Object.entries(cues.chapter)) if (id !== 'ultimate2') assert.ok(onBeat(chapter.start), `${id} starts on the 120 BPM grid`);
+assert.ok(onBeat(cues.flow.reveal) && onBeat(cues.conclusion.logo), 'the Flow-1 drop and the logo sting are downbeats');
+assert.equal(cues.issues.pops.length, 47, 'one pop per issue triangle');
+assert.ok(cues.issues.pops.every((pop, i, all) => (i === 0 || pop.at >= all[i - 1].at) && Math.abs(pop.pan) <= .8 && pop.height >= 0 && pop.height <= 1),
+  'pops are ordered and carry on-screen position');
+assert.equal(cues.issues.clusters.length, 6, 'one lock per cluster');
+assert.ok(cues.issues.typing.every(window => window.at >= cues.issues.windowDown.at), 'typing only happens inside the agent window');
+
+// Synthetic decaying partials stand in for the Salamander notes so the test needs no ffmpeg.
+const piano: PianoBank = [33, 48, 60, 72, 84, 96].map(midi => {
+  const data = new Float32Array(SR * 4), hz = 440 * 2 ** ((midi - 69) / 12);
+  for (let n = 0; n < data.length; n++) data[n] = Math.sin(2 * Math.PI * hz * n / SR) * Math.exp(-n / SR / .8) * .5;
+  return {midi, data};
+});
+const hash = (audio: {l: Float32Array; r: Float32Array}) => createHash('sha256').update(audio.l).update(audio.r).digest('hex');
+const first = renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano), second = renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano);
+assert.equal(hash(first.master), hash(second.master), 'the score is a pure function of settings, samples and seed');
+assert.notEqual(hash(renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {seed: 7}).master), hash(first.master), 'the seed only varies noise and humanisation');
+assert.equal(first.master.length, Math.round(cues.duration * SR), 'audio length matches the composition');
+assert.ok(Math.abs(integratedLufs(first.master) + 14) < .3, 'mastered to -14 LUFS');
+assert.ok(toDb(truePeak(first.master)) <= -1, 'true peak stays under -1 dBTP');
+console.log('score tests passed');

@@ -10,6 +10,8 @@
     "soundtrack:timings": "tsx scripts/generate-soundtrack-timings.ts",
     "soundtrack:timings:check": "tsx scripts/generate-soundtrack-timings.ts --check",
     "ultimate3:audio": "tsx scripts/export-ultimate3-audio.ts",
+    "ultimate3:score": "tsx scripts/render-ultimate3-score.ts",
+    "ultimate3:score:test": "tsx src/experiments/micro-18/score/score.test.ts",
     "parity": "tsx src/parity.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -27,6 +29,7 @@
     "@remotion/tailwind-v4": "^4.0.516",
     "@tailwindcss/vite": "^4.3.3",
     "@types/flubber": "^0.4.0",
+    "@types/node": "26.2.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.0",

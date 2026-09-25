@@ -29,7 +29,20 @@ Open `http://localhost:5173/?experiment=micro-18`. The composition lives in
 Its required runtime media is under `public/`. Generated renders, large sound
 study exports, dependency folders, and MP4 files are intentionally excluded.
 See `src/experiments/micro-18/README.md` and `AUDIO_EXPORT.md` before changing
-sound scheduling or export behavior.
+sound scheduling or export behavior. The final video soundtrack is the offline
+"Tactile Glass" score in `src/experiments/micro-18/score/` (`pnpm ultimate3:score`).
+
+Rendering the video on Linux: `AUDIO_EXPORT.md`'s browser exporter hardcodes a Mac
+Chrome path. Render silent video with Remotion's own Chrome instead:
+`npx remotion render src/video/index.ts MicroAnimation18 out/u3-silent.mp4
+--browser-executable <puppeteer chrome>` (see `~/.cache/puppeteer`), then mux with
+`pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4`.
+
+- Chapter starts after Ultimate 2 fall on x.518s (it runs 14.518s), not on the
+  absolute 0.5s grid; score code anchors beats per chapter (`beats(chapter.start)`).
+- Retiming clips in settings retimes the score (cues are derived, never hardcoded);
+  pass the same `--settings` JSON used for the video render.
+- `tsconfig` requires `types: ["node"]`, so `@types/node` must stay a direct devDependency.
 
 ## How it works
 

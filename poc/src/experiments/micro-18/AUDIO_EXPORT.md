@@ -1,3 +1,5 @@
+> The final rendered-video soundtrack is the offline "Tactile Glass" score — see `score/README.md` (`pnpm ultimate3:score`). This document covers the earlier browser sound engine used by the live preview.
+
 # Ultimate 3 deterministic audio export
 
 Run from `poc/` with explicit frozen scene props and a flat or DialKit-grouped mix JSON:
