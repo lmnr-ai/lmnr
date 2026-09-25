@@ -1,7 +1,7 @@
-import {arabesque} from './arabesque';
-import {aria} from './aria';
+import {arabesque, arabesqueAcoustic} from './arabesque';
+import {aria, ariaAcoustic} from './aria';
 import {ultimate3ScoreCues} from './cues';
-import {nocturne} from './nocturne';
+import {nocturne, nocturneAcoustic} from './nocturne';
 import {signal} from './signal';
 import type {ScoreStyle} from './style';
 import {tactileGlass} from './tactile-glass';
@@ -9,7 +9,7 @@ import {Stereo, db, integratedLufs, limit, masterEq, pingPong, reverb, samples, 
 import {Mix, type PianoBank, type StringBanks} from './voices';
 import type {Ultimate3Settings} from '../settings';
 
-export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque].map(style => [style.id, style]));
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic].map(style => [style.id, style]));
 
 export type ScoreRenderOptions = {style?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean};
 export type ScoreReport = {

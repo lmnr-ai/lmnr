@@ -1,7 +1,7 @@
 import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
 import {beep, piano, strings, timpani, type Mix, type Route} from '../voices';
-import {figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
+import {drainLine, figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
 
 /*
  * "Nocturne" — E♭ major, a piano-led chamber score. The story is told in harmony:
@@ -32,7 +32,8 @@ const bowed = (chord: Chord, top = 3) => [chord.bass - 12, chord.bass, ...chord.
 const PRELUDE = [0, 1, 2, 3, 4, 2, 3, 4];
 const OSTINATO = [0, 2, 4, 2];
 
-export function composeNocturne(mix: Mix, cues: ScoreCues) {
+/** `acoustic` drops every electronic voice: no telemetry beeps, and the budget drains as a piano line. */
+export function composeNocturne(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) {
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
@@ -49,7 +50,7 @@ export function composeNocturne(mix: Mix, cues: ScoreCues) {
     velocity: beat => .26 + .14 * (beat - streamFrom) / (failBeat - streamFrom), bass: {velocity: .4, length: 2.2},
   });
   // Faint telemetry above it: the data the trace is made of.
-  for (let beat = streamFrom + .5; beat < failBeat - .25; beat += .25) {
+  for (let beat = streamFrom + .5; beat < failBeat - .25 && !acoustic; beat += .25) {
     if (mix.random() > .34) continue;
     const tones = stream[Math.min(2, Math.floor((beat - streamFrom) / 2))][1].tones;
     beep(mix, g(beat), tones[Math.floor(mix.random() * tones.length)] + 36, .1, {...DATA, pan: (mix.random() - .5) * 1.2}, {length: .03});
@@ -118,12 +119,17 @@ export function composeNocturne(mix: Mix, cues: ScoreCues) {
     strings(mix, time, i === 3 ? g(at(flow.entry.at, 1) - .5) : g(drainBeat + (i + 1) * stepBeats) + .05, [bass + 12, ...tones.slice(0, 2)], STRINGS,
       {attack: .25, release: i === 3 ? 1.2 : .5, dynamics: i === 3 ? [.45, .12] : [.8 - i * .12, .7 - i * .12], bright: .25});
   });
+  // The counter itself, high on the piano: a line that falls through each lament chord and runs down into the G.
+  if (acoustic) drainLine(drain.at, drain.duration, 91, 24, time => lament[Math.min(3, Math.floor((time - g(drainBeat)) / (stepBeats * .5)))][1])
+    .forEach(({time, midi, progress}) => piano(mix, time, midi, .3 - .12 * progress, {...CLOSE, pan: .3 - .4 * progress}, {length: .6 + progress, bright: .55}));
 
   // ── Until now. The G hangs alone; the same G becomes the third of E♭.
   const drop = at(flow.reveal, 1), entry = at(flow.entry.at, 1);
   piano(mix, g(entry - 1), 67, .28, {...PIANO, pan: .15}, {length: 3, bright: .45});
   strings(mix, g(entry), g(drop) + .02, [55, 67], STRINGS, {attack: .9, release: .15, dynamics: [.1, 1], bright: .6});
-  [63, 67, 70, 75, 79, 82, 87, 91].forEach((midi, i) => beep(mix, g(drop - 1) + i * .0625, midi + 12, .06 + i * .012, {...DATA, pan: -.4 + i * .11}, {length: .05}));
+  [63, 67, 70, 75, 79, 82, 87, 91].forEach((midi, i) => acoustic
+    ? piano(mix, g(drop - 1) + i * .0625, midi, .16 + i * .025, {...CLOSE, pan: -.4 + i * .11}, {length: 1.2, bright: .55})
+    : beep(mix, g(drop - 1) + i * .0625, midi + 12, .06 + i * .012, {...DATA, pan: -.4 + i * .11}, {length: .05}));
 
   // ── Introducing Flow-1: E♭ at last, the full theme sung in octaves.
   timpani(mix, flow.reveal, 39, .62, DRUM, {decay: 2});

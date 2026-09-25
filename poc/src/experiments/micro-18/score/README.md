@@ -4,7 +4,7 @@ Soundtracks for Animation 18: original scores plus foley, rendered offline in pu
 
 ```sh
 pnpm ultimate3:score                                   # Tactile Glass -> out/ultimate3-score.wav
-pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque)
+pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque, *-acoustic)
 pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux (video stream-copied, AAC 320k)
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score:test
@@ -40,6 +40,13 @@ Each style is a `ScoreStyle` (`style.ts`) in its own folder: `ducks`, then `comp
 
 - **Palette:** Salamander piano only, plus a sine sub and triplet delay echoes; Nocturne's beeps a semitone up.
 - **Story in figuration:** the trace is a flowing triplet arabesque that melts into a whole-tone blur at the failure. The insights are low parallel chords (a sunken cathedral). The cheap model is shallow staccato up high; the powerful one massive bass octaves. The cost slows the arabesque (triplets → eighths → quarters → halves) until one B rings into the drop, where both hands sweep. The theme's D♯ waits until the logo.
+
+### Acoustic cuts: `nocturne-acoustic`, `aria-acoustic`, `arabesque-acoustic`
+
+The same three scores with no electronics:
+- **No telemetry:** every beep and tick in the foley is played by the score's own instrument (piano, or pizzicato in Aria). The notes are snapped into the key, folded into the instrument's range, and thinned to at least 48 ms apart. The deliberate wrong note ("…fail to find crucial issues") keeps its pitch.
+- **The budget drain:** instead of the gliding drain tone, each composition plays it as a line (`drainLine`) that falls through the lament chords and slows like a counter running out. In Nocturne it's high piano, in Aria the solo violin in spiccato into its lone F♯, and in Arabesque the slowing arabesque itself.
+- **No synth music:** the stream's data beeps are gone, the run into the drop is piano (Aria: pizzicato), and Arabesque loses its sine sub.
 
 ## Foley
 

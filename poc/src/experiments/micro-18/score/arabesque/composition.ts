@@ -30,9 +30,11 @@ const TRIPLET = 1 / 3;
 const WHOLE_TONE = [48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76];
 
 /** A sub-bass swell under a chord change: the one electronic body in the score. */
-const sub = (mix: Mix, time: number, midi: number, duration: number, velocity: number, glide = 0) => bass(mix, time, midi, duration, velocity, SUB, {glide, drive: 1.1});
+const subBass = (mix: Mix, time: number, midi: number, duration: number, velocity: number, glide = 0) => bass(mix, time, midi, duration, velocity, SUB, {glide, drive: 1.1});
 
-export function composeArabesque(mix: Mix, cues: ScoreCues) {
+/** `acoustic` drops the sine sub and the telemetry beeps; the slowing arabesque already carries the budget drain. */
+export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) {
+  const sub: typeof subBass = acoustic ? () => {} : subBass;
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
@@ -47,7 +49,7 @@ export function composeArabesque(mix: Mix, cues: ScoreCues) {
   const stream: Progression = [[streamFrom, C.E], [streamFrom + 2, C.Csm], [streamFrom + 4, C.A]];
   figure(mix, g, streamFrom, failBeat, stream, {step: TRIPLET, pattern: ARABESQUE, route: PIANO, bright: .5, length: .8,
     velocity: beat => .24 + .14 * (beat - streamFrom) / (failBeat - streamFrom), bass: {velocity: .38, length: 2.4}});
-  for (let beat = streamFrom + 1; beat < failBeat - .5; beat += 1) beep(mix, g(beat) + .02, [87, 90, 92, 95][Math.floor(mix.random() * 4)], .08, {...DATA, pan: (mix.random() - .5) * 1.2}, {length: .03});
+  for (let beat = streamFrom + 1; beat < failBeat - .5 && !acoustic; beat += 1) beep(mix, g(beat) + .02, [87, 90, 92, 95][Math.floor(mix.random() * 4)], .08, {...DATA, pan: (mix.random() - .5) * 1.2}, {length: .03});
 
   // ── When your agent fails: the harmony melts into a whole-tone blur, the sub sags beneath it.
   rolled(mix, u2.failure, [36, 48], .44, PIANO, {length: 4, bright: .3, spread: .008});
@@ -120,7 +122,9 @@ export function composeArabesque(mix: Mix, cues: ScoreCues) {
   });
   // ── Until now: one high B, left ringing into silence; then the drop.
   piano(mix, g(cursor), 83, .36, {...ECHO, pan: .2}, {length: g(drop) - g(cursor) - .1, bright: .5});
-  [64, 68, 71, 76, 80, 83, 88, 92].forEach((midi, i) => beep(mix, g(drop - 1) + i * .0625, midi + 12, .05 + i * .01, {...DATA, pan: -.4 + i * .11}, {length: .05}));
+  [64, 68, 71, 76, 80, 83, 88, 92].forEach((midi, i) => acoustic
+    ? piano(mix, g(drop - 1) + i * .0625, midi, .16 + i * .025, {...ECHO, pan: -.4 + i * .11}, {length: 1.2, bright: .55})
+    : beep(mix, g(drop - 1) + i * .0625, midi + 12, .05 + i * .01, {...DATA, pan: -.4 + i * .11}, {length: .05}));
 
   // ── Introducing Flow-1: E major at full reach — both hands sweeping triplets, the theme in octaves on top.
   sub(mix, flow.reveal, 28, 2.4, .5);

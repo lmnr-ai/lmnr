@@ -85,3 +85,18 @@ export function legato(mix: Mix, grid: (beat: number) => number, notes: readonly
     });
   });
 }
+
+/**
+ * A budget running out, written as a line: notes slow from ~12/s to ~3/s while a target pitch falls
+ * from `top` by `fall`; each note is the nearest tone of `tonesAt(time)` at or below the target.
+ */
+export function drainLine(start: number, duration: number, top: number, fall: number, tonesAt: (time: number) => readonly number[]) {
+  const notes: {time: number; midi: number; progress: number}[] = [];
+  for (let at = 0; at < duration - .1; at += .08 + .3 * (at / duration) ** 2) {
+    const progress = at / duration, classes = tonesAt(start + at).map(midi => midi % 12);
+    let midi = Math.floor(top - fall * progress ** 1.3);
+    while (!classes.includes(midi % 12)) midi--;
+    notes.push({time: start + at, midi, progress});
+  }
+  return notes;
+}

@@ -1,7 +1,7 @@
 import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
 import {beep, bowed, pizz, timpani, type Mix, type Route} from '../voices';
-import {chordAt, humanize, legato, progression, type Chord, type Progression} from '../writing';
+import {chordAt, drainLine, humanize, legato, progression, type Chord, type Progression} from '../writing';
 
 /*
  * "Aria" — D major, a solo violin over a small string orchestra (VSCO-2 samples). The trace is the
@@ -60,7 +60,8 @@ function motor(mix: Mix, grid: (beat: number) => number, from: number, to: numbe
   }
 }
 
-export function composeAria(mix: Mix, cues: ScoreCues) {
+/** `acoustic` drops every electronic voice: no telemetry beeps, and the violin itself plays the budget draining. */
+export function composeAria(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) {
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
@@ -82,7 +83,7 @@ export function composeAria(mix: Mix, cues: ScoreCues) {
   ensemble(mix, g(streamFrom), g(streamFrom + 2) + .05, C.D, {dynamics: [.35, .45], attack: .6, top: 2});
   ensemble(mix, g(streamFrom + 2), g(streamFrom + 4) + .05, C.AC, {dynamics: [.45, .5], attack: .3, top: 2});
   ensemble(mix, g(streamFrom + 4), u2.failure, C.Bm, {dynamics: [.5, .6], attack: .3, release: .15, top: 2});
-  for (let beat = streamFrom + .5; beat < failBeat - .25; beat += .25) {
+  for (let beat = streamFrom + .5; beat < failBeat - .25 && !acoustic; beat += .25) {
     if (mix.random() > .3) continue;
     beep(mix, g(beat), [86, 90, 93, 98][Math.floor(mix.random() * 4)], .09, {...DATA, pan: (mix.random() - .5) * 1.2}, {length: .03});
   }
@@ -144,12 +145,17 @@ export function composeAria(mix: Mix, cues: ScoreCues) {
     const from = g(drainBeat + i * stepBeats), to = g(drainBeat + (i + 1) * stepBeats) + .05, last = i === 3;
     bowed(mix, from, last ? g(entry) : to, chord.bass + 12, {...SECTION, pan: -.35}, {section: 'celli', dynamics: [.75 - i * .12, .65 - i * .15], attack: .15, release: last ? 1.4 : .4, level: .6});
     chord.tones.slice(-(3 - i)).forEach((midi, k) => bowed(mix, from, to, midi, {...SECTION, pan: -.1 + .3 * k}, {section: 'violins', dynamics: [.6 - i * .1, .55 - i * .12], attack: .15, release: .4, level: .4}));
-    if (!last) legato(mix, g, [[drainBeat + i * stepBeats, top, stepBeats, .55 - i * .07]], SOLO);
+    if (!last && !acoustic) legato(mix, g, [[drainBeat + i * stepBeats, top, stepBeats, .55 - i * .07]], SOLO);
   });
+  // The counter as spiccato: the solo violin runs down through each lament chord, slowing, into its lone F♯.
+  if (acoustic) drainLine(cost.depletion.at, g(drainBeat + 3 * stepBeats) - cost.depletion.at, 90, 12, time => lament[Math.min(3, Math.floor((time - g(drainBeat)) / (stepBeats * .5)))][0].tones)
+    .forEach(({time, midi, progress}) => bowed(mix, time, time + .1 + .25 * progress, midi, {...SOLO, pan: .22 - .2 * progress}, {dynamics: [.85, .75 - .2 * progress], attack: .006, release: .08 + .2 * progress, level: .75 - .25 * progress}));
   // ── Until now: the last F♯ holds alone, swells, and stops dead for a breath before the drop.
   bowed(mix, g(drainBeat + 3 * stepBeats), g(drop) - .24, 78, SOLO, {dynamics: [.35, .95], attack: .2, release: .05, offset: .12, level: .85});
   bowed(mix, g(entry), g(drop) - .24, 66, {...SECTION, pan: -.1}, {section: 'violins', dynamics: [.1, .9], attack: .8, release: .05, level: .5});
-  [62, 66, 69, 74, 78, 81, 86, 90].forEach((midi, i) => beep(mix, g(drop - 1) + i * .0625, midi + 12, .05 + i * .01, {...DATA, pan: -.4 + i * .11}, {length: .05}));
+  [62, 66, 69, 74, 78, 81, 86, 90].forEach((midi, i) => acoustic
+    ? pizz(mix, g(drop - 1) + i * .0625, midi, .3 + i * .05, {...PLUCK, pan: -.4 + i * .11})
+    : beep(mix, g(drop - 1) + i * .0625, midi + 12, .05 + i * .01, {...DATA, pan: -.4 + i * .11}, {length: .05}));
 
   // ── Introducing Flow-1: the whole orchestra on D, driving celli, and the theme soaring an octave up.
   timpani(mix, flow.reveal, 38, .65, DRUM, {decay: 2});

@@ -44,8 +44,10 @@ const strings: StringBanks = {
 };
 const hash = (audio: {l: Float32Array; r: Float32Array}) => createHash('sha256').update(audio.l).update(audio.r).digest('hex');
 for (const style of Object.keys(SCORE_STYLES)) {
-  const render = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed, strings: SCORE_STYLES[style].strings ? strings : undefined}).master;
-  const first = render();
+  const full = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed, strings: SCORE_STYLES[style].strings ? strings : undefined});
+  const render = (seed?: number) => full(seed).master;
+  const {master: first, report} = full();
+  if (style.endsWith('-acoustic')) for (const voice of ['beep', 'tick', 'drain', 'bass']) assert.ok(!report.counts[voice], `${style}: no electronic ${voice}`);
   assert.equal(hash(first), hash(render()), `${style}: the score is a pure function of settings, samples and seed`);
   assert.notEqual(hash(render(7)), hash(first), `${style}: the seed only varies noise and humanisation`);
   assert.equal(first.length, Math.round(cues.duration * SR), `${style}: audio length matches the composition`);

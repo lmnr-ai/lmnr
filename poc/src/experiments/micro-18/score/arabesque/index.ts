@@ -1,4 +1,4 @@
-import {designInKey, planNocturneDucks} from '../nocturne/design';
+import {designAcoustic, designInKey, planNocturneDucks} from '../nocturne/design';
 import type {ScoreStyle} from '../style';
 import {composeArabesque} from './composition';
 
@@ -16,4 +16,14 @@ export const arabesque: ScoreStyle = {
     returns: [2.5, 1.3, 1.1],
   },
   eq: {highpass: 26, lowShelf: [80, -1], highShelf: [8000, 2.5]},
+};
+
+/** Arabesque with no electronics: piano alone, answering every UI moment too. */
+export const arabesqueAcoustic: ScoreStyle = {
+  ...arabesque,
+  id: 'arabesque-acoustic',
+  title: 'Arabesque (acoustic)',
+  compose: (mix, cues) => composeArabesque(mix, cues, {acoustic: true}),
+  // The composition's piano takes every second issue pop.
+  design: designAcoustic(1, 'piano', index => index % 2 === 0),
 };
