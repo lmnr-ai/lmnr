@@ -34,10 +34,9 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
   const style = SCORE_STYLES[options.style ?? tactileGlass.id];
   if (!style) throw new Error(`Unknown score style "${options.style}". Available: ${Object.keys(SCORE_STYLES).join(', ')}`);
   const mix = new Mix(length, seeded(options.seed ?? 0x1a31a), style.keys?.() ?? piano, options.strings);
-  if (options.keyboard) {
-    mix.keyboard = KEYBOARDS[options.keyboard];
-    if (!mix.keyboard) throw new Error(`Unknown keyboard "${options.keyboard}". Available: ${Object.keys(KEYBOARDS).join(', ')}`);
-  }
+  // The lubed linear "thock" was picked over the original click; see keyboards.ts for the others.
+  mix.keyboard = KEYBOARDS[options.keyboard ?? 'thock'];
+  if (!mix.keyboard) throw new Error(`Unknown keyboard "${options.keyboard}". Available: ${Object.keys(KEYBOARDS).join(', ')}`);
 
   style.ducks(mix, cues);
   style.compose(mix, cues);

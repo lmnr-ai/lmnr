@@ -7,7 +7,7 @@ pnpm ultimate3:score                                   # Tactile Glass -> out/ul
 pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque, *-acoustic, nocturne-duet, nocturne-digital, phase, tintinnabuli)
 pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux (video stream-copied, AAC 320k)
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
-pnpm ultimate3:score --style nocturne-acoustic --keyboard thock   # swap the typing click for a modelled keyboard
+pnpm ultimate3:score --style nocturne-acoustic --keyboard spring  # type on another modelled keyboard (default thock)
 pnpm ultimate3:score:test
 ```
 
@@ -69,7 +69,7 @@ F major and D minor (one seven-note set), in a stone-church reverb. Every line p
 
 Whooshes are pink noise through a broad, gently resonant band-pass whose centre is soft-capped under 2.4 kHz, with a low "body" band and the hiss rolled off above 4.2 kHz. Narrow white-noise sweeps put most of their energy at 2–5 kHz, where hearing is most sensitive, and read as a whistle. Nocturne, Aria and Arabesque share one foley design (`nocturne/design.ts`, `designInKey`) transposed into each score's key.
 
-The agent window's typing defaults to the original low-profile click (`keyClick`, ~22 Hz). `--keyboard <id>` swaps in one of five modelled keyboards from `keyboards.ts`: `laptop`, `thock`, `clack`, `spring` (buckling spring) and `membrane`. Each keystroke is a contact tick, a bottom-out that rings the case modes over a desk thump, and a quieter key-up; the spacebar rings lower and its stabiliser rattles. Keys are typed as words and spaces with log-normal gaps at 10–13 keys/s, and each key keeps its own pitch offset.
+The agent window types on a modelled keyboard from `keyboards.ts`: `thock` (a lubed linear mechanical) by default, or `--keyboard laptop|clack|spring|membrane`. It replaced a low-profile click at ~22 Hz that read as a ratchet. Each keystroke is a contact tick, a bottom-out that rings the case modes over a desk thump, and a quieter key-up; the spacebar rings lower and its stabiliser rattles. Keys are typed as words and spaces with log-normal gaps at 10–13 keys/s, and each key keeps its own pitch offset.
 
 ## Pipeline
 

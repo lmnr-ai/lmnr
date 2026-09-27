@@ -1,6 +1,6 @@
 // Renders an Ultimate 3 score offline (pure Node DSP, no browser) and optionally muxes it onto a render.
 //   pnpm ultimate3:score [--style tactile-glass|nocturne|signal|aria|arabesque|<style>-acoustic|nocturne-duet|nocturne-digital|phase|tintinnabuli] [--settings file.json] [--out out/ultimate3-<style>.wav]
-//                        [--keyboard laptop|thock|clack|spring|membrane]
+//                        [--keyboard thock|laptop|clack|spring|membrane]
 //                        [--video out/u3-silent.mp4 --mp4 out/u3.mp4] [--stems]
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';

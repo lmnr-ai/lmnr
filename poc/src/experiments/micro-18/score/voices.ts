@@ -14,7 +14,7 @@ export class Mix {
   /** Gain multiplier applied to the music bus (and its sends) — lets foley breathe through the score. */
   readonly musicGain: Float32Array;
   readonly counts: Record<string, number> = {};
-  /** The agent window's keyboard (`keyboards.ts`); unset keeps the original click. */
+  /** The agent window's keyboard (`keyboards.ts`); unset (bare mixes in tests) keeps the original click. */
   keyboard?: Keyboard;
   constructor(readonly length: number, readonly random: Rng, readonly piano: PianoBank, readonly strings: StringBanks = {}) {
     this.music = new Stereo(length); this.sfx = new Stereo(length);
