@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type FeatureBanner } from "@/lib/feature-banners/types";
-import { cn } from "@/lib/utils";
+import { cn, withBasePath } from "@/lib/utils";
 
 import { type FeatureBannerDials, toMotionTransition } from "../dials";
 import { useFeatureBannerStore } from "../store";
@@ -49,7 +49,9 @@ const StackedDeck = ({ banners, dials }: VariantProps) => {
               role={banner.long_description ? "button" : undefined}
               tabIndex={banner.long_description ? 0 : undefined}
               onClick={() => banner.long_description && openDetails(banner.id)}
-              onKeyDown={(e) => e.key === "Enter" && banner.long_description && openDetails(banner.id)}
+              onKeyDown={(e) =>
+                e.target === e.currentTarget && e.key === "Enter" && banner.long_description && openDetails(banner.id)
+              }
               className={cn(
                 "flex flex-col gap-2 border bg-sidebar-accent shadow-md overflow-hidden text-xs",
                 banner.long_description && "cursor-pointer hover:border-muted-foreground/40 transition-colors"
@@ -58,7 +60,7 @@ const StackedDeck = ({ banners, dials }: VariantProps) => {
             >
               {card.showImage && (
                 <img
-                  src={banner.image_src}
+                  src={withBasePath(banner.image_src)}
                   alt=""
                   className="w-full object-cover object-top rounded border"
                   style={{ height: card.imageHeight, borderRadius: Math.max(card.radius - 4, 0) }}
