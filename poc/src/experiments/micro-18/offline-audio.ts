@@ -95,10 +95,10 @@ export async function renderUltimate3OfflineAudio(settingsInput: Ultimate3Settin
   for (const event of costClicks) costEngine.playAt(event, event.time);
   eventCounts.costRatchet = costClicks.length;
 
-  const typing = new IssueTypingTickEngine({context: audioContext, random}); await typing.enable();
+  const typing = new IssueTypingTickEngine({context: audioContext}); await typing.enable();
   typing.setMasterVolume(mix.masterVolume); typing.setTypingVolume(mix.typingVolume);
   const typingEvents = ultimate3TypingTickEvents(settings);
-  for (const event of typingEvents) typing.scheduleAt(event.time);
+  for (const event of typingEvents) typing.scheduleAt(event.time, event.voice);
   eventCounts.typingTick = typingEvents.length;
 
   const errorChime = new ErrorChimeEngine({context: audioContext}); await errorChime.enable();

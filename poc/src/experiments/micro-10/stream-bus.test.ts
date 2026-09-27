@@ -46,6 +46,7 @@ class MockAudioContext {
   createDelay() { return new MockDelay(); }
   createWaveShaper() { return new MockShaper(); }
   createConvolver() { return new MockConvolver(); }
+  async decodeAudioData(_data: ArrayBuffer) { return {duration: 1, sampleRate: this.sampleRate, getChannelData: () => new Float32Array(this.sampleRate)}; }
   async resume() {}
   async close() {}
 }
@@ -53,6 +54,13 @@ class MockAudioContext {
 const contexts: MockAudioContext[] = [];
 (globalThis as {AudioContext?: unknown}).AudioContext = class extends MockAudioContext {
   constructor() { super(); contexts.push(this); }
+};
+// enable() now preloads the authored camera/agent sample banks. This bus test
+// exercises routing, not network or codecs; never let Node fetch relative URLs.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async input => {
+  assert.match(String(input), /^\/audio\/(deep-camera-whoosh|cheap-agent-whoosh)\//);
+  return new Response(new ArrayBuffer(8));
 };
 const {Micro10AudioEngine} = await import('./sound');
 const engine = new Micro10AudioEngine();
@@ -98,4 +106,5 @@ assert.equal(cloudSource.stopTimes.length, cloudStopsBefore, 'tail completion do
 engine.setMix({tickVolume: 1, puffVolume: 1, droneVolume: 0, whooshVolume: 1});
 assert.equal(streamBus.gain.value, 0, 'later mix updates cannot resurrect a completed stream tail');
 await engine.dispose();
+globalThis.fetch = originalFetch;
 console.log('Micro10 stream family bus isolates its envelope from mix and unrelated effects.');

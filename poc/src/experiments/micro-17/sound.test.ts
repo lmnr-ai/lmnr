@@ -89,7 +89,8 @@ assert.deepEqual(streamRunAudioStateAt(11.8, streamRun), {phase: 'silent', gain:
 assert.deepEqual(streamRunAudioEventsBetween(11.7, 12, streamRun), [], 'the fade tail ends without residual cadence');
 assert.deepEqual(streamRunAudioEventsBetween(0, 20, {at: 4, duration: 0}), [], 'a zero-duration stream run stays silent');
 assert.deepEqual(streamRunAudioStateAt(4, {at: 4, duration: 0}), {phase: 'silent', gain: 0});
-assert.deepEqual(micro17CloudInWindow(DEFAULT_TIMING), {at: 12.618181818181819, duration: 1.4});
+assert.deepEqual(micro17CloudInWindow(DEFAULT_TIMING), {at: DEFAULT_TIMING.cloudEnter.at, duration: 1.4});
+assert.ok(DEFAULT_TIMING.cloudEnter.at < DEFAULT_TIMING.finalZoom.at + DEFAULT_TIMING.finalZoom.duration);
 const retimedCloud = normalizeTiming({...DEFAULT_TIMING, cloudEnter: {...DEFAULT_TIMING.cloudEnter, at: 15.25, duration: 2.1}});
 assert.deepEqual(micro17CloudInWindow(retimedCloud), {at: 15.25, duration: 2.1});
 assert.deepEqual(cloudWhooshEventsBetween(15, 16, {cloudIn: micro17CloudInWindow(retimedCloud)}), [

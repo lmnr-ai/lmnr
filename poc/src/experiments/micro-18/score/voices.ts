@@ -1,4 +1,6 @@
 import {OnePole, Saw, Sine, Stereo, Svf, clamp, gateEnv, mtof, panGains, pluckEnv, samples, type Rng} from './dsp';
+import {DEFAULT_EFFECT_TUNING, type EffectTuning} from './tuning';
+import {renderThockKeystroke} from '../thock-typing';
 import type {Keyboard} from './keyboards';
 
 export type BusName = 'music' | 'sfx';
@@ -14,9 +16,17 @@ export class Mix {
   /** Gain multiplier applied to the music bus (and its sends) — lets foley breathe through the score. */
   readonly musicGain: Float32Array;
   readonly counts: Record<string, number> = {};
-  /** The agent window's keyboard (`keyboards.ts`); unset (bare mixes in tests) keeps the original click. */
+  /** A split playback bed must contain no keyboard, including its ambience sends. */
+  typingEnabled = true;
+  /** Optional modelled keyboard; the default Nocturne thock shares the live renderer's PCM. */
   keyboard?: Keyboard;
-  constructor(readonly length: number, readonly random: Rng, readonly piano: PianoBank, readonly strings: StringBanks = {}) {
+  constructor(
+    readonly length: number,
+    readonly random: Rng,
+    readonly piano: PianoBank,
+    readonly strings: StringBanks = {},
+    readonly tuning: EffectTuning = DEFAULT_EFFECT_TUNING,
+  ) {
     this.music = new Stereo(length); this.sfx = new Stereo(length);
     this.hall = new Stereo(length); this.room = new Stereo(length); this.delay = new Stereo(length);
     this.musicGain = new Float32Array(length).fill(1);
@@ -110,6 +120,13 @@ const nearest = <T extends {midi: number}>(bank: readonly T[], midi: number) => 
 
 /** Salamander felt-piano: nearest sample, resampled ≤ 1.5 semitones, darkened by velocity. */
 export function piano(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {length?: number; bright?: number} = {}) {
+  if (route.bus === 'sfx') {
+    const tune = mix.tuning.pianoCue;
+    midi += tune.transpose;
+    velocity *= tune.volume;
+    route = {...route, hall: (route.hall ?? 0) * tune.space, room: (route.room ?? 0) * tune.space, delay: (route.delay ?? 0) * tune.space};
+    options = {...options, length: (options.length ?? 4) * tune.length, bright: (options.bright ?? .6) * tune.brightness};
+  }
   const source = nearest(mix.piano, midi);
   const ratio = 2 ** ((midi - source.midi) / 12);
   const length = Math.min(options.length ?? 4, (source.data.length - 2) / ratio / 48_000);
@@ -412,9 +429,17 @@ export type WhooshOptions = {
  * hearing is most sensitive, is what whistles.
  */
 export function whoosh(mix: Mix, time: number, duration: number, route: Route, options: WhooshOptions) {
-  const tail = .35, left = buffer(duration + tail), right = buffer(duration + tail);
+  const tune = mix.tuning.whoosh;
+  duration *= tune.duration;
+  route = {...route, gain: (route.gain ?? 1) * tune.volume};
+  options = {...options, from: options.from * tune.frequency, to: options.to * tune.frequency, q: (options.q ?? 1.3) * tune.resonance, air: (options.air ?? .2) * tune.air};
+  const tail = .35 * tune.duration, left = buffer(duration + tail), right = buffer(duration + tail);
   const peak = options.peak ?? .6, resonance = .7 + .35 * clamp(((options.q ?? 1.3) - .8) / 1.6);
-  const ears = [0, 1].map(() => ({pink: new Pink(), sweep: new Svf(), mass: new Svf(), air: new Svf(), hiss: OnePole.lowpass(4200), rumble: new Svf()}));
+  const softness = tune.softness;
+  const ears = [0, 1].map(() => ({
+    pink: new Pink(), sweep: new Svf(), mass: new Svf(), air: new Svf(), hiss: OnePole.lowpass(4200), rumble: new Svf(),
+    pillow: new Float64Array(4), pillowFloor: 0,
+  }));
   const body = new Sine(), soft = (hz: number) => hz * WHOOSH_CAP / (hz + WHOOSH_CAP);
   for (let i = 0; i < left.length; i++) {
     const t = i / 48_000, progress = clamp(t / duration);
@@ -428,11 +453,25 @@ export function whoosh(mix: Mix, time: number, duration: number, route: Route, o
       ear.mass.process(source, clamp(cutoff * .35, 90, 300), .7);
       ear.air.process(source, Math.min(cutoff * 1.8, 3000), .7);
       ear.rumble.process(ear.sweep.bp + ear.mass.bp * .35 + ear.air.bp * (options.air ?? .2) * .35, 70, .7);
-      return ear.hiss.process(ear.rumble.hp);
+      const textured = ear.hiss.process(ear.rumble.hp);
+      if (softness === 0) return textured;
+      // The softness-8 study: four low-pass stages remove the grain, then a gentle high-pass
+      // removes the sustained low drone. Original direction and amplitude envelopes stay intact.
+      const pillowCutoff = clamp(150 + cutoff * .16, 220, 650);
+      const pillowAlpha = 1 - Math.exp(-2 * Math.PI * pillowCutoff / 48_000);
+      let pillow = noise(mix.random);
+      for (let stage = 0; stage < ear.pillow.length; stage++) {
+        ear.pillow[stage] += pillowAlpha * (pillow - ear.pillow[stage]);
+        pillow = ear.pillow[stage];
+      }
+      const floorAlpha = 1 - Math.exp(-2 * Math.PI * 62 / 48_000);
+      ear.pillowFloor += floorAlpha * (pillow - ear.pillowFloor);
+      const droneFree = (pillow - ear.pillowFloor) * 5.5;
+      return textured * (1 - softness) + droneFree * softness;
     });
     let mid = (a + b) * .5;
     const side = (a - b) * .4;
-    if (options.tone) mid += body.next(mtof(options.tone) * (.94 + .12 * sweep)) * .12;
+    if (options.tone) mid += body.next(mtof(options.tone) * (.94 + .12 * sweep)) * .12 * (1 - softness);
     const pan = (options.panFrom ?? 0) + ((options.panTo ?? 0) - (options.panFrom ?? 0)) * progress;
     const [gl, gr] = panGains(pan), g = envelope * options.level * WHOOSH_GAIN;
     left[i] = (mid + side) * gl * Math.SQRT2 * g; right[i] = (mid - side) * gr * Math.SQRT2 * g;
@@ -477,12 +516,13 @@ export function reverseSwell(mix: Mix, end: number, duration: number, notes: rea
 
 /** Sub drop + low noise bloom. The "floor" under a reveal. */
 export function impact(mix: Mix, time: number, level: number, route: Route) {
-  const out = buffer(2.4), sub = new Sine(), rumble = new Svf();
+  const tune = mix.tuning.impact;
+  const out = buffer(2.4 * tune.decay), sub = new Sine(), rumble = new Svf();
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
-    const hz = 34 + 40 * Math.exp(-t / .18);
-    rumble.process(noise(mix.random), 180 + 900 * Math.exp(-t / .08), .7);
-    out[i] = (Math.tanh(sub.next(hz) * 1.3) * Math.exp(-t / .7) * .8 + rumble.lp * Math.exp(-t / .35) * .5) * level;
+    const t = i / 48_000, shapedTime = t / tune.decay;
+    const hz = (34 + 40 * Math.exp(-shapedTime / .18)) * tune.pitch;
+    rumble.process(noise(mix.random), (180 + 900 * Math.exp(-shapedTime / .08)) * tune.pitch, .7);
+    out[i] = (Math.tanh(sub.next(hz) * 1.3) * Math.exp(-shapedTime / .7) * .8 + rumble.lp * Math.exp(-shapedTime / .35) * .5) * level * tune.volume;
   }
   mix.emit(time, route, out); mix.count('impact');
 }
@@ -513,35 +553,34 @@ export function pop(mix: Mix, time: number, midi: number, velocity: number, rout
 
 /** Dull, satisfying close: wooden body + short felt noise. Doors and the agent window. */
 export function thock(mix: Mix, time: number, velocity: number, route: Route, pitch = 1) {
-  const out = buffer(.3), body = new Sine(), knock = new Sine(), felt = new Svf();
+  const tune = mix.tuning.thock;
+  pitch *= tune.pitch;
+  const out = buffer(.3 * tune.decay), body = new Sine(), knock = new Sine(), felt = new Svf();
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
+    const t = i / 48_000, shapedTime = t / tune.decay;
     felt.process(noise(mix.random), 900 * pitch, 1.2);
-    out[i] = (body.next((64 + 70 * Math.exp(-t / .02)) * pitch) * Math.exp(-t / .07)
-      + knock.next(430 * pitch) * Math.exp(-t / .012) * .35 + felt.bp * Math.exp(-t / .01) * .9) * velocity * .5;
+    out[i] = (body.next((64 + 70 * Math.exp(-shapedTime / .02)) * pitch) * Math.exp(-shapedTime / .07)
+      + knock.next(430 * pitch) * Math.exp(-shapedTime / .012) * .35 + felt.bp * Math.exp(-shapedTime / .01) * .9) * velocity * .5 * tune.volume;
   }
   mix.emit(time, route, out); mix.count('thock');
 }
 
-/** Low-profile mechanical key. Randomized per stroke so typing never machine-guns. */
-export function keyClick(mix: Mix, time: number, velocity: number, route: Route) {
-  const out = buffer(.06), cap = new Svf(), body = new Sine();
-  const tone = 2600 + mix.random() * 1600, thump = 160 + mix.random() * 60;
-  for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
-    cap.process(noise(mix.random), tone, 1.6);
-    out[i] = (cap.bp * Math.exp(-t / .0045) + body.next(thump) * Math.exp(-t / .012) * .4) * velocity * .42;
-  }
-  mix.emit(time, route, out); mix.count('keyClick');
+/** Shared lubed-linear PCM; the legacy name keeps score/tuner callers compatible. */
+export function keyClick(mix: Mix, time: number, velocity: number, route: Route, identity = mix.counts.keyClick ?? 0) {
+  if (!mix.typingEnabled) return;
+  const tune = mix.tuning.keyClick, pcm = renderThockKeystroke(identity, tune);
+  mix.emit(time, {...route, gain: (route.gain ?? 1) * tune.volume * velocity / .375}, pcm.left, pcm.right);
+  mix.count('keyClick');
 }
 
 /** Air puff: short low-passed noise breath (clouds, smoke). */
 export function puff(mix: Mix, time: number, velocity: number, route: Route, hz = 900) {
-  const out = buffer(.5), filter = new Svf();
+  const tune = mix.tuning.puff;
+  const out = buffer(.5 * tune.duration), filter = new Svf();
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
-    filter.process(noise(mix.random), hz * (1 + .6 * Math.exp(-t / .05)), .7);
-    out[i] = filter.lp * gateEnv(t, .025, .02, .35) * velocity * .5;
+    const t = i / 48_000, shapedTime = t / tune.duration;
+    filter.process(noise(mix.random), hz * tune.pitch * (1 + .6 * Math.exp(-shapedTime / .05)), .7);
+    out[i] = filter.lp * gateEnv(shapedTime, .025, .02, .35) * velocity * .5 * tune.volume;
   }
   mix.emit(time, route, out); mix.count('puff');
 }

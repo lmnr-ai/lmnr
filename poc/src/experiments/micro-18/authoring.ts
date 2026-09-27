@@ -1,11 +1,11 @@
 import type {FlowPlayback} from '../introducing-flow-1/sample';
 import {FLOW_CLIP_KEYS, type FlowClipKey} from '../introducing-flow-1/timeline';
-import {sampleFlow} from './sample';
-import {flowEndpoint} from './settings';
+import {sampleFlow, sampleIssues} from './sample';
+import {flowEndpoint, issueEntryEnd, issuePostludeOffset, normalizeSettings} from './settings';
 import {CLIP_KEYS as KEYS17, MICRO_17_TIMELINE} from '../micro-17/timeline';
 import {CLIP_KEYS as KEYS16, MICRO_16_TIMELINE} from '../micro-16/timeline';
 import type {ClipTiming, Ultimate3Settings} from './settings';
-import {sampleMicro15Live} from '../micro-15/sample';
+import {ISSUE_KEYS, PRELUDE_KEYS, normalizeClip} from '../micro-20/timeline';
 
 /** Retiming must retain each source clip's from/to values for DialKit clip.current. */
 export function mergeTimelineTiming(
@@ -34,7 +34,7 @@ export const costTimelineConfig = (settings: Ultimate3Settings) => ({
 export function timelinePreviewSignature(timeline: any, keys: readonly string[]) {
   return JSON.stringify([timeline.time, ...keys.map(key => {
     const clip = timeline[key];
-    return [key, clip?.at, clip?.duration, clip?.transition, clip?.current?.progress];
+    return [key, clip?.at, clip?.duration, clip?.transition, clip?.from, clip?.to, clip?.current?.progress];
   })]);
 }
 
@@ -43,9 +43,7 @@ const liveProgress = (timeline: any, key: string, time: number, timing: ClipTimi
 
 /** Live Flow authoring uses clip.current curves while retaining pure instant-clip rules. */
 export function liveIssuesPreview(timeline: any, settings: Ultimate3Settings) {
-  const leadEnd = settings.issues.leadIn.at + settings.issues.leadIn.duration;
-  const nativeTime = Math.max(0, timeline.time - leadEnd);
-  return sampleMicro15Live(nativeTime, settings.issues.controls, settings.issues.timing, timeline);
+  return sampleIssues(timeline.time, settingsFromIssuesTimeline(timeline, settings)).source20;
 }
 
 export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
@@ -67,4 +65,80 @@ export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
   })) as Record<FlowClipKey, number>;
   const entryProgress = liveProgress(timeline, 'entrySlide', timeline.time, entry);
   return {entryProgress, nativeTime, playback: {time: nativeTime, timing, progress} as FlowPlayback};
+}
+
+export const CONCLUSION_TIMELINE_KEYS = ['placeholder', 'logo'] as const;
+export function conclusionTimelineConfig(settings: Ultimate3Settings) {
+  const clips = Object.fromEntries(CONCLUSION_TIMELINE_KEYS.map(key => {
+    const clip = settings.conclusion[key];
+    return [key, {...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1},
+      transition: clip.transition ?? {type: 'easing' as const, duration: clip.duration,
+        ease: (key === 'placeholder' ? [.45, 0, .55, 1] : [0, 0, 1, 1]) as [number, number, number, number]}}];
+  })) as Record<typeof CONCLUSION_TIMELINE_KEYS[number], ClipTiming>;
+  return {duration: settings.allocations.conclusion, ...clips};
+}
+export function conclusionTimelineValues(settings: Ultimate3Settings) {
+  const config = conclusionTimelineConfig(settings);
+  return Object.fromEntries(CONCLUSION_TIMELINE_KEYS.flatMap(key => {
+    const clip = config[key];
+    return [[`${key}.at`, clip.at], [`${key}.duration`, clip.duration],
+      [`${key}.from.progress`, clip.from!.progress], [`${key}.to.progress`, clip.to!.progress],
+      [`${key}.transition`, clip.transition]];
+  }));
+}
+export function settingsFromConclusionTimeline(timeline: any, settings: Ultimate3Settings) {
+  const config = conclusionTimelineConfig(settings);
+  const conclusion = Object.fromEntries(CONCLUSION_TIMELINE_KEYS.map(key => {
+    const authored = normalizeClip(timeline[key], config[key]);
+    // Display defaults must not become persisted edits merely by opening the panel.
+    // Keep absent curves absent on retiming so the sampler uses the new duration.
+    for (const field of ['from', 'to', 'transition'] as const) {
+      if (settings.conclusion[key][field] === undefined
+        && JSON.stringify(authored[field]) === JSON.stringify(config[key][field])) delete authored[field];
+    }
+    return [key, authored];
+  }));
+  return normalizeSettings({...settings, conclusion});
+}
+
+export const ISSUES_TIMELINE_KEYS = ['leadIn', ...PRELUDE_KEYS.map(key => `prelude_${key}`), ...ISSUE_KEYS.map(key => `postlude_${key}`)];
+export function issuesTimelineConfig(settings: Ultimate3Settings) {
+  return {duration: settings.allocations.issues, leadIn: settings.issues.leadIn,
+    ...Object.fromEntries(PRELUDE_KEYS.map(key => [`prelude_${key}`, {...settings.issues.preludeTiming[key], at: issueEntryEnd(settings) + settings.issues.preludeTiming[key].at}])),
+    ...Object.fromEntries(ISSUE_KEYS.map(key => [`postlude_${key}`, {...settings.issues.timing[key], at: issuePostludeOffset(settings) + settings.issues.timing[key].at}])),
+  };
+}
+export function issuesTimelineValues(settings: Ultimate3Settings): Record<string, any> {
+  const config = issuesTimelineConfig(settings) as Record<string, any>;
+  return Object.fromEntries(ISSUES_TIMELINE_KEYS.flatMap(key => {
+    const clip = config[key];
+    return [[`${key}.at`, clip.at], [`${key}.duration`, clip.duration],
+      ...clip.transition ? [[`${key}.transition`, clip.transition]] : [],
+      ...clip.from ? [[`${key}.from.progress`, clip.from.progress]] : [],
+      ...clip.to ? [[`${key}.to.progress`, clip.to.progress]] : []];
+  }));
+}
+/** Bars are chapter seconds; each source20 part keeps its own native seconds.
+ * When a dependency moves, downstream bars ripple instead of being reinterpreted. */
+export function settingsFromIssuesTimeline(timeline: any, settings: Ultimate3Settings) {
+  const i = settings.issues;
+  const leadIn = normalizeClip(timeline.leadIn, i.leadIn);
+  const withEntry = normalizeSettings({...settings, issues: {...i, leadIn}});
+  const extract = (key: string, fallback: ClipTiming, oldOffset: number, newOffset: number) => {
+    if (!timeline[key]) return fallback;
+    const previous = {...fallback, at: fallback.at + oldOffset};
+    const authored = normalizeClip(timeline[key], previous);
+    // An unchanged downstream bar is a dependency ripple, not a negative
+    // native-time edit. Changed bars in a full preset/import use its NEW offset.
+    const sameAt = Math.abs(authored.at - previous.at) < 1e-9;
+    if (sameAt && JSON.stringify({...authored, at: 0}) === JSON.stringify({...normalizeClip(previous, previous), at: 0})) return fallback;
+    const at = sameAt ? fallback.at : Math.max(0, authored.at - newOffset);
+    return {...authored, at: Math.abs(at - fallback.at) < 1e-9 ? fallback.at : at};
+  };
+  const preludeTiming = Object.fromEntries(PRELUDE_KEYS.map(key => [key,
+    extract(`prelude_${key}`, i.preludeTiming[key], issueEntryEnd(settings), issueEntryEnd(withEntry))]));
+  const interim = normalizeSettings({...withEntry, issues: {...withEntry.issues, preludeTiming}});
+  const timing = Object.fromEntries(ISSUE_KEYS.map(key => [key,
+    extract(`postlude_${key}`, i.timing[key], issuePostludeOffset(settings), issuePostludeOffset(interim))]));
+  return normalizeSettings({...interim, issues: {...interim.issues, timing}});
 }

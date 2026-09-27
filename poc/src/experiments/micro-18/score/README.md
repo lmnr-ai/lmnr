@@ -13,6 +13,21 @@ pnpm ultimate3:score:test
 
 Rendering takes 15–40 seconds. The output is a deterministic function of settings, the samples and the seed (`score.test.ts` asserts identical hashes across runs), and it is mastered to -14 LUFS integrated with true peak ≤ -1 dBTP.
 
+## Arabesque Acoustic effect tuner
+
+```sh
+pnpm arabesque:tuner
+# open http://localhost:5181
+```
+
+The tuner renders the exact offline voices used by `arabesque-acoustic`. Audition piano UI cues, movement air, the Thinking puff, closures, low impacts, or typing in isolation; adjust their sound; then render and play the complete mastered track with those edits. Settings persist in the browser and can be downloaded as JSON.
+
+Use downloaded settings in a final render:
+
+```sh
+pnpm ultimate3:score --style arabesque-acoustic --tuning arabesque-acoustic-tuning.json
+```
+
 ## Styles
 
 Each style is a `ScoreStyle` (`style.ts`) in its own folder: `ducks`, then `compose` (music bus), then `design` (foley bus), plus optional reverb/delay/EQ overrides. `render.ts` lists them in `SCORE_STYLES`.
@@ -79,7 +94,7 @@ The agent window types on a modelled keyboard from `keyboards.ts`: `thock` (a lu
 - `voices.ts` contains the synth/sample voices and the `Mix` buses and sends. `dsp.ts` provides the filters, FDN reverb, ping-pong delay, look-around limiter, BS.1770 loudness and master EQ.
 - `render.ts` sums the dry buses and returns, applies the master EQ, normalises, limits, and adds the final fade.
 
-The live `?experiment=micro-18` preview still uses the earlier Web Audio sound engine (`../sound.ts`, `../offline-audio.ts`, `pnpm ultimate3:audio`). This score is the soundtrack for rendered video.
+The live `?experiment=micro-18` preview now uses an **Arabesque Acoustic typing-free bed + one live thock scheduler**, not the earlier full Web Audio effects engine. `pnpm ultimate3:score --style arabesque-acoustic --split-arabesque --tuning src/experiments/micro-18/score/arabesque/softness-8-tuning.json --out <new-path>.wav` writes that bed, a split-playback parity export, and frozen provenance. See `../AUDIO_EXPORT.md` for the exact gain/control contract and static-bed retiming limitation. Ordinary score renders bake shared thock PCM through their score buses; split playback keeps the keyboard dry and outside bed mastering. The `keyClick` API/tuner identifier remains for compatibility, but its old bright bandpass recipe is gone. No original WAV or frozen export is overwritten.
 
 ## Credits
 

@@ -2,9 +2,10 @@ import {useEffect, useId, useState, type ReactNode} from 'react';
 import {cancelRender, continueRender, delayRender, staticFile} from 'remotion';
 import {AGENT as MICRO10_AGENT, MICRO_10_DEFAULTS, sampleMicro10} from '../micro-10/geometry';
 import {DitherImage, DitherPhoto, DitherPuffs} from '../micro-10/DitherPhoto';
-import {BLOCK_TEMPLATE, TURN_BLOCKS, CELL, CELLS, GRID, openingCloudBounds, visibleRouteBlocks, type Controls, type WorldState, type RouteBlock} from './geometry';
+import {BLOCK_TEMPLATE, TURN_BLOCKS, CELL, openingCloudBounds, visibleRouteBlocks, type Controls, type WorldState, type RouteBlock} from './geometry';
 import type {Playback} from './sample';
 import {Paper} from './Paper';
+import {MacroGrid, SCATTERED_WARNING} from './Grid';
 
 export const World = ({state: s, playback, controls}: {state: WorldState; playback: Playback; controls: Controls}) => {
   const p = playback.progress;
@@ -14,7 +15,7 @@ export const World = ({state: s, playback, controls}: {state: WorldState; playba
   useEffect(() => {
     let active = true;
     const font = new FontFace('Micro17Mono', `url("${staticFile('micro-07/JetBrainsMono-Regular.woff2')}")`);
-    const assets = [staticFile('micro-12/warning.svg'), staticFile('micro-12/cloud-back.png'), staticFile('micro-12/cloud-front-flipped.png'), staticFile('micro-07/spinner.svg'),
+    const assets = [staticFile('micro-12/warning.svg'), staticFile(SCATTERED_WARNING.asset), staticFile('micro-12/cloud-back.png'), staticFile('micro-12/cloud-front-flipped.png'), staticFile('micro-07/spinner.svg'),
       ...new Set([...BLOCK_TEMPLATE, ...TURN_BLOCKS].flatMap(block => block.asset ? [staticFile(`micro-07/${block.asset.replace('.svg', '-square.svg')}`)] : []))];
     Promise.all([font.load().then(loaded => {if (active) document.fonts.add(loaded);}), ...assets.map(src => new Promise<void>((resolve, reject) => {
       const image = new Image(); image.onload = () => resolve(); image.onerror = () => reject(new Error(`Missing ${src}`)); image.src = src;
@@ -64,10 +65,7 @@ export const World = ({state: s, playback, controls}: {state: WorldState; playba
   return <div className="micro17-world-layers" data-camera-scale={s.scale} data-head={s.head} data-agent-y={s.agentY}>
     {layer('grid', <>
       <defs><pattern id={`${id}-grid-pattern`} width={CELL} height={CELL} x={-s.head - 60} y={-60} patternUnits="userSpaceOnUse"><path d="M0 0V120H120" fill="none" stroke="#333" strokeWidth="1"/></pattern></defs>
-      {s.bigGridVisible && CELLS.map(cell => <g key={cell.id} transform={`translate(${cell.x} ${cell.y})`}>
-        <path d={`M${-GRID.pitch / 2} ${-GRID.pitch / 2}V${GRID.pitch / 2}H${GRID.pitch / 2}`} fill="none" stroke="#333" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
-        {!cell.hero && <circle r={60 * s.contentScale} fill="#4e4e4e"/>}
-      </g>)}
+      {s.bigGridVisible && <MacroGrid contentScale={s.contentScale}/>}
       {s.smallGridOpacity > 0 && <g transform={`scale(${s.contentScale})`}>
         <rect x={(s.cameraFocus - 640 / s.scale) / s.contentScale - CELL} y={-360 / (s.scale * s.contentScale) - CELL}
           width={1280 / (s.scale * s.contentScale) + CELL * 2} height={720 / (s.scale * s.contentScale) + CELL * 2}

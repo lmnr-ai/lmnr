@@ -155,6 +155,8 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   rolled(mix, shut, [35, 47, 54, 57, 61, 64, 69], .5, PIANO, {length: 4, bright: .45, spread: .014});
   sub(mix, shut, 35, 1.2, .4);
 
+  // No compatibility-pose notes when source20 cannot hand off to the postlude.
+  if (issues.postludeActive) {
   // ── It finds deep issues, in every trace: pentatonic raindrops wherever a triangle lands, echoing.
   const drops = [64, 66, 68, 71, 73, 76, 78, 80, 83, 85, 88, 90];
   issues.pops.forEach((pop, i) => {
@@ -174,6 +176,8 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   sub(mix, lock, 28, 1.6, .32);
   // Ready for you or your coding agent: the melody settles, close and warm.
   melody(mix, g, [[lockBeat + 2.5, 76, 1.5], [lockBeat + 4, 75, 1], [lockBeat + 5, 71, 2]], {...PIANO, pan: .2}, {velocity: .34, bright: .5});
+
+  }
 
   // ── Unlock the insights hiding in millions of traces: IV → V swept by both hands; the D♯ waits.
   const unlock = at(end.start, 1), logo = end.logo, logoBeat = (logo - g(0)) / .5;

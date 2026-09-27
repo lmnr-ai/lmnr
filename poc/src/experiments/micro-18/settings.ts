@@ -1,14 +1,21 @@
 import {DEFAULTS as MICRO17_CONTROLS, type Controls as Micro17Controls} from '../micro-17/geometry';
-import {DEFAULT_TIMING as MICRO17_TIMING, normalizeTiming as normalize17Timing, resolveClips as resolveMicro17Clips, type Timing as Micro17Timing} from '../micro-17/timeline';
+import {DEFAULT_TIMING as SOURCE_MICRO17_TIMING, normalizeTiming as normalize17Timing, resolveClips as resolveMicro17Clips, type Timing as Micro17Timing} from '../micro-17/timeline';
 import {DEFAULTS as MICRO16_CONTROLS, DEFAULT_TIMING as MICRO16_TIMING, normalizeControls as normalize16Controls, normalizeTiming as normalize16Timing, type Controls as Micro16Controls, type Timing as Micro16Timing} from '../micro-16/timeline';
-import {MICRO_15_DEFAULTS, MICRO_15_TIMING, normalizeMicro15Controls, normalizeMicro15Timing, type Micro15Controls, type Micro15Timing} from '../micro-15/timeline';
+import {MICRO_15_TIMING, normalizeMicro15Controls, type Micro15Controls} from '../micro-15/timeline';
+import {ISSUE_START, MICRO_20_DEFAULTS, MICRO_20_ISSUE_DEFAULTS, MICRO_20_ISSUE_TIMING, PRELUDE_TIMING, clipEnd, effectiveIssueStart, micro20PostludeDurationFrames, normalizeClip, normalizeIssueTiming, normalizeMicro20Controls, normalizePreludeTiming, type IssueTiming, type Micro20Controls, type PreludeTiming} from '../micro-20/timeline';
 import {INTRODUCING_FLOW_1_TIMELINE, FLOW_CLIP_KEYS, type FlowClipKey} from '../introducing-flow-1/timeline';
 import type {TransitionConfig} from 'dialkit';
 import {STREAM_RUN_TRIM_SECONDS} from '../micro-17/stream-trim';
 
+// Preserve the production composition's handoff/audio schedule when standalone
+// Ultimate 2 changes its cloud-entry default. Explicit composition edits still win.
+const MICRO17_TIMING: Micro17Timing = {...SOURCE_MICRO17_TIMING,
+  cloudEnter: {...SOURCE_MICRO17_TIMING.cloudEnter, at: 16.8 - STREAM_RUN_TRIM_SECONDS},
+};
+
 export const CHAPTER_IDS = ['ultimate2', 'cost', 'flow', 'issues', 'conclusion'] as const;
 export type ChapterId = typeof CHAPTER_IDS[number];
-export type ClipTiming = {at: number; duration: number; transition?: TransitionConfig};
+export type ClipTiming = {at: number; duration: number; from?: {progress: number}; to?: {progress: number}; transition?: TransitionConfig};
 export type FlowEditableKey = Exclude<FlowClipKey, 'cloudReveal'>;
 export type FlowTiming = Record<FlowEditableKey, ClipTiming>;
 export type FlowControls = {cloudYOffset: number; blueDotScale: number; numberRowStagger: number; coverMotion: 'top'|'right'|'split'; mutedGray: string};
@@ -19,7 +26,7 @@ export type Ultimate3Settings = {
   ultimate2: {timing: Micro17Timing; controls: Micro17Controls};
   cost: {timing: Micro16Timing; controls: Micro16Controls};
   flow: {entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
-  issues: {leadIn: ClipTiming; timing: Micro15Timing; controls: Micro15Controls};
+  issues: {sourceVersion: 20; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
   conclusion: {placeholder: ClipTiming; logo: ClipTiming};
 };
 const smooth = [.45, 0, .55, 1] as [number, number, number, number];
@@ -54,13 +61,13 @@ const PREVIOUS_MICRO_15_TIMING = {
 
 export const ULTIMATE_3_DEFAULTS: Ultimate3Settings = {
   version: 2,
-  allocations: {ultimate2: MICRO17_TIMING.cloudEnter.at + MICRO17_TIMING.cloudEnter.duration + .5, cost: 15, flow: 13, issues: 7.5, conclusion: 4},
+  allocations: {ultimate2: MICRO17_TIMING.cloudEnter.at + MICRO17_TIMING.cloudEnter.duration + .5, cost: 15, flow: 13, issues: 16.7, conclusion: 4},
   pacing: {ultimate2HandoffHold: .5, costTrimEnd: 15, flowTrimEnd: 11.8},
   ultimate2: {timing: MICRO17_TIMING, controls: MICRO17_CONTROLS},
   cost: {timing: MICRO16_TIMING, controls: MICRO16_CONTROLS},
   flow: {entrySlide: {at: 0, duration: 1.2, transition: {type: 'easing', duration: 1.2, ease: smooth}}, timing: flowTiming,
     controls: {cloudYOffset: 37, blueDotScale: 1.2, numberRowStagger: .05, coverMotion: 'split', mutedGray: '#474747'}},
-  issues: {leadIn: {at: 0, duration: .5, transition: {type: 'easing', duration: .5, ease: [0,0,1,1]}}, timing: MICRO_15_TIMING, controls: MICRO_15_DEFAULTS},
+  issues: {sourceVersion: 20, leadIn: {at: 0, duration: 1.2, from: {progress: 0}, to: {progress: 1}, transition: {type: 'easing', duration: 1.2, ease: smooth}}, timing: MICRO_20_ISSUE_TIMING, controls: MICRO_20_ISSUE_DEFAULTS, preludeTiming: PRELUDE_TIMING, preludeControls: MICRO_20_DEFAULTS, issueStart: ISSUE_START},
   conclusion: {placeholder: {at: 0, duration: 2}, logo: {at: 2, duration: 2}},
 };
 
@@ -161,16 +168,18 @@ export function costEndpoint(settings: Ultimate3Settings) {
   // a chapter allocation adds a hold; it never resurrects the trimmed tail.
   return settings.pacing.costTrimEnd;
 }
+/** Source20 owns dependency ripple and includes its final endpoint frame. */
 export function issueEndpoint(settings: Ultimate3Settings) {
-  const t = settings.issues.timing;
-  return Math.max(settings.issues.controls.timelineDuration, ...Object.values(t).map(c => c.at + c.duration),
-    t.appearance.at + t.appearance.duration + settings.issues.controls.warningAppearanceDuration,
-    t.travelStart.at + t.travelStart.duration + settings.issues.controls.travelDuration);
+  const i = settings.issues;
+  return micro20PostludeDurationFrames({...i.preludeControls, preludeTiming: i.preludeTiming, issueTiming: i.timing, issueControls: i.controls, issueStart: i.issueStart}) / 30;
 }
+export const issuePreludeEnd = (settings: Ultimate3Settings) => effectiveIssueStart(settings.issues.preludeTiming, settings.issues.issueStart);
+export const issueEntryEnd = (settings: Ultimate3Settings) => clipEnd(settings.issues.leadIn);
+export const issuePostludeOffset = (settings: Ultimate3Settings) => issueEntryEnd(settings) + issuePreludeEnd(settings);
 export function chapterFloors(settings: Ultimate3Settings): Record<ChapterId, number> {
   return {ultimate2: ultimate2Endpoint(settings), cost: costEndpoint(settings),
     flow: settings.flow.entrySlide.at + settings.flow.entrySlide.duration + flowEndpoint(settings),
-    issues: settings.issues.leadIn.at + settings.issues.leadIn.duration + issueEndpoint(settings),
+    issues: issueEntryEnd(settings) + issueEndpoint(settings),
     conclusion: Math.max(settings.conclusion.placeholder.at + settings.conclusion.placeholder.duration,
       settings.conclusion.logo.at + settings.conclusion.logo.duration)};
 }
@@ -190,16 +199,18 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
       costTrimEnd: finite(pacingRaw?.costTrimEnd, 15, 0, 60),
       flowTrimEnd: finite(pacingRaw?.flowTrimEnd, 11.8, 0, 60),
     },
-    ultimate2: {timing: normalize17Timing(u2.timing), controls: recordControls(u2.controls, MICRO17_CONTROLS)},
+    ultimate2: {timing: normalize17Timing({...MICRO17_TIMING, ...u2.timing}), controls: recordControls(u2.controls, MICRO17_CONTROLS)},
     cost: {timing: normalize16Timing(cost.timing), controls: normalize16Controls(cost.controls)},
     flow: {entrySlide: clip(flow.entrySlide, ULTIMATE_3_DEFAULTS.flow.entrySlide),
       timing: Object.fromEntries(Object.keys(flowTiming).map(key => [key, clip(flow.timing?.[key as FlowEditableKey], flowTiming[key as FlowEditableKey])])) as FlowTiming,
       controls: {cloudYOffset: finite(flow.controls?.cloudYOffset, 37, -500, 500), blueDotScale: finite(flow.controls?.blueDotScale, 1.2, .25, 5),
         numberRowStagger: finite(flow.controls?.numberRowStagger, .05, 0, .25), coverMotion: ['top','right','split'].includes(flow.controls?.coverMotion ?? '') ? flow.controls!.coverMotion : 'split',
         mutedGray: typeof flow.controls?.mutedGray === 'string' ? flow.controls.mutedGray : '#474747'}},
-    issues: {leadIn: clip(issues.leadIn, ULTIMATE_3_DEFAULTS.issues.leadIn),
-      timing: normalizeMicro15Timing((issues.timing ?? MICRO_15_TIMING) as Micro15Timing), controls: normalizeMicro15Controls((issues.controls ?? MICRO_15_DEFAULTS) as Micro15Controls)},
-    conclusion: {placeholder: clip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder), logo: clip(conclusion.logo, ULTIMATE_3_DEFAULTS.conclusion.logo)},
+    issues: {sourceVersion: 20, leadIn: normalizeClip(issues.leadIn, ULTIMATE_3_DEFAULTS.issues.leadIn),
+      timing: normalizeIssueTiming(issues.timing), controls: normalizeMicro15Controls(issues.controls ?? MICRO_20_ISSUE_DEFAULTS),
+      preludeTiming: normalizePreludeTiming(issues.preludeTiming), preludeControls: normalizeMicro20Controls(issues.preludeControls),
+      issueStart: finite(issues.issueStart, ISSUE_START), ...(issues.legacySource15 ? {legacySource15: issues.legacySource15} : {})},
+    conclusion: {placeholder: {...clip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder), ...normalizeClip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder)}, logo: clip(conclusion.logo, ULTIMATE_3_DEFAULTS.conclusion.logo)},
   };
   // Conclusion stages are a contiguous two-card sequence: resizing/moving the
   // placeholder ripples the logo cut rather than leaving a stale visual boundary.

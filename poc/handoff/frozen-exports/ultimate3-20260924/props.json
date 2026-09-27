@@ -1,0 +1,1537 @@
+{
+  "settings": {
+    "version": 2,
+    "allocations": {
+      "ultimate2": 14.51818181818182,
+      "cost": 15,
+      "flow": 13,
+      "issues": 7.5,
+      "conclusion": 4
+    },
+    "pacing": {
+      "ultimate2HandoffHold": 0.5,
+      "costTrimEnd": 15,
+      "flowTrimEnd": 11.8
+    },
+    "ultimate2": {
+      "timing": {
+        "agentEnter": {
+          "at": 0,
+          "duration": 0.31,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.31,
+            "ease": [
+              0.22,
+              1,
+              0.36,
+              1
+            ]
+          }
+        },
+        "firstThinking": {
+          "at": 0.23,
+          "duration": 0.7,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.7,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "streamRun": {
+          "at": 1.9,
+          "duration": 2.7181818181818187,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2.7181818181818187,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "cameraCenterAgent": {
+          "at": 1.9,
+          "duration": 0.32,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.32,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "smokeEnter": {
+          "at": 1.9,
+          "duration": 0.26,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.26,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "continueStraight": {
+          "at": 4.618181818181819,
+          "duration": 0.65,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.65,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "upwardTurn": {
+          "at": 5.268181818181818,
+          "duration": 1.1,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.1,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "cameraBacktrack": {
+          "at": 6.418181818181818,
+          "duration": 1.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "redThinkingLift": {
+          "at": 6.918181818181818,
+          "duration": 0.3,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.3,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "readLift": {
+          "at": 7.418181818181818,
+          "duration": 0.3,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.3,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "thinkingLift": {
+          "at": 7.918181818181818,
+          "duration": 0.3,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.3,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "highlight": {
+          "at": 8.618181818181819,
+          "duration": 1.1,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.1,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "warningEnter": {
+          "at": 8.868181818181819,
+          "duration": 0.24,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.24,
+            "ease": [
+              0.22,
+              1,
+              0.36,
+              1
+            ]
+          }
+        },
+        "warningFocus": {
+          "at": 9.568181818181818,
+          "duration": 0.55,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.55,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "finalZoom": {
+          "at": 10.118181818181819,
+          "duration": 2,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "streamCollapse": {
+          "at": 11.318181818181818,
+          "duration": 0.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "loaderFade": {
+          "at": 11.318181818181818,
+          "duration": 0.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "dotDim": {
+          "at": 11.318181818181818,
+          "duration": 0.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "smallGridFade": {
+          "at": 11.318181818181818,
+          "duration": 0.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cloudEnter": {
+          "at": 12.618181818181819,
+          "duration": 1.4,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.4,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cloudHold": {
+          "at": 14.018181818181818,
+          "duration": 3.8,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 3.8,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleBuild": {
+          "at": 0.45,
+          "duration": 1.45,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.45,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleTrace": {
+          "at": 1.9,
+          "duration": 2.7181818181818187,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2.7181818181818187,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleFailure": {
+          "at": 4.618181818181819,
+          "duration": 1.8,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.8,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleWhy": {
+          "at": 6.418181818181818,
+          "duration": 3.15,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 3.15,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleInsights": {
+          "at": 9.568181818181818,
+          "duration": 4.45,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 4.45,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleIfOnly": {
+          "at": 14.018181818181818,
+          "duration": 3.8,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 3.8,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        }
+      },
+      "controls": {
+        "streamerSpeed": 660,
+        "loaderSpeed": 1.9,
+        "cloudEntrySpread": 700,
+        "introCameraOffsetCells": 0.75,
+        "openingCloudBackXOffset": 150,
+        "openingCloudFrontXOffset": 129,
+        "warningXOffset": 180,
+        "warningYOffset": -180
+      }
+    },
+    "cost": {
+      "timing": {
+        "cloudSweep": {
+          "at": 0.45,
+          "duration": 3.26,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 3.26,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cheapLegOneRight": {
+          "at": 1.4,
+          "duration": 0.4,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.4,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "cheapLegTwoLeft": {
+          "at": 1.89,
+          "duration": 0.4,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.4,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "cheapLegThreeRight": {
+          "at": 2.39,
+          "duration": 0.4,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.4,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "thinkingDrop": {
+          "at": 2.95,
+          "duration": 0.55,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.55,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cameraDownToBash": {
+          "at": 4.51,
+          "duration": 1.58,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.58,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "purpleBashEntry": {
+          "at": 5.38,
+          "duration": 0.75,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.75,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "purpleBashStop": {
+          "at": 6.08,
+          "duration": 0.25,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.25,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "bashExpand": {
+          "at": 6.23,
+          "duration": 0.2,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.2,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "bashDescent": {
+          "at": 6.4,
+          "duration": 1.84,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.84,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "bashHighlight": {
+          "at": 7.9,
+          "duration": 0.7,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.7,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "bashWarning": {
+          "at": 8.23,
+          "duration": 0.24,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.24,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cameraDownToBudget": {
+          "at": 9,
+          "duration": 1.3,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.3,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "purpleBudgetEntry": {
+          "at": 9.56,
+          "duration": 0.8,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.8,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "budgetAppear": {
+          "at": 9.88,
+          "duration": 0.3,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.3,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "budgetRun": {
+          "at": 10.11,
+          "duration": 0.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.6,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "smokeEnter": {
+          "at": 9.85,
+          "duration": 0.4,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 0.4,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "budgetDepletion": {
+          "at": 11.07,
+          "duration": 2.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2.6,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "smokeFade": {
+          "at": 11.08,
+          "duration": 2.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "smokeShrink": {
+          "at": 11.07,
+          "duration": 2.6,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2.6,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "subtitleCheap": {
+          "at": 0.45,
+          "duration": 2.5,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 2.5,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleMissIssues": {
+          "at": 2.95,
+          "duration": 1.73,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 1.73,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitlePowerful": {
+          "at": 5.23,
+          "duration": 4.79,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 4.79,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleCost": {
+          "at": 10.02,
+          "duration": 6.98,
+          "from": {
+            "progress": 0
+          },
+          "to": {
+            "progress": 1
+          },
+          "transition": {
+            "type": "easing",
+            "duration": 6.98,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        }
+      },
+      "controls": {
+        "travelSpeed": 660,
+        "purpleSpinnerSpeed": 1.9,
+        "cheapSpinnerSpeed": 9,
+        "cheapSpinnerStrokeWidth": 1.5,
+        "smokeSize": 1,
+        "smokeMinimumScale": 0.25
+      }
+    },
+    "flow": {
+      "entrySlide": {
+        "at": 0,
+        "duration": 1.2,
+        "transition": {
+          "type": "easing",
+          "duration": 1.2,
+          "ease": [
+            0.45,
+            0,
+            0.55,
+            1
+          ]
+        }
+      },
+      "timing": {
+        "cloudExit": {
+          "at": 2.2,
+          "duration": 1.51,
+          "transition": {
+            "type": "easing",
+            "duration": 1.51,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cameraZoom": {
+          "at": 2.11,
+          "duration": 1,
+          "transition": {
+            "type": "easing",
+            "duration": 1,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cameraToBenchmark": {
+          "at": 2.13,
+          "duration": 1.2,
+          "transition": {
+            "type": "easing",
+            "duration": 1.2,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "dotsExit": {
+          "at": 1.95,
+          "duration": 0.9,
+          "transition": {
+            "type": "easing",
+            "duration": 0.9,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "benchmarkHeading": {
+          "at": 3.28,
+          "duration": 0.23,
+          "transition": {
+            "type": "easing",
+            "duration": 0.23,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "modelRows": {
+          "at": 3.49,
+          "duration": 0.25,
+          "transition": {
+            "type": "easing",
+            "duration": 0.25,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "percentageReveal": {
+          "at": 3.39,
+          "duration": 0.2,
+          "transition": {
+            "type": "easing",
+            "duration": 0.2,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "percentageCountUp": {
+          "at": 3.59,
+          "duration": 0.4,
+          "transition": {
+            "type": "easing",
+            "duration": 0.4,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "cameraToAnalysis": {
+          "at": 6.1,
+          "duration": 0.51,
+          "transition": {
+            "type": "easing",
+            "duration": 0.51,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "numberSwap": {
+          "at": 6.11,
+          "duration": 0.3,
+          "transition": {
+            "type": "easing",
+            "duration": 0.3,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "analysisCountUp": {
+          "at": 6.42,
+          "duration": 1.01,
+          "transition": {
+            "type": "easing",
+            "duration": 1.01,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "barsGrow": {
+          "at": 6.42,
+          "duration": 0.56,
+          "transition": {
+            "type": "easing",
+            "duration": 0.56,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "analysisHeading": {
+          "at": 6.35,
+          "duration": 0.45,
+          "transition": {
+            "type": "easing",
+            "duration": 0.45,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "cameraToEngine": {
+          "at": 8.64,
+          "duration": 0.66,
+          "transition": {
+            "type": "easing",
+            "duration": 0.66,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "moduleActivation": {
+          "at": 9.2,
+          "duration": 0.19,
+          "transition": {
+            "type": "easing",
+            "duration": 0.19,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "engineSpinner": {
+          "at": 9.35,
+          "duration": 0.8,
+          "transition": {
+            "type": "easing",
+            "duration": 0.8,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "engineLines": {
+          "at": 9.35,
+          "duration": 0.8,
+          "transition": {
+            "type": "easing",
+            "duration": 0.8,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "coverDescent": {
+          "at": 9.77,
+          "duration": 0.49,
+          "transition": {
+            "type": "easing",
+            "duration": 0.49,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "coverTint": {
+          "at": 10.11,
+          "duration": 0.45,
+          "transition": {
+            "type": "easing",
+            "duration": 0.45,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "coverSpinner": {
+          "at": 10.16,
+          "duration": 0.41,
+          "transition": {
+            "type": "easing",
+            "duration": 0.41,
+            "ease": [
+              0.45,
+              0,
+              0.55,
+              1
+            ]
+          }
+        },
+        "subtitleIntroducing": {
+          "at": 0.45,
+          "duration": 2.83,
+          "transition": {
+            "type": "easing",
+            "duration": 2.83,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleIntelligence": {
+          "at": 3.28,
+          "duration": 2.82,
+          "transition": {
+            "type": "easing",
+            "duration": 2.82,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleCost": {
+          "at": 6.1,
+          "duration": 2.54,
+          "transition": {
+            "type": "easing",
+            "duration": 2.54,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        },
+        "subtitleSignals": {
+          "at": 8.64,
+          "duration": 4.66,
+          "transition": {
+            "type": "easing",
+            "duration": 4.66,
+            "ease": [
+              0,
+              0,
+              1,
+              1
+            ]
+          }
+        }
+      },
+      "controls": {
+        "cloudYOffset": 37,
+        "blueDotScale": 1.2,
+        "numberRowStagger": 0.05,
+        "coverMotion": "split",
+        "mutedGray": "#474747"
+      }
+    },
+    "issues": {
+      "leadIn": {
+        "at": 0,
+        "duration": 0.5,
+        "transition": {
+          "type": "easing",
+          "duration": 0.5,
+          "ease": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      },
+      "timing": {
+        "appearance": {
+          "at": 0,
+          "duration": 1.19
+        },
+        "travelStart": {
+          "at": 1.15,
+          "duration": 0.35
+        },
+        "coverAppearance": {
+          "at": 2.08,
+          "duration": 0.38
+        },
+        "triangleScaleOut": {
+          "at": 1.72,
+          "duration": 0.59
+        },
+        "triangleScaleIn": {
+          "at": 2.09,
+          "duration": 0.68
+        },
+        "agentWindowEnter": {
+          "at": 4.26,
+          "duration": 0.47
+        },
+        "promptTyping": {
+          "at": 4.27,
+          "duration": 0.44
+        },
+        "issueTyping": {
+          "at": 4.64,
+          "duration": 0.27
+        },
+        "issuePadding": {
+          "at": 4.65,
+          "duration": 0.35
+        },
+        "issueBackground": {
+          "at": 4.64,
+          "duration": 0.2
+        },
+        "issueWarningIn": {
+          "at": 4.79,
+          "duration": 0.3
+        },
+        "messageSend": {
+          "at": 5.08,
+          "duration": 0.18
+        },
+        "cliCommandTyping": {
+          "at": 5.21,
+          "duration": 0.33
+        },
+        "sqlQueryTyping": {
+          "at": 5.46,
+          "duration": 0.23
+        },
+        "sqlPredicateTyping": {
+          "at": 5.63,
+          "duration": 0.27
+        },
+        "queryWarningIn": {
+          "at": 5.72,
+          "duration": 0.2
+        },
+        "agentWindowExit": {
+          "at": 6.62,
+          "duration": 0.38
+        },
+        "subtitleIssues": {
+          "at": 0,
+          "duration": 0.94
+        },
+        "subtitlePatterns": {
+          "at": 0.94,
+          "duration": 2.42
+        },
+        "subtitleReady": {
+          "at": 3.32,
+          "duration": 3.68
+        }
+      },
+      "controls": {
+        "warningAppearanceDuration": 0.25,
+        "travelDuration": 2.3,
+        "timelineDuration": 7
+      }
+    },
+    "conclusion": {
+      "placeholder": {
+        "at": 0,
+        "duration": 2
+      },
+      "logo": {
+        "at": 2,
+        "duration": 2
+      }
+    }
+  }
+}

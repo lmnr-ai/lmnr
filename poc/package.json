@@ -12,6 +12,8 @@
     "ultimate3:audio": "tsx scripts/export-ultimate3-audio.ts",
     "ultimate3:score": "tsx scripts/render-ultimate3-score.ts",
     "ultimate3:score:test": "tsx src/experiments/micro-18/score/score.test.ts",
+    "arabesque:tuner": "tsx scripts/serve-arabesque-tuner.ts",
+    "arabesque:tuner:test": "tsx src/experiments/micro-18/score/tuning.test.ts",
     "parity": "tsx src/parity.ts",
     "typecheck": "tsc --noEmit"
   },

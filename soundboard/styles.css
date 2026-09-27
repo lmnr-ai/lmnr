@@ -1,0 +1,99 @@
+:root {
+  color: hsl(0 0% 16%);
+  background: hsl(0 0% 96%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: hsl(0 0% 96%);
+}
+
+body {
+  padding: clamp(20px, 4vw, 56px);
+}
+
+.soundboard {
+  width: 100%;
+  min-width: 720px;
+  margin: 0 auto;
+}
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  color: hsl(0 0% 36%);
+  font-size: 12px;
+}
+
+.controls p,
+.status {
+  margin: 0;
+}
+
+kbd {
+  color: hsl(0 0% 16%);
+  font: inherit;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(8px, 1.2vw, 16px);
+}
+
+.sound {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  min-width: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: 10px;
+  color: hsl(0 0% 16%);
+  background: hsl(var(--hue) 40% 92%);
+  font: inherit;
+  font-size: clamp(12px, 1.2vw, 16px);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  scale: 1;
+  transition: background-color 100ms ease, outline-color 100ms ease, scale 120ms ease;
+}
+
+.sound.selected-row {
+  background: hsl(var(--hue) 40% 88%);
+}
+
+.sound:hover,
+.sound:focus-visible {
+  outline: 2px solid hsl(0 0% 16%);
+  outline-offset: -2px;
+}
+
+.sound:active,
+.sound.playing {
+  scale: 0.88;
+}
+
+.status {
+  min-height: 1.4em;
+  padding-top: 14px;
+  color: hsl(0 0% 36%);
+  font-size: 12px;
+}
+
+@media (max-width: 800px) {
+  body {
+    overflow-x: auto;
+  }
+}

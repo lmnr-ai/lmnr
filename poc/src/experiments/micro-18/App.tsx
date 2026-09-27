@@ -5,15 +5,18 @@ import {CLIP_KEYS as KEYS17} from '../micro-17/timeline';
 import {livePlayback as liveMicro17, sampleMicro17} from '../micro-17/sample';
 import {agentScreenPan, worldState as micro17WorldState} from '../micro-17/geometry';
 import {CLIP_KEYS as KEYS16} from '../micro-16/timeline';
-import {MICRO_15_TIMELINE} from '../micro-15/timeline';
+import {SPINNER_SPEED_KEYS} from '../micro-20/timeline';
+import {installMicro20AuthoringCompatibility, ULTIMATE3_ISSUES_TIMELINE_ID} from '../micro-20/authoring';
+import {migrateIssues3Storage} from './issues3-persistence';
 import {FLOW_CLIP_KEYS, INTRODUCING_FLOW_1_TIMELINE} from '../introducing-flow-1/timeline';
-import {chapterSchedule, sampleUltimate3} from './sample';
+import {chapterSchedule, issueHandoffValidation, sampleUltimate3} from './sample';
 import {CHAPTER_IDS, CONCLUSION_STORAGE_MIGRATION_ID, FLOW_COVER_STORAGE_MIGRATION_ID, ISSUE_TIMING_STORAGE_MIGRATION_ID, SETTINGS_STORAGE_ID, ULTIMATE_2_TIMING_STORAGE_MIGRATION_ID, ULTIMATE_3_DEFAULTS, ultimate2Endpoint, migrateStoredFlowCover, migrateStoredIssueTimeline, migrateStoredSettings, migrateStoredUltimate2Timeline, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from './settings';
 import {Ultimate3Scene} from './Scene';
-import {costTimelineConfig, liveFlowPreview, liveIssuesPreview, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
+import {CONCLUSION_TIMELINE_KEYS, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, liveFlowPreview, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
 import {authoredStageSize} from './layout';
 import {useStreamRunAudio} from '../micro-17/use-stream-run-audio';
 import {useUltimate3Music} from './use-ultimate3-music';
+import {useArabesqueAudio} from './use-arabesque-audio';
 import {ultimate3AgentWindowSoundTiming, ultimate3CameraMoveWindows, ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3DrawerOpeningTimes, ultimate3FlowDoorSoundTiming, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow, ultimate3FlowRevealWindow, ultimate3FlowTwinkleCues, ultimate3OpeningCloudPuffTimes} from './sound';
 import type {DrawerOpeningEffect} from '../micro-17/stream-run-sound';
 import {costClickTracks} from '../micro-16/cost-ratchet';
@@ -24,7 +27,7 @@ import {useUltimate3ErrorChime} from './error-chime';
 
 export const ULTIMATE3_PANEL_IDS = {
   main: 'micro-animation-18-main-timeline-v1', u2: 'micro-animation-18-ultimate2-timeline-v1', cost: 'micro-animation-18-cost-timeline-v1',
-  flow: 'micro-animation-18-flow-timeline-v1', issues: 'micro-animation-18-issues-timeline-v1', conclusion: 'micro-animation-18-conclusion-timeline-v1',
+  flow: 'micro-animation-18-flow-timeline-v1', issues: ULTIMATE3_ISSUES_TIMELINE_ID, conclusion: 'micro-animation-18-conclusion-timeline-v1',
   u2Motion: 'micro-animation-18-ultimate2-motion-v1', u2Clouds: 'micro-animation-18-ultimate2-clouds-v1', u2Warning: 'micro-animation-18-ultimate2-warning-v1',
   costControls: 'micro-animation-18-cost-controls-v1', flowClouds: 'micro-animation-18-flow-clouds-v1', flowDots: 'micro-animation-18-flow-dots-v1',
   flowRows: 'micro-animation-18-flow-rows-v1', flowCover: 'micro-animation-18-flow-cover-v1', issueControls: 'micro-animation-18-issues-controls-v1',
@@ -51,6 +54,7 @@ const timelineClip = (at: number, duration: number) => ({at, duration, from: {pr
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const readSettings = () => {
   try {
+    migrateIssues3Storage(localStorage);
     const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_ID) ?? 'null');
     const pendingConclusionMigration = localStorage.getItem(CONCLUSION_STORAGE_MIGRATION_ID) !== '1';
     const pendingFlowCoverMigration = localStorage.getItem(FLOW_COVER_STORAGE_MIGRATION_ID) !== '1';
@@ -194,34 +198,42 @@ function DetailFlow({settings,globalTime,onTime,onPlaying,onSettings,onPreview}:
   return null;
 }
 
-function DetailIssues({settings,globalTime,onTime,onPlaying,onSettings,onPreview}:BridgeProps) {
+function DetailIssues({settings,globalTime,onTime,onPlaying,onSettings}:BridgeProps) {
   const IDS = useContext(PanelIdsContext);
-  const start=chapterSchedule(settings)[3].start; const keys=Object.keys(MICRO_15_TIMELINE); const leadEnd=settings.issues.leadIn.at+settings.issues.leadIn.duration;
-  const config=useMemo(()=>({duration:settings.allocations.issues,leadIn:timelineClip(settings.issues.leadIn.at,settings.issues.leadIn.duration),...Object.fromEntries(keys.map(k=>[k,{...(MICRO_15_TIMELINE as any)[k],...(settings.issues.timing as any)[k],at:leadEnd+(settings.issues.timing as any)[k].at}]))}),[settings]);
+  const start = chapterSchedule(settings)[3].start;
+  const config = useMemo(() => issuesTimelineConfig(settings), [settings]);
   // TODO(production): DialKit's clip.current values are the scrubbable authoring preview.
   // Replace them with equivalent real Motion animations using the tuned timeline
   // timings and transitions, then remove useDialTimeline and <DialTimeline />.
-  const timeline=useDialTimeline('Ultimate 3 — 15 Issues (native seconds)',config as any,{id:IDS.issues,autoplay:false,loop:false,persist:true});
-  const controls=useDialKit('Ultimate 3 · 15 appearance and travel',{warningAppearanceDuration:[settings.issues.controls.warningAppearanceDuration,0,2,.05],travelDuration:[settings.issues.controls.travelDuration,0,10,.05],timelineDuration:[settings.issues.controls.timelineDuration,1,60,.1]},{id:IDS.issueControls,persist:true});
-  useTransportHandoff(timeline,start,settings.allocations.issues,globalTime,onTime,onPlaying);
-  const previewSignature=timelinePreviewSignature(timeline,keys);
-  useEffect(()=>onPreview?.({chapter:'issues',sample:liveIssuesPreview(timeline,settings)}),[previewSignature]);
-  const ready=useDialSync({[IDS.issues]:{...timingValues({leadIn:settings.issues.leadIn}),...timingValues(settings.issues.timing as any,leadEnd)},[IDS.issueControls]:settings.issues.controls});
-  useEffect(()=>{if(!ready)return;const authoredEnd=(timeline as any).leadIn.at+(timeline as any).leadIn.duration;const leadIn={at:(timeline as any).leadIn.at,duration:(timeline as any).leadIn.duration,transition:(timeline as any).leadIn.transition};if(Math.abs(authoredEnd-leadEnd)>.0001){DialStore.updateValues(IDS.issues,Object.fromEntries(keys.map(k=>[`${k}.at`,authoredEnd+(settings.issues.timing as any)[k].at])));const next=normalizeSettings({...settings,issues:{...settings.issues,leadIn}});if(!same(next,settings))onSettings(next);return;}const timing=Object.fromEntries(keys.map(key=>[key,{at:Math.max(0,(timeline as any)[key].at-authoredEnd),duration:(timeline as any)[key].duration}]));const next=normalizeSettings({...settings,issues:{...settings.issues,timing,leadIn}});if(!same(next,settings))onSettings(next);},[JSON.stringify([[(timeline as any).leadIn.at,(timeline as any).leadIn.duration],...keys.map(k=>{const c=(timeline as any)[k];return[c.at,c.duration]})]),ready]);
-  useEffect(()=>{if(!ready)return;const next=normalizeSettings({...settings,issues:{...settings.issues,controls}});if(!same(next,settings))onSettings(next);},[JSON.stringify(controls),ready]);
+  const timeline = useDialTimeline('Ultimate 3 — 20 Issue clusters 3 (earliest starts, chapter seconds)', config as any, {id: IDS.issues, autoplay: false, loop: false, persist: true});
+  const controls = useDialKit('Ultimate 3 · Issues postlude', {travelDuration: [settings.issues.controls.travelDuration, 0, 10, .05], timelineDuration: [settings.issues.controls.timelineDuration, 1, 60, .1]}, {id: IDS.issueControls, persist: true});
+  const preludeControls = useDialKit('Ultimate 3 · Issues prelude', {
+    ...Object.fromEntries(SPINNER_SPEED_KEYS.map(key => [key, [settings.issues.preludeControls[key], 0, 10, .1]])),
+    radialCircleRadius: [settings.issues.preludeControls.radialCircleRadius, 0, 1400, 1], radialSoftness: [settings.issues.preludeControls.radialSoftness, 0, 1, .05],
+    timelineDuration: [settings.issues.preludeControls.timelineDuration, 1, 120, .1], issueStart: [settings.issues.issueStart, 0, 60, .05],
+  } as any, {id: `${IDS.issueControls}-prelude-v1`, persist: true});
+  useTransportHandoff(timeline, start, settings.allocations.issues, globalTime, onTime, onPlaying);
+  const ready = useDialSync({[IDS.issues]: issuesTimelineValues(settings), [IDS.issueControls]: settings.issues.controls,
+    [`${IDS.issueControls}-prelude-v1`]: {...settings.issues.preludeControls, issueStart: settings.issues.issueStart}});
+  const signature = timelinePreviewSignature(timeline, ISSUES_TIMELINE_KEYS);
+  useEffect(() => {if (!ready) return; const next = settingsFromIssuesTimeline(timeline, settings); if (!same(next, settings)) onSettings(next);}, [signature, ready]);
+  useEffect(() => {if (!ready) return; const next = normalizeSettings({...settings, issues: {...settings.issues,
+    controls: {...settings.issues.controls, ...controls}, preludeControls, issueStart: (preludeControls as any).issueStart}});
+    if (!same(next, settings)) onSettings(next);}, [JSON.stringify([controls, preludeControls]), ready]);
   return null;
 }
 
 function DetailConclusion({settings,globalTime,onTime,onPlaying,onSettings}:BridgeProps) {
   const IDS = useContext(PanelIdsContext);
-  const start=chapterSchedule(settings)[4].start; const config=useMemo(()=>({duration:settings.allocations.conclusion,placeholder:timelineClip(settings.conclusion.placeholder.at,settings.conclusion.placeholder.duration),logo:timelineClip(settings.conclusion.logo.at,settings.conclusion.logo.duration)}),[settings]);
+  const start=chapterSchedule(settings)[4].start; const config=useMemo(()=>conclusionTimelineConfig(settings),[settings]);
   // TODO(production): DialKit's clip.current values are the scrubbable authoring preview.
   // Replace them with equivalent real Motion animations using the tuned timeline
   // timings and transitions, then remove useDialTimeline and <DialTimeline />.
-  const timeline=useDialTimeline('Ultimate 3 — Conclusion (native seconds)',config,{id:IDS.conclusion,autoplay:false,loop:false,persist:true});
+  const timeline=useDialTimeline('Ultimate 3 — Conclusion (native seconds)',config as any,{id:IDS.conclusion,autoplay:false,loop:false,persist:true});
   useTransportHandoff(timeline,start,settings.allocations.conclusion,globalTime,onTime,onPlaying);
-  const ready=useDialSync({[IDS.conclusion]:timingValues(settings.conclusion)});
-  useEffect(()=>{if(!ready)return;const logoAt=timeline.placeholder.at+timeline.placeholder.duration;if(Math.abs(timeline.logo.at-logoAt)>.0001)DialStore.updateValues(IDS.conclusion,{'logo.at':logoAt});const conclusion={placeholder:{at:timeline.placeholder.at,duration:timeline.placeholder.duration},logo:{at:logoAt,duration:timeline.logo.duration}};const next=normalizeSettings({...settings,conclusion});if(!same(next,settings))onSettings(next);},[timeline.placeholder.at,timeline.placeholder.duration,timeline.logo.at,timeline.logo.duration,ready]);
+  const ready=useDialSync({[IDS.conclusion]:conclusionTimelineValues(settings)});
+  const signature=timelinePreviewSignature(timeline,CONCLUSION_TIMELINE_KEYS);
+  useEffect(()=>{if(!ready)return;const next=settingsFromConclusionTimeline(timeline,settings);if(Math.abs(timeline.logo.at-next.conclusion.logo.at)>.0001)DialStore.updateValues(IDS.conclusion,{'logo.at':next.conclusion.logo.at});if(!same(next,settings))onSettings(next);},[signature,ready]);
   return null;
 }
 
@@ -235,10 +247,16 @@ function LegacyUltimate3Audio({settings, globalTime, playing, inspecting}: Ultim
   useUltimate3ErrorChime(globalTime,!inspecting&&playing,settings,soundMix.errorToneVolume,soundMix.masterVolume);
   return null;
 }
-const ORIGINAL_EDITION: Ultimate3Edition = {experimentId:'micro-18', settingsStorageId:SETTINGS_STORAGE_ID, panelIds:ULTIMATE3_PANEL_IDS, readSettings:()=>{migrateFlowRatchetDefault();migrateUltimate3SoundStorage();return readSettings();}, Audio:LegacyUltimate3Audio};
+function ArabesqueUltimate3Audio({settings, globalTime, playing, inspecting}: Ultimate3AudioProps) {
+  const soundMix=flattenUltimate3SoundMix(useDialKit('Ultimate 3 · Sound',ULTIMATE_3_SOUND_CONFIG,{id:SOUND_MIX_ID,persist:true}));
+  useArabesqueAudio(globalTime, playing, inspecting, settings, soundMix);
+  return null;
+}
+const ORIGINAL_EDITION: Ultimate3Edition = {experimentId:'micro-18', settingsStorageId:SETTINGS_STORAGE_ID, panelIds:ULTIMATE3_PANEL_IDS, readSettings:()=>{installMicro20AuthoringCompatibility(DialStore, undefined, true);migrateFlowRatchetDefault();migrateUltimate3SoundStorage();return readSettings();}, Audio:ArabesqueUltimate3Audio};
 export const Micro18App=({edition=ORIGINAL_EDITION}: {edition?: Ultimate3Edition})=>{
   const AudioComponent=edition.Audio;
   const editor=useRef<HTMLElement>(null); const stageHost=useRef<HTMLDivElement>(null); const stage=useRef<HTMLDivElement>(null); const [settings,setSettingsState]=useState(()=>edition.readSettings()); const query=new URLSearchParams(location.search); const requested=Number(query.get('time')); const inspecting=query.has('time')&&Number.isFinite(requested)&&requested>=0; const [globalTime,setGlobalTime]=useState(inspecting?requested:0); const [view,setView]=useState<'main'|ChapterId>('main'); const [json,setJson]=useState(''); const [live,setLive]=useState<any>(null); const [playing,setPlaying]=useState(false);
+  const issueValidation = useMemo(() => issueHandoffValidation(settings), [settings]);
   const setSettings=(next:Ultimate3Settings)=>{
     const save=(value:Ultimate3Settings)=>{try{localStorage.setItem(edition.settingsStorageId,JSON.stringify(value));}catch{}return value;};
     if(edition.mergeSettings)setSettingsState(current=>save(edition.mergeSettings!(current,settings,next)));
@@ -246,6 +264,6 @@ export const Micro18App=({edition=ORIGINAL_EDITION}: {edition?: Ultimate3Edition
   };
   useEffect(()=>{let dock:Element|null=null;const update=()=>{const rect=dock?.getBoundingClientRect();editor.current?.style.setProperty('--micro18-timeline-height',`${rect&&rect.height>0?innerHeight-rect.top+6:0}px`)};const resize=new ResizeObserver(update);const attach=()=>{const next=document.querySelector('.dialkit-timeline');if(next===dock)return;resize.disconnect();dock=next;if(dock)resize.observe(dock);update()};const mount=new MutationObserver(attach);mount.observe(document.body,{childList:true,subtree:true,attributes:true});attach();addEventListener('resize',update);return()=>{mount.disconnect();resize.disconnect();removeEventListener('resize',update)}},[]);
   useEffect(()=>{const host=stageHost.current!;const update=()=>{const size=authoredStageSize(host.clientWidth,host.clientHeight);const node=stage.current!;node.style.width=`${size.width}px`;node.style.height=`${size.height}px`;node.style.setProperty('--micro18-scale',String(size.scale));};const observer=new ResizeObserver(update);observer.observe(host);update();return()=>observer.disconnect()},[]);
-  let sample=sampleUltimate3(inspecting?requested:globalTime,settings);if(!inspecting&&view==='ultimate2'&&live?.chapter==='ultimate2'&&sample.chapter==='ultimate2')sample={...sample,ultimate2:live.playback};if(!inspecting&&view==='flow'&&live?.chapter==='flow'&&sample.chapter==='flow')sample={...sample,flow:{...sample.flow,...live.flow}};if(!inspecting&&view==='issues'&&live?.chapter==='issues'&&sample.chapter==='issues'&&sample.issues)sample={...sample,issues:{...sample.issues,sample:live.sample}};const Bridge=view==='main'?MainTimeline:Details[view];
-  return <PanelIdsContext.Provider value={edition.panelIds}><main data-edition={edition.experimentId} ref={editor} className="micro18-app" data-time={sample.time} data-inspecting={inspecting}><div ref={stageHost} className="micro18-stage-host"><div ref={stage} className="micro18-stage"><div className="micro18-authored"><Ultimate3Scene sample={sample} settings={settings}/></div></div></div><div className="micro18-toolbar"><nav className="micro18-nav" aria-label="Ultimate 3 timeline view"><button data-active={view==='main'} onClick={()=>setView('main')}>Main</button>{chapterSchedule(settings).map(s=><button key={s.id} data-active={view===s.id} onClick={()=>setView(s.id)} title="Switch timeline without changing the current global frame">{s.label}</button>)}</nav><details className="micro18-settings"><summary>Settings JSON</summary><textarea aria-label="Ultimate 3 settings JSON" value={json} onChange={e=>setJson(e.currentTarget.value)}/><button onClick={()=>setJson(JSON.stringify(settings,null,2))}>Export</button><button onClick={()=>{try{setSettings(normalizeSettings(JSON.parse(json)))}catch{}}}>Apply</button></details><AudioComponent settings={settings} globalTime={globalTime} playing={playing} inspecting={inspecting}/></div><ExperimentPicker current={edition.experimentId}/>{!inspecting&&<Bridge key={view} settings={settings} globalTime={globalTime} onTime={setGlobalTime} onPlaying={setPlaying} onSettings={setSettings} onPreview={setLive}/>}<DialRoot/><DialTimeline visible={!inspecting}/></main></PanelIdsContext.Provider>;
+  let sample=sampleUltimate3(inspecting?requested:globalTime,settings);if(!inspecting&&view==='ultimate2'&&live?.chapter==='ultimate2'&&sample.chapter==='ultimate2')sample={...sample,ultimate2:live.playback};if(!inspecting&&view==='flow'&&live?.chapter==='flow'&&sample.chapter==='flow')sample={...sample,flow:{...sample.flow,...live.flow}};const Bridge=view==='main'?MainTimeline:Details[view];
+  return <PanelIdsContext.Provider value={edition.panelIds}><main data-edition={edition.experimentId} ref={editor} className="micro18-app" data-time={sample.time} data-inspecting={inspecting}><div ref={stageHost} className="micro18-stage-host"><div ref={stage} className="micro18-stage"><div className="micro18-authored"><Ultimate3Scene sample={sample} settings={settings}/></div></div></div><div className="micro18-toolbar"><nav className="micro18-nav" aria-label="Ultimate 3 timeline view"><button data-active={view==='main'} onClick={()=>setView('main')}>Main</button>{chapterSchedule(settings).map(s=><button key={s.id} data-active={view===s.id} onClick={()=>setView(s.id)} title="Switch timeline without changing the current global frame">{s.label}</button>)}</nav>{issueValidation && <output role="status" aria-label="Issues handoff validation">Issues handoff blocked: {issueValidation}</output>}<details className="micro18-settings"><summary>Settings JSON</summary><textarea aria-label="Ultimate 3 settings JSON" value={json} onChange={e=>setJson(e.currentTarget.value)}/><button onClick={()=>setJson(JSON.stringify(settings,null,2))}>Export</button><button onClick={()=>{try{setSettings(normalizeSettings(JSON.parse(json)))}catch{}}}>Apply</button></details><AudioComponent settings={settings} globalTime={globalTime} playing={playing} inspecting={inspecting}/></div><ExperimentPicker current={edition.experimentId}/>{!inspecting&&<Bridge key={view} settings={settings} globalTime={globalTime} onTime={setGlobalTime} onPlaying={setPlaying} onSettings={setSettings} onPreview={setLive}/>}<DialRoot/><DialTimeline visible={!inspecting}/></main></PanelIdsContext.Provider>;
 };

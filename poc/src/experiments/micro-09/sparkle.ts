@@ -27,7 +27,8 @@ export type SparkleControls = {
 
 export type SparkleCell = {kind: 'dot'} | {kind: 'triangle'; asset: string};
 
-const CELL_COUNT = GRID.columns * GRID.rows;
+export type SparkleTopology = {columns: number; rows: number};
+export type SparkleInitialState = {topology: SparkleTopology; cells?: readonly SparkleCell[]};
 const clampProbability = (value: number) => Math.max(0, Math.min(1, value));
 
 function hash(seed: number, cell: number, channel: number) {
@@ -42,18 +43,18 @@ function nextColor(seed: number, cell: number, channel: number, color: number) {
   return (color + jump) % WARNING_ASSETS.length;
 }
 
-function neighborFraction(states: readonly boolean[], cell: number) {
-  const row = Math.floor(cell / GRID.columns);
-  const column = cell % GRID.columns;
+function neighborFraction(states: readonly boolean[], cell: number, topology: SparkleTopology) {
+  const row = Math.floor(cell / topology.columns);
+  const column = cell % topology.columns;
   let neighbors = 0;
   let triangles = 0;
   // DECISION: "Border" means four edge-sharing neighbors, not diagonals.
   for (const [rowOffset, columnOffset] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
     const nextRow = row + rowOffset;
     const nextColumn = column + columnOffset;
-    if (nextRow < 0 || nextRow >= GRID.rows || nextColumn < 0 || nextColumn >= GRID.columns) continue;
+    if (nextRow < 0 || nextRow >= topology.rows || nextColumn < 0 || nextColumn >= topology.columns) continue;
     neighbors++;
-    if (states[nextRow * GRID.columns + nextColumn]) triangles++;
+    if (states[nextRow * topology.columns + nextColumn]) triangles++;
   }
   // Normalize by available neighbors so outer grid cells receive no automatic preference.
   return neighbors === 0 ? 0 : triangles / neighbors;
@@ -65,6 +66,7 @@ export function spatialTriangleProbabilities(
   states: readonly boolean[],
   triangleProbability: number,
   isolationWeight: number,
+  topology: SparkleTopology = GRID,
 ) {
   const target = clampProbability(triangleProbability);
   if (target === 0 || target === 1) return states.map(() => target);
@@ -72,7 +74,7 @@ export function spatialTriangleProbabilities(
 
   const targetSum = states.length * target;
   const baseLogit = Math.log(target / (1 - target));
-  const scores = states.map((_, cell) => -neighborFraction(states, cell));
+  const scores = states.map((_, cell) => -neighborFraction(states, cell, topology));
   let low = -40;
   let high = 40;
 
@@ -96,10 +98,15 @@ export function sampleSparkleGrid(
   time: number,
   seed: number,
   controls: SparkleControls = SPARKLE_DEFAULTS,
+  initial: SparkleInitialState = {topology: GRID},
 ): SparkleCell[] {
+  const CELL_COUNT = initial.topology.columns * initial.topology.rows;
   const triangleProbability = clampProbability(controls.triangleProbability);
-  let states = Array.from({length: CELL_COUNT}, (_, cell) => hash(seed, cell, 0) < triangleProbability);
-  const colors = Array.from({length: CELL_COUNT}, (_, cell) => Math.floor(hash(seed, cell, 1) * WARNING_ASSETS.length));
+  let states = Array.from({length: CELL_COUNT}, (_, cell) => initial.cells ? initial.cells[cell].kind === 'triangle' : hash(seed, cell, 0) < triangleProbability);
+  const colors = Array.from({length: CELL_COUNT}, (_, cell) => {
+    const value = initial.cells?.[cell];
+    return value?.kind === 'triangle' ? Math.max(0, WARNING_ASSETS.indexOf(value.asset as typeof WARNING_ASSETS[number])) : Math.floor(hash(seed, cell, 1) * WARNING_ASSETS.length);
+  });
   const clockFrequency = Math.max(.01, controls.clockFrequency);
   const elapsedTicks = Math.floor(Math.max(0, time) * clockFrequency);
   const stateProbability = clampProbability(controls.stateChangeProbability);
@@ -107,7 +114,7 @@ export function sampleSparkleGrid(
 
   // PERFORMANCE NOTE: deterministic random access currently replays ticks from t=0.
   for (let tick = 1; tick <= elapsedTicks; tick++) {
-    const spatialProbabilities = spatialTriangleProbabilities(states, triangleProbability, controls.isolationWeight);
+    const spatialProbabilities = spatialTriangleProbabilities(states, triangleProbability, controls.isolationWeight, initial.topology);
     const nextStates = states.slice();
 
     // All cells read the same snapshot and commit simultaneously; iteration order cannot bias neighbors.

@@ -1,0 +1,25 @@
+{
+  "name": "trace-view-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "agent": "tsx --env-file=.env src/run.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^4.0.50",
+    "@lmnr-ai/lmnr": "^0.8.45",
+    "ai": "^7.0.77",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "@types/supertest": "^7.2.1",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

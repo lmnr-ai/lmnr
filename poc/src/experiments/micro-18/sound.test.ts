@@ -5,7 +5,7 @@ import {ultimate3AgentWindowSoundTiming, ultimate3CameraMoveWindows, ultimate3Ch
 assert.deepEqual(ultimate3OpeningCloudPuffTimes(ULTIMATE_3_DEFAULTS), [.23, .33],
   'light puffs follow the two opening clouds rather than the final cloud cover');
 assert.deepEqual(ultimate3AgentWindowSoundTiming(ULTIMATE_3_DEFAULTS), {
-  down: {at: 47.278181818, duration: .57}, thockAt: 47.698181818, up: {at: 49.638181818, duration: .57},
+  down: {at: 56.428181818, duration: .57}, thockAt: 56.848181818, up: {at: 58.788181818, duration: .57},
 }, 'coding-agent slide follows its editable bars and lands with a 50ms perceptual offset');
 assert.deepEqual(ultimate3FlowDoorSoundTiming(ULTIMATE_3_DEFAULTS), {
   slide: {at: 40.488181818, duration: .57}, thockAt: 40.928181818,

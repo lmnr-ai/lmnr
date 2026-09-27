@@ -1,0 +1,626 @@
+[
+  {
+    "url": "https://m2.material.io/design/sound/about-sound.html",
+    "accessed_at_utc": "2026-09-24T16:13:50.967088+00:00",
+    "http_status": "200",
+    "final_url": "https://m2.material.io/design/sound/about-sound.html",
+    "content_type": "text/html; charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Material Design",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/e1e0df09af1a.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/e1e0df09af1a.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/e1e0df09af1a.raw",
+    "text_characters": 19,
+    "assessment": "HTTP 200 HTML app shell; stripped text only Material Design; no substantive sound guidance verified.",
+    "evidence": [
+      {
+        "kind": "access_observation",
+        "excerpt": "Material Design"
+      }
+    ],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "js_shell_or_challenge_no_substantive_evidence",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://developer.apple.com/design/human-interface-guidelines/playing-audio",
+    "accessed_at_utc": "2026-09-24T16:13:51.289391+00:00",
+    "http_status": "200",
+    "final_url": "https://developer.apple.com/design/human-interface-guidelines/playing-audio",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Playing audio | Apple Developer Documentation",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/339e0fc6b9cf.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/339e0fc6b9cf.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/339e0fc6b9cf.raw",
+    "text_characters": 49,
+    "assessment": "HTTP 200 documentation shell. Content successfully recovered separately from public official JSON endpoint (S8).",
+    "evidence": [
+      {
+        "kind": "access_observation",
+        "excerpt": "Playing audio | Apple Developer Documentation"
+      }
+    ],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "js_shell_or_challenge_no_substantive_evidence",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://learningsynths.ableton.com/",
+    "accessed_at_utc": "2026-09-24T16:13:50.855637+00:00",
+    "http_status": "200",
+    "final_url": "https://learningsynths.ableton.com/",
+    "content_type": "text/html; charset=UTF-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Learning Synths",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/f979fba48a3b.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/f979fba48a3b.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/f979fba48a3b.raw",
+    "text_characters": 139,
+    "assessment": "HTTP 200 app shell; interactive lesson content not available in stripped HTML; not used as synthesis evidence.",
+    "evidence": [
+      {
+        "kind": "access_observation",
+        "excerpt": "Learning Synths\n\nYour browser does not support this site. Please try using a recent version of Chrome, Firefox, Safari, Edge, or Opera."
+      }
+    ],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "js_shell_or_challenge_no_substantive_evidence",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://makingmusic.ableton.com/",
+    "accessed_at_utc": "2026-09-24T16:13:50.855305+00:00",
+    "http_status": "200",
+    "final_url": "https://makingmusic.ableton.com/",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Creative Strategies for Electronic Music Producers | Making Music book by Ableton",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/4f74eee471cb.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/4f74eee471cb.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/4f74eee471cb.raw",
+    "text_characters": 1516,
+    "assessment": "Readable table of contents; followed chapter links.",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "readable_background_not_counted",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.google.com/search?q=motion+design+sound+design+process+Ambrose+Yu+Antfood",
+    "accessed_at_utc": "2026-09-24T16:13:50.920505+00:00",
+    "http_status": "200",
+    "final_url": "https://www.google.com/search?q=motion+design+sound+design+process+Ambrose+Yu+Antfood&ucbcb=1",
+    "content_type": "text/html; charset=UTF-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Google Search",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/7d7968b75536.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/7d7968b75536.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/7d7968b75536.raw",
+    "text_characters": 101,
+    "assessment": "Search discovery returned shell; no snippets or results used as evidence.",
+    "evidence": [
+      {
+        "kind": "access_observation",
+        "excerpt": "Google Search\n\nIf you're having trouble accessing Google Search, please click here, or send feedback."
+      }
+    ],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "js_shell_or_challenge_no_substantive_evidence",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/playing-audio.json",
+    "accessed_at_utc": "2026-09-24T16:13:55.206879+00:00",
+    "http_status": "200",
+    "final_url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/playing-audio.json",
+    "content_type": "application/json",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Playing audio",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/955672caf72f.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/955672caf72f.raw",
+    "text_characters": 43639,
+    "assessment": "Public official documentation JSON recovered substantive content from HTML shell. Main article extracted recursively to apple-playing-audio-content.txt. UI/playback guidance, not motion-film scoring.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Your app can adjust relative, independent volume levels to achieve a great mix of audio, but the system volume always governs the final output."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "In visionOS, as in every platform, avoid communicating important information using only sound."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "For example, the system subtly varies the pitch and volume of the virtual keyboard’s sounds, suggesting the different sounds a physical keyboard can make as people naturally vary the speed and forcefulness of their typing."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S8",
+    "access_status": "readable_substantive_content",
+    "title_source": "JSON metadata.title",
+    "extracted_content_file": "/tmp/sound-design-research-9QbaYA/sources/apple-playing-audio-content.txt",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.schoolofmotion.com/blog/sound-design-animation",
+    "accessed_at_utc": "2026-09-24T16:13:55.059075+00:00",
+    "http_status": "404",
+    "final_url": "https://schoolofmotion.com/blog/sound-design-animation",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "You Didn't Say the Magic Word | School of Motion",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/d4869b3c02f3.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/d4869b3c02f3.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/d4869b3c02f3.raw",
+    "text_characters": 1363,
+    "assessment": "Not used: HTTP 404; You Didn't Say the Magic Word | School of Motion",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "failed_or_unusable",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://antfood.com/",
+    "accessed_at_utc": "2026-09-24T16:13:55.713918+00:00",
+    "http_status": "200",
+    "final_url": "https://www.antfood.com/",
+    "content_type": "text/html;charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Antfood: Music, Sonic Branding, and Audio Innovation",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/9b29f2525c9f.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/9b29f2525c9f.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/9b29f2525c9f.raw",
+    "text_characters": 5393,
+    "assessment": "First-party navigation to substantive practitioner work/process pages. Homepage marketing claims not used as evidence.",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "readable_background_not_counted",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.sono-sanctus.com/",
+    "accessed_at_utc": "2026-09-24T16:13:54.807862+00:00",
+    "http_status": "000",
+    "final_url": "https://www.sono-sanctus.com/",
+    "content_type": null,
+    "curl_exit": 6,
+    "error": "curl: (6) Could not resolve host: www.sono-sanctus.com",
+    "title": null,
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/a2abecbc845f.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/a2abecbc845f.raw",
+    "text_characters": 0,
+    "assessment": "Not used: DNS resolution failure.",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "failed_or_unusable",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://duckduckgo.com/html/?q=motion+design+sound+design+process+Ambrose+Yu",
+    "accessed_at_utc": "2026-09-24T16:13:54.978880+00:00",
+    "http_status": "202",
+    "final_url": "https://html.duckduckgo.com/html/?q=motion+design+sound+design+process+Ambrose+Yu",
+    "content_type": "text/html; charset=UTF-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "DuckDuckGo",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/1fc407cd50ac.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/1fc407cd50ac.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/1fc407cd50ac.raw",
+    "text_characters": 301,
+    "assessment": "Search discovery returned HTTP 202 bot challenge; no snippets used as evidence.",
+    "evidence": [
+      {
+        "kind": "access_observation",
+        "excerpt": "DuckDuckGo\n\nDuckDuckGo\n\nUnfortunately, bots use DuckDuckGo too.\n\nPlease complete the following challenge to confirm this search was made by a human.\n\nSelect all squares containing a duck:\n\nSubmit\n\nImages not loading?\n\nPlease email the following code to:\n\nerror-lite+4458@duckduckgo.com\n\nCode: 4458"
+      }
+    ],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "js_shell_or_challenge_no_substantive_evidence",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://antfood.com/labs/collaborative-composition-how-competing-ideas-can-form",
+    "accessed_at_utc": "2026-09-24T16:14:08.760163+00:00",
+    "http_status": "200",
+    "final_url": "https://www.antfood.com/labs/collaborative-composition-how-competing-ideas-can-form",
+    "content_type": "text/html;charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Crafting Dystopian Soundscapes: Antfood’s Work on Repeater",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/9ebfbcc19502.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/9ebfbcc19502.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/9ebfbcc19502.raw",
+    "text_characters": 3965,
+    "assessment": "First-party animated-film narrative/process; written text only, embedded media not auditioned.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "The score evolved as our understanding of the story, characters and world evolved."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Beginning with a single sonic idea, we tried to capture the concept of misfit."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S1",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://antfood.com/work/samsung-flexmode",
+    "accessed_at_utc": "2026-09-24T16:14:08.738018+00:00",
+    "http_status": "200",
+    "final_url": "https://www.antfood.com/work/samsung-flexmode",
+    "content_type": "text/html;charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Samsung Flex Mode | A Cellphone-Inspired Beat by Antfood",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/29689748cdac.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/29689748cdac.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/29689748cdac.raw",
+    "text_characters": 1264,
+    "assessment": "First-party product-ad work description; limited process detail; video not auditioned.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Samsung gave us the opportunity to transform these “cellphone falling sounds” into a beat made with foley, guitars and synths — resulting in a symbiotic relationship between video and audio."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S2",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.sonosanctus.com/",
+    "accessed_at_utc": "2026-09-24T16:14:08.215963+00:00",
+    "http_status": "404",
+    "final_url": "https://www.sonosanctus.com/",
+    "content_type": "text/html;charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Squarespace - Website Expired",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/d3e6333c3d18.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/d3e6333c3d18.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/d3e6333c3d18.raw",
+    "text_characters": 33,
+    "assessment": "Not used: HTTP 404; Squarespace - Website Expired",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "failed_or_unusable",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.soundonsound.com/techniques/synthesizing-plucked-strings",
+    "accessed_at_utc": "2026-09-24T16:14:08.556174+00:00",
+    "http_status": "200",
+    "final_url": "https://www.soundonsound.com/techniques/synthesizing-plucked-strings",
+    "content_type": "text/html; charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Synthesizing Plucked Strings",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/e76cc55d597a.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/e76cc55d597a.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/e76cc55d597a.raw",
+    "text_characters": 26089,
+    "assessment": "Original Gordon Reid synthesis/acoustics article; substantive article body read, not a tested patch.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "This acts as a low-pass filter, suppressing the higher harmonics."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "The shape and hardness of your fingers or the plectrum influences the high-frequency content of the initial waveform;"
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "In synthesis terms, you have an oscillator (the string) whose output passes through a resonator (the plate), the response of which affects the harmonic content of the oscillator itself."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S4",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://makingmusic.ableton.com/arranging-as-a-subtractive-process",
+    "accessed_at_utc": "2026-09-24T16:14:08.016277+00:00",
+    "http_status": "200",
+    "final_url": "https://makingmusic.ableton.com/arranging-as-a-subtractive-process",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Arranging as a Subtractive Process | Making Music book by Ableton",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/7b63007e8c9f.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/7b63007e8c9f.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/7b63007e8c9f.raw",
+    "text_characters": 6549,
+    "assessment": "First-party educational book chapter, arrangement; film adaptation is proposed.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Now that you’ve filled the timeline, the process of actually making your arrangement into music becomes one of subtraction rather than addition."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "You’re beginning with a solid block of raw material and then gradually chipping away at it, creating space where there used to be stuff, rather than filling space that used to be empty."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S6",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://makingmusic.ableton.com/deliberately-bad-listening",
+    "accessed_at_utc": "2026-09-24T16:14:08.143157+00:00",
+    "http_status": "200",
+    "final_url": "https://makingmusic.ableton.com/deliberately-bad-listening",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Deliberately Bad Listening | Making Music book by Ableton",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/c4e5bfbd8871.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/c4e5bfbd8871.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/c4e5bfbd8871.raw",
+    "text_characters": 4865,
+    "assessment": "Read but not retained as translation/mixing authority: explicitly a compositional experiment, not a mixing recommendation. No extreme-volume headphone exercise recommended.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt",
+        "excerpt": "Again, this is not a suggested way to approach mixing your track, but the artifacts and imperfections you hear as a result of this “bad” approach to listening may be compositionally useful."
+      }
+    ],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "readable_background_not_counted",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.fabfilter.com/help/pro-q/using/analyzer",
+    "accessed_at_utc": "2026-09-24T16:14:08.280902+00:00",
+    "http_status": "200",
+    "final_url": "https://www.fabfilter.com/help/pro-q/using/analyzer",
+    "content_type": "text/html; charset=UTF-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "FabFilter Pro-Q 4 Help - Spectrum analyzer",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/8592266e4bf8.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/8592266e4bf8.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/8592266e4bf8.raw",
+    "text_characters": 8257,
+    "assessment": "Tool-maker documentation; possible masking indication explicitly not a verdict.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Note that collision detection is merely an indication, and not exact science."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Always use your ears to decide whether you are actually dealing with problematic collisions or frequency masking."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S9",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.izotope.com/en/learn/what-is-loudness.html",
+    "accessed_at_utc": "2026-09-24T16:14:09.112717+00:00",
+    "http_status": "404",
+    "final_url": "https://www.izotope.com/en/learn/what-is-loudness.html",
+    "content_type": "text/html; charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "404 Not Found\n – iZotopeAmerican ExpressApple PayBancontactDiners ClubDiscoverGoogle PayMastercardPayPalVisa",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/b09895049856.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/b09895049856.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/b09895049856.raw",
+    "text_characters": 12074,
+    "assessment": "Not used: HTTP 404; 404 Not Found\n – iZotopeAmerican ExpressApple PayBancontactDiners ClubDiscoverGoogle PayMastercardPayPalVisa",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "failed_or_unusable",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.soundonsound.com/techniques/synthesizing-percussion",
+    "accessed_at_utc": "2026-09-24T16:14:23.922602+00:00",
+    "http_status": "200",
+    "final_url": "https://www.soundonsound.com/techniques/synthesizing-percussion",
+    "content_type": "text/html; charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Synthesizing Percussion",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/4c41a94aa036.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/4c41a94aa036.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/4c41a94aa036.raw",
+    "text_characters": 27702,
+    "assessment": "Original Gordon Reid article; mode-dependent decay and noise-to-tone behavior, not film-specific recipes.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "This means that, when you strike a kettle drum, there is a short period of enharmonicity — that is, a burst of atonal sound that is much like noise — followed by a longer period of the tonal sound associated with the instrument."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S5",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.fabfilter.com/help/pro-l/using/loudnessmetering",
+    "accessed_at_utc": "2026-09-24T16:14:23.866943+00:00",
+    "http_status": "200",
+    "final_url": "https://www.fabfilter.com/help/pro-l/using/loudnessmetering",
+    "content_type": "text/html; charset=UTF-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "FabFilter Pro-L 2 Help - Loudness metering",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/ec2a815c94b9.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/ec2a815c94b9.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/ec2a815c94b9.raw",
+    "text_characters": 10042,
+    "assessment": "Tool-maker metering definitions. Example platform targets not independently verified or adopted as universal requirements.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "One of the problems is that peak measurements are not a good way to describe the loudness of a piece of audio, so normalizing audio to a maximum peak level doesn't work well."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "How you should use this set of loudness measurements depends on the purpose of the audio you're working on."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S10",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://www.fabfilter.com/help/pro-l/using/truepeaklimiting",
+    "accessed_at_utc": "2026-09-24T16:14:23.880021+00:00",
+    "http_status": "200",
+    "final_url": "https://www.fabfilter.com/help/pro-l/using/truepeaklimiting",
+    "content_type": "text/html; charset=UTF-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "FabFilter Pro-L 2 Help - True peak limiting",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/e341e436d8e4.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/e341e436d8e4.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/e341e436d8e4.raw",
+    "text_characters": 5752,
+    "assessment": "Tool-maker description of inter-sample peaks, metering, and limiting. No actual mix/encode was measured.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "In this case, the analog signal that a D/A converter would generate from the sample values becomes higher than the individual sample values."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "The same happens during operations like MP3 conversion."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S11",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://makingmusic.ableton.com/dramatic-arc",
+    "accessed_at_utc": "2026-09-24T16:14:23.886260+00:00",
+    "http_status": "200",
+    "final_url": "https://makingmusic.ableton.com/dramatic-arc",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Dramatic Arc | Making Music book by Ableton",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/dfc7387fd878.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/dfc7387fd878.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/dfc7387fd878.raw",
+    "text_characters": 4907,
+    "assessment": "First-party educational chapter, musical form; explicitly acknowledges alternatives.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "The dramatic arc refers to three main sections: exposition, climax, and dénouement, which are connected by rising action at the beginning and falling action towards the end."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "There are, of course, many types of musical forms that bear no resemblance to the conventional dramatic arc."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S7",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://antfood.com/labs/laurens-lammers-crafts-sonic-delights",
+    "accessed_at_utc": "2026-09-24T16:14:39.979920+00:00",
+    "http_status": "200",
+    "final_url": "https://www.antfood.com/labs/laurens-lammers-crafts-sonic-delights",
+    "content_type": "text/html;charset=utf-8",
+    "curl_exit": 0,
+    "error": null,
+    "title": "Building a Sound Library | Antfood sits with Laurens Lammers",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/28c3f311e160.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/28c3f311e160.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/28c3f311e160.raw",
+    "text_characters": 5799,
+    "assessment": "First-person field recording, repurposing, and cataloging; embedded audio not auditioned.",
+    "evidence": [
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Your recordings might focus on textures, while someone else’s library focuses on movement."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "Editing and cataloging are vital next steps, especially when you work with the recordings and want to implement them in a production workflow."
+      },
+      {
+        "kind": "exact_excerpt_whitespace_normalized",
+        "excerpt": "I recorded a coffee machine with a geophone - the low end is astonishing and it recently made the rumble of a car so much more powerful."
+      }
+    ],
+    "used_in_brief": true,
+    "media_auditioned": false,
+    "source_id": "S3",
+    "access_status": "readable_substantive_content",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  },
+  {
+    "url": "https://makingmusic.ableton.com/about",
+    "accessed_at_utc": "2026-09-24T16:14:39.264510+00:00",
+    "http_status": "200",
+    "final_url": "https://makingmusic.ableton.com/about",
+    "content_type": "text/html",
+    "curl_exit": 0,
+    "error": null,
+    "title": "What is this book? | Making Music book by Ableton",
+    "links_file": "/tmp/sound-design-research-9QbaYA/sources/88ad877c5e7b.links.json",
+    "text_file": "/tmp/sound-design-research-9QbaYA/sources/88ad877c5e7b.txt",
+    "raw_file": "/tmp/sound-design-research-9QbaYA/sources/88ad877c5e7b.raw",
+    "text_characters": 8770,
+    "assessment": "Readable introductory book context, not counted as substantive cited source.",
+    "evidence": [],
+    "used_in_brief": false,
+    "media_auditioned": false,
+    "access_status": "readable_background_not_counted",
+    "evidence_scope": "Text only; fetched content treated as untrusted research material, not instructions."
+  }
+]

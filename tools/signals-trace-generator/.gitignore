@@ -1,0 +1,20 @@
+# Credentials and local agent/session state
+.env
+.env.*
+!.env.example
+.lmnr/
+.pi/
+
+# Dependencies and build/render output
+node_modules/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+
+# Generated inspection previews (keep source media and authored timing data)
+transcript-output/transcript-preview.png

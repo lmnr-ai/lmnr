@@ -32,7 +32,8 @@ export const MICRO_17_TIMELINE = {
   loaderFade: clip(shifted(15.5), .6),
   dotDim: clip(shifted(15.5), .6),
   smallGridFade: clip(shifted(15.5), .6),
-  cloudEnter: clip(shifted(16.8), 1.4),
+  // Screen-pinned cover: overlap the final 0.7s of the world zoom.
+  cloudEnter: clip(shifted(15.6), 1.4),
   cloudHold: clip(shifted(18.2), 3.8, linear),
   // Screen-pinned narrative bars; each remains independently editable.
   subtitleBuild: clip(.45, 1.45, linear),
@@ -71,7 +72,7 @@ export function timingWarnings(timing: Timing) {
   const before = (a: ClipKey, b: ClipKey) => timing[b].at + .001 < timing[a].at + timing[a].duration;
   const order: [ClipKey, ClipKey][] = [['firstThinking', 'streamRun'], ['streamRun', 'continueStraight'],
     ['continueStraight', 'upwardTurn'], ['upwardTurn', 'cameraBacktrack'], ['thinkingLift', 'warningEnter'],
-    ['warningFocus', 'finalZoom'], ['finalZoom', 'cloudEnter'], ['cloudEnter', 'cloudHold']];
+    ['warningFocus', 'finalZoom'], ['cloudEnter', 'cloudHold']];
   return [...order.filter(([a, b]) => before(a, b)).map(([a, b]) => `Keep ${b} after ${a}.`),
     ...(Math.abs(timing.cameraCenterAgent.at - timing.streamRun.at) > .001 ? ['Align cameraCenterAgent with streamRun.'] : [])];
 }

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Soundboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="soundboard" aria-label="Soundboard">
+      <header class="controls">
+        <p><kbd>j</kbd>/<kbd>k</kbd> select row</p>
+        <p><kbd>a</kbd> <kbd>o</kbd> <kbd>e</kbd> <kbd>u</kbd> <kbd>i</kbd> play columns 1–5</p>
+      </header>
+      <div id="grid" class="grid" aria-label="Sounds"></div>
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

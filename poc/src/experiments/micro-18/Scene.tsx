@@ -13,11 +13,13 @@ import {Subtitles} from '../micro-16/Subtitles';
 import {Flow1WorldContent, useFlow1FontReady} from '../introducing-flow-1/Scene';
 import {Subtitles as FlowSubtitles} from '../introducing-flow-1/Subtitles';
 import {introducingFlowState} from '../introducing-flow-1/geometry';
-import {Micro15Scene} from '../micro-15/Scene';
+import {Subtitles as IssueSubtitles} from '../micro-20/Subtitles';
+import {Micro20Scene} from '../micro-20/Scene';
 import type {Ultimate3Sample} from './sample';
 import {sampleFlow} from './sample';
 import {ConclusionSubtitles} from './Subtitles';
-import type {Ultimate3Settings} from './settings';
+import {costEndpoint, type Ultimate3Settings} from './settings';
+import {sampleMicro16} from '../micro-16/sample';
 import {
   COST_NATIVE_TO_WORLD,
   FLOW_PLACEMENT,
@@ -25,21 +27,27 @@ import {
   flowCameraInSharedWorld,
   flowCloudScreenTransform,
   sharedWorldCamera,
+  issueSurfacePlacement,
+  flowIssuesCamera,
+  projectScreenRect,
 } from './transitions';
 
-const Card = ({kind}: {kind: 'transition'|'placeholder'|'logo'}) => <div className="micro18-card">
-  {kind === 'logo' ? <img className="micro18-logo" src={staticFile('micro-18/conclusion-logo.svg')}/> : <span>{kind === 'transition' ? 'TODO: transition' : 'TODO: '}</span>}
+const Card = ({kind}: {kind: 'placeholder'|'logo'}) => <div className="micro18-card">
+  {kind === 'logo' ? <img className="micro18-logo" src={staticFile('micro-18/conclusion-logo.svg')}/> : <span>{'TODO: '}</span>}
 </div>;
 
-const SharedCostFlowWorld = ({sample, settings}: {sample: Ultimate3Sample; settings: Ultimate3Settings}) => {
+const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample; settings: Ultimate3Settings}) => {
   const id = `micro18-${useId().replace(/:/g, '')}`;
   useMicro16RenderReady();
   useFlow1FontReady();
+  const issues = sample.issues;
   const isFlow = sample.chapter === 'flow' && sample.flow;
-  const cost = isFlow ? sample.flow!.outgoingCost : sample.cost!;
-  const flow = isFlow ? sample.flow! : sampleFlow(0, settings);
+  const cost = issues ? sampleMicro16(costEndpoint(settings), settings.cost.controls, settings.cost.timing) : isFlow ? sample.flow!.outgoingCost : sample.cost!;
+  const flow = issues ? sampleFlow(settings.allocations.flow, settings) : isFlow ? sample.flow! : sampleFlow(0, settings);
   const flowState = introducingFlowState(flow.playback);
-  const camera = isFlow
+  const outgoing = flowCameraInSharedWorld(flowState.camera);
+  const issuePlacement = issueSurfacePlacement(outgoing);
+  const camera = issues ? flowIssuesCamera(outgoing, issues.entering ? issues.entryProgress : 1) : isFlow
     ? sharedWorldCamera({entryProgress: flow.entryProgress, outgoingCostCamera: cost.camera, flowPlayback: flow.playback})
     : costCameraInSharedWorld(cost.camera);
   const cameraStyle = {
@@ -48,14 +56,22 @@ const SharedCostFlowWorld = ({sample, settings}: {sample: Ultimate3Sample; setti
     '--flow1-border': `${1 / camera.scale}px`,
   } as React.CSSProperties;
   const costTransform = `translate(${COST_NATIVE_TO_WORLD.x}px,${COST_NATIVE_TO_WORLD.y}px) scale(${COST_NATIVE_TO_WORLD.scale})`;
-  const cloudTransform = isFlow
-    ? flowCloudScreenTransform(flow.entryProgress, camera, flowCameraInSharedWorld(flowState.camera))
-    : {x: 0, y: 0, scale: 1};
+  const cloudTransform = issues
+    ? flowCloudScreenTransform(0, camera, outgoing)
+    : isFlow ? flowCloudScreenTransform(flow.entryProgress, camera, outgoing) : {x: 0, y: 0, scale: 1};
+  // Freeze the outgoing screen plane onto its terminal world pose, including
+  // early trims whose clouds have not exited. Cull only once the plane is offscreen.
+  const cloudBounds = projectScreenRect({x: 0, y: 0, width: 1280, height: 720}, cloudTransform);
+  const outgoingCloudsVisible = issues?.entering && cloudBounds.x < 1280 && cloudBounds.y < 720
+    && cloudBounds.x + cloudBounds.width > 0 && cloudBounds.y + cloudBounds.height > 0;
 
-  return <div className="micro18-shared-scene" aria-label="Cost and Introducing Flow-1 shared world"
+  return <div className="micro18-shared-scene" aria-label="Cost, Introducing Flow-1 and Issue clusters 3 shared world"
     data-world-kind="persistent-cost-flow" data-camera-x={camera.x} data-camera-y={camera.y} data-camera-scale={camera.scale}>
     <div className="micro18-shared-world" style={cameraStyle} data-world-origin="0,0" data-shared-camera="true">
-      <div className="micro18-shared-grid" data-grid-pitch="100"/>
+      {/* CSS grid edges become source20's SVG stroke centers by arrival.
+          The half-screen-pixel inset is continuous and avoids a border flash. */}
+      {(!issues || issues.entering) && <div className="micro18-shared-grid" data-grid-pitch="100" style={issues ? {height: Math.max(20000, issuePlacement.y + 12000),
+        transform: `translate(${-issues.entryProgress * .5 / camera.scale}px,${-issues.entryProgress * .5 / camera.scale}px)`} : undefined}/>}
       <div className="micro18-cost-space" style={{transform: costTransform}} data-native-scale={COST_NATIVE_TO_WORLD.scale}>
         <svg className="micro18-cost-content" viewBox="-2000 -1000 10000 7000">
           <Micro16WorldContent state={cost} id={id}/>
@@ -72,12 +88,16 @@ const SharedCostFlowWorld = ({sample, settings}: {sample: Ultimate3Sample; setti
         style={{transform: `translate(${FLOW_PLACEMENT.x}px,${FLOW_PLACEMENT.y}px)`, '--flow1-muted-gray': settings.flow.controls.mutedGray} as React.CSSProperties}>
         <Flow1WorldContent state={flowState} time={flow.playback.time} blueDotScale={settings.flow.controls.blueDotScale} numberRowStagger={settings.flow.controls.numberRowStagger} coverMotion={settings.flow.controls.coverMotion}/>
       </div>
+      {issues && <div className="micro18-issues-surface" data-entry={issues.entering} data-native-time={issues.nativeTime}
+        style={{transform: `translate(${issuePlacement.x}px,${issuePlacement.y}px) scale(${issuePlacement.scale})`}}>
+        <Micro20Scene sample={issues.source20} sharedEntry={issues.entering} showSubtitles={false}/>
+      </div>}
     </div>
-    {isFlow && <div className="micro18-flow-cloud-layer" data-cloud-attachment={flow.entryProgress < 1 ? 'opening-world' : 'screen'}
+    {(isFlow || outgoingCloudsVisible) && <div className="micro18-flow-cloud-layer" data-cloud-attachment={issues ? 'outgoing-world' : flow.entryProgress < 1 ? 'opening-world' : 'screen'}
       style={{transform: `translate(${cloudTransform.x}px,${cloudTransform.y}px) scale(${cloudTransform.scale})`}}>
       <DitherClouds progress={flowState.cloudProgress} yOffset={settings.flow.controls.cloudYOffset} translateY={flowState.cloudTranslateY}/>
     </div>}
-    {isFlow ? <FlowSubtitles progress={flow.playback.progress}/> : <Subtitles progress={cost.progress}/>} 
+    {issues ? <IssueSubtitles narration={issues.entering ? null : issues.source20.narration} opacity={issues.source20.subtitleOpacity}/> : isFlow ? <FlowSubtitles progress={flow.playback.progress}/> : <Subtitles progress={cost.progress}/>} 
   </div>;
 };
 
@@ -94,19 +114,19 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
     suppressNativeClouds = true;
     if (state.cloudEnter > 0) clouds = {progress: state.cloudProgress, yOffset: 27,
       translateY: state.cloudTranslateY, translateX: state.cloudTranslateX};
-  } else if ((sample.chapter === 'cost' && sample.cost) || (sample.chapter === 'flow' && sample.flow)) {
-    content = <SharedCostFlowWorld sample={sample} settings={settings}/>;
+  } else if ((sample.chapter === 'cost' && sample.cost) || (sample.chapter === 'flow' && sample.flow) || (sample.chapter === 'issues' && sample.issues)) {
+    content = <SharedCostFlowIssuesWorld sample={sample} settings={settings}/>;
     if (sample.chapter === 'cost' && sample.cost) {
       suppressNativeClouds = true;
       // Start at Ultimate 2's exact settled y=27 pose, then continuously adopt
       // Cost's y=37 geometry while Cost performs its normal cloud exit.
       clouds = {...sample.cost.cloud, yOffset: 27 + 10 * sample.cost.progress.cloudSweep};
     }
-  } else if (sample.chapter === 'issues' && sample.issues) {
-    content = sample.issues.placeholder ? <Card kind="transition"/> : <Micro15Scene {...sample.issues.sample}/>;
   } else if (sample.chapter === 'conclusion') {
     const stage = sample.conclusion === 'logo' ? 'logo' : 'placeholder';
-    content = <><Card kind={stage}/><ConclusionSubtitles stage={stage}/></>;
+    content = <>{stage === 'placeholder' && sample.conclusionSource
+      ? <Micro20Scene sample={sample.conclusionSource} showSubtitles={false}/>
+      : <Card kind={stage}/>}<ConclusionSubtitles stage={stage}/></>;
   } else {
     content = <Card kind="placeholder"/>;
   }

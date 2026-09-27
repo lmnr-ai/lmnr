@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Signal Lab</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <nav class="mode-switch" aria-label="Synthesizer type">
+      <button data-mode="whoosh" class="active">signal lab / whoosh</button>
+      <button data-mode="beep">signal lab / beep</button>
+      <button data-mode="drone">signal lab / drone</button>
+      <button data-mode="piano">signal lab / piano</button>
+      <button data-mode="engine">signal lab / engine</button>
+      <a href="../song-studio/index.html">hopeful song studio →</a>
+    </nav>
+
+    <header>
+      <div>
+        <p class="eyebrow">SOUND EFFECT SYNTHESIZER</p>
+        <h1 id="title">whoosh designer</h1>
+      </div>
+      <div class="header-actions">
+        <input id="soundName" type="text" placeholder="sound name" aria-label="Sound name">
+        <button id="save">save</button>
+        <button id="play" class="primary">▶ play whoosh <kbd>space</kbd></button>
+      </div>
+    </header>
+
+    <section id="whooshWorkspace" class="workspace active" data-workspace="whoosh">
+      <section class="presets" aria-label="Whoosh presets">
+        <button data-preset="soft">soft swipe</button>
+        <button data-preset="fast">fast pass</button>
+        <button data-preset="heavy">heavy whoosh</button>
+        <button data-preset="rise">airy rise</button>
+        <button data-preset="scifi">sci-fi pass</button>
+        <button data-preset="smoke">smoke puff</button>
+        <button data-preset="pillow">pillow poof</button>
+      </section>
+      <p class="formula">NOISE <span>→</span> MOVING FILTER <span>→</span> VOLUME SWELL <span>→</span> SPACE</p>
+      <section class="signal-chain">
+        <article class="module source">
+          <span class="step">01</span><h2>air</h2><p>Random noise supplies the raw air texture.</p>
+          <label>noise color <output>texture</output><select data-param="noiseColor"><option value="white">white / bright</option><option value="pink">pink / natural</option><option value="brown">brown / deep</option></select></label>
+          <label>duration <output data-for="duration"></output><input data-param="duration" type="range" min="0.08" max="3" step="0.01"><small>How long the air passes by.</small></label>
+          <label>body <output data-for="body"></output><input data-param="body" type="range" min="0" max="1" step="0.01"><small>Adds low-frequency weight.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module motion">
+          <span class="step">02</span><h2>sweep</h2><p>A moving or fixed filter shapes the noise.</p>
+          <label>filter motion <output>path</output><select data-param="filterMotion"><option value="sweep">sweep</option><option value="static">static</option></select></label>
+          <label>start frequency <output data-for="startFreq"></output><input data-param="startFreq" type="range" min="80" max="12000"></label>
+          <label>end frequency <output data-for="endFreq"></output><input data-param="endFreq" type="range" min="80" max="12000"><small>High endings rise; low endings fall.</small></label>
+          <label>resonance <output data-for="resonance"></output><input data-param="resonance" type="range" min="0.2" max="24" step="0.05"><small>Focuses the sweep into a whistle.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module color">
+          <span class="step">03</span><h2>shape</h2><p>Choose a pass-by swell or a one-direction decay.</p>
+          <label>envelope <output>curve</output><select data-param="envelopeShape"><option value="swell">swell</option><option value="puff">puff</option><option value="linear">linear decay</option><option value="exponential">exponential decay</option></select></label>
+          <label>attack <output data-for="attack"></output><input data-param="attack" type="range" min="0.001" max="0.5" step="0.001"><small>How quickly the sound reaches full volume.</small></label>
+          <label>decay curve <output data-for="decayCurve"></output><input data-param="decayCurve" type="range" min="0.2" max="12" step="0.1"><small>Higher values fade more sharply.</small></label>
+          <label>output gain <output data-for="gain"></output><input data-param="gain" type="range" min="0.005" max="1" step="0.005"><small>Lets subtle effects match their soundtrack level.</small></label>
+          <label>peak position <output data-for="peak"></output><input data-param="peak" type="range" min="0.05" max="0.95" step="0.01"><small>Used by the swell envelope.</small></label>
+          <label>sharpness <output data-for="sharpness"></output><input data-param="sharpness" type="range" min="0.3" max="4" step="0.1"><small>Used by the swell envelope.</small></label>
+          <label>distortion <output data-for="distortion"></output><input data-param="distortion" type="range" min="0" max="100"><small>Adds grit and digital harshness.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module space">
+          <span class="step">04</span><h2>space</h2><p>Stereo movement makes the sound travel.</p>
+          <label>pan start <output data-for="panStart"></output><input data-param="panStart" type="range" min="-1" max="1" step="0.01"></label>
+          <label>pan end <output data-for="panEnd"></output><input data-param="panEnd" type="range" min="-1" max="1" step="0.01"></label>
+          <label>echo <output data-for="delay"></output><input data-param="delay" type="range" min="0" max="0.6" step="0.01"><small>Adds a fading trail.</small></label>
+        </article>
+      </section>
+    </section>
+
+    <section id="beepWorkspace" class="workspace" data-workspace="beep" hidden>
+      <section class="presets" aria-label="Beep presets">
+        <button data-preset="clean">clean beep</button>
+        <button data-preset="click">digital click</button>
+        <button data-preset="chirp">chirp</button>
+        <button data-preset="confirm">confirmation</button>
+        <button data-preset="alert">alert</button>
+        <button data-preset="thock">thocky key</button>
+      </section>
+      <p class="formula">OSCILLATOR <span>→</span> PITCH MOTION <span>→</span> ENVELOPE <span>→</span> COLOR</p>
+      <section class="signal-chain">
+        <article class="module source">
+          <span class="step">01</span><h2>tone</h2><p>A repeating waveform supplies pitch.</p>
+          <label>waveform <output>shape</output><select data-param="wave"><option>sine</option><option>triangle</option><option>square</option><option>sawtooth</option></select></label>
+          <label>start pitch <output data-for="startFreq"></output><input data-param="startFreq" type="range" min="80" max="5000"></label>
+          <label>noise <output data-for="noise"></output><input data-param="noise" type="range" min="0" max="1" step="0.01"><small>Adds texture throughout the beep.</small></label>
+          <label>click <output data-for="click"></output><input data-param="click" type="range" min="0" max="1" step="0.01"><small>Adds the short impact at the front of a key press.</small></label>
+          <label>body <output data-for="body"></output><input data-param="body" type="range" min="0" max="1" step="0.01"><small>Controls the strength of the low thock.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module motion">
+          <span class="step">02</span><h2>motion</h2><p>Pitch movement turns a beep into a chirp.</p>
+          <label>end pitch <output data-for="endFreq"></output><input data-param="endFreq" type="range" min="40" max="5000"></label>
+          <label>duration <output data-for="duration"></output><input data-param="duration" type="range" min="0.02" max="2" step="0.01"></label>
+          <label>attack <output data-for="attack"></output><input data-param="attack" type="range" min="0.001" max="0.4" step="0.001"><small>How quickly the main beep appears.</small></label>
+          <label>body pitch <output data-for="bodyPitch"></output><input data-param="bodyPitch" type="range" min="60" max="400" step="1"><small>Lower values make the impact deeper.</small></label>
+          <label>body decay <output data-for="bodyDecay"></output><input data-param="bodyDecay" type="range" min="0.02" max="0.3" step="0.005"><small>How long the low thock rings.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module color">
+          <span class="step">03</span><h2>color</h2><p>Filtering and distortion alter harmonics.</p>
+          <label>filter <output data-for="filter"></output><input data-param="filter" type="range" min="200" max="12000"><small>Lower values remove sharp highs and sound more muffled.</small></label>
+          <label>resonance <output data-for="resonance"></output><input data-param="resonance" type="range" min="0" max="20" step="0.1"></label>
+          <label>distortion <output data-for="distortion"></output><input data-param="distortion" type="range" min="0" max="100"></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module space">
+          <span class="step">04</span><h2>space</h2><p>Position and echo place the sound.</p>
+          <label>pan <output data-for="pan"></output><input data-param="pan" type="range" min="-1" max="1" step="0.01"></label>
+          <label>echo <output data-for="delay"></output><input data-param="delay" type="range" min="0" max="0.6" step="0.01"></label>
+          <label>feedback <output data-for="feedback"></output><input data-param="feedback" type="range" min="0" max="0.8" step="0.01"><small>Controls repeating echoes.</small></label>
+        </article>
+      </section>
+    </section>
+
+    <section id="droneWorkspace" class="workspace" data-workspace="drone" hidden>
+      <section class="presets" aria-label="Drone presets">
+        <button data-preset="morning">morning light</button>
+        <button data-preset="open">open sky</button>
+        <button data-preset="warm">warm foundation</button>
+        <button data-preset="lift">gentle lift</button>
+        <button data-preset="shimmer">soft shimmer</button>
+      </section>
+      <p class="formula">HARMONY <span>→</span> SOFT TONE <span>→</span> SLOW MOVEMENT <span>→</span> REVERB</p>
+      <section class="signal-chain">
+        <article class="module source">
+          <span class="step">01</span><h2>harmony</h2><p>Consonant notes create the hopeful emotional foundation.</p>
+          <label>root note <output>pitch</output><select data-param="root"><option value="130.81">C</option><option value="146.83">D</option><option value="164.81">E</option><option value="174.61">F</option><option value="196">G</option><option value="220">A</option></select></label>
+          <label>harmony <output>intervals</output><select data-param="harmony"><option value="major">major</option><option value="open">open fifth</option><option value="suspended">suspended</option><option value="octaves">octaves</option></select></label>
+          <label>voices <output data-for="voices"></output><input data-param="voices" type="range" min="1" max="5" step="1"><small>More voices make a wider, richer bed.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module motion">
+          <span class="step">02</span><h2>tone</h2><p>Soft waveforms avoid cinematic or aggressive edges.</p>
+          <label>waveform <output>shape</output><select data-param="wave"><option>sine</option><option>triangle</option></select></label>
+          <label>brightness <output data-for="brightness"></output><input data-param="brightness" type="range" min="300" max="8000"><small>Lower is warmer; higher is clearer.</small></label>
+          <label>warmth <output data-for="warmth"></output><input data-param="warmth" type="range" min="0" max="1" step="0.01"><small>Adds a quiet low octave.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module color">
+          <span class="step">03</span><h2>movement</h2><p>Very slow changes keep a sustained tone alive.</p>
+          <label>breathing speed <output data-for="motionRate"></output><input data-param="motionRate" type="range" min="0.03" max="1" step="0.01"></label>
+          <label>breathing depth <output data-for="motionDepth"></output><input data-param="motionDepth" type="range" min="0" max="1" step="0.01"></label>
+          <label>pitch drift <output data-for="drift"></output><input data-param="drift" type="range" min="0" max="20" step="0.1"><small>Tiny pitch movement, measured in cents.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module space">
+          <span class="step">04</span><h2>space</h2><p>Width and reverb let the drone sit behind narration.</p>
+          <label>stereo width <output data-for="width"></output><input data-param="width" type="range" min="0" max="1" step="0.01"></label>
+          <label>reverb <output data-for="reverb"></output><input data-param="reverb" type="range" min="0" max="1" step="0.01"></label>
+          <label>volume <output data-for="volume"></output><input data-param="volume" type="range" min="0.02" max="0.5" step="0.01"><small>Keep background drones quiet under the video.</small></label>
+        </article>
+      </section>
+    </section>
+
+    <section id="pianoWorkspace" class="workspace" data-workspace="piano" hidden>
+      <section class="presets" aria-label="Piano presets">
+        <button data-preset="natural">natural</button>
+        <button data-preset="mellow">mellow</button>
+        <button data-preset="bright">bright</button>
+        <button data-preset="felt">felt</button>
+        <button data-preset="delicate">delicate</button>
+      </section>
+      <p class="formula">HAMMER <span>→</span> VIBRATING STRINGS <span>→</span> DECAY <span>→</span> ROOM</p>
+      <section class="signal-chain">
+        <article class="module source">
+          <span class="step">01</span><h2>note</h2><p>Pitch chooses the key; velocity controls how firmly it is played.</p>
+          <label>pitch <output>key</output><select data-param="root"><option value="130.81">C3</option><option value="146.83">D3</option><option value="164.81">E3</option><option value="174.61">F3</option><option value="196">G3</option><option value="220">A3</option><option value="246.94">B3</option><option value="261.63">C4</option><option value="293.66">D4</option><option value="329.63">E4</option><option value="349.23">F4</option><option value="392">G4</option><option value="440">A4</option><option value="493.88">B4</option><option value="523.25">C5</option><option value="587.33">D5</option><option value="659.25">E5</option><option value="698.46">F5</option><option value="783.99">G5</option><option value="880">A5</option><option value="987.77">B5</option><option value="1046.50">C6</option><option value="1174.66">D6</option><option value="1318.51">E6</option><option value="1396.91">F6</option><option value="1567.98">G6</option><option value="1760">A6</option><option value="1975.53">B6</option><option value="2093">C7</option><option value="2349.32">D7</option><option value="2637.02">E7</option><option value="2793.83">F7</option><option value="3135.96">G7</option><option value="3520">A7</option><option value="3951.07">B7</option><option value="4186.01">C8</option></select></label>
+          <label>velocity <output data-for="velocity"></output><input data-param="velocity" type="range" min="0.05" max="1" step="0.01"><small>Higher values feel like a harder key press.</small></label>
+          <label>tuning <output data-for="detune"></output><input data-param="detune" type="range" min="-25" max="25" step="0.1"><small>Fine adjustment in cents.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module motion">
+          <span class="step">02</span><h2>hammer</h2><p>A short noise burst creates the initial strike.</p>
+          <label>hardness <output data-for="hardness"></output><input data-param="hardness" type="range" min="0" max="1" step="0.01"><small>Hard hammers create a sharper, brighter strike.</small></label>
+          <label>hammer noise <output data-for="hammer"></output><input data-param="hammer" type="range" min="0" max="1" step="0.01"></label>
+          <label>attack <output data-for="attack"></output><input data-param="attack" type="range" min="0.001" max="0.08" step="0.001"><small>A piano normally begins almost instantly.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module color">
+          <span class="step">03</span><h2>strings</h2><p>Several harmonics decay together to suggest vibrating piano strings.</p>
+          <label>decay <output data-for="decay"></output><input data-param="decay" type="range" min="0.3" max="6" step="0.1"></label>
+          <label>brightness <output data-for="brightness"></output><input data-param="brightness" type="range" min="0" max="1" step="0.01"><small>Controls the strength of upper harmonics.</small></label>
+          <label>string spread <output data-for="spread"></output><input data-param="spread" type="range" min="0" max="1" step="0.01"><small>Detunes paired strings for natural movement.</small></label>
+        </article>
+        <div class="arrow">→</div>
+        <article class="module space">
+          <span class="step">04</span><h2>room</h2><p>The room surrounds the note without changing its pitch.</p>
+          <label>stereo width <output data-for="width"></output><input data-param="width" type="range" min="0" max="1" step="0.01"></label>
+          <label>reverb <output data-for="reverb"></output><input data-param="reverb" type="range" min="0" max="1" step="0.01"></label>
+          <label>volume <output data-for="volume"></output><input data-param="volume" type="range" min="0.02" max="0.5" step="0.01"></label>
+        </article>
+      </section>
+    </section>
+
+    <section id="engineWorkspace" class="workspace" data-workspace="engine" hidden>
+      <section class="presets" aria-label="Engine directions">
+        <button data-preset="servo">felt rotor</button><button data-preset="turbine">glass carousel</button><button data-preset="mechanical">pixel purr</button>
+        <button data-preset="softPawl">soft pawl</button><button data-preset="woodenWheel">wooden wheel</button><button data-preset="digitalRatchet">digital ratchet</button>
+        <button id="engineToggle" type="button">▶ start continuous</button>
+      </section>
+      <p class="formula">PITCH <span>→</span> ROTATION <span>→</span> TEXTURE / RATCHET <span>→</span> SAFE OUTPUT</p>
+      <section class="engine-directions">
+        <p><strong>Felt rotor:</strong> soft piano-like partials.</p><p><strong>Glass carousel:</strong> light FM glass shimmer.</p><p><strong>Pixel purr:</strong> rounded digital resonance.</p><p><strong>Ratchet:</strong> real repeating strikes over an independently mixed soft whirr.</p>
+      </section>
+      <section class="signal-chain engine-chain">
+        <article class="module source"><span class="step">01</span><h2>pitch</h2><p>All tuned layers transpose together. Rotation stays unchanged.</p>
+          <label>engine type <output>structure</output><select data-param="direction"><option value="servo">felt rotor</option><option value="turbine">glass carousel</option><option value="mechanical">pixel purr</option><option value="ratchet">ratchet</option></select></label>
+          <label>base note <output data-for="note"></output><select data-param="note"><option value="36">C2</option><option value="37">C♯2</option><option value="38">D2</option><option value="39">D♯2</option><option value="40">E2</option><option value="41">F2</option><option value="42">F♯2</option><option value="43">G2</option><option value="44">G♯2</option><option value="45">A2</option><option value="46">A♯2</option><option value="47">B2</option><option value="48">C3</option><option value="49">C♯3</option><option value="50">D3</option><option value="51">D♯3</option><option value="52">E3</option><option value="53">F3</option><option value="54">F♯3</option><option value="55">G3</option><option value="56">G♯3</option><option value="57">A3</option><option value="58">A♯3</option><option value="59">B3</option><option value="60">C4</option><option value="61">C♯4</option><option value="62">D4</option><option value="63">D♯4</option><option value="64">E4</option><option value="65">F4</option><option value="66">F♯4</option><option value="67">G4</option><option value="68">G♯4</option><option value="69">A4</option><option value="70">A♯4</option><option value="71">B4</option><option value="72">C5</option><option value="73">C♯5</option><option value="74">D5</option><option value="75">D♯5</option><option value="76">E5</option><option value="77">F5</option><option value="78">F♯5</option><option value="79">G5</option><option value="80">G♯5</option><option value="81">A5</option><option value="82">A♯5</option><option value="83">B5</option><option value="84">C6</option></select><small>Chromatic C2–C6; output shows actual frequency.</small></label>
+          <label>fine tune <output data-for="detune"></output><input data-param="detune" type="range" min="-50" max="50" step="1"></label>
+        </article>
+        <article class="module motion"><span class="step">02</span><h2>motion</h2><p>Speed controls rotation and ratchet cadence, never pitch.</p>
+          <label>speed <output data-for="speed"></output><input data-param="speed" type="range" min="0" max="1" step="0.01"></label>
+          <label>pulse depth <output data-for="pulseDepth"></output><input data-param="pulseDepth" type="range" min="0" max="1" step="0.01"><small>0% is truly steady (ratchet teeth remain separate).</small></label>
+          <label>pulse sharpness <output data-for="pulseSharpness"></output><input data-param="pulseSharpness" type="range" min="0.5" max="8" step="0.1"><small>Broad swells to narrow spoke passes.</small></label>
+        </article>
+        <article class="module color"><span class="step">03</span><h2>texture</h2><p>Live spectral controls shared by every direction.</p>
+          <label>brightness <output data-for="brightness"></output><input data-param="brightness" type="range" min="0" max="1" step="0.01"></label>
+          <label>resonance <output data-for="resonance"></output><input data-param="resonance" type="range" min="0.2" max="12" step="0.1"></label>
+          <label>noise texture <output data-for="noise"></output><input data-param="noise" type="range" min="0" max="0.35" step="0.005"></label>
+          <label>power / low body <output data-for="power"></output><input data-param="power" type="range" min="0" max="1" step="0.01"><small>Adds low body only—not speed or volume.</small></label>
+        </article>
+        <article class="module ratchet" data-ratchet-only><span class="step">04</span><h2>ratchet</h2><p>Dedicated transient teeth over a separate continuous whirr.</p>
+          <label>click level <output data-for="clickLevel"></output><input data-param="clickLevel" type="range" min="0" max="0.7" step="0.01"></label>
+          <label>click tone <output data-for="clickTone"></output><input data-param="clickTone" type="range" min="0" max="1" step="0.01"></label>
+          <label>click decay <output data-for="clickDecay"></output><input data-param="clickDecay" type="range" min="8" max="120" step="1"></label>
+          <label>teeth / turn <output data-for="teeth"></output><input data-param="teeth" type="range" min="1" max="8" step="1"></label>
+          <label>whirr level <output data-for="whirrLevel"></output><input data-param="whirrLevel" type="range" min="0" max="0.6" step="0.01"></label>
+        </article>
+        <article class="module space"><span class="step">05</span><h2>output</h2><p>Level is live. Timing settings apply on the next playback or stop.</p>
+          <label>master volume <output data-for="volume"></output><input data-param="volume" type="range" min="0" max="0.8" step="0.01"></label>
+          <details><summary>playback timing (next playback)</summary>
+            <label>timed duration <output data-for="duration"></output><input data-param="duration" type="range" min="0.1" max="20" step="0.1"></label>
+            <label>spin-up <output data-for="spinUp"></output><input data-param="spinUp" type="range" min="0" max="5" step="0.05"></label>
+            <label>spin-down <output data-for="spinDown"></output><input data-param="spinDown" type="range" min="0" max="5" step="0.05"></label>
+          </details>
+          <p class="engine-note"><strong>Timed play</strong> includes both ramps. Continuous controls marked live update smoothly.</p>
+        </article>
+      </section>
+    </section>
+
+    <section class="saved-section">
+      <div class="saved-heading"><p class="eyebrow">LIBRARY</p><h2>saved sounds</h2></div>
+      <div id="savedList" class="saved-list"><p class="empty">No saved sounds yet.</p></div>
+    </section>
+  </main>
+  <script src="engine-synth.js"></script>
+  <script src="piano-sequence.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

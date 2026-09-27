@@ -21,7 +21,7 @@ All bars are independently editable. These are authoring defaults, not approved 
 | warningFocus | 9.568 | .55 |
 | finalZoom | 10.118 | 2 |
 | streamCollapse / loaderFade / dotDim / smallGridFade | 11.318 | .6 each |
-| cloudEnter | 12.618 | 1.4 |
+| cloudEnter | 11.418 | 1.4 |
 | cloudHold | 14.018 | 3.8 |
 | subtitleBuild | .45 | 1.45 |
 | subtitleTrace | 1.9 | 2.718 |
@@ -35,6 +35,14 @@ Animation 12's first Thinking, intro camera offset, grid, cloud photos, typograp
 At the default 660px/s, streaming reaches x=2094. The extra straight segment reaches the shortened route's elbow at x=2520. Exactly fourteen preceding blocks (2760px) are omitted while preserving the agent circle's velocity. The canonical Animation 7 tail still rises 720px. Camera follows horizontally, stays at that elbow during ascent, then backtracks to the blue/Read/red trio (blue center x=1440). Speed/duration changes still select a compatible route; extra straight distance remains nonnegative and under one 2040px repeat.
 
 The warning is the exact `micro-12/warning.svg`, centered at the blue door's upper-right (screen 820,180 after backtrack). Its independent placement defaults are +180/−180 from the blue center. Whole-world rebase centers it before the only zoom, from scale 1 to 1/48. The final lattice is 100px with 12px dots. Clouds use Animation 12's geometry-entry convention: fixed canvas, ±700px inward/upward entry, original cloud renderer held at progress 0 and yOffset 27. Only the renderer is reused, **not** `Micro09Scene`, its sparkling/title scene, or its playback.
+
+## Spotty macro grid
+
+Figma reference: `VEbMxK1qMXzqjAVJaSQMPs`, frame `4809:20588`, grid `4809:20589`.
+
+`Grid.tsx` retains the existing 15×9 lattice and adds the reference's fixed, row-major placements: **17 muted gray warnings** replace non-hero dots; **24 cells use #1f1f1f** and **8 use #242424**, against the existing #1a1a1a background. The exact Figma warning asset is stored locally at `public/micro-17/scattered-warning.svg` (#3d3d3d triangle / #1a1a1a exclamation). Final dimensions are 37.694×35.005px. Remaining dots stay 12px. The original central red warning is unchanged.
+
+Fills paint below all grid borders. Warnings follow the same camera/content scaling as other occupants and are revealed naturally by the existing final zoom; there is no random re-roll, additional timing track or screen-space overlay. The close-up trace, camera, cloud cover, audio and subtitle timings are unchanged. Shared Animation 12 geometry is not mutated. Ultimate 3 inherits this appearance where it renders `Micro17Scene`; existing exported MP4 files are not regenerated.
 
 ## Architecture / authoring
 
@@ -67,6 +75,6 @@ Before subtitle removal, parent verification also reran both micro-17 test files
 ## Limitations
 
 - No human visual approval or full-motion review is implied by these tests/stills. Pacing and the small extra straight-run duration remain provisional.
-- Keep forward clips ordered, backtracking after ascent, warningFocus before finalZoom, and cloudHold after cloudEnter. Invalid authoring overlaps warn rather than silently changing the edit; deliberately instantaneous bars can create intentional jumps.
+- Keep forward clips ordered, backtracking after ascent, warningFocus before finalZoom, and cloudHold after cloudEnter. Cloud entry may overlap finalZoom: its cover is a screen-pinned sibling of the zooming World. The default entry overlaps the final 0.7 seconds of zoom; saved custom timelines remain authoritative and their cloudEnter bar can be dragged earlier. Invalid authoring overlaps warn rather than silently changing the edit; deliberately instantaneous bars can create intentional jumps.
 - WebGL2/ANGLE and the existing read-only shared assets are required. Shared source changes to 7/10/12 or the cloud renderer can intentionally affect this experiment.
 - Vite reports the repository's existing >500kB bundle warning. No new dependencies or global styles were added.

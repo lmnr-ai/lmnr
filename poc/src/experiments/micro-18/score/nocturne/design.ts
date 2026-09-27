@@ -1,7 +1,7 @@
 import type {ScoreCues} from '../cues';
 import {clamp} from '../dsp';
 import {typing} from '../keyboards';
-import {beep, drain, impact, piano, pizz, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
+import {beep, drain, impact, keyClick, piano, pizz, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
 
 /*
  * Nocturne foley is deliberately quiet: moves are breath, not swooshes, and the machine speaks
@@ -17,7 +17,7 @@ const LOW: Route = {bus: 'sfx', hall: .08};
 export function planNocturneDucks(mix: Mix, cues: ScoreCues) {
   const {ultimate2: u2, cost, issues} = cues;
   for (const time of [u2.warning, cost.bashWarning]) mix.duck(time, .7, .03, .35, .7);
-  mix.duck(issues.windowShut, .75, .08, issues.windowUp.at - issues.windowShut - .2, .6);
+  if (issues.postludeActive) mix.duck(issues.windowShut, .75, .08, issues.windowUp.at - issues.windowShut - .2, .6);
 }
 
 type PingOptions = {length?: number; wave?: 'sine' | 'square' | 'triangle'; attack?: number; glide?: number};
@@ -179,6 +179,7 @@ function flow(mix: Mix, cues: ScoreCues, key: number, t: Telemetry) {
 
 function issues(mix: Mix, cues: ScoreCues, key: number, t: Telemetry) {
   const i = cues.issues;
+  if (!i.postludeActive) return;
   // Every issue found: a short sine ping, pitched by height; the piano takes every third one.
   const scale = [75, 77, 79, 82, 84, 87, 89, 91, 94];
   i.pops.forEach((item, index) => {
@@ -194,7 +195,9 @@ function issues(mix: Mix, cues: ScoreCues, key: number, t: Telemetry) {
 
   whoosh(mix, i.windowDown.at, i.windowDown.duration, AIR, {from: 1600, to: 360, level: .26, peak: .6});
   thock(mix, i.windowShut, .45, TOUCH);
-  typing(mix, i.typing, TOUCH, [.3, .15]);
+  // Keep the active thock's shared PCM/event identities; retain alternate offline keyboard models.
+  if (mix.keyboard && mix.keyboard.id !== 'thock') typing(mix, i.typing, TOUCH, [.3, .15]);
+  else for (const event of i.typingEvents) keyClick(mix, event.time, .375, TOUCH, event.voice);
   for (const time of [i.issueBadge, i.queryBadge]) t.ping(mix, time, key + 87, .18, {...TECH, pan: .2}, {length: .06});
   whoosh(mix, i.messageSend - .04, .3, TOUCH, {from: 900, to: 3800, level: .18, q: 1.8, peak: .7, panFrom: -.2, panTo: .4, air: .4});
   t.ping(mix, i.messageSend + .2, key + 91, .16, {...TECH, pan: .3}, {length: .05});

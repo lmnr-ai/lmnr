@@ -8,8 +8,9 @@ export const Micro17Scene = ({playback, controls = DEFAULTS}: {playback: Playbac
   const state = worldState(playback, controls);
   return <div className="micro17-composition" aria-label="Ultimate 2: continuous trace, upward turn, three garage doors, warning zoom and permanent cloud cover">
     <World state={state} playback={playback} controls={controls}/>
-    {/* Only the original cloud renderer, permanently at its cover pose. There
-        is no Signals title, sparkling grid, Animation 9 playback, or exit. */}
+    {/* Screen-pinned sibling of World, never inside its camera transform:
+        cloudEnter may overlap finalZoom without scaling the clouds.
+        Only the original cover renderer; no Animation 9 playback or exit. */}
     {state.cloudEnter > 0 && <div className="micro17-cover">
       <DitherClouds progress={state.cloudProgress} yOffset={27} translateY={state.cloudTranslateY} translateX={state.cloudTranslateX}/>
     </div>}

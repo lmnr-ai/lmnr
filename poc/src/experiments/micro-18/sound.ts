@@ -2,8 +2,8 @@ import {computeStaticTimeline, parseTimelineConfig} from 'dialkit/timeline';
 import {resolveMicro16Clips} from '../micro-16/timeline';
 import {resolveClips as resolveMicro17Clips} from '../micro-17/timeline';
 import {micro17CloudInWindow, type AgentWindowSoundTiming, type CameraMoveWindow, type CloudWhooshWindows, type DirectionalWhooshWindow, type DotTwinkleCue, type FlowDoorSoundTiming} from '../micro-17/stream-run-sound';
-import {chapterSchedule} from './sample';
-import type {ClipTiming, Ultimate3Settings} from './settings';
+import {chapterSchedule, issueHandoffValidation} from './sample';
+import {issuePostludeOffset, type ClipTiming, type Ultimate3Settings} from './settings';
 
 const resolvedDuration = (timing: ClipTiming) => {
   if (timing.duration === 0) return 0;
@@ -108,9 +108,10 @@ export function ultimate3FlowDoorSoundTiming(settings: Ultimate3Settings): FlowD
   };
 }
 
-export function ultimate3AgentWindowSoundTiming(settings: Ultimate3Settings): AgentWindowSoundTiming {
+export function ultimate3AgentWindowSoundTiming(settings: Ultimate3Settings): AgentWindowSoundTiming | undefined {
+  if (issueHandoffValidation(settings)) return undefined;
   const issuesStart = chapterSchedule(settings).find(chapter => chapter.id === 'issues')!.start;
-  const nativeStart = issuesStart + settings.issues.leadIn.at + settings.issues.leadIn.duration;
+  const nativeStart = issuesStart + issuePostludeOffset(settings);
   const enter = settings.issues.timing.agentWindowEnter;
   const exit = settings.issues.timing.agentWindowExit;
   const rounded = (value: number) => Math.round(value * 1e9) / 1e9;

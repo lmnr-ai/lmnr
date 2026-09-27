@@ -87,6 +87,7 @@ export function typeOut(mix: Mix, window: Span, keyboard: Keyboard, velocity: nu
 
 /** The agent window's typing: `mix.keyboard` when one is chosen, else the original low-profile click at ~22 Hz. */
 export function typing(mix: Mix, windows: readonly Span[], route: Route, [low, spread]: [number, number]) {
+  if (!mix.typingEnabled) return;
   for (const window of windows) {
     if (mix.keyboard) { typeOut(mix, window, mix.keyboard, low + spread / 2, route); continue; }
     for (let t = 0; t < window.duration; ) {

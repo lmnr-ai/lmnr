@@ -41,3 +41,8 @@
 .micro18-nav{display:flex;flex-wrap:wrap;gap:4px;padding:0}
 .micro18-nav button,.micro18-settings button{border:1px solid #555;border-radius:0;background:#242424;color:#ddd;padding:5px 8px;font:11px monospace}.micro18-nav button[data-active=true]{background:#eee;color:#111}
 .micro18-settings{width:280px;padding:2px 0;font:11px monospace}.micro18-settings textarea{box-sizing:border-box;width:100%;height:120px;background:#222;color:#eee;font:10px monospace}
+
+/* Source20 is a transparent occupant of the same scrolling surface during
+   entry; only the outer authored viewport clips the continuous lattice. */
+.micro18-issues-surface{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;z-index:5}
+.micro18-issues-surface[data-entry=true]>.micro20-composition{background:transparent}

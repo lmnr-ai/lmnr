@@ -1,6 +1,7 @@
 import {resolveMicro16Clips} from '../../micro-16/timeline';
-import {sampleUltimate3, chapterSchedule, ultimate3DurationFrames} from '../sample';
-import {normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
+import {sampleUltimate3, chapterSchedule, ultimate3DurationFrames, issueHandoffValidation} from '../sample';
+import {issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
+import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
 import {ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow} from '../sound';
 
 export type Span = {at: number; duration: number};
@@ -29,7 +30,8 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
   const flowStart = chapter.flow.start, entry = settings.flow.entrySlide;
   const flowNative = round(flowStart + entry.at + entry.duration), flow = settings.flow.timing;
   const issuesStart = chapter.issues.start;
-  const issuesNative = round(issuesStart + settings.issues.leadIn.at + settings.issues.leadIn.duration);
+  const issuesNative = round(issuesStart + issuePostludeOffset(settings));
+  const postludeActive = !issueHandoffValidation(settings) && issuesNative < chapter.issues.end;
   const issues = settings.issues.timing;
   const clouds = ultimate3CloudWhooshWindows(settings);
 
@@ -93,15 +95,17 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       coverTint: span(flowNative, flow.coverTint),
     },
     issues: {
+      postludeActive,
       leadIn: {at: issuesStart, duration: round(issuesNative - issuesStart)},
       native: issuesNative,
-      pops: issuePops(settings, issuesNative),
+      pops: postludeActive ? issuePops(settings, issuesNative) : [],
       travel: {at: round(issuesNative + issues.travelStart.at), duration: settings.issues.controls.travelDuration},
-      clusters: clusterLocks(settings, issuesNative),
+      clusters: postludeActive ? clusterLocks(settings, issuesNative) : [],
       ready: at(issuesNative, issues.subtitleReady),
       windowDown: span(issuesNative, issues.agentWindowEnter),
       windowShut: round(issuesNative + issues.agentWindowEnter.at + issues.agentWindowEnter.duration - .05),
-      typing: typingWindows(settings, issuesNative),
+      typing: ultimate3TypingWindows(settings).map(window => ({at: round(window.start), duration: round(window.end - window.start)})),
+      typingEvents: ultimate3TypingTickEvents(settings),
       issueBadge: at(issuesNative, issues.issueWarningIn),
       messageSend: at(issuesNative, issues.messageSend),
       queryBadge: at(issuesNative, issues.queryWarningIn),
@@ -124,7 +128,7 @@ function issuePops(settings: Ultimate3Settings, native: number): IssuePop[] {
   let last: ReturnType<typeof sampleUltimate3> | undefined;
   for (let time = native; time <= native + appearance.at + appearance.duration + .1; time += step) {
     last = sampleUltimate3(time, settings);
-    const sample = last.issues?.sample;
+    const sample = last.issues?.postludeActive ? last.issues.sample : undefined;
     for (const [id, value] of Object.entries(sample?.warningAppearance ?? {})) {
       if (value <= 0 || seen.has(id)) continue;
       const pose = sample!.tokens.find(item => item.token.id === id)!;
@@ -140,19 +144,6 @@ function issuePops(settings: Ultimate3Settings, native: number): IssuePop[] {
 
 function clusterLocks(settings: Ultimate3Settings, native: number) {
   const sample = sampleUltimate3(native + settings.issues.timing.travelStart.at, settings);
-  return Object.values(sample.issues?.sample.clusters ?? {}).map(cluster => round(native + cluster.readyAt)).sort((a, b) => a - b);
+  return Object.values(sample.issues?.postludeActive ? sample.issues.sample.clusters : {}).map(cluster => round(native + cluster.readyAt)).sort((a, b) => a - b);
 }
 
-function typingWindows(settings: Ultimate3Settings, native: number): Span[] {
-  const timing = settings.issues.timing;
-  const sendEnd = timing.messageSend.at + timing.messageSend.duration;
-  const afterSend = (clip: ClipTiming) => ({...clip, at: Math.max(clip.at, sendEnd)});
-  const windows = [timing.promptTyping, timing.issueTyping, afterSend(timing.cliCommandTyping), afterSend(timing.sqlQueryTyping), afterSend(timing.sqlPredicateTyping)]
-    .filter(clip => clip.duration > 0).map(clip => ({start: native + clip.at, end: native + clip.at + clip.duration})).sort((a, b) => a.start - b.start);
-  const merged: {start: number; end: number}[] = [];
-  for (const window of windows) {
-    const previous = merged.at(-1);
-    if (previous && window.start <= previous.end) previous.end = Math.max(previous.end, window.end); else merged.push({...window});
-  }
-  return merged.map(window => ({at: round(window.start), duration: round(window.end - window.start)}));
-}

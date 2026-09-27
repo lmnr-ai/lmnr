@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {CELL_COUNT, cellCenter} from '../../micro-14/geometry';
-import {START_CELLS} from '../../micro-15/starting-positions';
+import {chapterSchedule, sampleUltimate3} from '../sample';
 import {ULTIMATE_3_DEFAULTS} from '../settings';
 import {BEAT, ultimate3ScoreCues} from './cues';
 import {integratedLufs, seeded, SR, toDb, truePeak} from './dsp';
@@ -16,15 +15,16 @@ import {chordAt, progression, type Chord} from './writing';
 const cues = ultimate3ScoreCues(ULTIMATE_3_DEFAULTS);
 // Ultimate 2 runs 14.518s, so everything after it shares one grid phased from the Cost start.
 const onBeat = (time: number) => { const beats = (time - cues.chapter.cost.start) / BEAT; return Math.abs(beats - Math.round(beats)) < 1e-6; };
-for (const [id, chapter] of Object.entries(cues.chapter)) if (id !== 'ultimate2') assert.ok(onBeat(chapter.start), `${id} starts on the 120 BPM grid`);
-assert.ok(onBeat(cues.flow.reveal) && onBeat(cues.conclusion.logo), 'the Flow-1 drop and the logo sting are downbeats');
+for (const chapter of chapterSchedule(ULTIMATE_3_DEFAULTS)) assert.equal(cues.chapter[chapter.id].start, chapter.start, `${chapter.id} follows the actual schedule, not a forced beat`);
+assert.ok(onBeat(cues.flow.reveal), 'the Flow-1 drop remains a downbeat');
 assert.equal(cues.issues.pops.length, 47, 'one pop per issue triangle');
 assert.ok(cues.issues.pops.every((pop, i, all) => (i === 0 || pop.at >= all[i - 1].at) && Math.abs(pop.pan) <= .8 && pop.height >= 0 && pop.height <= 1),
   'pops are ordered and carry on-screen position');
-// Triangles pop at their scattered start cells, not at their cluster (home) cells.
-const starts = Object.values(START_CELLS).map(cell => cellCenter(cell));
-const gridX = Array.from({length: CELL_COUNT}, (_, cell) => cellCenter(cell).x), [minX, maxX] = [Math.min(...gridX), Math.max(...gridX)];
-const expectedPans = starts.map(c => (c.x - minX) / (maxX - minX) * 1.6 - .8).sort((a, b) => a - b);
+// Source20's visible handoff, never the prelude's Micro15 compatibility pose.
+const visible = sampleUltimate3(cues.issues.native + .01, ULTIMATE_3_DEFAULTS).issues!;
+assert.ok(visible.postludeActive);
+const gridX = visible.sample.groundDots.map(dot => dot.x), [minX, maxX] = [Math.min(...gridX), Math.max(...gridX)];
+const expectedPans = visible.sample.tokens.filter(token => visible.sample.warningAppearance[token.token.id] > 0).map(token => (token.x - minX) / (maxX - minX) * 1.6 - .8).sort((a, b) => a - b);
 assert.deepEqual(cues.issues.pops.map(pop => pop.pan).sort((a, b) => a - b).map(p => p.toFixed(3)), expectedPans.map(p => p.toFixed(3)), 'pops are panned where each triangle appears');
 assert.equal(cues.issues.clusters.length, 6, 'one lock per cluster');
 assert.ok(cues.issues.typing.every(window => window.at >= cues.issues.windowDown.at), 'typing only happens inside the agent window');

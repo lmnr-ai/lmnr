@@ -102,3 +102,18 @@ export const projectWorldPoint = (point: Point, camera: SharedCamera): Point => 
   x: camera.x + point.x * camera.scale,
   y: camera.y + point.y * camera.scale,
 });
+
+/** Place source20's opening screen below the actual (possibly retimed) Flow
+ * endpoint. Its 120px local lattice is the same canonical grid as Cost. */
+export function issueSurfacePlacement(outgoing: SharedCamera): SharedCamera {
+  return {
+    x: Math.round(((640 - outgoing.x) / outgoing.scale - (640 + 19.5) * 5 / 6) / 100) * 100 + COST_NATIVE_TO_WORLD.x,
+    y: Math.ceil(((720 - outgoing.y) / outgoing.scale) / 100) * 100 + 600 + COST_NATIVE_TO_WORLD.y,
+    scale: COST_NATIVE_TO_WORLD.scale,
+  };
+}
+export const issueOpeningCamera = (placement: SharedCamera): SharedCamera => ({
+  x: -placement.x / placement.scale, y: -placement.y / placement.scale, scale: 1 / placement.scale,
+});
+export const flowIssuesCamera = (outgoing: SharedCamera, progress: number): SharedCamera =>
+  interpolateCamera(outgoing, issueOpeningCamera(issueSurfacePlacement(outgoing)), progress);
