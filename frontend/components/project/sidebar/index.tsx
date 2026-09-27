@@ -2,6 +2,7 @@
 
 import React from "react";
 
+import FeatureBanners from "@/components/feature-banners";
 import ProjectSidebarHeader from "@/components/project/sidebar/header.tsx";
 import SidebarFooter from "@/components/projects/sidebar-footer.tsx";
 import { Sidebar } from "@/components/ui/sidebar";
@@ -18,6 +19,7 @@ export default function ProjectSidebar({ details }: ProjectSidebarProps) {
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
       <ProjectSidebarContent details={details} />
+      <FeatureBanners />
       <SidebarFooter />
     </Sidebar>
   );
