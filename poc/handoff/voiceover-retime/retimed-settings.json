@@ -5,7 +5,7 @@
   "cost": 13.7,
   "flow": 12.5,
   "issues": 14.633333333333333,
-  "conclusion": 5.5
+  "conclusion": 6.25
  },
  "pacing": {
   "ultimate2HandoffHold": 1.65,
@@ -1549,10 +1549,20 @@
  "conclusion": {
   "placeholder": {
    "at": 0,
-   "duration": 3
+   "duration": 3.75,
+   "transition": {
+    "type": "easing",
+    "duration": 3,
+    "ease": [
+     0.45,
+     0,
+     0.55,
+     1
+    ]
+   }
   },
   "logo": {
-   "at": 3,
+   "at": 3.75,
    "duration": 2.5
   }
  }

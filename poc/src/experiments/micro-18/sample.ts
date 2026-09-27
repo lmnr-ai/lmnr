@@ -50,7 +50,10 @@ export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimat
   }
   if (located.localTime >= settings.conclusion.logo.at) return {...base, conclusion: 'logo'};
   const terminal = sampleIssues(issueEntryEnd(settings) + issueEndpoint(settings), settings).source20;
-  const conclusionSource = terminal.phase === 'issues' ? {...terminal, outro: sampleIssueOutro(terminal.issue, located.localTime, settings.conclusion.placeholder)} : terminal;
+  // A shorter explicit easing finishes the pullback early, then holds the pulled-back pose until the logo cut.
+  const card = settings.conclusion.placeholder, ease = card.transition?.type === 'easing' ? card.transition.duration : undefined;
+  const pullback = ease !== undefined && ease < card.duration ? {...card, duration: ease} : card;
+  const conclusionSource = terminal.phase === 'issues' ? {...terminal, outro: sampleIssueOutro(terminal.issue, located.localTime, pullback)} : terminal;
   return {...base, conclusionSource, conclusion: 'placeholder'};
 }
 

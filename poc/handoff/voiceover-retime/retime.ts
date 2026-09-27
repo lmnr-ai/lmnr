@@ -70,7 +70,8 @@ s.issues.controls = {...s.issues.controls, timelineDuration: 6.4};
 s.issues.preludeControls = {...s.issues.preludeControls, timelineDuration: 1};
 function clipEndOf(c: Clip) { return c.at + c.duration; }
 
-s.conclusion = {placeholder: {...s.conclusion.placeholder, duration: 3}, logo: {...s.conclusion.logo, at: 3, duration: 2.5}};
+// The 3 s pullback eases out, then holds zoomed out for .75 s after "agent traces".
+s.conclusion = {placeholder: {...s.conclusion.placeholder, duration: 3.75, transition: {type: 'easing', duration: 3, ease: [.45, 0, .55, 1]}}, logo: {...s.conclusion.logo, at: 3.75, duration: 2.5}};
 s.allocations = {ultimate2: 0, cost: 0, flow: 0, issues: 0, conclusion: 0};
 
 const settings = normalizeSettings(s);
@@ -101,7 +102,7 @@ const phrases: [string, number, number, number, number][] = [
   ['and clusters them into high-level patterns,', 48.13, 50.32, 48.21, postlude + .2],
   ['ready for you or your coding agent.', 50.7, 52.66, 50.78, postlude + 2.75],
   ['Unlock the insights hiding in millions of agent traces', 53.23, 56.09, 53.31, ch.conclusion + .1],
-  ['with Laminar.', 56.18, 56.97, 56.26, ch.conclusion + 3.1],
+  ['with Laminar.', 56.18, 56.97, 56.26, ch.conclusion + 3.85],
 ];
 const placed = phrases.map(([text, a, b, onset, out]) => ({text, a, b, at: r3(out - (onset - a))}));
 placed.forEach((p, i) => {
