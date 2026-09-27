@@ -86,6 +86,13 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 - The redactor is best-effort: gRPC failures, response-length mismatches, and parse errors all log and return without mutating the batch. Redaction failures must NEVER block trace ingestion.
 - Redaction does NOT patch `MessageBatch::span_content_bytes` (computed pre-redaction), so an opted-in project is billed the raw size of storage-miss content; the over-bill is bounded by the redactor's shrinkage and accepted for simplicity (see the `redact_spans_in_place` doc comment).
 
+## Feature banners (sidebar "what's new" cards, prototype)
+
+- Lives in `components/feature-banners/`, mounted in `components/project/sidebar/index.tsx` between content and footer (project sidebar only; the footer is shared with workspace sidebars). Data is `lib/feature-banners/mock.ts`; the `FeatureBanner` type is in `lib/feature-banners/types.ts`. Acknowledgments are an unpersisted Zustand store on purpose — reload resets them until the data source/persistence is decided (LAM-2047).
+- Variants switch via `?bannerVariant=A|B|C` plus the dev-only `components/common/prototype-switcher.tsx` (Alt+←/→; plain arrows are already bound in trace view/tables). Tunables live in DialKit (`dials.ts`, `dialkit` + `motion` devDependencies); `<DialRoot>` renders only outside production, `useDialKit` still returns the defaults in prod.
+- `motion` is pinned to the same major as `framer-motion` so `motion/react` resolves to the one installed copy — keep them in lockstep.
+- Stacked grid cards (`col-start-1 row-start-1`) need `grid-cols-[minmax(0,1fr)]`; an `auto` track grows to the content's width and overflows the sidebar.
+
 ## Next.js Catch-all Route Params
 
 - In Next.js 16 App Router, **catch-all** (`[...slug]`) dynamic params are NOT auto-decoded — `await props.params` returns the raw URL-encoded segments. Single-segment dynamic params (`[slug]`) ARE auto-decoded. If a caller uses `encodeURIComponent` on an id containing URL-unsafe chars (e.g. Slack ids `slack:C0ATXMVNUH1:...`) and the target route is catch-all, the page must `decodeURIComponent` each segment or the encoded `%3A`s flow into downstream filters and the API double-encodes them (`%253A`) yielding zero results. See `app/project/[projectId]/sessions/[...sessionId]/page.tsx`.
