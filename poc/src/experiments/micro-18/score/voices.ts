@@ -1,4 +1,5 @@
 import {OnePole, Saw, Sine, Stereo, Svf, clamp, gateEnv, mtof, panGains, pluckEnv, samples, type Rng} from './dsp';
+import type {Keyboard} from './keyboards';
 
 export type BusName = 'music' | 'sfx';
 export type Route = {bus: BusName; gain?: number; pan?: number; hall?: number; room?: number; delay?: number};
@@ -13,6 +14,8 @@ export class Mix {
   /** Gain multiplier applied to the music bus (and its sends) — lets foley breathe through the score. */
   readonly musicGain: Float32Array;
   readonly counts: Record<string, number> = {};
+  /** The agent window's keyboard (`keyboards.ts`); unset keeps the original click. */
+  keyboard?: Keyboard;
   constructor(readonly length: number, readonly random: Rng, readonly piano: PianoBank, readonly strings: StringBanks = {}) {
     this.music = new Stereo(length); this.sfx = new Stereo(length);
     this.hall = new Stereo(length); this.room = new Stereo(length); this.delay = new Stereo(length);

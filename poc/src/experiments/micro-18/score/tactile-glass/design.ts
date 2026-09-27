@@ -1,5 +1,6 @@
 import type {ScoreCues} from '../cues';
-import {bell, dive, drain, impact, keyClick, marker, pop, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
+import {typing} from '../keyboards';
+import {bell, dive, drain, impact, marker, pop, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
 
 /*
  * Foley for the picture: every move, lock and error has a physical sound. It
@@ -179,12 +180,7 @@ function issues(mix: Mix, cues: ScoreCues) {
   // The agent window drops in, typing, a send, and back out.
   whoosh(mix, i.windowDown.at, i.windowDown.duration, AIR, {from: 1800, to: 360, level: .45, peak: .6, panFrom: 0, panTo: 0});
   thock(mix, i.windowShut, .7, TOUCH);
-  for (const window of i.typing) {
-    for (let t = 0; t < window.duration; ) {
-      keyClick(mix, window.at + t, .45 + mix.random() * .25, {...TOUCH, pan: (mix.random() - .5) * .3});
-      t += (1 / 22) * (.7 + mix.random() * .6);
-    }
-  }
+  typing(mix, i.typing, TOUCH, [.45, .25]);
   for (const time of [i.issueBadge, i.queryBadge]) pop(mix, time, 88, .5, {...TOUCH, pan: .2});
   whoosh(mix, i.messageSend - .04, .32, TOUCH, {from: 900, to: 4400, level: .38, q: 1.8, peak: .7, panFrom: -.2, panTo: .4, air: .5});
   bell(mix, i.messageSend + .22, 86, .38, {...GLASS, pan: .3}, {decay: .7, ratio: 3.5, index: 1});

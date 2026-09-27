@@ -1,6 +1,7 @@
 import {arabesque, arabesqueAcoustic} from './arabesque';
 import {aria, ariaAcoustic} from './aria';
 import {ultimate3ScoreCues} from './cues';
+import {KEYBOARDS} from './keyboards';
 import {nocturne, nocturneAcoustic, nocturneDigital, nocturneDuet} from './nocturne';
 import {phase} from './phase';
 import {signal} from './signal';
@@ -13,7 +14,7 @@ import type {Ultimate3Settings} from '../settings';
 
 export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, nocturneDuet, nocturneDigital, phase, tintinnabuli].map(style => [style.id, style]));
 
-export type ScoreRenderOptions = {style?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean};
+export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean};
 export type ScoreReport = {
   style: string; duration: number; lufs: number; truePeakDb: number; limiterDb: number;
   stems: Record<string, {lufs: number; peakDb: number}>; counts: Record<string, number>;
@@ -33,6 +34,10 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
   const style = SCORE_STYLES[options.style ?? tactileGlass.id];
   if (!style) throw new Error(`Unknown score style "${options.style}". Available: ${Object.keys(SCORE_STYLES).join(', ')}`);
   const mix = new Mix(length, seeded(options.seed ?? 0x1a31a), style.keys?.() ?? piano, options.strings);
+  if (options.keyboard) {
+    mix.keyboard = KEYBOARDS[options.keyboard];
+    if (!mix.keyboard) throw new Error(`Unknown keyboard "${options.keyboard}". Available: ${Object.keys(KEYBOARDS).join(', ')}`);
+  }
 
   style.ducks(mix, cues);
   style.compose(mix, cues);

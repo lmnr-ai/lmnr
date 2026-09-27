@@ -1,5 +1,6 @@
 // Renders an Ultimate 3 score offline (pure Node DSP, no browser) and optionally muxes it onto a render.
 //   pnpm ultimate3:score [--style tactile-glass|nocturne|signal|aria|arabesque|<style>-acoustic|nocturne-duet|nocturne-digital|phase|tintinnabuli] [--settings file.json] [--out out/ultimate3-<style>.wav]
+//                        [--keyboard laptop|thock|clack|spring|membrane]
 //                        [--video out/u3-silent.mp4 --mp4 out/u3.mp4] [--stems]
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -60,7 +61,7 @@ const settings: Ultimate3Settings = settingsFile ? JSON.parse(fs.readFileSync(re
 const style = option('style') ?? 'tactile-glass';
 const wav = resolve(option('out') ?? (style === 'tactile-glass' ? 'out/ultimate3-score.wav' : `out/ultimate3-${style}.wav`));
 const started = performance.now();
-const {master, report, stems} = renderUltimate3Score(settings, loadPiano(), {style, strings: SCORE_STYLES[style]?.strings ? loadStrings() : {}, stems: args.includes('--stems')});
+const {master, report, stems} = renderUltimate3Score(settings, loadPiano(), {style, keyboard: option('keyboard'), strings: SCORE_STYLES[style]?.strings ? loadStrings() : {}, stems: args.includes('--stems')});
 writeWav(wav, master);
 if (stems) for (const [name, stem] of Object.entries(stems)) writeWav(wav.replace(/\.wav$/, `.${name}.wav`), stem);
 console.log(JSON.stringify({...report, wav, renderSeconds: +((performance.now() - started) / 1000).toFixed(1)}, null, 2));

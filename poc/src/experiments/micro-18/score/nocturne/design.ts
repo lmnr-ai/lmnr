@@ -1,6 +1,7 @@
 import type {ScoreCues} from '../cues';
 import {clamp} from '../dsp';
-import {beep, drain, impact, keyClick, piano, pizz, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
+import {typing} from '../keyboards';
+import {beep, drain, impact, piano, pizz, puff, thock, tick, whoosh, type Mix, type Route} from '../voices';
 
 /*
  * Nocturne foley is deliberately quiet: moves are breath, not swooshes, and the machine speaks
@@ -193,12 +194,7 @@ function issues(mix: Mix, cues: ScoreCues, key: number, t: Telemetry) {
 
   whoosh(mix, i.windowDown.at, i.windowDown.duration, AIR, {from: 1600, to: 360, level: .26, peak: .6});
   thock(mix, i.windowShut, .45, TOUCH);
-  for (const window of i.typing) {
-    for (let at = 0; at < window.duration; ) {
-      keyClick(mix, window.at + at, .3 + mix.random() * .15, {...TOUCH, pan: (mix.random() - .5) * .3});
-      at += (1 / 22) * (.7 + mix.random() * .6);
-    }
-  }
+  typing(mix, i.typing, TOUCH, [.3, .15]);
   for (const time of [i.issueBadge, i.queryBadge]) t.ping(mix, time, key + 87, .18, {...TECH, pan: .2}, {length: .06});
   whoosh(mix, i.messageSend - .04, .3, TOUCH, {from: 900, to: 3800, level: .18, q: 1.8, peak: .7, panFrom: -.2, panTo: .4, air: .4});
   t.ping(mix, i.messageSend + .2, key + 91, .16, {...TECH, pan: .3}, {length: .05});

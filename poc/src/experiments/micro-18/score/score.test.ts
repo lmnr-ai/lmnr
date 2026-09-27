@@ -4,10 +4,11 @@ import {CELL_COUNT, cellCenter} from '../../micro-14/geometry';
 import {START_CELLS} from '../../micro-15/starting-positions';
 import {ULTIMATE_3_DEFAULTS} from '../settings';
 import {BEAT, ultimate3ScoreCues} from './cues';
-import {integratedLufs, SR, toDb, truePeak} from './dsp';
+import {integratedLufs, seeded, SR, toDb, truePeak} from './dsp';
 import {renderUltimate3Score, SCORE_STYLES} from './render';
 import {composeAria} from './aria/composition';
 import {composeNocturne} from './nocturne/composition';
+import {KEYBOARDS, typing} from './keyboards';
 import {beatOf, gridOf} from './style';
 import {bowed, Mix, reverseSwell, riser, type PianoBank, type StringBanks} from './voices';
 import {chordAt, progression, type Chord} from './writing';
@@ -81,4 +82,12 @@ const rms = (from: number, to: number) => Math.sqrt(held.music.l.subarray(from *
 assert.ok(rms(7, 8.5) > rms(1, 2) * .7, 'long bowed notes keep sounding past the 6 s sample');
 assert.throws(() => bowed(new Mix(SR, () => .5, []), 0, .5, 72, {bus: 'music'}), /Missing "violin" string samples/);
 assert.throws(() => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style: 'nope'}), /Unknown score style/);
+assert.throws(() => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style: 'nocturne', keyboard: 'nope'}), /Unknown keyboard/);
+for (const keyboard of Object.values(KEYBOARDS)) {
+  const mix = new Mix(SR * 2, seeded(1), piano);
+  mix.keyboard = keyboard;
+  typing(mix, cues.issues.typing.map(window => ({...window, at: window.at - cues.issues.typing[0].at + .1})), {bus: 'sfx'}, [.3, .15]);
+  const strokes = mix.counts.keystroke, seconds = cues.issues.typing.reduce((sum, window) => sum + window.duration, 0);
+  assert.ok(!mix.counts.keyClick && strokes >= 4 * cues.issues.typing.length && strokes / seconds < 16, `${keyboard.id}: typed at a human rate (${strokes} keys)`);
+}
 console.log('score tests passed');

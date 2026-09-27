@@ -1,5 +1,6 @@
 import type {ScoreCues} from '../cues';
-import {bell, beep, drain, impact, keyClick, thock, whoosh, type Mix, type Route} from '../voices';
+import {typing} from '../keyboards';
+import {bell, beep, drain, impact, thock, whoosh, type Mix, type Route} from '../voices';
 
 /*
  * Signal foley is the machine's own voice: FM blips, sample-and-hold data chatter and square-wave
@@ -123,12 +124,7 @@ function issues(mix: Mix, cues: ScoreCues) {
 
   whoosh(mix, i.windowDown.at, i.windowDown.duration, AIR, {from: 1600, to: 360, level: .26, peak: .6});
   thock(mix, i.windowShut, .45, TOUCH);
-  for (const window of i.typing) {
-    for (let t = 0; t < window.duration; ) {
-      keyClick(mix, window.at + t, .3 + mix.random() * .15, {...TOUCH, pan: (mix.random() - .5) * .3});
-      t += (1 / 22) * (.7 + mix.random() * .6);
-    }
-  }
+  typing(mix, i.typing, TOUCH, [.3, .15]);
   for (const time of [i.issueBadge, i.queryBadge]) blip(mix, time, 88, .3, .2);
   whoosh(mix, i.messageSend - .04, .3, TOUCH, {from: 900, to: 3800, level: .18, q: 1.8, peak: .7, panFrom: -.2, panTo: .4, air: .4});
   blip(mix, i.messageSend + .2, 93, .28, .3);
