@@ -5,6 +5,7 @@ import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import { withBasePath } from "@/lib/utils";
 
 import { type FeatureBannerDials } from "./dials";
 import { useFeatureBannerStore } from "./store";
@@ -25,7 +26,7 @@ const FeatureBannerDetailsDialog = ({ dials }: FeatureBannerDetailsDialogProps) 
         {shown && (
           <>
             <img
-              src={shown.image_src}
+              src={withBasePath(shown.image_src)}
               alt=""
               className="w-full object-cover object-top border-b"
               style={{ maxHeight: dials.modal.imageMaxHeight }}

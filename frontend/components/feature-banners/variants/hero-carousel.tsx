@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
 import { type FeatureBanner } from "@/lib/feature-banners/types";
-import { cn } from "@/lib/utils";
+import { cn, withBasePath } from "@/lib/utils";
 
 import { type FeatureBannerDials, toMotionTransition } from "../dials";
 import { useFeatureBannerStore } from "../store";
@@ -39,7 +39,9 @@ const HeroCarousel = ({ banners, dials }: VariantProps) => {
             role={current.long_description ? "button" : undefined}
             tabIndex={current.long_description ? 0 : undefined}
             onClick={() => current.long_description && openDetails(current.id)}
-            onKeyDown={(e) => e.key === "Enter" && current.long_description && openDetails(current.id)}
+            onKeyDown={(e) =>
+              e.target === e.currentTarget && e.key === "Enter" && current.long_description && openDetails(current.id)
+            }
             className={cn(
               "relative flex flex-col justify-end border bg-sidebar-accent overflow-hidden text-xs",
               current.long_description && "cursor-pointer"
@@ -47,7 +49,11 @@ const HeroCarousel = ({ banners, dials }: VariantProps) => {
             style={{ borderRadius: card.radius, minHeight: card.showImage ? card.imageHeight + 64 : undefined }}
           >
             {card.showImage && (
-              <img src={current.image_src} alt="" className="absolute inset-0 size-full object-cover object-top" />
+              <img
+                src={withBasePath(current.image_src)}
+                alt=""
+                className="absolute inset-0 size-full object-cover object-top"
+              />
             )}
             <div
               className="absolute inset-0 bg-gradient-to-t from-sidebar-accent via-sidebar-accent/70 to-transparent"

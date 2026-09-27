@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
 import { type FeatureBanner } from "@/lib/feature-banners/types";
-import { cn } from "@/lib/utils";
+import { cn, withBasePath } from "@/lib/utils";
 
 import { type FeatureBannerDials, toMotionTransition } from "../dials";
 import { useFeatureBannerStore } from "../store";
@@ -48,7 +48,9 @@ const CompactList = ({ banners, dials }: VariantProps) => {
               role={banner.long_description ? "button" : undefined}
               tabIndex={banner.long_description ? 0 : undefined}
               onClick={() => banner.long_description && openDetails(banner.id)}
-              onKeyDown={(e) => e.key === "Enter" && banner.long_description && openDetails(banner.id)}
+              onKeyDown={(e) =>
+                e.target === e.currentTarget && e.key === "Enter" && banner.long_description && openDetails(banner.id)
+              }
               className={cn(
                 "group relative border-t text-xs bg-sidebar-accent",
                 banner.long_description && "cursor-pointer hover:bg-muted/60"
@@ -59,7 +61,7 @@ const CompactList = ({ banners, dials }: VariantProps) => {
                 {card.showImage && !expanded && (
                   <motion.img
                     layoutId={`${banner.id}-image`}
-                    src={banner.image_src}
+                    src={withBasePath(banner.image_src)}
                     alt=""
                     className="shrink-0 rounded object-cover object-top border"
                     style={{ width: compact.thumbSize, height: compact.thumbSize }}
@@ -82,7 +84,7 @@ const CompactList = ({ banners, dials }: VariantProps) => {
               {expanded && (
                 <motion.img
                   layoutId={`${banner.id}-image`}
-                  src={banner.image_src}
+                  src={withBasePath(banner.image_src)}
                   alt=""
                   className="mt-2 w-full rounded object-cover object-top border"
                   style={{ height: card.imageHeight }}

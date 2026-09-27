@@ -28,6 +28,8 @@ const PrototypeSwitcher = ({ param, variants }: PrototypeSwitcherProps) => {
   );
 
   useEffect(() => {
+    // Hooks run before the production early-return below, so the listener needs its own guard.
+    if (process.env.NODE_ENV === "production") return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.altKey || isEditable(document.activeElement)) return;
       if (e.key === "ArrowLeft") step(-1);
