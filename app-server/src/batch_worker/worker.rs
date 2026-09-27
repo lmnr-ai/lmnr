@@ -75,6 +75,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                 );
             }
             tokio::select! {
+                biased;
                 _ = self.shutdown.cancelled() => {}
                 _ = tokio::time::sleep(Duration::from_secs(1)) => {}
             }
