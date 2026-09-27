@@ -4,7 +4,7 @@ Soundtracks for Animation 18: original scores plus foley, rendered offline in pu
 
 ```sh
 pnpm ultimate3:score                                   # Tactile Glass -> out/ultimate3-score.wav
-pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque, *-acoustic, nocturne-duet, nocturne-digital)
+pnpm ultimate3:score --style nocturne                  # -> out/ultimate3-nocturne.wav (also: signal, aria, arabesque, *-acoustic, nocturne-duet, nocturne-digital, phase, tintinnabuli)
 pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux (video stream-copied, AAC 320k)
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score:test
@@ -55,6 +55,14 @@ Nocturne's acoustic cut with the synthesized string section replaced by VSCO-2 c
 ### `nocturne-digital` — all synthesized
 
 The same Nocturne writing with every sound synthesized. The piano becomes an FM electric piano (`electricPiano()`, a generated bank passed through the style's `keys`, so the piano writing is unchanged), the strings stay synthesized, the timpani become a sub plus kick, and the electronic foley and telemetry beeps stay in.
+
+### `phase` — two pianos, after Reich
+
+G major, all acoustic, in a drier studio. Two pianos play one twelve-note pentatonic pattern in sixteenths: the run and the trace it leaves. When the agent fails, the second piano drifts out of phase and locks a note ahead, so a new resultant pattern appears. Bowed eighths from the section breathe under the insights. The cheap model plays the pattern an octave up with holes where the Es and As were; the powerful one plays it at half speed, two octaves down, over heavy celli. The budget erodes the pattern one pitch per lament chord until only B, the third of G, is left for Flow-1. The pianos ratchet a step as the bars grow and spin apart as the engine boots. In Issues they start half a cycle apart and phase back into unison on the cluster lock. The drift is a smooth offset in pattern steps (`drift`), and both pianos count steps from beat 0, so any offset stays in the same phase grid.
+
+### `tintinnabuli` — scale and triad, after Pärt
+
+F major and D minor (one seven-note set), in a stone-church reverb. Every line pairs an M-voice walking the scale with a T-voice ringing the nearest note of one triad (`walk`, `ring`). Struck low piano octaves are the bells that mark each turn. The film opens with Spiegel-style rising triads under the violin's additive phrases, which close in on A. The budget drains as a descending canon (Cantus): solo a step a beat, section every two, celli every four, resting on an A–E fifth. The drop is an ascending mensuration canon in F on the same principle. The composition's piano rings every other issue pop on a triad note, while the foley's pizzicato takes the rest in the scale, so the pops are M and T voices too.
 
 ## Foley
 
