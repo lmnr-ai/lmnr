@@ -3,19 +3,22 @@
 page_title: "laminar_signal Resource - laminar"
 subcategory: ""
 description: |-
-  A Laminar Signal.
+  Manages a Laminar Signal: an LLM-evaluated question asked about each matching trace in the project.
+  ~> Warning: Destroying a Signal permanently deletes its events and alerts. Prefer disabled = true, or protect the resource with lifecycle { prevent_destroy = true }.
 ---
 
 # laminar_signal (Resource)
 
-A Laminar Signal.
+Manages a Laminar Signal: an LLM-evaluated question asked about each matching trace in the project.
+
+~> **Warning:** Destroying a Signal permanently deletes its events and alerts. Prefer `disabled = true`, or protect the resource with `lifecycle { prevent_destroy = true }`.
 
 ## Example Usage
 
 ```terraform
 resource "laminar_signal" "failure_detector" {
   name   = "Failure detector"
-  prompt = "Identify failed or abandoned runs."
+  prompt = "Identify failed or abandoned runs and explain why."
 
   structured_output = jsonencode({
     type = "object"
@@ -25,6 +28,36 @@ resource "laminar_signal" "failure_detector" {
     }
     required = ["failed", "reason"]
   })
+
+  # Evaluate a quarter of the traces whose `agent.run` span finished with an error.
+  sample_rate = 25
+  trigger = {
+    type       = "spanName"
+    span_names = ["agent.run"]
+  }
+  filters = [
+    { column = "status", operator = "eq", value = "error" },
+    { column = "tags", operator = "not_includes", values = ["synthetic"] },
+  ]
+
+  lifecycle {
+    # Destroying a Signal deletes its events.
+    prevent_destroy = true
+  }
+}
+
+# Self-hosted deployments route Signals through a workspace LLM profile.
+resource "laminar_signal" "self_hosted" {
+  name           = "Tool misuse"
+  prompt         = "Did the agent call a tool with invalid arguments?"
+  llm_profile_id = laminar_llm_profile.openai.id
+  model          = "gpt-5-mini"
+
+  structured_output = jsonencode({
+    type       = "object"
+    properties = { misuse = { type = "boolean" } }
+    required   = ["misuse"]
+  })
 }
 ```
 
@@ -33,24 +66,52 @@ resource "laminar_signal" "failure_detector" {
 
 ### Required
 
-- `name` (String) Signal name. Leading and trailing whitespace is not allowed.
-- `prompt` (String) Instructions used to analyze matching traces.
-- `structured_output` (String) JSON-encoded JSON Schema for the Signal result.
+- `name` (String) Signal name, unique within the project.
+- `prompt` (String) Instructions the LLM follows when evaluating a trace.
+- `structured_output` (String) JSON Schema of the Signal result, usually written with `jsonencode()`. It must be an object schema whose `properties` are `string`, `number`, or `boolean` and whose `required` lists every property.
 
 ### Optional
 
-- `disabled` (Boolean) Whether the Signal is paused.
-- `filters` (String) JSON-encoded Signal filters. The API supplies the default when omitted.
-- `mode` (String) Processing mode.
-- `sample_rate` (Number) Percentage of matching traces to sample.
-- `trigger` (String) JSON-encoded trigger. The API defaults to rootSpanFinished.
+- `disabled` (Boolean) Whether the Signal is paused. Defaults to `false`.
+- `filters` (Attributes List) Conditions a trace must match to be evaluated; all must hold. Defaults to `total_token_count gt 1000`. Set `filters = []` to evaluate every trace. (see [below for nested schema](#nestedatt--filters))
+- `llm_profile_id` (String) Self-hosted only. UUID of the workspace LLM profile that evaluates the Signal. Required together with `model` on self-hosted deployments; Laminar Cloud rejects it.
+- `mode` (String) Processing mode: `realtime` or `batch`. Defaults to `realtime`.
+- `model` (String) Self-hosted only. Model from `llm_profile_id` that evaluates the Signal.
+- `sample_rate` (Number) Percentage of matching traces to evaluate (1-95). Omit to evaluate every matching trace.
+- `trigger` (Attributes) When the Signal is evaluated. Defaults to `{ type = "rootSpanFinished" }`. (see [below for nested schema](#nestedatt--trigger))
 
 ### Read-Only
 
-- `created_at` (String) Creation timestamp.
-- `current_version` (Number) Server-managed prompt and output-schema version.
+- `created_at` (String) Creation timestamp (RFC 3339).
 - `id` (String) Signal UUID.
-- `project_id` (String) Owning Laminar project UUID.
+- `llm_profile_name` (String) Name of the selected LLM profile.
+- `project_id` (String) UUID of the project that owns the Signal.
+- `version` (Number) Server-managed configuration version. It increments when the effective Signal configuration changes.
+
+<a id="nestedatt--filters"></a>
+### Nested Schema for `filters`
+
+Required:
+
+- `column` (String) Trace column: `span_names`, `status`, `tags`, `total_token_count`.
+- `operator` (String) `eq`, `ne`, `gt`, `gte`, `lt`, `lte` for `total_token_count`; `eq`, `ne` for `status`; `includes`, `not_includes` for `span_names` and `tags`.
+
+Optional:
+
+- `value` (String) Scalar value for `total_token_count` (a number) and `status` (`error` or `success`). Exactly one of `value` and `values` is required.
+- `values` (List of String) List value for `span_names` and `tags`.
+
+
+<a id="nestedatt--trigger"></a>
+### Nested Schema for `trigger`
+
+Required:
+
+- `type` (String) `rootSpanFinished` evaluates when the trace's root span ends; `spanName` evaluates when a span named in `span_names` ends.
+
+Optional:
+
+- `span_names` (List of String) Span names that trigger evaluation. Required when `type` is `spanName`.
 
 ## Import
 

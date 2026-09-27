@@ -80,5 +80,5 @@ jobs:
       - run: go mod download
       - env:
           TF_ACC: "1"
-        run: go test -v -cover ./internal/provider/ -run TestAccSignalResourceLifecycle
+        run: go test -v -cover ./internal/...
         timeout-minutes: 10

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -29,7 +28,8 @@ func (p *LaminarProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *LaminarProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage Laminar resources through the Laminar project API.",
+		MarkdownDescription: "Manage Laminar resources through the Laminar project API. A project API key scopes the provider to one project; " +
+			"use one provider alias per project. LLM profiles belong to the project's workspace.",
 		Attributes: map[string]schema.Attribute{
 			"project_api_key": schema.StringAttribute{
 				Optional: true, Sensitive: true,
@@ -69,7 +69,7 @@ func (p *LaminarProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	api, err := client.New(baseURL, apiKey, nil)
+	api, err := client.New(baseURL, apiKey, "terraform-provider-laminar/"+p.version, nil)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to configure Laminar client", err.Error())
 		return
@@ -79,21 +79,15 @@ func (p *LaminarProvider) Configure(ctx context.Context, req provider.ConfigureR
 }
 
 func (p *LaminarProvider) Resources(context.Context) []func() resource.Resource {
-	return []func() resource.Resource{NewSignalResource}
+	return []func() resource.Resource{NewSignalResource, NewDatasetResource, NewLlmProfileResource}
 }
 
 func (p *LaminarProvider) DataSources(context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{NewSignalDataSource}
+	return []func() datasource.DataSource{
+		NewSignalDataSource, NewDatasetDataSource, NewLlmProfileDataSource, NewProjectDataSource,
+	}
 }
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider { return &LaminarProvider{version: version} }
-}
-
-func configureClient(data any) (*client.Client, error) {
-	api, ok := data.(*client.Client)
-	if !ok {
-		return nil, fmt.Errorf("expected *client.Client, got %T", data)
-	}
-	return api, nil
 }

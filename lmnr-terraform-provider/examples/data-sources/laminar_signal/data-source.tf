@@ -1,7 +1,7 @@
-data "laminar_signal" "existing" {
-  id = "00000000-0000-0000-0000-000000000000"
+data "laminar_signal" "failure_detector" {
+  name = "Failure detector"
 }
 
-output "signal_name" {
-  value = data.laminar_signal.existing.name
+output "failure_detector_id" {
+  value = data.laminar_signal.failure_detector.id
 }
