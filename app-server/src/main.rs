@@ -126,6 +126,7 @@ use std::{
     time::Duration,
 };
 use storage::{Storage, mock::MockStorage};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
@@ -200,6 +201,21 @@ fn main() -> anyhow::Result<()> {
     let runtime_handle = general_runtime.handle().clone();
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
+
+    // The only SIGTERM/SIGINT listener: registering it replaces the default terminate
+    // action, so the servers stop on this token rather than their own signal
+    // handlers, which would miss a signal received during init. Consumers finish
+    // their in-flight message or flush + ack/offset store; `main` waits on
+    // `worker_tasks` before the runtime drops them.
+    let shutdown = CancellationToken::new();
+    let worker_tasks = TaskTracker::new();
+    {
+        let shutdown = shutdown.clone();
+        runtime_handle.spawn(async move {
+            wait_stop_signal("queue and stream consumers").await;
+            shutdown.cancel();
+        });
+    }
 
     // == Sentry ==
     let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
@@ -1549,8 +1565,16 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
-        let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
-        let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
+        let worker_pool = Arc::new(WorkerPool::new(
+            queue.clone(),
+            shutdown.clone(),
+            worker_tasks.clone(),
+        ));
+        let batch_worker_pool = Arc::new(BatchWorkerPool::new(
+            queue.clone(),
+            shutdown.clone(),
+            worker_tasks.clone(),
+        ));
 
         let num_spans_workers = env::workers::NUM_SPANS.get();
 
@@ -1614,6 +1638,8 @@ fn main() -> anyhow::Result<()> {
         let spans_stream_publisher_for_consumer = spans_stream_publisher.clone();
         let indexer_stream_publisher_for_consumer = indexer_stream_publisher.clone();
         let quickwit_indexing_enabled_for_consumer = quickwit_indexing_enabled;
+        let shutdown_for_consumer = shutdown.clone();
+        let worker_tasks_for_consumer = worker_tasks.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1768,8 +1794,9 @@ fn main() -> anyhow::Result<()> {
                                     },
                                 },
                                 env::streams::SPANS_BATCHERS.get(),
+                                shutdown_for_consumer.clone(),
                             );
-                            tokio::spawn(reader.run());
+                            worker_tasks_for_consumer.spawn(reader.run());
 
                             // This pod's own decision, independent of whatever any
                             // producer pod decided (producer/consumer are separate
@@ -1823,8 +1850,9 @@ fn main() -> anyhow::Result<()> {
                                             ),
                                         },
                                         env::streams::SPANS_INDEXER_BATCHERS.get(),
+                                        shutdown_for_consumer.clone(),
                                     );
-                                    tokio::spawn(reader.run());
+                                    worker_tasks_for_consumer.spawn(reader.run());
                                 }
                             }
 
@@ -2344,6 +2372,7 @@ fn main() -> anyhow::Result<()> {
                             )
                     })
                     .bind(("0.0.0.0", consumer_port))?
+                    .shutdown_signal(shutdown_for_consumer.cancelled_owned())
                     .run()
                     .await
                 })
@@ -2446,6 +2475,8 @@ fn main() -> anyhow::Result<()> {
             None
         };
         let ingestion_rate_limiter_for_http = ingestion_rate_limiter.clone();
+        let shutdown_for_http = shutdown.clone();
+        let shutdown_for_grpc = shutdown.clone();
 
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
@@ -2729,6 +2760,7 @@ fn main() -> anyhow::Result<()> {
                             .service(routes::probes::check_ready)
                     })
                     .bind(("0.0.0.0", port))?
+                    .shutdown_signal(shutdown_for_http.cancelled_owned())
                     .run()
                     .await
                 })
@@ -2771,9 +2803,7 @@ fn main() -> anyhow::Result<()> {
                                 .send_compressed(tonic::codec::CompressionEncoding::Gzip)
                                 .max_decoding_message_size(grpc_payload_limit),
                         )
-                        .serve_with_shutdown(grpc_address, async {
-                            wait_stop_signal("gRPC service").await;
-                        })
+                        .serve_with_shutdown(grpc_address, shutdown_for_grpc.cancelled_owned())
                         .await
                         .map_err(tonic_error_to_io_error)
                 })
@@ -2788,6 +2818,22 @@ fn main() -> anyhow::Result<()> {
             handle.thread().name().unwrap()
         );
         handle.join().expect("thread is not panicking")?;
+    }
+
+    // Also covers a server exiting on its own, not just SIGTERM.
+    shutdown.cancel();
+    worker_tasks.close();
+    let shutdown_timeout = Duration::from_millis(env::server::GRACEFUL_SHUTDOWN_TIMEOUT_MS.get());
+    // Build the timeout inside the async block: `tokio::time::timeout` registers
+    // its timer on construction, which panics outside the runtime context.
+    if general_runtime
+        .block_on(async { tokio::time::timeout(shutdown_timeout, worker_tasks.wait()).await })
+        .is_err()
+    {
+        log::warn!(
+            "Queue/stream consumers did not stop within {:?}; exiting anyway",
+            shutdown_timeout
+        );
     }
 
     // Servers have stopped (SIGTERM); the runtime + ingest deps are still alive here.
