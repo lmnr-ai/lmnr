@@ -3,6 +3,7 @@ use backon::Retryable;
 use serde::{Serialize, de::DeserializeOwned};
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use uuid::Uuid;
 
 use crate::mq::{
@@ -156,6 +157,8 @@ pub enum WorkerType {
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobRealtime,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    SignalJobBackfill,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalAdmission,
     InputExtraction,
     UserTaskRegex,
@@ -175,6 +178,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::NotificationDeliveries => write!(f, "notification_deliveries"),
             WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
+            WorkerType::SignalJobBackfill => write!(f, "signal_job_backfill"),
             WorkerType::SignalAdmission => write!(f, "signal_admission"),
             WorkerType::InputExtraction => write!(f, "input_extraction"),
             WorkerType::UserTaskRegex => write!(f, "user_task_regex"),
@@ -199,13 +203,18 @@ enum TransientOutcome {
     Drop,
 }
 
-/// Queue worker that processes messages indefinitely
+/// Queue worker that processes messages until shutdown.
+///
+/// On `shutdown` it stops receiving but lets the message in progress finish and
+/// be acked, so its side effects (a ClickHouse write, a Slack/email send) aren't
+/// repeated by a redelivery.
 pub struct QueueWorker<H: MessageHandler> {
     id: Uuid,
     worker_type: WorkerType,
     handler: H,
     queue: Arc<MessageQueue>,
     config: QueueConfig,
+    shutdown: CancellationToken,
 }
 
 impl<H: MessageHandler> QueueWorker<H> {
@@ -214,6 +223,7 @@ impl<H: MessageHandler> QueueWorker<H> {
         handler: H,
         queue: Arc<MessageQueue>,
         config: QueueConfig,
+        shutdown: CancellationToken,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -221,6 +231,7 @@ impl<H: MessageHandler> QueueWorker<H> {
             handler,
             queue,
             config,
+            shutdown,
         }
     }
 
@@ -228,9 +239,9 @@ impl<H: MessageHandler> QueueWorker<H> {
         self.id
     }
 
-    /// Main processing loop - runs forever with internal retry
+    /// Main processing loop - runs until shutdown with internal retry
     pub async fn process(self: Arc<Self>) {
-        loop {
+        while !self.shutdown.is_cancelled() {
             if let Err(e) = self.process_inner().await {
                 log::error!(
                     "Worker {} ({:?}) failed: {:?}, reconnecting...",
@@ -239,12 +250,20 @@ impl<H: MessageHandler> QueueWorker<H> {
                     e
                 );
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::select! {
+                biased;
+                _ = self.shutdown.cancelled() => {}
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            }
         }
+        log::info!("Worker {} ({:?}) stopped", self.id, self.worker_type);
     }
 
     async fn process_inner(&self) -> anyhow::Result<()> {
-        let mut receiver: MessageQueueReceiver = self.connect().await?;
+        let mut receiver: MessageQueueReceiver = tokio::select! {
+            _ = self.shutdown.cancelled() => return Ok(()),
+            receiver = self.connect() => receiver?,
+        };
 
         log::info!(
             "Worker {} ({:?}) connected and ready to process messages",
@@ -252,8 +271,17 @@ impl<H: MessageHandler> QueueWorker<H> {
             self.worker_type
         );
 
-        while let Some(delivery) = receiver.receive().await {
-            let delivery = delivery?;
+        loop {
+            // Only the wait for the NEXT delivery races shutdown; the handler and
+            // ack below run outside the select, so a message in progress finishes.
+            let delivery = tokio::select! {
+                biased;
+                _ = self.shutdown.cancelled() => return Ok(()),
+                delivery = receiver.receive() => match delivery {
+                    Some(delivery) => delivery?,
+                    None => return Ok(()),
+                },
+            };
 
             let acker = delivery.acker();
             let attempt = delivery.retry_attempt();
@@ -274,8 +302,6 @@ impl<H: MessageHandler> QueueWorker<H> {
                 Err(_) => acker.reject(false).await?,
             }
         }
-
-        Ok(())
     }
 
     /// Hold a transiently-failed message in the retry queue instead of having the
@@ -411,11 +437,19 @@ impl<H: MessageHandler> QueueWorker<H> {
 /// Worker pool - simple spawning and tracking
 pub struct WorkerPool {
     queue: Arc<MessageQueue>,
+    shutdown: CancellationToken,
+    tasks: TaskTracker,
 }
 
 impl WorkerPool {
-    pub fn new(queue: Arc<MessageQueue>) -> Self {
-        Self { queue }
+    /// Workers stop on `shutdown`; `tasks` is what `main` waits on so the process
+    /// doesn't exit while one is still handling a message.
+    pub fn new(queue: Arc<MessageQueue>, shutdown: CancellationToken, tasks: TaskTracker) -> Self {
+        Self {
+            queue,
+            shutdown,
+            tasks,
+        }
     }
 
     /// Spawn N workers of a type
@@ -436,6 +470,7 @@ impl WorkerPool {
                 handler,
                 self.queue.clone(),
                 config.clone(),
+                self.shutdown.clone(),
             ));
 
             let worker_id = worker.id();
@@ -447,8 +482,7 @@ impl WorkerPool {
                 i
             );
 
-            // Spawn and forget - it runs forever
-            tokio::spawn(async move {
+            self.tasks.spawn(async move {
                 worker.process().await;
             });
         }
@@ -503,6 +537,7 @@ mod tests {
             CountingHandler::default(),
             Arc::new(MessageQueue::TokioMpsc(TokioMpscQueue::new())),
             config,
+            CancellationToken::new(),
         )
     }
 
@@ -579,5 +614,72 @@ mod tests {
             TransientOutcome::RequeueNow
         );
         assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
+    }
+
+    /// Handles slowly, so shutdown can land while a message is in progress.
+    struct SlowHandler {
+        started: Arc<tokio::sync::Notify>,
+        handled: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl MessageHandler for SlowHandler {
+        type Message = TestMessage;
+
+        async fn handle(&self, _message: Self::Message) -> Result<(), HandlerError> {
+            self.started.notify_one();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            self.handled.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    /// Shutdown must not cut a message short (its side effects would repeat on
+    /// redelivery), and must stop the worker taking new messages.
+    #[tokio::test]
+    async fn shutdown_finishes_the_message_in_progress_then_stops() {
+        let queue = TokioMpscQueue::new();
+        queue.register_queue(TEST_EXCHANGE, TEST_ROUTING_KEY);
+        let queue = Arc::new(MessageQueue::TokioMpsc(queue));
+        let started = Arc::new(tokio::sync::Notify::new());
+        let handled = Arc::new(AtomicUsize::new(0));
+        let shutdown = CancellationToken::new();
+        let worker = Arc::new(QueueWorker::new(
+            WorkerType::Logs,
+            SlowHandler {
+                started: started.clone(),
+                handled: handled.clone(),
+            },
+            queue.clone(),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            shutdown.clone(),
+        ));
+        let running = tokio::spawn(worker.process());
+
+        // The receiver registers asynchronously; retry until the publish lands.
+        while queue
+            .publish(&payload(), TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .is_err()
+        {
+            tokio::task::yield_now().await;
+        }
+        started.notified().await;
+
+        shutdown.cancel();
+        queue
+            .publish(&payload(), TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .unwrap();
+
+        tokio::time::timeout(Duration::from_secs(5), running)
+            .await
+            .expect("worker must stop after shutdown")
+            .unwrap();
+        assert_eq!(
+            handled.load(Ordering::SeqCst),
+            1,
+            "the message in progress completes; the one sent after shutdown is not taken"
+        );
     }
 }

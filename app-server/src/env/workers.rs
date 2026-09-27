@@ -35,6 +35,12 @@ pub const NUM_CLUSTERING: NumEnv<usize> = NumEnv::new("NUM_CLUSTERING_WORKERS", 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const NUM_SIGNAL_JOB_REALTIME: NumEnv<usize> =
     NumEnv::new("NUM_SIGNAL_JOB_REALTIME_WORKERS", 4);
+/// Consumers of the signals agent's backfill lane (job runs). Separate from the
+/// realtime workers so a large backfill scales on its own and never delays
+/// trigger-based runs.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const NUM_SIGNAL_JOB_BACKFILL: NumEnv<usize> =
+    NumEnv::new("NUM_SIGNAL_JOB_BACKFILL_WORKERS", 4);
 /// Consumers of the admission gate in front of the signals agent. Its work is a
 /// cache read plus at most one ClickHouse query, so these are far cheaper than
 /// the realtime workers and scale independently of them.

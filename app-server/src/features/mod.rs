@@ -106,12 +106,12 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::static_sp::INPUT_EXTRACTION_ENABLED.get()
         }
         Feature::RateLimiter => {
-            std::env::var(env::connections::REDIS_URL).is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
                 && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::HTTP_PERIOD_SECS).is_ok()
         }
         Feature::IngestionRateLimiter => {
-            std::env::var(env::connections::REDIS_URL).is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
                 && std::env::var(env::rate_limit::INGESTION_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::INGESTION_PERIOD_SECS).is_ok()
         }

@@ -34,6 +34,7 @@ const PAGE: &str = "#f4f4f4";
 const TEXT: &str = "#252525";
 const MUTED: &str = "#92949c";
 const ROW: &str = "#f7f7f7";
+const STACKED_DATA_ROW_MIN_CHARS: usize = 60;
 
 fn email_document(title: &str, width: u16, body: &str) -> String {
     format!(
@@ -108,8 +109,42 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
     )
 }
 
+fn data_row(label: &str, value: &str, stacked: bool) -> String {
+    if stacked {
+        format!(
+            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td align="left" style="padding:7px 10px 2px;font-size:14px;color:{};text-align:left">{}</td></tr><tr><td align="left" style="padding:2px 10px 7px;font-size:14px;color:{};text-align:left">{}</td></tr></table>"#,
+            ROW,
+            MUTED,
+            html_escape(label),
+            TEXT,
+            value
+        )
+    } else {
+        format!(
+            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td style="padding:7px 10px;font-size:14px;color:{}">{}</td><td align="right" style="padding:7px 10px;font-size:14px;color:{};text-align:right">{}</td></tr></table>"#,
+            ROW,
+            MUTED,
+            html_escape(label),
+            TEXT,
+            value
+        )
+    }
+}
+
 fn data_rows(rows: &[(String, String)]) -> String {
-    rows.iter().map(|(label, value)| format!(r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td style="padding:7px 10px;font-size:14px;color:{}">{}</td><td align="right" style="padding:7px 10px;font-size:14px;color:{}">{}</td></tr></table>"#, ROW, MUTED, html_escape(label), TEXT, value)).collect()
+    rows.iter()
+        .map(|(label, value)| data_row(label, value, false))
+        .collect()
+}
+
+fn should_stack_event_field(value: &str) -> bool {
+    value.contains('\n') || value.chars().count() >= STACKED_DATA_ROW_MIN_CHARS
+}
+
+fn event_data_rows(rows: &[(String, String, bool)]) -> String {
+    rows.iter()
+        .map(|(label, value, stacked)| data_row(label, value, *stacked))
+        .collect()
 }
 
 /// Format an email for a batch of notifications.
@@ -261,7 +296,11 @@ fn render_alert_email(
     _alert_name: &str,
     _event_id: Option<&Uuid>,
 ) -> String {
-    let mut rows = vec![("Severity".to_string(), severity_label(severity).to_string())];
+    let mut rows = vec![(
+        "Severity".to_string(),
+        severity_label(severity).to_string(),
+        false,
+    )];
     if let Some(object) = attributes.as_object() {
         rows.extend(object.iter().filter_map(|(key, value)| {
             let value = match value {
@@ -269,12 +308,14 @@ fn render_alert_email(
                 serde_json::Value::String(value) => value.clone(),
                 _ => serde_json::to_string_pretty(value).unwrap_or_default(),
             };
+            let stacked = should_stack_event_field(&value);
             Some((
                 key.clone(),
                 md_links_to_html_escaped(
                     &inject_utm_into_links(&value, "email", "signal_alert", "event_description"),
                     PRIMARY_300,
                 ),
+                stacked,
             ))
         }));
     }
@@ -298,7 +339,7 @@ fn render_alert_email(
         r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}</div>"#,
         breadcrumb(&[project_name, event_name], &signal_link),
         TEXT,
-        data_rows(&rows)
+        event_data_rows(&rows)
     );
     let body = format!(
         "{}{}{}",

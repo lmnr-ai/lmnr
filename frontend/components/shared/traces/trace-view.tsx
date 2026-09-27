@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import LandingHeader from "@/components/landing/header";
 import { SpanView } from "@/components/shared/traces/span-view";
 import TracePanel from "@/components/shared/traces/trace-panel";
+import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 import FillWidthLayout, { STACK_THRESHOLD } from "@/components/traces/trace-view/fill-width-layout";
 import TraceViewStoreProvider, {
   type TraceViewSpan,
@@ -20,29 +20,25 @@ interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
   onClose?: () => void;
-  /** Drives the page header's Dashboard vs Sign in/up buttons. Only read on the
-   *  full-page variant (no `onClose`); the eval side-panel renders no page header. */
-  hasSession?: boolean;
 }
 
-export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: TraceViewProps) => {
+// Expects a store seeded with `trace`/`spans` so the server render already shows the tree.
+export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
 
-  const { setSpans, setTrace, selectedSpan, setSelectedSpan, spanPanelOpen, setBrowserSession, setHasBrowserSession } =
-    useTraceViewStore(
-      (state) => ({
-        setSpans: state.setSpans,
-        setTrace: state.setTrace,
-        selectedSpan: state.selectedSpan,
-        setSelectedSpan: state.setSelectedSpan,
-        spanPanelOpen: state.spanPanelOpen,
-        setBrowserSession: state.setBrowserSession,
-        setHasBrowserSession: state.setHasBrowserSession,
-      }),
-      shallow
-    );
+  const { selectedSpan, setSelectedSpan, spanPanelOpen } = useTraceViewStore(
+    (state) => ({
+      selectedSpan: state.selectedSpan,
+      setSelectedSpan: state.setSelectedSpan,
+      spanPanelOpen: state.spanPanelOpen,
+    }),
+    shallow
+  );
+
+  // Auto-selecting the first span needs the viewport width; keep a span placeholder until the effect decides.
+  const [selectionPending, setSelectionPending] = useState(!onClose);
 
   useTraceSignals(`/api/shared/traces/${trace.id}/signals`);
 
@@ -68,23 +64,13 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
   }, [setSelectedSpan, searchParams, router, pathName]);
 
   useEffect(() => {
-    if (trace.hasBrowserSession) {
-      setHasBrowserSession(true);
-      setBrowserSession(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    setSpans(enrichSpansWithPending(spans));
-    setTrace(trace);
-
     const spanId = searchParams.get("spanId");
     const linkedSpan = spanId ? spans.find((s) => s.spanId === spanId) : undefined;
-    // Auto-select only on the full page (container = viewport) when the layout won't stack.
     const span = linkedSpan ?? (!onClose && window.innerWidth >= STACK_THRESHOLD ? spans[0] : undefined);
     if (span) {
       setSelectedSpan({ ...span, collapsed: false });
     }
+    setSelectionPending(false);
   }, []);
 
   const panels = {
@@ -96,29 +82,27 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession = false }: Tra
         traceId={trace.id}
         onClose={handleSpanPanelClose}
       />
-    ) : null,
-    showSpan: spanPanelOpen,
+    ) : (
+      <SpanViewSkeleton />
+    ),
+    showSpan: spanPanelOpen || selectionPending,
   };
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      {!onClose && (
-        <div className="flex-none border-b">
-          {/* py-4 keeps the header at the 60px the mobile menu overlay is pinned to. */}
-          <LandingHeader hasSession={hasSession} className="w-full px-4 py-4 md:px-6" />
-        </div>
-      )}
-      {/* isolate: inner z-indexed handles must not cover the header's mobile menu overlay. */}
-      <div className="flex flex-1 min-h-0 overflow-hidden isolate">
-        <FillWidthLayout panels={panels} />
-      </div>
+    // isolate: inner z-indexed handles must not cover the header's mobile menu overlay.
+    <div className="flex h-full w-full min-h-0 overflow-hidden isolate">
+      <FillWidthLayout panels={panels} />
     </div>
   );
 };
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider storeKey="shared-trace-view">
+    <TraceViewStoreProvider
+      storeKey="shared-trace-view"
+      initialTrace={props.trace}
+      initialSpans={enrichSpansWithPending(props.spans)}
+    >
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );
