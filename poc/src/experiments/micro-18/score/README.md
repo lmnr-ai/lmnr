@@ -64,6 +64,8 @@ The same three scores with no electronics:
 - **The budget drain:** instead of the gliding drain tone, each composition plays it as a line (`drainLine`) that falls through the lament chords and slows like a counter running out. In Nocturne it's high piano, in Aria the solo violin in spiccato into its lone F♯, and in Arabesque the slowing arabesque itself.
 - **No synth music:** the stream's data beeps are gone, the run into the drop is piano (Aria: pizzicato), and Arabesque loses its sine sub.
 
+`arabesque-acoustic-chill` keeps Arabesque Acoustic from Flow-1 on. Before it, one quiet eighth-note bed (E – A – G♯m – A, Bsus into the drop) runs unbroken, and events are soft in-key piano touches on top. There are no warning ducks. It works with `--split-arabesque`.
+
 ### `nocturne-duet` — piano and violin
 
 Nocturne's acoustic cut with the synthesized string section replaced by VSCO-2 celli, violin section and solo violin (picked by register). The solo violin sings every melody legato while the piano keeps the octave below, and it plays the budget drain in spiccato.

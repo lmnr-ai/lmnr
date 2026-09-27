@@ -2,6 +2,7 @@ import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
 import {bass, beep, piano, type Mix, type Route} from '../voices';
 import {figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
+import {composeChillPrelude} from './chill';
 
 /*
  * "Arabesque" — E major, solo piano in the impressionist manner, with a sine sub and delay echoes
@@ -32,12 +33,19 @@ const WHOLE_TONE = [48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76];
 /** A sub-bass swell under a chord change: the one electronic body in the score. */
 const subBass = (mix: Mix, time: number, midi: number, duration: number, velocity: number, glide = 0) => bass(mix, time, midi, duration, velocity, SUB, {glide, drive: 1.1});
 
-/** `acoustic` drops the sine sub and the telemetry beeps; the slowing arabesque already carries the budget drain. */
-export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) {
+/**
+ * `acoustic` drops the sine sub and the telemetry beeps; the slowing arabesque already carries the budget drain.
+ * `chill` swaps everything before Flow-1 for one steady bed (`chill.ts`) and keeps the rest.
+ */
+export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false, chill = false} = {}) {
   const sub: typeof subBass = acoustic ? () => {} : subBass;
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
+  const drop = at(flow.reveal, 1);
+
+  if (chill) composeChillPrelude(mix, cues, g, at, drop);
+  else {
 
   // ── You build agents: an E major 9 unfurls upward, one B left shimmering in the echo.
   [40, 47, 54, 56, 63, 66, 71].forEach((midi, i) => piano(mix, u2.agentEnter + .02 + i * .07, midi, .34 - i * .015, {...PIANO, pan: -.35 + i * .1}, {length: 4.5, bright: .45}));
@@ -106,7 +114,7 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   }
 
   // ── …but the costs are unsustainable: the arabesque returns, then slows and thins until one B is left.
-  const drainBeat = at(cost.depletion.at, 1), drop = at(flow.reveal, 1);
+  const drainBeat = at(cost.depletion.at, 1);
   figure(mix, g, budgetBeat, drainBeat, [[budgetBeat, C.A], [budgetBeat + 2, C.E]], {step: TRIPLET, pattern: ARABESQUE, route: PIANO, bright: .45, length: .8,
     velocity: () => .26, bass: {velocity: .36, length: 2.2}});
   sub(mix, g(budgetBeat), 33, 1.6, .2);
@@ -125,6 +133,7 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   [64, 68, 71, 76, 80, 83, 88, 92].forEach((midi, i) => acoustic
     ? piano(mix, g(drop - 1) + i * .0625, midi, .16 + i * .025, {...ECHO, pan: -.4 + i * .11}, {length: 1.2, bright: .55})
     : beep(mix, g(drop - 1) + i * .0625, midi + 12, .05 + i * .01, {...DATA, pan: -.4 + i * .11}, {length: .05}));
+  }
 
   // ── Introducing Flow-1: E major at full reach — both hands sweeping triplets, the theme in octaves on top.
   sub(mix, flow.reveal, 28, 2.4, .5);

@@ -1,7 +1,7 @@
 {
  "version": 2,
  "allocations": {
-  "ultimate2": 18.398,
+  "ultimate2": 18.697999999999997,
   "cost": 13.7,
   "flow": 12.5,
   "issues": 14.633333333333333,
@@ -44,10 +44,10 @@
    },
    "streamRun": {
     "at": 1.9,
-    "duration": 2.7181818181818187,
+    "duration": 3.018,
     "transition": {
      "type": "easing",
-     "duration": 2.7181818181818187,
+     "duration": 3.018,
      "ease": [
       0,
       0,
@@ -85,7 +85,7 @@
     }
    },
    "continueStraight": {
-    "at": 4.618181818181819,
+    "at": 4.918,
     "duration": 0.65,
     "transition": {
      "type": "easing",
@@ -99,7 +99,7 @@
     }
    },
    "upwardTurn": {
-    "at": 5.268181818181818,
+    "at": 5.568,
     "duration": 1.1,
     "transition": {
      "type": "easing",
@@ -113,7 +113,7 @@
     }
    },
    "cameraBacktrack": {
-    "at": 6.418181818181818,
+    "at": 6.718,
     "duration": 1.6,
     "transition": {
      "type": "easing",
@@ -127,7 +127,7 @@
     }
    },
    "redThinkingLift": {
-    "at": 6.918181818181818,
+    "at": 7.218,
     "duration": 0.3,
     "transition": {
      "type": "easing",
@@ -141,7 +141,7 @@
     }
    },
    "readLift": {
-    "at": 7.418181818181818,
+    "at": 7.718,
     "duration": 0.3,
     "transition": {
      "type": "easing",
@@ -155,7 +155,7 @@
     }
    },
    "thinkingLift": {
-    "at": 7.918181818181818,
+    "at": 8.218,
     "duration": 0.3,
     "transition": {
      "type": "easing",
@@ -169,7 +169,7 @@
     }
    },
    "highlight": {
-    "at": 8.618181818181819,
+    "at": 8.918,
     "duration": 1.1,
     "transition": {
      "type": "easing",
@@ -183,7 +183,7 @@
     }
    },
    "warningEnter": {
-    "at": 8.868181818181819,
+    "at": 9.168,
     "duration": 0.24,
     "transition": {
      "type": "easing",
@@ -197,7 +197,7 @@
     }
    },
    "warningFocus": {
-    "at": 9.568181818181818,
+    "at": 9.868,
     "duration": 0.55,
     "transition": {
      "type": "easing",
@@ -211,7 +211,7 @@
     }
    },
    "finalZoom": {
-    "at": 11.118,
+    "at": 11.418,
     "duration": 3,
     "transition": {
      "type": "easing",
@@ -225,7 +225,7 @@
     }
    },
    "streamCollapse": {
-    "at": 12.918,
+    "at": 13.218,
     "duration": 0.6,
     "transition": {
      "type": "easing",
@@ -239,7 +239,7 @@
     }
    },
    "loaderFade": {
-    "at": 12.918,
+    "at": 13.218,
     "duration": 0.6,
     "transition": {
      "type": "easing",
@@ -253,7 +253,7 @@
     }
    },
    "dotDim": {
-    "at": 12.918,
+    "at": 13.218,
     "duration": 0.6,
     "transition": {
      "type": "easing",
@@ -267,7 +267,7 @@
     }
    },
    "smallGridFade": {
-    "at": 12.918,
+    "at": 13.218,
     "duration": 0.6,
     "transition": {
      "type": "easing",
@@ -281,7 +281,7 @@
     }
    },
    "cloudEnter": {
-    "at": 15.348,
+    "at": 15.648,
     "duration": 1.4,
     "transition": {
      "type": "easing",
@@ -295,7 +295,7 @@
     }
    },
    "cloudHold": {
-    "at": 16.748,
+    "at": 17.048,
     "duration": 3.8,
     "transition": {
      "type": "easing",
@@ -324,10 +324,10 @@
    },
    "subtitleTrace": {
     "at": 1.9,
-    "duration": 2.7181818181818187,
+    "duration": 3.018,
     "transition": {
      "type": "easing",
-     "duration": 2.7181818181818187,
+     "duration": 3.018,
      "ease": [
       0,
       0,
@@ -337,7 +337,7 @@
     }
    },
    "subtitleFailure": {
-    "at": 4.618181818181819,
+    "at": 4.918,
     "duration": 1.8,
     "transition": {
      "type": "easing",
@@ -351,7 +351,7 @@
     }
    },
    "subtitleWhy": {
-    "at": 6.418181818181818,
+    "at": 6.718,
     "duration": 3.15,
     "transition": {
      "type": "easing",
@@ -365,7 +365,7 @@
     }
    },
    "subtitleInsights": {
-    "at": 9.57,
+    "at": 9.87,
     "duration": 6.78,
     "transition": {
      "type": "easing",
@@ -379,7 +379,7 @@
     }
    },
    "subtitleIfOnly": {
-    "at": 16.35,
+    "at": 16.65,
     "duration": 3.8,
     "transition": {
      "type": "easing",
@@ -394,7 +394,7 @@
    }
   },
   "controls": {
-   "streamerSpeed": 660,
+   "streamerSpeed": 606.022,
    "loaderSpeed": 1.9,
    "cloudEntrySpread": 700,
    "introCameraOffsetCells": 0.75,

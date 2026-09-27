@@ -24,6 +24,11 @@ shift(u2, 14.1, 1.13);
 set(u2, 'subtitleInsights', 9.57, 16.35 - 9.57);
 set(u2, 'subtitleIfOnly', 16.35, 3.8);
 s.pacing.ultimate2HandoffHold = 1.65;
+// .3 s breath before "When your agent fails": the run lasts .3 s longer at a speed that still ends on the same elbow.
+const run = u2.streamRun.duration, approach = u2.continueStraight.duration;
+s.ultimate2.controls = {...s.ultimate2.controls, streamerSpeed: r3(s.ultimate2.controls.streamerSpeed * (run + approach) / (run + .3 + approach))};
+shift(u2, 4.6, .3, () => false);
+for (const key of ['streamRun', 'subtitleTrace']) set(u2, key, u2[key].at, run + .3);
 
 // Cost: animation untouched; captions move to their phrases and the tail trims just after depletion.
 const cost = s.cost.timing as Track;
@@ -83,10 +88,10 @@ const prelude = ch.issues + settings.issues.leadIn.duration, postlude = ch.issue
 const phrases: [string, number, number, number, number][] = [
   ['You build agents.', 4.52, 5.77, 4.6, .45],
   ['Every time your agent runs, it leaves a trace.', 5.94, 8.67, 6.02, 1.9],
-  ['When your agent fails,', 8.96, 10.2, 9.04, 4.62],
-  ['the trace can tell you why.', 10.2, 11.61, 10.26, 6.42],
-  ['The insights ... thousands of traces.', 12.17, 18.35, 12.25, 9.57],
-  ['If only someone could read them all.', 18.75, 20.44, 18.83, 16.35],
+  ['When your agent fails,', 8.96, 10.2, 9.04, 4.92],
+  ['the trace can tell you why.', 10.2, 11.61, 10.26, 6.72],
+  ['The insights ... thousands of traces.', 12.17, 18.35, 12.25, 9.87],
+  ['If only someone could read them all.', 18.75, 20.44, 18.83, 16.65],
   ['Cheap LLMs can read traces efficiently,', 22.01, 24.26, 22.09, ch.cost + .45],
   ['but fail to find crucial issues.', 24.64, 26.51, 24.72, ch.cost + 2.95],
   ['Powerful LLMs can find deep issues,', 26.8, 29.09, 26.88, ch.cost + 6.2],
