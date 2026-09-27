@@ -1,0 +1,134 @@
+[
+ {
+  "text": "You build agents.",
+  "a": 4.52,
+  "b": 5.77,
+  "at": 0.37
+ },
+ {
+  "text": "Every time your agent runs, it leaves a trace.",
+  "a": 5.94,
+  "b": 8.67,
+  "at": 1.82
+ },
+ {
+  "text": "When your agent fails,",
+  "a": 8.96,
+  "b": 10.2,
+  "at": 4.54
+ },
+ {
+  "text": "the trace can tell you why.",
+  "a": 10.2,
+  "b": 11.61,
+  "at": 6.36
+ },
+ {
+  "text": "The insights ... thousands of traces.",
+  "a": 12.17,
+  "b": 18.35,
+  "at": 9.49
+ },
+ {
+  "text": "If only someone could read them all.",
+  "a": 18.75,
+  "b": 20.44,
+  "at": 16.27
+ },
+ {
+  "text": "Cheap LLMs can read traces efficiently,",
+  "a": 22.01,
+  "b": 24.26,
+  "at": 18.768
+ },
+ {
+  "text": "but fail to find crucial issues.",
+  "a": 24.64,
+  "b": 26.51,
+  "at": 21.268
+ },
+ {
+  "text": "Powerful LLMs can find deep issues,",
+  "a": 26.8,
+  "b": 29.09,
+  "at": 24.518
+ },
+ {
+  "text": "but the costs are unsustainable,",
+  "a": 29.43,
+  "b": 31.06,
+  "at": 28.338
+ },
+ {
+  "text": "until now.",
+  "a": 31.32,
+  "b": 32.06,
+  "at": 31.618
+ },
+ {
+  "text": "Introducing Flow 1, our model specialized for trace analysis,",
+  "a": 32.77,
+  "b": 36.56,
+  "at": 33.668
+ },
+ {
+  "text": "matching Sonnet 5 intelligence",
+  "a": 36.96,
+  "b": 38.84,
+  "at": 37.818
+ },
+ {
+  "text": "at only 2% of the cost.",
+  "a": 38.84,
+  "b": 40.5,
+  "at": 40.108
+ },
+ {
+  "text": "Flow 1 powers Signals,",
+  "a": 41.34,
+  "b": 42.8,
+  "at": 43.468
+ },
+ {
+  "text": "our agent built to analyze traces",
+  "a": 42.82,
+  "b": 44.505,
+  "at": 45.728
+ },
+ {
+  "text": "at scale.",
+  "a": 44.505,
+  "b": 45.37,
+  "at": 48.148
+ },
+ {
+  "text": "It finds deep issues in every trace",
+  "a": 45.9,
+  "b": 48.08,
+  "at": 50.068
+ },
+ {
+  "text": "and clusters them into high-level patterns,",
+  "a": 48.13,
+  "b": 50.32,
+  "at": 52.918
+ },
+ {
+  "text": "ready for you or your coding agent.",
+  "a": 50.7,
+  "b": 52.66,
+  "at": 55.468
+ },
+ {
+  "text": "Unlock the insights hiding in millions of agent traces",
+  "a": 53.23,
+  "b": 56.09,
+  "at": 59.251
+ },
+ {
+  "text": "with Laminar.",
+  "a": 56.18,
+  "b": 56.97,
+  "at": 62.251
+ }
+]
