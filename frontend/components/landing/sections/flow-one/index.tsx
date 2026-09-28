@@ -10,6 +10,7 @@ const FlowOne = () => (
       <p className={bodyMedium}>
         <span className="text-primary-100">flow-1</span> was fine-tuned for intelligent and efficient trace analysis.
         <br className="hidden sm:block" />
+        {` `}
         Surpassing <span className="text-primary-100">GPT-6 Sol</span> in trace analysis intelligence, while analyzing{" "}
         <span className="text-primary-100">20x</span> more traces per dollar.
       </p>
