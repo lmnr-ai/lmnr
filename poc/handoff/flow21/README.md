@@ -6,7 +6,7 @@ Published target: `sandbox/signals-launch-video` in `lmnr-ai/lmnr`.
 
 The earlier rollback removed only the last interpolation experiment, not the preceding frame-pinned rewrite. That rewrite is now also reverted to the pre-midnight `449f3d67` cloud behavior: native Ultimate2/Cost clouds plus Flow's world-attached cloud plane. Replacement cloud bars and X/Y extent controls are removed. Legacy `clouds` metadata in the settings snapshot is retained but ignored by rendering; native chapter cloud controls remain active.
 
-Animation21, its timings, the shared camera, narration, audio, chapter allocations, and the settings snapshot are unchanged. Sound alignment remains pending. Do not restore the three-bar frame-cloud sampler from the initial publication.
+Animation21, its timings, the shared camera, narration, chapter allocations, and the settings snapshot are unchanged. The Acoustic Chill bed has since been re-scored to this cut (see below). Do not restore the three-bar frame-cloud sampler from the initial publication.
 
 ## Open the current cut
 
@@ -45,9 +45,9 @@ Current composition: **2085 frames at 30fps**, 69.49133333333333s authored durat
 
 Bead order: Opus, Sonnet, flow-1, Sol, Gemini, Luna. The standalone `beads.ts` derives per-bead motion from the single authored group clock. The separate `modelPoints` visibility envelope remains as requested; account for it when choosing audible cues.
 
-## Sound work is intentionally pending
+## Sound: Acoustic Chill re-scored to Animation 21
 
-No soundtrack was regenerated and no audio was realigned for the new chapter. Existing recorded comparison wording may also differ from the new “20x more traces per dollar” caption. The voice-free v4 bed remains frozen to its old visual timing.
+`score/cues.ts` derives the Flow cues from `flow.timing21` when `sourceVersion` is 21: the six bead landings are the number drops, `ballEntry` is the count-up, `graphSpread` is the swap/glissando, `xAxisEntry` is the analysis count-up. `scripts/build-ultimate3-flow21-bed.mjs` renders the voice-free keyboard-bearing bed (`arabesque-acoustic-chill --split-arabesque`, seed 107290, -5.5 dB, 2085 frames) into `editable-v4/flow21-bed.wav`, and points `manifest.json` at it. The v4 `bed.wav` stays byte-for-byte, listed under `previousBeds`. The recorded narration still says “2% of the cost”, while the caption reads “20x more traces per dollar”.
 
 Use `flow.timing21` and the shared sample helpers rather than the legacy `modelRows`, `barsGrow`, or `cameraToAnalysis` tracks. Inspect `voiceover-engine.ts`, `voiceover-schedule.ts`, `voiceover-phrases.ts`, and `scripts/export-ultimate3-editable-vo.ts` for the editable narration/audio path. Prepared source narration and bed files under `public/audio/voiceover/editable-v4/` are included byte-for-byte, along with historical v2/v4 media and manifests.
 

@@ -36,6 +36,45 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
   const issues = settings.issues.timing;
   const preludeStart = round(issuesStart + issueEntryEnd(settings)), prelude = resolvePreludeSchedule(settings.issues.preludeTiming);
   const clouds = ultimate3CloudWhooshWindows(settings);
+  const flow21 = settings.flow.sourceVersion === 21 && settings.flow.timing21;
+  // Animation 21 has no number rows or bars: the six bead landings are the drops, the graph spread is the swap.
+  const bead = (i: number) => {
+    const beads = (flow21 as NonNullable<typeof settings.flow.timing21>).beadsEntry, gap = settings.flow.controls.beadStaggerSeconds ?? .11;
+    return round(flowNative + beads.at + i * gap + beads.duration - 5 * gap);
+  };
+  const flowCues = flow21 ? {
+    cloudExit: span(flowNative, flow21.cloudExit),
+    cameraZoom: span(flowNative, flow21.cameraZoom),
+    benchmark: at(flowNative, flow21.benchmarkHeading),
+    numberDrops: Array.from({length: 6}, (_, i) => bead(i)),
+    countUp: span(flowNative, flow21.ballEntry),
+    cameraToAnalysis: span(flowNative, flow21.graphSpread),
+    numberSwap: span(flowNative, flow21.graphSpread),
+    barsGrow: span(flowNative, flow21.graphSpread),
+    analysisCountUp: span(flowNative, flow21.xAxisEntry),
+    cameraToEngine: span(flowNative, flow21.cameraToEngine),
+    moduleActivation: at(flowNative, flow21.moduleActivation),
+    engineSpinner: span(flowNative, flow21.engineSpinner),
+    cover: span(flowNative, flow21.coverDescent),
+    coverShut: round(flowNative + flow21.coverDescent.at + flow21.coverDescent.duration - .05),
+    coverTint: span(flowNative, flow21.coverTint),
+  } : {
+    cloudExit: span(flowNative, flow.cloudExit),
+    cameraZoom: span(flowNative, flow.cameraZoom),
+    benchmark: at(flowNative, flow.benchmarkHeading),
+    numberDrops: ultimate3FlowNumberDropTimes(settings),
+    countUp: span(flowNative, flow.percentageCountUp),
+    cameraToAnalysis: span(flowNative, flow.cameraToAnalysis),
+    numberSwap: span(flowNative, flow.numberSwap),
+    barsGrow: ultimate3FlowRatchetWindow(settings),
+    analysisCountUp: span(flowNative, flow.analysisCountUp),
+    cameraToEngine: span(flowNative, flow.cameraToEngine),
+    moduleActivation: at(flowNative, flow.moduleActivation),
+    engineSpinner: span(flowNative, flow.engineSpinner),
+    cover: span(flowNative, flow.coverDescent),
+    coverShut: round(flowNative + flow.coverDescent.at + flow.coverDescent.duration - .05),
+    coverTint: span(flowNative, flow.coverTint),
+  };
 
   return {
     duration, chapter,
@@ -80,21 +119,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       // The title lands two beats into the camera lift; that is the drop.
       reveal: round(flowStart + Math.min(entry.at + entry.duration, 2 * BEAT)),
       native: flowNative,
-      cloudExit: span(flowNative, flow.cloudExit),
-      cameraZoom: span(flowNative, flow.cameraZoom),
-      benchmark: at(flowNative, flow.benchmarkHeading),
-      numberDrops: ultimate3FlowNumberDropTimes(settings),
-      countUp: span(flowNative, flow.percentageCountUp),
-      cameraToAnalysis: span(flowNative, flow.cameraToAnalysis),
-      numberSwap: span(flowNative, flow.numberSwap),
-      barsGrow: ultimate3FlowRatchetWindow(settings),
-      analysisCountUp: span(flowNative, flow.analysisCountUp),
-      cameraToEngine: span(flowNative, flow.cameraToEngine),
-      moduleActivation: at(flowNative, flow.moduleActivation),
-      engineSpinner: span(flowNative, flow.engineSpinner),
-      cover: span(flowNative, flow.coverDescent),
-      coverShut: round(flowNative + flow.coverDescent.at + flow.coverDescent.duration - .05),
-      coverTint: span(flowNative, flow.coverTint),
+      ...flowCues,
     },
     issues: {
       postludeActive,

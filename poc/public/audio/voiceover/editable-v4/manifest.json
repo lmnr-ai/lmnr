@@ -3,13 +3,13 @@
   "scoreStyle": "arabesque-acoustic-chill",
   "seed": 107290,
   "sampleRate": 48000,
-  "frames": 1974,
-  "samples": 3158400,
+  "frames": 2085,
+  "samples": 3336000,
   "bed": {
-    "file": "bed.wav",
-    "sha256": "fdd54c6ec11f569efc4d7247beceb2c83a2a3ae8e7d00b92022861cb0b0d6609"
+    "file": "flow21-bed.wav",
+    "sha256": "e4a382cbb2bf4cc8357ecd5090e7dd7525443a17b1d561138028e2b3d1e70c4a"
   },
-  "settingsSha256": "ff117799254fdaf9037694e8c8399464e16e2aa37be1bef73c5f05b0640583c2",
+  "settingsSha256": "e925b608ee57345492fdb2b43713a1ca6ee43df43c2c2849f69ba4ad759b89e2",
   "placementsSha256": "dfb715ef68a23526c397623536bdd189572ac6a5ef5ee6a4073e349db3a4be53",
   "sourceRecordingSha256": "5519cb5f0c69355c65ab2f57b36af684989cab660881b743d872937aecba7ee0",
   "phrases": [
@@ -234,5 +234,14 @@
       "at": 63.301
     }
   ],
-  "note": "Voice-free keyboard-bearing bed at -5.5 dB; phrase sources highpass/compressed/normalized once. No baked voice-dependent ducking or final old loudnorm; not byte-identical to the preserved v4 mixed WAV."
+  "note": "Voice-free keyboard-bearing bed at -5.5 dB; phrase sources highpass/compressed/normalized once. No baked voice-dependent ducking or final old loudnorm; not byte-identical to the preserved v4 mixed WAV.",
+  "previousBeds": [
+    {
+      "file": "bed.wav",
+      "sha256": "fdd54c6ec11f569efc4d7247beceb2c83a2a3ae8e7d00b92022861cb0b0d6609",
+      "frames": 1974,
+      "samples": 3158400,
+      "settingsSha256": "ff117799254fdaf9037694e8c8399464e16e2aa37be1bef73c5f05b0640583c2"
+    }
+  ]
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {normalizeSettings} from './settings';
 import {VOICEOVER_DEFAULTS, normalizeVoiceoverSettings} from './voiceover-cut';
-import {VOICEOVER_PHRASES} from './voiceover-phrases';
+import {VOICEOVER_BED_URL, VOICEOVER_PHRASES} from './voiceover-phrases';
 import {mixVoiceoverPcm, phraseGain, voiceoverSchedule} from './voiceover-schedule';
 import {voiceoverTimelineConfig, voiceoverTimelineValues, settingsFromVoiceoverTimeline} from './authoring';
 import {VoiceoverEngine} from './voiceover-engine';
@@ -64,7 +64,10 @@ test('new prepared assets are exactly the immutable 22 trims and keyboard-bearin
   const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
   assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
   assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
-  assert.equal(manifest.samples, 1974 * 1600);
+  assert.equal(manifest.samples, 2085 * 1600);
+  assert.equal(`/audio/voiceover/editable-v4/${manifest.bed.file}`, VOICEOVER_BED_URL);
+  // The v4 bed stays byte-for-byte for provenance.
+  assert.equal(sha(read('bed.wav')), manifest.previousBeds[0].sha256);
   for (const entry of manifest.phrases) {
     const phrase = VOICEOVER_PHRASES.find(p => p.id === entry.id)!;
     assert.equal(entry.text, phrase.text);

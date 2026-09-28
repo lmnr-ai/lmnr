@@ -66,6 +66,8 @@ The same three scores with no electronics:
 
 `arabesque-acoustic-chill` keeps Arabesque Acoustic from Flow-1 on. Before it, one quiet eighth-note bed (E – A – G♯m – A, Bsus into the drop) runs unbroken, and events are soft in-key piano touches on top. There are no warning ducks. It works with `--split-arabesque`.
 
+On the Animation 21 cut (`flow.sourceVersion: 21`), the Flow cues come from `flow.timing21`: the bead landings, the string entry, the graph spread and the axis entry replace the legacy number rows and bars. The editable VO bed is `scripts/build-ultimate3-flow21-bed.mjs`.
+
 All Arabesque styles bridge the Issues analysis prelude (`cues.issues.prelude`: bash descent, zoom out, circle grow) with a triplet arabesque walking I – IV – V into the issue grid.
 
 ### `nocturne-duet` — piano and violin

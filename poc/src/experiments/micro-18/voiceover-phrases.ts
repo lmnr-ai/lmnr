@@ -6,4 +6,5 @@ export const VOICEOVER_PHRASES = placements.map((phrase, index) => ({
   a: phrase.a, b: phrase.b, defaultAt: phrase.at,
 }));
 export const VOICEOVER_SOURCE_ROOT = '/audio/voiceover/editable-v4/';
-export const VOICEOVER_BED_URL = `${VOICEOVER_SOURCE_ROOT}bed.wav`;
+// Scored to the Animation 21 cut (scripts/build-ultimate3-flow21-bed.mjs); the v4 `bed.wav` is kept for provenance.
+export const VOICEOVER_BED_URL = `${VOICEOVER_SOURCE_ROOT}flow21-bed.wav`;
