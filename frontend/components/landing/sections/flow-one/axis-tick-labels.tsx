@@ -1,7 +1,7 @@
 import {
   CHART_HEIGHT,
   FIRST_COLUMN_WIDTH,
-  intelligenceToY,
+  f1ScoreToY,
   LAST_ROW_HEIGHT,
   percentX,
   percentY,
@@ -10,7 +10,7 @@ import {
 } from "./chart-geometry";
 
 const X_TICKS = [0, 50, 100, 150, 200, 250];
-const Y_TICKS = [65, 70, 75, 80, 85, 90, 95];
+const Y_TICKS = [65, 70, 75, 80, 85, 90];
 
 const AxisTickLabels = () => (
   <div aria-hidden className="font-sans-landing pointer-events-none absolute inset-0 text-[#7c7e85]">
@@ -38,7 +38,7 @@ const AxisTickLabels = () => (
           fontSize: scaledWidth(10),
           left: percentX(FIRST_COLUMN_WIDTH - 5),
           lineHeight: "normal",
-          top: percentY(intelligenceToY(tick)),
+          top: percentY(f1ScoreToY(tick)),
         }}
       >
         {tick}

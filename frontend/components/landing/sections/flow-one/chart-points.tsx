@@ -3,21 +3,21 @@ import { Fragment } from "react";
 import { Tooltip, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { BENCHMARK_MODELS } from "./benchmark-data";
-import { intelligenceToY, percentX, percentY, scaledWidth, tracesPerDollarToX } from "./chart-geometry";
+import { f1ScoreToY, percentX, percentY, scaledWidth, tracesPerDollarToX } from "./chart-geometry";
 import ModelTooltipContent from "./model-tooltip-content";
 
 const LABEL_LEFT_OFFSET: Record<string, number> = {
   "Flow-1": 48,
-  "GPT-5.6 Luna": 88,
+  "GPT-6 Luna": 76,
 };
 
-const LABELS_ON_RIGHT = new Set(["Claude Opus 5", "Claude Sonnet 5", "GPT-5.6 Sol", "Gemini 3.8 Flash"]);
+const LABELS_ON_RIGHT = new Set(["Claude Opus 5", "Claude Sonnet 5", "GPT-6 Sol", "Gemini 3.8 Flash"]);
 
 const ChartPoints = () => (
   <div className="pointer-events-none absolute inset-0 z-20">
     {BENCHMARK_MODELS.map((model) => {
       const x = tracesPerDollarToX(model.tracesPerDollar);
-      const y = intelligenceToY(model.intelligence);
+      const y = f1ScoreToY(model.f1Score);
       const labelX = LABELS_ON_RIGHT.has(model.label) ? x + 8 : x - (LABEL_LEFT_OFFSET[model.label] ?? 80);
       const pointSize = model.flow ? 8 : 4;
 
@@ -41,7 +41,7 @@ const ChartPoints = () => (
               </button>
             </TooltipTrigger>
             <TooltipPortal>
-              <ModelTooltipContent intelligence={model.intelligence} tracesPerDollar={model.tracesPerDollar} />
+              <ModelTooltipContent f1Score={model.f1Score} tracesPerDollar={model.tracesPerDollar} />
             </TooltipPortal>
           </Tooltip>
           <Tooltip>
@@ -63,7 +63,7 @@ const ChartPoints = () => (
               </button>
             </TooltipTrigger>
             <TooltipPortal>
-              <ModelTooltipContent intelligence={model.intelligence} tracesPerDollar={model.tracesPerDollar} />
+              <ModelTooltipContent f1Score={model.f1Score} tracesPerDollar={model.tracesPerDollar} />
             </TooltipPortal>
           </Tooltip>
         </Fragment>

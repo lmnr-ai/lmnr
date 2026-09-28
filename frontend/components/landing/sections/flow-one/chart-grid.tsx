@@ -45,13 +45,13 @@ const ChartGrid = () => (
       style={{
         left: percentX(FIRST_COLUMN_WIDTH),
         right: 0,
-        top: percentY(CHART_HEIGHT - LAST_ROW_HEIGHT + 7),
+        top: percentY(CHART_HEIGHT - LAST_ROW_HEIGHT + 9),
         bottom: 0,
       }}
     >
       <div className="flex items-center gap-[0.68cqw] whitespace-nowrap font-sans-landing text-[1.36cqw] text-[#7c7e85]">
         <span>Traces analyzed per dollar</span>
-        <AxisHelp label="About the cost estimate">Calculated from measured cost per run at 16k characters</AxisHelp>
+        <AxisHelp label="About the cost estimate">Median measured cost per trace across the full benchmark</AxisHelp>
       </div>
     </div>
     <div
@@ -65,10 +65,8 @@ const ChartGrid = () => (
       }}
     >
       <div className="flex flex-none -rotate-90 items-center gap-[0.68cqw] whitespace-nowrap font-sans-landing text-[1.36cqw] text-[#7c7e85]">
-        <span>Trace analysis intelligence (%)</span>
-        <AxisHelp label="About the trace analysis intelligence benchmark">
-          F1 results from our trace analysis benchmark
-        </AxisHelp>
+        <span>F1 score (%)</span>
+        <AxisHelp label="About the F1 benchmark">F1 results from our full 523-trace analysis benchmark</AxisHelp>
       </div>
     </div>
   </div>

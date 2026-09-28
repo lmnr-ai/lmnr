@@ -11,8 +11,8 @@ const FlowOne = () => (
       <p className={bodyMedium}>
         <span className="text-primary-100">Flow-1</span> was fine-tuned for intelligent and efficient trace analysis.
         <br className="hidden sm:block" />
-        Matching <span className="text-primary-100">Sonnet-5</span> in trace analysis intelligence, while analyzing 37x
-        more traces per dollar.
+        Matching <span className="text-primary-100">Sonnet-5</span> in F1 score, while analyzing 44x more traces per
+        dollar.
       </p>
       <LearnMoreLink className="mt-5" label="Learn more about Flow-1" href="/blog/flow-1" />
     </div>
