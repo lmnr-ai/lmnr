@@ -1,13 +1,14 @@
-//! Consumer for the sp-versioning queue: LLM-free version classification.
+//! Consumer for a versioning queue: LLM-free version classification. One
+//! handler type serves every [`VersionKind`]; each kind runs its own workers on
+//! its own queue.
 //!
-//! Classifies each prompt against the agent's live version registry (cheap
-//! subset match), maintains the per-agent prompt window, mints new versions
-//! (top-K Jaccard cluster → ordered LCS intersection) when the static part
-//! changed, and writes one `system_prompt_versions` row per span of the
-//! message being processed. Minting registers the version (registry + line
-//! set) and nothing else — regexes are generated on demand when a consumer
-//! first needs them (see `static_sp_extraction::worker`). No LLM runs here,
-//! so the mint lock is held for milliseconds.
+//! Classifies each text against the agent's live version registry (cheap
+//! subset match), maintains the per-agent window, mints new versions (top-K
+//! Jaccard cluster → ordered LCS intersection) when the static part changed,
+//! and writes one row per span of the message being processed to the kind's
+//! versions table. Minting registers the version (registry + line set) and
+//! nothing else — derived artifacts are generated on demand by the features
+//! that read them. No LLM runs here, so the mint lock is held for milliseconds.
 //!
 //! A message that can't resolve yet (cold-start window, mint in progress,
 //! transient error) parks on the delay queue and re-checks on redelivery, up
@@ -22,14 +23,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_ROUTING_KEY, similarity, versions,
+    VersionKind, similarity, versions,
     window::{self, WindowEntry},
 };
 use crate::{
     cache::{Cache, CacheTrait},
     ch::system_prompt_versions::{
-        CHSystemPromptVersion, CHSystemPromptVersionDef, insert_system_prompt_version_def,
-        insert_system_prompt_versions,
+        CHSystemPromptVersion, CHSystemPromptVersionDef, insert_version_def, insert_version_rows,
     },
     env,
     mq::{MessageQueue, MessageQueueTrait},
@@ -44,14 +44,6 @@ use super::window::SpanRef;
 static OCCURRENCE_THRESHOLD: LazyLock<u64> =
     LazyLock::new(|| env::static_sp::OCCURRENCE_THRESHOLD.get());
 
-static WINDOW_SIZE: LazyLock<usize> = LazyLock::new(|| env::static_sp::WINDOW_SIZE.get());
-static WINDOW_MAX_AGE_SECONDS: LazyLock<i64> =
-    LazyLock::new(|| env::static_sp::WINDOW_MAX_AGE_SECONDS.get());
-static MIN_WINDOW: LazyLock<usize> = LazyLock::new(|| env::static_sp::MIN_WINDOW.get());
-static WINDOW_MIN_ENTRIES: LazyLock<usize> =
-    LazyLock::new(|| env::static_sp::WINDOW_MIN_ENTRIES.get());
-static TOP_K_PERCENT: LazyLock<usize> = LazyLock::new(|| env::static_sp::TOP_K_PERCENT.get());
-
 static WINDOW_TTL_SECONDS: LazyLock<u64> =
     LazyLock::new(|| env::static_sp::WINDOW_TTL_SECONDS.get());
 static RETRY_DELAY_MS: LazyLock<u64> = LazyLock::new(|| env::static_sp::RETRY_DELAY_MS.get());
@@ -59,17 +51,17 @@ static MAX_RETRIES: LazyLock<u32> = LazyLock::new(|| env::static_sp::MAX_RETRIES
 
 /// Cluster size for a window of `available` usable entries.
 ///
-/// The percentage only applies to a window that reached `MIN_WINDOW`. Below
+/// The percentage only applies to a window that reached `min_window`. Below
 /// it we are already minting best-effort and there is nothing to discard — the
 /// window is small because data is scarce, not because it holds outliers — and
 /// a 50% slice of three prompts is ONE prompt, whose "intersection" is that
 /// prompt verbatim, dynamic lines and all. Such a version matches only the
 /// prompt that minted it, so it is guaranteed churn.
-fn cluster_size(available: usize, min_window: usize) -> usize {
+fn cluster_size(available: usize, min_window: usize, top_k_percent: usize) -> usize {
     if available < min_window {
         return available.max(1);
     }
-    (available * *TOP_K_PERCENT / 100).max(1)
+    (available * top_k_percent / 100).max(1)
 }
 
 /// TTL on the per-agent mint lock. The critical section is a registry RMW
@@ -105,13 +97,19 @@ impl MintGate {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpVersioningMessage {
     pub project_id: Uuid,
-    /// Raw prompt body. Empty on slim messages (version already known and no
-    /// mint possible). Only the full algorithm needs it — for the window it is
-    /// `line_hashes` that matters.
+    /// The versioned text: a system prompt or a user template, per the queue's
+    /// [`VersionKind`]. Named for wire compatibility. Empty on slim messages
+    /// (version already known and no mint possible). Only the full algorithm
+    /// needs it — for the window it is `line_hashes` that matters.
     pub system_prompt: String,
-    /// First-sentence hash — the agent identity.
+    /// First-sentence hash of the system prompt — the agent identity.
     pub agent_hash: String,
-    /// 128-bit content hash of the raw prompt.
+    /// Whether the text follows assistant history. Only user templates are
+    /// partitioned by it (see [`VersionKind::partition`]); always false for
+    /// system prompts.
+    #[serde(default)]
+    pub has_history: bool,
+    /// Content hash of the text: the memo key and window entry id.
     pub full_prompt_hash: String,
     /// Per-line hashes of the prompt, computed by the producer for its inline
     /// cheap match. Rides every message so a slim one (no body) still appends
@@ -160,6 +158,7 @@ impl SpVersioningMessage {
 }
 
 pub struct SpVersioningHandler {
+    pub kind: VersionKind,
     pub cache: Arc<Cache>,
     pub clickhouse: clickhouse::Client,
     /// For parking unresolved messages on the delay queue.
@@ -168,11 +167,13 @@ pub struct SpVersioningHandler {
 
 impl SpVersioningHandler {
     pub fn new(
+        kind: VersionKind,
         cache: Arc<Cache>,
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
+            kind,
             cache,
             clickhouse,
             queue,
@@ -194,7 +195,8 @@ impl MessageHandler for SpVersioningHandler {
             let rows_before = rows.len();
             if let Err(e) = self.process_message(message, &mut rows).await {
                 log::error!(
-                    "[SP_VERSIONING] Failed to process prompt for agent {}: {e:?}",
+                    "[SP_VERSIONING] Failed to process {} for agent {}: {e:?}",
+                    self.kind.label(),
                     message.agent_hash
                 );
                 // Errors are transient (Redis) — park and re-check, but only
@@ -212,11 +214,12 @@ impl MessageHandler for SpVersioningHandler {
         // and renders the raw prompt. Requeueing would double-write rows for
         // the messages that already succeeded.
         if !rows.is_empty()
-            && let Err(e) = insert_system_prompt_versions(&self.clickhouse, &rows).await
+            && let Err(e) = insert_version_rows(&self.clickhouse, self.kind, &rows).await
         {
             log::error!(
-                "[SP_VERSIONING] Failed to insert {} system_prompt_versions rows: {e:?}",
-                rows.len()
+                "[SP_VERSIONING] Failed to insert {} {} rows: {e:?}",
+                rows.len(),
+                self.kind.tables().versions
             );
         }
         Ok(())
@@ -241,6 +244,13 @@ fn push_message_rows(
 }
 
 impl SpVersioningHandler {
+    /// The window/registry this message is versioned in. ClickHouse rows keep
+    /// the plain `agent_hash`.
+    fn partition(&self, message: &SpVersioningMessage) -> String {
+        self.kind
+            .partition(&message.agent_hash, message.has_history)
+    }
+
     /// Park the message on the delay queue; the broker dead-letters it back
     /// into the main exchange after `SP_EXTRACTION_RETRY_DELAY_MS` for a
     /// re-check. Past the retry cap — or when the publish fails (e.g. the
@@ -250,7 +260,8 @@ impl SpVersioningHandler {
     async fn park(&self, message: &SpVersioningMessage, reason: &str) {
         if message.retry_count >= *MAX_RETRIES {
             log::warn!(
-                "[SP_VERSIONING] Dropping message for agent {} after {} parks ({reason}); {} span(s) stay unlabeled",
+                "[SP_VERSIONING] Dropping {} message for agent {} after {} parks ({reason}); {} span(s) stay unlabeled",
+                self.kind.label(),
                 message.agent_hash,
                 message.retry_count,
                 message.span_refs.len()
@@ -267,12 +278,13 @@ impl SpVersioningHandler {
                 return;
             }
         };
+        let queues = self.kind.queues();
         if let Err(e) = self
             .queue
             .publish(
                 &payload,
-                SP_VERSIONING_DELAY_EXCHANGE,
-                SP_VERSIONING_DELAY_ROUTING_KEY,
+                queues.delay_exchange,
+                queues.delay_routing_key,
                 Some(*RETRY_DELAY_MS),
             )
             .await
@@ -299,8 +311,15 @@ impl SpVersioningHandler {
 
         // The memo may have been filled while this message sat in the queue —
         // this is also how parked messages resolve after a mint completes.
-        if let Some(version_hash) =
-            versions::memo_get(&self.cache, message.project_id, &message.full_prompt_hash).await
+        let partition = self.partition(message);
+        if let Some(version_hash) = versions::memo_get(
+            &self.cache,
+            self.kind,
+            message.project_id,
+            &partition,
+            &message.full_prompt_hash,
+        )
+        .await
         {
             push_message_rows(message, &version_hash, rows_out);
             return Ok(());
@@ -312,15 +331,16 @@ impl SpVersioningHandler {
         }
         let lines_set = similarity::line_hash_set(&line_hashes);
 
-        let window_key = window::window_cache_key(message.project_id, &message.agent_hash);
+        let tunables = self.kind.tunables();
+        let window_key = window::window_cache_key(self.kind, message.project_id, &partition);
         let mut win = window::load_window(&self.cache, &window_key).await?;
         let upsert = window::upsert_entry(
             &mut win,
             &message.full_prompt_hash,
             message.span_refs.first().copied(),
-            *WINDOW_SIZE,
-            *WINDOW_MAX_AGE_SECONDS,
-            *WINDOW_MIN_ENTRIES,
+            tunables.window_size,
+            tunables.window_max_age_seconds,
+            tunables.window_min_entries,
             message.retry_count == 0,
         );
 
@@ -330,8 +350,9 @@ impl SpVersioningHandler {
         if upsert.inserted {
             window::save_entry_lines(
                 &self.cache,
+                self.kind,
                 message.project_id,
-                &message.agent_hash,
+                &partition,
                 &message.full_prompt_hash,
                 &line_hashes,
                 *WINDOW_TTL_SECONDS,
@@ -340,8 +361,9 @@ impl SpVersioningHandler {
         } else {
             window::touch_entry_lines(
                 &self.cache,
+                self.kind,
                 message.project_id,
-                &message.agent_hash,
+                &partition,
                 &message.full_prompt_hash,
                 *WINDOW_TTL_SECONDS,
             )
@@ -365,8 +387,9 @@ impl SpVersioningHandler {
         // Only once the blob no longer references them.
         window::remove_entry_lines(
             &self.cache,
+            self.kind,
             message.project_id,
-            &message.agent_hash,
+            &partition,
             &upsert.evicted,
         )
         .await;
@@ -382,17 +405,19 @@ impl SpVersioningHandler {
         lines_set: &std::collections::HashSet<u64>,
         rows_out: &mut Vec<CHSystemPromptVersion>,
     ) -> anyhow::Result<()> {
-        // The producer already ran the subset match inline (it needs the verdict
-        // to key the user-task regex), so re-running it here would duplicate
+        // The producer already ran the subset match inline (it decides whether
+        // the body rides the wire), so re-running it here would duplicate
         // 11 Redis reads for the same answer. A parked redelivery carries no
         // verdict and falls through to the local match.
+        let partition = self.partition(message);
         let matched = match &message.cheap_matched_version {
             Some(version_hash) => Some(version_hash.clone()),
             None => {
                 versions::cheap_match(
                     &self.cache,
+                    self.kind,
                     message.project_id,
-                    &message.agent_hash,
+                    &partition,
                     lines_set,
                 )
                 .await?
@@ -405,7 +430,9 @@ impl SpVersioningHandler {
                 win[entry_idx].labeled = true;
                 versions::memo_set(
                     &self.cache,
+                    self.kind,
                     message.project_id,
+                    &partition,
                     &message.full_prompt_hash,
                     &version_hash,
                 )
@@ -415,8 +442,9 @@ impl SpVersioningHandler {
                 if message.run_full {
                     versions::touch_version(
                         &self.cache,
+                        self.kind,
                         message.project_id,
-                        &message.agent_hash,
+                        &partition,
                         &version_hash,
                     )
                     .await;
@@ -469,7 +497,9 @@ impl SpVersioningHandler {
         probe_of: Option<&str>,
         rows_out: &mut Vec<CHSystemPromptVersion>,
     ) -> anyhow::Result<()> {
-        let min_window = (*MIN_WINDOW).max(1);
+        let partition = self.partition(message);
+        let tunables = self.kind.tunables();
+        let min_window = tunables.min_window.max(1);
         // The only path that needs every entry's hashes, which is why they sit
         // outside the window blob. Entries whose key is gone can't cluster, so
         // the gates below count what is actually usable, not `win.len()` —
@@ -477,8 +507,9 @@ impl SpVersioningHandler {
         // than required while still reporting the `Normal` gate.
         let lines = window::load_window_lines(
             &self.cache,
+            self.kind,
             message.project_id,
-            &message.agent_hash,
+            &partition,
             win,
             entry_idx,
             line_hashes,
@@ -514,15 +545,20 @@ impl SpVersioningHandler {
         };
         if last_attempt && available < min_window {
             log::info!(
-                "[SP_VERSIONING] Retry budget exhausted for agent {} (project {}) — minting from partial window of {}",
+                "[SP_VERSIONING] Retry budget exhausted for {} agent {} (project {}) — minting from partial window of {}",
+                self.kind.label(),
                 message.agent_hash,
                 message.project_id,
                 available
             );
         }
 
-        let selected =
-            window::select_top_k(win, &lines, entry_idx, cluster_size(available, min_window));
+        let selected = window::select_top_k(
+            win,
+            &lines,
+            entry_idx,
+            cluster_size(available, min_window, tunables.top_k_percent),
+        );
         // Deterministic LCS fold order, independent of similarity ranking.
         let mut ordered = selected.clone();
         ordered.sort_by(|a, b| {
@@ -533,19 +569,9 @@ impl SpVersioningHandler {
             .iter()
             .filter_map(|i| lines[*i].as_deref())
             .collect();
+        // An empty intersection is a version too — the fully dynamic one
+        // (`similarity::empty_version_hash`) — and mints like any other.
         let intersection = similarity::intersect_ordered(&seqs);
-        if intersection.is_empty() {
-            log::warn!(
-                "[SP_VERSIONING] Empty intersection for agent {} (project {}, {} candidates) — skipping mint",
-                message.agent_hash,
-                message.project_id,
-                selected.len()
-            );
-            if !win[entry_idx].labeled {
-                self.park(message, "empty intersection").await;
-            }
-            return Ok(());
-        }
         // Staleness-probe mint gate. On this path `cheap_match` already proved
         // the matched version's static set is contained in THIS prompt, so the
         // version still describes it correctly and the span is already labeled.
@@ -566,8 +592,9 @@ impl SpVersioningHandler {
         if let Some(matched) = probe_of {
             let grew = match versions::load_version_lines(
                 &self.cache,
+                self.kind,
                 message.project_id,
-                &message.agent_hash,
+                &partition,
                 matched,
             )
             .await
@@ -591,12 +618,13 @@ impl SpVersioningHandler {
         // lets the cheap match resolve this shape inline again instead of
         // every prompt taking the miss path.
         let registry =
-            versions::load_registry(&self.cache, message.project_id, &message.agent_hash).await?;
+            versions::load_registry(&self.cache, self.kind, message.project_id, &partition).await?;
         if registry.iter().any(|v| v.version_hash == version_hash) {
             versions::restore_version_lines(
                 &self.cache,
+                self.kind,
                 message.project_id,
-                &message.agent_hash,
+                &partition,
                 &version_hash,
                 &intersection,
             )
@@ -608,7 +636,7 @@ impl SpVersioningHandler {
 
         // One mint per agent: whoever holds the lock registers; everyone
         // else parks and re-checks once the mint has finished.
-        let lock_key = versions::mint_lock_cache_key(message.project_id, &message.agent_hash);
+        let lock_key = versions::mint_lock_cache_key(self.kind, message.project_id, &partition);
         let acquired = self
             .cache
             .try_acquire_lock(&lock_key, MINT_LOCK_TTL_SECONDS)
@@ -658,35 +686,28 @@ impl SpVersioningHandler {
     ) -> anyhow::Result<()> {
         // Double-check under the lock: a concurrent worker may have minted
         // this hash between our registry read and the acquisition.
+        let partition = self.partition(message);
         let registry =
-            versions::load_registry(&self.cache, message.project_id, &message.agent_hash).await?;
+            versions::load_registry(&self.cache, self.kind, message.project_id, &partition).await?;
         if registry.iter().any(|v| v.version_hash == version_hash) {
             self.resolve_message(message, win, entry_idx, version_hash, rows_out)
                 .await;
             return Ok(());
         }
 
-        // Single distinct sample (occurrence-threshold fallback or an
-        // exhausted retry budget): nothing to diff, nothing to strip — the
-        // empty regex list IS the verdict, written atomically with the
-        // registration. Multi-sample versions register with NO regex key:
-        // generation is demand-driven (the first consumer that needs the
-        // regexes and finds the key absent publishes an extraction request —
-        // see `static_sp_extraction::worker`).
-        let regexes: Option<&[_]> = if selected.len() == 1 {
-            log::debug!(
-                "[SP_VERSIONING] Single-sample mint for agent {} — registering {} with empty regex list",
-                message.agent_hash,
-                version_hash
-            );
-            Some(&[])
-        } else {
-            None
-        };
+        // Removal regexes whose verdict is already known, written atomically
+        // with the registration: a single distinct sample (occurrence-threshold
+        // fallback or an exhausted retry budget) has nothing to diff, and the
+        // empty version has no static part to keep — either way nothing is
+        // stripped. Other versions register with NO regex key: generation is
+        // demand-driven (see `static_sp_extraction::worker`).
+        let known_verdict = selected.len() == 1 || intersection.is_empty();
+        let regexes = (self.kind.has_removal_regexes() && known_verdict).then_some(&[][..]);
         versions::register_version(
             &self.cache,
+            self.kind,
             message.project_id,
-            &message.agent_hash,
+            &partition,
             version_hash,
             intersection,
             regexes,
@@ -694,7 +715,8 @@ impl SpVersioningHandler {
         .await?;
 
         log::info!(
-            "[SP_VERSIONING] Minted version {} for agent {} (project {}, {} static lines, {} cluster samples, gate {})",
+            "[SP_VERSIONING] Minted {} version {} for agent {} (project {}, {} static lines, {} cluster samples, gate {})",
+            self.kind.label(),
             version_hash,
             message.agent_hash,
             message.project_id,
@@ -720,7 +742,7 @@ impl SpVersioningHandler {
         Ok(())
     }
 
-    /// Record the mint in `system_prompt_version_defs`. Best-effort and
+    /// Record the mint in the kind's defs table. Best-effort and
     /// off the read path: nothing in the pipeline consumes this table, so a
     /// failed insert costs analysis fidelity only. The static TEXT is
     /// reconstructed here because the registry stores one-way line hashes —
@@ -747,9 +769,10 @@ impl SpVersioningHandler {
             example.map(|r| r.trace_id).unwrap_or_default(),
             example.map(|r| r.span_id).unwrap_or_default(),
         );
-        if let Err(e) = insert_system_prompt_version_def(&self.clickhouse, &row).await {
+        if let Err(e) = insert_version_def(&self.clickhouse, self.kind, &row).await {
             log::warn!(
-                "[SP_VERSIONING] Failed to journal version {version_hash} for agent {}: {e:?}",
+                "[SP_VERSIONING] Failed to journal {} version {version_hash} for agent {}: {e:?}",
+                self.kind.label(),
                 message.agent_hash
             );
         }
@@ -771,7 +794,9 @@ impl SpVersioningHandler {
             win[entry_idx].labeled = true;
             versions::memo_set(
                 &self.cache,
+                self.kind,
                 message.project_id,
+                &self.partition(message),
                 &message.full_prompt_hash,
                 version_hash,
             )
@@ -788,28 +813,39 @@ mod tests {
         MessageQueueDeliveryTrait, MessageQueueReceiver, MessageQueueReceiverTrait,
         tokio_mpsc::TokioMpscQueue,
     };
-    use crate::traces::sp_versioning::SP_VERSIONING_DELAY_QUEUE;
+    use crate::traces::sp_versioning::kind::Tunables;
 
     const AGENT: &str = "agent001";
+    const KIND: VersionKind = VersionKind::SystemPrompt;
+
+    fn tunables() -> &'static Tunables {
+        KIND.tunables()
+    }
+
+    fn handler_for(kind: VersionKind) -> SpVersioningHandler {
+        SpVersioningHandler::new(
+            kind,
+            Arc::new(Cache::InMemory(InMemoryCache::new(None))),
+            clickhouse::Client::default(),
+            Arc::new(MessageQueue::TokioMpsc(TokioMpscQueue::new())),
+        )
+    }
 
     fn make_handler() -> SpVersioningHandler {
-        SpVersioningHandler {
-            cache: Arc::new(Cache::InMemory(InMemoryCache::new(None))),
-            clickhouse: clickhouse::Client::default(),
-            queue: Arc::new(MessageQueue::TokioMpsc(TokioMpscQueue::new())),
-        }
+        handler_for(KIND)
     }
 
     /// Attach a receiver to the delay queue so parks are observable — the
     /// in-memory queue errors on publish without one (park then degrades to
     /// drop, which is also the production posture without RabbitMQ).
     async fn delay_receiver(handler: &SpVersioningHandler) -> MessageQueueReceiver {
+        let queues = handler.kind.queues();
         handler
             .queue
             .get_receiver(
-                SP_VERSIONING_DELAY_QUEUE,
-                SP_VERSIONING_DELAY_EXCHANGE,
-                SP_VERSIONING_DELAY_ROUTING_KEY,
+                queues.delay_queue,
+                queues.delay_exchange,
+                queues.delay_routing_key,
                 1,
             )
             .await
@@ -833,6 +869,7 @@ mod tests {
             project_id,
             system_prompt: prompt.to_string(),
             agent_hash: AGENT.to_string(),
+            has_history: false,
             full_prompt_hash: similarity::full_prompt_hash(prompt),
             line_hashes: similarity::line_hashes(prompt),
             span_refs: vec![SpanRef {
@@ -858,11 +895,11 @@ mod tests {
         project_id: Uuid,
     ) -> (Vec<CHSystemPromptVersion>, String) {
         let mut rows = Vec::new();
-        for i in 0..*MIN_WINDOW {
+        for i in 0..tunables().min_window {
             let message = make_message(project_id, &versioned_prompt(i));
             handler.process_message(&message, &mut rows).await.unwrap();
         }
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "exactly one version minted");
@@ -871,21 +908,21 @@ mod tests {
 
     #[test]
     fn cluster_is_the_configured_share_of_a_healthy_window() {
-        assert_eq!(cluster_size(200, 20), 200 * *TOP_K_PERCENT / 100);
+        assert_eq!(cluster_size(200, 20, 50), 100);
     }
 
     #[test]
     fn cluster_is_the_whole_partial_window() {
         // Half of three is one, and a one-prompt cluster intersects to that
         // prompt verbatim — a version that can only ever match its own mint.
-        assert_eq!(cluster_size(3, 20), 3);
-        assert_eq!(cluster_size(19, 20), 19);
+        assert_eq!(cluster_size(3, 20, 50), 3);
+        assert_eq!(cluster_size(19, 20, 50), 19);
     }
 
     #[test]
     fn cluster_is_never_empty() {
-        assert_eq!(cluster_size(0, 20), 1);
-        assert_eq!(cluster_size(1, 1), 1);
+        assert_eq!(cluster_size(0, 20, 50), 1);
+        assert_eq!(cluster_size(1, 1, 50), 1);
     }
 
     #[tokio::test]
@@ -895,7 +932,7 @@ mod tests {
         let project_id = Uuid::new_v4();
         let mut rows = Vec::new();
 
-        for i in 0..*MIN_WINDOW - 1 {
+        for i in 0..tunables().min_window - 1 {
             handler
                 .process_message(&make_message(project_id, &versioned_prompt(i)), &mut rows)
                 .await
@@ -903,18 +940,25 @@ mod tests {
         }
 
         assert!(rows.is_empty(), "no version rows before a mint");
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert!(registry.is_empty(), "no version minted below MIN_WINDOW");
-        let win = window::load_window(&handler.cache, &window::window_cache_key(project_id, AGENT))
-            .await
-            .unwrap();
-        assert_eq!(win.len(), *MIN_WINDOW - 1, "window still accumulates");
+        let win = window::load_window(
+            &handler.cache,
+            &window::window_cache_key(KIND, project_id, AGENT),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            win.len(),
+            tunables().min_window - 1,
+            "window still accumulates"
+        );
 
         // Every cold-start message parked for a delayed re-check.
         let parked = drain_parked(&mut receiver).await;
-        assert_eq!(parked.len(), *MIN_WINDOW - 1);
+        assert_eq!(parked.len(), tunables().min_window - 1);
         assert!(parked.iter().all(|m| m.retry_count == 1));
         assert!(
             parked.iter().all(|m| !m.system_prompt.is_empty()),
@@ -934,7 +978,7 @@ mod tests {
         assert_eq!(rows[0].static_prompt_version_hash, version_hash);
 
         // The static intersection excludes the dynamic user line.
-        let lines_key = versions::version_lines_cache_key(project_id, AGENT, &version_hash);
+        let lines_key = versions::version_lines_cache_key(KIND, project_id, AGENT, &version_hash);
         let static_lines = handler
             .cache
             .get::<Vec<u64>>(&lines_key)
@@ -958,7 +1002,7 @@ mod tests {
         // Redeliver the parked cold-start messages: each now cheap-matches
         // the minted version and gets its rows.
         let parked = drain_parked(&mut receiver).await;
-        assert_eq!(parked.len(), *MIN_WINDOW - 1);
+        assert_eq!(parked.len(), tunables().min_window - 1);
         let mut redelivered_rows = Vec::new();
         for message in &parked {
             handler
@@ -966,7 +1010,7 @@ mod tests {
                 .await
                 .unwrap();
         }
-        assert_eq!(redelivered_rows.len(), *MIN_WINDOW - 1);
+        assert_eq!(redelivered_rows.len(), tunables().min_window - 1);
         assert!(
             redelivered_rows
                 .iter()
@@ -974,7 +1018,7 @@ mod tests {
         );
         // Nothing re-parked, no second mint.
         assert!(drain_parked(&mut receiver).await.is_empty());
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1);
@@ -994,13 +1038,20 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].static_prompt_version_hash, version_hash);
         assert_eq!(rows[0].span_id, message.span_refs[0].span_id);
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "no second mint");
 
         // Memo now short-circuits byte-identical repeats.
-        let memo = versions::memo_get(&handler.cache, project_id, &message.full_prompt_hash).await;
+        let memo = versions::memo_get(
+            &handler.cache,
+            KIND,
+            project_id,
+            AGENT,
+            &message.full_prompt_hash,
+        )
+        .await;
         assert_eq!(memo.as_deref(), Some(version_hash.as_str()));
     }
 
@@ -1022,18 +1073,19 @@ mod tests {
                 win,
                 hash,
                 None,
-                *WINDOW_SIZE,
-                *WINDOW_MAX_AGE_SECONDS,
-                *WINDOW_MIN_ENTRIES,
+                tunables().window_size,
+                tunables().window_max_age_seconds,
+                tunables().window_min_entries,
                 true,
             )
         };
         let mut win = Vec::new();
-        for i in 0..*MIN_WINDOW {
+        for i in 0..tunables().min_window {
             let sibling = format!("You are a test agent.\nuser: other-{i}\nbody line");
             let hash = similarity::full_prompt_hash(&sibling);
             window::save_entry_lines(
                 &handler.cache,
+                KIND,
                 project_id,
                 AGENT,
                 &hash,
@@ -1047,6 +1099,7 @@ mod tests {
         let probe = make_message(project_id, &versioned_prompt(4242));
         window::save_entry_lines(
             &handler.cache,
+            KIND,
             project_id,
             AGENT,
             &probe.full_prompt_hash,
@@ -1069,7 +1122,7 @@ mod tests {
             )
             .await
             .unwrap();
-        versions::load_registry(&handler.cache, project_id, AGENT)
+        versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap()
             .len()
@@ -1100,13 +1153,13 @@ mod tests {
         // Each contains the old version, so every one cheap-matches it and
         // only the probe can notice the addition.
         let grown = |i: usize| format!("{}\nbrand new line", versioned_prompt(1000 + i));
-        for i in 0..*MIN_WINDOW {
+        for i in 0..tunables().min_window {
             let mut message = make_message(project_id, &grown(i));
             message.cheap_matched_version = Some(version_hash.clone());
             let mut rows = Vec::new();
             handler.process_message(&message, &mut rows).await.unwrap();
         }
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "cheap-match hits alone never mint");
@@ -1117,7 +1170,7 @@ mod tests {
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 2, "the addition minted a new version");
@@ -1127,12 +1180,17 @@ mod tests {
             .iter()
             .find(|v| v.version_hash != version_hash)
             .expect("a version other than the matched one");
-        let grown_lines =
-            versions::load_version_lines(&handler.cache, project_id, AGENT, &minted.version_hash)
-                .await
-                .unwrap();
+        let grown_lines = versions::load_version_lines(
+            &handler.cache,
+            KIND,
+            project_id,
+            AGENT,
+            &minted.version_hash,
+        )
+        .await
+        .unwrap();
         let old_lines =
-            versions::load_version_lines(&handler.cache, project_id, AGENT, &version_hash)
+            versions::load_version_lines(&handler.cache, KIND, project_id, AGENT, &version_hash)
                 .await
                 .unwrap();
         assert!(similarity::is_strict_superset(&grown_lines, &old_lines));
@@ -1151,9 +1209,12 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].static_prompt_version_hash, "someversion");
         // No window touched.
-        let win = window::load_window(&handler.cache, &window::window_cache_key(project_id, AGENT))
-            .await
-            .unwrap();
+        let win = window::load_window(
+            &handler.cache,
+            &window::window_cache_key(KIND, project_id, AGENT),
+        )
+        .await
+        .unwrap();
         assert!(win.is_empty());
     }
 
@@ -1164,7 +1225,9 @@ mod tests {
         let message = make_message(project_id, "some prompt\nbody");
         versions::memo_set(
             &handler.cache,
+            KIND,
             project_id,
+            AGENT,
             &message.full_prompt_hash,
             "racedversion",
         )
@@ -1185,7 +1248,7 @@ mod tests {
         // New version: the "body line" static line was REMOVED. The old static
         // set no longer subset-matches → miss → full run on arrival.
         let mut last_rows = Vec::new();
-        for i in 0..*MIN_WINDOW {
+        for i in 0..tunables().min_window {
             let prompt = format!("You are a test agent.\nuser: new-{i}\ntail line");
             let message = make_message(project_id, &prompt);
             let mut rows = Vec::new();
@@ -1193,7 +1256,7 @@ mod tests {
             last_rows = rows;
         }
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         // The mixed old+new intersection mints once the cluster stabilizes;
@@ -1225,7 +1288,7 @@ mod tests {
             all_rows.extend(rows);
         }
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "fully-static version minted");
@@ -1243,7 +1306,9 @@ mod tests {
         assert_eq!(&all_rows[0].static_prompt_version_hash, version_hash);
         let memo = versions::memo_get(
             &handler.cache,
+            KIND,
             project_id,
+            AGENT,
             &similarity::full_prompt_hash(prompt),
         )
         .await;
@@ -1267,12 +1332,12 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1);
         let version_hash = registry[0].version_hash.clone();
-        let window_key = window::window_cache_key(project_id, AGENT);
+        let window_key = window::window_cache_key(KIND, project_id, AGENT);
         let win = window::load_window(&handler.cache, &window_key)
             .await
             .unwrap();
@@ -1282,10 +1347,10 @@ mod tests {
         // the window (24h sliding) intact.
         let full_hash = similarity::full_prompt_hash(prompt);
         for key in [
-            versions::versions_cache_key(project_id, AGENT),
-            versions::version_lines_cache_key(project_id, AGENT, &version_hash),
+            versions::versions_cache_key(KIND, project_id, AGENT),
+            versions::version_lines_cache_key(KIND, project_id, AGENT, &version_hash),
             versions::version_regex_cache_key(project_id, AGENT, &version_hash),
-            versions::memo_cache_key(project_id, &full_hash),
+            versions::memo_cache_key(KIND, project_id, AGENT, &full_hash),
         ] {
             handler.cache.remove(&key).await.unwrap();
         }
@@ -1298,19 +1363,19 @@ mod tests {
 
         assert_eq!(rows.len(), 1, "the first post-expiry message gets its row");
         assert_eq!(rows[0].static_prompt_version_hash, version_hash);
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "same version re-registered");
         assert_eq!(registry[0].version_hash, version_hash);
         assert!(
-            versions::load_version_lines(&handler.cache, project_id, AGENT, &version_hash)
+            versions::load_version_lines(&handler.cache, KIND, project_id, AGENT, &version_hash)
                 .await
                 .is_some(),
             "line set restored so the cheap match resolves inline again"
         );
         assert_eq!(
-            versions::memo_get(&handler.cache, project_id, &full_hash)
+            versions::memo_get(&handler.cache, KIND, project_id, AGENT, &full_hash)
                 .await
                 .as_deref(),
             Some(version_hash.as_str())
@@ -1326,7 +1391,7 @@ mod tests {
         let project_id = Uuid::new_v4();
         let (_, version_hash) = mint_first_version(&handler, project_id).await;
 
-        let lines_key = versions::version_lines_cache_key(project_id, AGENT, &version_hash);
+        let lines_key = versions::version_lines_cache_key(KIND, project_id, AGENT, &version_hash);
         handler.cache.remove(&lines_key).await.unwrap();
 
         let mut rows = Vec::new();
@@ -1335,12 +1400,12 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].static_prompt_version_hash, version_hash);
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "no duplicate mint");
         assert!(
-            versions::load_version_lines(&handler.cache, project_id, AGENT, &version_hash)
+            versions::load_version_lines(&handler.cache, KIND, project_id, AGENT, &version_hash)
                 .await
                 .is_some()
         );
@@ -1352,7 +1417,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].static_prompt_version_hash, version_hash);
         assert_eq!(
-            versions::load_registry(&handler.cache, project_id, AGENT)
+            versions::load_registry(&handler.cache, KIND, project_id, AGENT)
                 .await
                 .unwrap()
                 .len(),
@@ -1381,7 +1446,7 @@ mod tests {
         capped.retry_count = *MAX_RETRIES;
         handler.process_message(&capped, &mut rows).await.unwrap();
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "partial-window mint happened");
@@ -1390,7 +1455,7 @@ mod tests {
         // The intersection over the partial cluster still strips the dynamic
         // user line.
         let lines_key =
-            versions::version_lines_cache_key(project_id, AGENT, &registry[0].version_hash);
+            versions::version_lines_cache_key(KIND, project_id, AGENT, &registry[0].version_hash);
         let static_lines = handler
             .cache
             .get::<Vec<u64>>(&lines_key)
@@ -1431,7 +1496,7 @@ mod tests {
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1);
@@ -1453,7 +1518,7 @@ mod tests {
         let project_id = Uuid::new_v4();
 
         // Another worker is mid-mint for this agent.
-        let lock_key = versions::mint_lock_cache_key(project_id, AGENT);
+        let lock_key = versions::mint_lock_cache_key(KIND, project_id, AGENT);
         assert!(
             handler
                 .cache
@@ -1468,7 +1533,7 @@ mod tests {
         handler.process_message(&message, &mut rows).await.unwrap();
 
         assert!(rows.is_empty());
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert!(registry.is_empty(), "no mint under the busy lock");
@@ -1491,9 +1556,12 @@ mod tests {
         handler.process_message(&parked, &mut rows).await.unwrap();
         handler.process_message(&parked, &mut rows).await.unwrap();
 
-        let win = window::load_window(&handler.cache, &window::window_cache_key(project_id, AGENT))
-            .await
-            .unwrap();
+        let win = window::load_window(
+            &handler.cache,
+            &window::window_cache_key(KIND, project_id, AGENT),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             win[0].seen_count, 1,
             "redeliveries are the same occurrence — a parked message must not \
@@ -1514,7 +1582,7 @@ mod tests {
         };
 
         // Without the producer's staleness probe, additions never mint.
-        for i in 0..*MIN_WINDOW {
+        for i in 0..tunables().min_window {
             let message = make_message(project_id, &added(i));
             let mut rows = Vec::new();
             handler.process_message(&message, &mut rows).await.unwrap();
@@ -1524,7 +1592,7 @@ mod tests {
                 "cheap match keeps resolving to the old version"
             );
         }
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1, "no mint without the probe");
@@ -1536,7 +1604,7 @@ mod tests {
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 2, "addition minted a second version");
@@ -1559,7 +1627,7 @@ mod tests {
         let handler = make_handler();
         let project_id = Uuid::new_v4();
         let (_, version_hash) = mint_first_version(&handler, project_id).await;
-        let window_key = window::window_cache_key(project_id, AGENT);
+        let window_key = window::window_cache_key(KIND, project_id, AGENT);
         let before = window::load_window(&handler.cache, &window_key)
             .await
             .unwrap()
@@ -1581,6 +1649,7 @@ mod tests {
             .unwrap();
         assert_eq!(win.len(), before + 1, "slim message grew the window");
         let lines_key = window::window_lines_cache_key(
+            KIND,
             project_id,
             AGENT,
             &win.last().unwrap().full_prompt_hash,
@@ -1597,9 +1666,15 @@ mod tests {
         );
         // The producer does not write the memo; the consumer does.
         assert_eq!(
-            versions::memo_get(&handler.cache, project_id, &message.full_prompt_hash)
-                .await
-                .as_deref(),
+            versions::memo_get(
+                &handler.cache,
+                KIND,
+                project_id,
+                AGENT,
+                &message.full_prompt_hash
+            )
+            .await
+            .as_deref(),
             Some(version_hash.as_str())
         );
     }
@@ -1612,29 +1687,164 @@ mod tests {
         let project_id = Uuid::new_v4();
         let mut rows = Vec::new();
 
-        for i in 0..*MIN_WINDOW {
+        for i in 0..tunables().min_window {
             let mut message = make_message(project_id, &versioned_prompt(i));
             message.line_hashes = Vec::new();
             handler.process_message(&message, &mut rows).await.unwrap();
         }
 
-        let registry = versions::load_registry(&handler.cache, project_id, AGENT)
+        let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
         assert_eq!(registry.len(), 1);
     }
 
+    /// Same agent hash but content sharing no lines with the minted version:
+    /// no subset match, and its cluster shares nothing either, so it resolves
+    /// to the fully dynamic version rather than the other shape's.
     #[tokio::test]
-    async fn unrelated_prompt_does_not_match_other_agents_version() {
+    async fn unrelated_prompt_resolves_to_the_empty_version() {
         let handler = make_handler();
         let project_id = Uuid::new_v4();
-        mint_first_version(&handler, project_id).await;
+        let (_, version_hash) = mint_first_version(&handler, project_id).await;
 
-        // Same agent hash (same first sentence family key) but content
-        // sharing no lines: no subset match, no mint below MIN_WINDOW.
         let message = make_message(project_id, "completely\nunrelated\ncontent");
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
-        assert!(rows.is_empty());
+        assert_eq!(rows.len(), 1);
+        assert_ne!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(
+            rows[0].static_prompt_version_hash,
+            similarity::empty_version_hash()
+        );
+    }
+
+    /// A window of texts sharing no line mints the empty version for either
+    /// kind. Only system prompts get the removal-regex verdict alongside it.
+    async fn mint_fully_dynamic(kind: VersionKind) -> (SpVersioningHandler, Uuid, String) {
+        let handler = handler_for(kind);
+        let project_id = Uuid::new_v4();
+        let mut rows = Vec::new();
+        for i in 0..kind.tunables().min_window {
+            let text = format!("task number {i}\nwith detail {i}");
+            handler
+                .process_message(&make_message(project_id, &text), &mut rows)
+                .await
+                .unwrap();
+        }
+        let registry = versions::load_registry(
+            &handler.cache,
+            kind,
+            project_id,
+            &kind.partition(AGENT, false),
+        )
+        .await
+        .unwrap();
+        assert_eq!(registry.len(), 1);
+        let version_hash = registry[0].version_hash.clone();
+        assert_eq!(version_hash, similarity::empty_version_hash());
+        assert_eq!(rows.len(), 1, "the minting message got its row");
+        (handler, project_id, version_hash)
+    }
+
+    #[tokio::test]
+    async fn empty_intersection_mints_the_empty_system_prompt_version() {
+        let (handler, project_id, version_hash) =
+            mint_fully_dynamic(VersionKind::SystemPrompt).await;
+        let regexes =
+            versions::get_version_regexes(&handler.cache, project_id, AGENT, &version_hash)
+                .await
+                .expect("verdict written at mint, so no extraction run is ever demanded");
+        assert!(regexes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn empty_intersection_mints_the_empty_user_template_version() {
+        let (handler, project_id, version_hash) =
+            mint_fully_dynamic(VersionKind::UserTemplate).await;
+        assert!(
+            versions::get_version_regexes(&handler.cache, project_id, AGENT, &version_hash)
+                .await
+                .is_none(),
+            "user templates carry no removal regexes"
+        );
+        assert!(
+            versions::load_registry(&handler.cache, KIND, project_id, AGENT)
+                .await
+                .unwrap()
+                .is_empty(),
+            "the system-prompt registry is untouched"
+        );
+    }
+
+    /// First turns and follow-ups of one agent never share a window.
+    #[tokio::test]
+    async fn user_template_follow_ups_get_their_own_window() {
+        let kind = VersionKind::UserTemplate;
+        let handler = handler_for(kind);
+        let project_id = Uuid::new_v4();
+        let mut message = make_message(project_id, "<task>\nfollow-up\n</task>");
+        message.has_history = true;
+        handler
+            .process_message(&message, &mut Vec::new())
+            .await
+            .unwrap();
+
+        let window_len = |has_history: bool| {
+            let key =
+                window::window_cache_key(kind, project_id, &kind.partition(AGENT, has_history));
+            let cache = handler.cache.clone();
+            async move { window::load_window(&cache, &key).await.unwrap().len() }
+        };
+        assert_eq!(window_len(true).await, 1);
+        assert_eq!(window_len(false).await, 0);
+    }
+
+    /// A text that landed on the empty version gets a real one once the probe
+    /// finds shared lines: any non-empty intersection is a strict superset of
+    /// the empty set.
+    #[tokio::test]
+    async fn probe_mints_a_real_version_over_the_empty_one() {
+        let (handler, project_id, empty) = mint_fully_dynamic(VersionKind::UserTemplate).await;
+        let kind = VersionKind::UserTemplate;
+
+        let scaffolded = |i: usize| format!("<task>\nuser task {i}\n</task>");
+        for i in 0..kind.tunables().min_window {
+            let mut message = make_message(project_id, &scaffolded(i));
+            message.cheap_matched_version = Some(empty.clone());
+            handler
+                .process_message(&message, &mut Vec::new())
+                .await
+                .unwrap();
+        }
+        let mut message = make_message(project_id, &scaffolded(999));
+        message.cheap_matched_version = Some(empty.clone());
+        message.run_full = true;
+        handler
+            .process_message(&message, &mut Vec::new())
+            .await
+            .unwrap();
+
+        let registry = versions::load_registry(
+            &handler.cache,
+            kind,
+            project_id,
+            &kind.partition(AGENT, false),
+        )
+        .await
+        .unwrap();
+        assert_eq!(registry.len(), 2);
+        let real = &registry[0].version_hash;
+        assert_ne!(real, &empty);
+        let lines = versions::load_version_lines(
+            &handler.cache,
+            kind,
+            project_id,
+            &kind.partition(AGENT, false),
+            real,
+        )
+        .await
+        .unwrap();
+        assert_eq!(lines, similarity::line_hashes("<task>\n</task>"));
     }
 }

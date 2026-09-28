@@ -1,10 +1,11 @@
-//! System-prompt versioning tables, both written by the sp-versioning
-//! consumer:
-//!   - `system_prompt_versions` — one row per SPAN, its resolved version.
-//!     Write-once: rows are never corrected after insert (transition-window
-//!     spans keep the version resolved at classification time).
-//!   - `system_prompt_version_defs` — one row per MINT, carrying the version's
-//!     static text and provenance. An analysis journal; nothing reads it.
+//! Versioning tables. Each [`VersionKind`] has its own pair with identical
+//! columns (`system_prompt_*`, `user_template_*`), both written by the
+//! versioning consumer:
+//!   - `*_versions` — one row per SPAN, its resolved version. Write-once: rows
+//!     are never corrected after insert (transition-window spans keep the
+//!     version resolved at classification time).
+//!   - `*_version_defs` — one row per MINT, carrying the version's static text
+//!     and provenance. An analysis journal; nothing reads it.
 
 use std::collections::HashMap;
 
@@ -15,6 +16,7 @@ use uuid::Uuid;
 
 use crate::ch::utils::chrono_to_nanoseconds;
 use crate::traces::prompt_hash::extract_system_message;
+use crate::traces::sp_versioning::VersionKind;
 use crate::utils::{sanitize_string, truncate_chars};
 
 #[derive(Row, Serialize, Debug, Clone)]
@@ -49,17 +51,19 @@ impl CHSystemPromptVersion {
     }
 }
 
-pub async fn insert_system_prompt_versions(
+pub async fn insert_version_rows(
     clickhouse: &clickhouse::Client,
+    kind: VersionKind,
     rows: &[CHSystemPromptVersion],
 ) -> Result<()> {
     if rows.is_empty() {
         return Ok(());
     }
+    let table = kind.tables().versions;
     let mut insert = clickhouse
-        .insert::<CHSystemPromptVersion>("system_prompt_versions")
+        .insert::<CHSystemPromptVersion>(table)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to start system_prompt_versions insert: {e:?}"))?
+        .map_err(|e| anyhow::anyhow!("Failed to start {table} insert: {e:?}"))?
         .with_setting("wait_for_async_insert", "0");
     for row in rows {
         insert.write(row).await?;
@@ -67,10 +71,10 @@ pub async fn insert_system_prompt_versions(
     insert
         .end()
         .await
-        .map_err(|e| anyhow::anyhow!("system_prompt_versions insert failed: {e:?}"))
+        .map_err(|e| anyhow::anyhow!("{table} insert failed: {e:?}"))
 }
 
-/// Journal row written once per version MINT (`system_prompt_version_defs`):
+/// Journal row written once per version MINT (`*_version_defs`):
 /// the static skeleton as text — the registry keeps only one-way line hashes —
 /// plus the provenance needed to audit a mint (which rule allowed it, how
 /// populated the window was, which span triggered it). Nothing in the pipeline
@@ -127,20 +131,22 @@ impl CHSystemPromptVersionDef {
     }
 }
 
-pub async fn insert_system_prompt_version_def(
+pub async fn insert_version_def(
     clickhouse: &clickhouse::Client,
+    kind: VersionKind,
     row: &CHSystemPromptVersionDef,
 ) -> Result<()> {
+    let table = kind.tables().defs;
     let mut insert = clickhouse
-        .insert::<CHSystemPromptVersionDef>("system_prompt_version_defs")
+        .insert::<CHSystemPromptVersionDef>(table)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to start system_prompt_version_defs insert: {e:?}"))?
+        .map_err(|e| anyhow::anyhow!("Failed to start {table} insert: {e:?}"))?
         .with_setting("wait_for_async_insert", "0");
     insert.write(row).await?;
     insert
         .end()
         .await
-        .map_err(|e| anyhow::anyhow!("system_prompt_version_defs insert failed: {e:?}"))
+        .map_err(|e| anyhow::anyhow!("{table} insert failed: {e:?}"))
 }
 
 #[derive(Row, Deserialize, Debug)]
@@ -164,12 +170,13 @@ pub struct VersionSpanRef {
     pub created_at: i64,
 }
 
-/// Version the classifier recorded for one span, if any — the summarizer's
-/// fallback when the byte-identity memo has expired (backfill, old traces).
-/// Newest row wins on at-least-once redelivery duplicates.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+/// Version the classifier recorded for one span, if any — the fallback when
+/// the memo has expired (the summarizer's backfill and old traces, the
+/// user-task worker's re-resolution). Newest row wins on at-least-once
+/// redelivery duplicates.
 pub async fn fetch_span_version(
     clickhouse: &clickhouse::Client,
+    kind: VersionKind,
     project_id: Uuid,
     trace_id: Uuid,
     span_id: Uuid,
@@ -178,16 +185,18 @@ pub async fn fetch_span_version(
     struct VersionRow {
         static_prompt_version_hash: String,
     }
+    let query = format!(
+        "SELECT static_prompt_version_hash
+         FROM {}
+         WHERE project_id = {{project_id:UUID}}
+           AND trace_id = {{trace_id:UUID}}
+           AND span_id = {{span_id:UUID}}
+         ORDER BY created_at DESC
+         LIMIT 1",
+        kind.tables().versions
+    );
     let row = clickhouse
-        .query(
-            "SELECT static_prompt_version_hash
-             FROM system_prompt_versions
-             WHERE project_id = {project_id:UUID}
-               AND trace_id = {trace_id:UUID}
-               AND span_id = {span_id:UUID}
-             ORDER BY created_at DESC
-             LIMIT 1",
-        )
+        .query(&query)
         .param("project_id", project_id)
         .param("trace_id", trace_id)
         .param("span_id", span_id)

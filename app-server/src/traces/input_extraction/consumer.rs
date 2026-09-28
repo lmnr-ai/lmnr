@@ -2,9 +2,11 @@
 //!
 //! Handles regex-cache misses enqueued by the producer hook. Resolution ladder:
 //!
-//!   1. resolve the prompt's version — the producer's inline verdict, else the
-//!      memo, else the `system_prompt_versions` row for the winning span;
-//!   2. a cached regex for that version → apply it;
+//!   1. resolve the user template's version — the producer's inline verdict,
+//!      else the memo, else the `user_template_versions` row for the winning
+//!      span;
+//!   2. a cached regex for that version (or the passthrough, for the fully
+//!      dynamic version) → apply it;
 //!   3. no regex yet → record the user text as a cohort sample (triggering the
 //!      multi-sample agent once the cohort fills) and extract directly with one
 //!      LLM call;
@@ -25,8 +27,8 @@ use super::lock::{UserTaskLockState, lock_cache_key, write_lock_merged};
 use super::metadata::extraction_outcome_value;
 use super::queue::InputExtractionMessage;
 use super::regex::{
-    ApplyRegexResult, RegexTarget, Resolution, generate_and_apply_regex, is_passthrough_regex,
-    record_resolution, regex_target, try_apply_cached_regex,
+    ApplyRegexResult, RegexTarget, Resolution, apply_known_regex, generate_and_apply_regex,
+    is_passthrough_regex, record_resolution, regex_target,
 };
 use super::regex_agent::request_user_task_regex;
 use super::self_tracing::{self, RunKind, SpanBuilder, SpanContextCarrier, SpanScope};
@@ -36,7 +38,7 @@ use crate::{
     llm::LlmClient,
     mq::{MessageQueue, stream::StreamPublisher},
     traces::metadata::publish_trace_input_update,
-    traces::sp_versioning::versions,
+    traces::sp_versioning::{VersionKind, versions},
     worker::{HandlerError, MessageHandler},
 };
 
@@ -66,38 +68,18 @@ impl MessageHandler for InputExtractionHandler {
         // Another worker may have populated the cache since this message was
         // enqueued, on any keying — a hit is pure regex application and emits no
         // self-tracing.
-        let cached = match &target {
-            RegexTarget::Keyed { key, .. } => {
-                try_apply_cached_regex(
-                    &self.cache,
-                    key,
-                    &message.signposted_text,
-                    message.project_id,
-                    message.trace_id,
-                )
-                .await
-            }
-            RegexTarget::Unversioned => None,
-        };
+        let known = apply_known_regex(
+            &self.cache,
+            &target,
+            &message.signposted_text,
+            message.project_id,
+            message.trace_id,
+            message.has_history,
+        )
+        .await;
 
-        let result = match cached {
+        let result = match known {
             Some(result) => {
-                // Recorded only for the versioned pipeline: the legacy keying
-                // serves prompts that can never have a version, so counting its
-                // hits would inflate the denominator of the fallback-rate metric.
-                if let RegexTarget::Keyed {
-                    version: Some(version),
-                    ..
-                } = &target
-                {
-                    record_resolution(
-                        Resolution::Cached,
-                        message.project_id,
-                        message.trace_id,
-                        Some(version),
-                        message.has_history,
-                    );
-                }
                 // Superseded check runs AFTER a cache hit: applying a cached
                 // regex costs nothing worth reordering for.
                 if self.superseded(&message).await {
@@ -147,24 +129,33 @@ impl MessageHandler for InputExtractionHandler {
 }
 
 impl InputExtractionHandler {
-    /// The prompt's version: the producer's inline verdict when it had one, else
-    /// the memo (filled by the classifier, which consumes a message published one
-    /// line before this one — so it has usually landed by now), else the
-    /// `system_prompt_versions` row for the winning span, which covers memo
-    /// expiry.
+    /// The user template's version: the producer's inline verdict when it had
+    /// one, else the memo (filled by the classifier, which consumes a message
+    /// published just before this one — so it has usually landed by now), else
+    /// the `user_template_versions` row for the winning span, which covers memo
+    /// expiry. Spans with no system prompt are never versioned.
     async fn resolve_version(&self, message: &InputExtractionMessage) -> Option<String> {
         if let Some(version) = &message.version_hash {
             return Some(version.clone());
         }
-        let full_prompt_hash = message.full_prompt_hash.as_deref()?;
-        if let Some(version) =
-            versions::memo_get(&self.cache, message.project_id, full_prompt_hash).await
+        let agent_hash = message.prompt_hash.as_deref()?;
+        let kind = VersionKind::UserTemplate;
+        let content_hash = &message.winner_state.as_ref()?.content_hash;
+        if let Some(version) = versions::memo_get(
+            &self.cache,
+            kind,
+            message.project_id,
+            &kind.partition(agent_hash, message.has_history),
+            content_hash,
+        )
+        .await
         {
             return Some(version);
         }
         let span_id = message.span_id?;
         crate::ch::system_prompt_versions::fetch_span_version(
             &self.clickhouse,
+            kind,
             message.project_id,
             message.trace_id,
             span_id,
@@ -211,8 +202,8 @@ impl InputExtractionHandler {
         target: &RegexTarget,
         version_hash: Option<&str>,
     ) -> Option<ApplyRegexResult> {
-        // A cohort exists only when the prompt HAS a version — that is what the
-        // regex is keyed on, so it is also what samples accumulate under.
+        // A cohort exists only when the template HAS a version — that is what
+        // the regex is keyed on, so it is also what samples accumulate under.
         let cohort = match (target, message.prompt_hash.as_deref(), version_hash) {
             (
                 RegexTarget::Keyed {

@@ -88,11 +88,7 @@ use traces::{
             UserTaskRegexHandler,
         },
     },
-    sp_versioning::{
-        SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_QUEUE, SP_VERSIONING_DELAY_ROUTING_KEY,
-        SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE, SP_VERSIONING_ROUTING_KEY,
-        consumer::SpVersioningHandler,
-    },
+    sp_versioning::{VersionKind, consumer::SpVersioningHandler},
     static_sp_extraction::{
         STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE, STATIC_PROMPT_ROUTING_KEY,
         consumer::StaticPromptHandler,
@@ -1056,76 +1052,79 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.15 SP versioning queues ====
-            channel
-                .exchange_declare(
-                    SP_VERSIONING_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+            // ==== 3.15 Versioning queues (one set per VersionKind) ====
+            for kind in VersionKind::ALL {
+                let queues = kind.queues();
+                channel
+                    .exchange_declare(
+                        queues.exchange.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_declare(
-                    SP_VERSIONING_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        queues.queue.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
 
-            // Delay queue for messages that can't resolve yet. No consumer
-            // — messages expire via their per-message TTL and dead-letter
-            // back into the sp-versioning exchange for a re-check.
-            channel
-                .exchange_declare(
-                    SP_VERSIONING_DELAY_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                // Delay queue for messages that can't resolve yet. No consumer
+                // — messages expire via their per-message TTL and dead-letter
+                // back into the kind's exchange for a re-check.
+                channel
+                    .exchange_declare(
+                        queues.delay_exchange.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            let mut sp_versioning_delay_args = quorum_queue_args.clone();
-            sp_versioning_delay_args.insert(
-                "x-dead-letter-exchange".into(),
-                lapin::types::AMQPValue::LongString(SP_VERSIONING_EXCHANGE.into()),
-            );
+                let mut delay_args = quorum_queue_args.clone();
+                delay_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(queues.exchange.into()),
+                );
 
-            channel
-                .queue_declare(
-                    SP_VERSIONING_DELAY_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    sp_versioning_delay_args,
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        queues.delay_queue.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        delay_args,
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_bind(
-                    SP_VERSIONING_DELAY_QUEUE.into(),
-                    SP_VERSIONING_DELAY_EXCHANGE.into(),
-                    SP_VERSIONING_DELAY_ROUTING_KEY.into(),
-                    lapin::options::QueueBindOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_bind(
+                        queues.delay_queue.into(),
+                        queues.delay_exchange.into(),
+                        queues.delay_routing_key.into(),
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+            }
 
             // ==== 3.16 SP regex extraction (demand-driven) queue ====
             // Fed by consumers that hit a version regex-miss (the signals
@@ -1216,8 +1215,10 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         // ==== 3.14 Static prompt message queue ====
         queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
-        // ==== 3.15 SP versioning message queue ====
-        queue.register_queue(SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE);
+        // ==== 3.15 Versioning message queues ====
+        for kind in VersionKind::ALL {
+            queue.register_queue(kind.queues().exchange, kind.queues().queue);
+        }
         // ==== 3.16 SP regex extraction (demand-driven) queue ====
         queue.register_queue(SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE);
         log::info!("Using tokio mpsc queue");
@@ -1601,6 +1602,7 @@ fn main() -> anyhow::Result<()> {
         let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
 
         let num_sp_versioning_workers = env::workers::NUM_SP_VERSIONING.get();
+        let num_user_template_versioning_workers = env::user_template::NUM_WORKERS.get();
 
         let num_sp_regex_extraction_workers = env::workers::NUM_SP_REGEX_EXTRACTION.get();
         let num_user_task_regex_workers = env::workers::NUM_USER_TASK_REGEX.get();
@@ -2302,29 +2304,36 @@ fn main() -> anyhow::Result<()> {
                         log::warn!("LLM provider not available - skipping static prompt workers");
                     }
 
-                    // Spawn sp-versioning classifier workers. LLM-free (the
-                    // ingest producer gates publishing on client availability;
-                    // the extraction workers consume their own queue), so they
-                    // run unconditionally.
-                    {
+                    // Spawn versioning classifier workers, one pool per kind.
+                    // LLM-free (the producers gate publishing on client
+                    // availability; the extraction workers consume their own
+                    // queues), so they run unconditionally.
+                    for kind in VersionKind::ALL {
+                        let (worker_type, num_workers) = match kind {
+                            VersionKind::SystemPrompt => {
+                                (WorkerType::SpVersioning, num_sp_versioning_workers)
+                            }
+                            VersionKind::UserTemplate => (
+                                WorkerType::UserTemplateVersioning,
+                                num_user_template_versioning_workers,
+                            ),
+                        };
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
+                        let queues = kind.queues();
                         worker_pool_clone.spawn(
-                            WorkerType::SpVersioning,
-                            num_sp_versioning_workers,
+                            worker_type,
+                            num_workers,
                             move || {
                                 SpVersioningHandler::new(
+                                    kind,
                                     cache.clone(),
                                     clickhouse.clone(),
                                     queue.clone(),
                                 )
                             },
-                            QueueConfig::new(
-                                SP_VERSIONING_QUEUE,
-                                SP_VERSIONING_EXCHANGE,
-                                SP_VERSIONING_ROUTING_KEY,
-                            ),
+                            QueueConfig::new(queues.queue, queues.exchange, queues.routing_key),
                         );
                     }
 

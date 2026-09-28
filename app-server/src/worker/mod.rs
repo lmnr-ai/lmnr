@@ -167,6 +167,7 @@ pub enum WorkerType {
     Checkpoints,
     StaticPrompt,
     SpVersioning,
+    UserTemplateVersioning,
     SpRegexExtraction,
 }
 
@@ -187,6 +188,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::Checkpoints => write!(f, "checkpoints"),
             WorkerType::StaticPrompt => write!(f, "static_prompt"),
             WorkerType::SpVersioning => write!(f, "sp_versioning"),
+            WorkerType::UserTemplateVersioning => write!(f, "user_template_versioning"),
             WorkerType::SpRegexExtraction => write!(f, "sp_regex_extraction"),
         }
     }

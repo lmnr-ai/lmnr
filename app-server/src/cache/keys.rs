@@ -95,16 +95,17 @@ pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v3";
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
 pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
-/// `(project, agent_hash, version_hash, has_history) → String` — the user-task
-/// extraction regex keyed by prompt VERSION (`Feature::VersionedInputExtraction`).
-/// Deliberately a different prefix from `USER_TASK_REGEX_CACHE_KEY` so the two
-/// keyings never read each other's entries.
-pub const USER_TASK_VERSION_REGEX_CACHE_KEY: &str = "user_task_version_regex";
-/// `(project, agent_hash, version_hash, has_history) → SampleAccumulator` — the
-/// distinct user-message samples feeding the multi-sample regex agent.
-pub const USER_TASK_SAMPLES_CACHE_KEY: &str = "user_task_samples";
+/// `(project, agent_hash, template_version, has_history) → String` — the
+/// user-task extraction regex keyed by USER-TEMPLATE version. Deliberately a
+/// different prefix from `USER_TASK_REGEX_CACHE_KEY` so the two keyings never
+/// read each other's entries.
+pub const USER_TASK_TEMPLATE_REGEX_CACHE_KEY: &str = "user_task_template_regex";
+/// `(project, agent_hash, template_version, has_history) → SampleAccumulator` —
+/// the distinct user-message samples feeding the multi-sample regex agent.
+pub const USER_TASK_TEMPLATE_SAMPLES_CACHE_KEY: &str = "user_task_template_samples";
 /// Per-cohort lock serializing the user-task regex agent's run.
-pub const USER_TASK_REGEX_AGENT_LOCK_CACHE_KEY: &str = "user_task_regex_agent_lock";
+pub const USER_TASK_TEMPLATE_REGEX_AGENT_LOCK_CACHE_KEY: &str =
+    "user_task_template_regex_agent_lock";
 pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 /// Stripped path (ancestor names, own segment removed) of the current
 /// user-task input winner span — every LLM span on this same stripped path
@@ -215,6 +216,18 @@ pub const SYSTEM_PROMPT_VERSION_MEMO_CACHE_KEY: &str = "system_prompt_version_me
 
 /// Per-agent mint lock (`sp_versioning::versions::mint_lock_cache_key`).
 pub const SYSTEM_PROMPT_VERSION_LOCK_CACHE_KEY: &str = "system_prompt_version_lock";
+
+// User-template version tracking (`VersionKind::UserTemplate`): the same key
+// families as the system-prompt ones above, keyed by `(project_id, agent_hash)`
+// — the window is per agent — except the memo, which is keyed by the last-turn
+// user text's content hash. See `traces/sp_versioning/kind.rs`.
+pub const USER_TEMPLATE_VERSIONS_CACHE_KEY: &str = "user_template_versions";
+pub const USER_TEMPLATE_VERSION_LINES_CACHE_KEY: &str = "user_template_version_lines";
+pub const USER_TEMPLATE_WINDOW_CACHE_KEY: &str = "user_template_window";
+pub const USER_TEMPLATE_WINDOW_LINES_CACHE_KEY: &str = "user_template_window_lines";
+pub const USER_TEMPLATE_PROBE_CACHE_KEY: &str = "user_template_probe";
+pub const USER_TEMPLATE_VERSION_MEMO_CACHE_KEY: &str = "user_template_version_memo";
+pub const USER_TEMPLATE_VERSION_LOCK_CACHE_KEY: &str = "user_template_version_lock";
 
 /// Per-version lock serializing the SP-regex extraction worker's agent run
 /// (`static_sp_extraction::worker::run_lock_cache_key`).
