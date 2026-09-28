@@ -19,4 +19,8 @@ export const descF1ToY = (value: number) =>
 
 export const percentX = (value: number) => `${(value / CHART_WIDTH) * 100}%`;
 export const percentY = (value: number) => `${(value / CHART_HEIGHT) * 100}%`;
+export const plotPercentX = (value: number) =>
+  `${((value - FIRST_COLUMN_WIDTH) / (CHART_WIDTH - FIRST_COLUMN_WIDTH)) * 100}%`;
+export const plotPercentY = (value: number) => `${(value / (CHART_HEIGHT - LAST_ROW_HEIGHT)) * 100}%`;
 export const scaledWidth = (value: number) => `${value / (CHART_WIDTH / 100)}cqw`;
+export const scaledWidthAtLeast = (value: number, minimumPx: number) => `max(${scaledWidth(value)}, ${minimumPx}px)`;
