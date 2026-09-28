@@ -9,7 +9,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { ChartContainer } from "@/components/ui/chart";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { normalizeTier, signalInputRate, signalOutputRate, TIERS } from "@/lib/billing/tiers";
+import { normalizeTier, signalCacheReadRate, signalInputRate, signalOutputRate, TIERS } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
@@ -84,7 +84,7 @@ const getUsageDescription = (tierName?: string): string => {
   const tierHintOverages =
     "If you exceed these limits, " +
     (tierHintInfo.isOverageAllowed
-      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate(tier)} / 1M input tokens and $${signalOutputRate(tier)} / 1M output tokens for additional Signals usage.`
+      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate()} / 1M input tokens, $${signalCacheReadRate()} / 1M cached input tokens, and $${signalOutputRate()} / 1M output tokens for additional Signals usage.`
       : "you won't be able to send any more data during current billing cycle.");
   return `${tierHint} ${tierHintOverages}`;
 };
