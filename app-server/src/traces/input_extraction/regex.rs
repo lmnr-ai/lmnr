@@ -18,9 +18,8 @@ use super::self_tracing::{self, SpanBuilder, SpanScope};
 use crate::cache::keys::{USER_TASK_REGEX_CACHE_KEY, USER_TASK_TEMPLATE_REGEX_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
-use crate::traces::sp_versioning::similarity::empty_version_hash;
 
-const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+pub(super) const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Backtracking budget per regex application. LLM-generated patterns can
 /// backtrack heavily on large inputs; exceeding the budget aborts the
 /// match (treated as `NoMatch`) instead of burning CPU indefinitely.
@@ -217,21 +216,23 @@ pub enum RegexTarget {
         key: String,
         version: Option<String>,
     },
-    /// The user template is fully dynamic (the empty version): the whole last
-    /// turn is the task, so the passthrough applies with no cache and no LLM.
-    Passthrough { version: String },
     /// The template has no live version yet, so nothing can be cached against
     /// it and extraction is a one-shot direct LLM call.
     Unversioned,
 }
 
-/// Pick the regex target for a candidate. The middle cases are why this is an
+/// Pick the regex target for a candidate. The middle case is why this is an
 /// enum: a span with NO system message has no agent to partition the template
 /// window by, so it keeps the legacy agent-hash + tag-fingerprint keying
 /// permanently rather than paying an LLM call every trace forever; a template
 /// whose version simply hasn't been minted yet gets no key at all, because the
 /// two keyings hold regexes generated under different cohort definitions and
 /// must never read each other's entries.
+///
+/// The empty (fully dynamic) version is keyed like any other: an empty
+/// intersection also arises when a cluster mixes template shapes, so "take the
+/// whole turn" is left to the regex agent, which submits the passthrough only
+/// when its samples really carry no scaffolding.
 pub fn regex_target(
     project_id: Uuid,
     agent_hash: Option<&str>,
@@ -243,9 +244,6 @@ pub fn regex_target(
         (None, _) => RegexTarget::Keyed {
             key: regex_cache_key(project_id, None, fingerprint),
             version: None,
-        },
-        (Some(_), Some(version)) if version == empty_version_hash() => RegexTarget::Passthrough {
-            version: version.to_string(),
         },
         (Some(agent), Some(version)) => RegexTarget::Keyed {
             key: template_regex_cache_key(project_id, agent, version, has_history),
@@ -264,8 +262,9 @@ pub fn regex_target(
 pub enum Resolution {
     /// A cached regex for the resolved version was applied.
     Cached,
-    /// The template is fully dynamic; the passthrough was applied.
-    Passthrough,
+    /// The version had no regex yet; a sibling version's regex fit and was
+    /// adopted (`inherit.rs`).
+    Inherited,
     /// The version resolved but carried no regex yet, so a direct LLM
     /// extraction ran. Should trend to zero as cohorts accumulate samples.
     Fallback,
@@ -277,7 +276,7 @@ impl Resolution {
     fn as_str(self) -> &'static str {
         match self {
             Resolution::Cached => "cached",
-            Resolution::Passthrough => "passthrough",
+            Resolution::Inherited => "inherited",
             Resolution::Fallback => "fallback",
             Resolution::NoVersion => "no_version",
         }
@@ -304,8 +303,7 @@ pub fn record_resolution(
     );
 }
 
-/// Resolve a target with what is already known — a cached regex for `Keyed`,
-/// the passthrough for `Passthrough` — and record the resolution on the
+/// Resolve a target with a cached regex, and record the resolution on the
 /// template-keyed path. `None` means nothing usable without an LLM call: a
 /// cache miss, a stale entry, or an unversioned template. Legacy hits are not
 /// recorded: they serve prompts that can never have a version, so counting
@@ -318,26 +316,18 @@ pub async fn apply_known_regex(
     trace_id: Uuid,
     has_history: bool,
 ) -> Option<ApplyRegexResult> {
-    let (result, resolution) = match target {
-        RegexTarget::Keyed { key, version } => {
-            let result =
-                try_apply_cached_regex(cache, key, signposted_text, project_id, trace_id).await?;
-            (result, version.as_deref().map(|v| (Resolution::Cached, v)))
-        }
-        RegexTarget::Passthrough { version } => {
-            let result = apply_regex_externally_traced(
-                PASSTHROUGH_REGEX,
-                signposted_text,
-                project_id,
-                trace_id,
-                false,
-            );
-            (result, Some((Resolution::Passthrough, version.as_str())))
-        }
-        RegexTarget::Unversioned => return None,
+    let RegexTarget::Keyed { key, version } = target else {
+        return None;
     };
-    if let Some((resolution, version)) = resolution {
-        record_resolution(resolution, project_id, trace_id, Some(version), has_history);
+    let result = try_apply_cached_regex(cache, key, signposted_text, project_id, trace_id).await?;
+    if let Some(version) = version {
+        record_resolution(
+            Resolution::Cached,
+            project_id,
+            trace_id,
+            Some(version),
+            has_history,
+        );
     }
     Some(result)
 }
@@ -481,10 +471,11 @@ mod tests {
             }
             _ => panic!("a versioned template is template-keyed"),
         }
-        let empty = empty_version_hash();
+        // The empty version is an ordinary cohort, never an implied passthrough.
+        let empty = crate::traces::sp_versioning::similarity::empty_version_hash();
         assert!(matches!(
             regex_target(pid, Some("agent01"), Some(&empty), "plain", false),
-            RegexTarget::Passthrough { version } if version == empty
+            RegexTarget::Keyed { version: Some(version), .. } if version == empty
         ));
         assert!(matches!(
             regex_target(pid, Some("agent01"), None, "plain", false),
@@ -501,26 +492,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn passthrough_target_extracts_the_whole_turn_without_a_cache() {
+    async fn unversioned_target_needs_an_llm_call() {
         let cache = Arc::new(Cache::InMemory(
             crate::cache::in_memory::InMemoryCache::new(None),
         ));
-        let target = RegexTarget::Passthrough {
-            version: empty_version_hash(),
-        };
-        let result = apply_known_regex(
-            &cache,
-            &target,
-            "  fix the bug  ",
-            Uuid::nil(),
-            Uuid::nil(),
-            false,
-        )
-        .await;
-        assert_eq!(
-            result,
-            Some(ApplyRegexResult::Extracted("fix the bug".to_string()))
-        );
         assert!(
             apply_known_regex(
                 &cache,

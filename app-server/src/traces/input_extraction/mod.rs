@@ -39,6 +39,7 @@ pub mod extract;
 pub mod fingerprint;
 pub mod generate;
 pub mod generate_multi;
+pub mod inherit;
 pub mod input;
 pub mod lock;
 pub mod messages;

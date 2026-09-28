@@ -15,8 +15,8 @@
 //! back to the raw prompt.
 //!
 //! The empty version ([`similarity::empty_version_hash`], a fully dynamic
-//! text) stores an empty line set. It subset-matches every text, so the
-//! largest-match-wins cheap match only picks it when no real version matches.
+//! text) stores an empty line set and is excluded from the cheap match (see
+//! [`cheap_match`]).
 
 use std::collections::HashSet;
 
@@ -132,6 +132,12 @@ pub async fn load_version_lines(
 /// addition — the old, smaller set still subset-matches new prompts and a
 /// first-hit scan could mislabel them. Version entries whose line-set key
 /// lapsed are skipped.
+///
+/// The empty version is never cheap-matched: its empty set is a subset of
+/// everything, so it would absorb every text no real version matches and keep
+/// new templates from ever reaching the miss path that mints them. A text is
+/// labeled empty only by the full algorithm, when its own cluster shares no
+/// line.
 pub async fn cheap_match(
     cache: &Cache,
     kind: VersionKind,
@@ -140,8 +146,9 @@ pub async fn cheap_match(
     prompt_lines: &HashSet<u64>,
 ) -> anyhow::Result<Option<String>> {
     let registry = load_registry(cache, kind, project_id, partition).await?;
+    let empty = similarity::empty_version_hash();
     let mut best: Option<(usize, String)> = None;
-    for version in registry {
+    for version in registry.into_iter().filter(|v| v.version_hash != empty) {
         let Some(lines) =
             load_version_lines(cache, kind, project_id, partition, &version.version_hash).await
         else {
@@ -384,10 +391,11 @@ mod tests {
         assert_eq!(matched, None);
     }
 
-    /// The empty version matches everything, so it must only win when no real
-    /// version does.
+    /// The empty version would subset-match everything, so the cheap match
+    /// never picks it: an unmatched text must reach the miss path, where its
+    /// own template can be minted.
     #[tokio::test]
-    async fn empty_version_is_the_last_resort_match() {
+    async fn empty_version_is_never_cheap_matched() {
         let cache = make_cache();
         let project_id = Uuid::new_v4();
         let agent = "agent01";
@@ -418,7 +426,7 @@ mod tests {
         let matched = cheap_match(&cache, KIND, project_id, agent, &bare)
             .await
             .unwrap();
-        assert_eq!(matched, Some(empty.clone()));
+        assert_eq!(matched, None);
         assert_eq!(
             load_version_lines(&cache, KIND, project_id, agent, &empty).await,
             Some(Vec::new()),

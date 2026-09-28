@@ -571,8 +571,25 @@ impl SpVersioningHandler {
             .filter_map(|i| lines[*i].as_deref())
             .collect();
         // An empty intersection is a version too — the fully dynamic one
-        // (`similarity::empty_version_hash`) — and mints like any other.
+        // (`similarity::empty_version_hash`) — but only from a full window. A
+        // forced mint intersects the WHOLE partial window, so any partition
+        // holding several templates comes out empty; that is no evidence the
+        // text is fully dynamic, so it parks like any unresolved message.
         let intersection = similarity::intersect_ordered(&seqs);
+        if intersection.is_empty() && gate != MintGate::Normal {
+            log::info!(
+                "[SP_VERSIONING] Empty intersection over a partial {} window for agent {} (project {}, {} candidates) — skipping mint",
+                self.kind.label(),
+                message.agent_hash,
+                message.project_id,
+                selected.len()
+            );
+            if !win[entry_idx].labeled {
+                self.park(message, "empty partial-window intersection")
+                    .await;
+            }
+            return Ok(());
+        }
         // Staleness-probe mint gate. On this path `cheap_match` already proved
         // the matched version's static set is contained in THIS prompt, so the
         // version still describes it correctly and the span is already labeled.
@@ -1742,6 +1759,37 @@ mod tests {
         (handler, project_id, version_hash)
     }
 
+    /// A forced mint intersects the whole partial window, so an empty result
+    /// there means the window mixes templates — not that the text is fully
+    /// dynamic. It must not mint the empty version.
+    #[tokio::test]
+    async fn empty_partial_window_intersection_does_not_mint() {
+        let kind = VersionKind::UserTemplate;
+        let handler = handler_for(kind);
+        let project_id = Uuid::new_v4();
+        for text in ["<a>\nfirst\n</a>", "<b>\nsecond\n</b>"] {
+            handler
+                .process_message(&make_message(project_id, text), &mut Vec::new())
+                .await
+                .unwrap();
+        }
+        let mut capped = make_message(project_id, "<c>\nthird\n</c>");
+        capped.retry_count = *MAX_RETRIES;
+        let mut rows = Vec::new();
+        handler.process_message(&capped, &mut rows).await.unwrap();
+
+        assert!(rows.is_empty());
+        let registry = versions::load_registry(
+            &handler.cache,
+            kind,
+            project_id,
+            &kind.partition(AGENT, false),
+        )
+        .await
+        .unwrap();
+        assert!(registry.is_empty());
+    }
+
     #[tokio::test]
     async fn empty_intersection_mints_the_empty_system_prompt_version() {
         let (handler, project_id, version_hash) =
@@ -1795,30 +1843,21 @@ mod tests {
         assert_eq!(window_len(false).await, 0);
     }
 
-    /// A text that landed on the empty version gets a real one once the probe
-    /// finds shared lines: any non-empty intersection is a strict superset of
-    /// the empty set.
+    /// The empty version must not absorb a template that shows up after it:
+    /// unmatched texts take the miss path, so once the shape holds its share of
+    /// the window its own version mints.
     #[tokio::test]
-    async fn probe_mints_a_real_version_over_the_empty_one() {
+    async fn a_new_template_is_not_absorbed_by_the_empty_version() {
         let (handler, project_id, empty) = mint_fully_dynamic(VersionKind::UserTemplate).await;
         let kind = VersionKind::UserTemplate;
 
         let scaffolded = |i: usize| format!("<task>\nuser task {i}\n</task>");
         for i in 0..kind.tunables().min_window {
-            let mut message = make_message(project_id, &scaffolded(i));
-            message.cheap_matched_version = Some(empty.clone());
             handler
-                .process_message(&message, &mut Vec::new())
+                .process_message(&make_message(project_id, &scaffolded(i)), &mut Vec::new())
                 .await
                 .unwrap();
         }
-        let mut message = make_message(project_id, &scaffolded(999));
-        message.cheap_matched_version = Some(empty.clone());
-        message.run_full = true;
-        handler
-            .process_message(&message, &mut Vec::new())
-            .await
-            .unwrap();
 
         let registry = versions::load_registry(
             &handler.cache,
