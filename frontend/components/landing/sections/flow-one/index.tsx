@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 
 import { bodyMedium, subSection } from "../../class-names";
-import LearnMoreLink from "../learn-more-link";
 import ComparisonChart from "./comparison-chart";
 
 const FlowOne = () => (
@@ -14,7 +13,6 @@ const FlowOne = () => (
         Surpassing <span className="text-primary-100">GPT-6 Sol</span> in trace analysis intelligence, while analyzing{" "}
         <span className="text-primary-100">20x</span> more traces per dollar.
       </p>
-      <LearnMoreLink className="mt-5" label="Learn more about flow-1" href="/blog/flow-1" />
     </div>
     <ComparisonChart />
   </section>
