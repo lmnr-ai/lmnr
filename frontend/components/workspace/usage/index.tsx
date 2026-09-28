@@ -26,7 +26,7 @@ interface WorkspaceUsageProps {
 interface TierHint {
   data: string;
   dataGB: number;
-  // Included signal budget, displayed as a dollar amount (e.g. "$15").
+  // Included signal budget, displayed as a dollar amount (e.g. "$7.50").
   signalBudget: string;
   // Included signal budget in micro-USD (1e-6 USD) — matches the units stored
   // in subscription_tiers.signal_cost_included_micro_usd and the usage cache.
@@ -40,8 +40,8 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   free: {
     data: "1 GB",
     dataGB: 1,
-    signalBudget: "$5",
-    signalBudgetMicroUsd: 5_000_000,
+    signalBudget: "$2.50",
+    signalBudgetMicroUsd: 2_500_000,
     isOverageAllowed: false,
     overageDataPrice: 0,
     teamMembers: "1",
@@ -49,8 +49,8 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   hobby: {
     data: "3 GB",
     dataGB: 3,
-    signalBudget: "$15",
-    signalBudgetMicroUsd: 15_000_000,
+    signalBudget: "$7.50",
+    signalBudgetMicroUsd: 7_500_000,
     isOverageAllowed: true,
     overageDataPrice: 2,
     teamMembers: "Unlimited",
@@ -58,8 +58,8 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   pro: {
     data: "10 GB",
     dataGB: 10,
-    signalBudget: "$50",
-    signalBudgetMicroUsd: 50_000_000,
+    signalBudget: "$25",
+    signalBudgetMicroUsd: 25_000_000,
     isOverageAllowed: true,
     overageDataPrice: 1.5,
     teamMembers: "Unlimited",

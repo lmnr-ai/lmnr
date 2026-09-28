@@ -7,7 +7,7 @@ export type TierConfigEntry = {
   includedBytes: number;
   // Included signal budget in micro-USD (1e-6 USD). Signals are billed by the
   // token cost the agent spends, so the allowance is a dollar amount stored as
-  // micro-USD to stay integer-safe. $15 Starter (internal key "hobby"), $50 Pro.
+  // micro-USD to stay integer-safe. $7.50 Starter (internal key "hobby"), $25 Pro.
   includedSignalCostMicroUsd: number;
 };
 
@@ -17,14 +17,14 @@ export const TIER_CONFIG = {
     overageMegabytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
     overageSignalCostLookupKey: "hobby_monthly_2026_06_overage_signal_cost",
     includedBytes: 3 * 1024 ** 3,
-    includedSignalCostMicroUsd: 15_000_000,
+    includedSignalCostMicroUsd: 7_500_000,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
     overageSignalCostLookupKey: "pro_monthly_2026_06_overage_signal_cost",
     includedBytes: 10 * 1024 ** 3,
-    includedSignalCostMicroUsd: 50_000_000,
+    includedSignalCostMicroUsd: 25_000_000,
   },
 } as const;
 
