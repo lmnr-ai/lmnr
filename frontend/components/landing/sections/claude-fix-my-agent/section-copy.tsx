@@ -34,8 +34,9 @@ const SectionCopy = ({ className }: Props) => (
       >
         MCP
       </a>{" "}
-      give your coding agent full SQL access to Laminar. <br className="hidden md:block" /> It can investigate traces,
-      build evals, and verify fixes.
+      give your coding agent full SQL access to Laminar. <br className="hidden md:block" />
+      {` `}
+      It can investigate traces, build evals, and verify fixes.
     </p>
     <LearnMoreLink
       className="mt-5"

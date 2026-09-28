@@ -57,9 +57,9 @@ const Hero = ({ className, hasSession }: Props) => (
               <ArrowUpRight strokeWidth={2.2} viewBox="6 6 12 12" className="size-[0.32em] -translate-y-[0.22em]" />
             </a>
             {"  "}
-            agent observability platform.
-            <br className="hidden md:block" />
-            It automatically catches agent failures and helps you fix them.
+            agent observability platform. <br className="hidden md:block" />
+            {` `}
+            It automatically catches agent failures at scale and helps you fix them.
           </p>
         </div>
 
