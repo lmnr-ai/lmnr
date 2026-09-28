@@ -36,6 +36,7 @@ const VolumeInputs = ({
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto] sm:gap-8">
         <Cell
           label="Tokens per agent run"
+          labelHelp="Sum of all LLM tokens"
           value={formatTokens(tokensPerRun)}
           slider={{ value: tokensPerRunIdx, max: TOKENS_PER_RUN_STEPS.length - 1, onChange: onTokensPerRunIdx }}
         />

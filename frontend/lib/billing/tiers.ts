@@ -52,9 +52,9 @@ interface TierData {
 // tier currently uses the same defaults. Keep these aligned with the app-server
 // signal pricing env defaults before enabling the rates for production billing.
 export const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
-export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
-// Cache-read tokens are a subset of input and cost 0.1x the fresh-input rate.
-export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.005;
+export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.35;
+// Cache-read tokens are a subset of input and are billed at a discounted rate.
+export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.01;
 
 // Mirror the app-server `env::var(...).parse().ok().unwrap_or(DEFAULT)` logic:
 // an unset or unparseable override falls back to the published default, a valid
