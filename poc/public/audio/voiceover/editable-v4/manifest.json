@@ -9,7 +9,7 @@
     "file": "flow21-bed.wav",
     "sha256": "e4a382cbb2bf4cc8357ecd5090e7dd7525443a17b1d561138028e2b3d1e70c4a"
   },
-  "settingsSha256": "e925b608ee57345492fdb2b43713a1ca6ee43df43c2c2849f69ba4ad759b89e2",
+  "settingsSha256": "f4fd349f677915657220d6c5241f5f94c9631564d495a71e31fbfa7e0ba48962",
   "placementsSha256": "dfb715ef68a23526c397623536bdd189572ac6a5ef5ee6a4073e349db3a4be53",
   "sourceRecordingSha256": "5519cb5f0c69355c65ab2f57b36af684989cab660881b743d872937aecba7ee0",
   "phrases": [
@@ -165,13 +165,20 @@
     },
     {
       "id": "vo16",
-      "file": "vo16.wav",
-      "sha256": "57d17733e4d9f07113ffdf8158d17d604e0f321d4c2e2d04c51399eebb90df99",
-      "samples": 80880,
+      "file": "vo16-tail.wav",
+      "sha256": "705c913bd4187b384339da5d376f095bd918249cff41268e793ec884f9633117",
+      "samples": 83040,
       "text": "our agent built to analyze traces",
       "a": 42.82,
-      "b": 44.505,
-      "at": 46.028
+      "b": 44.55,
+      "at": 46.028,
+      "previous": {
+        "file": "vo16.wav",
+        "sha256": "57d17733e4d9f07113ffdf8158d17d604e0f321d4c2e2d04c51399eebb90df99",
+        "samples": 80880,
+        "b": 44.505
+      },
+      "note": "Extended through the final \"s\" (30ms into the \"at\" onset); 40ms hsin fade-out baked in."
     },
     {
       "id": "vo17",

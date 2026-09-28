@@ -8,10 +8,10 @@ import {normalizeSettings} from './settings';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
 import {migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
+import {VOICEOVER_FADE} from './voiceover-schedule';
 
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
-const old = normalizeSettings({...imported, voiceover: {version: 1, phrases: Object.fromEntries(VOICEOVER_PHRASES.map(p =>
-  [p.id, {at: p.defaultAt, duration: p.b - p.a}]))}});
+const old = normalizeSettings({...imported, voiceover: {version: 1, phrases: Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]))}});
 const load = (value: unknown) => readVoiceoverSettings({getItem: key => key === VOICEOVER_SETTINGS_ID ? JSON.stringify(value) : null});
 
 test('opening phrases are actual default linear DialKit bars with immutable source durations and downstream gap', () => {
@@ -26,14 +26,19 @@ test('opening phrases are actual default linear DialKit bars with immutable sour
       transition: {type: 'easing', duration: clip.duration, ease: [0, 0, 1, 1]}});
     close(clip.duration, VOICEOVER_PHRASES[i].b - VOICEOVER_PHRASES[i].a);
   }
-  for (const p of VOICEOVER_PHRASES.slice(5)) {
+  for (const p of VOICEOVER_PHRASES.slice(5).filter(p => p.id !== 'vo16')) {
     close(s.voiceover!.phrases[p.id].at, p.defaultAt + OPENING_RIPPLE);
     close(s.voiceover!.phrases[p.id].duration, p.b - p.a);
   }
+  // vo16 is re-joined to vo17 as recorded: source-contiguous, overlapping by exactly one fade.
+  const [vo16, vo17] = [s.voiceover!.phrases.vo16, s.voiceover!.phrases.vo17], [p16, p17] = [VOICEOVER_PHRASES[15], VOICEOVER_PHRASES[16]];
+  close(p17.a - p16.a, vo17.at - vo16.at);
+  close(vo16.at + vo16.duration - vo17.at, VOICEOVER_FADE);
+  assert.ok(vo16.duration <= p16.b - p16.a);
   close(s.voiceover!.phrases.vo06.at - (s.voiceover!.phrases.vo05.at + s.voiceover!.phrases.vo05.duration), .6);
   for (let i = 0; i < VOICEOVER_PHRASES.length - 1; i++) {
     const a = s.voiceover!.phrases[VOICEOVER_PHRASES[i].id], b = s.voiceover!.phrases[VOICEOVER_PHRASES[i + 1].id];
-    assert.ok(b.at >= a.at + a.duration - 1e-8, `overlap after vo${i + 1}`);
+    assert.ok(b.at >= a.at + a.duration - (i === 15 ? VOICEOVER_FADE : 0) - 1e-8, `overlap after vo${i + 1}`);
   }
 });
 
@@ -101,6 +106,12 @@ test('load-only fieldwise migration recognizes old generated values; authored cl
   const migrated = load(old);
   assert.deepEqual(migrated, VOICEOVER_DEFAULTS);
   assert.deepEqual(migrateStoredVoiceoverOpening(migrated), migrated);
+  // The previous generated vo16 default (0.7s ahead of "at scale.") also upgrades; an authored vo16 does not.
+  const previous = structuredClone(VOICEOVER_DEFAULTS);
+  previous.voiceover!.phrases.vo16 = {at: VOICEOVER_PHRASES[15].placed.at + OPENING_RIPPLE, duration: VOICEOVER_PHRASES[15].placed.duration};
+  assert.deepEqual(load(previous), VOICEOVER_DEFAULTS);
+  previous.voiceover!.phrases.vo16.at = 49.5;
+  assert.equal(load(previous).voiceover!.phrases.vo16.at, 49.5);
   const authored = structuredClone(old);
   authored.voiceover!.phrases.vo02 = {at: 4.1, duration: .7};
   authored.voiceover!.phrases.vo08.at = 21.7;

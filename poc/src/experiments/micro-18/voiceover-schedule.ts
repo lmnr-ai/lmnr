@@ -13,7 +13,7 @@ export function voiceoverSchedule(settings: Ultimate3Settings) {
     const authored = settings.voiceover?.phrases[phrase.id] ?? {at: phrase.defaultAt, duration: phrase.b - phrase.a};
     const at = Math.min(videoEnd, Math.max(0, authored.at));
     const duration = Math.max(0, Math.min(phrase.b - phrase.a, authored.duration, videoEnd - at));
-    return {...phrase, at, duration, end: at + duration, source: `${phrase.id}.wav`};
+    return {...phrase, at, duration, end: at + duration, source: phrase.file};
   }).sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
 }
 

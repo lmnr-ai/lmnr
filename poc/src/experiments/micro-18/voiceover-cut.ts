@@ -1,6 +1,7 @@
 import importedSettings from '../../../handoff/voiceover-retime/retimed-settings.json';
 import {normalizeSettings, FLOW_21_TIMING, type ClipTiming} from './settings';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
+import {VOICEOVER_FADE} from './voiceover-schedule';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
 export const VOICEOVER_SOUNDTRACK_URL = '/audio/voiceover/ultimate3-voiceover-v4.wav';
@@ -16,7 +17,7 @@ const openingPhrases = [
   {at: 13.5, duration: 6.1800000000000015},
 ];
 const original = normalizeSettings({...importedSettings, voiceover: {version: 1, phrases: Object.fromEntries(
-  VOICEOVER_PHRASES.map(p => [p.id, {at: p.defaultAt, duration: p.b - p.a}]))}});
+  VOICEOVER_PHRASES.map(p => [p.id, p.placed]))}});
 const retimeClip = (clip: ClipTiming, at: number, duration = clip.duration): ClipTiming => ({
   ...clip, at, duration, ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration}} : {}),
 });
@@ -25,6 +26,11 @@ const openingTiming = Object.fromEntries(Object.entries(original.ultimate2.timin
   return [key, retimeClip(clip, clip.at + (clip.at >= original.ultimate2.timing.continueStraight.at ? OPENING_RIPPLE : 0),
     clip.duration + (extend ? OPENING_RIPPLE : 0))];
 })) as typeof original.ultimate2.timing;
+const placedDefault = (p: typeof VOICEOVER_PHRASES[number]) => ({at: p.placed.at + OPENING_RIPPLE, duration: p.placed.duration});
+const phrase = (id: string) => VOICEOVER_PHRASES.find(p => p.id === id)!;
+// "traces at scale" was one breath: vo16 butts onto vo17's first sample and overlaps it by one fade, so the linear
+// fade-out/fade-in of identical source samples sums to unity and the join is the take itself.
+const JOINS: Record<string, ClipTiming> = {vo16: {at: placedDefault(phrase('vo17')).at - phrase('vo16').placed.duration, duration: phrase('vo16').placed.duration + VOICEOVER_FADE}};
 export const VOICEOVER_DEFAULTS = normalizeSettings({...original,
   flow: {...original.flow, sourceVersion: 21, timing21: FLOW_21_TIMING},
   allocations: {...original.allocations, ultimate2: original.allocations.ultimate2 + OPENING_RIPPLE},
@@ -33,7 +39,7 @@ export const VOICEOVER_DEFAULTS = normalizeSettings({...original,
   ultimate2: {...original.ultimate2, timing: openingTiming, streamBlocksRemoved: 10,
     controls: {...original.ultimate2.controls, streamerSpeed: OPENING_STREAM_SPEED}},
   voiceover: {version: 1, phrases: Object.fromEntries(VOICEOVER_PHRASES.map((p, index) => [p.id,
-    index < 5 ? openingPhrases[index] : {at: p.defaultAt + OPENING_RIPPLE, duration: p.b - p.a}]))},
+    index < 5 ? openingPhrases[index] : JOINS[p.id] ?? placedDefault(p)]))},
 });
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
@@ -54,7 +60,7 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   const phrases = {...raw.voiceover?.phrases};
   for (const [index, phrase] of VOICEOVER_PHRASES.entries()) {
     const previous = original.voiceover!.phrases[phrase.id];
-    if (equal(phrases[phrase.id], previous)) phrases[phrase.id] = VOICEOVER_DEFAULTS.voiceover!.phrases[phrase.id];
+    if (equal(phrases[phrase.id], previous) || (index >= 5 && equal(phrases[phrase.id], placedDefault(phrase)))) phrases[phrase.id] = VOICEOVER_DEFAULTS.voiceover!.phrases[phrase.id];
   }
   const allocations = {...raw.allocations};
   if (allocations.ultimate2 === original.allocations.ultimate2) allocations.ultimate2 = VOICEOVER_DEFAULTS.allocations.ultimate2;

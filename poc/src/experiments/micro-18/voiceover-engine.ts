@@ -20,7 +20,7 @@ export class VoiceoverEngine {
       const context = this.context = new AudioContext();
       this.master = context.createGain(); this.master.gain.value = this.volume;
       this.master.connect(context.destination);
-      this.loading = Promise.all([['bed', VOICEOVER_BED_URL], ...VOICEOVER_PHRASES.map(p => [p.id, VOICEOVER_SOURCE_ROOT + `${p.id}.wav`])].map(async ([id, url]) => {
+      this.loading = Promise.all([['bed', VOICEOVER_BED_URL], ...VOICEOVER_PHRASES.map(p => [p.id, VOICEOVER_SOURCE_ROOT + p.file])].map(async ([id, url]) => {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Unable to load voiceover source: ${url}`);
         return [id, await context.decodeAudioData(await response.arrayBuffer())] as const;
