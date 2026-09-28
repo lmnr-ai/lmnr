@@ -1,13 +1,14 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { type ReactNode } from "react";
 
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   label: string;
-  labelHelp?: string;
+  labelHelp?: ReactNode;
   value: string;
   /** Omitted on a derived value, which is read rather than set. The cell keeps
    *  its label and number identical either way — a computed number is the same
