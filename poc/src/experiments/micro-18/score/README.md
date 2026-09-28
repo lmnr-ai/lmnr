@@ -84,6 +84,16 @@ G major, all acoustic, in a drier studio. Two pianos play one twelve-note pentat
 
 F major and D minor (one seven-note set), in a stone-church reverb. Every line pairs an M-voice walking the scale with a T-voice ringing the nearest note of one triad (`walk`, `ring`). Struck low piano octaves are the bells that mark each turn. The film opens with Spiegel-style rising triads under the violin's additive phrases, which close in on A. The budget drains as a descending canon (Cantus): solo a step a beat, section every two, celli every four, resting on an A–E fifth. The drop is an ascending mensuration canon in F on the same principle. The composition's piano rings every other issue pop on a triad note, while the foley's pizzicato takes the rest in the scale, so the pops are M and T voices too.
 
+### `lofi-rhodes`, `city-pop`, `minimal-techno` — steady-bed genres
+
+Each is one unbroken loop from the first trace to Flow-1, with every event answered by a small in-key lick on top, then a brighter loop from the drop. All three use `steadyDucks` (Nocturne's ducks without the warning stops) and let the composition play the issue pops through `cascade`, since all 47 pops land in one frame and would otherwise stack into one hit.
+
+- `lofi-rhodes`: F major, with an FM Rhodes bank (`lofi/instruments.ts`, passed as `keys`) over a swung half-time kit. It goes through `mix.sweep` (a time-varying low-pass, closed before Flow-1 and behind the door), `mix.wow` (tape wow and flutter) and a vinyl bed.
+- `city-pop`: D major pivoting on B13sus up to E at Flow-1, with Karplus-Strong guitar, synth bass and brass-synth (`city-pop/instruments.ts`). The foley follows the key change through `Playing.shift`.
+- `minimal-techno`: F♯ minor into A major, on a 16th click-track with a sub, a glass pad and FM bells cycling every three 16ths. Kick on the half notes before Flow-1, four-on-the-floor after it. The foley rings bells through a `Player` and snaps to the 16th grid with `Playing.quantize`.
+
+`designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
+
 ## Foley
 
 Whooshes are pink noise through a broad, gently resonant band-pass whose centre is soft-capped under 2.4 kHz, with a low "body" band and the hiss rolled off above 4.2 kHz. Narrow white-noise sweeps put most of their energy at 2–5 kHz, where hearing is most sensitive, and read as a whistle. Nocturne, Aria and Arabesque share one foley design (`nocturne/design.ts`, `designInKey`) transposed into each score's key.

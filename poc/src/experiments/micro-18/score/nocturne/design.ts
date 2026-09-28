@@ -50,17 +50,23 @@ const MAJOR = [0, 2, 4, 5, 7, 9, 11];
  * instrument's range, glides as two notes, and anything closer than 48 ms to a previous note dropped.
  * Square-wave pings are the deliberate wrong notes, so they keep their pitch.
  */
-const played = (instrument: 'piano' | 'pizz', key: number, popTaken: (index: number) => boolean) => (): Telemetry => {
+/** Any instrument that can answer for the machine; `length` is the beep's own length. */
+export type Player = (mix: Mix, time: number, midi: number, velocity: number, route: Route, length: number) => void;
+/** `shift` modulates the machine with the score (semitones at a time); `quantize` snaps it onto the score's grid. */
+export type Playing = {shift?: (time: number) => number; quantize?: (time: number) => number};
+const played = (instrument: 'piano' | 'pizz' | Player, key: number, popTaken: (index: number) => boolean, {shift = () => 0, quantize = time => time}: Playing = {}) => (): Telemetry => {
   const taken: number[] = [];
-  const play = (mix: Mix, time: number, midi: number, velocity: number, route: Route, length: number, snap = true) => {
+  const play = (mix: Mix, at: number, midi: number, velocity: number, route: Route, length: number, snap = true) => {
+    const time = quantize(at), up = shift(time);
     if (taken.some(other => Math.abs(other - time) < .048)) return;
     taken.push(time);
-    let note = !snap || MAJOR.includes(((midi - 3 - key) % 12 + 12) % 12) ? midi : midi - 1;
+    let note = up + (!snap || MAJOR.includes(((midi - 3 - key) % 12 + 12) % 12) ? midi : midi - 1);
     while (note > 96) note -= 12;
     while (note < 55) note += 12;
     // A note rings far longer than a 30 ms beep, so it plays ~4 dB under the beep's level.
     const v = clamp(.12 + velocity * .9, 0, .45), quiet = {...route, gain: (route.gain ?? 1) * .6};
-    if (instrument === 'piano') piano(mix, time, note, v, quiet, {length: Math.max(.8, length * 8), bright: .5});
+    if (typeof instrument === 'function') instrument(mix, time, note, v, quiet, length);
+    else if (instrument === 'piano') piano(mix, time, note, v, quiet, {length: Math.max(.8, length * 8), bright: .5});
     else pizz(mix, time, note, v, quiet, {length: .9});
   };
   return {
@@ -76,8 +82,8 @@ const played = (instrument: 'piano' | 'pizz', key: number, popTaken: (index: num
 };
 
 /** Nocturne's foley pitched `key` semitones from E♭, so its telemetry sits inside another score's key. */
-export const designInKey = (key: number, voice: () => Telemetry = electronic) => (mix: Mix, cues: ScoreCues) => {
-  const t = voice();
+export const designInKey = (key: number, voice: (cues: ScoreCues) => Telemetry = electronic) => (mix: Mix, cues: ScoreCues) => {
+  const t = voice(cues);
   ultimate2(mix, cues, key, t);
   cost(mix, cues, key, t);
   flow(mix, cues, key, t);
@@ -86,7 +92,8 @@ export const designInKey = (key: number, voice: () => Telemetry = electronic) =>
 };
 export const designNocturne = designInKey(0);
 /** The same foley with no electronics: the machine speaks through `instrument`, in the score's key. */
-export const designAcoustic = (key: number, instrument: 'piano' | 'pizz', popTaken: (index: number) => boolean) => designInKey(key, played(instrument, key, popTaken));
+export const designAcoustic = (key: number, instrument: 'piano' | 'pizz' | Player, popTaken: (index: number) => boolean, playing?: (cues: ScoreCues) => Playing) =>
+  designInKey(key, cues => played(instrument, key, popTaken, playing?.(cues))());
 
 /** A soft system alert: falling minor third in square-ish sine, doubled a fifth below. */
 function alert(mix: Mix, time: number, key: number, t: Telemetry) {

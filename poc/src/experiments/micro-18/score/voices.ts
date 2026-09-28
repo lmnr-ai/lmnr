@@ -83,6 +83,29 @@ export class Mix {
       }
     }
   }
+  /** Low-pass everything emitted so far with a cutoff that moves over time; above ~18 kHz it is a bypass. */
+  sweep(cutoffAt: (time: number) => number) {
+    for (const bus of this.musicBuses) for (const channel of [bus.l, bus.r]) {
+      const filter = new Svf();
+      for (let n = 0; n < channel.length; n++) {
+        const hz = cutoffAt(n / 48_000);
+        const value = filter.process(channel[n], Math.min(hz, 20_000), .6);
+        if (hz < 18_000) channel[n] = value;
+      }
+    }
+  }
+  /** Tape wow and flutter: a slowly swaying read head, `depth` seconds either side. */
+  wow(depth: number, rate = .55) {
+    const reach = Math.ceil(depth * 1.4 * 48_000) + 2;
+    for (const bus of this.musicBuses) for (const channel of [bus.l, bus.r]) {
+      const source = channel.slice();
+      for (let n = reach; n < channel.length; n++) {
+        const t = n / 48_000, sway = Math.sin(2 * Math.PI * rate * t) + .25 * Math.sin(2 * Math.PI * 5.3 * t + 1.1);
+        const position = n - depth * 48_000 * (1 + sway / 1.25) * .5 - 1, index = Math.floor(position), fraction = position - index;
+        channel[n] = source[index] + (source[index + 1] - source[index]) * fraction;
+      }
+    }
+  }
   /** Dip the score under a foley moment; overlapping dips keep the deepest one. Must run before music is emitted. */
   duck(time: number, depth: number, attack: number, hold: number, release: number) {
     const start = samples(time - attack), total = samples(attack + hold + release);
@@ -390,6 +413,17 @@ export function clap(mix: Mix, time: number, velocity: number, route: Route) {
     out[i] = filter.bp * envelope * velocity * .6;
   }
   mix.emit(time, route, out); mix.count('clap');
+}
+
+/** Soft snare: a short tuned body under band-passed noise, `tone` darkening it for dusty kits. */
+export function snare(mix: Mix, time: number, velocity: number, route: Route, tone = .6) {
+  const out = buffer(.35), body = new Sine(), wires = new Svf(), dust = OnePole.lowpass(2500 + 7000 * tone);
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000;
+    wires.process(noise(mix.random), 1900 + 1400 * tone, .7);
+    out[i] = dust.process(body.next(185 + 40 * Math.exp(-t / .01)) * Math.exp(-t / .045) * .7 + wires.bp * Math.exp(-t / (.07 + .05 * tone)) * 1.1) * velocity * .35;
+  }
+  mix.emit(time, route, out); mix.count('snare');
 }
 
 export function hat(mix: Mix, time: number, velocity: number, route: Route, decay = .028) {
