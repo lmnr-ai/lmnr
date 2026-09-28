@@ -13,7 +13,7 @@ import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIER_COLUMNS } fr
 // ancestor breaks page-relative sticky, so mobile trades it for the scroll.
 export default function PricingTable() {
   return (
-    <div className="w-full overflow-x-auto md:overflow-visible">
+    <div className="w-full overflow-x-auto px-6 md:overflow-visible md:px-0">
       <div
         className="grid min-w-[760px] w-full"
         style={{ gridTemplateColumns: `1.4fr repeat(${TIER_COLUMNS.length}, 1fr)` }}

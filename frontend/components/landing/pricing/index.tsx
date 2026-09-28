@@ -88,7 +88,7 @@ export default function Pricing() {
           </div>
 
           {/* Detailed comparison table */}
-          <div className="w-full mb-[160px]">
+          <div className="-mx-6 mb-[160px] w-[calc(100%+3rem)] md:mx-0 md:w-full">
             <PricingTable />
           </div>
 
