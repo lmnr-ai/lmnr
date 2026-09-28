@@ -3,12 +3,14 @@
 //! consumer:
 //!   - `*_versions` — one row per SPAN, its resolved version. Write-once: rows
 //!     are never corrected after insert (transition-window spans keep the
-//!     version resolved at classification time). The version column is named
-//!     per table (see [`version_column`]), so callers work with the
-//!     kind-neutral [`SpanVersion`] and this module maps it onto the table.
+//!     version resolved at classification time).
 //!   - `*_version_defs` — one row per MINT, carrying the version's static text
-//!     and provenance. Identical columns in both kinds. An analysis journal;
-//!     nothing reads it.
+//!     and provenance. An analysis journal; nothing reads it.
+//!
+//! The kinds' columns differ (the version column's name, and `has_history`,
+//! which only user templates are partitioned by), so callers work with the
+//! kind-neutral [`SpanVersion`] / [`VersionDef`] and this module maps them
+//! onto each table's row type.
 
 use std::collections::HashMap;
 
@@ -29,6 +31,8 @@ pub struct SpanVersion {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     pub agent_hash: String,
+    /// Turn position of the versioned text. Stored for user templates only.
+    pub has_history: bool,
     pub version_hash: String,
     pub created_at: i64,
 }
@@ -39,6 +43,7 @@ impl SpanVersion {
         trace_id: Uuid,
         span_id: Uuid,
         agent_hash: &str,
+        has_history: bool,
         version_hash: &str,
     ) -> Self {
         Self {
@@ -46,6 +51,7 @@ impl SpanVersion {
             trace_id,
             span_id,
             agent_hash: agent_hash.to_string(),
+            has_history,
             version_hash: version_hash.to_string(),
             created_at: chrono_to_nanoseconds(chrono::Utc::now()),
         }
@@ -96,6 +102,7 @@ struct CHUserTemplateVersion {
     #[serde(with = "clickhouse::serde::uuid")]
     span_id: Uuid,
     agent_hash: String,
+    has_history: bool,
     version_hash: String,
     created_at: i64,
 }
@@ -107,6 +114,7 @@ impl From<&SpanVersion> for CHUserTemplateVersion {
             trace_id: row.trace_id,
             span_id: row.span_id,
             agent_hash: row.agent_hash.clone(),
+            has_history: row.has_history,
             version_hash: row.version_hash.clone(),
             created_at: row.created_at,
         }
@@ -153,25 +161,24 @@ async fn insert_rows<T: RowOwned + RowWrite>(
         .map_err(|e| anyhow::anyhow!("{table} insert failed: {e:?}"))
 }
 
-/// Journal row written once per version MINT (`*_version_defs`):
-/// the static skeleton as text — the registry keeps only one-way line hashes —
-/// plus the provenance needed to audit a mint (which rule allowed it, how
-/// populated the window was, which span triggered it). Nothing in the pipeline
-/// reads this table.
-#[derive(Row, Serialize, Debug, Clone)]
-pub struct CHSystemPromptVersionDef {
-    #[serde(with = "clickhouse::serde::uuid")]
+/// Journal row written once per version MINT (`*_version_defs`), for either
+/// kind: the static skeleton as text — the registry keeps only one-way line
+/// hashes — plus the provenance needed to audit a mint (which rule allowed it,
+/// how populated the window was, which span triggered it). Nothing in the
+/// pipeline reads these tables.
+#[derive(Debug, Clone)]
+pub struct VersionDef {
     pub project_id: Uuid,
     pub agent_hash: String,
+    /// Turn position of the minting partition. Stored for user templates only.
+    pub has_history: bool,
     pub version_hash: String,
     pub static_text: String,
     pub static_lines: u32,
     pub cluster_size: u16,
     pub window_len: u16,
     pub mint_gate: String,
-    #[serde(with = "clickhouse::serde::uuid")]
     pub example_trace_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
     pub example_span_id: Uuid,
     pub created_at: i64,
 }
@@ -180,11 +187,12 @@ pub struct CHSystemPromptVersionDef {
 /// prompts sit far below this.
 const STATIC_TEXT_MAX_CHARS: usize = 131_072;
 
-impl CHSystemPromptVersionDef {
+impl VersionDef {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         project_id: Uuid,
         agent_hash: &str,
+        has_history: bool,
         version_hash: &str,
         static_text: &str,
         static_lines: usize,
@@ -197,6 +205,7 @@ impl CHSystemPromptVersionDef {
         Self {
             project_id,
             agent_hash: agent_hash.to_string(),
+            has_history,
             version_hash: version_hash.to_string(),
             static_text: truncate_chars(&sanitize_string(static_text), STATIC_TEXT_MAX_CHARS),
             static_lines: static_lines as u32,
@@ -210,22 +219,94 @@ impl CHSystemPromptVersionDef {
     }
 }
 
+#[derive(Row, Serialize, Debug, Clone)]
+struct CHSystemPromptVersionDef {
+    #[serde(with = "clickhouse::serde::uuid")]
+    project_id: Uuid,
+    agent_hash: String,
+    version_hash: String,
+    static_text: String,
+    static_lines: u32,
+    cluster_size: u16,
+    window_len: u16,
+    mint_gate: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    example_trace_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    example_span_id: Uuid,
+    created_at: i64,
+}
+
+impl From<&VersionDef> for CHSystemPromptVersionDef {
+    fn from(def: &VersionDef) -> Self {
+        Self {
+            project_id: def.project_id,
+            agent_hash: def.agent_hash.clone(),
+            version_hash: def.version_hash.clone(),
+            static_text: def.static_text.clone(),
+            static_lines: def.static_lines,
+            cluster_size: def.cluster_size,
+            window_len: def.window_len,
+            mint_gate: def.mint_gate.clone(),
+            example_trace_id: def.example_trace_id,
+            example_span_id: def.example_span_id,
+            created_at: def.created_at,
+        }
+    }
+}
+
+#[derive(Row, Serialize, Debug, Clone)]
+struct CHUserTemplateVersionDef {
+    #[serde(with = "clickhouse::serde::uuid")]
+    project_id: Uuid,
+    agent_hash: String,
+    has_history: bool,
+    version_hash: String,
+    static_text: String,
+    static_lines: u32,
+    cluster_size: u16,
+    window_len: u16,
+    mint_gate: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    example_trace_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    example_span_id: Uuid,
+    created_at: i64,
+}
+
+impl From<&VersionDef> for CHUserTemplateVersionDef {
+    fn from(def: &VersionDef) -> Self {
+        Self {
+            project_id: def.project_id,
+            agent_hash: def.agent_hash.clone(),
+            has_history: def.has_history,
+            version_hash: def.version_hash.clone(),
+            static_text: def.static_text.clone(),
+            static_lines: def.static_lines,
+            cluster_size: def.cluster_size,
+            window_len: def.window_len,
+            mint_gate: def.mint_gate.clone(),
+            example_trace_id: def.example_trace_id,
+            example_span_id: def.example_span_id,
+            created_at: def.created_at,
+        }
+    }
+}
+
 pub async fn insert_version_def(
     clickhouse: &clickhouse::Client,
     kind: VersionKind,
-    row: &CHSystemPromptVersionDef,
+    def: &VersionDef,
 ) -> Result<()> {
     let table = kind.tables().defs;
-    let mut insert = clickhouse
-        .insert::<CHSystemPromptVersionDef>(table)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to start {table} insert: {e:?}"))?
-        .with_setting("wait_for_async_insert", "0");
-    insert.write(row).await?;
-    insert
-        .end()
-        .await
-        .map_err(|e| anyhow::anyhow!("{table} insert failed: {e:?}"))
+    match kind {
+        VersionKind::SystemPrompt => {
+            insert_rows(clickhouse, table, &[CHSystemPromptVersionDef::from(def)]).await
+        }
+        VersionKind::UserTemplate => {
+            insert_rows(clickhouse, table, &[CHUserTemplateVersionDef::from(def)]).await
+        }
+    }
 }
 
 #[derive(Row, Deserialize, Debug)]

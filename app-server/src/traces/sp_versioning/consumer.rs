@@ -29,7 +29,7 @@ use super::{
 use crate::{
     cache::{Cache, CacheTrait},
     ch::system_prompt_versions::{
-        CHSystemPromptVersionDef, SpanVersion, insert_version_def, insert_version_rows,
+        SpanVersion, VersionDef, insert_version_def, insert_version_rows,
     },
     env,
     mq::{MessageQueue, MessageQueueTrait},
@@ -238,6 +238,7 @@ fn push_message_rows(
             span_ref.trace_id,
             span_ref.span_id,
             &message.agent_hash,
+            message.has_history,
             version_hash,
         ));
     }
@@ -757,9 +758,10 @@ impl SpVersioningHandler {
         window_len: usize,
     ) {
         let example = message.span_refs.first();
-        let row = CHSystemPromptVersionDef::new(
+        let row = VersionDef::new(
             message.project_id,
             &message.agent_hash,
+            message.has_history,
             version_hash,
             &similarity::reconstruct_static_text(&message.system_prompt, intersection),
             intersection.len(),
