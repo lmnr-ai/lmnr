@@ -8,7 +8,7 @@ const ComparisonChart = () => (
   <div
     className="relative aspect-[55/24] w-full overflow-hidden bg-[#202021] [container-type:inline-size]"
     role="img"
-    aria-label="Flow-1 model comparison using full-benchmark F1 score and median cost per trace"
+    aria-label="flow-1 model comparison using trace analysis intelligence and median cost per trace"
   >
     <BackgroundGrid />
     <ChartGrid />

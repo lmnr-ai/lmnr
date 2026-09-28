@@ -5,19 +5,19 @@ import { BENCHMARK_MODELS } from "@/components/landing/sections/flow-one/benchma
 import {
   CHART_HEIGHT,
   CHART_WIDTH,
-  f1ScoreToY,
+  descF1ToY,
   tracesPerDollarToX,
 } from "@/components/landing/sections/flow-one/chart-geometry";
 
-describe("Flow-1 comparison chart", () => {
-  it("uses full-benchmark F1 and median cost measurements", () => {
+describe("flow-1 comparison chart", () => {
+  it("uses full-benchmark description F1 and under-16K pricing measurements", () => {
     assert.deepEqual(
-      BENCHMARK_MODELS.map(({ f1Score }) => f1Score),
-      [83.5, 89, 83.5, 81.6, 79.5, 69.9]
+      BENCHMARK_MODELS.map(({ descF1 }) => descF1),
+      [73, 80.6, 76.9, 71.3, 63.8, 65.3]
     );
     assert.deepEqual(
       BENCHMARK_MODELS.map(({ tracesPerDollar }) => tracesPerDollar),
-      [250, 3, 5.7, 12.7, 222.2, 10.6]
+      [756, 7, 11, 37, 632, 14]
     );
   });
 
@@ -32,7 +32,7 @@ describe("Flow-1 comparison chart", () => {
     for (const model of BENCHMARK_MODELS) {
       const radius = model.flow ? 4 : 2;
       const x = tracesPerDollarToX(model.tracesPerDollar);
-      const y = f1ScoreToY(model.f1Score);
+      const y = descF1ToY(model.descF1);
 
       assert.ok(x >= radius && x <= CHART_WIDTH - radius, `${model.label} x=${x} is clipped`);
       assert.ok(y >= radius && y <= CHART_HEIGHT - radius, `${model.label} y=${y} is clipped`);

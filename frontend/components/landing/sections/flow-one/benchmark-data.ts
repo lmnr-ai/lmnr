@@ -1,19 +1,17 @@
 export interface BenchmarkModel {
   label: string;
-  f1Score: number;
+  descF1: number;
   tracesPerDollar: number;
   flow?: boolean;
 }
 
-const costToTracesPerDollar = (costPerRun: number) => Number((1 / costPerRun).toFixed(1));
-
-// Full-benchmark F1 and median cost per trace. Gemini retains its previous
-// measured cost because the new cost report does not include it.
+// Full-benchmark description F1 and measured traces per dollar for rendered
+// traces under 16K tokens.
 export const BENCHMARK_MODELS: BenchmarkModel[] = [
-  { label: "Flow-1", f1Score: 83.5, tracesPerDollar: costToTracesPerDollar(0.004), flow: true },
-  { label: "Claude Opus 5", f1Score: 89, tracesPerDollar: costToTracesPerDollar(0.336) },
-  { label: "Claude Sonnet 5", f1Score: 83.5, tracesPerDollar: costToTracesPerDollar(0.176) },
-  { label: "GPT-6 Sol", f1Score: 81.6, tracesPerDollar: costToTracesPerDollar(0.079) },
-  { label: "GPT-6 Luna", f1Score: 79.5, tracesPerDollar: costToTracesPerDollar(0.0045) },
-  { label: "Gemini 3.8 Flash", f1Score: 69.9, tracesPerDollar: costToTracesPerDollar(0.094) },
+  { label: "flow-1", descF1: 73, tracesPerDollar: 756, flow: true },
+  { label: "Claude Opus 5", descF1: 80.6, tracesPerDollar: 7 },
+  { label: "Claude Sonnet 5", descF1: 76.9, tracesPerDollar: 11 },
+  { label: "GPT-6 Sol", descF1: 71.3, tracesPerDollar: 37 },
+  { label: "GPT-6 Luna", descF1: 63.8, tracesPerDollar: 632 },
+  { label: "Gemini 3.8 Flash", descF1: 65.3, tracesPerDollar: 14 },
 ];

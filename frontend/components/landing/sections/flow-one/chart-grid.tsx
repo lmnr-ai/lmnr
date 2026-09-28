@@ -51,7 +51,7 @@ const ChartGrid = () => (
     >
       <div className="flex items-center gap-[0.68cqw] whitespace-nowrap font-sans-landing text-[1.36cqw] text-[#7c7e85]">
         <span>Traces analyzed per dollar</span>
-        <AxisHelp label="About the cost estimate">Median measured cost per trace across the full benchmark</AxisHelp>
+        <AxisHelp label="About the cost estimate">Estimates based on our trace analysis benchmark</AxisHelp>
       </div>
     </div>
     <div
@@ -65,8 +65,10 @@ const ChartGrid = () => (
       }}
     >
       <div className="flex flex-none -rotate-90 items-center gap-[0.68cqw] whitespace-nowrap font-sans-landing text-[1.36cqw] text-[#7c7e85]">
-        <span>F1 score (%)</span>
-        <AxisHelp label="About the F1 benchmark">F1 results from our full 523-trace analysis benchmark</AxisHelp>
+        <span>Trace analysis intelligence (%)</span>
+        <AxisHelp label="About the trace analysis intelligence benchmark">
+          Results from our trace analysis benchmark
+        </AxisHelp>
       </div>
     </div>
   </div>
