@@ -11,9 +11,7 @@ const FlowOne = () => (
         <span className="text-primary-100">flow-1</span> was fine-tuned and post-trained with RL for intelligent and
         efficient trace analysis. <br className="hidden sm:block" />
         Surpassing <span className="text-primary-100">GPT-6 Sol</span> in trace analysis intelligence, while analyzing{" "}
-        <span className="text-primary-100">20x</span> more traces per dollar. <br className="hidden sm:block" />
-        It automatically catches agent failures <span className="text-primary-100">at scale</span> and helps you fix
-        them.
+        <span className="text-primary-100">20x</span> more traces per dollar.
       </p>
     </div>
     <ComparisonChart />
