@@ -66,6 +66,8 @@ The same three scores with no electronics:
 
 `arabesque-acoustic-chill` keeps Arabesque Acoustic from Flow-1 on. Before it, one quiet eighth-note bed (E – A – G♯m – A, Bsus into the drop) runs unbroken, and events are soft in-key piano touches on top. There are no warning ducks. It works with `--split-arabesque`.
 
+All Arabesque styles bridge the Issues analysis prelude (`cues.issues.prelude`: bash descent, zoom out, circle grow) with a triplet arabesque walking I – IV – V into the issue grid.
+
 ### `nocturne-duet` — piano and violin
 
 Nocturne's acoustic cut with the synthesized string section replaced by VSCO-2 celli, violin section and solo violin (picked by register). The solo violin sings every melody legato while the piano keeps the octave below, and it plays the budget drain in spiccato.
