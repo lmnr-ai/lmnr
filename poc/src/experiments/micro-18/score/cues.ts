@@ -46,6 +46,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
     return round(flowNative + beads.at + beads.duration * (duration + (i - 5) * gap) / duration);
   };
   const flowCues = flow21 ? {
+    animation21: true,
     cloudExit: span(flowNative, flow21.cloudExit),
     cameraZoom: span(flowNative, flow21.cameraZoom),
     benchmark: at(flowNative, flow21.benchmarkHeading),
@@ -62,6 +63,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
     coverShut: round(flowNative + flow21.coverDescent.at + flow21.coverDescent.duration - .05),
     coverTint: span(flowNative, flow21.coverTint),
   } : {
+    animation21: false,
     cloudExit: span(flowNative, flow.cloudExit),
     cameraZoom: span(flowNative, flow.cameraZoom),
     benchmark: at(flowNative, flow.benchmarkHeading),

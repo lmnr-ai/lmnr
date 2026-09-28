@@ -15,6 +15,30 @@ export function progression(...entries: (readonly [beat: number, chord: Chord])[
   return kept;
 }
 
+/**
+ * A chord loop in 4-beat bars whose bar lines count back from `anchor`, so the bar just before it is always
+ * the loop's last chord; the first bar is clipped to start at `from`.
+ */
+export const loopBars = (from: number, to: number, loop: readonly Chord[], anchor = to, bar = 4): Progression => {
+  const bars: [number, Chord][] = [];
+  for (let beat = anchor - bar * Math.ceil((anchor - from) / bar - 1e-9); beat < to - 1e-9; beat += bar)
+    bars.push([Math.max(from, beat), loop[(Math.round((beat - anchor) / bar) % loop.length + loop.length) % loop.length]]);
+  return bars;
+};
+
+/**
+ * Issue pops as notes on `scale` (by height). Pops that land together fan out into a quick cascade of
+ * distinct pitches, `step` apart, instead of stacking into one cluster.
+ */
+export const cascade = (pops: readonly {at: number; pan: number; height: number}[], scale: readonly number[], step = .04) => {
+  const notes: {at: number; time: number; midi: number; pan: number}[] = [];
+  for (const pop of pops) {
+    const midi = scale[Math.min(scale.length - 1, Math.floor(pop.height * scale.length))], group = notes.filter(note => Math.abs(note.at - pop.at) < .01);
+    if (!group.some(note => note.midi === midi)) notes.push({at: pop.at, time: pop.at + group.length * step, midi, pan: pop.pan});
+  }
+  return notes;
+};
+
 /** The chord sounding at `beat`: the latest entry starting at or before it (the first one before the progression starts). */
 export const chordAt = (progression: Progression, beat: number) => {
   let current = progression[0];

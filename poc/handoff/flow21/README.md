@@ -53,6 +53,8 @@ Narration: "our agent built to analyze traces / at scale." was recorded as one b
 
 Use `flow.timing21` and the shared sample helpers rather than the legacy `modelRows`, `barsGrow`, or `cameraToAnalysis` tracks. Inspect `voiceover-engine.ts`, `voiceover-schedule.ts`, `voiceover-phrases.ts`, and `scripts/export-ultimate3-editable-vo.ts` for the editable narration/audio path. Prepared source narration and bed files under `public/audio/voiceover/editable-v4/` are included byte-for-byte, along with historical v2/v4 media and manifests.
 
+The lo-fi Rhodes, city pop and minimal techno styles (`--style lofi-rhodes|city-pop|minimal-techno`) branch on `cues.flow.animation21`: with no number swap in Animation 21, their swap lick climbs with the six bead landings (flow-1's accented) and the glissando plays on the graph spread.
+
 Upstream Phase/Tintinnabuli and all five keyboard models are retained alongside the local Acoustic Chill variant. The publication merge does not replace newer sound features with the older standalone versions. Preserve paused-inspection silence, single audio scheduling, existing master/mix controls, and source-media provenance.
 
 ## Verification
