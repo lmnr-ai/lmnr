@@ -166,14 +166,14 @@ impl WorkspaceTierName {
 
     /// Signal cost included in this tier's monthly plan, in micro-USD (1e-6
     /// USD). Signals are billed by the token cost the agent spends, so the
-    /// included allowance is a dollar amount: $5 Free, $15 Hobby, $50 Pro.
+    /// included allowance is a dollar amount: $2.50 Free, $7.50 Hobby, $25 Pro.
     /// Must stay in sync with `TIER_CONFIG.includedSignalCostMicroUsd` in the
     /// frontend and the `subscription_tiers.signal_cost_included_micro_usd` DB column.
     pub fn included_signal_cost_micro_usd(&self) -> Option<i64> {
         match self {
-            Self::Free => Some(5_000_000),
-            Self::Hobby => Some(15_000_000),
-            Self::Pro => Some(50_000_000),
+            Self::Free => Some(2_500_000),
+            Self::Hobby => Some(7_500_000),
+            Self::Pro => Some(25_000_000),
             Self::Other => None,
         }
     }
@@ -185,6 +185,31 @@ impl WorkspaceTierName {
             Self::Pro => "Pro",
             Self::Other => "your",
         }
+    }
+}
+
+#[cfg(test)]
+mod workspace_tier_tests {
+    use super::WorkspaceTierName;
+
+    #[test]
+    fn included_signal_credits_match_tier_configuration() {
+        assert_eq!(
+            WorkspaceTierName::Free.included_signal_cost_micro_usd(),
+            Some(2_500_000)
+        );
+        assert_eq!(
+            WorkspaceTierName::Hobby.included_signal_cost_micro_usd(),
+            Some(7_500_000)
+        );
+        assert_eq!(
+            WorkspaceTierName::Pro.included_signal_cost_micro_usd(),
+            Some(25_000_000)
+        );
+        assert_eq!(
+            WorkspaceTierName::Other.included_signal_cost_micro_usd(),
+            None
+        );
     }
 }
 

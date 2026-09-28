@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatSignalsOverage, formatSignalsOverageShort, signalTokenCostMicroUsd } from "../lib/billing/tiers";
+import { TIER_CONFIG } from "../lib/actions/checkout/types";
+import { formatSignalsOverage, formatSignalsOverageShort, signalTokenCostMicroUsd, TIERS } from "../lib/billing/tiers";
+
+test("uses the configured included Signals credits", () => {
+  assert.equal(TIERS.free.includedSignalCostUsd, 2.5);
+  assert.equal(TIERS.hobby.includedSignalCostUsd, 7.5);
+  assert.equal(TIERS.pro.includedSignalCostUsd, 25);
+  assert.equal(TIER_CONFIG.hobby.includedSignalCostMicroUsd, 7_500_000);
+  assert.equal(TIER_CONFIG.pro.includedSignalCostMicroUsd, 25_000_000);
+});
 
 test("uses unified signal rates", () => {
   // 1M prompt tokens includes 200K cached tokens, so only 800K is fresh.
