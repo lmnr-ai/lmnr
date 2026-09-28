@@ -9,6 +9,6 @@ Changing those endpoints here breaks or drifts the provider:
   - `FILTER_COLUMNS` (`signals/service.rs`), mirrored by `signalFilterColumns`.
   - `llm/profiles/service/provider_fields.rs`, mirrored by `llmProviderFields`.
   - Signal defaults: filter `total_token_count gt 1000`, trigger `rootSpanFinished`, mode `realtime`.
-- Signal DELETE purges ClickHouse data synchronously. They took about 62s on staging, and the provider's HTTP timeout is 5 minutes. Keep deletes under that, or make them async.
+- Signal DELETE purges ClickHouse data synchronously. It took about 62s on staging, and the provider's HTTP timeout is 5 minutes. Keep deletes under that, or make them async.
 - Response JSON key order for `structuredOutput` isn't preserved. The provider normalizes it, so this is safe to leave as is.
 - `docs/openapi/openapi.yaml`'s `LlmProfileProvider` enum is missing `custom_responses`, which the server accepts.
