@@ -1,7 +1,6 @@
 -- User-template versioning: the same two tables as system-prompt versioning
 -- (migration 56), for the last-turn user group of each trace's winning LLM
--- span. Columns are identical so the app-server writes both kinds with the same
--- row types (`static_prompt_version_hash` holds the template version here).
+-- span.
 
 -- User-template version per winning span, resolved asynchronously by the
 -- versioning consumer. Write-once: rows are never corrected after insert.
@@ -10,7 +9,7 @@ CREATE TABLE IF NOT EXISTS user_template_versions (
     trace_id UUID,
     span_id UUID,
     agent_hash LowCardinality(String),
-    static_prompt_version_hash LowCardinality(String),
+    version_hash LowCardinality(String),
     created_at DateTime64(9, 'UTC') DEFAULT now64(9)
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(created_at)

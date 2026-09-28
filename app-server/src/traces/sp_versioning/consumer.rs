@@ -29,7 +29,7 @@ use super::{
 use crate::{
     cache::{Cache, CacheTrait},
     ch::system_prompt_versions::{
-        CHSystemPromptVersion, CHSystemPromptVersionDef, insert_version_def, insert_version_rows,
+        CHSystemPromptVersionDef, SpanVersion, insert_version_def, insert_version_rows,
     },
     env,
     mq::{MessageQueue, MessageQueueTrait},
@@ -190,7 +190,7 @@ impl MessageHandler for SpVersioningHandler {
     // extraction workers (which DO need the client) consume their own queue
     // — possibly on another node.
     async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
-        let mut rows: Vec<CHSystemPromptVersion> = Vec::new();
+        let mut rows: Vec<SpanVersion> = Vec::new();
         for message in &messages {
             let rows_before = rows.len();
             if let Err(e) = self.process_message(message, &mut rows).await {
@@ -230,10 +230,10 @@ impl MessageHandler for SpVersioningHandler {
 fn push_message_rows(
     message: &SpVersioningMessage,
     version_hash: &str,
-    rows_out: &mut Vec<CHSystemPromptVersion>,
+    rows_out: &mut Vec<SpanVersion>,
 ) {
     for span_ref in &message.span_refs {
-        rows_out.push(CHSystemPromptVersion::new(
+        rows_out.push(SpanVersion::new(
             message.project_id,
             span_ref.trace_id,
             span_ref.span_id,
@@ -299,7 +299,7 @@ impl SpVersioningHandler {
     async fn process_message(
         &self,
         message: &SpVersioningMessage,
-        rows_out: &mut Vec<CHSystemPromptVersion>,
+        rows_out: &mut Vec<SpanVersion>,
     ) -> anyhow::Result<()> {
         // Memo-resolved by the producer: the prompt is byte-identical to a
         // window entry that already exists and is already labeled, so there is
@@ -403,7 +403,7 @@ impl SpVersioningHandler {
         entry_idx: usize,
         line_hashes: &[u64],
         lines_set: &std::collections::HashSet<u64>,
-        rows_out: &mut Vec<CHSystemPromptVersion>,
+        rows_out: &mut Vec<SpanVersion>,
     ) -> anyhow::Result<()> {
         // The producer already ran the subset match inline (it decides whether
         // the body rides the wire), so re-running it here would duplicate
@@ -495,7 +495,7 @@ impl SpVersioningHandler {
         entry_idx: usize,
         line_hashes: &[u64],
         probe_of: Option<&str>,
-        rows_out: &mut Vec<CHSystemPromptVersion>,
+        rows_out: &mut Vec<SpanVersion>,
     ) -> anyhow::Result<()> {
         let partition = self.partition(message);
         let tunables = self.kind.tunables();
@@ -682,7 +682,7 @@ impl SpVersioningHandler {
         intersection: &[u64],
         version_hash: &str,
         gate: MintGate,
-        rows_out: &mut Vec<CHSystemPromptVersion>,
+        rows_out: &mut Vec<SpanVersion>,
     ) -> anyhow::Result<()> {
         // Double-check under the lock: a concurrent worker may have minted
         // this hash between our registry read and the acquisition.
@@ -787,7 +787,7 @@ impl SpVersioningHandler {
         win: &mut Vec<WindowEntry>,
         entry_idx: usize,
         version_hash: &str,
-        rows_out: &mut Vec<CHSystemPromptVersion>,
+        rows_out: &mut Vec<SpanVersion>,
     ) {
         if !win[entry_idx].labeled {
             push_message_rows(message, version_hash, rows_out);
@@ -893,7 +893,7 @@ mod tests {
     async fn mint_first_version(
         handler: &SpVersioningHandler,
         project_id: Uuid,
-    ) -> (Vec<CHSystemPromptVersion>, String) {
+    ) -> (Vec<SpanVersion>, String) {
         let mut rows = Vec::new();
         for i in 0..tunables().min_window {
             let message = make_message(project_id, &versioned_prompt(i));
@@ -975,7 +975,7 @@ mod tests {
 
         // Only the minting message's span got a row so far.
         assert_eq!(rows.len(), 1, "mint labels the triggering message only");
-        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, version_hash);
 
         // The static intersection excludes the dynamic user line.
         let lines_key = versions::version_lines_cache_key(KIND, project_id, AGENT, &version_hash);
@@ -1014,7 +1014,7 @@ mod tests {
         assert!(
             redelivered_rows
                 .iter()
-                .all(|r| r.static_prompt_version_hash == version_hash)
+                .all(|r| r.version_hash == version_hash)
         );
         // Nothing re-parked, no second mint.
         assert!(drain_parked(&mut receiver).await.is_empty());
@@ -1036,7 +1036,7 @@ mod tests {
         handler.process_message(&message, &mut rows).await.unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, version_hash);
         assert_eq!(rows[0].span_id, message.span_refs[0].span_id);
         let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
@@ -1207,7 +1207,7 @@ mod tests {
         handler.process_message(&message, &mut rows).await.unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, "someversion");
+        assert_eq!(rows[0].version_hash, "someversion");
         // No window touched.
         let win = window::load_window(
             &handler.cache,
@@ -1236,7 +1236,7 @@ mod tests {
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, "racedversion");
+        assert_eq!(rows[0].version_hash, "racedversion");
     }
 
     #[tokio::test]
@@ -1267,11 +1267,7 @@ mod tests {
             !last_rows.is_empty(),
             "new-version spans got rows once minted"
         );
-        assert!(
-            last_rows
-                .iter()
-                .any(|r| r.static_prompt_version_hash != old_version)
-        );
+        assert!(last_rows.iter().any(|r| r.version_hash != old_version));
     }
 
     #[tokio::test]
@@ -1303,7 +1299,7 @@ mod tests {
         // The triggering message got its row; earlier occurrences parked
         // (dropped here — no delay receiver) and would resolve via the memo.
         assert_eq!(all_rows.len(), 1);
-        assert_eq!(&all_rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(&all_rows[0].version_hash, version_hash);
         let memo = versions::memo_get(
             &handler.cache,
             KIND,
@@ -1362,7 +1358,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(rows.len(), 1, "the first post-expiry message gets its row");
-        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, version_hash);
         let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
@@ -1399,7 +1395,7 @@ mod tests {
         handler.process_message(&message, &mut rows).await.unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, version_hash);
         let registry = versions::load_registry(&handler.cache, KIND, project_id, AGENT)
             .await
             .unwrap();
@@ -1415,7 +1411,7 @@ mod tests {
         let message = make_message(project_id, &versioned_prompt(4243));
         handler.process_message(&message, &mut rows).await.unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, version_hash);
         assert_eq!(
             versions::load_registry(&handler.cache, KIND, project_id, AGENT)
                 .await
@@ -1451,7 +1447,7 @@ mod tests {
             .unwrap();
         assert_eq!(registry.len(), 1, "partial-window mint happened");
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, registry[0].version_hash);
+        assert_eq!(rows[0].version_hash, registry[0].version_hash);
         // The intersection over the partial cluster still strips the dynamic
         // user line.
         let lines_key =
@@ -1507,7 +1503,7 @@ mod tests {
                 .unwrap();
         assert!(regexes.is_empty(), "single sample mints with no regexes");
         assert_eq!(rows.len(), 1);
-        assert_eq!(&rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(&rows[0].version_hash, version_hash);
         assert!(drain_parked(&mut receiver).await.is_empty());
     }
 
@@ -1587,7 +1583,7 @@ mod tests {
             let mut rows = Vec::new();
             handler.process_message(&message, &mut rows).await.unwrap();
             assert_eq!(
-                rows.first().map(|r| r.static_prompt_version_hash.clone()),
+                rows.first().map(|r| r.version_hash.clone()),
                 Some(old_version.clone()),
                 "cheap match keeps resolving to the old version"
             );
@@ -1616,7 +1612,7 @@ mod tests {
         let next = make_message(project_id, &added(1000));
         let mut rows = Vec::new();
         handler.process_message(&next, &mut rows).await.unwrap();
-        assert_eq!(&rows[0].static_prompt_version_hash, new_version);
+        assert_eq!(&rows[0].version_hash, new_version);
     }
 
     /// The producer's cheap-match verdict replaces the consumer's own subset
@@ -1643,7 +1639,7 @@ mod tests {
         handler.process_message(&message, &mut rows).await.unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].static_prompt_version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, version_hash);
         let win = window::load_window(&handler.cache, &window_key)
             .await
             .unwrap();
@@ -1712,11 +1708,8 @@ mod tests {
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
         assert_eq!(rows.len(), 1);
-        assert_ne!(rows[0].static_prompt_version_hash, version_hash);
-        assert_eq!(
-            rows[0].static_prompt_version_hash,
-            similarity::empty_version_hash()
-        );
+        assert_ne!(rows[0].version_hash, version_hash);
+        assert_eq!(rows[0].version_hash, similarity::empty_version_hash());
     }
 
     /// A window of texts sharing no line mints the empty version for either
