@@ -1,8 +1,9 @@
 import {useId} from 'react';
 import {staticFile} from 'remotion';
-import {DitherClouds} from '../micro-09/DitherClouds';
+import {DitherClouds, type CloudState} from '../micro-09/DitherClouds';
 import {DitherPhoto, DitherPuffs} from '../micro-10/DitherPhoto';
 import {Micro17Scene} from '../micro-17/Scene';
+import {worldState} from '../micro-17/geometry';
 import {
   Micro16BudgetContent,
   Micro16WorldContent,
@@ -27,9 +28,11 @@ import {
   FLOW_PLACEMENT,
   costCameraInSharedWorld,
   flowCameraInSharedWorld,
+  flowCloudScreenTransform,
   sharedWorldCamera,
   issueSurfacePlacement,
   flowIssuesCamera,
+  projectScreenRect,
 } from './transitions';
 
 const Card = ({kind}: {kind: 'placeholder'|'logo'}) => <div className="micro18-card">
@@ -56,6 +59,15 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
     '--flow1-border': `${1 / camera.scale}px`,
   } as React.CSSProperties;
   const costTransform = `translate(${COST_NATIVE_TO_WORLD.x}px,${COST_NATIVE_TO_WORLD.y}px) scale(${COST_NATIVE_TO_WORLD.scale})`;
+  const cloudTransform = issues
+    ? flowCloudScreenTransform(0, camera, outgoing)
+    : isFlow ? flowCloudScreenTransform(flow.entryProgress, camera, outgoing) : {x: 0, y: 0, scale: 1};
+  // Restore the pre-midnight chapter attachment: clouds arrive with Flow's
+  // opening world and leave with its terminal world if the chapter is trimmed.
+  const cloudBounds = projectScreenRect({x: 0, y: 0, width: 1280, height: 720}, cloudTransform);
+  const outgoingCloudsVisible = issues?.entering && cloudBounds.x < 1280 && cloudBounds.y < 720
+    && cloudBounds.x + cloudBounds.width > 0 && cloudBounds.y + cloudBounds.height > 0;
+
   return <div className="micro18-shared-scene" aria-label="Cost, Introducing flow-1 and Issue clusters 3 shared world"
     data-world-kind="persistent-cost-flow" data-camera-x={camera.x} data-camera-y={camera.y} data-camera-scale={camera.scale}>
     <div className="micro18-shared-world" style={cameraStyle} data-world-origin="0,0" data-shared-camera="true">
@@ -85,19 +97,31 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
         <Micro20Scene sample={issues.source20} sharedEntry={issues.entering} showSubtitles={false}/>
       </div>}
     </div>
+    {(isFlow || outgoingCloudsVisible) && <div className="micro18-flow-cloud-layer" data-cloud-attachment={issues ? 'outgoing-world' : flow.entryProgress < 1 ? 'opening-world' : 'screen'}
+      style={{transform: `translate(${cloudTransform.x}px,${cloudTransform.y}px) scale(${cloudTransform.scale})`}}>
+      <DitherClouds progress={flowState.cloudProgress} yOffset={settings.flow.controls.cloudYOffset} translateY={flowState.cloudTranslateY}/>
+    </div>}
     {issues ? <IssueSubtitles narration={issues.entering ? null : issues.source20.narration} opacity={issues.source20.subtitleOpacity}/> : isFlow ? (flow.playback21 ? <Flow21Subtitles progress={flow.playback21.progress}/> : <FlowSubtitles modelName="flow-1" progress={flow.playback.progress}/>) : <Subtitles progress={cost.progress}/>}
   </div>;
 };
 
-/** One frame-pinned cloud canvas for the whole composition, independent of chapter cameras. */
+/** Keep the canonical canvas in one slot across Ultimate2 → Cost;
+ * Flow owns its separate world-attached cloud plane, as before the frame-cloud rewrite. */
 export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; settings: Ultimate3Settings}) => {
   let content: React.ReactNode;
-  const clouds = sample.clouds;
+  let clouds: CloudState | null = null;
 
   if (sample.chapter === 'ultimate2' && sample.ultimate2) {
+    const state = worldState(sample.ultimate2, settings.ultimate2.controls, settings.ultimate2.streamBlocksRemoved);
     content = <Micro17Scene playback={sample.ultimate2} controls={settings.ultimate2.controls} blocksRemoved={settings.ultimate2.streamBlocksRemoved} showClouds={false}/>;
+    if (state.cloudEnter > 0) clouds = {progress: state.cloudProgress, yOffset: 27,
+      translateY: state.cloudTranslateY, translateX: state.cloudTranslateX};
   } else if ((sample.chapter === 'cost' && sample.cost) || (sample.chapter === 'flow' && sample.flow) || (sample.chapter === 'issues' && sample.issues)) {
     content = <SharedCostFlowIssuesWorld sample={sample} settings={settings}/>;
+    if (sample.chapter === 'cost' && sample.cost) {
+      // Preserve the settled y=27 handoff, then use Cost's native cloud sweep.
+      clouds = {...sample.cost.cloud, yOffset: 27 + 10 * sample.cost.progress.cloudSweep};
+    }
   } else if (sample.chapter === 'conclusion') {
     const stage = sample.conclusion === 'logo' ? 'logo' : 'placeholder';
     content = <>{stage === 'placeholder' && sample.conclusionSource

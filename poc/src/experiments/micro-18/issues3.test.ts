@@ -8,7 +8,7 @@ import {NARRATION} from '../micro-20/narration';
 import {introducingFlowState} from '../introducing-flow-1/geometry';
 import {chapterSchedule, issueHandoffValidation, sampleFlow, sampleIssues, sampleUltimate3, ultimate3Duration, ultimate3DurationFrames} from './sample';
 import {issueEndpoint, issueEntryEnd, issuePostludeOffset, issuePreludeEnd, normalizeSettings, ULTIMATE_3_DEFAULTS} from './settings';
-import {flowCameraInSharedWorld, flowIssuesCamera, issueOpeningCamera, issueSurfacePlacement, projectWorldPoint} from './transitions';
+import {flowCameraInSharedWorld, flowCloudScreenTransform, flowIssuesCamera, issueOpeningCamera, issueSurfacePlacement, projectScreenRect, projectWorldPoint} from './transitions';
 import {issuesTimelineConfig, settingsFromIssuesTimeline} from './authoring';
 import {ultimate3AgentWindowSoundTiming} from './sound';
 import {ultimate3TypingTickEvents} from './typing-audio';
@@ -149,22 +149,29 @@ test('editing a prelude duration and postlude endpoints together ripples unchang
   assert.ok(issuePostludeOffset(actual) > issuePostludeOffset(settings));
 });
 
-test('retimed frame clouds remain screen-pinned across an early Flow-to-Issues trim', () => {
-  const trimmed = normalizeSettings({...settings, pacing: {...settings.pacing, flowTrimEnd: 0}});
-  const start = chapterSchedule(trimmed)[3].start;
-  const s = normalizeSettings({...trimmed, clouds: {...trimmed.clouds!, timing: {...trimmed.clouds!.timing,
-    recede: {at: start - .25, duration: 1}}}});
+test('early-trim Flow clouds stay on the outgoing world plane until it leaves the viewport', () => {
+  const s = normalizeSettings({...settings, pacing: {...settings.pacing, flowTrimEnd: 0}});
+  const start = chapterSchedule(s)[3].start;
   const before = sampleUltimate3(start - 1e-6, s);
-  assert.equal(before.flow!.playback.progress.cloudExit, 0, 'source clock stays clipped');
-  const boundary = sampleUltimate3(start, s), after = sampleUltimate3(start + .01, s);
-  assert.ok(before.clouds && boundary.clouds && after.clouds);
-  close(before.clouds.translateY!, boundary.clouds.translateY!, .01);
-  for (const sample of [before, boundary, after]) {
-    const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample, settings: s}));
-    assert.equal((html.match(/class="micro09-clouds"/g) ?? []).length, 1);
-    assert.doesNotMatch(html, /micro18-flow-cloud-layer|data-cloud-attachment/);
+  const flowState = introducingFlowState(before.flow!.playback);
+  assert.equal(before.flow!.playback.progress.cloudExit, 0);
+  assert.equal(before.flow!.playback.progress.cloudReveal, 1);
+  const outgoing = flowCameraInSharedWorld(flowState.camera);
+  const plane = {x: 0, y: 0, width: 1280, height: 720};
+  const boundary = flowCloudScreenTransform(0, flowIssuesCamera(outgoing, 0), outgoing);
+  assert.deepEqual(boundary, {x: 0, y: 0, scale: 1});
+  for (const time of [start - 1e-6, start, start + .01]) {
+    const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(time, s), settings: s}));
+    assert.match(html, /class="micro18-flow-cloud-layer"/);
+    if (time >= start) assert.match(html, /data-cloud-attachment="outgoing-world"/);
   }
-  assert.equal(sampleUltimate3(start + .75, s).clouds, null);
+  const midpoint = flowCloudScreenTransform(0, flowIssuesCamera(outgoing, .5), outgoing);
+  assert.ok(projectScreenRect(plane, midpoint).y < 0, 'outgoing clouds travel up with the outgoing surface');
+  const arrived = flowCloudScreenTransform(0, flowIssuesCamera(outgoing, 1), outgoing);
+  const bounds = projectScreenRect(plane, arrived);
+  assert.ok(bounds.y + bounds.height < 0, 'cloud canvas is fully offscreen before removal');
+  const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(start + issueEntryEnd(s), s), settings: s}));
+  assert.doesNotMatch(html, /class="micro18-flow-cloud-layer"/);
 });
 
 test('blocked source20 handoffs expose native diagnostics and suppress postlude-only audio', () => {

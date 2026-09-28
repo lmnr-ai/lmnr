@@ -1,6 +1,18 @@
 # Flow21 publication validation
 
-## Integration
+## Corrective cloud-only rollback
+
+The initial handoff's cloud preservation claim was too narrow: the last interpolation attempt had been reverted, but an earlier frame-pinned rewrite remained. This correction restores the chapter-driven cloud rendering from `449f3d67` (last local commit before September 28 midnight), without restoring that commit's other code or timing.
+
+- Three new differential checks failed before the fix and pass afterward: native Ultimate2/Cost cloud poses, Flow's incoming-world cloud attachment, and immunity to saved frame-cloud controls.
+- Focused typecheck and 33 tests passed. The broader publication suite then passed **136 tests, zero failures**, plus typecheck, whitespace checks, and a code-only Vite build (`publicDir:false`, `/tmp/midnight-cloud-rollback-build-pallXo`; existing large-chunk warning only).
+- Browser verification passed: one canonical Ultimate2/Cost canvas, moving Flow plane, no duplicate native canvas, deterministic reverse seeks, removed frame-cloud controls, and retained narration controls.
+- The Animation21 browser suite also passed after rollback: fixed anchors, no graph camera pan, reverse seeking, stagger dial, and original-cut preservation.
+- The initial browser script's case-sensitive `vo01` assertion was corrected for DialKit's displayed `Vo01`; no runtime narration change was needed. An obsolete subtitle test that prohibited Flow's cloud plane was updated to verify captions stay above both the world and restored plane.
+- Source preservation hashes confirm only cloud runtime/UI, cloud-related regression assertions, and cloud documentation changed. Animation21, shared camera logic, settings, narration/audio, assets, other chapters, and the publication settings snapshot remain unchanged. No local storage was cleared.
+- Legacy cloud JSON remains readable/exportable but no longer drives rendering. No media was generated.
+
+## Initial publication integration (historical)
 
 - Fetched `origin/sandbox/signals-launch-video` at `6ba5d926c38281ea8f4d9cd2eafb3b051ab21494`.
 - Prepared a separate publication worktree and fast-forwarded the earlier handoff `b46174caa`; the existing project and other worktrees were not switched or reset.

@@ -1,5 +1,4 @@
 import {sampleIssueOutro} from '../micro-20/outro';
-import {sampleClouds} from './clouds';
 import {computeClipState, computeStaticTimeline, parseTimelineConfig} from 'dialkit/timeline';
 import {sampleMicro17, type Playback as Micro17Playback} from '../micro-17/sample';
 import {sampleMicro16, type Micro16State} from '../micro-16/sample';
@@ -37,7 +36,7 @@ export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings
   const nativeTime = Math.min(flowEndpoint(settings), Math.max(0, localChapterTime - entryEnd));
   if (settings.flow.sourceVersion === 21) {
     const playback21 = createFlow2Sampler({...FLOW_2_TIMELINE, ...settings.flow.timing21}).sample(nativeTime);
-    // Clouds belong to the composition-wide layer; the bridge arrives revealed.
+    // The opening cloud plane rides into view with Flow's world already revealed.
     playback21.progress.cloudReveal = 1;
     return {entryProgress: progress(localChapterTime, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21)};
   }
@@ -48,10 +47,9 @@ export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings
   const flowProgress = Object.fromEntries(FLOW_CLIP_KEYS.map(key => [key, key === 'cloudReveal' ? 1 : progress(nativeTime, settings.flow.timing[key])])) as FlowPlayback['progress'];
   return {entryProgress: progress(localChapterTime, entry), nativeTime, playback: {time: nativeTime, timing, progress: flowProgress}};
 }
-export type Ultimate3Sample = {clouds: ReturnType<typeof sampleClouds>; time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: 'placeholder'|'logo'; conclusionSource?: ReturnType<typeof sampleMicro20>};
+export type Ultimate3Sample = {time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: 'placeholder'|'logo'; conclusionSource?: ReturnType<typeof sampleMicro20>};
 export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimate3Sample {
-  const settings = normalizeSettings(input); const located = locateChapter(time, settings); const base = {time: located.time, chapter: located.segment.id, localTime: located.localTime, schedule: located.schedule,
-    clouds: sampleClouds(located.time, settings.clouds!, settings.ultimate2.controls.cloudEntrySpread, settings.flow.controls.cloudYOffset)};
+  const settings = normalizeSettings(input); const located = locateChapter(time, settings); const base = {time: located.time, chapter: located.segment.id, localTime: located.localTime, schedule: located.schedule};
   if (located.segment.id === 'ultimate2') return {...base, ultimate2: sampleMicro17(Math.min(located.localTime, ultimate2Endpoint(settings)), settings.ultimate2.timing)};
   if (located.segment.id === 'cost') return {...base, cost: sampleMicro16(Math.min(located.localTime, costEndpoint(settings)), settings.cost.controls, settings.cost.timing)};
   if (located.segment.id === 'flow') return {...base, flow: {...sampleFlow(located.localTime, settings), outgoingCost: sampleMicro16(costEndpoint(settings), settings.cost.controls, settings.cost.timing)}};

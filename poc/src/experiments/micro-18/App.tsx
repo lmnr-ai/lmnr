@@ -11,10 +11,9 @@ import {migrateIssues3Storage} from './issues3-persistence';
 import {chapterSchedule, issueHandoffValidation, sampleUltimate3} from './sample';
 import {CHAPTER_IDS, CONCLUSION_STORAGE_MIGRATION_ID, FLOW_COVER_STORAGE_MIGRATION_ID, ISSUE_TIMING_STORAGE_MIGRATION_ID, SETTINGS_STORAGE_ID, ULTIMATE_2_TIMING_STORAGE_MIGRATION_ID, ULTIMATE_3_DEFAULTS, ultimate2Endpoint, migrateStoredFlowCover, migrateStoredIssueTimeline, migrateStoredSettings, migrateStoredUltimate2Timeline, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from './settings';
 import {Ultimate3Scene} from './Scene';
-import {CLOUD_KEYS} from './clouds';
 import {observeUltimate3TransportJump} from './transport-seeks';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
-import {voiceoverTimelineConfig, voiceoverTimelineValues, voiceoverTimelineSignature, settingsFromVoiceoverTimeline, cloudTimelineConfig, cloudTimelineValues, settingsFromCloudTimeline, CONCLUSION_TIMELINE_KEYS, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, flowTimelineConfig, flowTimelineSettings, liveFlowPreview, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
+import {voiceoverTimelineConfig, voiceoverTimelineValues, voiceoverTimelineSignature, settingsFromVoiceoverTimeline, CONCLUSION_TIMELINE_KEYS, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, flowTimelineConfig, flowTimelineSettings, liveFlowPreview, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
 import {authoredStageSize} from './layout';
 import {useStreamRunAudio} from '../micro-17/use-stream-run-audio';
 import {useUltimate3Music} from './use-ultimate3-music';
@@ -31,7 +30,7 @@ export const ULTIMATE3_PANEL_IDS = {
   main: 'micro-animation-18-main-timeline-v1', u2: 'micro-animation-18-ultimate2-timeline-v1', cost: 'micro-animation-18-cost-timeline-v1',
   flow: 'micro-animation-18-flow-timeline-v1', issues: ULTIMATE3_ISSUES_TIMELINE_ID, conclusion: 'micro-animation-18-conclusion-timeline-v1',
   u2Motion: 'micro-animation-18-ultimate2-motion-v1', u2Clouds: 'micro-animation-18-ultimate2-clouds-v1', u2Warning: 'micro-animation-18-ultimate2-warning-v1',
-  cloudControls: 'micro-animation-18-frame-clouds-v4', costControls: 'micro-animation-18-cost-controls-v1', flowClouds: 'micro-animation-18-flow-clouds-v1', flowDots: 'micro-animation-18-flow-dots-v1',
+  costControls: 'micro-animation-18-cost-controls-v1', flowClouds: 'micro-animation-18-flow-clouds-v1', flowDots: 'micro-animation-18-flow-dots-v1',
   flowRows: 'micro-animation-18-flow-rows-v1', flowCover: 'micro-animation-18-flow-cover-v1', issueControls: 'micro-animation-18-issues-controls-v1',
 } as const;
 export type Ultimate3PanelIds = {[K in keyof typeof ULTIMATE3_PANEL_IDS]: string};
@@ -122,32 +121,25 @@ type BridgeProps = {settings: Ultimate3Settings; globalTime: number; onTime: (ti
 function MainTimeline({settings, globalTime, onTime, onPlaying, onSettings, onSeek}: BridgeProps) {
   const IDS = useContext(PanelIdsContext);
   const schedule = chapterSchedule(settings);
-  const config = useMemo(() => ({duration: schedule.at(-1)!.end, ...Object.fromEntries(schedule.map(s => [s.id, timelineClip(s.start, s.duration)])), ...cloudTimelineConfig(settings), ...voiceoverTimelineConfig(settings)}), [settings]);
+  const config = useMemo(() => ({duration: schedule.at(-1)!.end, ...Object.fromEntries(schedule.map(s => [s.id, timelineClip(s.start, s.duration)])), ...voiceoverTimelineConfig(settings)}), [settings]);
   // TODO(production): DialKit's clip.current values are the scrubbable authoring preview.
   // Replace them with equivalent real Motion animations using the tuned timeline
   // timings and transitions, then remove useDialTimeline and <DialTimeline />.
   const timeline = useDialTimeline('Ultimate 3 — Five chapters (fixed order, ripple)', config, {id: IDS.main, autoplay: false, loop: false, persist: true});
-  const cloudDials = useDialKit('Ultimate 3 · frame clouds', {x: [settings.clouds!.controls.x, 0, 1, .01], y: [settings.clouds!.controls.y, 0, 1, .01]}, {id: IDS.cloudControls, persist: true});
   useTransportHandoff(timeline, 0, schedule.at(-1)!.end, globalTime, onTime, onPlaying, IDS.main, onSeek);
-  const ready = useDialSync({[IDS.main]: {...Object.fromEntries(schedule.flatMap(s => [[`${s.id}.at`, s.start], [`${s.id}.duration`, s.duration]])), ...cloudTimelineValues(settings), ...voiceoverTimelineValues(settings)},
-    [IDS.cloudControls]: settings.clouds!.controls});
+  const ready = useDialSync({[IDS.main]: {...Object.fromEntries(schedule.flatMap(s => [[`${s.id}.at`, s.start], [`${s.id}.duration`, s.duration]])), ...voiceoverTimelineValues(settings)}});
   const authoredSignature = JSON.stringify([CHAPTER_IDS.map(id => {const value=(timeline as any)[id]; return [value.at,value.duration];}),
-    CLOUD_KEYS.map(key => {const value=(timeline as any)[key]; return [value.at,value.duration,value.transition,value.from,value.to];}),
-    settings.voiceover ? voiceoverTimelineSignature(timeline) : null, cloudDials]);
+    settings.voiceover ? voiceoverTimelineSignature(timeline) : null]);
   useEffect(() => {
     if (!ready) return;
     const allocations = Object.fromEntries(CHAPTER_IDS.map(id => [id, (timeline as any)[id].duration]));
-    const authored = settingsFromCloudTimeline(timeline, settings);
-    const next = settingsFromVoiceoverTimeline(timeline,
-      normalizeSettings({...authored, allocations, clouds: {...authored.clouds!, controls: cloudDials}}));
+    const next = settingsFromVoiceoverTimeline(timeline, normalizeSettings({...settings, allocations}));
     const corrections: Record<string, any> = {};
     chapterSchedule(next).forEach(segment => {
       const current=(timeline as any)[segment.id];
       if(Math.abs(current.at-segment.start)>.0001) corrections[`${segment.id}.at`]=segment.start;
       if(Math.abs(current.duration-segment.duration)>.0001) corrections[`${segment.id}.duration`]=segment.duration;
     });
-    for (const key of CLOUD_KEYS) if (Math.abs((timeline as any)[key].at - next.clouds!.timing[key].at) > .0001)
-      corrections[`${key}.at`] = next.clouds!.timing[key].at;
     if (next.voiceover) {
       const neutral = voiceoverTimelineValues(next);
       for (const [path, value] of Object.entries(neutral)) {

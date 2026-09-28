@@ -83,7 +83,9 @@ test('downstream chapters and cloud default beats ripple together; editor sampli
     ...schedule.map(chapter => chapter.start), schedule.at(-1)!.end];
   const forward = times.map(time => sampleUltimate3(time, s));
   for (let i = times.length - 1; i >= 0; i--) assert.deepEqual(sampleUltimate3(times[i], s), forward[i]);
-  close(sampleUltimate3(schedule[1].start, s).clouds!.progress, sampleUltimate3(schedule[1].start - 1e-7, s).clouds!.progress);
+  const before = sampleUltimate3(schedule[1].start - 1e-7, s).ultimate2!;
+  close(sampleUltimate3(schedule[1].start, s).cost!.cloud.progress,
+    worldState(before, s.ultimate2.controls, s.ultimate2.streamBlocksRemoved).cloudProgress);
 });
 
 test('explicit legacy imports retain their original route; fresh and new imports retain the extended route', () => {

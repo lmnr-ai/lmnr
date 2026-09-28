@@ -146,10 +146,11 @@ test('render architecture has one persistent world/grid, source Cost overlays, a
   assert.equal((scene.match(/className="micro18-shared-world"/g) ?? []).length, 1);
   assert.equal((scene.match(/className="micro18-shared-grid"/g) ?? []).length, 1);
   assert.match(scene, /data-shared-camera="true"/);
-  assert.equal((scene.match(/<DitherClouds /g) ?? []).length, 1);
-  assert.match(scene, /const clouds = sample\.clouds/);
+  assert.equal((scene.match(/<DitherClouds /g) ?? []).length, 2, 'canonical Ultimate2/Cost canvas plus separate Flow plane');
+  assert.doesNotMatch(scene, /sample\.clouds/);
   assert.match(scene, /showClouds=\{false\}/);
-  assert.doesNotMatch(scene, /micro18-flow-cloud-layer|flowCloudScreenTransform/);
+  assert.match(scene, /micro18-flow-cloud-layer/);
+  assert.match(scene, /flowCloudScreenTransform/);
   assert.match(scene, /isFlow \? \(flow\.playback21 \? <Flow21Subtitles/);
   assert.match(scene, /<FlowSubtitles modelName="flow-1" progress=\{flow\.playback\.progress\}\/>\) : <Subtitles progress=\{cost\.progress\}\/>/);
   assert.match(css, /\.micro18-cost-smoke\{[^}]*z-index:1/);

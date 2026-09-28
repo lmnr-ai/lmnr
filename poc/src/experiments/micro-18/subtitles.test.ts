@@ -183,10 +183,12 @@ test('Ultimate 2 subtitles escape its scene stack and stay above the shared hand
 test('Flow subtitles are screen-space siblings above shared artwork and clouds', () => {
   const scene = readFileSync(new URL('./Scene.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
-  const worldEnd = scene.indexOf('</div>\n    {issues ? <IssueSubtitles');
+  const worldEnd = scene.indexOf('</div>\n    {(isFlow || outgoingCloudsVisible)');
+  const cloudsEnd = scene.indexOf('</div>}\n    {issues ? <IssueSubtitles');
   const subtitlesAt = scene.indexOf(': isFlow ? (flow.playback21 ? <Flow21Subtitles');
-  assert.ok(worldEnd >= 0 && subtitlesAt > worldEnd, 'subtitles must not be transformed with the shared world');
+  assert.ok(worldEnd >= 0 && cloudsEnd > worldEnd && subtitlesAt > cloudsEnd,
+    'subtitles must be outside both the shared world and the restored moving cloud plane');
   assert.match(css, /\.micro18-shared-scene>\.flow1-subtitle-layer\{[^}]*position:absolute[^}]*z-index:11/);
   assert.match(css, /\.micro18-frame>\.micro09-clouds\{[^}]*z-index:10/);
-  assert.doesNotMatch(scene, /micro18-flow-cloud-layer/);
+  assert.match(css, /\.micro18-flow-cloud-layer\{[^}]*z-index:10/);
 });

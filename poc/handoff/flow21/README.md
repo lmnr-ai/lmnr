@@ -2,6 +2,12 @@
 
 Published target: `sandbox/signals-launch-video` in `lmnr-ai/lmnr`.
 
+## Cloud-only correction after the initial handoff
+
+The earlier rollback removed only the last interpolation experiment, not the preceding frame-pinned rewrite. That rewrite is now also reverted to the pre-midnight `449f3d67` cloud behavior: native Ultimate2/Cost clouds plus Flow's world-attached cloud plane. Replacement cloud bars and X/Y extent controls are removed. Legacy `clouds` metadata in the settings snapshot is retained but ignored by rendering; native chapter cloud controls remain active.
+
+Animation21, its timings, the shared camera, narration, audio, chapter allocations, and the settings snapshot are unchanged. Sound alignment remains pending. Do not restore the three-bar frame-cloud sampler from the initial publication.
+
 ## Open the current cut
 
 - Editor: `?experiment=micro-18` (Ultimate 3, editable voiceover-v4).

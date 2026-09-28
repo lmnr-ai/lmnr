@@ -10,6 +10,8 @@
 /* This authored frame is the sole Cost/Flow viewport clip. */
 .micro18-frame{overflow:hidden;background:#1a1a1a;isolation:isolate}
 .micro18-frame>.micro09-clouds{position:absolute;inset:0;z-index:10;width:1280px;height:720px;pointer-events:none}
+.micro18-flow-cloud-layer{position:absolute;left:0;top:0;z-index:10;width:1280px;height:720px;transform-origin:0 0;pointer-events:none}
+.micro18-flow-cloud-layer>.micro09-clouds{position:absolute;inset:0;width:1280px;height:720px;pointer-events:none}
 .micro18-frame>.micro17-composition{isolation:auto}
 .micro18-frame>.micro17-composition>.micro17-subtitle-layer{z-index:11}
 .micro18-shared-scene{background:#1a1a1a;color:#fff;font-family:FlowMono,'JetBrains Mono',monospace}
@@ -23,8 +25,8 @@
 .micro18-cost-budget{z-index:3}
 .micro18-flow-content{position:absolute;left:0;top:0;z-index:4;width:2800px;height:5400px;transform-origin:0 0}
 .micro18-flow-content>.flow1-dots{position:absolute;inset:0}
-/* Reused Cost and Flow subtitles stay screen-attached above the one frame cloud
-   layer, never inside the shared camera. */
+/* Reused Cost and Flow subtitles stay screen-attached. Flow also paints above
+   its separate cloud plane, never inside the shared camera. */
 .micro18-shared-scene>.micro16-subtitle-layer{z-index:11}
 .micro18-shared-scene>.flow1-subtitle-layer{position:absolute;inset:0;z-index:11;pointer-events:none}
 .micro18-card{display:grid;place-items:center;background:#1a1a1a;color:#fff;font:32px/1.3 monospace}
