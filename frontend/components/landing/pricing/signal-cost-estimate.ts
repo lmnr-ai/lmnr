@@ -10,7 +10,7 @@ interface SignalTokenEstimate {
   output: number;
 }
 
-// Measured median Flow-1 token usage at each calculator trace-size step.
+// Measured median flow-1 token usage at each calculator trace-size step.
 // The 1K and 2.5K steps use the measured <5K medians.
 const SIGNAL_TOKEN_ESTIMATES: ReadonlyArray<readonly [number, SignalTokenEstimate]> = [
   [1_000, { input: 14_500, cacheRead: 11_000, output: 700 }],
