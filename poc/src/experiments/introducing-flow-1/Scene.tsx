@@ -20,7 +20,7 @@ const GridWorld = ({state, time, blueDotScale, coverMotion, numberRowStagger}: {
   <Flow1WorldContent state={state} time={time} blueDotScale={blueDotScale} coverMotion={coverMotion} numberRowStagger={numberRowStagger}/>
 </div>;
 
-const BenchmarkRows = ({state, time, numberRowStagger}: {state: ReturnType<typeof introducingFlowState>; time: number; numberRowStagger: number}) => <div className="flow1-benchmark" style={{left: BENCHMARK_WORLD_X, top: BENCHMARK_WORLD_Y}}>
+const BenchmarkRows = ({state, time, numberRowStagger, modelName}: {state: ReturnType<typeof introducingFlowState>; time: number; numberRowStagger: number; modelName: string}) => <div className="flow1-benchmark" style={{left: BENCHMARK_WORLD_X, top: BENCHMARK_WORLD_Y}}>
   <SlideReveal progress={state.benchmarkHeading} className="flow1-heading flow1-heading-left"><span>{'Trace analysis '}<br/>intelligence</span></SlideReveal>
   <div className="flow1-rows">
     {BENCHMARKS.map((row, rowIndex) => {
@@ -38,7 +38,7 @@ const BenchmarkRows = ({state, time, numberRowStagger}: {state: ReturnType<typeo
         <SlideReveal progress={rowReveal} className="flow1-name-mask">
           <div className="flow1-row-content" style={{gap: settledWorldLength(12 + 8 * state.barsGrow)}}>
             <span className="flow1-bar" style={{width: settledWorldLength(row.barScreen * state.barsGrow), backgroundImage: row.id === 'flow' ? `url(${staticFile(`${ASSET}245257bb755e62097f62ab86c08faff4f0d0b5c7.png`)})` : undefined}}/>
-            <span style={{width: settledWorldLength(row.nameWidthScreen)}}>{row.name}</span>
+            <span style={{width: settledWorldLength(row.nameWidthScreen)}}>{row.id === 'flow' ? modelName : row.name}</span>
           </div>
         </SlideReveal>
       </div>;
@@ -56,12 +56,12 @@ const CoverFace = ({state, size, split = false}: {state: ReturnType<typeof intro
   </div>;
 };
 
-const Engine = ({state, coverMotion}: {state: ReturnType<typeof introducingFlowState>; coverMotion: CoverMotion}) => {
+const Engine = ({state, coverMotion, modelName}: {state: ReturnType<typeof introducingFlowState>; coverMotion: CoverMotion; modelName: string}) => {
   const cover = coverGeometry(state.cover, coverMotion);
   return <div className="flow1-engine" data-cover-direction={coverMotion} style={{left: ENGINE_WORLD_X, top: ENGINE_WORLD_Y}}>
     <div className="flow1-ring" style={{transform: `translateX(${cover.ringX}px)`}}>
       <div className="flow1-assembly">
-        <div className="flow1-module" style={{backgroundImage: `linear-gradient(to bottom,rgba(168,202,255,${state.activation}),rgba(117,171,255,${state.activation}))`}}>Flow-1</div>
+        <div className="flow1-module" style={{backgroundImage: `linear-gradient(to bottom,rgba(168,202,255,${state.activation}),rgba(117,171,255,${state.activation}))`}}>{modelName}</div>
         <div className="flow1-connector"><span className="flow1-connector-band" style={{maskImage: `url(${staticFile(`${ASSET}011f700148d25ee43048024995fe844266e054bd.svg`)})`, WebkitMaskImage: `url(${staticFile(`${ASSET}011f700148d25ee43048024995fe844266e054bd.svg`)})`}}/><img className="flow1-connector-stroke" src={staticFile(`${ASSET}e09ae89f7db0ecfa3f1abc58b8cc767c097cc836.svg`)}/></div>
         <div className="flow1-spinner"><i className="flow1-spinner-disc" style={{transform: `rotate(${state.spinnerAngle}deg)`}}/></div>
         <div className="flow1-lines">{Array.from({length: LINE_STRIP.tileCount}, (_, i) => <img
@@ -90,15 +90,15 @@ const Engine = ({state, coverMotion}: {state: ReturnType<typeof introducingFlowS
 };
 
 /** Camera- and grid-free content for compositions that own a larger world. */
-export const Flow1WorldContent = ({state, time, blueDotScale, coverMotion, numberRowStagger = .05}: {state: ReturnType<typeof introducingFlowState>; time: number; blueDotScale: number; coverMotion: CoverMotion; numberRowStagger?: number}) => {
+export const Flow1WorldContent = ({state, time, blueDotScale, coverMotion, numberRowStagger = .05, modelName = 'Flow-1', benchmarkContent}: {state: ReturnType<typeof introducingFlowState>; time: number; blueDotScale: number; coverMotion: CoverMotion; numberRowStagger?: number; modelName?: string; benchmarkContent?: React.ReactNode}) => {
   const dots = sampleFlowDots(time).map(({row, column, colored}) =>
     <i key={`${row}:${column}`} className="flow1-dot" data-colored={colored} style={{left: column * 100 + DOT.cellLeft, top: row * 100 + DOT.cellTop, transform: `scale(${(colored ? blueDotScale : 1) * state.dotScale})`}}/>
   );
   return <>
     <div className="flow1-dots">{dots}</div>
-    <div className="flow1-title">Flow-1</div>
-    <BenchmarkRows state={state} time={time} numberRowStagger={numberRowStagger}/>
-    <Engine state={state} coverMotion={coverMotion}/>
+    <div className="flow1-title">{modelName}</div>
+    {benchmarkContent === undefined ? <BenchmarkRows state={state} time={time} numberRowStagger={numberRowStagger} modelName={modelName}/> : benchmarkContent}
+    <Engine state={state} coverMotion={coverMotion} modelName={modelName}/>
   </>;
 };
 

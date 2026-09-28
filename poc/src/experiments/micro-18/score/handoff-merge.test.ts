@@ -11,6 +11,7 @@ import {Mix} from './voices';
 test('stacked handoff retains upstream score and keyboard selections', () => {
   assert.ok(SCORE_STYLES.phase);
   assert.ok(SCORE_STYLES.tintinnabuli);
+  assert.ok(SCORE_STYLES['arabesque-acoustic-chill']);
   assert.deepEqual(Object.keys(KEYBOARDS).sort(), ['clack', 'laptop', 'membrane', 'spring', 'thock']);
 });
 

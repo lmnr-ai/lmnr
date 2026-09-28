@@ -1,11 +1,15 @@
 import type {FlowPlayback} from '../introducing-flow-1/sample';
-import {FLOW_CLIP_KEYS, type FlowClipKey} from '../introducing-flow-1/timeline';
+import {FLOW_CLIP_KEYS, INTRODUCING_FLOW_1_TIMELINE, type FlowClipKey} from '../introducing-flow-1/timeline';
+import {FLOW_2_CLIP_KEYS, FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
+import {originalFlowPlayback, type Flow2Playback} from '../introducing-flow-1-2/sample';
 import {sampleFlow, sampleIssues} from './sample';
-import {flowEndpoint, issueEntryEnd, issuePostludeOffset, normalizeSettings} from './settings';
+import {flowEndpoint, issueEntryEnd, issuePostludeOffset, normalizeSettings, FLOW_21_TIMING} from './settings';
 import {CLIP_KEYS as KEYS17, MICRO_17_TIMELINE} from '../micro-17/timeline';
 import {CLIP_KEYS as KEYS16, MICRO_16_TIMELINE} from '../micro-16/timeline';
 import type {ClipTiming, Ultimate3Settings} from './settings';
 import {ISSUE_KEYS, PRELUDE_KEYS, normalizeClip} from '../micro-20/timeline';
+import {CLOUD_KEYS} from './clouds';
+import {VOICEOVER_PHRASES} from './voiceover-phrases';
 
 /** Retiming must retain each source clip's from/to values for DialKit clip.current. */
 export function mergeTimelineTiming(
@@ -46,6 +50,22 @@ export function liveIssuesPreview(timeline: any, settings: Ultimate3Settings) {
   return sampleIssues(timeline.time, settingsFromIssuesTimeline(timeline, settings)).source20;
 }
 
+export function flowTimelineSettings(settings: Ultimate3Settings) {
+  const sequel = settings.flow.sourceVersion === 21;
+  return {
+    keys: (sequel ? FLOW_2_CLIP_KEYS : FLOW_CLIP_KEYS).filter(key => key !== 'cloudReveal') as string[],
+    source: (sequel ? FLOW_2_TIMELINE : INTRODUCING_FLOW_1_TIMELINE) as Record<string, unknown>,
+    timing: (sequel ? settings.flow.timing21 ?? FLOW_21_TIMING : settings.flow.timing) as Record<string, ClipTiming>,
+  };
+}
+export function flowTimelineConfig(settings: Ultimate3Settings) {
+  const {source, timing, keys} = flowTimelineSettings(settings);
+  const entry = settings.flow.entrySlide;
+  return {duration: settings.allocations.flow,
+    entrySlide: {from: {progress: 0}, to: {progress: 1}, ...entry},
+    ...mergeTimelineTiming(source, timing, keys, entry.at + entry.duration)};
+}
+
 export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
   const entry = settings.flow.entrySlide;
   const entryEnd = entry.at + entry.duration;
@@ -55,6 +75,15 @@ export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
   // endpoint sample there to keep paused authoring identical to export.
   if (unclippedNativeTime >= flowEndpoint(settings)) return sampleFlow(timeline.time, settings);
   const nativeTime = unclippedNativeTime;
+  if (settings.flow.sourceVersion === 21) {
+    const playback21: Flow2Playback = {time: nativeTime,
+      timing: Object.fromEntries(FLOW_2_CLIP_KEYS.map(key => [key, key === 'cloudReveal'
+        ? {at: FLOW_2_TIMELINE.cloudReveal.at, duration: FLOW_2_TIMELINE.cloudReveal.duration}
+        : {at: timeline[key].at - entryEnd, duration: timeline[key].duration}])) as Flow2Playback['timing'],
+      progress: Object.fromEntries(FLOW_2_CLIP_KEYS.map(key => [key, key === 'cloudReveal' ? 1 : timeline[key].current.progress])) as Flow2Playback['progress'],
+    };
+    return {entryProgress: liveProgress(timeline, 'entrySlide', timeline.time, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21)};
+  }
   const timing = Object.fromEntries(FLOW_CLIP_KEYS.map(key => [key, key === 'cloudReveal'
     ? {at: 0, duration: 0}
     : {at: settings.flow.timing[key].at, duration: settings.flow.timing[key].duration},
@@ -65,6 +94,67 @@ export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
   })) as Record<FlowClipKey, number>;
   const entryProgress = liveProgress(timeline, 'entrySlide', timeline.time, entry);
   return {entryProgress, nativeTime, playback: {time: nativeTime, timing, progress} as FlowPlayback};
+}
+
+export function voiceoverTimelineConfig(settings: Ultimate3Settings, openingOnly = false) {
+  if (!settings.voiceover) return {};
+  return {narration: Object.fromEntries(VOICEOVER_PHRASES.slice(0, openingOnly ? 6 : undefined).map(phrase => {
+    const clip = settings.voiceover!.phrases[phrase.id];
+    return [phrase.id, {at: clip.at, duration: clip.duration, from: {progress: 0}, to: {progress: 1},
+      transition: {type: 'easing' as const, duration: clip.duration, ease: [0, 0, 1, 1] as [number, number, number, number]}}];
+  }))};
+}
+export function voiceoverTimelineValues(settings: Ultimate3Settings, openingOnly = false) {
+  const group = voiceoverTimelineConfig(settings, openingOnly).narration ?? {};
+  return Object.fromEntries(Object.entries(group).flatMap(([id, clip]) => [
+    [`narration.${id}.at`, clip.at], [`narration.${id}.duration`, clip.duration],
+    [`narration.${id}.transition`, clip.transition],
+    [`narration.${id}.from.progress`, 0], [`narration.${id}.to.progress`, 1],
+  ]));
+}
+export function voiceoverTimelineSignature(timeline: any, openingOnly = false) {
+  return JSON.stringify(VOICEOVER_PHRASES.slice(0, openingOnly ? 6 : undefined).map(phrase => {
+    const value = timeline.narration?.[phrase.id];
+    return [value?.at, value?.duration, value?.transition, value?.from, value?.to];
+  }));
+}
+export function settingsFromVoiceoverTimeline(timeline: any, settings: Ultimate3Settings, openingOnly = false) {
+  if (!settings.voiceover) return settings;
+  const phrases = {...settings.voiceover.phrases};
+  for (const phrase of VOICEOVER_PHRASES.slice(0, openingOnly ? 6 : undefined)) {
+    const clip = timeline.narration?.[phrase.id];
+    if (clip) phrases[phrase.id] = {at: clip.at, duration: clip.duration};
+  }
+  return normalizeSettings({...settings, voiceover: {...settings.voiceover, phrases}});
+}
+
+export function cloudTimelineConfig(settings: Ultimate3Settings) {
+  return Object.fromEntries(CLOUD_KEYS.map(key => {
+    const clip = settings.clouds!.timing[key];
+    return [key, {...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1},
+      transition: clip.transition ?? {type: 'easing' as const, duration: clip.duration, ease: [0, 0, 1, 1] as [number, number, number, number]}}];
+  })) as Record<typeof CLOUD_KEYS[number], ClipTiming>;
+}
+export function cloudTimelineValues(settings: Ultimate3Settings) {
+  const config = cloudTimelineConfig(settings);
+  return Object.fromEntries(CLOUD_KEYS.flatMap(key => {
+    const clip = config[key];
+    return [[`${key}.at`, clip.at], [`${key}.duration`, clip.duration],
+      [`${key}.from.progress`, clip.from!.progress], [`${key}.to.progress`, clip.to!.progress],
+      [`${key}.transition`, clip.transition]];
+  }));
+}
+export function settingsFromCloudTimeline(timeline: any, settings: Ultimate3Settings) {
+  const config = cloudTimelineConfig(settings);
+  const timing = Object.fromEntries(CLOUD_KEYS.map(key => {
+    const clip = normalizeClip(timeline[key], config[key]);
+    for (const field of ['from', 'to', 'transition'] as const) {
+      if (settings.clouds!.timing[key][field] === undefined
+        && JSON.stringify(clip[field]) === JSON.stringify(config[key][field])) delete clip[field];
+    }
+    return [key, clip];
+  }));
+  return normalizeSettings({...settings, clouds: {...settings.clouds!, timing}});
 }
 
 export const CONCLUSION_TIMELINE_KEYS = ['placeholder', 'logo'] as const;

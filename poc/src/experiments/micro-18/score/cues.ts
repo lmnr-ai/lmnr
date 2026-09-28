@@ -1,6 +1,7 @@
 import {resolveMicro16Clips} from '../../micro-16/timeline';
 import {sampleUltimate3, chapterSchedule, ultimate3DurationFrames, issueHandoffValidation} from '../sample';
-import {issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
+import {resolvePreludeSchedule} from '../../micro-20/timeline';
+import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
 import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
 import {ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow} from '../sound';
 
@@ -33,6 +34,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
   const issuesNative = round(issuesStart + issuePostludeOffset(settings));
   const postludeActive = !issueHandoffValidation(settings) && issuesNative < chapter.issues.end;
   const issues = settings.issues.timing;
+  const preludeStart = round(issuesStart + issueEntryEnd(settings)), prelude = resolvePreludeSchedule(settings.issues.preludeTiming);
   const clouds = ultimate3CloudWhooshWindows(settings);
 
   return {
@@ -97,6 +99,17 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
     issues: {
       postludeActive,
       leadIn: {at: issuesStart, duration: round(issuesNative - issuesStart)},
+      // The analysis prelude between the Signals door and the issue grid.
+      prelude: {
+        bashEntry: span(preludeStart, prelude.blueBashEntry),
+        bashStop: at(preludeStart, prelude.blueBashStop),
+        descent: span(preludeStart, prelude.bashDescent),
+        highlight: at(preludeStart, prelude.bashHighlight),
+        zoomOut: span(preludeStart, prelude.analysisZoomOut),
+        collapse: at(preludeStart, prelude.analysisTraceCollapse),
+        circleGrow: span(preludeStart, prelude.analysisCircleGrow),
+        scaleOut: at(preludeStart, prelude.analysisAgentScaleOut),
+      },
       native: issuesNative,
       pops: postludeActive ? issuePops(settings, issuesNative) : [],
       travel: {at: round(issuesNative + issues.travelStart.at), duration: settings.issues.controls.travelDuration},

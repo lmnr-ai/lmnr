@@ -1,5 +1,6 @@
 import {staticFile} from 'remotion';
-import {CELLS, GRID} from './geometry';
+import {CELLS, GRID, SCATTERED_WARNING} from './geometry';
+export {SCATTERED_WARNING} from './geometry';
 
 // Figma 4809:20588 / grid 4809:20589, row-major 15 × 9 cells.
 // Keep this owned by Ultimate 2: do not decorate Animation 12's shared CELLS.
@@ -11,7 +12,6 @@ export const SPOTTY_CELLS = CELLS.map(cell => ({...cell,
   fill: mutedCells.has(cell.id) ? '#1f1f1f' : lighterCells.has(cell.id) ? '#242424' : undefined,
   warning: !cell.hero && warningCells.has(cell.id),
 }));
-export const SCATTERED_WARNING = {asset: 'micro-17/scattered-warning.svg', width: 37.6942138671875, height: 35.004878997802734};
 
 /** Occupants share the existing content-scale law (120px dot → 12px).
  * Warning sizes are Figma's final-pose dimensions, not screen-pinned overlays.

@@ -43,16 +43,18 @@ test('split CLI preflights every output and invalid gain before creating any ass
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
-test('split --video muxes the complete playback, reproduces published assets, and never overwrites them', () => {
+test('split --video muxes current score playback and preserves historical published assets', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arabesque-mux-'));
   try {
     const video = path.join(dir, 'silent.mp4'), wav = path.join(dir, 'bed.wav'), mp4 = path.join(dir, 'scored.mp4');
     run('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=128x72:r=1:d=64', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', video]);
     run(cli, [...base, '--tuning', 'src/experiments/micro-18/score/arabesque/softness-8-tuning.json', '--seed', '107290', '--out', wav, '--video', video, '--mp4', mp4]);
     const published = JSON.parse(fs.readFileSync(path.join(cwd, 'public/audio/arabesque-acoustic/ultimate3-softness-8-no-typing-v1.json'), 'utf8'));
-    assert.equal(hash(fs.readFileSync(wav)), published.bed.sha256);
+    assert.equal(hash(fs.readFileSync(path.join(cwd, 'public/audio/arabesque-acoustic', published.bed.file))), published.bed.sha256);
     const playback = path.join(dir, 'bed.playback.wav');
-    assert.equal(hash(fs.readFileSync(playback)), published.playback.sha256);
+    assert.equal(hash(fs.readFileSync(path.join(cwd, 'public/audio/arabesque-acoustic', published.playback.file))), published.playback.sha256);
+    // The imported Issues-analysis score now has a prelude; old exports stay intact rather than matching a new render.
+    assert.notEqual(hash(fs.readFileSync(wav)), published.bed.sha256);
     const actual = run('ffmpeg', ['-v', 'error', '-i', mp4, '-map', '0:a:0', '-c:a', 'copy', '-f', 'adts', '-']);
     const expected = run('ffmpeg', ['-v', 'error', '-i', playback, '-c:a', 'aac', '-b:a', '320k', '-f', 'adts', '-']);
     assert.equal(hash(actual), hash(expected), 'mux must contain encoded bed + thocks, not the keyboard-free bed');

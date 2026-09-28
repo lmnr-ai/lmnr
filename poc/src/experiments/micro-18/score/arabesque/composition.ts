@@ -2,6 +2,7 @@ import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
 import {bass, beep, piano, type Mix, type Route} from '../voices';
 import {figure, melody, progression, rolled, type Chord, type Progression} from '../writing';
+import {composeChillPrelude} from './chill';
 
 /*
  * "Arabesque" — E major, solo piano in the impressionist manner, with a sine sub and delay echoes
@@ -32,12 +33,19 @@ const WHOLE_TONE = [48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76];
 /** A sub-bass swell under a chord change: the one electronic body in the score. */
 const subBass = (mix: Mix, time: number, midi: number, duration: number, velocity: number, glide = 0) => bass(mix, time, midi, duration, velocity, SUB, {glide, drive: 1.1});
 
-/** `acoustic` drops the sine sub and the telemetry beeps; the slowing arabesque already carries the budget drain. */
-export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} = {}) {
+/**
+ * `acoustic` drops the sine sub and the telemetry beeps; the slowing arabesque already carries the budget drain.
+ * `chill` swaps everything before Flow-1 for one steady bed (`chill.ts`) and keeps the rest.
+ */
+export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false, chill = false} = {}) {
   const sub: typeof subBass = acoustic ? () => {} : subBass;
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
+  const drop = at(flow.reveal, 1);
+
+  if (chill) composeChillPrelude(mix, cues, g, at, drop);
+  else {
 
   // ── You build agents: an E major 9 unfurls upward, one B left shimmering in the echo.
   [40, 47, 54, 56, 63, 66, 71].forEach((midi, i) => piano(mix, u2.agentEnter + .02 + i * .07, midi, .34 - i * .015, {...PIANO, pan: -.35 + i * .1}, {length: 4.5, bright: .45}));
@@ -106,7 +114,7 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   }
 
   // ── …but the costs are unsustainable: the arabesque returns, then slows and thins until one B is left.
-  const drainBeat = at(cost.depletion.at, 1), drop = at(flow.reveal, 1);
+  const drainBeat = at(cost.depletion.at, 1);
   figure(mix, g, budgetBeat, drainBeat, [[budgetBeat, C.A], [budgetBeat + 2, C.E]], {step: TRIPLET, pattern: ARABESQUE, route: PIANO, bright: .45, length: .8,
     velocity: () => .26, bass: {velocity: .36, length: 2.2}});
   sub(mix, g(budgetBeat), 33, 1.6, .2);
@@ -125,6 +133,7 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   [64, 68, 71, 76, 80, 83, 88, 92].forEach((midi, i) => acoustic
     ? piano(mix, g(drop - 1) + i * .0625, midi, .16 + i * .025, {...ECHO, pan: -.4 + i * .11}, {length: 1.2, bright: .55})
     : beep(mix, g(drop - 1) + i * .0625, midi + 12, .05 + i * .01, {...DATA, pan: -.4 + i * .11}, {length: .05}));
+  }
 
   // ── Introducing Flow-1: E major at full reach — both hands sweeping triplets, the theme in octaves on top.
   sub(mix, flow.reveal, 28, 2.4, .5);
@@ -154,6 +163,26 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false} =
   melody(mix, g, [[signals, 76, 1], [signals + 1, 78, 1], [signals + 2, 80, .5], [signals + 2.5, 81, .5]], {...PIANO, pan: .2}, {velocity: .5, octave: true, bright: .6});
   rolled(mix, shut, [35, 47, 54, 57, 61, 64, 69], .5, PIANO, {length: 4, bright: .45, spread: .014});
   sub(mix, shut, 35, 1.2, .4);
+
+  // ── Our agent, built to analyze traces at scale: the arabesque picks up behind the door and walks I – IV – V home to E.
+  const p = issues.prelude, nativeBeat = (issues.native - g(0)) / .5, resume = Math.ceil(shutBeat + 1.5);
+  if (nativeBeat - resume >= 4) {
+    const zoomBeat = at(p.zoomOut.at, 1), growBeat = at(p.circleGrow.at, 1);
+    const bridge = progression([resume, C.Bsus], [at(p.bashStop, 1), C.ES], [zoomBeat, C.A], [growBeat, C.Bsus]);
+    figure(mix, g, resume, nativeBeat, bridge, {step: TRIPLET, pattern: ARABESQUE, route: PIANO, bright: .45, length: .8,
+      velocity: b => .18 + .08 * (b - resume) / (nativeBeat - resume), bass: {velocity: .38, length: 2.2}});
+    piano(mix, p.bashStop, 40, .3, {...PIANO, pan: -.3}, {length: 2.4, bright: .3});
+    // The log lines scroll: a quiet pentatonic ripple down the descent, the highlight a single E.
+    [88, 85, 83, 80, 78, 76, 73, 71].forEach((midi, i) => piano(mix, p.descent.at + p.descent.duration * i / 8, midi, .16 - i * .008, {...CLOSE, pan: .3 - i * .08}, {length: .5, bright: .55}));
+    piano(mix, p.highlight, 88, .22, {...ECHO, pan: .2}, {length: 1.6, bright: .5});
+    // "At scale": the zoom out opens upward across the keyboard.
+    const rise = [64, 68, 71, 73, 76, 80, 83, 85, 88, 92];
+    rise.forEach((midi, i) => piano(mix, p.zoomOut.at + p.zoomOut.duration * (i / rise.length) ** 1.2, midi, .16 + i * .012, {...ECHO, pan: -.4 + i * .09}, {length: 1, bright: .55}));
+    rolled(mix, g(zoomBeat), [33, 45, 52, 57, 61, 64], .34, PIANO, {length: 3.5, bright: .4, spread: .02});
+    // The detection circle grows under the theme's first phrase; the agent's scale-out is the pickup into the grid.
+    melody(mix, g, [[growBeat, 80, 1], [growBeat + 1, 83, 1], [growBeat + 2, 87, 1.5]], {...PIANO, pan: .2}, {velocity: .36, bright: .55});
+    [66, 71, 75, 78, 83].forEach((midi, i) => piano(mix, p.scaleOut + i * .07, midi, .16 + i * .02, {...ECHO, pan: -.3 + i * .15}, {length: 1, bright: .55}));
+  }
 
   // No compatibility-pose notes when source20 cannot hand off to the postlude.
   if (issues.postludeActive) {

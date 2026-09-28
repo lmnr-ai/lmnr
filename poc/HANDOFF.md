@@ -1,6 +1,12 @@
 # Signals launch video — agent handoff
 
-## Start here
+## Current handoff: Animation 21 in Ultimate 3
+
+The current `sandbox/signals-launch-video` publication uses Animation 21 in the default editable Ultimate 3 voiceover cut. Start with **[handoff/flow21/README.md](handoff/flow21/README.md)** for current settings, timing, verification, and pending sound work. The original cut remains available separately.
+
+The sections below document the **earlier historical transfer** and its original-cut timing.
+
+## Historical starting point
 
 This branch, `sandbox/signals-launch-video-handoff`, is stacked directly on `sandbox/signals-launch-video` at `6ba5d926c38281ea8f4d9cd2eafb3b051ab21494`. It brings the standalone `signals-launch-video` project's committed and uncommitted launch work into the existing `lmnr/poc` application. The original project and `lmnr` checkout were left intact.
 

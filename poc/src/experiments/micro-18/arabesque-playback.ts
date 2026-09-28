@@ -32,10 +32,12 @@ export class ArabesqueBedEngine {
   private volume = 0;
   private wanted = {time: 0, playing: false};
 
+  constructor(private readonly soundtrackUrl = ARABESQUE_SOUNDTRACK_URL) {}
+
   async enable() {
     if (!this.context) {
       this.context = new AudioContext();
-      const element = this.element = new Audio(ARABESQUE_SOUNDTRACK_URL);
+      const element = this.element = new Audio(this.soundtrackUrl);
       element.preload = 'auto';
       const calibration = this.context.createGain(); calibration.gain.value = ARABESQUE_BED_CALIBRATION;
       this.master = this.context.createGain(); this.master.gain.value = this.volume;

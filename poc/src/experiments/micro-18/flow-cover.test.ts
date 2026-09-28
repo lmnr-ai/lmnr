@@ -41,7 +41,7 @@ test('integrated Flow native cover closure renders two opposing source doors', (
   }));
   const camera = (markup: string) => markup.match(/data-camera-x="[^"]+" data-camera-y="[^"]+" data-camera-scale="[^"]+"/)?.[0];
   assert.equal(camera(middle), camera(topMarkup), 'cover selection must not alter the shared camera');
-  const signalSubtitle = 'Flow-1 powers Signals, our agent build to analyze traces at scale.';
+  const signalSubtitle = 'flow-1 powers Signals, our agent build to analyze traces at scale.';
   assert.ok(middle.includes(signalSubtitle));
   assert.ok(topMarkup.includes(signalSubtitle), 'cover selection must not alter native subtitle timing');
 });

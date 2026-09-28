@@ -1,5 +1,7 @@
 import {introducingFlowState, type IntroducingFlowState} from '../introducing-flow-1/geometry';
 import type {FlowPlayback} from '../introducing-flow-1/sample';
+import type {Flow2Playback} from '../introducing-flow-1-2/sample';
+import {flow2WorldState} from '../introducing-flow-1-2/geometry';
 
 export type Point = {x: number; y: number};
 export type SharedCamera = Point & {scale: number};
@@ -56,13 +58,18 @@ export const interpolateCamera = (from: SharedCamera, to: SharedCamera, progress
 };
 
 /** One camera only: frozen Cost endpoint → Flow opening, then native Flow camera. */
-export const sharedWorldCamera = ({entryProgress, outgoingCostCamera, flowPlayback}: {
+export const sharedWorldCamera = ({entryProgress, outgoingCostCamera, flowPlayback, flowPlayback21}: {
   entryProgress: number;
   outgoingCostCamera: Point;
   flowPlayback: FlowPlayback;
+  flowPlayback21?: Flow2Playback;
 }): SharedCamera => {
-  const flow = flowCameraInSharedWorld(introducingFlowState(flowPlayback).camera);
+  const flow = flowCameraInSharedWorld((flowPlayback21 ? flow2WorldState(flowPlayback21) : introducingFlowState(flowPlayback)).camera);
   if (entryProgress >= 1) return flow;
+  // Source21's native clock is held at zero throughout the entry bridge.
+  // Its authored camera.from values are already reflected in this pose;
+  // replacing them with source13's zero-progress pose would snap on arrival.
+  if (flowPlayback21) return interpolateCamera(costCameraInSharedWorld(outgoingCostCamera), flow, entryProgress);
   const openingPlayback: FlowPlayback = {
     ...flowPlayback,
     time: 0,

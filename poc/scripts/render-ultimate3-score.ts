@@ -67,7 +67,7 @@ const tuning = tuningFile ? JSON.parse(fs.readFileSync(resolve(tuningFile), 'utf
 const wav = resolve(option('out') ?? (style === 'tactile-glass' ? 'out/ultimate3-score.wav' : `out/ultimate3-${style}.wav`));
 // --split-arabesque writes a typing-free bed plus an exact live-mix export and provenance.
 const split = args.includes('--split-arabesque');
-if (split && style !== 'arabesque-acoustic') throw new Error('--split-arabesque requires --style arabesque-acoustic');
+if (split && !style.startsWith('arabesque-acoustic')) throw new Error('--split-arabesque requires an arabesque-acoustic style');
 const playbackPath = wav.replace(/\.wav$/, '.playback.wav');
 const manifestPath = wav.replace(/\.wav$/, '.json');
 const video = option('video');

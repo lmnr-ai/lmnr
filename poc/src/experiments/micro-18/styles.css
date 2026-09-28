@@ -10,11 +10,8 @@
 /* This authored frame is the sole Cost/Flow viewport clip. */
 .micro18-frame{overflow:hidden;background:#1a1a1a;isolation:isolate}
 .micro18-frame>.micro09-clouds{position:absolute;inset:0;z-index:10;width:1280px;height:720px;pointer-events:none}
-.micro18-flow-cloud-layer{position:absolute;left:0;top:0;z-index:10;width:1280px;height:720px;transform-origin:0 0;pointer-events:none}
-.micro18-flow-cloud-layer>.micro09-clouds{position:absolute;inset:0;width:1280px;height:720px;pointer-events:none}
-.micro18-cloud-handoff>.micro17-composition{isolation:auto}
-.micro18-cloud-handoff>.micro17-composition .micro09-clouds{visibility:hidden}
-.micro18-cloud-handoff>.micro17-composition>.micro17-subtitle-layer{z-index:11}
+.micro18-frame>.micro17-composition{isolation:auto}
+.micro18-frame>.micro17-composition>.micro17-subtitle-layer{z-index:11}
 .micro18-shared-scene{background:#1a1a1a;color:#fff;font-family:FlowMono,'JetBrains Mono',monospace}
 .micro18-shared-world{position:absolute;left:0;top:0;width:1px;height:1px;transform-origin:0 0;will-change:transform}
 .micro18-shared-grid{position:absolute;left:-10000px;top:-10000px;width:20000px;height:20000px;background-image:linear-gradient(#333 calc(1px / var(--micro18-camera-scale)),transparent calc(1px / var(--micro18-camera-scale))),linear-gradient(90deg,#333 calc(1px / var(--micro18-camera-scale)),transparent calc(1px / var(--micro18-camera-scale)));background-size:100px 100px;pointer-events:none}
@@ -26,8 +23,8 @@
 .micro18-cost-budget{z-index:3}
 .micro18-flow-content{position:absolute;left:0;top:0;z-index:4;width:2800px;height:5400px;transform-origin:0 0}
 .micro18-flow-content>.flow1-dots{position:absolute;inset:0}
-/* Reused Cost and Flow subtitles stay screen-attached. Flow must also paint
-   above its separate screen-space cloud layer, never inside the shared camera. */
+/* Reused Cost and Flow subtitles stay screen-attached above the one frame cloud
+   layer, never inside the shared camera. */
 .micro18-shared-scene>.micro16-subtitle-layer{z-index:11}
 .micro18-shared-scene>.flow1-subtitle-layer{position:absolute;inset:0;z-index:11;pointer-events:none}
 .micro18-card{display:grid;place-items:center;background:#1a1a1a;color:#fff;font:32px/1.3 monospace}
@@ -41,6 +38,7 @@
 .micro18-nav{display:flex;flex-wrap:wrap;gap:4px;padding:0}
 .micro18-nav button,.micro18-settings button{border:1px solid #555;border-radius:0;background:#242424;color:#ddd;padding:5px 8px;font:11px monospace}.micro18-nav button[data-active=true]{background:#eee;color:#111}
 .micro18-settings{width:280px;padding:2px 0;font:11px monospace}.micro18-settings textarea{box-sizing:border-box;width:100%;height:120px;background:#222;color:#eee;font:10px monospace}
+.micro18-voiceover-legend{max-width:360px;font:11px monospace}.micro18-voiceover-legend ol{max-height:220px;overflow:auto;padding-left:30px}.micro18-voiceover-legend li{margin:4px 0}
 
 /* Source20 is a transparent occupant of the same scrolling surface during
    entry; only the outer authored viewport clips the continuous lattice. */

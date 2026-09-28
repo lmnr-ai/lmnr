@@ -24,7 +24,7 @@ pnpm install --frozen-lockfile
 pnpm tune
 ```
 
-Open `http://localhost:5173/?experiment=micro-18`. The composition lives in
+Open `http://localhost:5173/?experiment=micro-18` for the latest v4 voiceover cut, or add `&cut=original` for the preserved original. The composition lives in
 `src/experiments/micro-18/` and deliberately reuses sibling animation modules.
 Its required runtime media is under `public/`. Generated renders, large sound
 study exports, dependency folders, and MP4 files are intentionally excluded.

@@ -34,6 +34,8 @@ import {Ultimate3Silk, SILK_VIDEO_DEFAULTS, silkMetadata} from './Ultimate3Silk'
 import {MicroAnimation20, MICRO_20_VIDEO_DEFAULTS} from './MicroAnimation20';
 import {micro20DurationFrames} from '../experiments/micro-20/timeline';
 import {IntroducingFlow1} from './IntroducingFlow1';
+import {IntroducingFlow2, FLOW_2_VIDEO_DEFAULTS} from './IntroducingFlow2';
+import {flow2DurationFrames} from '../experiments/introducing-flow-1-2/sample';
 import {INTRODUCING_FLOW_1_DURATION} from '../experiments/introducing-flow-1/timeline';
 import tuned from '../../tuned.json';
 
@@ -236,6 +238,16 @@ export const RemotionRoot = () => (
     id="MicroAnimation13"
     component={IntroducingFlow1}
     durationInFrames={INTRODUCING_FLOW_1_DURATION * 30}
+    fps={30}
+    width={1280}
+    height={720}
+  />
+  <Composition
+    id="IntroducingFlow1-2"
+    component={IntroducingFlow2}
+    defaultProps={FLOW_2_VIDEO_DEFAULTS}
+    durationInFrames={flow2DurationFrames()}
+    calculateMetadata={({props}) => ({durationInFrames: flow2DurationFrames(props.timeline)})}
     fps={30}
     width={1280}
     height={720}

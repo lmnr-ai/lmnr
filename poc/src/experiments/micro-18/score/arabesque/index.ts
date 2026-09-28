@@ -27,3 +27,13 @@ export const arabesqueAcoustic: ScoreStyle = {
   // The composition's piano takes every second issue pop.
   design: designAcoustic(1, 'piano', index => index % 2 === 0),
 };
+
+/** Arabesque Acoustic with a steady, chill bed before Flow-1: one mood, no dropouts, events as soft piano touches. */
+export const arabesqueAcousticChill: ScoreStyle = {
+  ...arabesqueAcoustic,
+  id: 'arabesque-acoustic-chill',
+  title: 'Arabesque (acoustic, chill prelude)',
+  // Only the agent-window shut still ducks; the warning ducks read as stops in the steady bed.
+  ducks: (mix, cues) => planNocturneDucks(mix, {...cues, ultimate2: {...cues.ultimate2, warning: -10}, cost: {...cues.cost, bashWarning: -10}}),
+  compose: (mix, cues) => composeArabesque(mix, cues, {acoustic: true, chill: true}),
+};

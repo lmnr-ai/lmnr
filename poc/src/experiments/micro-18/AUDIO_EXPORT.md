@@ -2,7 +2,7 @@
 
 ## Active Arabesque viewer and matching export
 
-`http://localhost:5180/?experiment=micro-18` uses Arabesque Acoustic, **not** the legacy full effects engine. `use-arabesque-audio.ts` plays `public/audio/arabesque-acoustic/ultimate3-softness-8-no-typing-v1.wav` through a calibrated Web Audio media source, and mounts exactly one shared `useIssueTypingAudio` scheduler. The new bed has **no keyboard or keyboard ambience sends**; it retains the acoustic score and the existing `score/arabesque/softness-8-tuning.json` (`whoosh.softness=1`, `whoosh.volume=1.5`). The original `ultimate3-softness-8.wav` and frozen exports are untouched.
+The original cut at `http://localhost:5180/?experiment=micro-18&cut=original` uses Arabesque Acoustic, **not** the legacy full effects engine. `use-arabesque-audio.ts` plays `public/audio/arabesque-acoustic/ultimate3-softness-8-no-typing-v1.wav` through a calibrated Web Audio media source, and mounts exactly one shared `useIssueTypingAudio` scheduler. The new bed has **no keyboard or keyboard ambience sends**; it retains the acoustic score and the existing `score/arabesque/softness-8-tuning.json` (`whoosh.softness=1`, `whoosh.volume=1.5`). The original `ultimate3-softness-8.wav` and frozen exports are untouched.
 
 The score's Issues clock now includes entry + resolved source20 prelude. Its pops sample only `postludeActive`; blocked Arabesque handoffs suppress postlude foley and notes. Live thocks follow current persisted/imported settings, including spring/instant entry and retimed prelude/typing, using the same deterministic event identities and PCM as score exports.
 

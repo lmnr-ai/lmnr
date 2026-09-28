@@ -5,7 +5,10 @@ import {MICRO_15_TIMING, normalizeMicro15Controls, type Micro15Controls} from '.
 import {ISSUE_START, MICRO_20_DEFAULTS, MICRO_20_ISSUE_DEFAULTS, MICRO_20_ISSUE_TIMING, PRELUDE_TIMING, clipEnd, effectiveIssueStart, micro20PostludeDurationFrames, normalizeClip, normalizeIssueTiming, normalizeMicro20Controls, normalizePreludeTiming, type IssueTiming, type Micro20Controls, type PreludeTiming} from '../micro-20/timeline';
 import {INTRODUCING_FLOW_1_TIMELINE, FLOW_CLIP_KEYS, type FlowClipKey} from '../introducing-flow-1/timeline';
 import type {TransitionConfig} from 'dialkit';
+import {FLOW_2_TIMELINE, FLOW_2_CLIP_KEYS, type Flow2ClipKey} from '../introducing-flow-1-2/timeline';
+import {DEFAULT_BEAD_STAGGER_SECONDS} from '../introducing-flow-1-2/beads';
 import {STREAM_RUN_TRIM_SECONDS} from '../micro-17/stream-trim';
+import {VOICEOVER_PHRASES} from './voiceover-phrases';
 
 // Preserve the production composition's handoff/audio schedule when standalone
 // Ultimate 2 changes its cloud-entry default. Explicit composition edits still win.
@@ -18,14 +21,20 @@ export type ChapterId = typeof CHAPTER_IDS[number];
 export type ClipTiming = {at: number; duration: number; from?: {progress: number}; to?: {progress: number}; transition?: TransitionConfig};
 export type FlowEditableKey = Exclude<FlowClipKey, 'cloudReveal'>;
 export type FlowTiming = Record<FlowEditableKey, ClipTiming>;
-export type FlowControls = {cloudYOffset: number; blueDotScale: number; numberRowStagger: number; coverMotion: 'top'|'right'|'split'; mutedGray: string};
+export type Flow21Timing = Record<Exclude<Flow2ClipKey, 'cloudReveal'>, ClipTiming>;
+export type FlowControls = {beadStaggerSeconds?: number; cloudYOffset: number; blueDotScale: number; numberRowStagger: number; coverMotion: 'top'|'right'|'split'; mutedGray: string};
+export type CloudSettings = {timing: Record<'slideIn'|'partialRecede'|'recede', ClipTiming>; controls: {x: number; y: number}};
+export type VoiceoverSettings = {version: 1; phrases: Record<string, {at: number; duration: number}>};
 export type Ultimate3Settings = {
-  version: 2;
+  version: 2 | 4;
+  voiceover?: VoiceoverSettings;
+  /** Missing in legacy presets; normalized settings always include the computed v4 defaults. */
+  clouds?: CloudSettings;
   allocations: Record<ChapterId, number>;
   pacing: {ultimate2HandoffHold: number; costTrimEnd: number; flowTrimEnd: number};
-  ultimate2: {timing: Micro17Timing; controls: Micro17Controls};
+  ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10};
   cost: {timing: Micro16Timing; controls: Micro16Controls};
-  flow: {entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
+  flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
   issues: {sourceVersion: 20; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
   conclusion: {placeholder: ClipTiming; logo: ClipTiming};
 };
@@ -34,6 +43,7 @@ const flowTiming = Object.fromEntries(FLOW_CLIP_KEYS.filter(k => k !== 'cloudRev
   const clip = INTRODUCING_FLOW_1_TIMELINE[key];
   return [key, {at: clip.at, duration: clip.duration, transition: clip.transition}];
 })) as FlowTiming;
+export const FLOW_21_TIMING = Object.fromEntries(FLOW_2_CLIP_KEYS.filter(key => key !== 'cloudReveal').map(key => [key, {...FLOW_2_TIMELINE[key]}])) as Flow21Timing;
 const SHIFTED_MICRO_17_KEYS = new Set([
   'continueStraight', 'upwardTurn', 'cameraBacktrack', 'redThinkingLift', 'readLift', 'thinkingLift',
   'highlight', 'warningEnter', 'warningFocus', 'finalZoom', 'streamCollapse', 'loaderFade', 'dotDim',
@@ -192,18 +202,24 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
   const conclusion = raw.conclusion ?? ULTIMATE_3_DEFAULTS.conclusion;
   const pacingRaw = (raw as Partial<Ultimate3Settings>).pacing;
   const normalized: Ultimate3Settings = {
-    version: 2,
+    version: 4,
     allocations: {...ULTIMATE_3_DEFAULTS.allocations},
     pacing: {
       ultimate2HandoffHold: finite(pacingRaw?.ultimate2HandoffHold, .5, 0, 30),
       costTrimEnd: finite(pacingRaw?.costTrimEnd, 15, 0, 60),
       flowTrimEnd: finite(pacingRaw?.flowTrimEnd, 11.8, 0, 60),
     },
-    ultimate2: {timing: normalize17Timing({...MICRO17_TIMING, ...u2.timing}), controls: recordControls(u2.controls, MICRO17_CONTROLS)},
+    ultimate2: {timing: normalize17Timing({...MICRO17_TIMING, ...u2.timing}), controls: recordControls(u2.controls, MICRO17_CONTROLS),
+      ...(u2.streamBlocksRemoved === 10 ? {streamBlocksRemoved: 10} : {})},
     cost: {timing: normalize16Timing(cost.timing), controls: normalize16Controls(cost.controls)},
-    flow: {entrySlide: clip(flow.entrySlide, ULTIMATE_3_DEFAULTS.flow.entrySlide),
+    flow: {...(flow.sourceVersion === 21 ? {sourceVersion: 21 as const,
+        timing21: Object.fromEntries(Object.entries(FLOW_21_TIMING).map(([key, fallback]) => {
+          const authored = flow.timing21?.[key as keyof Flow21Timing];
+          return [key, {...clip(authored, fallback), from: authored?.from ?? fallback.from, to: authored?.to ?? fallback.to}];
+        })) as Flow21Timing} : flow.sourceVersion === 13 ? {sourceVersion: 13 as const} : {}),
+      entrySlide: clip(flow.entrySlide, ULTIMATE_3_DEFAULTS.flow.entrySlide),
       timing: Object.fromEntries(Object.keys(flowTiming).map(key => [key, clip(flow.timing?.[key as FlowEditableKey], flowTiming[key as FlowEditableKey])])) as FlowTiming,
-      controls: {cloudYOffset: finite(flow.controls?.cloudYOffset, 37, -500, 500), blueDotScale: finite(flow.controls?.blueDotScale, 1.2, .25, 5),
+      controls: {...(flow.sourceVersion === 21 ? {beadStaggerSeconds: finite(flow.controls?.beadStaggerSeconds, DEFAULT_BEAD_STAGGER_SECONDS, 0, .5)} : {}), cloudYOffset: finite(flow.controls?.cloudYOffset, 37, -500, 500), blueDotScale: finite(flow.controls?.blueDotScale, 1.2, .25, 5),
         numberRowStagger: finite(flow.controls?.numberRowStagger, .05, 0, .25), coverMotion: ['top','right','split'].includes(flow.controls?.coverMotion ?? '') ? flow.controls!.coverMotion : 'split',
         mutedGray: typeof flow.controls?.mutedGray === 'string' ? flow.controls.mutedGray : '#474747'}},
     issues: {sourceVersion: 20, leadIn: normalizeClip(issues.leadIn, ULTIMATE_3_DEFAULTS.issues.leadIn),
@@ -225,6 +241,41 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
     const migrated = saved === obsoleteGenerated[id] ? ULTIMATE_3_DEFAULTS.allocations[id] : saved;
     return [id, Math.max(floors[id], finite(migrated, ULTIMATE_3_DEFAULTS.allocations[id]))];
   })) as Record<ChapterId, number>;
+  // For legacy JSON derive the three absolute beats from its *own* chapter schedule.
+  // Once a cloud section is present, its authored absolute bars stay pinned on reload.
+  let start = 0;
+  const starts = Object.fromEntries(CHAPTER_IDS.map(id => {const at = start; start += normalized.allocations[id]; return [id, at]})) as Record<ChapterId, number>;
+  const entry = normalized.ultimate2.timing.cloudEnter;
+  const sweep = normalized.cost.timing.cloudSweep;
+  const exit = normalized.flow.timing.cloudExit;
+  const nativeFlow = normalized.flow.entrySlide.at + normalized.flow.entrySlide.duration;
+  const defaultClouds: CloudSettings = {controls: {x: 1, y: .5}, timing: {
+    slideIn: {at: starts.ultimate2 + entry.at, duration: entry.duration},
+    partialRecede: {at: starts.cost + sweep.at, duration: sweep.duration},
+    recede: {at: starts.flow + nativeFlow + exit.at, duration: exit.duration},
+  }};
+  const rawClouds = raw.clouds;
+  const controls = {x: finite(rawClouds?.controls?.x, 1, 0, 1), y: finite(rawClouds?.controls?.y, .5, 0, 1)};
+  controls.y = Math.min(controls.x, controls.y);
+  const timing = {} as CloudSettings['timing'];
+  let previousEnd = 0;
+  for (const key of ['slideIn', 'partialRecede', 'recede'] as const) {
+    const authored = normalizeClip(rawClouds?.timing?.[key], defaultClouds.timing[key]);
+    // Overlapping bars ripple forward, preserving their full authored duration/curve.
+    timing[key] = {...authored, at: Math.max(previousEnd, authored.at)};
+    previousEnd = clipEnd(timing[key]);
+  }
+  normalized.clouds = {timing, controls};
+  if (raw.voiceover) {
+    const videoEnd = Math.ceil(Object.values(normalized.allocations).reduce((sum, value) => sum + value, 0) * 30) / 30;
+    normalized.voiceover = {version: 1, phrases: Object.fromEntries(VOICEOVER_PHRASES.map(phrase => {
+      const edited = raw.voiceover?.phrases?.[phrase.id];
+      const at = finite(edited?.at, Math.min(videoEnd, phrase.defaultAt), 0, videoEnd);
+      const maximum = Math.min(phrase.b - phrase.a, videoEnd - at);
+      const duration = finite(edited?.duration, maximum, 0, maximum);
+      return [phrase.id, {at, duration}];
+    }))};
+  }
   return normalized;
 }
 export const SETTINGS_STORAGE_ID = 'micro-animation-18-settings-v1';

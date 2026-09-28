@@ -4,6 +4,7 @@ import {BLOCK_TEMPLATE, GRID, CELLS, PERIOD, OPENING_CLOUDS, openingCloudBounds,
 import type {Playback} from './sample';
 import {STREAM_BLOCKS_REMOVED, STREAM_DISTANCE_REMOVED, STREAM_SPEED} from './stream-trim';
 export {CELL, GRID, CELLS, PERIOD, BLOCK_TEMPLATE, OPENING_CLOUDS, openingCloudBounds, openingCloudX};
+export const SCATTERED_WARNING = {asset: 'micro-17/scattered-warning.svg', width: 37.6942138671875, height: 35.004878997802734};
 
 export const DEFAULTS = {streamerSpeed: STREAM_SPEED, loaderSpeed: 1.9, cloudEntrySpread: 700,
   introCameraOffsetCells: .75, openingCloudBackXOffset: 150, openingCloudFrontXOffset: 129,
@@ -16,22 +17,24 @@ const names: Record<string, string> = {'later-thinking-blue': 'thinking-blue', '
 
 // Finish the uninterrupted repeating stream, then reach the next complete
 // blue/Read/red trio. The elbow replaces its next icon, never a visited block.
-export function routeLayout(streamDuration: number, speed: number) {
+export function routeLayout(streamDuration: number, speed: number, blocksRemoved = STREAM_BLOCKS_REMOVED) {
   const runEnd = 300 + Math.max(0, streamDuration) * Math.max(0, speed);
-  // Choose the same authored route as before the trim, then close the exact
-  // distance occupied by the fourteen removed blocks. This preserves agent
-  // velocity and the remaining approach distance into the upward handoff.
-  const virtualRunEnd = runEnd + STREAM_DISTANCE_REMOVED;
+  // Keep the original route's approach distance; v4 may restore four template
+  // blocks before the blue lift without moving the authored tail/masks apart.
+  const insertedDistance = BLOCK_TEMPLATE.slice(6, 6 + STREAM_BLOCKS_REMOVED - blocksRemoved)
+    .reduce((distance, block) => distance + block.w, 0);
+  const removedDistance = STREAM_DISTANCE_REMOVED - insertedDistance;
+  const virtualRunEnd = runEnd + removedDistance;
   const liftCycle = Math.max(0, Math.ceil((virtualRunEnd - 1200) / PERIOD));
-  const elbowX = liftCycle * PERIOD + 1200 - STREAM_DISTANCE_REMOVED;
-  const straightBlockCount = Math.max(0, liftCycle * BLOCK_TEMPLATE.length - STREAM_BLOCKS_REMOVED);
+  const elbowX = liftCycle * PERIOD + 1200 - removedDistance;
+  const straightBlockCount = Math.max(0, liftCycle * BLOCK_TEMPLATE.length - blocksRemoved);
   return {runEnd, liftCycle, straightBlockCount, elbowX, liftCenter: elbowX - 1080,
     tailOffsetX: elbowX - ELBOW.x};
 }
 
-export function worldState(playback: Playback, controls: Controls = DEFAULTS) {
+export function worldState(playback: Playback, controls: Controls = DEFAULTS, blocksRemoved = STREAM_BLOCKS_REMOVED) {
   const p = playback.progress;
-  const route = routeLayout(playback.streamDuration, controls.streamerSpeed);
+  const route = routeLayout(playback.streamDuration, controls.streamerSpeed, blocksRemoved);
   const head = 300 * clamp(p.firstThinking) + clamp(p.streamRun) * playback.streamDuration * Math.max(0, controls.streamerSpeed)
     + (route.elbowX - route.runEnd) * clamp(p.continueStraight);
   const rise = VERTICAL_LENGTH * clamp(p.upwardTurn);
@@ -46,7 +49,9 @@ export function worldState(playback: Playback, controls: Controls = DEFAULTS) {
   const heroRebase = {x: -warningStart.x * rebaseProgress, y: -warningStart.y * rebaseProgress};
   const warningPosition = {x: warningStart.x + heroRebase.x, y: warningStart.y + heroRebase.y};
   const cameraFocus = (introCameraFocus + focus) * (1 - rebaseProgress);
-  const warningFinalSizeScale = 25.41796875 / (114.269 * .1);
+  // Both warnings share the camera; the gray markers use a 10× intrinsic
+  // dimension inside contentScale, so match that rendered geometry at zoom end.
+  const warningFinalSizeScale = SCATTERED_WARNING.width * 10 / 114.269;
   const halfCell = GRID.pitch / (2 * contentScale);
   const gray = Math.round(255 - 177 * clamp(p.dotDim));
   return {

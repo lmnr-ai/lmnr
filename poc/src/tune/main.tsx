@@ -22,6 +22,7 @@ import '../experiments/micro-17/styles.css';
 import '../experiments/micro-18/styles.css';
 import '../experiments/micro-20/styles.css';
 import '../experiments/introducing-flow-1/styles.css';
+import '../experiments/introducing-flow-1-2/styles.css';
 import {App} from './App';
 import {MicroAnimationApp} from '../experiments/micro-01/App';
 import {EmptyAnimationApp} from '../experiments/micro-02/App';
@@ -41,11 +42,14 @@ const Micro15App=lazy(()=>import('../experiments/micro-15/App').then(module=>({d
 import {Micro16App} from '../experiments/micro-16/App';
 import {Micro17App} from '../experiments/micro-17/App';
 import {Micro18App} from '../experiments/micro-18/App';
+import {VoiceoverMicro18App} from '../experiments/micro-18/VoiceoverApp';
 import {Micro20App} from '../experiments/micro-20/App';
 import {Ultimate3SilkApp} from '../experiments/ultimate-3-silk/App';
 import {IntroducingFlow1App} from '../experiments/introducing-flow-1/App';
+import {IntroducingFlow2App} from '../experiments/introducing-flow-1-2/App';
 
-const experiment = new URLSearchParams(window.location.search).get('experiment');
+const params = new URLSearchParams(window.location.search);
+const experiment = params.get('experiment');
 const content = experiment === 'micro-01'
   ? <MicroAnimationApp />
   : experiment === 'micro-02'
@@ -83,7 +87,9 @@ const content = experiment === 'micro-01'
                               : experiment === 'ultimate-3-silk'
                                 ? <Ultimate3SilkApp />
                               : experiment === 'micro-18'
-                                ? <Micro18App />
+                                ? params.get('cut') === 'original' ? <Micro18App /> : <VoiceoverMicro18App />
+                              : experiment === 'introducing-flow-1-2'
+                                ? <IntroducingFlow2App />
                               : experiment === 'introducing-flow-1'
                                 ? <IntroducingFlow1App />
                                 : <App />;

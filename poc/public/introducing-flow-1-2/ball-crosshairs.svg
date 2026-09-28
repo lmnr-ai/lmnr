@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="2698" height="1954" viewBox="0 0 2698 1954" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Frame 2058">
+<rect x="1319" y="947" width="60" height="60" rx="30" fill="url(#paint0_linear_4842_7674)"/>
+<path id="Vector 249" d="M0 977H1319" stroke="#808080"/>
+<path id="Vector 250" d="M1349 1007V1954" stroke="#808080"/>
+<path id="Vector 252" d="M1379 977H2698" stroke="#808080"/>
+<path id="Vector 251" d="M1349 0V947" stroke="#808080"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_4842_7674" x1="1349" y1="947" x2="1349" y2="1007" gradientUnits="userSpaceOnUse">
+<stop stop-color="#A8CAFF"/>
+<stop offset="1" stop-color="#75ABFF"/>
+</linearGradient>
+</defs>
+</svg>

@@ -58,6 +58,12 @@ test('active bed has exactly one source calibration and one unrestricted linear 
     engine.pause(); audio.finish?.(); await Promise.resolve(); assert.equal(audio.paused, true);
     engine.update(58, false); assert.equal(audio.currentTime, 58); assert.equal(audio.paused, true);
     engine.dispose(); assert.equal(ctx.closed, true);
+    const preview = new ArabesqueBedEngine('/audio/voiceover/ultimate3-voiceover-v1.wav');
+    preview.update(34, false); await preview.enable();
+    assert.equal(Audio.latest.src, '/audio/voiceover/ultimate3-voiceover-v1.wav');
+    assert.equal(Audio.latest.currentTime, 34); assert.equal(Audio.latest.paused, true);
+    preview.setMasterVolume(0); assert.equal(Context.latest.gains[1].gain.value, 0);
+    preview.dispose();
   } finally { Object.assign(globalThis, {AudioContext: oldContext, Audio: oldAudio}); }
 });
 

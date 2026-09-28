@@ -34,18 +34,18 @@ const copy = [
   'but fail to find crucial issues.',
   'More powerful LLMs can find deep obscure issues',
   'but the costs are unsustainable.',
-  'Introducing Flow-1, our model specialized for trace analysis.',
+  'Introducing flow-1, our model specialized for trace analysis.',
   'Matching Sonnet-5 in intelligence.',
   'At 2% of the cost.',
-  'Flow-1 powers Signals, our agent build to analyze traces at scale.',
+  'flow-1 powers Signals, our agent build to analyze traces at scale.',
   ...Object.values(NARRATION),
 ] as const;
 
-test('Ultimate 3 reuses every source subtitle string exactly once without duplicating working chapter layers', () => {
+test('Ultimate 3 reuses source subtitles with lowercase flow-1 without duplicating chapter layers', () => {
   const markup = [
     renderToStaticMarkup(createElement(Ultimate2Subtitles, {progress: allHalf(ULTIMATE2_KEYS) as any})),
     renderToStaticMarkup(createElement(CostSubtitles, {progress: allHalf(COST_KEYS) as any})),
-    renderToStaticMarkup(createElement(FlowSubtitles, {progress: allHalf(FLOW_CLIP_KEYS) as any})),
+    renderToStaticMarkup(createElement(FlowSubtitles, {progress: allHalf(FLOW_CLIP_KEYS) as any, modelName: 'flow-1'})),
     ...Object.keys(NARRATION).map(narration => renderToStaticMarkup(createElement(IssuesSubtitles, {narration: narration as keyof typeof NARRATION, opacity: 1}))),
   ].join('');
   for (const text of copy) assert.ok(markup.includes(text), text);
@@ -56,6 +56,22 @@ test('Ultimate 3 reuses every source subtitle string exactly once without duplic
   assert.equal((scene.match(/showSubtitles=\{false\}/g) ?? []).length, 2);
   assert.equal((scene.match(/<FlowSubtitles /g) ?? []).length, 1);
   assert.equal((scene.match(/<Subtitles progress=\{cost\.progress\}/g) ?? []).length, 1);
+});
+
+test('Ultimate 3 lowercases the title, benchmark, engine and captions while standalone copy is unchanged', () => {
+  const settings = ULTIMATE_3_DEFAULTS;
+  const flowStart = chapterSchedule(settings).find(chapter => chapter.id === 'flow')!.start;
+  const markup = renderToStaticMarkup(createElement(Ultimate3Scene, {
+    sample: sampleUltimate3(flowStart + 3, settings), settings,
+  }));
+  assert.match(markup, /class="flow1-title">flow-1<\/div>/);
+  assert.match(markup, /class="flow1-module"[^>]*>flow-1<\/div>/);
+  assert.match(markup, />flow-1<\/span>/);
+  assert.ok(markup.includes('Introducing flow-1, our model specialized for trace analysis.'));
+  assert.ok(markup.includes('flow-1 powers Signals, our agent build to analyze traces at scale.'));
+  assert.ok(!markup.includes('Flow-1'));
+  const standalone = renderToStaticMarkup(createElement(FlowSubtitles, {progress: allHalf(FLOW_CLIP_KEYS) as any}));
+  assert.ok(standalone.includes('Introducing Flow-1,'));
 });
 
 test('unchanged subtitle tracks retain source-native progress under their approved global offsets', () => {
@@ -159,17 +175,18 @@ test('conclusion subtitle styling is screen-pinned and preserves the exact logo 
 
 test('Ultimate 2 subtitles escape its scene stack and stay above the shared handoff clouds', () => {
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
-  assert.match(css, /\.micro18-cloud-handoff>\.micro17-composition\{isolation:auto\}/);
+  assert.match(css, /\.micro18-frame>\.micro17-composition\{isolation:auto\}/);
   assert.match(css, /\.micro18-frame>\.micro09-clouds\{[^}]*z-index:10/);
-  assert.match(css, /\.micro18-cloud-handoff>\.micro17-composition>\.micro17-subtitle-layer\{z-index:11\}/);
+  assert.match(css, /\.micro18-frame>\.micro17-composition>\.micro17-subtitle-layer\{z-index:11\}/);
 });
 
 test('Flow subtitles are screen-space siblings above shared artwork and clouds', () => {
   const scene = readFileSync(new URL('./Scene.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
-  const worldEnd = scene.indexOf('</div>\n    {(isFlow || outgoingCloudsVisible) && <div className="micro18-flow-cloud-layer"');
-  const subtitlesAt = scene.indexOf(': isFlow ? <FlowSubtitles');
+  const worldEnd = scene.indexOf('</div>\n    {issues ? <IssueSubtitles');
+  const subtitlesAt = scene.indexOf(': isFlow ? (flow.playback21 ? <Flow21Subtitles');
   assert.ok(worldEnd >= 0 && subtitlesAt > worldEnd, 'subtitles must not be transformed with the shared world');
   assert.match(css, /\.micro18-shared-scene>\.flow1-subtitle-layer\{[^}]*position:absolute[^}]*z-index:11/);
-  assert.match(css, /\.micro18-flow-cloud-layer\{[^}]*z-index:10/);
+  assert.match(css, /\.micro18-frame>\.micro09-clouds\{[^}]*z-index:10/);
+  assert.doesNotMatch(scene, /micro18-flow-cloud-layer/);
 });

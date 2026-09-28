@@ -64,6 +64,10 @@ The same three scores with no electronics:
 - **The budget drain:** instead of the gliding drain tone, each composition plays it as a line (`drainLine`) that falls through the lament chords and slows like a counter running out. In Nocturne it's high piano, in Aria the solo violin in spiccato into its lone F♯, and in Arabesque the slowing arabesque itself.
 - **No synth music:** the stream's data beeps are gone, the run into the drop is piano (Aria: pizzicato), and Arabesque loses its sine sub.
 
+`arabesque-acoustic-chill` keeps Arabesque Acoustic from Flow-1 on. Before it, one quiet eighth-note bed (E – A – G♯m – A, Bsus into the drop) runs unbroken, and events are soft in-key piano touches on top. There are no warning ducks. It works with `--split-arabesque`.
+
+All Arabesque styles bridge the Issues analysis prelude (`cues.issues.prelude`: bash descent, zoom out, circle grow) with a triplet arabesque walking I – IV – V into the issue grid.
+
 ### `nocturne-duet` — piano and violin
 
 Nocturne's acoustic cut with the synthesized string section replaced by VSCO-2 celli, violin section and solo violin (picked by register). The solo violin sings every melody legato while the piano keeps the octave below, and it plays the budget drain in spiccato.
@@ -94,7 +98,7 @@ The agent window types on a modelled keyboard from `keyboards.ts`: `thock` (a lu
 - `voices.ts` contains the synth/sample voices and the `Mix` buses and sends. `dsp.ts` provides the filters, FDN reverb, ping-pong delay, look-around limiter, BS.1770 loudness and master EQ.
 - `render.ts` sums the dry buses and returns, applies the master EQ, normalises, limits, and adds the final fade.
 
-The live `?experiment=micro-18` preview now uses an **Arabesque Acoustic typing-free bed + one live thock scheduler**, not the earlier full Web Audio effects engine. `pnpm ultimate3:score --style arabesque-acoustic --split-arabesque --tuning src/experiments/micro-18/score/arabesque/softness-8-tuning.json --out <new-path>.wav` writes that bed, a split-playback parity export, and frozen provenance. See `../AUDIO_EXPORT.md` for the exact gain/control contract and static-bed retiming limitation. Ordinary score renders bake shared thock PCM through their score buses; split playback keeps the keyboard dry and outside bed mastering. The `keyClick` API/tuner identifier remains for compatibility, but its old bright bandpass recipe is gone. No original WAV or frozen export is overwritten.
+The preserved original at `?experiment=micro-18&cut=original` uses an **Arabesque Acoustic typing-free bed + one live thock scheduler**, not the earlier full Web Audio effects engine. `pnpm ultimate3:score --style arabesque-acoustic --split-arabesque --tuning src/experiments/micro-18/score/arabesque/softness-8-tuning.json --out <new-path>.wav` writes that bed, a split-playback parity export, and frozen provenance. See `../AUDIO_EXPORT.md` for the exact gain/control contract and static-bed retiming limitation. Ordinary score renders bake shared thock PCM through their score buses; split playback keeps the keyboard dry and outside bed mastering. The `keyClick` API/tuner identifier remains for compatibility, but its old bright bandpass recipe is gone. No original WAV or frozen export is overwritten.
 
 ## Credits
 

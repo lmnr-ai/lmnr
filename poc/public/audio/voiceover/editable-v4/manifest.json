@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "scoreStyle": "arabesque-acoustic-chill",
+  "seed": 107290,
+  "sampleRate": 48000,
+  "frames": 1974,
+  "samples": 3158400,
+  "bed": {
+    "file": "bed.wav",
+    "sha256": "fdd54c6ec11f569efc4d7247beceb2c83a2a3ae8e7d00b92022861cb0b0d6609"
+  },
+  "settingsSha256": "ff117799254fdaf9037694e8c8399464e16e2aa37be1bef73c5f05b0640583c2",
+  "placementsSha256": "dfb715ef68a23526c397623536bdd189572ac6a5ef5ee6a4073e349db3a4be53",
+  "sourceRecordingSha256": "5519cb5f0c69355c65ab2f57b36af684989cab660881b743d872937aecba7ee0",
+  "phrases": [
+    {
+      "id": "vo01",
+      "file": "vo01.wav",
+      "sha256": "5843d4b2a0be836b341d0323fcb7f7dabda01bf5a5afb686df74af67f42544fc",
+      "samples": 60000,
+      "text": "You build agents.",
+      "a": 4.52,
+      "b": 5.77,
+      "at": 0.37
+    },
+    {
+      "id": "vo02",
+      "file": "vo02.wav",
+      "sha256": "e1535fb1a18dc5941ad7034225c4513c555c9352487d283968b066dfa3e5931d",
+      "samples": 131040,
+      "text": "Every time your agent runs, it leaves a trace.",
+      "a": 5.94,
+      "b": 8.67,
+      "at": 1.82
+    },
+    {
+      "id": "vo03",
+      "file": "vo03.wav",
+      "sha256": "9707266ecc7044312c7f30486a826a8a214095a64e305ae845442fafab41e4ed",
+      "samples": 59520,
+      "text": "When your agent fails,",
+      "a": 8.96,
+      "b": 10.2,
+      "at": 4.84
+    },
+    {
+      "id": "vo04",
+      "file": "vo04.wav",
+      "sha256": "f9ab0ff6befbf089a5088a23bd0abe5d5374a736b63f9e441f13953953a3df07",
+      "samples": 67680,
+      "text": "the trace can tell you why.",
+      "a": 10.2,
+      "b": 11.61,
+      "at": 6.66
+    },
+    {
+      "id": "vo05",
+      "file": "vo05.wav",
+      "sha256": "62490d53f43e4b3f74662307358562e9700f97eb4802db4585ef22221affae05",
+      "samples": 296640,
+      "text": "The insights ... thousands of traces.",
+      "a": 12.17,
+      "b": 18.35,
+      "at": 9.79
+    },
+    {
+      "id": "vo06",
+      "file": "vo06.wav",
+      "sha256": "e020a4041f9a5f4630ea72ee4444ea5b797a647dbf138b1351b74fadacc8b1fa",
+      "samples": 81120,
+      "text": "If only someone could read them all.",
+      "a": 18.75,
+      "b": 20.44,
+      "at": 16.57
+    },
+    {
+      "id": "vo07",
+      "file": "vo07.wav",
+      "sha256": "ccde9e5074f439c290dd61d7461f723388c7580da75fe64ff4e96c53987cde2c",
+      "samples": 108000,
+      "text": "Cheap LLMs can read traces efficiently,",
+      "a": 22.01,
+      "b": 24.26,
+      "at": 19.068
+    },
+    {
+      "id": "vo08",
+      "file": "vo08.wav",
+      "sha256": "f82624e3f286ee367740521228511e9f026f5604fa14778f3b3b3db3b8db8a22",
+      "samples": 89760,
+      "text": "but fail to find crucial issues.",
+      "a": 24.64,
+      "b": 26.51,
+      "at": 21.568
+    },
+    {
+      "id": "vo09",
+      "file": "vo09.wav",
+      "sha256": "6ec45ceae88702beff55f7f107008b3277c2dfd23604c89520d061d7af29636f",
+      "samples": 109920,
+      "text": "Powerful LLMs can find deep issues,",
+      "a": 26.8,
+      "b": 29.09,
+      "at": 24.818
+    },
+    {
+      "id": "vo10",
+      "file": "vo10.wav",
+      "sha256": "eff040fc782f2cdf9eb47bc96c1b527f2f7874d8e7f4606311ba576d9818a4a2",
+      "samples": 78240,
+      "text": "but the costs are unsustainable,",
+      "a": 29.43,
+      "b": 31.06,
+      "at": 28.638
+    },
+    {
+      "id": "vo11",
+      "file": "vo11.wav",
+      "sha256": "df8abfcedc3224ee861dd84949d9d63033ff3a7ed18777edfa25ec56d114b446",
+      "samples": 35520,
+      "text": "until now.",
+      "a": 31.32,
+      "b": 32.06,
+      "at": 31.918
+    },
+    {
+      "id": "vo12",
+      "file": "vo12.wav",
+      "sha256": "4b86c430d64c15eae4dc55a7e9d0d770b49278221d87d9b2392f2a82fa61dc4c",
+      "samples": 181920,
+      "text": "Introducing Flow 1, our model specialized for trace analysis,",
+      "a": 32.77,
+      "b": 36.56,
+      "at": 33.968
+    },
+    {
+      "id": "vo13",
+      "file": "vo13.wav",
+      "sha256": "f1f43b0bdb207d5a55022d6b58a9506efa934f6141bf0534627c4da8724221a7",
+      "samples": 90240,
+      "text": "matching Sonnet 5 intelligence",
+      "a": 36.96,
+      "b": 38.84,
+      "at": 38.118
+    },
+    {
+      "id": "vo14",
+      "file": "vo14.wav",
+      "sha256": "db31b84a89456bd3df1a4db17f455babeeaea7392bfb4db85d62d8f1da680829",
+      "samples": 79680,
+      "text": "at only 2% of the cost.",
+      "a": 38.84,
+      "b": 40.5,
+      "at": 40.408
+    },
+    {
+      "id": "vo15",
+      "file": "vo15.wav",
+      "sha256": "0f5f49fe26ad3767ceb89048bb50b62da5d5c46661d26b21acf5d8aa942c9563",
+      "samples": 70080,
+      "text": "Flow 1 powers Signals,",
+      "a": 41.34,
+      "b": 42.8,
+      "at": 43.768
+    },
+    {
+      "id": "vo16",
+      "file": "vo16.wav",
+      "sha256": "57d17733e4d9f07113ffdf8158d17d604e0f321d4c2e2d04c51399eebb90df99",
+      "samples": 80880,
+      "text": "our agent built to analyze traces",
+      "a": 42.82,
+      "b": 44.505,
+      "at": 46.028
+    },
+    {
+      "id": "vo17",
+      "file": "vo17.wav",
+      "sha256": "fb71e1f19ffbcc67eb58082b17cd3cb15e00c97a97ff019c496ef25555751b99",
+      "samples": 41520,
+      "text": "at scale.",
+      "a": 44.505,
+      "b": 45.37,
+      "at": 48.448
+    },
+    {
+      "id": "vo18",
+      "file": "vo18.wav",
+      "sha256": "ac68d06fd985d76225083fd3c7e7ad4dc5ec404686bef69a8b627c876ef0644f",
+      "samples": 104640,
+      "text": "It finds deep issues in every trace",
+      "a": 45.9,
+      "b": 48.08,
+      "at": 50.368
+    },
+    {
+      "id": "vo19",
+      "file": "vo19.wav",
+      "sha256": "812dda8d7578f8146afc6baeb1b1f4f2825bce7ea98f7b82c3ed6a0afbcbca87",
+      "samples": 105120,
+      "text": "and clusters them into high-level patterns,",
+      "a": 48.13,
+      "b": 50.32,
+      "at": 53.218
+    },
+    {
+      "id": "vo20",
+      "file": "vo20.wav",
+      "sha256": "3bb66f3e7891a60494a556cddefbb2f6e5c4c87158c89862c9912ab0002bc3f3",
+      "samples": 94080,
+      "text": "ready for you or your coding agent.",
+      "a": 50.7,
+      "b": 52.66,
+      "at": 55.768
+    },
+    {
+      "id": "vo21",
+      "file": "vo21.wav",
+      "sha256": "0de8994fc0f022f7ca75cf0c3a52b35a4f1428129aeb4a732319b9f7f6f587d7",
+      "samples": 137280,
+      "text": "Unlock the insights hiding in millions of agent traces",
+      "a": 53.23,
+      "b": 56.09,
+      "at": 59.551
+    },
+    {
+      "id": "vo22",
+      "file": "vo22.wav",
+      "sha256": "67e8a8e86ad3cb426cc59764701103953f898c1c24b2391209a214c794acd78c",
+      "samples": 37920,
+      "text": "with Laminar.",
+      "a": 56.18,
+      "b": 56.97,
+      "at": 63.301
+    }
+  ],
+  "note": "Voice-free keyboard-bearing bed at -5.5 dB; phrase sources highpass/compressed/normalized once. No baked voice-dependent ducking or final old loudnorm; not byte-identical to the preserved v4 mixed WAV."
+}
