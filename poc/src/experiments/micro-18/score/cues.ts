@@ -1,5 +1,6 @@
 import {resolveMicro16Clips} from '../../micro-16/timeline';
 import {sampleUltimate3, chapterSchedule, ultimate3DurationFrames, issueHandoffValidation} from '../sample';
+import {beadStagger} from '../../introducing-flow-1-2/beads';
 import {resolvePreludeSchedule} from '../../micro-20/timeline';
 import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
 import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
@@ -39,8 +40,10 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
   const flow21 = settings.flow.sourceVersion === 21 && settings.flow.timing21;
   // Animation 21 has no number rows or bars: the six bead landings are the drops, the graph spread is the swap.
   const bead = (i: number) => {
-    const beads = (flow21 as NonNullable<typeof settings.flow.timing21>).beadsEntry, gap = settings.flow.controls.beadStaggerSeconds ?? .11;
-    return round(flowNative + beads.at + i * gap + beads.duration - 5 * gap);
+    const beads = (flow21 as NonNullable<typeof settings.flow.timing21>).beadsEntry;
+    const {duration, gap} = beadStagger(beads.duration, settings.flow.controls.beadStaggerSeconds);
+    // Bead i lands one travel after its start, as a fraction of the (possibly sub-50ms) authored bar.
+    return round(flowNative + beads.at + beads.duration * (duration + (i - 5) * gap) / duration);
   };
   const flowCues = flow21 ? {
     cloudExit: span(flowNative, flow21.cloudExit),

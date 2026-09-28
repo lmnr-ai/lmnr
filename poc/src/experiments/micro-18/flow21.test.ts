@@ -8,6 +8,8 @@ import {Flow2Graph} from '../introducing-flow-1-2/Scene';
 import {createFlow2Sampler} from '../introducing-flow-1-2/sample';
 import {FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
 import {graphState, flow2WorldState} from '../introducing-flow-1-2/geometry';
+import {BEAD_ORDER, beadProgress} from '../introducing-flow-1-2/beads';
+import {ultimate3ScoreCues} from './score/cues';
 import {flowTimelineConfig, flowTimelineSettings, liveFlowPreview} from './authoring';
 import {VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings, migrateStoredVoiceoverFlow21} from './voiceover-cut';
 import {FLOW_21_TIMING, normalizeSettings, ULTIMATE_3_DEFAULTS} from './settings';
@@ -136,4 +138,16 @@ test('source21 authoring retains actual current values, custom endpoints and cur
   const times = [0, 3.1, 6.5, 9, 12];
   const states = times.map(time => sampleFlow(time, edited));
   [...times].reverse().forEach((time, index) => assert.deepEqual(sampleFlow(time, edited), states[states.length - 1 - index]));
+});
+
+test('bead drop cues land with the rendered beads, including clamped stagger gaps', () => {
+  for (const beadStaggerSeconds of [0, .11, .5]) {
+    const settings = normalizeSettings({...s, flow: {...s.flow, controls: {...s.flow.controls, beadStaggerSeconds}}});
+    const flowStart = chapterSchedule(settings).find(item => item.id === 'flow')!.start;
+    const progress = (time: number) => beadProgress(sampleFlow(time - flowStart, settings).playback21!, beadStaggerSeconds);
+    ultimate3ScoreCues(settings).flow.numberDrops.forEach((drop, i) => {
+      close(progress(drop)[BEAD_ORDER[i]], 1);
+      assert.ok(progress(drop - .01)[BEAD_ORDER[i]] < 1, `stagger ${beadStaggerSeconds}: bead ${i} is still travelling before its drop`);
+    });
+  }
 });
