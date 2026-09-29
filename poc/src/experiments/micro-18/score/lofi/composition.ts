@@ -1,6 +1,6 @@
 import type {ScoreCues} from '../cues';
 import {beatOf, gridOf} from '../style';
-import {bass, hat, kick, piano, snare, type Mix, type Route} from '../voices';
+import {bass, hat, kick, piano, snare, strings, type Mix, type Route} from '../voices';
 import {cascade, chordAt, loopBars, melody, rolled, type Chord, type Progression} from '../writing';
 import {rim, vinyl} from './instruments';
 
@@ -17,6 +17,7 @@ const LEAD: Route = {bus: 'music', hall: .28, delay: .28};
 const KIT: Route = {bus: 'music', room: .14};
 const LOW: Route = {bus: 'music', gain: .5};
 const DUST: Route = {bus: 'music', gain: .5};
+const HALO: Route = {bus: 'music', hall: .5, delay: .2, pan: .1};
 
 // Rootless voicings; the bass plays the root.
 const F: Chord = {bass: 41, tones: [57, 60, 64, 67]}, Am: Chord = {bass: 45, tones: [55, 60, 64, 69]};
@@ -115,8 +116,13 @@ export function composeLofi(mix: Mix, cues: ScoreCues) {
   comp(bright, drop, shutBeat, true, .32);
   walk(bright, shutBeat, true);
   groove(drop, shutBeat, true);
-  theme(drop + 1, .36, 12);
-  theme(drop + 9, .3);
+  // The relief: one A held high over the first bars, swelling in as the filter opens. A is in every chord
+  // of the bright loop (F, Am, Bbmaj7, C9), so it glows a different color each bar without ever moving.
+  strings(mix, flow.reveal, g(drop + 8), [81], HALO, {attack: 1.8, release: 3, dynamics: [.75, .45], bright: .3, level: .75});
+  strings(mix, flow.reveal + .4, g(drop + 8), [69], {...HALO, pan: -.1}, {attack: 2.2, release: 3, dynamics: [.6, .35], bright: .25, level: .4});
+  // The hook sings under the held A; on Animation 21 its repeat would fight the bead lick and the glissando.
+  theme(drop + 1, .34);
+  if (!flow.animation21) theme(drop + 9, .3);
   // Matching Sonnet-5 at 2% of the cost: a happy lick up on the swap, a glissando as the bars (Animation 21: the graph) grow.
   lick(flow.cameraZoom.at, [81, 84], .12, .2, -.2);
   // Animation 21 has no number swap: the lick climbs with the six bead landings instead, flow-1's (the third) leaning in.
