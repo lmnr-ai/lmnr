@@ -69,7 +69,7 @@ export function designOverdrive(mix: Mix, cues: ScoreCues) {
   move(cost.cameraToBudget, false, .9);
   whoosh(mix, cost.smokeEnter, 1, FX, {from: 200, to: 1200, level: .4, peak: .5});
   impact(mix, cost.budgetAppear, .4, FX);
-  for (let t = cost.budgetRun.at, i = 0; t < cost.depletion.at; t += .08, i++) zap(mix, t, .25 + .01 * i, {...DRY, pan: .3}, {from: 2400 - i * 60, to: 900, duration: .05});
+  for (let t = cost.budgetRun.at, i = 0; t < cost.depletion.at; t += .08, i++) zap(mix, t, Math.min(.45, .25 + .01 * i), {...DRY, pan: .3}, {from: Math.max(1000, 2400 - i * 60), to: 900, duration: .05});
   dive(mix, cost.depletion.at, cost.depletion.duration * .7, FX, {fromMidi: 86, toMidi: 26, level: .6});
   klaxon(cost.depletion.at, .7);
 

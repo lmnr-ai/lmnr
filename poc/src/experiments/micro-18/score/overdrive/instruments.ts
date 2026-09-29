@@ -121,9 +121,9 @@ export function alarm(mix: Mix, time: number, duration: number, velocity: number
   mix.emit(time, route, out); mix.count('alarm');
 }
 
-/** Laser zap: a square and a sine diving exponentially from `from` to `to` Hz. */
+/** Laser zap: a square and a sine diving exponentially from `from` to `to` Hz (floored at 20 Hz; the sweep is NaN at ≤ 0). */
 export function zap(mix: Mix, time: number, velocity: number, route: Route, options: {from?: number; to?: number; duration?: number} = {}) {
-  const duration = options.duration ?? .16, out = buffer(duration), from = options.from ?? 3200, to = options.to ?? 180, sine = new Sine(), tone = OnePole.lowpass(6000);
+  const duration = options.duration ?? .16, out = buffer(duration), from = Math.max(20, options.from ?? 3200), to = Math.max(20, options.to ?? 180), sine = new Sine(), tone = OnePole.lowpass(6000);
   let phase = 0;
   for (let i = 0; i < out.length; i++) {
     const t = i / SR, hz = from * (to / from) ** (t / duration);
