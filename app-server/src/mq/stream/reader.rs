@@ -572,7 +572,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         // partitions over only after every store above is visible to successors.
         if stopping {
             let deadline = tokio::time::Instant::now() + CONSUMER_CLOSE_TIMEOUT;
-            if !confirm_owned_offsets_visible(&client, self.consumer_name, deadline).await {
+            if !confirm_stored_offsets_visible(&client, self.consumer_name, deadline).await {
                 log::warn!(
                     "Stream reader {} ({}) closing before every stored offset was visible; a successor may replay the last batch",
                     self.id,
@@ -1342,23 +1342,20 @@ async fn wait_for_visible_offset(
     }
 }
 
-/// Before the shutdown close: make every offset we stored for a partition we still
-/// own visible at the broker. Closing removes our consumer and the broker activates
-/// successors right away, so this is the same store-vs-reply race as a handover.
-async fn confirm_owned_offsets_visible(
+/// Before the shutdown close: make every offset we stored visible at the broker.
+/// Closing removes our consumer and the broker activates successors right away, so
+/// this is the same store-vs-reply race as a handover. Revoked partitions are
+/// included: a handover may still be polling for its store when close cuts it
+/// short, and for a finished one the check returns at once (the group's stored
+/// offset only moves forward).
+async fn confirm_stored_offsets_visible(
     client: &Client,
     consumer_name: &'static str,
     deadline: tokio::time::Instant,
 ) -> bool {
-    let revoked = PARTITION_OWNERSHIP
-        .read()
-        .await
-        .get(consumer_name)
-        .map(|group| group.revoked.clone())
-        .unwrap_or_default();
     let stored: Vec<(String, u64)> = lock_high_water_marks()
         .iter()
-        .filter(|((name, stream), _)| *name == consumer_name && !revoked.contains(stream))
+        .filter(|((name, _), _)| *name == consumer_name)
         .map(|((_, stream), offset)| (stream.clone(), *offset))
         .collect();
     future::join_all(stored.iter().map(|(stream, offset)| {
