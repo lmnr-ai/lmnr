@@ -21,3 +21,5 @@ import '../experiments/micro-18/styles.css';
 import '../experiments/micro-20/styles.css';
 import '../experiments/introducing-flow-1/styles.css';
 import '../experiments/introducing-flow-1-2/styles.css';
+
+import '../experiments/micro-22/styles.css';

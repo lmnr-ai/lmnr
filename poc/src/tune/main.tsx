@@ -43,6 +43,8 @@ import {Micro16App} from '../experiments/micro-16/App';
 import {Micro17App} from '../experiments/micro-17/App';
 import {Micro18App} from '../experiments/micro-18/App';
 import {VoiceoverMicro18App} from '../experiments/micro-18/VoiceoverApp';
+import {Micro22App} from '../experiments/micro-22/App';
+import '../experiments/micro-22/styles.css';
 import {Micro20App} from '../experiments/micro-20/App';
 import {Ultimate3SilkApp} from '../experiments/ultimate-3-silk/App';
 import {IntroducingFlow1App} from '../experiments/introducing-flow-1/App';
@@ -82,7 +84,7 @@ const content = experiment === 'micro-01'
                               ? <Micro16App />
                               : experiment === 'micro-17'
                                 ? <Micro17App />
-                              : experiment === 'micro-20'
+                              : experiment === 'micro-22' ? <Micro22App /> : experiment === 'micro-20'
                                 ? <Micro20App />
                               : experiment === 'ultimate-3-silk'
                                 ? <Ultimate3SilkApp />

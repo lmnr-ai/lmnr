@@ -28,6 +28,7 @@ function VoiceoverAudio({settings, globalTime, playing, inspecting, seekGenerati
   useEffect(() => engine.current?.update(globalTime, active, settings, seekGeneration), [globalTime, active, ready, settings, seekGeneration]);
   return <span title="Editable, unstretched phrase trims over the frozen v4 keyboard-bearing score. No old mixed voiceover plays on this route.">
     Editable voiceover · <a href="?experiment=micro-18&cut=original">Original cut</a>
+    {settings.issues.sourceVersion === 22 && <span> · New report captions; replacement recording and sound alignment pending.</span>}
   </span>;
 }
 

@@ -53,7 +53,7 @@ test('Ultimate 3 reuses source subtitles with lowercase flow-1 without duplicati
   const scene = readFileSync(new URL('./Scene.tsx', import.meta.url), 'utf8');
   assert.equal((scene.match(/<Micro17Scene /g) ?? []).length, 1);
   assert.equal((scene.match(/<Micro20Scene /g) ?? []).length, 2, 'mutually exclusive Issues and Conclusion both suppress native subtitles');
-  assert.equal((scene.match(/showSubtitles=\{false\}/g) ?? []).length, 2);
+  assert.equal((scene.match(/showSubtitles=\{false\}/g) ?? []).length, 4);
   assert.equal((scene.match(/<FlowSubtitles /g) ?? []).length, 1);
   assert.equal((scene.match(/<Subtitles progress=\{cost\.progress\}/g) ?? []).length, 1);
 });
@@ -184,7 +184,7 @@ test('Flow subtitles are screen-space siblings above shared artwork and clouds',
   const scene = readFileSync(new URL('./Scene.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
   const worldEnd = scene.indexOf('</div>\n    {(isFlow || outgoingCloudsVisible)');
-  const cloudsEnd = scene.indexOf('</div>}\n    {issues ? <IssueSubtitles');
+  const cloudsEnd = scene.indexOf('</div>}\n    {issues ? (issues.source22');
   const subtitlesAt = scene.indexOf(': isFlow ? (flow.playback21 ? <Flow21Subtitles');
   assert.ok(worldEnd >= 0 && cloudsEnd > worldEnd && subtitlesAt > cloudsEnd,
     'subtitles must be outside both the shared world and the restored moving cloud plane');

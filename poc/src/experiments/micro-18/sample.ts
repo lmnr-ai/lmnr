@@ -1,3 +1,4 @@
+import {sampleMicro22, type Micro22Progress, type Micro22Sample} from '../micro-22/sample';
 import {sampleIssueOutro} from '../micro-20/outro';
 import {computeClipState, computeStaticTimeline, parseTimelineConfig} from 'dialkit/timeline';
 import {sampleMicro17, type Playback as Micro17Playback} from '../micro-17/sample';
@@ -15,7 +16,7 @@ export type ChapterSegment = {id: ChapterId; label: string; start: number; durat
 const labels: Record<ChapterId, string> = {ultimate2: '17 Ultimate 2', cost: '16 Cost', flow: '13 Introducing Flow-1', issues: '20 Issue clusters 3', conclusion: 'Conclusion'};
 export function chapterSchedule(input: Ultimate3Settings) {
   const settings = normalizeSettings(input); const floors = chapterFloors(settings); let start = 0;
-  return CHAPTER_IDS.map(id => {const duration = Math.max(settings.allocations[id], floors[id]); const segment = {id, label: id === 'flow' && settings.flow.sourceVersion === 21 ? '21 Introducing flow-1 2' : labels[id], start, duration, end: start + duration}; start += duration; return segment;});
+  return CHAPTER_IDS.map(id => {const duration = Math.max(settings.allocations[id], floors[id]); const segment = {id, label: id === 'issues' && settings.issues.sourceVersion === 22 ? '22 Issue clusters 4' : id === 'flow' && settings.flow.sourceVersion === 21 ? '21 Introducing flow-1 2' : labels[id], start, duration, end: start + duration}; start += duration; return segment;});
 }
 export const ultimate3Duration = (settings: Ultimate3Settings) => chapterSchedule(settings).at(-1)!.end;
 export const ultimate3DurationFrames = (settings: Ultimate3Settings) => Math.ceil(ultimate3Duration(settings) * 30);
@@ -47,7 +48,7 @@ export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings
   const flowProgress = Object.fromEntries(FLOW_CLIP_KEYS.map(key => [key, key === 'cloudReveal' ? 1 : progress(nativeTime, settings.flow.timing[key])])) as FlowPlayback['progress'];
   return {entryProgress: progress(localChapterTime, entry), nativeTime, playback: {time: nativeTime, timing, progress: flowProgress}};
 }
-export type Ultimate3Sample = {time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: 'placeholder'|'logo'; conclusionSource?: ReturnType<typeof sampleMicro20>};
+export type Ultimate3Sample = {time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: 'placeholder'|'logo'; conclusionSource22?: Micro22Sample; conclusionSource?: ReturnType<typeof sampleMicro20>};
 export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimate3Sample {
   const settings = normalizeSettings(input); const located = locateChapter(time, settings); const base = {time: located.time, chapter: located.segment.id, localTime: located.localTime, schedule: located.schedule};
   if (located.segment.id === 'ultimate2') return {...base, ultimate2: sampleMicro17(Math.min(located.localTime, ultimate2Endpoint(settings)), settings.ultimate2.timing)};
@@ -57,6 +58,12 @@ export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimat
     return {...base, issues: sampleIssues(located.localTime, settings)};
   }
   if (located.localTime >= settings.conclusion.logo.at) return {...base, conclusion: 'logo'};
+  if (settings.issues.sourceVersion === 22) {
+    const card = settings.conclusion.placeholder, ease = card.transition?.type === 'easing' ? card.transition.duration : undefined;
+    const clip = ease !== undefined && ease < card.duration ? {...card, duration: ease} : card;
+    return {...base, conclusion: 'placeholder', conclusionSource22: sampleMicro22(issueEndpoint(settings),
+      {timing: settings.issues.timing22, controls: settings.issues.controls22, issueTiming: settings.issues.timing, issueControls: settings.issues.controls}, undefined, {time: located.localTime, clip})};
+  }
   const terminal = sampleIssues(issueEntryEnd(settings) + issueEndpoint(settings), settings).source20;
   // A shorter explicit easing finishes the pullback early, then holds the pulled-back pose until the logo cut.
   const card = settings.conclusion.placeholder, ease = card.transition?.type === 'easing' ? card.transition.duration : undefined;
@@ -66,12 +73,14 @@ export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimat
 }
 
 /** The entry is a camera move, not part of source20's native clock. */
-export function sampleIssues(localTime: number, settings: Ultimate3Settings) {
+export function sampleIssues(localTime: number, settings: Ultimate3Settings, live22?: Partial<Micro22Progress>, livePostlude?: Partial<Record<keyof Ultimate3Settings['issues']['timing'], number>>) {
   const i = settings.issues;
   const nativeTime = Math.min(issueEndpoint(settings), Math.max(0, localTime - issueEntryEnd(settings)));
-  const source20 = sampleMicro20(nativeTime, i.preludeControls, i.preludeTiming, i.controls, i.timing, i.issueStart, false);
+  const source22 = i.sourceVersion === 22 ? sampleMicro22(nativeTime, {timing: i.timing22, controls: i.controls22, issueTiming: i.timing, issueControls: i.controls}, live22, undefined, livePostlude) : undefined;
+  // One shared world also routes dynamic postlude/audio consumers.
+  const source20 = source22?.world ?? sampleMicro20(nativeTime, i.preludeControls, i.preludeTiming, i.controls, i.timing, i.issueStart, false);
   return {entering: localTime < issueEntryEnd(settings), entryProgress: issueEntryProgress(localTime, settings), nativeTime,
-    source20, postludeActive: localTime >= issueEntryEnd(settings) && source20.phase === 'issues', postludeOffset: issuePostludeOffset(settings),
+    sourceVersion: i.sourceVersion, source22, source20, postludeActive: localTime >= issueEntryEnd(settings) && source20.phase === 'issues', postludeOffset: issuePostludeOffset(settings),
     // Compatibility-only shape for existing postlude consumers. Before the
     // handoff this opening sample is NOT visible; gate events on postludeActive.
     sample: source20.phase === 'issues' ? source20.issue : sampleMicro15(0, {...i.controls, warningAppearanceDuration: 0}, i.timing)};
@@ -79,6 +88,7 @@ export function sampleIssues(localTime: number, settings: Ultimate3Settings) {
 
 /** Validate the settled handoff, not an ordinarily unfinished playback frame. */
 export function issueHandoffValidation(settings: Ultimate3Settings) {
+  if (settings.issues.sourceVersion === 22) return sampleMicro22(issuePreludeEnd(settings), {timing: settings.issues.timing22, controls: settings.issues.controls22, issueTiming: settings.issues.timing, issueControls: settings.issues.controls}).world.validation;
   const i = settings.issues;
   return sampleMicro20(issuePreludeEnd(settings), i.preludeControls, i.preludeTiming,
     i.controls, i.timing, i.issueStart).validation;

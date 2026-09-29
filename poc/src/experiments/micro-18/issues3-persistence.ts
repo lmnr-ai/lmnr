@@ -30,7 +30,7 @@ const generatedTiming = (timing: any) => Object.entries(MICRO_15_TIMING).every((
 export function migrateStoredIssues3(input: unknown): unknown {
   if (!input || typeof input !== 'object') return input;
   const raw = input as any, old = raw.issues;
-  if (!old || old.sourceVersion === 20) return input;
+  if (!old || (old.sourceVersion === 20 || old.sourceVersion === 22)) return input;
   const defaults = ULTIMATE_3_DEFAULTS.issues;
   const generated = generatedTiming(old.timing);
   const leadIn = !old.leadIn || generatedEntry(old.leadIn) ? defaults.leadIn : {...LEGACY_ENTRY, ...old.leadIn};

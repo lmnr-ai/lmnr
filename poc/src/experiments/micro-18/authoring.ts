@@ -1,3 +1,5 @@
+import {MICRO_22_KEYS, normalizeMicro22Timing} from '../micro-22/timeline';
+import {micro22AuthoredClip} from '../micro-22/authoring';
 import type {FlowPlayback} from '../introducing-flow-1/sample';
 import {FLOW_CLIP_KEYS, INTRODUCING_FLOW_1_TIMELINE, type FlowClipKey} from '../introducing-flow-1/timeline';
 import {FLOW_2_CLIP_KEYS, FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
@@ -192,7 +194,11 @@ export function settingsFromConclusionTimeline(timeline: any, settings: Ultimate
 }
 
 export const ISSUES_TIMELINE_KEYS = ['leadIn', ...PRELUDE_KEYS.map(key => `prelude_${key}`), ...ISSUE_KEYS.map(key => `postlude_${key}`)];
+export const issuesTimelineKeys = (settings: Ultimate3Settings) => settings.issues.sourceVersion === 22 ? ['leadIn', ...MICRO_22_KEYS.map(key => `report_${key}`), ...ISSUE_KEYS.map(key => `postlude_${key}`)] : ISSUES_TIMELINE_KEYS;
 export function issuesTimelineConfig(settings: Ultimate3Settings) {
+  if (settings.issues.sourceVersion === 22) return {duration: settings.allocations.issues, leadIn: settings.issues.leadIn,
+    ...Object.fromEntries(Object.entries(normalizeMicro22Timing(settings.issues.timing22)).map(([key, clip]) => [`report_${key}`, {...clip, at: clip.at + issueEntryEnd(settings)}])),
+    ...Object.fromEntries(ISSUE_KEYS.map(key => [`postlude_${key}`, {...settings.issues.timing[key], at: issuePostludeOffset(settings) + settings.issues.timing[key].at}]))};
   return {duration: settings.allocations.issues, leadIn: settings.issues.leadIn,
     ...Object.fromEntries(PRELUDE_KEYS.map(key => [`prelude_${key}`, {...settings.issues.preludeTiming[key], at: issueEntryEnd(settings) + settings.issues.preludeTiming[key].at}])),
     ...Object.fromEntries(ISSUE_KEYS.map(key => [`postlude_${key}`, {...settings.issues.timing[key], at: issuePostludeOffset(settings) + settings.issues.timing[key].at}])),
@@ -200,7 +206,7 @@ export function issuesTimelineConfig(settings: Ultimate3Settings) {
 }
 export function issuesTimelineValues(settings: Ultimate3Settings): Record<string, any> {
   const config = issuesTimelineConfig(settings) as Record<string, any>;
-  return Object.fromEntries(ISSUES_TIMELINE_KEYS.flatMap(key => {
+  return Object.fromEntries(issuesTimelineKeys(settings).flatMap(key => {
     const clip = config[key];
     return [[`${key}.at`, clip.at], [`${key}.duration`, clip.duration],
       ...clip.transition ? [[`${key}.transition`, clip.transition]] : [],
@@ -210,14 +216,15 @@ export function issuesTimelineValues(settings: Ultimate3Settings): Record<string
 }
 /** Bars are chapter seconds; each source20 part keeps its own native seconds.
  * When a dependency moves, downstream bars ripple instead of being reinterpreted. */
-export function settingsFromIssuesTimeline(timeline: any, settings: Ultimate3Settings) {
+export function settingsFromIssuesTimeline(timeline: any, settings: Ultimate3Settings, flat: Record<string, unknown> = {}) {
   const i = settings.issues;
-  const leadIn = normalizeClip(timeline.leadIn, i.leadIn);
+  const leadIn = normalizeClip(i.sourceVersion === 22 && timeline.leadIn ? micro22AuthoredClip(timeline.leadIn, 'leadIn', flat) : timeline.leadIn, i.leadIn);
   const withEntry = normalizeSettings({...settings, issues: {...i, leadIn}});
   const extract = (key: string, fallback: ClipTiming, oldOffset: number, newOffset: number) => {
     if (!timeline[key]) return fallback;
     const previous = {...fallback, at: fallback.at + oldOffset};
-    const authored = normalizeClip(timeline[key], previous);
+    const authored = normalizeClip(i.sourceVersion === 22 ? micro22AuthoredClip(timeline[key], key, flat)
+      : flat[`${key}.transition`] ? {...timeline[key], transition: flat[`${key}.transition`]} : timeline[key], previous);
     // An unchanged downstream bar is a dependency ripple, not a negative
     // native-time edit. Changed bars in a full preset/import use its NEW offset.
     const sameAt = Math.abs(authored.at - previous.at) < 1e-9;
@@ -225,6 +232,13 @@ export function settingsFromIssuesTimeline(timeline: any, settings: Ultimate3Set
     const at = sameAt ? fallback.at : Math.max(0, authored.at - newOffset);
     return {...authored, at: Math.abs(at - fallback.at) < 1e-9 ? fallback.at : at};
   };
+  if (i.sourceVersion === 22) {
+    const previous = normalizeMicro22Timing(i.timing22);
+    const timing22 = Object.fromEntries(MICRO_22_KEYS.map(key => [key, extract(`report_${key}`, previous[key], issueEntryEnd(settings), issueEntryEnd(withEntry))]));
+    const interim = normalizeSettings({...withEntry, issues: {...withEntry.issues, timing22}});
+    const timing = Object.fromEntries(ISSUE_KEYS.map(key => [key, extract(`postlude_${key}`, i.timing[key], issuePostludeOffset(settings), issuePostludeOffset(interim))]));
+    return normalizeSettings({...interim, issues: {...interim.issues, timing}});
+  }
   const preludeTiming = Object.fromEntries(PRELUDE_KEYS.map(key => [key,
     extract(`prelude_${key}`, i.preludeTiming[key], issueEntryEnd(settings), issueEntryEnd(withEntry))]));
   const interim = normalizeSettings({...withEntry, issues: {...withEntry.issues, preludeTiming}});

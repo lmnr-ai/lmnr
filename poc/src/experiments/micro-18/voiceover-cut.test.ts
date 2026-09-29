@@ -22,7 +22,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
   const {clouds, voiceover} = VOICEOVER_DEFAULTS;
   assert.ok(clouds!.timing.slideIn.at > 0);
   assert.equal(Object.keys(voiceover!.phrases).length, 22);
-  assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2085);
+  assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2276);
   assert.equal(issueHandoffValidation(VOICEOVER_DEFAULTS), null);
   assert.equal(VOICEOVER_DEFAULTS.conclusion.logo.at, 3.75);
   const pullbackTransition = VOICEOVER_DEFAULTS.conclusion.placeholder.transition;
@@ -32,7 +32,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
   assert.equal(sampleUltimate3(conclusionStart + 3.74, VOICEOVER_DEFAULTS).conclusion, 'placeholder');
   assert.equal(sampleUltimate3(conclusionStart + 3.75, VOICEOVER_DEFAULTS).conclusion, 'logo');
   const duration = chapterSchedule(VOICEOVER_DEFAULTS).at(-1)!.end;
-  assert.ok(Math.abs(duration - (65.78133333333332 + OPENING_RIPPLE)) < 1e-9);
+  assert.ok(Math.abs(duration - (65.78133333333332 + OPENING_RIPPLE + (21 - 14.633333333333333))) < 1e-9);
   const times = [0, .45, 9.57, 18.698, 32.398, 44.898, 50.368, 53.218, 59.53133333333333, 63.301, duration];
   const forward = times.map(time => sampleUltimate3(time, VOICEOVER_DEFAULTS));
   [...times].reverse().forEach((time, i) => assert.deepEqual(sampleUltimate3(time, VOICEOVER_DEFAULTS), forward[forward.length - i - 1]));
@@ -44,7 +44,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
 
 test('v4 preview has matching score, phrase placement and rendered audio provenance', () => {
   const cues = ultimate3ScoreCues(VOICEOVER_DEFAULTS);
-  assert.equal(cues.duration, 2085 / 30);
+  assert.equal(cues.duration, 2276 / 30);
   assert.ok(cues.issues.prelude.bashEntry.at < cues.issues.prelude.scaleOut);
   assert.ok(cues.issues.prelude.scaleOut < cues.issues.native);
   assert.ok(SCORE_STYLES['arabesque-acoustic-chill']);
@@ -88,7 +88,7 @@ test('the explicitly owned voiceover Issues panel retains easing through DialKit
   const id = 'ultimate3-voiceover-issues-v4';
   const store = new (DialStore.constructor as new () => typeof DialStore)();
   installMicro20AuthoringCompatibility(store, undefined, true, id);
-  const config = parseTimelineConfig(issuesTimelineConfig(VOICEOVER_DEFAULTS)).dialConfig;
+  const config = parseTimelineConfig(issuesTimelineConfig({...VOICEOVER_DEFAULTS, issues: {...VOICEOVER_DEFAULTS.issues, sourceVersion: 20}})).dialConfig;
   store.registerPanel(id, 'Returned cut', config);
   const path = 'postlude_subtitleIssues.transition';
   const easing: DialValue = {type: 'easing', duration: .33, ease: [.1, 0, .8, 1]};

@@ -122,22 +122,23 @@ export function effectiveIssueStart(timing: Partial<PreludeTiming>, earliest = I
   return Math.max(normalizeIssueStart(earliest), ...Object.values(resolvePreludeSchedule(timing)).map(clipEnd));
 }
 /** Mirrors source15's arrival/merge and after-send dependencies without changing it. */
-export function issueEnd(rawControls = MICRO_20_ISSUE_DEFAULTS, input: Partial<IssueTiming> = MICRO_20_ISSUE_TIMING) {
+export function issueEnd(rawControls = MICRO_20_ISSUE_DEFAULTS, input: Partial<IssueTiming> = MICRO_20_ISSUE_TIMING, authoredSchedule = false) {
   const controls = normalizeMicro15Controls(rawControls), t = normalizeIssueTiming(input);
-  const source = sampleMicro15(0, {...controls, warningAppearanceDuration: 0}, t);
+  const endpoint = authoredSchedule ? clipEnd : (clip: ClipTiming) => clip.at + clip.duration;
+  const source = sampleMicro15(0, {...controls, warningAppearanceDuration: 0}, t, authoredSchedule ? () => 0 : undefined, endpoint);
   const ready = Math.max(...Object.values(source.clusters).map(cluster => cluster.readyAt));
   const lastArrival = Math.max(...Object.entries(START_CELLS).map(([id, cell]) => {
     if (id === `cell-${cell}`) return 0;
     const travel = travelTimingForCell(cell, t.travelStart, controls.travelDuration);
-    return travel.at + travel.duration;
+    return endpoint({...t.travelStart, ...travel});
   }));
   const sendEnd = clipEnd(t.messageSend);
   const predicateAt = Math.max(t.sqlPredicateTyping.at, sendEnd);
   const iconAt = predicateAt + t.sqlPredicateTyping.duration * (SQL_PREDICATE_PREFIX.length + 1) / SQL_PREDICATE.length;
   return Math.max(controls.timelineDuration, lastArrival, ...Object.values(t).map(clipEnd),
-    ...(['coverAppearance', 'triangleScaleOut', 'triangleScaleIn'] as const).map(key => Math.max(ready, t[key].at) + t[key].duration),
-    ...(['cliCommandTyping', 'sqlQueryTyping', 'sqlPredicateTyping'] as const).map(key => Math.max(sendEnd, t[key].at) + t[key].duration),
-    Math.max(iconAt, t.queryWarningIn.at) + t.queryWarningIn.duration);
+    ...(['coverAppearance', 'triangleScaleOut', 'triangleScaleIn'] as const).map(key => endpoint({...t[key], at: Math.max(ready, t[key].at)})),
+    ...(['cliCommandTyping', 'sqlQueryTyping', 'sqlPredicateTyping'] as const).map(key => endpoint({...t[key], at: Math.max(sendEnd, t[key].at)})),
+    endpoint({...t.queryWarningIn, at: Math.max(iconAt, t.queryWarningIn.at)}));
 }
 export type Micro20AuthoredProps = Partial<Micro20Controls> & {preludeTiming?: Partial<PreludeTiming>; issueTiming?: Partial<IssueTiming>; issueControls?: Micro15Controls; issueStart?: number};
 export function micro20PostludeDurationFrames(props: Micro20AuthoredProps = {}) {

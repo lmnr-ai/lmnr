@@ -10,7 +10,7 @@ import {START_CELLS} from '../micro-15/starting-positions';
 import {sampleMicro15} from '../micro-15/sample';
 import {MICRO_15_SUBTITLE_KEYS, type Micro15Controls} from '../micro-15/timeline';
 import {HIGHLIGHT_LINES, PAPER_LINE_HEIGHT} from './paper';
-import {MICRO_20_DEFAULTS, MICRO_20_ISSUE_DEFAULTS, MICRO_20_ISSUE_TIMING, PRELUDE_TIMING, ISSUE_START, effectiveIssueStart, evaluateClip, normalizeIssueTiming, normalizeMicro20Controls, resolvePreludeSchedule, unit, type Micro20Controls, type PreludeTiming, type IssueTiming} from './timeline';
+import {MICRO_20_DEFAULTS, MICRO_20_ISSUE_DEFAULTS, MICRO_20_ISSUE_TIMING, PRELUDE_TIMING, ISSUE_START, effectiveIssueStart, evaluateClip, clipEnd, normalizeIssueTiming, normalizeMicro20Controls, resolvePreludeSchedule, unit, type Micro20Controls, type PreludeTiming, type IssueTiming, type ClipTiming} from './timeline';
 
 const smooth = (value: number) => {const p = unit(value); return p * p * (3 - 2 * p);};
 export const warningDistance = (cell: number) => {
@@ -21,14 +21,14 @@ export const scanSoftness = (controls: Micro20Controls) => 78 * (.25 + controls.
 export const requiredScanRadius = (controls: Micro20Controls, renderedScale = 1) => Math.max(...Object.values(START_CELLS).map(warningDistance)) * renderedScale + scanSoftness(controls);
 export function sampleMicro20(timeInput: number, rawControls: Partial<Micro20Controls> = MICRO_20_DEFAULTS,
   timingInput: Partial<PreludeTiming> = PRELUDE_TIMING, issueControls: Micro15Controls = MICRO_20_ISSUE_DEFAULTS,
-  issueTiming: Partial<IssueTiming> = MICRO_20_ISSUE_TIMING, issueStartInput = ISSUE_START, includeOutro = true) {
+  issueTiming: Partial<IssueTiming> = MICRO_20_ISSUE_TIMING, issueStartInput = ISSUE_START, includeOutro = true, progressOverride?: Partial<Record<keyof PreludeTiming, number>>, authoredIssues?: {progress?: Partial<Record<keyof IssueTiming, number>>}) {
   const time = Number.isFinite(timeInput) ? Math.max(0, timeInput) : 0;
   const controls = normalizeMicro20Controls(rawControls), timing = resolvePreludeSchedule(timingInput);
   const issueStart = effectiveIssueStart(timingInput, issueStartInput);
   const ownedTiming = normalizeIssueTiming(issueTiming);
   const narration = sampleNarration(time, timing, ownedTiming, issueStart);
   const subtitleOpacity = narrationOpacity(narration, time, timing, ownedTiming, issueStart);
-  const progress = Object.fromEntries(Object.entries(timing).map(([key, clip]) => [key, evaluateClip(clip, time)])) as Record<keyof PreludeTiming, number>;
+  const progress = Object.fromEntries(Object.entries(timing).map(([key, clip]) => [key, progressOverride?.[key as keyof PreludeTiming] ?? evaluateClip(clip, time)])) as Record<keyof PreludeTiming, number>;
   // Retain raw authored progress for diagnostics/serialization. Geometry uses
   // the identical bounded policy in preview, inspection and export.
   const p = Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, unit(value)])) as typeof progress;
@@ -47,10 +47,18 @@ export function sampleMicro20(timeInput: number, rawControls: Partial<Micro20Con
     const outroStart = micro20PostludeDurationFrames({...rawControls, preludeTiming: timingInput, issueControls, issueTiming, issueStart: issueStartInput}) / 30;
     const outroTime = includeOutro && time >= outroStart ? Math.min(MICRO_20_OUTRO_DURATION, time - outroStart) : null;
     const local = Math.round(((outroTime === null ? time : outroStart) - issueStart) * 1e9) / 1e9;
-    const source = sampleMicro15(local, {...issueControls, warningAppearanceDuration: 0}, ownedTiming);
+    // Opt-in full authored curves for source22; historical source20/15 stay literal.
+    const authored = authoredIssues ? (key: string, effective: ClipTiming, eased: boolean) => {
+      const clip = ownedTiming[key as keyof IssueTiming];
+      const delta = (authoredIssues.progress?.[key as keyof IssueTiming] ?? evaluateClip(clip, local)) - evaluateClip(clip, local);
+      const raw = unit(evaluateClip(effective, local) + delta);
+      const value = raw < 1e-9 ? 0 : raw > 1 - 1e-9 ? 1 : raw;
+      return eased && !effective.transition ? smooth(value) : value;
+    } : undefined;
+    const source = sampleMicro15(local, {...issueControls, warningAppearanceDuration: 0}, ownedTiming, authored, authoredIssues ? clipEnd : undefined);
     // Source15 has an intentional live/pure subtitle split. This local adapter
     // evaluates its full authored spring clips identically on every render path.
-    const subtitles = Object.freeze(Object.fromEntries(MICRO_15_SUBTITLE_KEYS.map(key => [key, evaluateClip(ownedTiming[key], local)]))) as typeof source.subtitles;
+    const subtitles = Object.freeze(Object.fromEntries(MICRO_15_SUBTITLE_KEYS.map(key => [key, authoredIssues?.progress?.[key] ?? evaluateClip(ownedTiming[key], local)]))) as typeof source.subtitles;
     return {time, issueStart, narration, subtitleOpacity, phase: 'issues' as const, outro: outroTime === null ? null : sampleIssueOutro({...source, subtitles}, outroTime), issue: {...source, subtitles}, issueWorld: mapIssueWorld(source), progress, controls, validation: null};
   }
   const descent = BASH.descent * p.bashDescent;

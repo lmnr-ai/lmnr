@@ -1,3 +1,4 @@
+import {Micro22Scene, Micro22Subtitles} from '../micro-22/Scene';
 import {useId} from 'react';
 import {staticFile} from 'remotion';
 import {DitherClouds, type CloudState} from '../micro-09/DitherClouds';
@@ -94,14 +95,14 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
       </div>
       {issues && <div className="micro18-issues-surface" data-entry={issues.entering} data-native-time={issues.nativeTime}
         style={{transform: `translate(${issuePlacement.x}px,${issuePlacement.y}px) scale(${issuePlacement.scale})`}}>
-        <Micro20Scene sample={issues.source20} sharedEntry={issues.entering} showSubtitles={false}/>
+        {issues.source22 ? <Micro22Scene sample={issues.source22} sharedEntry={issues.entering} showSubtitles={false}/> : <Micro20Scene sample={issues.source20} sharedEntry={issues.entering} showSubtitles={false}/>}
       </div>}
     </div>
     {(isFlow || outgoingCloudsVisible) && <div className="micro18-flow-cloud-layer" data-cloud-attachment={issues ? 'outgoing-world' : flow.entryProgress < 1 ? 'opening-world' : 'screen'}
       style={{transform: `translate(${cloudTransform.x}px,${cloudTransform.y}px) scale(${cloudTransform.scale})`}}>
       <DitherClouds progress={flowState.cloudProgress} yOffset={settings.flow.controls.cloudYOffset} translateY={flowState.cloudTranslateY}/>
     </div>}
-    {issues ? <IssueSubtitles narration={issues.entering ? null : issues.source20.narration} opacity={issues.source20.subtitleOpacity}/> : isFlow ? (flow.playback21 ? <Flow21Subtitles progress={flow.playback21.progress}/> : <FlowSubtitles modelName="flow-1" progress={flow.playback.progress}/>) : <Subtitles progress={cost.progress}/>}
+    {issues ? (issues.source22 ? (!issues.entering && <Micro22Subtitles sample={issues.source22}/>) : <IssueSubtitles narration={issues.entering ? null : issues.source20.narration} opacity={issues.source20.subtitleOpacity}/>) : isFlow ? (flow.playback21 ? <Flow21Subtitles progress={flow.playback21.progress}/> : <FlowSubtitles modelName="flow-1" progress={flow.playback.progress}/>) : <Subtitles progress={cost.progress}/>}
   </div>;
 };
 
@@ -124,7 +125,7 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
     }
   } else if (sample.chapter === 'conclusion') {
     const stage = sample.conclusion === 'logo' ? 'logo' : 'placeholder';
-    content = <>{stage === 'placeholder' && sample.conclusionSource
+    content = <>{stage === 'placeholder' && sample.conclusionSource22 ? <Micro22Scene sample={sample.conclusionSource22} showSubtitles={false}/> : stage === 'placeholder' && sample.conclusionSource
       ? <Micro20Scene sample={sample.conclusionSource} showSubtitles={false}/>
       : <Card kind={stage}/>}<ConclusionSubtitles stage={stage}/></>;
   } else {

@@ -74,16 +74,18 @@ test('four actual blocks add 720px; new run preserves the 391.025604px approach 
 test('downstream chapters and cloud default beats ripple together; editor sampling equals export sampling in reverse', () => {
   const s = VOICEOVER_DEFAULTS, schedule = chapterSchedule(s);
   close(schedule[0].duration, old.allocations.ultimate2 + OPENING_RIPPLE);
-  for (let i = 1; i < schedule.length; i++) close(schedule[i].start, chapterSchedule(old)[i].start + OPENING_RIPPLE);
-  for (const id of ['cost', 'flow', 'issues', 'conclusion'] as const) close(s.allocations[id], old.allocations[id]);
+  for (let i = 1; i < 4; i++) close(schedule[i].start, chapterSchedule(old)[i].start + OPENING_RIPPLE);
+  for (const id of ['cost', 'flow', 'conclusion'] as const) close(s.allocations[id], old.allocations[id]);
   for (const key of ['slideIn', 'partialRecede', 'recede'] as const)
     close(s.clouds!.timing[key].at, old.clouds!.timing[key].at + OPENING_RIPPLE);
   close(s.clouds!.timing.slideIn.at, s.ultimate2.timing.cloudEnter.at);
   close(s.ultimate2.timing.upwardTurn.at, 9.278);
   close(s.ultimate2.timing.warningEnter.at, 12.878);
   close(s.ultimate2.timing.cloudEnter.at, 19.358);
-  close(schedule.at(-1)!.end, 69.49133333333333);
-  assert.equal(ultimate3DurationFrames(s), 2085);
+  close(s.allocations.issues,21);
+  close(schedule[4].start,69.608);
+  close(schedule.at(-1)!.end, 75.858);
+  assert.equal(ultimate3DurationFrames(s), 2276);
   const times = [0, 3.44, 8.37, 9.278, 10.51, 12.878, 13.5, 19.358, 19.68, 20.28,
     ...schedule.map(chapter => chapter.start), schedule.at(-1)!.end];
   const forward = times.map(time => sampleUltimate3(time, s));

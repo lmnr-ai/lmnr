@@ -1,8 +1,10 @@
 # Signals launch video — agent handoff
 
-## Current handoff: Animation 21 in Ultimate 3
+## Current handoff: Issue Clusters 4 and new voice recording
 
-The current `sandbox/signals-launch-video` publication uses Animation 21 in the default editable Ultimate 3 voiceover cut. Start with **[handoff/flow21/README.md](handoff/flow21/README.md)** for current settings, timing, verification, and pending sound work. The original cut remains available separately.
+Start with **[handoff/issues4/README.md](handoff/issues4/README.md)**. The current editable Ultimate3 uses Animation21 plus Animation22's expanding report and restored clustering/coding-agent sequence. The latest user re-recording, **[Signals-launch-09-29-10-04.m4a](public/audio/voiceover/Signals-launch-09-29-10-04.m4a)**, is attached for the next agent's alignment pass; it is not wired into playback yet. The original cut remains separately available.
+
+The earlier **[Flow21 handoff](handoff/flow21/README.md)** remains useful background, but its full-composition duration predates the longer restored Issues chapter.
 
 The sections below document the **earlier historical transfer** and its original-cut timing.
 

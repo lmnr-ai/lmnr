@@ -1,0 +1,13 @@
+.micro22-composition {position:absolute;inset:0;overflow:hidden;background:#1a1a1a;isolation:isolate}
+.micro22-trace-world {position:absolute;inset:0;transform-origin:640px 360px}
+.micro22-trace-world>.micro20-composition {overflow:visible;background:transparent}
+.micro22-report {position:relative;background:white;border-radius:40px;color:#000;font:400 24px/40px Micro20Mono,monospace;font-synthesis:none;transform-origin:100% 50%}
+.micro22-report-warning {position:absolute;left:50%;top:50%;width:86.797px;height:80.604px;transform:translate(-50%,-50%)}
+.micro22-report-content {position:absolute;inset:32px;overflow:hidden}
+.micro22-report-row {display:flex;align-items:center;justify-content:space-between;height:40px;margin-bottom:8px;white-space:nowrap}
+.micro22-report-row [data-report-chip] {padding:4px 14px;border-radius:500px;line-height:32px}
+.micro22-explanation p {color:#808080;margin:8px 0 0;line-height:40px}
+.micro22-report-tail {position:absolute;left:100%;top:calc(50% - 25px);width:44px;height:51px}
+.micro22-composition .micro20-subtitle:empty {display:none}
+
+.micro22-trace-world .micro20-world {overflow:visible}

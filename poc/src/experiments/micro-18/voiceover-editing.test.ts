@@ -31,7 +31,7 @@ test('22 real timeline bars and first six in Ultimate 2 share phrase settings; i
   assert.equal(result.voiceover?.phrases.vo02.duration, .1);
   assert.deepEqual(normalizeVoiceoverSettings(JSON.parse(JSON.stringify(result))), result);
   assert.equal(normalizeVoiceoverSettings({...VOICEOVER_DEFAULTS, voiceover: undefined}).voiceover?.phrases.vo02.at, VOICEOVER_DEFAULTS.voiceover!.phrases.vo02.at);
-  const last = changed('vo22', 69.5, 2);
+  const last = changed('vo22', 2276 / 30, 2);
   assert.equal(last.voiceover!.phrases.vo22.duration, 0);
   assert.equal(changed('vo01', 1, 0).voiceover!.phrases.vo01.duration, 0);
   assert.equal(changed('vo01', 1, 100).voiceover!.phrases.vo01.duration, VOICEOVER_PHRASES[0].b - VOICEOVER_PHRASES[0].a);
@@ -51,7 +51,7 @@ test('shared schedule/PCM uses true trims, overlaps, silence, fades and one line
   assert.equal(phraseGain(.5, .5), 0);
   const doubled = mixVoiceoverPcm(bed, {vo01: source, vo02: source}, settings, 2);
   assert.equal(doubled.l[4800], 2 * both);
-  assert.equal(pcm.l.length, 2085 * 1600);
+  assert.equal(pcm.l.length, 2276 * 1600);
   assert.equal(mixVoiceoverPcm(bed, {vo01: source, vo02: source}, settings, 0).l[4800], 0);
 });
 

@@ -36,7 +36,7 @@ const incompatible = () => new Error('Animation 20 editor disabled: incompatible
  * This version-pinned private seam changes only valid transition fields for the
  * owned timeline, before persistence. Defaults and all other fields stay native.
  * No original saved object is changed, and no temporary method escapes a call. */
-export function installMicro20AuthoringCompatibility(store = DialStore, version = dialkitPackage.version, enableUltimate3Issues = false, ultimate3IssuesTimelineId = ULTIMATE3_ISSUES_TIMELINE_ID) {
+export function installMicro20AuthoringCompatibility(store = DialStore, version = dialkitPackage.version, enableUltimate3Issues = false, ultimate3IssuesTimelineId = ULTIMATE3_ISSUES_TIMELINE_ID, customPaths?: string[]) {
   const runtime = store as unknown as PrivateSeam & {[installedKey]?: Installed};
   if (version !== '1.4.3' || typeof runtime.reconcileValues !== 'function' || runtime.reconcileValues.length !== 3
     || typeof runtime.persistPanel !== 'function' || runtime.persistPanel.length !== 1
@@ -48,11 +48,11 @@ export function installMicro20AuthoringCompatibility(store = DialStore, version 
     if (store.registerPanel !== installed.registerPanel || store.updatePanel !== installed.updatePanel
       || store.updateTransitionMode !== installed.updateTransitionMode || runtime.reconcileValues !== installed.reconcileValues
       || runtime.persistPanel !== installed.persistPanel) throw incompatible();
-    if (enableUltimate3Issues) installed.ownedPaths.set(ultimate3IssuesTimelineId, ultimate3Paths);
+    if (enableUltimate3Issues) installed.ownedPaths.set(ultimate3IssuesTimelineId, customPaths ? new Set(customPaths) : ultimate3Paths);
     return;
   }
   const ownedPaths = new Map([[MICRO_20_TIMELINE_ID, paths]]);
-  if (enableUltimate3Issues) ownedPaths.set(ultimate3IssuesTimelineId, ultimate3Paths);
+  if (enableUltimate3Issues) ownedPaths.set(ultimate3IssuesTimelineId, customPaths ? new Set(customPaths) : ultimate3Paths);
   const register = store.registerPanel, update = store.updatePanel, updateMode = store.updateTransitionMode;
   const reconcile = runtime.reconcileValues, persist = runtime.persistPanel;
   const duringRegistration = (id: string, run: () => void) => {

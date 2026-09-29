@@ -1,6 +1,6 @@
 import {OUTRO_TEXT} from './outro';
 import {WARNING_ASSETS} from '../micro-09/sparkle';
-import {useEffect, useId, useState, type CSSProperties} from 'react';
+import {useEffect, useId, useState, type CSSProperties, type ReactNode} from 'react';
 import {cancelRender, continueRender, delayRender, staticFile} from 'remotion';
 import {COLORS, SMALL_WARNING, TOKEN_BY_ID} from '../micro-14/geometry';
 import {Micro15Scene} from '../micro-15/Scene';
@@ -19,7 +19,7 @@ const ToolBlock = ({x, y, width, label, source}: {x: number; y: number; width: n
   ? <image href={staticFile(`micro-16/${source}`)} x={x} y={y} width={width} height={120}/>
   : <g><rect x={x} y={y} width={width} height={120} fill="#5c5c5c"/><text className="micro20-label" x={x + 32} y={y + 78}>{label}</text></g>;
 
-export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = true}: {sample: Micro20Sample; sharedEntry?: boolean; showSubtitles?: boolean}) => {
+export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = true, traceContent, report, extendedGrid = false}: {sample: Micro20Sample; sharedEntry?: boolean; showSubtitles?: boolean; traceContent?: {lines: readonly string[]; highlights: readonly number[]}; report?: ReactNode; extendedGrid?: boolean}) => {
   const id = `micro20-${useId().replace(/:/g, '')}`;
   const [handle] = useState(() => delayRender('Load Animation 20 typography and assets'));
   useEffect(() => {
@@ -79,7 +79,7 @@ export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = tr
           <g transform={world}><rect x={s.camera.x - 1280 / s.contentScreenScale} y={s.camera.y - 720 / s.contentScreenScale}
             width={3840 / s.contentScreenScale} height={2160 / s.contentScreenScale} fill={`url(#${id}-local-grid)`}/></g>
         </g>
-        <WorldGrid cameraScale={s.cameraScale}/>
+        <WorldGrid cameraScale={s.cameraScale} extended={extendedGrid}/>
         <g aria-label="one real centered macro cell per trace">
           {s.dots.map(dot => <g key={dot.cell} transform={`translate(${dot.worldX} ${dot.worldY})`}>
             <circle data-analysis-cell={dot.cell} r={60 * s.contentScale * dot.scale} fill={COLORS.dot}/>
@@ -98,9 +98,9 @@ export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = tr
               <foreignObject data-report x={BASH.x} y={BASH.y} width={BASH.width} height={s.paperHeight}
                 style={{overflow: 'hidden', clipPath: `inset(${120 * (1 - expansion)}px 0 0 0)`}}>
                 <div className="micro20-paper" style={{transform: `translateY(${-120 * (1 - expansion)}px)`}}>
-                  {PAPER_LINES.map((line, index) => {
-                    const highlight = HIGHLIGHT_LINES.indexOf(index);
-                    const amount = unit(p.bashHighlight * HIGHLIGHT_LINES.length - highlight);
+                  {(traceContent?.lines ?? PAPER_LINES).map((line, index) => {
+                    const highlight = (traceContent?.highlights ?? HIGHLIGHT_LINES).indexOf(index);
+                    const amount = unit(p.bashHighlight * (traceContent?.highlights ?? HIGHLIGHT_LINES).length - highlight);
                     return <div className="micro20-paper-line" key={index} data-report-line={index} style={{height: PAPER_LINE_HEIGHT}}>{line}
                       {highlight >= 0 && <span data-highlight-line={index} className="micro20-highlight" style={{clipPath: `inset(0 ${100 * (1 - amount)}% 0 0)`}}>{line}</span>}
                     </div>;
@@ -119,6 +119,7 @@ export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = tr
             <image href={staticFile(`micro-16/${ASSETS.warning}`)} x="-43.3985" y="-40.302" width="86.797" height="80.604"/>
           </g>
         </g>
+        {report}
         <g aria-label="warnings discovered by the visible circle">
           {s.warnings.map(warning => <g key={warning.id} transform={`translate(${warning.worldX} ${warning.worldY}) scale(${s.contentScale * warning.scale})`}>
             <image data-token-id={warning.id} data-radial-distance={warning.distance} data-warning-scale={warning.scale} href={warningAsset(warning.id)}

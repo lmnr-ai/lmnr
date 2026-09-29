@@ -1,3 +1,4 @@
+import {micro22Endpoint, micro22PreludeEnd, normalizeMicro22IssueTiming, normalizeMicro22Timing, normalizeMicro22Controls, type Micro22Timing, type Micro22Controls} from '../micro-22/timeline';
 import {DEFAULTS as MICRO17_CONTROLS, type Controls as Micro17Controls} from '../micro-17/geometry';
 import {DEFAULT_TIMING as SOURCE_MICRO17_TIMING, normalizeTiming as normalize17Timing, resolveClips as resolveMicro17Clips, type Timing as Micro17Timing} from '../micro-17/timeline';
 import {DEFAULTS as MICRO16_CONTROLS, DEFAULT_TIMING as MICRO16_TIMING, normalizeControls as normalize16Controls, normalizeTiming as normalize16Timing, type Controls as Micro16Controls, type Timing as Micro16Timing} from '../micro-16/timeline';
@@ -35,7 +36,7 @@ export type Ultimate3Settings = {
   ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10};
   cost: {timing: Micro16Timing; controls: Micro16Controls};
   flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
-  issues: {sourceVersion: 20; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
+  issues: {sourceVersion: 20 | 22; timing22?: Micro22Timing; controls22?: Micro22Controls; migration22?: 1; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
   conclusion: {placeholder: ClipTiming; logo: ClipTiming};
 };
 const smooth = [.45, 0, .55, 1] as [number, number, number, number];
@@ -181,9 +182,10 @@ export function costEndpoint(settings: Ultimate3Settings) {
 /** Source20 owns dependency ripple and includes its final endpoint frame. */
 export function issueEndpoint(settings: Ultimate3Settings) {
   const i = settings.issues;
+  if (i.sourceVersion === 22) return micro22Endpoint(i.timing22, i.timing, i.controls);
   return micro20PostludeDurationFrames({...i.preludeControls, preludeTiming: i.preludeTiming, issueTiming: i.timing, issueControls: i.controls, issueStart: i.issueStart}) / 30;
 }
-export const issuePreludeEnd = (settings: Ultimate3Settings) => effectiveIssueStart(settings.issues.preludeTiming, settings.issues.issueStart);
+export const issuePreludeEnd = (settings: Ultimate3Settings) => settings.issues.sourceVersion === 22 ? micro22PreludeEnd(settings.issues.timing22) : effectiveIssueStart(settings.issues.preludeTiming, settings.issues.issueStart);
 export const issueEntryEnd = (settings: Ultimate3Settings) => clipEnd(settings.issues.leadIn);
 export const issuePostludeOffset = (settings: Ultimate3Settings) => issueEntryEnd(settings) + issuePreludeEnd(settings);
 export function chapterFloors(settings: Ultimate3Settings): Record<ChapterId, number> {
@@ -222,8 +224,11 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
       controls: {...(flow.sourceVersion === 21 ? {beadStaggerSeconds: finite(flow.controls?.beadStaggerSeconds, DEFAULT_BEAD_STAGGER_SECONDS, 0, .5)} : {}), cloudYOffset: finite(flow.controls?.cloudYOffset, 37, -500, 500), blueDotScale: finite(flow.controls?.blueDotScale, 1.2, .25, 5),
         numberRowStagger: finite(flow.controls?.numberRowStagger, .05, 0, .25), coverMotion: ['top','right','split'].includes(flow.controls?.coverMotion ?? '') ? flow.controls!.coverMotion : 'split',
         mutedGray: typeof flow.controls?.mutedGray === 'string' ? flow.controls.mutedGray : '#474747'}},
-    issues: {sourceVersion: 20, leadIn: normalizeClip(issues.leadIn, ULTIMATE_3_DEFAULTS.issues.leadIn),
-      timing: normalizeIssueTiming(issues.timing), controls: normalizeMicro15Controls(issues.controls ?? MICRO_20_ISSUE_DEFAULTS),
+    issues: {sourceVersion: issues.sourceVersion === 22 ? 22 : 20,
+      ...(issues.migration22 === 1 ? {migration22: 1 as const} : {}),
+      ...(issues.sourceVersion === 22 || issues.timing22 ? {timing22: normalizeMicro22Timing(issues.timing22), controls22: normalizeMicro22Controls(issues.controls22)} : {}),
+      leadIn: normalizeClip(issues.leadIn, ULTIMATE_3_DEFAULTS.issues.leadIn),
+      timing: issues.sourceVersion === 22 ? normalizeMicro22IssueTiming(issues.timing) : normalizeIssueTiming(issues.timing), controls: normalizeMicro15Controls(issues.controls ?? MICRO_20_ISSUE_DEFAULTS),
       preludeTiming: normalizePreludeTiming(issues.preludeTiming), preludeControls: normalizeMicro20Controls(issues.preludeControls),
       issueStart: finite(issues.issueStart, ISSUE_START), ...(issues.legacySource15 ? {legacySource15: issues.legacySource15} : {})},
     conclusion: {placeholder: {...clip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder), ...normalizeClip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder)}, logo: clip(conclusion.logo, ULTIMATE_3_DEFAULTS.conclusion.logo)},

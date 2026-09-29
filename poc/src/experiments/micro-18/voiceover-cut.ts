@@ -1,3 +1,5 @@
+import {MICRO_22_TIMING, MICRO_22_DEFAULTS} from '../micro-22/timeline';
+import {upgradeStoredMicro22Timing, upgradeStoredMicro22Captions} from '../micro-22/persistence';
 import importedSettings from '../../../handoff/voiceover-retime/retimed-settings.json';
 import {normalizeSettings, FLOW_21_TIMING, type ClipTiming} from './settings';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
@@ -32,6 +34,7 @@ const phrase = (id: string) => VOICEOVER_PHRASES.find(p => p.id === id)!;
 // fade-out/fade-in of identical source samples sums to unity and the join is the take itself.
 const JOINS: Record<string, ClipTiming> = {vo16: {at: placedDefault(phrase('vo17')).at - phrase('vo16').placed.duration, duration: phrase('vo16').placed.duration + VOICEOVER_FADE}};
 export const VOICEOVER_DEFAULTS = normalizeSettings({...original,
+  issues: {...original.issues, sourceVersion: 22, timing22: MICRO_22_TIMING, controls22: MICRO_22_DEFAULTS, migration22: 1},
   flow: {...original.flow, sourceVersion: 21, timing21: FLOW_21_TIMING},
   allocations: {...original.allocations, ultimate2: original.allocations.ultimate2 + OPENING_RIPPLE},
   clouds: {...original.clouds!, timing: Object.fromEntries(Object.entries(original.clouds!.timing).map(([key, clip]) =>
@@ -45,7 +48,7 @@ export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
   // Stamp imported historical cuts so a later storage load cannot upgrade them.
-  return {...settings, flow: {...settings.flow, sourceVersion: settings.flow.sourceVersion ?? 13 as const}};
+  return {...settings, issues: {...settings.issues, migration22: 1 as const}, flow: {...settings.flow, sourceVersion: settings.flow.sourceVersion ?? 13 as const}};
 }
 
 /** Storage only: replace recognized generated fields individually; JSON imports stay literal. */
@@ -89,8 +92,28 @@ export function migrateStoredVoiceoverFlow21(input: unknown): unknown {
 export function readVoiceoverSettings(storage: Pick<Storage, 'getItem'>) {
   try {
     const stored = storage.getItem(VOICEOVER_SETTINGS_ID);
-    return normalizeVoiceoverSettings(stored ? migrateStoredVoiceoverFlow21(migrateStoredVoiceoverOpening(JSON.parse(stored))) : VOICEOVER_DEFAULTS);
+    return normalizeVoiceoverSettings(stored ? migrateStoredVoiceoverMotion22(migrateStoredVoiceoverIssues22(migrateStoredVoiceoverFlow21(migrateStoredVoiceoverOpening(JSON.parse(stored))))) : VOICEOVER_DEFAULTS);
   } catch {
     return normalizeVoiceoverSettings(VOICEOVER_DEFAULTS);
   }
+}
+
+/** Correct only the first source22 release's generated shallow descent on load. */
+export function migrateStoredVoiceoverMotion22(input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input;
+  const raw = input as typeof VOICEOVER_DEFAULTS;
+  if (raw.issues?.sourceVersion !== 22) return input;
+  const timing22 = upgradeStoredMicro22Captions(upgradeStoredMicro22Timing(raw.issues.timing22));
+  return timing22 === raw.issues.timing22 ? input : {...raw, issues: {...raw.issues, timing22}};
+}
+
+/** Load-only marker also stamps intentional imports (including explicit source20).
+ * Pre-upgrade current-v4 storage switches even when it explicitly persisted20;
+ * all old source20 bars/controls remain recoverable and round-trip untouched. */
+export function migrateStoredVoiceoverIssues22(input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input;
+  const raw = input as typeof VOICEOVER_DEFAULTS;
+  if (raw.issues?.migration22 === 1) return input;
+  return {...raw, issues: {...raw.issues, sourceVersion: 22, migration22: 1,
+    timing22: raw.issues?.timing22 ?? MICRO_22_TIMING, controls22: raw.issues?.controls22 ?? MICRO_22_DEFAULTS}};
 }

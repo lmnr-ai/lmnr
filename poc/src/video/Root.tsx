@@ -1,3 +1,5 @@
+import {MicroAnimation22, MICRO_22_VIDEO_DEFAULTS} from './MicroAnimation22';
+import {micro22DurationFrames} from '../experiments/micro-22/timeline';
 import { Composition } from 'remotion';
 import { createSampler } from '../anim/timeline';
 import { TraceView } from './TraceView';
@@ -213,6 +215,9 @@ export const RemotionRoot = () => (
     fps={30}
     width={1280}
     height={720}
+  />
+  <Composition
+    id="MicroAnimation22" component={MicroAnimation22} durationInFrames={micro22DurationFrames()} fps={30} width={1280} height={720} defaultProps={MICRO_22_VIDEO_DEFAULTS} calculateMetadata={({props}) => ({durationInFrames: micro22DurationFrames(props)})}
   />
   <Composition
     id="MicroAnimation20"
