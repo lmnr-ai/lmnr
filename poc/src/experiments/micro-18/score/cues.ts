@@ -1,6 +1,6 @@
 import {resolveMicro16Clips} from '../../micro-16/timeline';
-import {sampleUltimate3, chapterSchedule, ultimate3DurationFrames, issueHandoffValidation} from '../sample';
-import {beadStagger} from '../../introducing-flow-1-2/beads';
+import {sampleUltimate3, chapterSchedule, flowNarrationRevealAt, ultimate3DurationFrames, issueHandoffValidation} from '../sample';
+import {BEAD_ORDER, beadStagger, NARRATED_BEAD_ORDER} from '../../introducing-flow-1-2/beads';
 import {resolvePreludeSchedule} from '../../micro-20/timeline';
 import {normalizeMicro22Timing} from '../../micro-22/timeline';
 import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
@@ -48,12 +48,22 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
     // Bead i lands one travel after its start, as a fraction of the (possibly sub-50ms) authored bar.
     return round(flowNative + beads.at + beads.duration * (duration + (i - 5) * gap) / duration);
   };
+  // Drops stay in BEAD_ORDER (index 2 is flow-1). Narrated, the peers fill the first five
+  // slots and flow-1 lands one travel after its n12 cue, as beadProgress draws it.
+  const reveal = flowNarrationRevealAt(settings);
+  const numberDrops = () => BEAD_ORDER.map((id, i) => {
+    if (reveal === undefined) return bead(i);
+    if (id !== 'flow') return bead(NARRATED_BEAD_ORDER.indexOf(id));
+    const beads = (flow21 as NonNullable<typeof settings.flow.timing21>).beadsEntry;
+    const {duration, gap} = beadStagger(beads.duration, settings.flow.controls.beadStaggerSeconds);
+    return round(flowNative + Math.max(reveal, beads.at + duration) + duration - (BEAD_ORDER.length - 1) * gap);
+  });
   const flowCues = flow21 ? {
     animation21: true,
     cloudExit: span(flowNative, flow21.cloudExit),
     cameraZoom: span(flowNative, flow21.cameraZoom),
     benchmark: at(flowNative, flow21.benchmarkHeading),
-    numberDrops: Array.from({length: 6}, (_, i) => bead(i)),
+    numberDrops: numberDrops(),
     countUp: span(flowNative, flow21.ballEntry),
     cameraToAnalysis: span(flowNative, flow21.graphSpread),
     numberSwap: span(flowNative, flow21.graphSpread),

@@ -3,7 +3,8 @@ import test from 'node:test';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {graphState} from '../introducing-flow-1-2/geometry';
-import {beadProgress} from '../introducing-flow-1-2/beads';
+import {BEAD_ORDER, beadProgress} from '../introducing-flow-1-2/beads';
+import {ultimate3ScoreCues} from './score/cues';
 import {Ultimate3Scene} from './Scene';
 import {chapterSchedule, flowNarrationRevealAt, sampleFlow, sampleUltimate3} from './sample';
 import {ULTIMATE_3_DEFAULTS} from './settings';
@@ -69,4 +70,13 @@ test('reverse seeks are deterministic and the later chart spread remains identic
   for (const time of [44.92, 45.5, 46.5]) {
     assert.deepEqual(graph(time), graphState(playback(time), s.flow.controls.beadStaggerSeconds));
   }
+});
+
+test('score drops land with each drawn bead, the flow-1 accent on its n12 reveal', () => {
+  const drops = ultimate3ScoreCues(s).flow.numberDrops;
+  BEAD_ORDER.forEach((id, i) => {
+    assert.ok(beadProgress(playback(drops[i] - .01), s.flow.controls.beadStaggerSeconds, cue())[id] < 1, id);
+    assert.ok(Math.abs(beadProgress(playback(drops[i] + 1e-6), s.flow.controls.beadStaggerSeconds, cue())[id] - 1) < 1e-4, id);
+  });
+  assert.ok(drops[2] > s.voiceover!.phrases.n12.at && drops[2] > Math.max(...drops.filter((_, i) => i !== 2)));
 });

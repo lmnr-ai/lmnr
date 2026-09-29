@@ -142,11 +142,11 @@ test('source21 authoring retains actual current values, custom endpoints and cur
   [...times].reverse().forEach((time, index) => assert.deepEqual(sampleFlow(time, edited), states[states.length - 1 - index]));
 });
 
-test('bead drop cues land with the rendered beads, including clamped stagger gaps', () => {
+test('bead drop cues land with the rendered beads, including clamped stagger gaps and the narrated flow-1 hold', () => {
   for (const beadStaggerSeconds of [0, .11, .5]) {
     const settings = normalizeSettings({...s, flow: {...s.flow, controls: {...s.flow.controls, beadStaggerSeconds}}});
     const flowStart = chapterSchedule(settings).find(item => item.id === 'flow')!.start;
-    const progress = (time: number) => beadProgress(sampleFlow(time - flowStart, settings).playback21!, beadStaggerSeconds);
+    const progress = (time: number) => beadProgress(sampleFlow(time - flowStart, settings).playback21!, beadStaggerSeconds, flowNarrationRevealAt(settings));
     ultimate3ScoreCues(settings).flow.numberDrops.forEach((drop, i) => {
       close(progress(drop)[BEAD_ORDER[i]], 1);
       assert.ok(progress(drop - .01)[BEAD_ORDER[i]] < 1, `stagger ${beadStaggerSeconds}: bead ${i} is still travelling before its drop`);

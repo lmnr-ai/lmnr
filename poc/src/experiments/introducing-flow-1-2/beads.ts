@@ -3,7 +3,7 @@ import type {Flow2Playback} from './sample';
 
 export const BEAD_ORDER = ['opus', 'sonnet', 'flow', 'sol', 'gemini', 'luna'] as const;
 export const DEFAULT_BEAD_STAGGER_SECONDS = .11;
-const NARRATED_BEAD_ORDER = ['opus', 'sonnet', 'sol', 'gemini', 'luna', 'flow'] as const;
+export const NARRATED_BEAD_ORDER = ['opus', 'sonnet', 'sol', 'gemini', 'luna', 'flow'] as const;
 
 // Reuse DialKit's easing evaluator, not CSS animation or a wall-clock timer.
 const easing = computeStaticTimeline(parseTimelineConfig({bead: {
