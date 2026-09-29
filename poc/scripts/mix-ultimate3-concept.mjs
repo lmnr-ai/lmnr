@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Mix a rendered Ultimate3 score under the editable-v7 narration and mux it onto a silent picture.
 // usage: node scripts/mix-ultimate3-concept.mjs --bed out/concepts/lumen.wav --out out/concepts/lumen-vo.mp4
-//   [--video out/u3-soak-silent.mp4] [--settings handoff/voiceover-soak/default-settings.json] [--bed-db -5.5]
+//   [--video out/u3-soak-silent.mp4] [--settings handoff/voiceover-soak/default-settings.json] [--bed-db=-5.5]
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
