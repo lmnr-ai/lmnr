@@ -19,9 +19,8 @@ export const COST_NATIVE_TO_WORLD = {
   y: -60.5 * 5 / 6,
 } as const;
 
-// Cost's trimmed endpoint sees through world y≈4050. Flow starts 7.5 cells
-// below that viewport and 12 cells right, aligning both chapter cameras so
-// the bridge travels vertically while preserving the canonical lattice.
+// Historical placement. Current voiceover cuts derive a grid-aligned placement
+// from the actual Cost endpoint instead of equating translateX across zoom levels.
 export const FLOW_PLACEMENT = {x: 1200, y: 4800} as const;
 
 export const costPointToWorld = (point: Point): Point => ({
@@ -44,12 +43,45 @@ export const costCameraInSharedWorld = (camera: Point): SharedCamera => {
   };
 };
 
-/** Compose Animation13's native camera with Flow's fixed world placement. */
-export const flowCameraInSharedWorld = (camera: IntroducingFlowState['camera']): SharedCamera => ({
-  x: camera.x - FLOW_PLACEMENT.x * camera.scale,
-  y: camera.y - FLOW_PLACEMENT.y * camera.scale,
-  scale: camera.scale,
-});
+export type FlowWorldLayout = {
+  placement: Point;
+  openingCenterOffset: number;
+  openingZoom: number;
+  openingBenchmark: number;
+};
+
+/** Keep the viewport center on the same world column across the entry zoom.
+ * Snap content to whole cells, then absorb the sub-cell remainder in the camera.
+ * The layout is computed from fixed endpoints, never from the moving Cost frame.
+ */
+export function createFlowWorldLayout(costCamera: Point, opening: Flow2Playback): FlowWorldLayout {
+  const outgoing = costCameraInSharedWorld(costCamera);
+  const incoming = flow2WorldState(opening).camera;
+  const costCenter = (640 - outgoing.x) / outgoing.scale;
+  const nativeCenter = (640 - incoming.x) / incoming.scale;
+  const exactX = costCenter - nativeCenter;
+  const x = Math.round(exactX / CANONICAL_GRID.pitch) * CANONICAL_GRID.pitch;
+  return {placement: {x, y: FLOW_PLACEMENT.y}, openingCenterOffset: x - exactX,
+    openingZoom: opening.progress.cameraZoom, openingBenchmark: opening.progress.cameraToBenchmark};
+}
+
+/** Compose the native camera with its placement. The small entry correction
+ * follows actual authored progress and disappears by the settled benchmark.
+ * Omitting layout preserves the historical cut exactly.
+ */
+export const flowCameraInSharedWorld = (camera: IntroducingFlowState['camera'], layout?: FlowWorldLayout, playback?: Flow2Playback): SharedCamera => {
+  const placement = layout?.placement ?? FLOW_PLACEMENT;
+  let correction = 0;
+  if (layout) {
+    const zoom = Math.abs(1 - layout.openingZoom) > 1e-6;
+    const start = zoom ? layout.openingZoom : layout.openingBenchmark;
+    const current = playback ? (zoom ? playback.progress.cameraZoom : playback.progress.cameraToBenchmark) : start;
+    const weight = Math.abs(1 - start) > 1e-6 ? Math.max(0, Math.min(1, (1 - current) / (1 - start))) : 1;
+    correction = layout.openingCenterOffset * camera.scale * weight;
+  }
+  return {x: camera.x - placement.x * camera.scale + correction,
+    y: camera.y - placement.y * camera.scale, scale: camera.scale};
+};
 
 const lerp = (a: number, b: number, progress: number) => a + (b - a) * progress;
 export const interpolateCamera = (from: SharedCamera, to: SharedCamera, progress: number): SharedCamera => {
@@ -58,13 +90,14 @@ export const interpolateCamera = (from: SharedCamera, to: SharedCamera, progress
 };
 
 /** One camera only: frozen Cost endpoint → Flow opening, then native Flow camera. */
-export const sharedWorldCamera = ({entryProgress, outgoingCostCamera, flowPlayback, flowPlayback21}: {
+export const sharedWorldCamera = ({entryProgress, outgoingCostCamera, flowPlayback, flowPlayback21, flowLayout}: {
   entryProgress: number;
   outgoingCostCamera: Point;
   flowPlayback: FlowPlayback;
   flowPlayback21?: Flow2Playback;
+  flowLayout?: FlowWorldLayout;
 }): SharedCamera => {
-  const flow = flowCameraInSharedWorld((flowPlayback21 ? flow2WorldState(flowPlayback21) : introducingFlowState(flowPlayback)).camera);
+  const flow = flowCameraInSharedWorld((flowPlayback21 ? flow2WorldState(flowPlayback21) : introducingFlowState(flowPlayback)).camera, flowLayout, flowPlayback21);
   if (entryProgress >= 1) return flow;
   // Source21's native clock is held at zero throughout the entry bridge.
   // Its authored camera.from values are already reflected in this pose;

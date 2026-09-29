@@ -3,6 +3,7 @@ import type {Flow2Playback} from './sample';
 
 export const BEAD_ORDER = ['opus', 'sonnet', 'flow', 'sol', 'gemini', 'luna'] as const;
 export const DEFAULT_BEAD_STAGGER_SECONDS = .11;
+const NARRATED_BEAD_ORDER = ['opus', 'sonnet', 'sol', 'gemini', 'luna', 'flow'] as const;
 
 // Reuse DialKit's easing evaluator, not CSS animation or a wall-clock timer.
 const easing = computeStaticTimeline(parseTimelineConfig({bead: {
@@ -22,12 +23,18 @@ export function beadStagger(barDuration: number, staggerSeconds = DEFAULT_BEAD_S
  * each bead gets the requested smooth curve and starts exactly one gap later.
  * Changing the bar's curve/endpoints warps this group clock via clip.current.
  */
-export function beadProgress(playback: Flow2Playback, staggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS) {
+export function beadProgress(playback: Flow2Playback, staggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS, flowRevealAt?: number) {
   const {duration, gap} = beadStagger(playback.timing.beadsEntry.duration, staggerSeconds);
   const travel = duration - gap * (BEAD_ORDER.length - 1);
   const elapsed = playback.progress.beadsEntry * duration;
-  return Object.fromEntries(BEAD_ORDER.map((id, index) => {
-    const phase = (elapsed - index * gap) / travel;
+  const order = flowRevealAt === undefined ? BEAD_ORDER : NARRATED_BEAD_ORDER;
+  return Object.fromEntries(order.map((id, index) => {
+    // Only the narrated composition holds flow-1 for its spoken cue. Peers keep
+    // the authored group clock/curve and travel duration, with no empty slot.
+    // Waiting for the resolved group end also keeps Flow last after bar edits.
+    const phase = id === 'flow' && flowRevealAt !== undefined
+      ? (playback.time - Math.max(flowRevealAt, playback.timing.beadsEntry.at + duration)) / travel
+      : (elapsed - index * gap) / travel;
     const current = computeClipState(easing, phase, phase).current as {progress: number};
     return [id, current.progress];
   })) as Record<typeof BEAD_ORDER[number], number>;

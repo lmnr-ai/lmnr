@@ -4,6 +4,18 @@ Select `?experiment=micro-22` or Remotion `MicroAnimation22`. Current Ultimate3
 (`?experiment=micro-18`, voiceover-v4) uses source22. Animation20, original-cut,
 and intentionally imported historical JSON remain available.
 
+## Current Ultimate3 handoff
+
+During Flow → Issues, the source22 surface is transparent and unclipped through
+all three nested viewport layers. The shared world owns the grid; repeated trace
+blocks extend beyond the native artboard to cover the wider entry camera. At
+arrival, native viewport and hero-cell clipping resume, with the extensions
+already offscreen. Source20 and standalone source22 keep their original framing.
+This avoids the opaque inset rectangle and truncated trace during the shared zoom.
+
+The narrated cut's explanation typing now takes 1.2s instead of 2.4s, with the
+same start, easing, narration and exit. The native timings below are unchanged.
+
 ## Report and action captions (native seconds)
 
 | Caption | Window | Related action |

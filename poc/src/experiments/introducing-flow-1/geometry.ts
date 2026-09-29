@@ -68,13 +68,23 @@ export function coverGeometry(progress: number, motion: CoverMotion) {
 
 // Same seed, clock, density and neighbor-weighted state changes as Animation 9.
 // Only the selected glyph differs: blue dots instead of multicolored warnings.
-export function sampleFlowDots(time: number) {
-  return sampleSparkleGrid(time, 209, SPARKLE_DEFAULTS).map((cell, index) => ({
+export const flowDotRowScale = (row: number) => row < -1 ? 2 ** (row + 1) : 1;
+
+export function sampleFlowDots(time: number, taperTop = false) {
+  const dots = sampleSparkleGrid(time, 209, SPARKLE_DEFAULTS).map((cell, index) => ({
     row: Math.floor(index / SPARKLE_GRID.columns) - 1,
     column: index % SPARKLE_GRID.columns,
     colored: cell.kind === 'triangle',
     scale: cell.kind === 'triangle' ? 2 : 1,
   }));
+  if (!taperTop) return dots;
+  // Two quiet gray rows soften the top edge without changing the seeded sparkle field.
+  return [...dots, ...Array.from({length: SPARKLE_GRID.columns * 2}, (_, index) => ({
+    row: -2 - Math.floor(index / SPARKLE_GRID.columns),
+    column: index % SPARKLE_GRID.columns,
+    colored: false,
+    scale: 1,
+  }))];
 }
 
 export function benchmarkPercentLabel(id: typeof BENCHMARKS[number]['id'], percent: number, reveal: number) {

@@ -80,9 +80,14 @@ const V6_DEFAULTS = normalizeSettings({...unretimed,
 });
 const {placeholder, logo} = V6_DEFAULTS.conclusion;
 export const VOICEOVER_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
-  issues: {...V6_DEFAULTS.issues, timing22: retime(MICRO_22_TIMING, {...ISSUES_RETIME, ...CLUSTER_RETIME})},
+  // Main timeline cloud tuning; shared by the preview, native detail panel and export.
+  ultimate2: {...V6_DEFAULTS.ultimate2, timing: {...V6_DEFAULTS.ultimate2.timing,
+    cloudEnter: {at: 12.49, duration: 6.17, transition: {type: 'easing', duration: 6.17, ease: [.2, 0, .55, .2]}}}},
+  issues: {...V6_DEFAULTS.issues, timing22: retime(MICRO_22_TIMING, {...ISSUES_RETIME, ...CLUSTER_RETIME,
+    // Twice the word-reveal speed; keep its start, narration and exit unchanged.
+    explanationTyping: [MICRO_22_TIMING.explanationTyping.at - FLOW_HOLD, MICRO_22_TIMING.explanationTyping.duration / 2]})},
   conclusion: {placeholder: {...placeholder, duration: placeholder.duration + GRID_SOAK}, logo: {...logo, at: logo.at + GRID_SOAK}},
-  allocations: {...V6_DEFAULTS.allocations, issues: V6_DEFAULTS.allocations.issues + CLUSTER_BREATH, conclusion: V6_DEFAULTS.allocations.conclusion + GRID_SOAK},
+  allocations: {...V6_DEFAULTS.allocations, ultimate2: 22.41, issues: V6_DEFAULTS.allocations.issues + CLUSTER_BREATH, conclusion: V6_DEFAULTS.allocations.conclusion + GRID_SOAK},
   voiceover: {version: 1, phrases: takePhrases},
 });
 const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS];
@@ -109,7 +114,10 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   // A source13 Flow or kept source20 Issues never had the voice retime.
   const retimed = raw.flow?.sourceVersion !== 13 && !(raw.issues?.migration22 === 1 && raw.issues.sourceVersion === 20);
   const pacing = raw.pacing && retimed ? upgrade(raw.pacing, d => d.pacing) : raw.pacing;
-  if (retimed) for (const id of ['flow', 'issues', 'conclusion'] as const)
+  // Upgrade only the previous generated cloud clip; keep manually tuned clips literal.
+  if (retimed && GENERATED.some(d => equal(timing.cloudEnter, d.ultimate2.timing.cloudEnter)))
+    timing.cloudEnter = VOICEOVER_DEFAULTS.ultimate2.timing.cloudEnter;
+  if (retimed) for (const id of ['ultimate2', 'flow', 'issues', 'conclusion'] as const)
     if (GENERATED.some(d => allocations[id] === d.allocations[id])) allocations[id] = VOICEOVER_DEFAULTS.allocations[id];
   const controls = {...raw.ultimate2?.controls};
   if (controls.streamerSpeed === original.ultimate2.controls.streamerSpeed) controls.streamerSpeed = OPENING_STREAM_SPEED;

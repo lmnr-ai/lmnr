@@ -20,7 +20,7 @@ import {Subtitles as Flow21Subtitles} from '../introducing-flow-1-2/Subtitles';
 import {Subtitles as IssueSubtitles} from '../micro-20/Subtitles';
 import {Micro20Scene} from '../micro-20/Scene';
 import type {Ultimate3Sample} from './sample';
-import {sampleFlow} from './sample';
+import {flowNarrationRevealAt, sampleFlow} from './sample';
 import {ConclusionSubtitles} from './Subtitles';
 import {VoiceoverCaptions} from './VoiceoverCaptions';
 import {costEndpoint, type Ultimate3Settings} from './settings';
@@ -50,10 +50,11 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
   const cost = issues ? sampleMicro16(costEndpoint(settings), settings.cost.controls, settings.cost.timing) : isFlow ? sample.flow!.outgoingCost : sample.cost!;
   const flow = issues ? sampleFlow(settings.allocations.flow, settings) : isFlow ? sample.flow! : sampleFlow(0, settings);
   const flowState = flow.playback21 ? flow2WorldState(flow.playback21) : introducingFlowState(flow.playback);
-  const outgoing = flowCameraInSharedWorld(flowState.camera);
+  const flowPlacement = flow.worldLayout?.placement ?? FLOW_PLACEMENT;
+  const outgoing = flowCameraInSharedWorld(flowState.camera, flow.worldLayout, flow.playback21);
   const issuePlacement = issueSurfacePlacement(outgoing);
   const camera = issues ? flowIssuesCamera(outgoing, issues.entering ? issues.entryProgress : 1) : isFlow
-    ? sharedWorldCamera({entryProgress: flow.entryProgress, outgoingCostCamera: cost.camera, flowPlayback: flow.playback, flowPlayback21: flow.playback21})
+    ? sharedWorldCamera({entryProgress: flow.entryProgress, outgoingCostCamera: cost.camera, flowPlayback: flow.playback, flowPlayback21: flow.playback21, flowLayout: flow.worldLayout})
     : costCameraInSharedWorld(cost.camera);
   const cameraStyle = {
     transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`,
@@ -89,10 +90,10 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
           <Micro16BudgetContent state={cost} id={id}/>
         </svg>
       </div>
-      <div className="micro18-flow-content" data-world-x={FLOW_PLACEMENT.x} data-world-y={FLOW_PLACEMENT.y}
-        style={{transform: `translate(${FLOW_PLACEMENT.x}px,${FLOW_PLACEMENT.y}px)`, '--flow1-muted-gray': settings.flow.controls.mutedGray} as React.CSSProperties}>
-        <Flow1WorldContent modelName="flow-1" state={flowState} time={flow.playback.time} blueDotScale={settings.flow.controls.blueDotScale} numberRowStagger={settings.flow.controls.numberRowStagger} coverMotion={settings.flow.controls.coverMotion}
-          benchmarkContent={flow.playback21 ? <Flow2Graph playback={flow.playback21} beadStaggerSeconds={settings.flow.controls.beadStaggerSeconds}/> : undefined}/>
+      <div className="micro18-flow-content" data-world-x={flowPlacement.x} data-world-y={flowPlacement.y}
+        style={{transform: `translate(${flowPlacement.x}px,${flowPlacement.y}px)`, '--flow1-muted-gray': settings.flow.controls.mutedGray} as React.CSSProperties}>
+        <Flow1WorldContent taperDotRows={!!flow.playback21} modelName="flow-1" state={flowState} time={flow.playback.time} blueDotScale={settings.flow.controls.blueDotScale} numberRowStagger={settings.flow.controls.numberRowStagger} coverMotion={settings.flow.controls.coverMotion}
+          benchmarkContent={flow.playback21 ? <Flow2Graph playback={flow.playback21} beadStaggerSeconds={settings.flow.controls.beadStaggerSeconds} flowRevealAt={flowNarrationRevealAt(settings)}/> : undefined}/>
       </div>
       {issues && <div className="micro18-issues-surface" data-entry={issues.entering} data-native-time={issues.nativeTime}
         style={{transform: `translate(${issuePlacement.x}px,${issuePlacement.y}px) scale(${issuePlacement.scale})`}}>
@@ -117,8 +118,12 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
   if (sample.chapter === 'ultimate2' && sample.ultimate2) {
     const state = worldState(sample.ultimate2, settings.ultimate2.controls, settings.ultimate2.streamBlocksRemoved);
     content = <Micro17Scene playback={sample.ultimate2} controls={settings.ultimate2.controls} blocksRemoved={settings.ultimate2.streamBlocksRemoved} showClouds={false} showSubtitles={!settings.voiceover}/>;
+    // The current cut's large cloud textures must start outside the frame before
+    // the canvas appears. Fade out this extra travel, not the clouds themselves.
+    const entryClearance = settings.voiceover && settings.issues.sourceVersion === 22 ? 1 - state.cloudEnter : 0;
     if (state.cloudEnter > 0) clouds = {progress: state.cloudProgress, yOffset: 27,
-      translateY: state.cloudTranslateY, translateX: state.cloudTranslateX};
+      translateY: state.cloudTranslateY + 560 * entryClearance,
+      translateX: [state.cloudTranslateX[0] - 240 * entryClearance, state.cloudTranslateX[1] + 240 * entryClearance]};
   } else if ((sample.chapter === 'cost' && sample.cost) || (sample.chapter === 'flow' && sample.flow) || (sample.chapter === 'issues' && sample.issues)) {
     content = <SharedCostFlowIssuesWorld sample={sample} settings={settings}/>;
     if (sample.chapter === 'cost' && sample.cost) {

@@ -29,9 +29,13 @@ export function sampleMicro22(timeInput: number, props: Micro22Props = {}, live?
   const zoom = unit(progress.analysisZoomOut);
   const world = base.phase === 'issues' ? {...base, outro: outro || time > end
     ? sampleIssueOutro(base.issue, outro?.time ?? time - end, outro?.clip) : null} : (() => {
-    const origin = {...base.origin, y: base.origin.y - unit(progress.reportFocus) * (1 - zoom), x: base.origin.x + 406 * unit(progress.reportFocus) * (1 - zoom)};
+    // Start six cells farther left so the wider shared entry camera cannot
+    // reveal the waiting agent. The offset vanishes at its original landing.
+    const entryOffset = -720 * (1 - progress.blueBashEntry);
+    const origin = {...base.origin, y: base.origin.y - unit(progress.reportFocus) * (1 - zoom),
+      x: base.origin.x + entryOffset * (1 - zoom) * base.cameraScale + 406 * unit(progress.reportFocus) * (1 - zoom)};
     const angle = spinnerAngle(native, timing, normalizeMicro20Controls({spinnerSpeed: controls.spinnerSpeed}));
-    return {...base, origin, bashAgent: {...base.bashAgent, angle}, detectionWarning: {...base.detectionWarning, scale: 0}, hero: {...base.hero, x: origin.x, angle}};
+    return {...base, origin, bashAgent: {...base.bashAgent, x: base.bashAgent.x + entryOffset, angle}, detectionWarning: {...base.detectionWarning, scale: 0}, hero: {...base.hero, x: origin.x, angle}};
   })();
   const narration = sampleNarration(native, timing, issueTiming, issueStart);
   const captionProgress = narration === 'subtitlePatterns' || narration === 'subtitleReady' ? liveIssues?.[narration] ?? evaluateClip(issueTiming[narration], native - issueStart)

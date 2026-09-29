@@ -11,12 +11,15 @@ import {VOICEOVER_DEFAULTS} from './voiceover-cut';
 
 // Differential contract from 449f3d67 (last local commit before midnight Sep 28).
 // Keep current chapter timing/Flow21; compare only the historical cloud behavior.
-test('Ultimate2 and Cost render their midnight cloud poses, not absolute frame-cloud extents', () => {
+test('Ultimate2 handoff and Cost retain midnight cloud poses, not absolute frame-cloud extents', () => {
   for (const settings of [ULTIMATE_3_DEFAULTS, VOICEOVER_DEFAULTS]) {
     const costStart = chapterSchedule(settings)[1].start;
     const entry = settings.ultimate2.timing.cloudEnter;
     const sweep = settings.cost.timing.cloudSweep;
-    for (const time of [entry.at + entry.duration / 2, costStart, costStart + sweep.at + sweep.duration / 2]) {
+    // The current cut deliberately adds offscreen entry clearance; its settled
+    // pose stays historical. cloud-entry-clearance.test.ts covers that trajectory.
+    const entryProgress = settings.voiceover && settings.issues.sourceVersion === 22 ? 1 : .5;
+    for (const time of [entry.at + entry.duration * entryProgress, costStart, costStart + sweep.at + sweep.duration / 2]) {
       const sample = sampleUltimate3(time, settings);
       const scene = Ultimate3Scene({sample, settings});
       const clouds = Children.toArray(scene.props.children).find(child => isValidElement(child) && child.type === DitherClouds);

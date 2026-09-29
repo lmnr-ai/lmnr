@@ -68,7 +68,10 @@ test('renderer/sampler optional seams preserve Animation20 default behavior and 
   for(const t of [0,1.5,4,6,8.5,10,14,16]) assert.deepEqual(sampleMicro20(t),sampleMicro20(t,undefined,undefined,undefined,undefined,undefined,true,undefined));
   const old=sampleMicro20(0), next=sampleMicro22(0).world;
   assert.equal(old.phase,'bash');
-  assert.deepEqual(next.origin,old.origin);assert.equal(next.cameraScale,old.cameraScale);
+  // Source22 starts farther left; the trace/grid anchor remains unchanged.
+  assert.deepEqual(next.origin,{...old.origin,x:old.origin!.x-720});
+  assert.equal(next.origin!.x-next.bashAgent!.x,old.origin!.x-old.bashAgent!.x);
+  assert.equal(next.cameraScale,old.cameraScale);
   const s=sampleMicro22(micro22PreludeEnd()-1e-8), after=sampleMicro22(micro22PreludeEnd());
   assert.notEqual(s.world.phase,'issues');assert.equal(after.world.phase,'issues');
   assert.deepEqual(s.world.origin,{x:640,y:360});

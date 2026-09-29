@@ -32,6 +32,27 @@ export const ultimate2TimelineConfig = (settings: Ultimate3Settings) => ({
   duration: settings.allocations.ultimate2,
   ...mergeTimelineTiming(MICRO_17_TIMELINE, settings.ultimate2.timing, KEYS17),
 });
+/** Main-timeline alias of the native Ultimate2 cloud clip (Ultimate2 starts at zero). */
+export const ULTIMATE2_CLOUD_KEY = 'ultimate2CloudEnter';
+export function ultimate2CloudTimelineConfig(settings: Ultimate3Settings) {
+  const clip = mergeTimelineTiming(MICRO_17_TIMELINE, settings.ultimate2.timing, ['cloudEnter']).cloudEnter as ClipTiming;
+  return {[ULTIMATE2_CLOUD_KEY]: {...clip, from: {progress: 0}, to: {progress: 1}}};
+}
+export function ultimate2CloudTimelineValues(settings: Ultimate3Settings) {
+  const clip = ultimate2CloudTimelineConfig(settings)[ULTIMATE2_CLOUD_KEY] as ClipTiming;
+  return {[`${ULTIMATE2_CLOUD_KEY}.at`]: clip.at, [`${ULTIMATE2_CLOUD_KEY}.duration`]: clip.duration,
+    [`${ULTIMATE2_CLOUD_KEY}.from.progress`]: clip.from?.progress ?? 0,
+    [`${ULTIMATE2_CLOUD_KEY}.to.progress`]: clip.to?.progress ?? 1,
+    [`${ULTIMATE2_CLOUD_KEY}.transition`]: clip.transition};
+}
+export function settingsFromUltimate2CloudTimeline(timeline: any, settings: Ultimate3Settings) {
+  const config = ultimate2CloudTimelineConfig(settings)[ULTIMATE2_CLOUD_KEY] as ClipTiming;
+  const authored = normalizeClip(timeline[ULTIMATE2_CLOUD_KEY], config);
+  // Native Ultimate2 owns fixed 0→1 endpoints; expose timing/curve edits only.
+  const cloudEnter = {at: authored.at, duration: Math.max(.05, authored.duration), transition: authored.transition};
+  return normalizeSettings({...settings, ultimate2: {...settings.ultimate2, timing: {...settings.ultimate2.timing, cloudEnter}}});
+}
+
 export const costTimelineConfig = (settings: Ultimate3Settings) => ({
   duration: settings.allocations.cost,
   ...mergeTimelineTiming(MICRO_16_TIMELINE, settings.cost.timing, KEYS16),

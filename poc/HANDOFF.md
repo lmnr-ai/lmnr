@@ -1,6 +1,18 @@
 # Signals launch video — agent handoff
 
-## Current handoff: Issue Clusters 4 and new voice recording
+## Latest handoff: current Ultimate3 visuals/timing and approved voiceover
+
+Start with **[handoff/latest-ultimate3/README.md](handoff/latest-ultimate3/README.md)**
+for the synchronized animation/timing changes, exact rendered settings, and
+validation. This includes the latest local work, not just the new voice file.
+
+The user selected **A / subtle** from the latest recording's three processed
+versions. Start with **[handoff/voiceover-subtle-a/README.md](handoff/voiceover-subtle-a/README.md)**.
+The approved [voice_A_subtle.wav](public/audio/voiceover/voice_A_subtle.wav) is
+included with processing metadata and a verified hash. It is speech only and
+requires new phrase alignment; existing playback remains unchanged.
+
+## Existing integration: Issue Clusters 4 and previous voice recording
 
 Start with **[handoff/issues4/README.md](handoff/issues4/README.md)**. The current editable Ultimate3 uses Animation21 plus Animation22's expanding report and restored clustering/coding-agent sequence. The latest user re-recording, **[Signals-launch-09-29-10-04.m4a](public/audio/voiceover/Signals-launch-09-29-10-04.m4a)**, is split and wired into playback ([handoff/voiceover-issues4/README.md](handoff/voiceover-issues4/README.md)); the picture and captions are then retimed to it ([handoff/voiceover-captions/README.md](handoff/voiceover-captions/README.md)), then given a clustering breath and a longer look at the warning grid ([handoff/voiceover-soak/README.md](handoff/voiceover-soak/README.md)). The original cut remains separately available.
 

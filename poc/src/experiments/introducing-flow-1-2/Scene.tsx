@@ -9,8 +9,8 @@ import {DEFAULT_BEAD_STAGGER_SECONDS} from './beads';
 export type Flow2Appearance = {cloudYOffset: number; blueDotScale: number; coverMotion: CoverMotion; mutedGray: string; beadStaggerSeconds: number};
 export const FLOW_2_APPEARANCE: Flow2Appearance = {cloudYOffset: 37, blueDotScale: 1.2, coverMotion: 'split', mutedGray: '#474747', beadStaggerSeconds: DEFAULT_BEAD_STAGGER_SECONDS};
 
-export const Flow2Graph = ({playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS}: {playback: Flow2Playback; beadStaggerSeconds?: number}) => {
-  const graph = graphState(playback, beadStaggerSeconds);
+export const Flow2Graph = ({playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS, flowRevealAt}: {playback: Flow2Playback; beadStaggerSeconds?: number; flowRevealAt?: number}) => {
+  const graph = graphState(playback, beadStaggerSeconds, flowRevealAt);
   const axes = graphAxesState(playback);
   const p = playback.progress;
   return <div className="flow2-graph" style={{left: GRAPH_WORLD_ORIGIN.x, top: GRAPH_WORLD_ORIGIN.y}}>
@@ -54,7 +54,7 @@ export const IntroducingFlow2Scene = ({playback, cloudYOffset = 37, blueDotScale
   return <div className="flow1-scene flow2-scene" aria-label="Animation 21 — Introducing flow-1 2" style={{'--flow1-muted-gray': mutedGray} as React.CSSProperties}>
     <div className="flow1-world" style={{transform: `translate(${state.camera.x}px,${state.camera.y}px) scale(${state.camera.scale})`, '--flow1-border': `${1 / state.camera.scale}px`} as React.CSSProperties}>
       <div className="flow1-grid" style={{backgroundImage: `linear-gradient(#333 ${1 / state.camera.scale}px,transparent ${1 / state.camera.scale}px),linear-gradient(90deg,#333 ${1 / state.camera.scale}px,transparent ${1 / state.camera.scale}px)`}}/>
-      <Flow1WorldContent state={state} time={playback.time} blueDotScale={blueDotScale} coverMotion={coverMotion} modelName="flow-1" benchmarkContent={<Flow2Graph playback={playback} beadStaggerSeconds={beadStaggerSeconds}/>}/>
+      <Flow1WorldContent taperDotRows state={state} time={playback.time} blueDotScale={blueDotScale} coverMotion={coverMotion} modelName="flow-1" benchmarkContent={<Flow2Graph playback={playback} beadStaggerSeconds={beadStaggerSeconds}/>}/>
     </div>
     <DitherClouds progress={state.cloudProgress} yOffset={cloudYOffset} translateY={state.cloudTranslateY}/>
     <Subtitles progress={playback.progress}/>

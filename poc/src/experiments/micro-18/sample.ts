@@ -11,6 +11,7 @@ import type {FlowPlayback} from '../introducing-flow-1/sample';
 import {createFlow2Sampler, originalFlowPlayback, type Flow2Playback} from '../introducing-flow-1-2/sample';
 import {FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
 import {CHAPTER_IDS, chapterFloors, issueEntryEnd, issueEndpoint, issuePostludeOffset, issuePreludeEnd, costEndpoint, flowEndpoint, normalizeSettings, ultimate2Endpoint, type ChapterId, type ClipTiming, type Ultimate3Settings} from './settings';
+import {createFlowWorldLayout, type FlowWorldLayout} from './transitions';
 
 export type ChapterSegment = {id: ChapterId; label: string; start: number; duration: number; end: number};
 const labels: Record<ChapterId, string> = {ultimate2: '17 Ultimate 2', cost: '16 Cost', flow: '13 Introducing Flow-1', issues: '20 Issue clusters 3', conclusion: 'Conclusion'};
@@ -32,14 +33,27 @@ const progress = (time: number, timing: ClipTiming) => {
   const resolved = computeStaticTimeline(parseTimelineConfig(config), {}).clips[0];
   return Math.max(0, Math.min(1, (computeClipState(resolved, time, time) as {current: {progress: number}}).current.progress));
 };
-export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings): {entryProgress: number; nativeTime: number; playback: FlowPlayback; playback21?: Flow2Playback} {
+/** Narration stays in global time; the shared graph consumes Flow's native time. */
+export function flowNarrationRevealAt(settings: Ultimate3Settings): number | undefined {
+  const cue = settings.voiceover?.phrases.n12;
+  if (!cue || settings.flow.sourceVersion !== 21 || settings.issues.sourceVersion !== 22) return undefined;
+  const start = chapterSchedule(settings).find(chapter => chapter.id === 'flow')!.start;
+  return cue.at - start - (settings.flow.entrySlide.at + settings.flow.entrySlide.duration);
+}
+
+export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings): {entryProgress: number; nativeTime: number; playback: FlowPlayback; playback21?: Flow2Playback; worldLayout?: FlowWorldLayout} {
   const entry = settings.flow.entrySlide; const entryEnd = entry.at + entry.duration;
   const nativeTime = Math.min(flowEndpoint(settings), Math.max(0, localChapterTime - entryEnd));
   if (settings.flow.sourceVersion === 21) {
-    const playback21 = createFlow2Sampler({...FLOW_2_TIMELINE, ...settings.flow.timing21}).sample(nativeTime);
+    const sampler = createFlow2Sampler({...FLOW_2_TIMELINE, ...settings.flow.timing21});
+    const playback21 = sampler.sample(nativeTime);
+    const worldLayout = settings.voiceover && settings.issues.sourceVersion === 22
+      ? createFlowWorldLayout(sampleMicro16(costEndpoint(settings), settings.cost.controls, settings.cost.timing).camera, sampler.sample(0))
+      : undefined;
     // The opening cloud plane rides into view with Flow's world already revealed.
     playback21.progress.cloudReveal = 1;
-    return {entryProgress: progress(localChapterTime, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21)};
+    return {entryProgress: progress(localChapterTime, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21),
+      ...(worldLayout ? {worldLayout} : {})};
   }
   const timing = Object.fromEntries(FLOW_CLIP_KEYS.map(key => {
     if (key === 'cloudReveal') return [key, {at: 0, duration: 0}];

@@ -13,7 +13,7 @@ import {ultimate3ScoreCues} from './score/cues';
 import {flowTimelineConfig, flowTimelineSettings, liveFlowPreview} from './authoring';
 import {FLOW_HOLD, VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings, migrateStoredVoiceoverFlow21} from './voiceover-cut';
 import {FLOW_21_TIMING, normalizeSettings, ULTIMATE_3_DEFAULTS} from './settings';
-import {chapterSchedule, sampleFlow, sampleUltimate3, ultimate3DurationFrames} from './sample';
+import {chapterSchedule, flowNarrationRevealAt, sampleFlow, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {Ultimate3Scene} from './Scene';
 import {sharedWorldCamera, flowCameraInSharedWorld, costCameraInSharedWorld} from './transitions';
 
@@ -63,13 +63,13 @@ test('storage-only source upgrade is idempotent and does not mutate other author
   assert.equal(readVoiceoverSettings({getItem: () => JSON.stringify(old)}).flow.sourceVersion, 21);
 });
 
-test('stitched graph reuses standalone evaluation/rendering with no between-statistics camera pan', () => {
+test('stitched graph reuses shared rendering with its narration cue and no between-statistics camera pan', () => {
   for (const native of [2.9, 3.5, 4.5, 5.2, 5.6, 6.5, 7.5, 8.97, 9.7, 11, 13.2]) {
     const sample = sampleUltimate3(at(native), s).flow!;
     const source = createFlow2Sampler({...FLOW_2_TIMELINE, ...s.flow.timing21}).sample(sample.nativeTime);
     source.progress.cloudReveal = 1;
     assert.deepEqual(sample.playback21, source);
-    const graph = renderToStaticMarkup(createElement(Flow2Graph, {playback: source, beadStaggerSeconds: .11}));
+    const graph = renderToStaticMarkup(createElement(Flow2Graph, {playback: source, beadStaggerSeconds: .11, flowRevealAt: flowNarrationRevealAt(s)}));
     assert.ok(render(at(native)).includes(graph));
   }
   const early = sampleFlow(entryEnd + 5.2, s).playback21!;

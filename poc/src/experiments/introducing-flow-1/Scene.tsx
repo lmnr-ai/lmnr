@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {cancelRender, continueRender, delayRender, staticFile} from 'remotion';
 import {DitherClouds} from '../micro-09/DitherClouds';
-import {BENCHMARKS, benchmarkPercentLabel, BENCHMARK_WORLD_X, BENCHMARK_WORLD_Y, ENGINE_WORLD_X, ENGINE_WORLD_Y, coverGeometry, DOT, sampleFlowDots, introducingFlowState, LINE_PITCH, LINE_STRIP, staggeredRevealProgress, settledWorldLength, type CoverMotion} from './geometry';
+import {BENCHMARKS, benchmarkPercentLabel, BENCHMARK_WORLD_X, BENCHMARK_WORLD_Y, ENGINE_WORLD_X, ENGINE_WORLD_Y, coverGeometry, DOT, sampleFlowDots, flowDotRowScale, introducingFlowState, LINE_PITCH, LINE_STRIP, staggeredRevealProgress, settledWorldLength, type CoverMotion} from './geometry';
 import type {FlowPlayback} from './sample';
 import {Subtitles} from './Subtitles';
 
@@ -90,9 +90,9 @@ const Engine = ({state, coverMotion, modelName}: {state: ReturnType<typeof intro
 };
 
 /** Camera- and grid-free content for compositions that own a larger world. */
-export const Flow1WorldContent = ({state, time, blueDotScale, coverMotion, numberRowStagger = .05, modelName = 'Flow-1', benchmarkContent}: {state: ReturnType<typeof introducingFlowState>; time: number; blueDotScale: number; coverMotion: CoverMotion; numberRowStagger?: number; modelName?: string; benchmarkContent?: React.ReactNode}) => {
-  const dots = sampleFlowDots(time).map(({row, column, colored}) =>
-    <i key={`${row}:${column}`} className="flow1-dot" data-colored={colored} style={{left: column * 100 + DOT.cellLeft, top: row * 100 + DOT.cellTop, transform: `scale(${(colored ? blueDotScale : 1) * state.dotScale})`}}/>
+export const Flow1WorldContent = ({state, time, blueDotScale, coverMotion, numberRowStagger = .05, modelName = 'Flow-1', benchmarkContent, taperDotRows = false}: {state: ReturnType<typeof introducingFlowState>; time: number; blueDotScale: number; coverMotion: CoverMotion; numberRowStagger?: number; modelName?: string; benchmarkContent?: React.ReactNode; taperDotRows?: boolean}) => {
+  const dots = sampleFlowDots(time, taperDotRows).map(({row, column, colored}) =>
+    <i key={`${row}:${column}`} className="flow1-dot" data-colored={colored} data-row={row} style={{left: column * 100 + DOT.cellLeft, top: row * 100 + DOT.cellTop, transform: `scale(${(colored ? blueDotScale : 1) * state.dotScale * flowDotRowScale(row)})`}}/>
   );
   return <>
     <div className="flow1-dots">{dots}</div>

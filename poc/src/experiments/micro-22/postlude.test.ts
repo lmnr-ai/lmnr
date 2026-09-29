@@ -65,7 +65,7 @@ test('authored dependency spring tails extend the full endpoint and do not trunc
 });
 test('Ultimate3 full endpoint/offsets extend only Issues and conclusion; integrated live extraction and dependency ripple',()=>{
   const s=VOICEOVER_DEFAULTS, schedule=chapterSchedule(s);
-  schedule.map(c=>c.start).forEach((start,i)=>close(start,[0,22.408,36.108,51.3,70.608][i]));
+  schedule.map(c=>c.start).forEach((start,i)=>close(start,[0,22.41,36.11,51.302,70.61][i]));
   // The voice cut's report prelude ends 2.692s sooner (FLOW_HOLD) than source22's 13.7s.
   close(issueEntryEnd(s),.9);close(issuePostludeOffset(s),12.908);close(issueEndpoint(s),18.408);close(s.allocations.issues,19.308);
   assert.equal(ultimate3DurationFrames(s),2315);assert.equal(micro22DurationFrames(),683);

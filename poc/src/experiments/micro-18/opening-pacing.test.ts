@@ -63,22 +63,24 @@ test('four actual blocks add 720px; new run preserves the 391.025604px approach 
   assert.equal((ultimate2TimelineConfig(s) as any).upwardTurn.at, t.upwardTurn.at);
 });
 
-test('downstream chapters and cloud default beats ripple together; editor sampling equals export sampling in reverse', () => {
+test('tuned main defaults preserve downstream durations and deterministic reverse sampling', () => {
   const s = VOICEOVER_DEFAULTS, schedule = chapterSchedule(s);
-  close(schedule[0].duration, old.allocations.ultimate2 + OPENING_RIPPLE);
-  for (let i = 1; i < 4; i++) close(schedule[i].start, chapterSchedule(old)[i].start + OPENING_RIPPLE + (i === 3 ? FLOW_HOLD : 0));
+  close(schedule[0].duration, 22.41);
+  schedule.forEach((chapter, i) => close(chapter.start, [0, 22.41, 36.11, 51.302, 70.61][i]));
   close(s.allocations.cost, old.allocations.cost);
   close(s.allocations.conclusion, old.allocations.conclusion + GRID_SOAK);
   close(s.allocations.flow, old.allocations.flow + FLOW_HOLD);
   for (const key of ['slideIn', 'partialRecede', 'recede'] as const)
     close(s.clouds!.timing[key].at, old.clouds!.timing[key].at + OPENING_RIPPLE);
-  close(s.clouds!.timing.slideIn.at, s.ultimate2.timing.cloudEnter.at);
+  // Reverted global-cloud defaults stay historical; the native cloud bar is independently tuned.
+  close(s.clouds!.timing.slideIn.at, 19.358);
   close(s.ultimate2.timing.upwardTurn.at, 9.278);
   close(s.ultimate2.timing.warningEnter.at, 12.878);
-  close(s.ultimate2.timing.cloudEnter.at, 19.358);
+  close(s.ultimate2.timing.cloudEnter.at, 12.49);
+  close(s.ultimate2.timing.cloudEnter.duration, 6.17);
   close(s.allocations.issues,21 - FLOW_HOLD + CLUSTER_BREATH);
-  close(schedule[4].start,70.608);
-  close(schedule.at(-1)!.end, 77.158);
+  close(schedule[4].start,70.61);
+  close(schedule.at(-1)!.end, 77.16);
   assert.equal(ultimate3DurationFrames(s), 2315);
   const times = [0, 3.44, 8.37, 9.278, 10.51, 12.878, 13.5, 19.358, 19.68, 20.28,
     ...schedule.map(chapter => chapter.start), schedule.at(-1)!.end];

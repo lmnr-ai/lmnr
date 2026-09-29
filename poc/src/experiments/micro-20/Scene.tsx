@@ -19,7 +19,8 @@ const ToolBlock = ({x, y, width, label, source}: {x: number; y: number; width: n
   ? <image href={staticFile(`micro-16/${source}`)} x={x} y={y} width={width} height={120}/>
   : <g><rect x={x} y={y} width={width} height={120} fill="#5c5c5c"/><text className="micro20-label" x={x + 32} y={y + 78}>{label}</text></g>;
 
-export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = true, traceContent, report, extendedGrid = false}: {sample: Micro20Sample; sharedEntry?: boolean; showSubtitles?: boolean; traceContent?: {lines: readonly string[]; highlights: readonly number[]}; report?: ReactNode; extendedGrid?: boolean}) => {
+export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = true, traceContent, report, extendedGrid = false, extendSharedEntry = false}: {sample: Micro20Sample; sharedEntry?: boolean; showSubtitles?: boolean; traceContent?: {lines: readonly string[]; highlights: readonly number[]}; report?: ReactNode; extendedGrid?: boolean; extendSharedEntry?: boolean}) => {
+  const openEntry = sharedEntry && extendSharedEntry;
   const id = `micro20-${useId().replace(/:/g, '')}`;
   const [handle] = useState(() => delayRender('Load Animation 20 typography and assets'));
   useEffect(() => {
@@ -62,8 +63,8 @@ export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = tr
   const camera = `translate(${s.origin.x} ${s.origin.y}) scale(${s.cameraScale})`;
   const hero = `scale(${s.contentScale})`;
   const world = `translate(${-s.bashAgent.x} ${-s.bashAgent.y})`;
-  return <div className="micro20-composition" data-phase={s.phase} data-time={s.time}>
-    <svg className="micro20-world" viewBox="0 0 1280 720" role="img" aria-label="A trace inspection recedes into a grid of traces and discovers issue patterns">
+  return <div className="micro20-composition" data-phase={s.phase} data-time={s.time} style={openEntry ? {background: 'transparent', overflow: 'visible'} : undefined}>
+    <svg className="micro20-world" viewBox="0 0 1280 720" role="img" aria-label="A trace inspection recedes into a grid of traces and discovers issue patterns" style={openEntry ? {overflow: 'visible'} : undefined}>
       <defs>
         <linearGradient id={`${id}-blue`} x2="0" y2="1"><stop stopColor="#a8caff"/><stop offset="1" stopColor="#75abff"/></linearGradient>
         <pattern id={`${id}-local-grid`} x={LOCAL_GRID.x} y={LOCAL_GRID.y} width="120" height="120" patternUnits="userSpaceOnUse">
@@ -85,10 +86,21 @@ export const Micro20Scene = ({sample: s, sharedEntry = false, showSubtitles = tr
             <circle data-analysis-cell={dot.cell} r={60 * s.contentScale * dot.scale} fill={COLORS.dot}/>
           </g>)}
         </g>
-        <g transform={hero} clipPath={`url(#${id}-hero-cell)`}>
+        <g transform={hero} clipPath={openEntry ? undefined : `url(#${id}-hero-cell)`}>
           {/* Source17 collapses cell content under the same camera and clip. */}
           <g data-bash-content transform={`scale(1 ${1 - unit(p.analysisTraceCollapse)})`}>
             <g transform={world}>
+              {/* During the shared zoom the viewport is wider than this native
+                  artboard. Continue real blocks instead of exposing a cut edge.
+                  By arrival these continuations are outside the native viewport. */}
+              {openEntry && [-2, -1, 1, 2].map(copy => <g key={copy} data-trace-extension={copy} transform={`translate(${copy * 1320} 0)`}>
+                <ToolBlock x={-20} y={BASH.y} width={240} label="Write"/>
+                <ToolBlock x={220} y={BASH.y} width={120} source={ASSETS.bashConnector}/>
+                <ToolBlock x={BASH.x} y={BASH.y} width={360} label="Bash"/>
+                <ToolBlock x={700} y={BASH.y} width={120} source={ASSETS.bashTool}/>
+                <ToolBlock x={820} y={BASH.y} width={360} label="Thinking..."/>
+                <ToolBlock x={1180} y={BASH.y} width={120} source={ASSETS.bashConnector}/>
+              </g>)}
               <ToolBlock x={-20} y={BASH.y} width={240} label="Write"/>
               <ToolBlock x={220} y={BASH.y} width={120} source={ASSETS.bashConnector}/>
               <ToolBlock x={BASH.x} y={BASH.y - 120 * expansion} width={360} label="Bash"/>

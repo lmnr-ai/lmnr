@@ -1,0 +1,131 @@
+{
+  "source_checkpoint": "b2786e6c20b3c72f45c6f6d4649fe230dadb4571",
+  "includes_uncommitted_source_edits": true,
+  "upstream_base": "d0fa154f24b0b92a13cc4d30a94a0c94bf3fd8c0",
+  "files": [
+    {
+      "path": "poc/src/experiments/introducing-flow-1-2/Scene.tsx",
+      "sha256": "213388b61c55243ac5509266bffd13817d9cbeb0d37b574f2b337ebd742360da"
+    },
+    {
+      "path": "poc/src/experiments/introducing-flow-1-2/beads.ts",
+      "sha256": "16006a6f753f5be228d239774ba76a7c2a1bcd562fd7eefcce8bb94ff3103635"
+    },
+    {
+      "path": "poc/src/experiments/introducing-flow-1-2/dot-taper.test.ts",
+      "sha256": "7d804bf173dcc942c6266037cc1b4afbbddf7a02b1fbf6dfd4ed053ac4a69eb0"
+    },
+    {
+      "path": "poc/src/experiments/introducing-flow-1-2/geometry.ts",
+      "sha256": "695062a021cff9aabda0c8dd167938c45480de4fb0c3e87f52a6b4aea354a5bd"
+    },
+    {
+      "path": "poc/src/experiments/introducing-flow-1/Scene.tsx",
+      "sha256": "bf4ef899a9c7787a537579fd552185c0af37aa4aaf631a84042f00ea73be09b4"
+    },
+    {
+      "path": "poc/src/experiments/introducing-flow-1/geometry.ts",
+      "sha256": "8119be92e714c2accc018185b5c12891bc02ea6ea6108cee9e40262d333be7ac"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/App.tsx",
+      "sha256": "614ebc511fd065bb807127911e22570337a69da941ef6540aa6f97acf57ac616"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/README.md",
+      "sha256": "d1796ebe30e585a2b169133cba19e9a3ae44f6527174c005bc2cb790d8978dab"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/Scene.tsx",
+      "sha256": "bb8afc43c1b061579bc96d52bb9fe8fa9003912b9ebef41e137bbedec4771411"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/authoring.ts",
+      "sha256": "dd8b5a82bd81cd7a9d007290ca107fad4c595d63c8c1d76f45a8d705968a70fb"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/cloud-entry-clearance.test.ts",
+      "sha256": "dfc1396260b627112e399516c2447659d4c5fb89432ddae166167d2c72b6e8fa"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/cloud-rollback.test.ts",
+      "sha256": "6d7ca4af5bd42ddb1b1535a3855fd7cb6035164c2a56dcb68941ca7d8adfe8ff"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/explanation-speed.test.ts",
+      "sha256": "3946159fd6893a11362b727d5143cfe46f16a130add90e0deea19476cfe3da0b"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/flow-alignment.test.ts",
+      "sha256": "4e49f5cef0b01cb36e4ee44ec16b6c753cc8aa8ae05df7eed8c2903fc213f5f8"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/flow-narration-reveal.test.ts",
+      "sha256": "c3fbf7956b32d1a070c741a29c57524c2f8abda442af8da9de518c5e10b5f9f0"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/flow21.test.ts",
+      "sha256": "d048d9c82337d11999bde31c56d8fb68663e43b024c20986168da5915163b36a"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/issues-agent-clearance.test.ts",
+      "sha256": "93fb4f1ed9d3341cc128a7861485524b156f372bb84c4c8062d8c320f2beb6bc"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/issues-entry-surface.test.ts",
+      "sha256": "e2da92e044b6230dca35f02b15f35a19eef7088f4760c7ca48d90fa58489ec3f"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/issues4.test.ts",
+      "sha256": "126b7d4a48140a1695968cc485a5edf66b4d3c32c952153c1d8e92fbd85d78be"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/opening-pacing.test.ts",
+      "sha256": "d7f8bb1501890e1941ad7c4ac028333d052fad2dd1e3aa42bcec98d473ea44f6"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/sample.ts",
+      "sha256": "4fe1b6d0eb6212d790278bb393b6db14b1d35ba498ffc19af840b8756f040d80"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/transitions.ts",
+      "sha256": "4f52c00e896974c8a00d7ff2cdbe171cbb9b48bebece69dc166021cb1a4a488d"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/ultimate2-cloud-authoring.test.ts",
+      "sha256": "aa43f50d06c8981c37f344eab043f5184e159b77d4e7a0dec637cd6ce2bd6a4d"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/voiceover-cut.test.ts",
+      "sha256": "b500afed1080163e65ccb2f227fab0103d078cb5593b06dc92992f391d5571f3"
+    },
+    {
+      "path": "poc/src/experiments/micro-18/voiceover-cut.ts",
+      "sha256": "268a6feb9415f2e93adb0ef5e0c2f4e5ca46f7c70eaaf893f5942a2ff6a0b298"
+    },
+    {
+      "path": "poc/src/experiments/micro-20/Scene.tsx",
+      "sha256": "d1563cba2f44b57c99b2414a7eee58d9243938480205b23b0a0af73a94ba7490"
+    },
+    {
+      "path": "poc/src/experiments/micro-22/README.md",
+      "sha256": "2be71ce23102c3c250cdd04bbf3c8c5f321955722b9e868946094071090aca2f"
+    },
+    {
+      "path": "poc/src/experiments/micro-22/Scene.tsx",
+      "sha256": "0a87f7788fade34a823d28d3afc347d5b807434e5e2a8f38446921a4ac1290f4"
+    },
+    {
+      "path": "poc/src/experiments/micro-22/postlude.test.ts",
+      "sha256": "6c629c46f4afe223aae847a2d274fba9981e3f5ca0833c52d73dd2e4928279c5"
+    },
+    {
+      "path": "poc/src/experiments/micro-22/report.test.ts",
+      "sha256": "b4ab2546aac891665142c864cfc6464be5110bdf0f707de80567c2bf8a0ea74e"
+    },
+    {
+      "path": "poc/src/experiments/micro-22/sample.ts",
+      "sha256": "21673e9f18daecb69fe184b1e3ee0788bee19486bf95c37c6db2d90f521fe4bd"
+    }
+  ]
+}

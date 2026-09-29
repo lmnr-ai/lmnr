@@ -25,8 +25,8 @@ export function Micro22Scene({sample: s, sharedEntry = false, showSubtitles = tr
       </div>
     </foreignObject>
   </g>;
-  return <div className="micro22-composition" data-source-version="22" data-time={s.time} style={sharedEntry ? {background: 'transparent'} : undefined}>
-    <Micro20Scene sample={s.world} sharedEntry={sharedEntry} showSubtitles={false} traceContent={{lines: PAPER_LINES, highlights: HIGHLIGHT_LINES}} report={report}/>
+  return <div className="micro22-composition" data-source-version="22" data-time={s.time} style={sharedEntry ? {background: 'transparent', overflow: 'visible'} : undefined}>
+    <Micro20Scene sample={s.world} sharedEntry={sharedEntry} extendSharedEntry={sharedEntry} showSubtitles={false} traceContent={{lines: PAPER_LINES, highlights: HIGHLIGHT_LINES}} report={report}/>
     {showSubtitles && !sharedEntry && <Micro22Subtitles sample={s}/>}
   </div>;
 }

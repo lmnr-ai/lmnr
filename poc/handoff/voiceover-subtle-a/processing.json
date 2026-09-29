@@ -1,0 +1,59 @@
+{
+  "approved_version": "A \u2014 subtle",
+  "asset": "public/audio/voiceover/voice_A_subtle.wav",
+  "sha256": "af92601ff5a34753d0c637b023280a8374fdc35ff6f7fecca7bf720f51d40640",
+  "source_recording": "Signals-launch-video-09-29-09-56.m4a",
+  "source_sha256": "9e1500e46f70669b268b78b84696b40c0c492371086a949191233d89d749b438",
+  "processing": {
+    "filters": [
+      "highpass=f=80",
+      "equalizer=f=250:t=q:w=1.0:g=-2",
+      "equalizer=f=3500:t=q:w=1.0:g=2",
+      "highshelf=f=9000:g=2",
+      "deesser=i=0.3",
+      "acompressor=threshold=-20dB:ratio=2:attack=10:release=100:makeup=1"
+    ],
+    "pass1": {
+      "input_i": "-26.84",
+      "input_tp": "-7.43",
+      "input_lra": "8.10",
+      "input_thresh": "-38.42",
+      "output_i": "-16.44",
+      "output_tp": "-1.50",
+      "output_lra": "4.90",
+      "output_thresh": "-27.89",
+      "normalization_type": "dynamic",
+      "target_offset": "0.44"
+    },
+    "normalization": "loudnorm=I=-16:TP=-1.55:LRA=11:measured_I=-26.84:measured_TP=-7.43:measured_LRA=8.10:measured_thresh=-38.42:offset=0.5700:linear=true",
+    "verified_loudness": {
+      "input_i": "-16.03",
+      "input_tp": "-1.54",
+      "input_lra": "9.00",
+      "input_thresh": "-27.59",
+      "output_i": "-16.08",
+      "output_tp": "-1.50",
+      "output_lra": "4.10",
+      "output_thresh": "-27.45",
+      "normalization_type": "dynamic",
+      "target_offset": "0.08"
+    },
+    "format": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "pcm_s24le",
+          "sample_rate": "48000",
+          "channels": 2,
+          "bits_per_raw_sample": "24"
+        }
+      ],
+      "format": {
+        "duration": "70.101333"
+      }
+    },
+    "sha256": "af92601ff5a34753d0c637b023280a8374fdc35ff6f7fecca7bf720f51d40640"
+  },
+  "integrated": false
+}

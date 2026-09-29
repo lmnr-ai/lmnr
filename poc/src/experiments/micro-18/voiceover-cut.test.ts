@@ -8,7 +8,7 @@ import {installMicro20AuthoringCompatibility} from '../micro-20/authoring';
 import {issuesTimelineConfig} from './authoring';
 import {chapterSchedule, issueHandoffValidation, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {normalizeSettings, SETTINGS_STORAGE_ID, ULTIMATE_3_DEFAULTS} from './settings';
-import {readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID, VOICEOVER_SOUNDTRACK_URL, OPENING_RIPPLE, CLUSTER_BREATH, GRID_SOAK} from './voiceover-cut';
+import {readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID, VOICEOVER_SOUNDTRACK_URL, GRID_SOAK} from './voiceover-cut';
 import {SCORE_STYLES} from './score/render';
 import {ultimate3ScoreCues} from './score/cues';
 import {readFileSync} from 'node:fs';
@@ -24,7 +24,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
     if (retimed.includes(key)) assert.equal(cost.timing[key].duration, key === 'cameraDownToBudget' ? 1.15 : clip.duration);
     else assert.deepEqual(cost.timing[key], clip, key);
   assert.equal(VOICEOVER_DEFAULTS.allocations.cost, importedSettings.allocations.cost);
-  assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, importedSettings.allocations.ultimate2 + OPENING_RIPPLE);
+  assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, 22.41);
   assert.equal(VOICEOVER_DEFAULTS.version, 4);
   const {clouds, voiceover} = VOICEOVER_DEFAULTS;
   assert.ok(clouds!.timing.slideIn.at > 0);
@@ -39,7 +39,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
   assert.equal(sampleUltimate3(conclusionStart + 3.74 + GRID_SOAK, VOICEOVER_DEFAULTS).conclusion, 'placeholder');
   assert.equal(sampleUltimate3(conclusionStart + VOICEOVER_DEFAULTS.conclusion.logo.at + 1e-9, VOICEOVER_DEFAULTS).conclusion, 'logo');
   const duration = chapterSchedule(VOICEOVER_DEFAULTS).at(-1)!.end;
-  assert.ok(Math.abs(duration - (65.78133333333332 + OPENING_RIPPLE + (21 - 14.633333333333333) + CLUSTER_BREATH + GRID_SOAK)) < 1e-9);
+  assert.ok(Math.abs(duration - 77.16) < 1e-9);
   const times = [0, .45, 9.57, 18.698, 32.398, 44.898, 50.368, 53.218, 59.53133333333333, 63.301, duration];
   const forward = times.map(time => sampleUltimate3(time, VOICEOVER_DEFAULTS));
   [...times].reverse().forEach((time, i) => assert.deepEqual(sampleUltimate3(time, VOICEOVER_DEFAULTS), forward[forward.length - i - 1]));

@@ -45,9 +45,9 @@ export function graphAxesState(playback: Flow2Playback) {
   };
 }
 
-export function graphState(playback: Flow2Playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS) {
+export function graphState(playback: Flow2Playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS, flowRevealAt?: number) {
   const p = playback.progress;
-  const beads = beadProgress(playback, beadStaggerSeconds);
+  const beads = beadProgress(playback, beadStaggerSeconds, flowRevealAt);
   const stringX = mix(-90, GRAPH.ballStartX, p.ballEntry);
   // Keep the art-directed flow-1 anchor fixed: the new exact X is 1148.16,
   // only 1.84px from the retained 1150px position (within the 15px allowance).
