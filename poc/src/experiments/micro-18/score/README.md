@@ -94,6 +94,14 @@ Each is one unbroken loop from the first trace to Flow-1, with every event answe
 - `city-pop`: D major pivoting on B13sus up to E at Flow-1, with Karplus-Strong guitar, synth bass and brass-synth (`city-pop/instruments.ts`). The foley follows the key change through `Playing.shift`.
 - `minimal-techno`: F♯ minor into A major, on a 16th click-track with a sub, a glass pad and FM bells cycling every three 16ths. Kick on the half notes before Flow-1, four-on-the-floor after it. The foley rings bells through a `Player` and snaps to the 16th grid with `Playing.quantize`.
 
+### `sunlit-synth`, `highlife`, `stomp-glock` — upbeat genres
+
+Same skeleton as the steady-bed genres, with more energy: a groove from the first trace that builds in tiers (it thins at the depletion and builds for two bars into Flow-1), then the full band from the drop. The energy comes from 16th motion, percussion and the top end, not level. Keep sustained parts out of the voice's 300 Hz–3 kHz band (these three put 20–30 % of their energy there, against 30–40 % for the steady-bed genres). Keep the logo hit soft under "with Laminar": a loud stab there masks the brand name in speech-to-text.
+
+- `sunlit-synth`: F major chillwave. A 16th `pluck` arp through the dotted-eighth delay whose filter opens toward Flow-1, a pumping `pad`, staccato eighth synth bass, and a pluck-plus-sine-glass lead.
+- `highlife`: G major. Interlocking Karplus-Strong guitars (a high single-note line over offbeat chanks), a 3-3-4-2-4 FM bell and synthesized congas, plus horns harmonised a diatonic third below. The cues are answered on a balafon (`highlife/instruments.ts`).
+- `stomp-glock`: C major indie-folk. Stomps, double handclaps and tambourine (`stomp/instruments.ts`), sampled pizz chugging in eighths (`strings: true`), a dry piano pulse, and a glockenspiel carrying every tune.
+
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
 ## Foley

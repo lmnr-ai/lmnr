@@ -7,7 +7,10 @@ import {lofiRhodes} from './lofi';
 import {minimalTechno} from './techno';
 import {nocturne, nocturneAcoustic, nocturneDigital, nocturneDuet} from './nocturne';
 import {phase} from './phase';
+import {highlife} from './highlife';
 import {signal} from './signal';
+import {stompGlock} from './stomp';
+import {sunlitSynth} from './sunlit';
 import type {ScoreStyle} from './style';
 import {tactileGlass} from './tactile-glass';
 import {tintinnabuli} from './tintinnabuli';
@@ -16,7 +19,7 @@ import {Mix, type PianoBank, type StringBanks} from './voices';
 import {normalizeEffectTuning, type EffectTuning} from './tuning';
 import type {Ultimate3Settings} from '../settings';
 
-export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno].map(style => [style.id, style]));
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock].map(style => [style.id, style]));
 
 export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean; tuning?: EffectTuning; typing?: boolean};
 export type ScoreReport = {
