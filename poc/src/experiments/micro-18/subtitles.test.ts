@@ -184,11 +184,32 @@ test('Flow subtitles are screen-space siblings above shared artwork and clouds',
   const scene = readFileSync(new URL('./Scene.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
   const worldEnd = scene.indexOf('</div>\n    {(isFlow || outgoingCloudsVisible)');
-  const cloudsEnd = scene.indexOf('</div>}\n    {issues ? (issues.source22');
+  const cloudsEnd = scene.indexOf('</div>}\n    {/* The narrated cut draws');
   const subtitlesAt = scene.indexOf(': isFlow ? (flow.playback21 ? <Flow21Subtitles');
   assert.ok(worldEnd >= 0 && cloudsEnd > worldEnd && subtitlesAt > cloudsEnd,
     'subtitles must be outside both the shared world and the restored moving cloud plane');
   assert.match(css, /\.micro18-shared-scene>\.flow1-subtitle-layer\{[^}]*position:absolute[^}]*z-index:11/);
   assert.match(css, /\.micro18-frame>\.micro09-clouds\{[^}]*z-index:10/);
   assert.match(css, /\.micro18-flow-cloud-layer\{[^}]*z-index:10/);
+});
+
+test('the voiceover cut draws one verbatim script caption per line, following its phrase clips', async () => {
+  const {VOICEOVER_DEFAULTS: s} = await import('./voiceover-cut');
+  const {VOICEOVER_CAPTIONS, voiceoverCaptionWindows} = await import('./VoiceoverCaptions');
+  const windows = voiceoverCaptionWindows(s.voiceover!);
+  assert.deepEqual(windows.map(w => w.text), VOICEOVER_CAPTIONS.map(c => c.text));
+  for (const [i, w] of windows.entries()) {
+    const markup = renderToStaticMarkup(createElement(Ultimate3Scene, {settings: s, sample: sampleUltimate3((w.start + w.end) / 2, s)}));
+    const escaped = w.text.replace(/'/g, '&#x27;');
+    assert.equal((markup.match(/data-voiceover-caption/g) ?? []).length, 1, w.text);
+    assert.ok(markup.includes(escaped), w.text);
+    for (const layer of ['micro17-subtitle-layer', 'micro16-subtitle-layer', 'flow1-subtitle-layer', 'micro20-subtitle-layer']) assert.ok(!markup.includes(`class="${layer}"`), layer);
+    assert.equal((markup.match(/class="micro18-conclusion-subtitle"/g) ?? []).length, 1);
+    if (i) assert.ok(windows[i - 1].end <= w.start);
+  }
+  // Moving a phrase moves its caption.
+  const moved = {...s, voiceover: {...s.voiceover!, phrases: {...s.voiceover!.phrases, n07: {at: 24.5, duration: 2}}}};
+  const cheap = voiceoverCaptionWindows(moved.voiceover).find(w => w.text.startsWith('Cheap'))!;
+  assert.equal(cheap.start, 24.5);
+  assert.equal(renderToStaticMarkup(createElement(Ultimate3Scene, {settings: moved, sample: sampleUltimate3(24.2, moved)})).includes('data-voiceover-caption'), false);
 });

@@ -1,4 +1,5 @@
 // Prepare the Issue Clusters 4 voice-free bed and the September 29 take's phrase sources; never replace a published mix.
+// Usage: node scripts/build-ultimate3-issues4-vo.mjs [editable-dir handoff-dir] (default editable-v5 voiceover-issues4).
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
@@ -7,12 +8,13 @@ import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const dest = join(root, 'public/audio/voiceover/editable-v5');
+const [edition = 'editable-v5', handoff = 'voiceover-issues4'] = process.argv.slice(2);
+const dest = join(root, 'public/audio/voiceover', edition);
 if (existsSync(dest)) throw new Error(`Refusing to overwrite existing editable sources: ${dest}`);
-const settings = 'handoff/voiceover-issues4/default-settings.json', placementsFile = 'handoff/voiceover-issues4/placements.json';
+const settings = `handoff/${handoff}/default-settings.json`, placementsFile = `handoff/${handoff}/placements.json`;
 const placements = JSON.parse(readFileSync(join(root, placementsFile)));
 const frames = 2276, samples = frames * 1600;
-const work = mkdtempSync(join(tmpdir(), 'ultimate3-editable-v5-'));
+const work = mkdtempSync(join(tmpdir(), `ultimate3-${edition}-`));
 const score = join(work, 'score.wav');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
 execFileSync(process.execPath, [join(root, 'node_modules/tsx/dist/cli.mjs'), 'scripts/render-ultimate3-score.ts',

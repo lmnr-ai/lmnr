@@ -22,7 +22,8 @@ export function normalizeMicro22Timing(input: Partial<Micro22Timing> = {}): Micr
   return Object.fromEntries(MICRO_22_KEYS.map(key => {const c = normalizeClip(input[key], MICRO_22_TIMING[key]); return [key, {...c, duration: Math.max(.05, c.duration)}];})) as Micro22Timing;
 }
 export const normalizeMicro22Controls = (input: Partial<Micro22Controls> = {}): Micro22Controls => ({spinnerSpeed: Number.isFinite(input.spinnerSpeed) ? Math.max(0, Math.min(10, input.spinnerSpeed!)) : 1.9});
-export const micro22PreludeEnd = (timing?: Partial<Micro22Timing>) => Math.max(13.7, ...Object.values(normalizeMicro22Timing(timing)).map(clipEnd));
+// Ends with its last clip, so a compressed report pulls the postlude in with it.
+export const micro22PreludeEnd = (timing?: Partial<Micro22Timing>) => Math.max(0, ...Object.values(normalizeMicro22Timing(timing)).map(clipEnd));
 /** Source15's smoothstep motion and linear typing, now explicit DialKit clips. */
 export const normalizeMicro22IssueTiming = (input: Partial<IssueTiming> = {}): IssueTiming => ({appearance: {at: 0, duration: 0},
   ...Object.fromEntries(ISSUE_KEYS.map(key => {

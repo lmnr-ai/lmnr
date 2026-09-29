@@ -6,7 +6,7 @@ import {sampleMicro17} from '../micro-17/sample';
 import {chapterSchedule, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {normalizeSettings} from './settings';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
-import {migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {FLOW_HOLD, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES, VOICEOVER_PHRASES_V4} from './voiceover-phrases';
 
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
@@ -63,15 +63,16 @@ test('four actual blocks add 720px; new run preserves the 391.025604px approach 
 test('downstream chapters and cloud default beats ripple together; editor sampling equals export sampling in reverse', () => {
   const s = VOICEOVER_DEFAULTS, schedule = chapterSchedule(s);
   close(schedule[0].duration, old.allocations.ultimate2 + OPENING_RIPPLE);
-  for (let i = 1; i < 4; i++) close(schedule[i].start, chapterSchedule(old)[i].start + OPENING_RIPPLE);
-  for (const id of ['cost', 'flow', 'conclusion'] as const) close(s.allocations[id], old.allocations[id]);
+  for (let i = 1; i < 4; i++) close(schedule[i].start, chapterSchedule(old)[i].start + OPENING_RIPPLE + (i === 3 ? FLOW_HOLD : 0));
+  for (const id of ['cost', 'conclusion'] as const) close(s.allocations[id], old.allocations[id]);
+  close(s.allocations.flow, old.allocations.flow + FLOW_HOLD);
   for (const key of ['slideIn', 'partialRecede', 'recede'] as const)
     close(s.clouds!.timing[key].at, old.clouds!.timing[key].at + OPENING_RIPPLE);
   close(s.clouds!.timing.slideIn.at, s.ultimate2.timing.cloudEnter.at);
   close(s.ultimate2.timing.upwardTurn.at, 9.278);
   close(s.ultimate2.timing.warningEnter.at, 12.878);
   close(s.ultimate2.timing.cloudEnter.at, 19.358);
-  close(s.allocations.issues,21);
+  close(s.allocations.issues,21 - FLOW_HOLD);
   close(schedule[4].start,69.608);
   close(schedule.at(-1)!.end, 75.858);
   assert.equal(ultimate3DurationFrames(s), 2276);

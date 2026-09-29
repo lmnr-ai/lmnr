@@ -11,7 +11,7 @@ import {graphState, flow2WorldState} from '../introducing-flow-1-2/geometry';
 import {BEAD_ORDER, beadProgress} from '../introducing-flow-1-2/beads';
 import {ultimate3ScoreCues} from './score/cues';
 import {flowTimelineConfig, flowTimelineSettings, liveFlowPreview} from './authoring';
-import {VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings, migrateStoredVoiceoverFlow21} from './voiceover-cut';
+import {FLOW_HOLD, VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings, migrateStoredVoiceoverFlow21} from './voiceover-cut';
 import {FLOW_21_TIMING, normalizeSettings, ULTIMATE_3_DEFAULTS} from './settings';
 import {chapterSchedule, sampleFlow, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {Ultimate3Scene} from './Scene';
@@ -26,9 +26,11 @@ const render = (time: number, settings = s) => renderToStaticMarkup(createElemen
 
 test('latest v4 selects Animation21 defaults while original-cut and historical JSON stay source13', () => {
   assert.equal(s.flow.sourceVersion, 21);
-  assert.deepEqual(s.flow.timing21, FLOW_21_TIMING);
+  // The voice cut holds the benchmark and the engine for its narration; everything before stays source21.
   assert.equal(s.flow.timing21!.beadsEntry.at, 2.88);
-  assert.equal(s.flow.timing21!.graphSpread.at, 5.41);
+  close(s.flow.timing21!.graphSpread.at, 5.41 + 2.2);
+  close(s.flow.timing21!.cameraToEngine.at, FLOW_21_TIMING.cameraToEngine.at + 2.4);
+  close(s.pacing.flowTrimEnd, 11.3 + FLOW_HOLD);
   assert.equal(s.flow.timing21!.graphSpread.duration, 1.54);
   assert.equal(s.flow.controls.beadStaggerSeconds, .11);
   assert.equal(s.flow.controls.coverMotion, 'split');
@@ -62,7 +64,7 @@ test('storage-only source upgrade is idempotent and does not mutate other author
 });
 
 test('stitched graph reuses standalone evaluation/rendering with no between-statistics camera pan', () => {
-  for (const native of [2.9, 3.5, 4.5, 5.2, 5.6, 6.5, 7.5, 8.97, 11]) {
+  for (const native of [2.9, 3.5, 4.5, 5.2, 5.6, 6.5, 7.5, 8.97, 9.7, 11, 13.2]) {
     const sample = sampleUltimate3(at(native), s).flow!;
     const source = createFlow2Sampler({...FLOW_2_TIMELINE, ...s.flow.timing21}).sample(sample.nativeTime);
     source.progress.cloudReveal = 1;
@@ -71,15 +73,15 @@ test('stitched graph reuses standalone evaluation/rendering with no between-stat
     assert.ok(render(at(native)).includes(graph));
   }
   const early = sampleFlow(entryEnd + 5.2, s).playback21!;
-  const spread = sampleFlow(entryEnd + 7.5, s).playback21!;
+  const spread = sampleFlow(entryEnd + 9.7, s).playback21!;
   assert.deepEqual(flow2WorldState(early).camera, flow2WorldState(spread).camera);
   assert.equal(graphState(spread).ball.x, 1150); assert.equal(graphState(spread).ball.y, 270);
-  const markup = render(at(7.5));
-  assert.match(markup, /Analyzing 20x more traces per dollar/);
+  const markup = render(at(9.7));
+  assert.match(markup, /while analyzing 20 times more traces per dollar/);
   assert.doesNotMatch(markup, /At 2% of the cost/);
   assert.match(markup, /data-model="sol"[^>]*color:#808080/);
   assert.match(markup, />80%<\/span>/);
-  assert.equal((markup.match(/class="flow1-subtitle-layer"/g) ?? []).length, 1);
+  assert.equal((markup.match(/class="flow1-subtitle-layer"/g) ?? []).length, 0, 'the voice cut draws only its script captions');
 });
 
 test('both shared-camera seams use source21 state, including its actual retimed engine endpoint', () => {

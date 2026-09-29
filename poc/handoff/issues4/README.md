@@ -18,7 +18,7 @@ This updates `sandbox/signals-launch-video` on top of upstream `9e5e09ccb4b05a56
 - AAC, stereo, 48kHz; **76.928 seconds**, 1,070,010 bytes.
 - SHA-256: `e79d8e458cb5d06d1af55a3c9bda0240e25fe9dccab783a039064a16edd87403`.
 - Machine-readable metadata: [recording.json](recording.json).
-- Now split, placed and wired into playback: see [../voiceover-issues4/README.md](../voiceover-issues4/README.md).
+- Now split, placed and wired into playback: see [../voiceover-issues4/README.md](../voiceover-issues4/README.md), then retimed to the voice: [../voiceover-captions/README.md](../voiceover-captions/README.md).
 
 ## Visual and subtitle contract
 

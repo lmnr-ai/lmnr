@@ -56,7 +56,7 @@ test('shared schedule/PCM uses true trims, overlaps, silence, fades and one line
 });
 
 test('prepared assets are exactly the immutable 23 trims of the September 29 take and the Issue Clusters 4 score', () => {
-  const base = new URL('../../../public/audio/voiceover/editable-v5/', import.meta.url);
+  const base = new URL('../../../public/audio/voiceover/editable-v6/', import.meta.url);
   const read = (file: string) => readFileSync(new URL(file, base));
   const manifest = JSON.parse(read('manifest.json').toString());
   assert.equal(manifest.phrases.length, 23);
@@ -65,7 +65,7 @@ test('prepared assets are exactly the immutable 23 trims of the September 29 tak
   assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
   assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
   assert.equal(manifest.samples, 2276 * 1600);
-  assert.equal(`/audio/voiceover/editable-v5/${manifest.bed.file}`, VOICEOVER_BED_URL);
+  assert.equal(`/audio/voiceover/editable-v6/${manifest.bed.file}`, VOICEOVER_BED_URL);
   assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../Signals-launch-09-29-10-04.m4a', base))));
   for (const entry of manifest.phrases) {
     const phrase = VOICEOVER_PHRASES.find(p => p.id === entry.id)!;

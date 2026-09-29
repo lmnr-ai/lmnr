@@ -87,7 +87,7 @@ test('entry, report, restored postlude and conclusion preserve one source22 worl
   assert.equal(conclusion.world.phase,'issues');assert.equal(terminal.world.phase,'issues');
   if(conclusion.world.phase!=='issues'||terminal.world.phase!=='issues') throw Error('missing issues');
   assert.deepEqual(conclusion.world.issue.tokens,terminal.world.issue.tokens);assert.deepEqual(conclusion.world.issue.agent,terminal.world.issue.agent);assert.deepEqual(conclusion.world.issue.clusters,terminal.world.issue.clusters);assert.equal(conclusion.world.outro?.scale,1);
-  for(const local of [15.5,18.5,19.5]) {
+  for(const local of [12.8,15.8,17.8]) {
     const sample=sampleUltimate3(start+local,s);
     const markup=renderToStaticMarkup(createElement(Ultimate3Scene,{sample,settings:s}));
     assert.ok(markup.includes('micro15-composition'));assert.equal(sample.issues?.postludeActive,true);

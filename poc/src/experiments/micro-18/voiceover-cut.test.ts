@@ -15,7 +15,14 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
 test('opening retime retains imported downstream chapters and deterministic reverse sampling', () => {
-  assert.deepEqual(JSON.parse(JSON.stringify(VOICEOVER_DEFAULTS.cost)), importedSettings.cost);
+  // Cost keeps the imported cut except the clips retimed to the September 29 voice.
+  const retimed = ['cheapLegOneRight', 'cheapLegTwoLeft', 'cheapLegThreeRight', 'thinkingDrop', 'subtitleMissIssues', 'cameraDownToBudget',
+    'purpleBudgetEntry', 'budgetAppear', 'budgetRun', 'smokeEnter', 'budgetDepletion', 'smokeFade', 'smokeShrink', 'subtitleCost'];
+  const cost = JSON.parse(JSON.stringify(VOICEOVER_DEFAULTS.cost));
+  assert.deepEqual(cost.controls, importedSettings.cost.controls);
+  for (const [key, clip] of Object.entries(importedSettings.cost.timing))
+    if (retimed.includes(key)) assert.equal(cost.timing[key].duration, key === 'cameraDownToBudget' ? 1.15 : clip.duration);
+    else assert.deepEqual(cost.timing[key], clip, key);
   assert.equal(VOICEOVER_DEFAULTS.allocations.cost, importedSettings.allocations.cost);
   assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, importedSettings.allocations.ultimate2 + OPENING_RIPPLE);
   assert.equal(VOICEOVER_DEFAULTS.version, 4);

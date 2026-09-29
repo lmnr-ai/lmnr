@@ -22,6 +22,7 @@ import {Micro20Scene} from '../micro-20/Scene';
 import type {Ultimate3Sample} from './sample';
 import {sampleFlow} from './sample';
 import {ConclusionSubtitles} from './Subtitles';
+import {VoiceoverCaptions} from './VoiceoverCaptions';
 import {costEndpoint, type Ultimate3Settings} from './settings';
 import {sampleMicro16} from '../micro-16/sample';
 import {
@@ -102,7 +103,8 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
       style={{transform: `translate(${cloudTransform.x}px,${cloudTransform.y}px) scale(${cloudTransform.scale})`}}>
       <DitherClouds progress={flowState.cloudProgress} yOffset={settings.flow.controls.cloudYOffset} translateY={flowState.cloudTranslateY}/>
     </div>}
-    {issues ? (issues.source22 ? (!issues.entering && <Micro22Subtitles sample={issues.source22}/>) : <IssueSubtitles narration={issues.entering ? null : issues.source20.narration} opacity={issues.source20.subtitleOpacity}/>) : isFlow ? (flow.playback21 ? <Flow21Subtitles progress={flow.playback21.progress}/> : <FlowSubtitles modelName="flow-1" progress={flow.playback.progress}/>) : <Subtitles progress={cost.progress}/>}
+    {/* The narrated cut draws one script-verbatim caption track instead. */}
+    {settings.voiceover ? null : issues ? (issues.source22 ? (!issues.entering && <Micro22Subtitles sample={issues.source22}/>) : <IssueSubtitles narration={issues.entering ? null : issues.source20.narration} opacity={issues.source20.subtitleOpacity}/>) : isFlow ? (flow.playback21 ? <Flow21Subtitles progress={flow.playback21.progress}/> : <FlowSubtitles modelName="flow-1" progress={flow.playback.progress}/>) : <Subtitles progress={cost.progress}/>}
   </div>;
 };
 
@@ -114,7 +116,7 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
 
   if (sample.chapter === 'ultimate2' && sample.ultimate2) {
     const state = worldState(sample.ultimate2, settings.ultimate2.controls, settings.ultimate2.streamBlocksRemoved);
-    content = <Micro17Scene playback={sample.ultimate2} controls={settings.ultimate2.controls} blocksRemoved={settings.ultimate2.streamBlocksRemoved} showClouds={false}/>;
+    content = <Micro17Scene playback={sample.ultimate2} controls={settings.ultimate2.controls} blocksRemoved={settings.ultimate2.streamBlocksRemoved} showClouds={false} showSubtitles={!settings.voiceover}/>;
     if (state.cloudEnter > 0) clouds = {progress: state.cloudProgress, yOffset: 27,
       translateY: state.cloudTranslateY, translateX: state.cloudTranslateX};
   } else if ((sample.chapter === 'cost' && sample.cost) || (sample.chapter === 'flow' && sample.flow) || (sample.chapter === 'issues' && sample.issues)) {
@@ -127,7 +129,7 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
     const stage = sample.conclusion === 'logo' ? 'logo' : 'placeholder';
     content = <>{stage === 'placeholder' && sample.conclusionSource22 ? <Micro22Scene sample={sample.conclusionSource22} showSubtitles={false}/> : stage === 'placeholder' && sample.conclusionSource
       ? <Micro20Scene sample={sample.conclusionSource} showSubtitles={false}/>
-      : <Card kind={stage}/>}<ConclusionSubtitles stage={stage}/></>;
+      : <Card kind={stage}/>}{!settings.voiceover && <ConclusionSubtitles stage={stage}/>}</>;
   } else {
     content = <Card kind="placeholder"/>;
   }
@@ -135,5 +137,6 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
   return <div className="micro18-frame">
     {content}
     {clouds && <DitherClouds {...clouds}/>} 
+    {settings.voiceover && <VoiceoverCaptions time={sample.time} voiceover={settings.voiceover}/>}
   </div>;
 };

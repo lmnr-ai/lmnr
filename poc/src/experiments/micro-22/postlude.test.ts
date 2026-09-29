@@ -65,10 +65,11 @@ test('authored dependency spring tails extend the full endpoint and do not trunc
 });
 test('Ultimate3 full endpoint/offsets extend only Issues and conclusion; integrated live extraction and dependency ripple',()=>{
   const s=VOICEOVER_DEFAULTS, schedule=chapterSchedule(s);
-  assert.deepEqual(schedule.map(c=>c.start),[0,22.407999999999998,36.108,48.608,69.608]);
-  close(issueEntryEnd(s),.9);close(issuePostludeOffset(s),14.6);close(issueEndpoint(s),20.1);close(s.allocations.issues,21);
+  schedule.map(c=>c.start).forEach((start,i)=>close(start,[0,22.408,36.108,51.3,69.608][i]));
+  // The voice cut's report prelude ends 2.692s sooner (FLOW_HOLD) than source22's 13.7s.
+  close(issueEntryEnd(s),.9);close(issuePostludeOffset(s),11.908);close(issueEndpoint(s),17.408);close(s.allocations.issues,18.308);
   assert.equal(ultimate3DurationFrames(s),2276);assert.equal(micro22DurationFrames(),683);
-  const time=18.5, flat=issuesTimelineValues(s), timeline=stateAt(issuesTimelineConfig(s),time,flat);
+  const time=15.8, flat=issuesTimelineValues(s), timeline=stateAt(issuesTimelineConfig(s),time,flat);
   const next=settingsFromIssuesTimeline(timeline,s,flat);assert.deepEqual(next,s);
   const report=micro22TimelineState(timeline,issueEntryEnd(s),'report_',flat), post=micro22PostludeState(timeline,issuePostludeOffset(s),flat);
   assert.deepEqual(numeric(sampleIssues(time,s,report.progress,post.progress)),numeric(sampleIssues(time,s)));

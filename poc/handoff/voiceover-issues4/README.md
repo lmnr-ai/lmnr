@@ -1,5 +1,7 @@
 # September 29 take on the Issue Clusters 4 cut
 
+Superseded as the default by [../voiceover-captions/README.md](../voiceover-captions/README.md) (script captions, picture retimed to the voice); this placement, its `editable-v5` sources and render stay as published.
+
 The editable Ultimate3 (`?experiment=micro-18`) now narrates with **[Signals-launch-09-29-10-04.m4a](../../public/audio/voiceover/Signals-launch-09-29-10-04.m4a)** (SHA-256 `e79d8e45…87403`) over the 75.858s / 2276-frame Issue Clusters 4 cut.
 
 - [placements.json](placements.json): 23 phrases, `a`/`b` = source seconds in the take, `at` = composition seconds. The speech runs 12.8–72.7s of the recording; the room sounds before and after are not used.
