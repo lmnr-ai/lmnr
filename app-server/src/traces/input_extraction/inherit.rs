@@ -16,7 +16,7 @@
 //! the cohort's samples, and the agent's regex — validated on this version's
 //! own samples — replaces inheritance once it lands.
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use uuid::Uuid;
 
@@ -25,9 +25,9 @@ use crate::cache::{Cache, CacheTrait};
 use crate::traces::sp_versioning::{VersionKind, similarity, versions};
 
 /// Minimum Jaccard overlap between two versions' static line sets for them to
-/// count as one template. Below it, a partition's unrelated templates would
-/// lend each other regexes.
-const MIN_SIBLING_OVERLAP: f64 = 0.5;
+/// count as one template (`USER_TEMPLATE_INHERIT_MIN_OVERLAP`).
+static MIN_SIBLING_OVERLAP: LazyLock<f64> =
+    LazyLock::new(|| crate::env::user_template::INHERIT_MIN_OVERLAP.clamp(0.0, 1.0));
 
 /// Try the partition's sibling versions' regexes, most similar first, and
 /// return the result of the first one that extracts from `signposted_text`.
@@ -71,7 +71,7 @@ pub async fn inherit_sibling_regex(
             continue;
         };
         let overlap = similarity::jaccard(&own_set, &similarity::line_hash_set(&lines));
-        if overlap >= MIN_SIBLING_OVERLAP {
+        if overlap >= *MIN_SIBLING_OVERLAP {
             siblings.push((overlap, sibling.version_hash));
         }
     }
