@@ -29,12 +29,12 @@ const THEME = [[0, 69, .5], [.5, 72, .5], [1, 74, 1], [2, 72, .5], [2.5, 77, 1],
 /** Swung eighths: the offbeat lands 60 ms late. */
 const SWING = .06;
 
-/** How the track ends at the logo; `ring-out` is the published one, the others are auditioned alternatives. */
+/** How the track ends at the logo; `fade-to-crackle` is the published one, the others are auditioned alternatives. */
 export const LOFI_ENDINGS = ['ring-out', 'halo', 'minor-iv', 'fade-to-crackle', 'tape-stop'] as const;
 export type LofiEnding = typeof LOFI_ENDINGS[number];
 const Bbm6: Chord = {bass: 46, tones: [55, 58, 61, 65]};
 
-export function composeLofi(mix: Mix, cues: ScoreCues, ending: LofiEnding = 'ring-out') {
+export function composeLofi(mix: Mix, cues: ScoreCues, ending: LofiEnding = 'fade-to-crackle') {
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const beatAt = (time: number) => (time - g(0)) / .5;
@@ -192,7 +192,7 @@ export function composeLofi(mix: Mix, cues: ScoreCues, ending: LofiEnding = 'rin
     : [[.8, 84], [1.1, 86], [1.4, 89], [1.8, 93]];
   tail.forEach(([delay, midi], i) => piano(mix, end.logo + delay, midi, .2 - i * .03, {...LEAD, pan: -.3 + i * .2}, {length: i === tail.length - 1 ? 3 : 2, bright: .45}));
 
-  // The low-pass: closed before Flow-1 and behind the door, open for the drop, the issues and the logo.
+  // The low-pass: closed before Flow-1 and behind the door, open for the drop and the issues; on fade-to-crackle it closes after the logo.
   const glide = (t: number, a: number, b: number, from: number, to: number) => from * (to / from) ** Math.min(1, Math.max(0, (t - a) / (b - a)));
   const open = g(drop) + .05, closing = shut + .1, reopen = g(home);
   mix.sweep(t => t < open ? glide(t, g(drop - 2), open, 2800, 20_000)
