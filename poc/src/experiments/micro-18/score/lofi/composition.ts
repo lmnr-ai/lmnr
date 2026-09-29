@@ -29,7 +29,12 @@ const THEME = [[0, 69, .5], [.5, 72, .5], [1, 74, 1], [2, 72, .5], [2.5, 77, 1],
 /** Swung eighths: the offbeat lands 60 ms late. */
 const SWING = .06;
 
-export function composeLofi(mix: Mix, cues: ScoreCues) {
+/** How the track ends at the logo; `ring-out` is the published one, the others are auditioned alternatives. */
+export const LOFI_ENDINGS = ['ring-out', 'halo', 'minor-iv', 'fade-to-crackle', 'tape-stop'] as const;
+export type LofiEnding = typeof LOFI_ENDINGS[number];
+const Bbm6: Chord = {bass: 46, tones: [55, 58, 61, 65]};
+
+export function composeLofi(mix: Mix, cues: ScoreCues, ending: LofiEnding = 'ring-out') {
   const g = (beat: number) => gridOf(cues, beat);
   const at = (time: number, division = 2) => beatOf(cues, time, division);
   const beatAt = (time: number) => (time - g(0)) / .5;
@@ -148,11 +153,12 @@ export function composeLofi(mix: Mix, cues: ScoreCues) {
   lick(p.scaleOut, [72, 74, 77, 81, 84], .07, .16, -.2);
 
   // ── It finds deep issues, in every trace: the filter opens again and the kit comes back.
-  const homeBars = loopBars(home, logo, HOME, logo);
+  // minor-iv: the last bar's C9 becomes B♭ minor 6, the borrowed plagal "amen" into F.
+  const homeBars = loopBars(home, logo, HOME, logo).map(([b, chord], i, all) => [b, ending === 'minor-iv' && i === all.length - 1 ? Bbm6 : chord] as const);
   comp(homeBars, home, logo, true, .3);
   walk(homeBars, logo, true);
-  groove(home, logo - 1, true);
-  groove(logo - 1, logo, false, .6);
+  groove(home, ending === 'tape-stop' ? logo : logo - 1, true);
+  if (ending !== 'tape-stop') groove(logo - 1, logo, false, ending === 'halo' ? .4 : .6);
   if (issues.postludeActive) {
     // Issue triangles land as Rhodes drops, falling down the pentatonic.
     cascade(issues.pops, [77, 79, 81, 84, 86, 89, 91, 93, 96]).forEach((note, i) => piano(mix, note.time, note.midi, .2 - i * .008, {...LEAD, pan: note.pan * .85}, {length: 1, bright: .5}));
@@ -163,20 +169,35 @@ export function composeLofi(mix: Mix, cues: ScoreCues) {
   }
 
   // ── Unlock the insights: IV → V under the hook an octave up, the kit filling into the logo.
-  theme(at(end.start, 1) + .5, .34, 12);
-  for (let n = 0; n < 4; n++) snare(mix, g(logo - 1 + n * .25), .12 + n * .05, {...KIT, pan: -.2 + n * .12}, .4);
+  const unlock = at(end.start, 1) + .5;
+  // Over B♭ minor the hook's E would rub against the F; it steps up to G, the sixth.
+  if (ending === 'minor-iv') melody(mix, g, THEME.map(([b, midi, length]) => [unlock + b, midi + (midi === 76 ? 3 : 0) + 12, length] as const), {...LEAD, pan: .2}, {velocity: .34, bright: .45});
+  else theme(unlock, .34, 12);
+  if (ending === 'ring-out' || ending === 'minor-iv' || ending === 'fade-to-crackle') for (let n = 0; n < 4; n++) snare(mix, g(logo - 1 + n * .25), .12 + n * .05, {...KIT, pan: -.2 + n * .12}, .4);
+  // halo: the held A from Flow-1 comes back, swelling through the last bar and resolving into the logo.
+  if (ending === 'halo') {
+    strings(mix, g(logo - 4), end.end - 1.3, [81], HALO, {attack: 2.4, release: 1.2, dynamics: [.35, .8], bright: .32, level: .8});
+    strings(mix, g(logo - 3), end.end - 1.3, [69], {...HALO, pan: -.1}, {attack: 2.4, release: 1.2, dynamics: [.3, .6], bright: .25, level: .45});
+  }
+  // tape-stop: the groove plays up to the bar line, the tape winds down, and the logo lands in the silence after it.
+  if (ending === 'tape-stop') mix.tapeStop(g(logo - 2), end.logo - g(logo - 2) - .2);
 
   // ── With Laminar: F major 9 with the bass underneath; the kit stops, the Rhodes rings out over the crackle.
   bass(mix, end.logo, 29, end.end - end.logo - .8, .5, LOW, {drive: 1.1});
   kick(mix, end.logo, .34, KIT);
   rolled(mix, end.logo, [41, 53, ...F.tones.map(t => t + 12), 84], .42, RHODES, {length: end.end - end.logo, bright: .45, spread: .025});
-  [[.8, 84], [1.1, 86], [1.4, 89], [1.8, 93]].forEach(([delay, midi], i) => piano(mix, end.logo + delay, midi, .2 - i * .03, {...LEAD, pan: -.3 + i * .2}, {length: 2, bright: .45}));
+  const tail: readonly (readonly [number, number])[] = ending === 'halo' ? [[.7, 84], [1.2, 81]]
+    : ending === 'fade-to-crackle' ? [[.9, 69], [1.3, 72], [1.7, 74], [2.3, 72]]
+    : ending === 'minor-iv' ? [[.9, 84], [1.3, 81], [1.9, 79]]
+    : [[.8, 84], [1.1, 86], [1.4, 89], [1.8, 93]];
+  tail.forEach(([delay, midi], i) => piano(mix, end.logo + delay, midi, .2 - i * .03, {...LEAD, pan: -.3 + i * .2}, {length: i === tail.length - 1 ? 3 : 2, bright: .45}));
 
   // The low-pass: closed before Flow-1 and behind the door, open for the drop, the issues and the logo.
   const glide = (t: number, a: number, b: number, from: number, to: number) => from * (to / from) ** Math.min(1, Math.max(0, (t - a) / (b - a)));
   const open = g(drop) + .05, closing = shut + .1, reopen = g(home);
   mix.sweep(t => t < open ? glide(t, g(drop - 2), open, 2800, 20_000)
     : t < reopen - 1 ? glide(t, closing, closing + .5, 20_000, 3400)
+    : ending === 'fade-to-crackle' && t > end.logo + .5 ? glide(t, end.logo + .5, end.end - .6, 12_000, 320)
     : glide(t, reopen - 1, reopen, 3400, 20_000));
   mix.wow(.0022);
   vinyl(mix, 0, cues.duration, .35, DUST);
