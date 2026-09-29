@@ -173,6 +173,9 @@ test('editable-v8 storage takes the shorter trace run; tuned speed keeps its rou
   const t = kept.ultimate2.timing, route = routeLayout(t.streamRun.duration, 390, 10);
   const world = (time: number) => worldState(sampleMicro17(time, t), kept.ultimate2.controls, 10);
   close(world(t.upwardTurn.at).head, route.elbowX);
+  // Leftover September 27 vo* phrases, or no voiceover at all, still get the v8 slots.
+  for (const voiceover of [old.voiceover, undefined])
+    assert.deepEqual(load({...tuned, voiceover}).voiceover, normalizeSettings(v8).voiceover);
 });
 
 test('saved historical cuts reload without any piece of the voice retime', () => {

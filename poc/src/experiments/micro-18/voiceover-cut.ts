@@ -165,8 +165,10 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, d => d.cost.timing)} : raw.cost;
   const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, d => d.flow.timing21)} : raw.flow;
   const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, d => d.issues.timing22)} : raw.issues;
-  const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: Object.fromEntries(Object.entries(raw.voiceover.phrases).map(([id, clip]) =>
+  const matched = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: Object.fromEntries(Object.entries(raw.voiceover.phrases).map(([id, clip]) =>
     [id, GENERATED_PHRASES.some(phrases => equal(clip, phrases[id])) ? opening.voiceover!.phrases[id] : clip]))} : raw.voiceover;
+  // Normalizing fills missing phrases at the shorter run's slots; the v8 opening needs its own.
+  const voiceover = generatedSpeed ? matched : {version: 1 as const, ...matched, phrases: {...V8_DEFAULTS.voiceover!.phrases, ...matched?.phrases}};
   const conclusion = retimed && raw.conclusion ? upgrade(raw.conclusion, d => d.conclusion) : raw.conclusion;
   return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}), ...(conclusion ? {conclusion} : {}),
     ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: generatedSpeed ? 12 : raw.ultimate2?.streamBlocksRemoved ?? 10},
