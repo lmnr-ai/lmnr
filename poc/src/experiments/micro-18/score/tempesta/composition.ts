@@ -53,13 +53,20 @@ export function tempestaPlan(cues: ScoreCues): Chord[] {
   ].sort((a, b) => a.at - b.at);
 }
 
+/** The key under the bed at `time`; the foley shares it so its runs never step outside the harmony. */
+export function tempestaScale(cues: ScoreCues, time: number) {
+  const {flow, issues} = cues;
+  if (time >= issues.leadIn.at && time < issues.prelude.zoomOut.at) return E_MINOR;
+  return time >= flow.reveal - .01 && time < flow.coverShut || time >= issues.native - .01 ? G_MAJOR : G_MINOR;
+}
+
 type Figure = 'storm' | 'arp' | 'bariolage' | 'repeat' | 'double';
 
 export function composeTempesta(mix: Mix, cues: ScoreCues) {
   const plan = tempestaPlan(cues), {ultimate2: u2, cost, flow, issues, conclusion} = cues, end = cues.duration;
   const grid = pulse(flow.reveal, BEAT), bars = pulse(flow.reveal, BAR);
   const sixteenthOf = (index: number) => ((Math.round(index * 4) % 16) + 4096) % 16;
-  const scaleAt = (time: number) => time >= issues.leadIn.at && time < issues.prelude.zoomOut.at ? E_MINOR : time >= flow.reveal - .01 && time < flow.coverShut || time >= issues.native - .01 ? G_MAJOR : G_MINOR;
+  const scaleAt = (time: number) => tempestaScale(cues, time);
   voiceBed(mix, cues, .5);
 
   /** The whole orchestra on one chord: celli and basses, violins, the soloist, timpani, gran cassa, cymbals. */
