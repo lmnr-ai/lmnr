@@ -136,36 +136,37 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   for (const key of Object.keys(openingTiming) as (keyof typeof openingTiming)[]) {
     if (equal(timing[key], original.ultimate2.timing[key])) timing[key] = openingTiming[key];
   }
+  const controls = {...raw.ultimate2?.controls};
+  // The trace trim needs the faster speed on the shorter track; a tuned speed keeps the v8 opening.
+  const generatedSpeed = [original.ultimate2.controls.streamerSpeed, OPENING_STREAM_SPEED].includes(controls.streamerSpeed!);
+  if (generatedSpeed) controls.streamerSpeed = TRACE_STREAM_SPEED;
+  const opening = generatedSpeed ? VOICEOVER_DEFAULTS : V8_DEFAULTS;
   const allocations = {...raw.allocations};
   // The opening route upgrades even on historical cuts, so its chapter length follows.
-  if ([original, V8_DEFAULTS].some(d => allocations.ultimate2 === d.allocations.ultimate2)) allocations.ultimate2 = VOICEOVER_DEFAULTS.allocations.ultimate2;
+  if ([original, V8_DEFAULTS].some(d => allocations.ultimate2 === d.allocations.ultimate2)) allocations.ultimate2 = opening.allocations.ultimate2;
   // A source13 Flow or kept source20 Issues never had the voice retime.
   const retimed = raw.flow?.sourceVersion !== 13 && !(raw.issues?.migration22 === 1 && raw.issues.sourceVersion === 20);
   const pacing = raw.pacing && retimed ? upgrade(raw.pacing, d => d.pacing) : raw.pacing;
   // Upgrade only the previous generated cloud clip; keep manually tuned clips literal.
   if (retimed && GENERATED.some(d => equal(timing.cloudEnter, d.ultimate2.timing.cloudEnter)))
-    timing.cloudEnter = VOICEOVER_DEFAULTS.ultimate2.timing.cloudEnter;
+    timing.cloudEnter = opening.ultimate2.timing.cloudEnter;
   // Then the trace trim, on clips still at the extended run's generated values.
-  for (const key of Object.keys(openingTiming) as (keyof typeof openingTiming)[]) {
+  if (generatedSpeed) for (const key of Object.keys(openingTiming) as (keyof typeof openingTiming)[]) {
     if (key !== 'cloudEnter' && equal(timing[key], V8_DEFAULTS.ultimate2.timing[key])) timing[key] = VOICEOVER_DEFAULTS.ultimate2.timing[key];
     else if (equal(timing[key], openingTiming[key])) timing[key] = traceClip(key, openingTiming[key]);
   }
   if (retimed) for (const id of ['ultimate2', 'flow', 'issues', 'conclusion'] as const)
-    if (GENERATED.some(d => allocations[id] === d.allocations[id])) allocations[id] = VOICEOVER_DEFAULTS.allocations[id];
-  const controls = {...raw.ultimate2?.controls};
-  // The faster speed only makes sense with the shorter track; a tuned speed keeps its route.
-  const generatedSpeed = [original.ultimate2.controls.streamerSpeed, OPENING_STREAM_SPEED].includes(controls.streamerSpeed!);
-  if (generatedSpeed) controls.streamerSpeed = TRACE_STREAM_SPEED;
+    if (GENERATED.some(d => allocations[id] === d.allocations[id])) allocations[id] = (id === 'ultimate2' ? opening : VOICEOVER_DEFAULTS).allocations[id];
   const clouds = raw.clouds ? {...raw.clouds, timing: {...raw.clouds.timing}} : undefined;
   if (clouds) for (const key of ['slideIn', 'partialRecede', 'recede'] as const) {
-    if ([original, V8_DEFAULTS].some(d => equal(clouds.timing[key], d.clouds!.timing[key]))) clouds.timing[key] = VOICEOVER_DEFAULTS.clouds!.timing[key];
+    if ([original, V8_DEFAULTS].some(d => equal(clouds.timing[key], d.clouds!.timing[key]))) clouds.timing[key] = opening.clouds!.timing[key];
   }
   // The whole voice retime moves together, so historical cuts keep Cost clips and n09 too.
   const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, d => d.cost.timing)} : raw.cost;
   const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, d => d.flow.timing21)} : raw.flow;
   const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, d => d.issues.timing22)} : raw.issues;
   const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: Object.fromEntries(Object.entries(raw.voiceover.phrases).map(([id, clip]) =>
-    [id, GENERATED_PHRASES.some(phrases => equal(clip, phrases[id])) ? VOICEOVER_DEFAULTS.voiceover!.phrases[id] : clip]))} : raw.voiceover;
+    [id, GENERATED_PHRASES.some(phrases => equal(clip, phrases[id])) ? opening.voiceover!.phrases[id] : clip]))} : raw.voiceover;
   const conclusion = retimed && raw.conclusion ? upgrade(raw.conclusion, d => d.conclusion) : raw.conclusion;
   return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}), ...(conclusion ? {conclusion} : {}),
     ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: generatedSpeed ? 12 : raw.ultimate2?.streamBlocksRemoved ?? 10},

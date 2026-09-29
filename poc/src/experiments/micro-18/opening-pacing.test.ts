@@ -160,9 +160,19 @@ test('editable-v8 storage takes the shorter trace run; tuned speed keeps its rou
   assert.equal(reloaded.ultimate2.timing.highlight.at, 12);
   assert.equal(reloaded.voiceover!.phrases.n05.at, 13.9);
   assert.deepEqual(reloaded.voiceover!.phrases.n06, VOICEOVER_DEFAULTS.voiceover!.phrases.n06);
+  // A tuned speed keeps the whole v8 opening and its phrase slots, so its run still reaches the elbow.
   const tuned = structuredClone(v8);
   tuned.ultimate2.controls.streamerSpeed = 390;
-  assert.equal(load(tuned).ultimate2.streamBlocksRemoved, 10);
+  const kept = load(tuned);
+  assert.equal(kept.ultimate2.streamBlocksRemoved, 10);
+  assert.equal(kept.ultimate2.controls.streamerSpeed, 390);
+  assert.deepEqual(kept.ultimate2.timing, normalizeSettings(v8).ultimate2.timing);
+  assert.equal(kept.allocations.ultimate2, v8.allocations.ultimate2);
+  assert.deepEqual(kept.clouds, normalizeSettings(v8).clouds);
+  assert.deepEqual(kept.voiceover, normalizeSettings(v8).voiceover);
+  const t = kept.ultimate2.timing, route = routeLayout(t.streamRun.duration, 390, 10);
+  const world = (time: number) => worldState(sampleMicro17(time, t), kept.ultimate2.controls, 10);
+  close(world(t.upwardTurn.at).head, route.elbowX);
 });
 
 test('saved historical cuts reload without any piece of the voice retime', () => {
