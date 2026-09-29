@@ -26,7 +26,7 @@ pnpm ultimate3:score --style overdrive --settings handoff/voiceover-soak/default
 node scripts/mix-ultimate3-concept.mjs --bed out/concepts/overdrive.wav --out out/concepts/u3-overdrive-vo.mp4 --bed-db=-4
 ```
 
-Each bed masters to -14.0 LUFS / -1.2 dBTP, with music and SFX stems within ~1 LU of each other. At peak the limiter takes 2.6 dB of gain reduction on `bluenote` and ~4 dB on `overdrive` (groove density, by design). The voiceover mixes measure -14.8 to -15.0 LUFS / -0.8 to -1.0 dBFS, the same chain and target as the published Arabesque voiceover cut. Every cue is derived from settings, so a retime only needs a re-render.
+Each bed masters to -14.0 LUFS / -1.2 dBTP, with music and SFX stems within ~1 LU of each other on round 1 and ~1.7 LU (music louder) on round 2. At peak the limiter takes 2.6 dB of gain reduction on `bluenote` and ~4 dB on `overdrive` (groove density, by design). The voiceover mixes measure -14.8 to -15.0 LUFS / -0.8 to -1.0 dBFS, the same chain and target as the published Arabesque voiceover cut. Every cue is derived from settings, so a retime only needs a re-render.
 
 ## Limitations
 
