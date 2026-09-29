@@ -6,6 +6,8 @@ import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
 import captionPlacements from '../../../handoff/voiceover-captions/placements.json';
 import soakPlacements from '../../../handoff/voiceover-soak/placements.json';
+import subtlePlacements from '../../../handoff/voiceover-subtle-a/placements.json';
+import {BLOCK_TEMPLATE} from '../micro-12/geometry';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
 export const VOICEOVER_SOUNDTRACK_URL = '/audio/voiceover/ultimate3-voiceover-v4.wav';
@@ -83,7 +85,8 @@ const V6_DEFAULTS = normalizeSettings({...unretimed,
   voiceover: {version: 1, phrases: phrasesOf(captionPlacements)},
 });
 const {placeholder, logo} = V6_DEFAULTS.conclusion;
-export const VOICEOVER_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
+/** The editable-v8 defaults (A/subtle take on the 3.71s-longer trace run). */
+const V8_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
   // Main timeline cloud tuning; shared by the preview, native detail panel and export.
   ultimate2: {...V6_DEFAULTS.ultimate2, timing: {...V6_DEFAULTS.ultimate2.timing,
     cloudEnter: {at: 12.49, duration: 6.17, transition: {type: 'easing', duration: 6.17, ease: [.2, 0, .55, .2]}}}},
@@ -92,11 +95,29 @@ export const VOICEOVER_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
     explanationTyping: [MICRO_22_TIMING.explanationTyping.at - FLOW_HOLD, MICRO_22_TIMING.explanationTyping.duration / 2]})},
   conclusion: {placeholder: {...placeholder, duration: placeholder.duration + GRID_SOAK}, logo: {...logo, at: logo.at + GRID_SOAK}},
   allocations: {...V6_DEFAULTS.allocations, ultimate2: 22.41, issues: V6_DEFAULTS.allocations.issues + CLUSTER_BREATH, conclusion: V6_DEFAULTS.allocations.conclusion + GRID_SOAK},
+  voiceover: {version: 1, phrases: phrasesOf(subtlePlacements)},
+});
+// "When your agent fails" lands 1.25s sooner: Bash and its separator leave the run
+// before the lifting blue, and the rest of the approach runs ~5% faster.
+export const TRACE_TRIM = 1.25;
+const v8Run = V8_DEFAULTS.ultimate2.timing.streamRun.duration;
+export const TRACE_STREAM_SPEED = (V8_DEFAULTS.ultimate2.controls.streamerSpeed * v8Run
+  - BLOCK_TEMPLATE.slice(8, 10).reduce((distance, block) => distance + block.w, 0)) / (v8Run - TRACE_TRIM);
+const traceClip = (key: string, clip: ClipTiming) => retimeClip(clip,
+  clip.at - (clip.at >= V8_DEFAULTS.ultimate2.timing.continueStraight.at ? TRACE_TRIM : 0),
+  clip.duration - (key === 'streamRun' || key === 'subtitleTrace' ? TRACE_TRIM : 0));
+export const VOICEOVER_DEFAULTS = normalizeSettings({...V8_DEFAULTS,
+  allocations: {...V8_DEFAULTS.allocations, ultimate2: V8_DEFAULTS.allocations.ultimate2 - TRACE_TRIM},
+  clouds: {...V8_DEFAULTS.clouds!, timing: Object.fromEntries(Object.entries(V8_DEFAULTS.clouds!.timing).map(([key, clip]) =>
+    [key, retimeClip(clip, clip.at - TRACE_TRIM)])) as NonNullable<typeof original.clouds>['timing']},
+  ultimate2: {...V8_DEFAULTS.ultimate2, streamBlocksRemoved: 12,
+    timing: Object.fromEntries(Object.entries(V8_DEFAULTS.ultimate2.timing).map(([key, clip]) => [key, traceClip(key, clip)])) as typeof openingTiming,
+    controls: {...V8_DEFAULTS.ultimate2.controls, streamerSpeed: TRACE_STREAM_SPEED}},
   voiceover: {version: 1, phrases: takePhrases},
 });
-const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS];
+const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS, V8_DEFAULTS];
 // Raw, since normalizing clamps the 10-04 take's durations to the shorter A/subtle trims; v7 is this cut on the 10-04 take.
-const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases];
+const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases, phrasesOf(subtlePlacements)];
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
@@ -116,20 +137,28 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
     if (equal(timing[key], original.ultimate2.timing[key])) timing[key] = openingTiming[key];
   }
   const allocations = {...raw.allocations};
-  if (allocations.ultimate2 === original.allocations.ultimate2) allocations.ultimate2 = VOICEOVER_DEFAULTS.allocations.ultimate2;
+  // The opening route upgrades even on historical cuts, so its chapter length follows.
+  if ([original, V8_DEFAULTS].some(d => allocations.ultimate2 === d.allocations.ultimate2)) allocations.ultimate2 = VOICEOVER_DEFAULTS.allocations.ultimate2;
   // A source13 Flow or kept source20 Issues never had the voice retime.
   const retimed = raw.flow?.sourceVersion !== 13 && !(raw.issues?.migration22 === 1 && raw.issues.sourceVersion === 20);
   const pacing = raw.pacing && retimed ? upgrade(raw.pacing, d => d.pacing) : raw.pacing;
   // Upgrade only the previous generated cloud clip; keep manually tuned clips literal.
   if (retimed && GENERATED.some(d => equal(timing.cloudEnter, d.ultimate2.timing.cloudEnter)))
     timing.cloudEnter = VOICEOVER_DEFAULTS.ultimate2.timing.cloudEnter;
+  // Then the trace trim, on clips still at the extended run's generated values.
+  for (const key of Object.keys(openingTiming) as (keyof typeof openingTiming)[]) {
+    if (key !== 'cloudEnter' && equal(timing[key], V8_DEFAULTS.ultimate2.timing[key])) timing[key] = VOICEOVER_DEFAULTS.ultimate2.timing[key];
+    else if (equal(timing[key], openingTiming[key])) timing[key] = traceClip(key, openingTiming[key]);
+  }
   if (retimed) for (const id of ['ultimate2', 'flow', 'issues', 'conclusion'] as const)
     if (GENERATED.some(d => allocations[id] === d.allocations[id])) allocations[id] = VOICEOVER_DEFAULTS.allocations[id];
   const controls = {...raw.ultimate2?.controls};
-  if (controls.streamerSpeed === original.ultimate2.controls.streamerSpeed) controls.streamerSpeed = OPENING_STREAM_SPEED;
+  // The faster speed only makes sense with the shorter track; a tuned speed keeps its route.
+  const generatedSpeed = [original.ultimate2.controls.streamerSpeed, OPENING_STREAM_SPEED].includes(controls.streamerSpeed!);
+  if (generatedSpeed) controls.streamerSpeed = TRACE_STREAM_SPEED;
   const clouds = raw.clouds ? {...raw.clouds, timing: {...raw.clouds.timing}} : undefined;
   if (clouds) for (const key of ['slideIn', 'partialRecede', 'recede'] as const) {
-    if (equal(clouds.timing[key], original.clouds!.timing[key])) clouds.timing[key] = VOICEOVER_DEFAULTS.clouds!.timing[key];
+    if ([original, V8_DEFAULTS].some(d => equal(clouds.timing[key], d.clouds!.timing[key]))) clouds.timing[key] = VOICEOVER_DEFAULTS.clouds!.timing[key];
   }
   // The whole voice retime moves together, so historical cuts keep Cost clips and n09 too.
   const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, d => d.cost.timing)} : raw.cost;
@@ -139,7 +168,7 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
     [id, GENERATED_PHRASES.some(phrases => equal(clip, phrases[id])) ? VOICEOVER_DEFAULTS.voiceover!.phrases[id] : clip]))} : raw.voiceover;
   const conclusion = retimed && raw.conclusion ? upgrade(raw.conclusion, d => d.conclusion) : raw.conclusion;
   return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}), ...(conclusion ? {conclusion} : {}),
-    ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: raw.ultimate2?.streamBlocksRemoved ?? 10},
+    ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: generatedSpeed ? 12 : raw.ultimate2?.streamBlocksRemoved ?? 10},
     ...(clouds ? {clouds} : {})};
 }
 

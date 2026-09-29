@@ -25,12 +25,12 @@ test('opening retime retains imported downstream chapters and deterministic reve
     if (retimed.includes(key)) assert.equal(cost.timing[key].duration, key === 'cameraDownToBudget' ? 1.15 : clip.duration);
     else assert.deepEqual(cost.timing[key], clip, key);
   assert.equal(VOICEOVER_DEFAULTS.allocations.cost, importedSettings.allocations.cost);
-  assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, 22.41);
+  assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, 21.16);
   assert.equal(VOICEOVER_DEFAULTS.version, 4);
   const {clouds, voiceover} = VOICEOVER_DEFAULTS;
   assert.ok(clouds!.timing.slideIn.at > 0);
   assert.equal(Object.keys(voiceover!.phrases).length, 23);
-  assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2315);
+  assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2278);
   assert.equal(issueHandoffValidation(VOICEOVER_DEFAULTS), null);
   assert.equal(VOICEOVER_DEFAULTS.conclusion.logo.at, 3.75 + GRID_SOAK);
   const pullbackTransition = VOICEOVER_DEFAULTS.conclusion.placeholder.transition;
@@ -40,7 +40,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
   assert.equal(sampleUltimate3(conclusionStart + 3.74 + GRID_SOAK, VOICEOVER_DEFAULTS).conclusion, 'placeholder');
   assert.equal(sampleUltimate3(conclusionStart + VOICEOVER_DEFAULTS.conclusion.logo.at + 1e-9, VOICEOVER_DEFAULTS).conclusion, 'logo');
   const duration = chapterSchedule(VOICEOVER_DEFAULTS).at(-1)!.end;
-  assert.ok(Math.abs(duration - 77.16) < 1e-9);
+  assert.ok(Math.abs(duration - 75.91) < 1e-9);
   const times = [0, .45, 9.57, 18.698, 32.398, 44.898, 50.368, 53.218, 59.53133333333333, 63.301, duration];
   const forward = times.map(time => sampleUltimate3(time, VOICEOVER_DEFAULTS));
   [...times].reverse().forEach((time, i) => assert.deepEqual(sampleUltimate3(time, VOICEOVER_DEFAULTS), forward[forward.length - i - 1]));
@@ -54,7 +54,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
 
 test('v4 preview has matching score, phrase placement and rendered audio provenance', () => {
   const cues = ultimate3ScoreCues(VOICEOVER_DEFAULTS);
-  assert.equal(cues.duration, 2315 / 30);
+  assert.equal(cues.duration, 2278 / 30);
   assert.ok(cues.issues.prelude.bashEntry.at < cues.issues.prelude.scaleOut);
   assert.ok(cues.issues.prelude.scaleOut < cues.issues.native);
   assert.ok(SCORE_STYLES['arabesque-acoustic-chill']);

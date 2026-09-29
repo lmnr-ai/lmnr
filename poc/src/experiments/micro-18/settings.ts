@@ -33,7 +33,7 @@ export type Ultimate3Settings = {
   clouds?: CloudSettings;
   allocations: Record<ChapterId, number>;
   pacing: {ultimate2HandoffHold: number; costTrimEnd: number; flowTrimEnd: number};
-  ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10};
+  ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10 | 12};
   cost: {timing: Micro16Timing; controls: Micro16Controls};
   flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
   issues: {sourceVersion: 20 | 22; timing22?: Micro22Timing; controls22?: Micro22Controls; migration22?: 1; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
@@ -212,7 +212,7 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
       flowTrimEnd: finite(pacingRaw?.flowTrimEnd, 11.8, 0, 60),
     },
     ultimate2: {timing: normalize17Timing({...MICRO17_TIMING, ...u2.timing}), controls: recordControls(u2.controls, MICRO17_CONTROLS),
-      ...(u2.streamBlocksRemoved === 10 ? {streamBlocksRemoved: 10} : {})},
+      ...(u2.streamBlocksRemoved === 10 || u2.streamBlocksRemoved === 12 ? {streamBlocksRemoved: u2.streamBlocksRemoved} : {})},
     cost: {timing: normalize16Timing(cost.timing), controls: normalize16Controls(cost.controls)},
     flow: {...(flow.sourceVersion === 21 ? {sourceVersion: 21 as const,
         timing21: Object.fromEntries(Object.entries(FLOW_21_TIMING).map(([key, fallback]) => {

@@ -9,8 +9,9 @@ import {MICRO_22_TIMING} from '../micro-22/timeline';
 import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
 import v6 from '../../../handoff/voiceover-captions/default-settings.json';
 import v7 from '../../../handoff/latest-ultimate3/settings.json';
+import v8 from '../../../handoff/voiceover-subtle-a/default-settings.json';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
-import {CLUSTER_BREATH, FLOW_HOLD, GRID_SOAK, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {CLUSTER_BREATH, FLOW_HOLD, GRID_SOAK, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, TRACE_STREAM_SPEED, TRACE_TRIM, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES, VOICEOVER_PHRASES_V4} from './voiceover-phrases';
 
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
@@ -35,22 +36,24 @@ test('the approved A/subtle take sits at its authored slots as linear DialKit ba
   assert.ok(last.at + last.duration <= ultimate3DurationFrames(s) / 30);
 });
 
-test('four actual blocks add 720px; new run preserves the 391.025604px approach and continuous blue lift', () => {
+test('Write and its icon add 360px; the shorter run preserves the 391.025604px approach and continuous blue lift', () => {
   const s = VOICEOVER_DEFAULTS, t = s.ultimate2.timing;
   const prior = routeLayout(old.ultimate2.timing.streamRun.duration, old.ultimate2.controls.streamerSpeed);
   const route = routeLayout(t.streamRun.duration, s.ultimate2.controls.streamerSpeed, s.ultimate2.streamBlocksRemoved);
-  assert.equal(s.ultimate2.streamBlocksRemoved, 10);
+  assert.equal(s.ultimate2.streamBlocksRemoved, 12);
   close(OPENING_STREAM_SPEED, 378.8606414982164);
-  close(t.streamRun.duration, 6.728);
+  // Bash and the separator go; the agent runs only ~5.5% faster.
+  close(TRACE_STREAM_SPEED, 399.59371960569547);
+  close(t.streamRun.duration, 6.728 - TRACE_TRIM);
   close(prior.runEnd, 2128.974396);
-  close(route.runEnd, 2848.974396);
-  close(route.elbowX, 3240);
+  close(route.runEnd, 2488.974396);
+  close(route.elbowX, 2880);
   close(route.elbowX - route.runEnd, prior.elbowX - prior.runEnd);
-  assert.equal(route.straightBlockCount, prior.straightBlockCount + 4);
-  const world = (time: number) => worldState(sampleMicro17(time, t), s.ultimate2.controls, 10);
+  assert.equal(route.straightBlockCount, prior.straightBlockCount + 2);
+  const world = (time: number) => worldState(sampleMicro17(time, t), s.ultimate2.controls, 12);
   const blocks = visibleRouteBlocks(world(t.upwardTurn.at), -10000, 10000);
   assert.deepEqual(blocks.filter(b => !b.key.startsWith('tail-')).map(b => b.id),
-    ['thinking-blue', 'turn-top', 'read', 'turn-right', 'thinking-red', 'turn-left', 'write', 'bash-icon', 'bash', 'separator']);
+    ['thinking-blue', 'turn-top', 'read', 'turn-right', 'thinking-red', 'turn-left', 'write', 'bash-icon']);
   const blue = blocks.find(b => b.key === 'tail-later-thinking-blue')!;
   assert.equal(blue.lift, true);
   close(blue.x + blue.w, route.liftCenter - route.elbowX + 180);
@@ -66,24 +69,24 @@ test('four actual blocks add 720px; new run preserves the 391.025604px approach 
 
 test('tuned main defaults preserve downstream durations and deterministic reverse sampling', () => {
   const s = VOICEOVER_DEFAULTS, schedule = chapterSchedule(s);
-  close(schedule[0].duration, 22.41);
-  schedule.forEach((chapter, i) => close(chapter.start, [0, 22.41, 36.11, 51.302, 70.61][i]));
+  close(schedule[0].duration, 21.16);
+  schedule.forEach((chapter, i) => close(chapter.start, [0, 21.16, 34.86, 50.052, 69.36][i]));
   close(s.allocations.cost, old.allocations.cost);
   close(s.allocations.conclusion, old.allocations.conclusion + GRID_SOAK);
   close(s.allocations.flow, old.allocations.flow + FLOW_HOLD);
   for (const key of ['slideIn', 'partialRecede', 'recede'] as const)
-    close(s.clouds!.timing[key].at, old.clouds!.timing[key].at + OPENING_RIPPLE);
+    close(s.clouds!.timing[key].at, old.clouds!.timing[key].at + OPENING_RIPPLE - TRACE_TRIM);
   // Reverted global-cloud defaults stay historical; the native cloud bar is independently tuned.
-  close(s.clouds!.timing.slideIn.at, 19.358);
-  close(s.ultimate2.timing.upwardTurn.at, 9.278);
-  close(s.ultimate2.timing.warningEnter.at, 12.878);
-  close(s.ultimate2.timing.cloudEnter.at, 12.49);
+  close(s.clouds!.timing.slideIn.at, 18.108);
+  close(s.ultimate2.timing.upwardTurn.at, 8.028);
+  close(s.ultimate2.timing.warningEnter.at, 11.628);
+  close(s.ultimate2.timing.cloudEnter.at, 11.24);
   close(s.ultimate2.timing.cloudEnter.duration, 6.17);
   close(s.allocations.issues,21 - FLOW_HOLD + CLUSTER_BREATH);
-  close(schedule[4].start,70.61);
-  close(schedule.at(-1)!.end, 77.16);
-  assert.equal(ultimate3DurationFrames(s), 2315);
-  const times = [0, 3.44, 8.37, 9.278, 10.51, 12.878, 13.5, 19.358, 19.68, 20.28,
+  close(schedule[4].start,69.36);
+  close(schedule.at(-1)!.end, 75.91);
+  assert.equal(ultimate3DurationFrames(s), 2278);
+  const times = [0, 3.44, 7.12, 8.028, 9.26, 11.628, 12.25, 18.108, 18.43, 19.03,
     ...schedule.map(chapter => chapter.start), schedule.at(-1)!.end];
   const forward = times.map(time => sampleUltimate3(time, s));
   for (let i = times.length - 1; i >= 0; i--) assert.deepEqual(sampleUltimate3(times[i], s), forward[i]);
@@ -97,8 +100,8 @@ test('explicit legacy imports retain their original route; fresh and new imports
   assert.equal(legacy.ultimate2.streamBlocksRemoved, undefined);
   assert.deepEqual(legacy.ultimate2.timing, normalizeSettings(imported).ultimate2.timing);
   assert.equal(legacy.ultimate2.controls.streamerSpeed, imported.ultimate2.controls.streamerSpeed);
-  assert.equal(normalizeVoiceoverSettings(VOICEOVER_DEFAULTS).ultimate2.streamBlocksRemoved, 10);
-  assert.equal(readVoiceoverSettings({getItem: () => null}).ultimate2.streamBlocksRemoved, 10);
+  assert.equal(normalizeVoiceoverSettings(VOICEOVER_DEFAULTS).ultimate2.streamBlocksRemoved, 12);
+  assert.equal(readVoiceoverSettings({getItem: () => null}).ultimate2.streamBlocksRemoved, 12);
 });
 
 test('load-only fieldwise migration recognizes old generated values; authored clips, trims, metadata, allocations and clouds survive', () => {
@@ -146,6 +149,20 @@ test('editable-v7 storage (the 10-04 take) switches to the A/subtle phrases; its
   // The authored slot stays; the duration is capped to the A/subtle trim.
   assert.deepEqual(reloaded.voiceover!.phrases.n05, {at: 14, duration: VOICEOVER_PHRASES[4].b - VOICEOVER_PHRASES[4].a});
   assert.deepEqual(reloaded.voiceover!.phrases.n06, VOICEOVER_DEFAULTS.voiceover!.phrases.n06);
+});
+
+test('editable-v8 storage takes the shorter trace run; tuned speed keeps its route and authored clips stay', () => {
+  assert.deepEqual(load(v8), VOICEOVER_DEFAULTS);
+  const authored = structuredClone(v8);
+  authored.ultimate2.timing.highlight.at = 12;
+  authored.voiceover.phrases.n05.at = 13.9;
+  const reloaded = load(authored);
+  assert.equal(reloaded.ultimate2.timing.highlight.at, 12);
+  assert.equal(reloaded.voiceover!.phrases.n05.at, 13.9);
+  assert.deepEqual(reloaded.voiceover!.phrases.n06, VOICEOVER_DEFAULTS.voiceover!.phrases.n06);
+  const tuned = structuredClone(v8);
+  tuned.ultimate2.controls.streamerSpeed = 390;
+  assert.equal(load(tuned).ultimate2.streamBlocksRemoved, 10);
 });
 
 test('saved historical cuts reload without any piece of the voice retime', () => {

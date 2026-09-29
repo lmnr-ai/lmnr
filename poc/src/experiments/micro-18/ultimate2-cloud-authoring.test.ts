@@ -2,21 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {computeClipState, computeStaticTimeline, parseTimelineConfig} from 'dialkit/timeline';
 import {ULTIMATE2_CLOUD_KEY, ultimate2CloudTimelineConfig, ultimate2CloudTimelineValues, settingsFromUltimate2CloudTimeline} from './authoring';
-import {VOICEOVER_DEFAULTS, readVoiceoverSettings} from './voiceover-cut';
+import {VOICEOVER_DEFAULTS, readVoiceoverSettings, TRACE_STREAM_SPEED, TRACE_TRIM} from './voiceover-cut';
 import returnedSettings from '../../../handoff/voiceover-soak/default-settings.json';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import {normalizeSettings} from './settings';
 import {sampleMicro17} from '../micro-17/sample';
 
 const defaults = normalizeSettings(VOICEOVER_DEFAULTS);
+const clip = <T extends {duration: number; transition?: {type: string}}>(c: T, duration: number) =>
+  ({...c, duration, ...(c.transition?.type === 'easing' ? {transition: {...c.transition, duration}} : {})});
 
 test('pasted Main defaults apply exact cloud timing/easing and chapter rounding; narration only switches to the A/subtle take', () => {
   const previous = normalizeSettings(returnedSettings);
   const voiceover = {version: 1 as const, phrases: Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]))};
-  const cloudEnter = {at: 12.49, duration: 6.17,
+  const cloudEnter = {at: 11.24, duration: 6.17,
     transition: {type: 'easing' as const, duration: 6.17, ease: [.2, 0, .55, .2] as [number, number, number, number]}};
-  const expected = normalizeSettings({...previous, allocations: {ultimate2: 22.41, cost: 13.7, flow: 15.192, issues: 19.308, conclusion: 6.55},
-    ultimate2: {...previous.ultimate2, timing: {...previous.ultimate2.timing, cloudEnter}},
+  // The shorter trace run moves every clip from continueStraight on 1.25s sooner.
+  const sooner = <T extends {at: number}>(clip: T) => ({...clip, at: clip.at - TRACE_TRIM});
+  const {timing} = previous.ultimate2, run = timing.streamRun.duration - TRACE_TRIM;
+  const shortened = clip(timing.streamRun, run), trace = clip(timing.subtitleTrace, run);
+  const expected = normalizeSettings({...previous, allocations: {ultimate2: 21.16, cost: 13.7, flow: 15.192, issues: 19.308, conclusion: 6.55},
+    clouds: {...previous.clouds!, timing: Object.fromEntries(Object.entries(previous.clouds!.timing).map(([key, c]) => [key, sooner(c)])) as NonNullable<typeof previous.clouds>['timing']},
+    ultimate2: {streamBlocksRemoved: 12, controls: {...previous.ultimate2.controls, streamerSpeed: TRACE_STREAM_SPEED},
+      timing: {...Object.fromEntries(Object.entries(timing).map(([key, c]) => [key, c.at >= timing.continueStraight.at ? sooner(c) : c])) as typeof timing,
+        streamRun: shortened, subtitleTrace: trace, cloudEnter}},
     // Subsequent user tuning halves the explanation typing, not its narration.
     issues: {...previous.issues, timing22: {...previous.issues.timing22, explanationTyping: {
       ...previous.issues.timing22!.explanationTyping, duration: 1.2,
@@ -41,10 +50,10 @@ test('Main cloud bar aliases the existing native clip without changing settings 
 });
 
 test('Main cloud edits persist only to Ultimate2 cloudEnter, retaining authored curves and native endpoints', () => {
-  const cloud = {...ultimate2CloudTimelineConfig(defaults)[ULTIMATE2_CLOUD_KEY], at: 18.5, duration: 2,
+  const cloud = {...ultimate2CloudTimelineConfig(defaults)[ULTIMATE2_CLOUD_KEY], at: 17.25, duration: 2,
     from: {progress: .1}, to: {progress: .9}, transition: {type: 'spring' as const, duration: .8, bounce: .1}};
   const changed = settingsFromUltimate2CloudTimeline({[ULTIMATE2_CLOUD_KEY]: cloud}, defaults);
-  assert.deepEqual(changed.ultimate2.timing.cloudEnter, {at: 18.5, duration: 2, transition: cloud.transition});
+  assert.deepEqual(changed.ultimate2.timing.cloudEnter, {at: 17.25, duration: 2, transition: cloud.transition});
   assert.deepEqual(ultimate2CloudTimelineConfig(changed)[ULTIMATE2_CLOUD_KEY].from, {progress: 0});
   assert.deepEqual(ultimate2CloudTimelineConfig(changed)[ULTIMATE2_CLOUD_KEY].to, {progress: 1});
   assert.deepEqual({...changed, ultimate2: {...changed.ultimate2, timing: {...changed.ultimate2.timing, cloudEnter: defaults.ultimate2.timing.cloudEnter}}}, defaults);

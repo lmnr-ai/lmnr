@@ -13,6 +13,9 @@ included with processing metadata and a verified hash. It is now split, aligned
 and wired into playback and export as `editable-v8`; see the README's
 "Integration" section.
 
+The opening trace run is then 1.25s shorter (two fewer blocks, a slightly faster agent),
+as `editable-v9`: **[handoff/voiceover-quicker-trace/README.md](handoff/voiceover-quicker-trace/README.md)**.
+
 ## Existing integration: Issue Clusters 4 and previous voice recording
 
 Start with **[handoff/issues4/README.md](handoff/issues4/README.md)**. The current editable Ultimate3 uses Animation21 plus Animation22's expanding report and restored clustering/coding-agent sequence. The latest user re-recording, **[Signals-launch-09-29-10-04.m4a](public/audio/voiceover/Signals-launch-09-29-10-04.m4a)**, is split and wired into playback ([handoff/voiceover-issues4/README.md](handoff/voiceover-issues4/README.md)); the picture and captions are then retimed to it ([handoff/voiceover-captions/README.md](handoff/voiceover-captions/README.md)), then given a clustering breath and a longer look at the warning grid ([handoff/voiceover-soak/README.md](handoff/voiceover-soak/README.md)). The original cut remains separately available.
