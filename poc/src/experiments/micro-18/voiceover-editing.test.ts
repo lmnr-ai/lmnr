@@ -31,7 +31,7 @@ test('23 real timeline bars and first six in Ultimate 2 share phrase settings; i
   assert.equal(result.voiceover?.phrases.n02.duration, .1);
   assert.deepEqual(normalizeVoiceoverSettings(JSON.parse(JSON.stringify(result))), result);
   assert.equal(normalizeVoiceoverSettings({...VOICEOVER_DEFAULTS, voiceover: undefined}).voiceover?.phrases.n02.at, VOICEOVER_DEFAULTS.voiceover!.phrases.n02.at);
-  const last = changed('n23', 2276 / 30, 2);
+  const last = changed('n23', 2315 / 30, 2);
   assert.equal(last.voiceover!.phrases.n23.duration, 0);
   assert.equal(changed('n01', 1, 0).voiceover!.phrases.n01.duration, 0);
   assert.equal(changed('n01', 1, 100).voiceover!.phrases.n01.duration, VOICEOVER_PHRASES[0].b - VOICEOVER_PHRASES[0].a);
@@ -51,12 +51,12 @@ test('shared schedule/PCM uses true trims, overlaps, silence, fades and one line
   assert.equal(phraseGain(.5, .5), 0);
   const doubled = mixVoiceoverPcm(bed, {n01: source, n02: source}, settings, 2);
   assert.equal(doubled.l[4800], 2 * both);
-  assert.equal(pcm.l.length, 2276 * 1600);
+  assert.equal(pcm.l.length, 2315 * 1600);
   assert.equal(mixVoiceoverPcm(bed, {n01: source, n02: source}, settings, 0).l[4800], 0);
 });
 
 test('prepared assets are exactly the immutable 23 trims of the September 29 take and the Issue Clusters 4 score', () => {
-  const base = new URL('../../../public/audio/voiceover/editable-v6/', import.meta.url);
+  const base = new URL('../../../public/audio/voiceover/editable-v7/', import.meta.url);
   const read = (file: string) => readFileSync(new URL(file, base));
   const manifest = JSON.parse(read('manifest.json').toString());
   assert.equal(manifest.phrases.length, 23);
@@ -64,8 +64,8 @@ test('prepared assets are exactly the immutable 23 trims of the September 29 tak
   const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
   assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
   assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
-  assert.equal(manifest.samples, 2276 * 1600);
-  assert.equal(`/audio/voiceover/editable-v6/${manifest.bed.file}`, VOICEOVER_BED_URL);
+  assert.equal(manifest.samples, 2315 * 1600);
+  assert.equal(`/audio/voiceover/editable-v7/${manifest.bed.file}`, VOICEOVER_BED_URL);
   assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../Signals-launch-09-29-10-04.m4a', base))));
   for (const entry of manifest.phrases) {
     const phrase = VOICEOVER_PHRASES.find(p => p.id === entry.id)!;

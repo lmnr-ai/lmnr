@@ -2,7 +2,7 @@
 
 ## Current handoff: Issue Clusters 4 and new voice recording
 
-Start with **[handoff/issues4/README.md](handoff/issues4/README.md)**. The current editable Ultimate3 uses Animation21 plus Animation22's expanding report and restored clustering/coding-agent sequence. The latest user re-recording, **[Signals-launch-09-29-10-04.m4a](public/audio/voiceover/Signals-launch-09-29-10-04.m4a)**, is split and wired into playback ([handoff/voiceover-issues4/README.md](handoff/voiceover-issues4/README.md)); the picture and captions are then retimed to it ([handoff/voiceover-captions/README.md](handoff/voiceover-captions/README.md)). The original cut remains separately available.
+Start with **[handoff/issues4/README.md](handoff/issues4/README.md)**. The current editable Ultimate3 uses Animation21 plus Animation22's expanding report and restored clustering/coding-agent sequence. The latest user re-recording, **[Signals-launch-09-29-10-04.m4a](public/audio/voiceover/Signals-launch-09-29-10-04.m4a)**, is split and wired into playback ([handoff/voiceover-issues4/README.md](handoff/voiceover-issues4/README.md)); the picture and captions are then retimed to it ([handoff/voiceover-captions/README.md](handoff/voiceover-captions/README.md)), then given a clustering breath and a longer look at the warning grid ([handoff/voiceover-soak/README.md](handoff/voiceover-soak/README.md)). The original cut remains separately available.
 
 The earlier **[Flow21 handoff](handoff/flow21/README.md)** remains useful background, but its full-composition duration predates the longer restored Issues chapter.
 

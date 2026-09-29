@@ -4,6 +4,7 @@ import importedSettings from '../../../handoff/voiceover-retime/retimed-settings
 import {normalizeSettings, FLOW_21_TIMING, type ClipTiming} from './settings';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
+import captionPlacements from '../../../handoff/voiceover-captions/placements.json';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
 export const VOICEOVER_SOUNDTRACK_URL = '/audio/voiceover/ultimate3-voiceover-v4.wav';
@@ -50,6 +51,12 @@ const ISSUES_RETIME: Retime = {blueBashEntry: [.1, .6], blueBashStop: .55, bashE
   subtitleFlow: [0, .8], subtitleDetection: [.8, 1.45], subtitleReporting: [2.25, 1.05], subtitleLabels: [3.3, 2.158],
   ...shifted(MICRO_22_TIMING, ['explanation', 'explanationTyping', 'subtitleStructure', 'bubbleExit', 'analysisZoomOut', 'subtitleEveryTrace',
     'analysisTraceCollapse', 'analysisLocalGridFade', 'analysisCircleGrow', 'analysisCircleFade', 'analysisAgentScaleOut', 'analysisLayout'], -FLOW_HOLD)};
+// "It clusters issues" waits a second longer after "across every trace"; the discovery circle grows through it.
+export const CLUSTER_BREATH = 1;
+const CLUSTER_RETIME: Retime = {analysisCircleGrow: [MICRO_22_TIMING.analysisCircleGrow.at - FLOW_HOLD, MICRO_22_TIMING.analysisCircleGrow.duration + CLUSTER_BREATH],
+  ...shifted(MICRO_22_TIMING, ['analysisAgentScaleOut', 'analysisCircleFade', 'analysisLayout'], CLUSTER_BREATH - FLOW_HOLD)};
+// The wide warning grid holds after "…millions of agent traces" before "with Laminar".
+export const GRID_SOAK = .3;
 const unretimed = {...original,
   issues: {...original.issues, sourceVersion: 22 as const, timing22: MICRO_22_TIMING, controls22: MICRO_22_DEFAULTS, migration22: 1 as const},
   flow: {...original.flow, sourceVersion: 21 as const, timing21: FLOW_21_TIMING},
@@ -59,17 +66,26 @@ const unretimed = {...original,
   ultimate2: {...original.ultimate2, timing: openingTiming, streamBlocksRemoved: 10,
     controls: {...original.ultimate2.controls, streamerSpeed: OPENING_STREAM_SPEED}},
 };
-/** The editable-v5 defaults: storage still holding one of their generated fields upgrades it. */
+/** The editable-v5 defaults: storage still holding one of their (or v6's) generated fields upgrades it. */
 const PREVIOUS_DEFAULTS = normalizeSettings({...unretimed, voiceover: {version: 1, phrases: {...takePhrases,
   n09: {at: issues4Placements[8].at, duration: issues4Placements[8].b - issues4Placements[8].a}}}});
-export const VOICEOVER_DEFAULTS = normalizeSettings({...unretimed,
+/** The editable-v6 defaults (script captions, picture retimed to the voice). */
+const V6_DEFAULTS = normalizeSettings({...unretimed,
   issues: {...unretimed.issues, timing22: retime(MICRO_22_TIMING, ISSUES_RETIME)},
   flow: {...unretimed.flow, timing21: retime(FLOW_21_TIMING, FLOW_RETIME)},
   cost: {...original.cost, timing: retime(original.cost.timing, COST_RETIME)},
   pacing: {...original.pacing, flowTrimEnd: original.pacing.flowTrimEnd + FLOW_HOLD},
   allocations: {...unretimed.allocations, flow: original.allocations.flow + FLOW_HOLD, issues: original.allocations.issues - FLOW_HOLD},
+  voiceover: {version: 1, phrases: Object.fromEntries(captionPlacements.map((p, i) => [`n${String(i + 1).padStart(2, '0')}`, {at: p.at, duration: p.b - p.a}]))},
+});
+const {placeholder, logo} = V6_DEFAULTS.conclusion;
+export const VOICEOVER_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
+  issues: {...V6_DEFAULTS.issues, timing22: retime(MICRO_22_TIMING, {...ISSUES_RETIME, ...CLUSTER_RETIME})},
+  conclusion: {placeholder: {...placeholder, duration: placeholder.duration + GRID_SOAK}, logo: {...logo, at: logo.at + GRID_SOAK}},
+  allocations: {...V6_DEFAULTS.allocations, issues: V6_DEFAULTS.allocations.issues + CLUSTER_BREATH, conclusion: V6_DEFAULTS.allocations.conclusion + GRID_SOAK},
   voiceover: {version: 1, phrases: takePhrases},
 });
+const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS];
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
@@ -78,8 +94,8 @@ export function normalizeVoiceoverSettings(input: unknown) {
 }
 
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const upgrade = <T extends object>(stored: T, previous: T, next: T): T => Object.fromEntries(Object.entries(stored).map(([key, value]) =>
-  [key, equal(value, previous[key as keyof T]) ? next[key as keyof T] : value])) as T;
+const upgrade = <T extends object>(stored: T, pick: (d: typeof VOICEOVER_DEFAULTS) => T | undefined): T => Object.fromEntries(Object.entries(stored).map(([key, value]) =>
+  [key, GENERATED.some(d => equal(value, pick(d)?.[key as keyof T])) ? pick(VOICEOVER_DEFAULTS)![key as keyof T] : value])) as T;
 /** Storage only: replace recognized generated fields individually; JSON imports stay literal. */
 export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   if (!input || typeof input !== 'object') return input;
@@ -92,9 +108,9 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   if (allocations.ultimate2 === original.allocations.ultimate2) allocations.ultimate2 = VOICEOVER_DEFAULTS.allocations.ultimate2;
   // A source13 Flow or kept source20 Issues never had the voice retime.
   const retimed = raw.flow?.sourceVersion !== 13 && !(raw.issues?.migration22 === 1 && raw.issues.sourceVersion === 20);
-  const pacing = raw.pacing && retimed ? upgrade(raw.pacing, PREVIOUS_DEFAULTS.pacing, VOICEOVER_DEFAULTS.pacing) : raw.pacing;
-  if (retimed) for (const id of ['flow', 'issues'] as const)
-    if (allocations[id] === PREVIOUS_DEFAULTS.allocations[id]) allocations[id] = VOICEOVER_DEFAULTS.allocations[id];
+  const pacing = raw.pacing && retimed ? upgrade(raw.pacing, d => d.pacing) : raw.pacing;
+  if (retimed) for (const id of ['flow', 'issues', 'conclusion'] as const)
+    if (GENERATED.some(d => allocations[id] === d.allocations[id])) allocations[id] = VOICEOVER_DEFAULTS.allocations[id];
   const controls = {...raw.ultimate2?.controls};
   if (controls.streamerSpeed === original.ultimate2.controls.streamerSpeed) controls.streamerSpeed = OPENING_STREAM_SPEED;
   const clouds = raw.clouds ? {...raw.clouds, timing: {...raw.clouds.timing}} : undefined;
@@ -102,11 +118,12 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
     if (equal(clouds.timing[key], original.clouds!.timing[key])) clouds.timing[key] = VOICEOVER_DEFAULTS.clouds!.timing[key];
   }
   // The whole voice retime moves together, so historical cuts keep Cost clips and n09 too.
-  const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, PREVIOUS_DEFAULTS.cost.timing, VOICEOVER_DEFAULTS.cost.timing)} : raw.cost;
-  const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, PREVIOUS_DEFAULTS.flow.timing21!, VOICEOVER_DEFAULTS.flow.timing21!)} : raw.flow;
-  const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, PREVIOUS_DEFAULTS.issues.timing22!, VOICEOVER_DEFAULTS.issues.timing22!)} : raw.issues;
-  const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: upgrade(raw.voiceover.phrases, PREVIOUS_DEFAULTS.voiceover!.phrases, VOICEOVER_DEFAULTS.voiceover!.phrases)} : raw.voiceover;
-  return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}),
+  const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, d => d.cost.timing)} : raw.cost;
+  const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, d => d.flow.timing21)} : raw.flow;
+  const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, d => d.issues.timing22)} : raw.issues;
+  const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: upgrade(raw.voiceover.phrases, d => d.voiceover?.phrases)} : raw.voiceover;
+  const conclusion = retimed && raw.conclusion ? upgrade(raw.conclusion, d => d.conclusion) : raw.conclusion;
+  return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}), ...(conclusion ? {conclusion} : {}),
     ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: raw.ultimate2?.streamBlocksRemoved ?? 10},
     ...(clouds ? {clouds} : {})};
 }

@@ -7,8 +7,9 @@ import {chapterSchedule, sampleUltimate3, ultimate3DurationFrames} from './sampl
 import {FLOW_21_TIMING, normalizeSettings} from './settings';
 import {MICRO_22_TIMING} from '../micro-22/timeline';
 import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
+import v6 from '../../../handoff/voiceover-captions/default-settings.json';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
-import {FLOW_HOLD, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {CLUSTER_BREATH, FLOW_HOLD, GRID_SOAK, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES, VOICEOVER_PHRASES_V4} from './voiceover-phrases';
 
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
@@ -66,7 +67,8 @@ test('downstream chapters and cloud default beats ripple together; editor sampli
   const s = VOICEOVER_DEFAULTS, schedule = chapterSchedule(s);
   close(schedule[0].duration, old.allocations.ultimate2 + OPENING_RIPPLE);
   for (let i = 1; i < 4; i++) close(schedule[i].start, chapterSchedule(old)[i].start + OPENING_RIPPLE + (i === 3 ? FLOW_HOLD : 0));
-  for (const id of ['cost', 'conclusion'] as const) close(s.allocations[id], old.allocations[id]);
+  close(s.allocations.cost, old.allocations.cost);
+  close(s.allocations.conclusion, old.allocations.conclusion + GRID_SOAK);
   close(s.allocations.flow, old.allocations.flow + FLOW_HOLD);
   for (const key of ['slideIn', 'partialRecede', 'recede'] as const)
     close(s.clouds!.timing[key].at, old.clouds!.timing[key].at + OPENING_RIPPLE);
@@ -74,10 +76,10 @@ test('downstream chapters and cloud default beats ripple together; editor sampli
   close(s.ultimate2.timing.upwardTurn.at, 9.278);
   close(s.ultimate2.timing.warningEnter.at, 12.878);
   close(s.ultimate2.timing.cloudEnter.at, 19.358);
-  close(s.allocations.issues,21 - FLOW_HOLD);
-  close(schedule[4].start,69.608);
-  close(schedule.at(-1)!.end, 75.858);
-  assert.equal(ultimate3DurationFrames(s), 2276);
+  close(s.allocations.issues,21 - FLOW_HOLD + CLUSTER_BREATH);
+  close(schedule[4].start,70.608);
+  close(schedule.at(-1)!.end, 77.158);
+  assert.equal(ultimate3DurationFrames(s), 2315);
   const times = [0, 3.44, 8.37, 9.278, 10.51, 12.878, 13.5, 19.358, 19.68, 20.28,
     ...schedule.map(chapter => chapter.start), schedule.at(-1)!.end];
   const forward = times.map(time => sampleUltimate3(time, s));
@@ -119,6 +121,18 @@ test('load-only fieldwise migration recognizes old generated values; authored cl
   assert.deepEqual((restored as any).selection, {active: 'n08'});
   // Edits of the September 27 take's vo* clips never move the new take's phrases.
   assert.deepEqual(load({...old, voiceover: {version: 1, phrases: {vo06: {at: 30, duration: 1}}}}).voiceover, VOICEOVER_DEFAULTS.voiceover);
+});
+
+test('editable-v6 storage takes the clustering breath and grid soak; its authored fields stay', () => {
+  assert.deepEqual(load(v6), VOICEOVER_DEFAULTS);
+  const authored = structuredClone(v6);
+  authored.issues.timing22.analysisCircleGrow.duration = 1.1;
+  authored.voiceover.phrases.n20.at = 63.9;
+  const reloaded = load(authored);
+  assert.equal(reloaded.issues.timing22!.analysisCircleGrow.duration, 1.1);
+  assert.equal(reloaded.voiceover!.phrases.n20.at, 63.9);
+  assert.deepEqual(reloaded.voiceover!.phrases.n21, VOICEOVER_DEFAULTS.voiceover!.phrases.n21);
+  assert.deepEqual(reloaded.conclusion, VOICEOVER_DEFAULTS.conclusion);
 });
 
 test('saved historical cuts reload without any piece of the voice retime', () => {

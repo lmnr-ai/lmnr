@@ -13,7 +13,8 @@ const dest = join(root, 'public/audio/voiceover', edition);
 if (existsSync(dest)) throw new Error(`Refusing to overwrite existing editable sources: ${dest}`);
 const settings = `handoff/${handoff}/default-settings.json`, placementsFile = `handoff/${handoff}/placements.json`;
 const placements = JSON.parse(readFileSync(join(root, placementsFile)));
-const frames = 2276, samples = frames * 1600;
+// The chapter allocations tile the cut (2276 frames for editable-v5/v6).
+const frames = Math.ceil(Object.values(JSON.parse(readFileSync(join(root, settings))).allocations).reduce((a, b) => a + b) * 30), samples = frames * 1600;
 const work = mkdtempSync(join(tmpdir(), `ultimate3-${edition}-`));
 const score = join(work, 'score.wav');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');

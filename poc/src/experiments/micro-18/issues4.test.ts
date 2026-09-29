@@ -29,7 +29,7 @@ test('only current v4 upgrades; source20 stays available; restored postlude exte
   assert.deepEqual(migrateStoredVoiceoverIssues22(next),next);
   for(const key of ['allocations','pacing','ultimate2','cost','flow','conclusion','clouds','voiceover'] as const) assert.deepEqual(next[key],previous[key]);
   for(const key of ['timing','controls','preludeTiming','preludeControls','issueStart','leadIn'] as const) assert.deepEqual(next.issues[key],previous.issues[key]);
-  close(chapterSchedule(s)[4].start,69.608);
+  close(chapterSchedule(s)[4].start,70.608);
   assert.ok(issueEntryEnd(s)+issueEndpoint(s)<=s.allocations.issues);
 });
 test('all new timing fields, endpoints, curves and controls round-trip independently from source20',()=>{
@@ -87,7 +87,7 @@ test('entry, report, restored postlude and conclusion preserve one source22 worl
   assert.equal(conclusion.world.phase,'issues');assert.equal(terminal.world.phase,'issues');
   if(conclusion.world.phase!=='issues'||terminal.world.phase!=='issues') throw Error('missing issues');
   assert.deepEqual(conclusion.world.issue.tokens,terminal.world.issue.tokens);assert.deepEqual(conclusion.world.issue.agent,terminal.world.issue.agent);assert.deepEqual(conclusion.world.issue.clusters,terminal.world.issue.clusters);assert.equal(conclusion.world.outro?.scale,1);
-  for(const local of [12.8,15.8,17.8]) {
+  for(const local of [13.8,16.8,18.8]) {
     const sample=sampleUltimate3(start+local,s);
     const markup=renderToStaticMarkup(createElement(Ultimate3Scene,{sample,settings:s}));
     assert.ok(markup.includes('micro15-composition'));assert.equal(sample.issues?.postludeActive,true);

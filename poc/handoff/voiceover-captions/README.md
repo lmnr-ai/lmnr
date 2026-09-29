@@ -1,5 +1,7 @@
 # Script captions and picture retimed to the September 29 take
 
+Superseded as the default by [../voiceover-soak/README.md](../voiceover-soak/README.md) (1s clustering breath, 0.3s grid hold); this placement, its `editable-v6` sources and render stay as published.
+
 The editable Ultimate3 voiceover cut (`?experiment=micro-18`) keeps the [voiceover-issues4](../voiceover-issues4/README.md) take and length (75.858s, 2276 frames). What changed is the captions, and the picture now follows the voice.
 
 ## Captions

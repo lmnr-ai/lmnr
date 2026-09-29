@@ -34,7 +34,7 @@ test('latest v4 selects Animation21 defaults while original-cut and historical J
   assert.equal(s.flow.timing21!.graphSpread.duration, 1.54);
   assert.equal(s.flow.controls.beadStaggerSeconds, .11);
   assert.equal(s.flow.controls.coverMotion, 'split');
-  assert.equal(ultimate3DurationFrames(s), 2276);
+  assert.equal(ultimate3DurationFrames(s), 2315);
   assert.deepEqual(s.flow.timing, normalizeSettings(imported).flow.timing, 'legacy audio schedule is retained, not retuned');
   assert.equal(ULTIMATE_3_DEFAULTS.flow.sourceVersion, undefined);
   assert.equal(sampleFlow(6, ULTIMATE_3_DEFAULTS).playback21, undefined);
