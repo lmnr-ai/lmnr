@@ -100,6 +100,12 @@ pub fn version_hash(intersection: &[u64]) -> String {
     format!("{:x}", digest)[..8].to_string()
 }
 
+/// Hash of the empty intersection: the version of a fully dynamic text, where
+/// the cluster shares no line at all.
+pub fn empty_version_hash() -> String {
+    version_hash(&[])
+}
+
 /// True iff every line of the version's static set occurs in the prompt.
 pub fn is_subset(static_lines: &[u64], prompt_lines: &HashSet<u64>) -> bool {
     static_lines.iter().all(|h| prompt_lines.contains(h))

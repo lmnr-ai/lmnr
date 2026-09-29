@@ -39,6 +39,7 @@ pub mod extract;
 pub mod fingerprint;
 pub mod generate;
 pub mod generate_multi;
+pub mod inherit;
 pub mod input;
 pub mod lock;
 pub mod messages;
@@ -52,6 +53,6 @@ pub mod self_tracing;
 
 pub use output::{OutputCandidate, capture_output_candidate};
 pub use producer::{
-    SystemPromptIdentity, UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
+    UserTaskCandidate, UserTaskSpanContext, capture_user_task_candidate,
     process_user_task_candidates,
 };
