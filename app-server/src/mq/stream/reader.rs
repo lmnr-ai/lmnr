@@ -333,7 +333,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 }
 
                 // Activated (or re-activated): we own it again, so allow stores.
-                restore_partition(consumer_name, &stream).await;
+                restore_partition(consumer_name, &stream);
                 match context.client().query_offset(context.name(), &stream).await {
                     Ok(offset) => {
                         log::info!(
@@ -380,7 +380,7 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                                     "Could not resolve stored offset for stream {} after retries; parking the partition and reconnecting the reader",
                                     stream
                                 );
-                                revoke_partition(consumer_name, &stream).await;
+                                revoke_partition(consumer_name, &stream);
                                 offset_unresolved.notify_one();
                                 OffsetSpecification::Next
                             }
@@ -840,20 +840,9 @@ async fn flush_and_commit<H: StreamBatchHandler>(
     let _held_permits = std::mem::take(held_permits);
     let mut offsets = pending_offsets.take();
 
-    // Snapshot only — holding the read guard across the flush await would block
-    // `consumer_update`'s write for the length of a ClickHouse insert. The fence
-    // in `store_offsets` stays authoritative for a revocation landing mid-flush;
-    // a handover waits for `_in_flight` to drop before revoking.
-    let (dropped, _in_flight) = {
-        let ownership = PARTITION_OWNERSHIP.read().await;
-        let excluded = ownership
-            .get(consumer_name)
-            .map(GroupOwnership::excluded)
-            .unwrap_or_default();
-        let dropped = discard_revoked_entries(&excluded, &mut entries, &mut offsets);
-        let in_flight = InFlightFlush::enter(consumer_name, offsets.keys().cloned().collect());
-        (dropped, in_flight)
-    };
+    // Held until this function returns, i.e. past the offset store: a handover
+    // waits for it before stepping down.
+    let (_in_flight, dropped) = InFlightFlush::admit(consumer_name, &mut entries, &mut offsets);
     if dropped > 0 {
         log::info!(
             "Stream batcher {} discarding {} batched records for revoked partitions; the new owner replays them",
@@ -962,10 +951,8 @@ fn discard_revoked_entries<M>(
 /// order per partition), so dropping any non-advancing store is sufficient and
 /// never discards real progress.
 ///
-/// The revocation check is held under a READ guard ACROSS the `store_offset` await,
-/// so a concurrent revocation (which needs the write guard) cannot slip in between
-/// the check and the write. Checking without holding it would leave the in-flight
-/// store unfenced — see `PARTITION_OWNERSHIP` for why that's the interesting race.
+/// A revoked partition is never stored: see `PARTITIONS` for why a handover
+/// cannot revoke while one of our stores is still on its way out.
 async fn store_offsets(
     index: usize,
     client: &Client,
@@ -976,16 +963,9 @@ async fn store_offsets(
         // Ownership first: once the broker has deactivated us for this partition
         // the successor owns it, possibly in ANOTHER POD, so no local offset
         // comparison can tell us whether our store is stale. Not storing at all is
-        // the only sound answer. `flush_and_commit` already discards revoked work
-        // at its snapshot; this fence catches a revocation that landed while the
-        // flush was in flight.
-        //
-        // Held for the whole check-and-store so revocation can't interleave.
-        let ownership = PARTITION_OWNERSHIP.read().await;
-        if ownership
-            .get(consumer_name)
-            .is_some_and(|group| group.revoked.contains(&stream))
-        {
+        // the only sound answer. A handover normally revokes only after this flush
+        // finished; this catches one that timed out while we were still inserting.
+        if ownership(consumer_name, &stream) == Ownership::Revoked {
             log::warn!(
                 "Stream batcher {} not storing offset {} for stream {}: this consumer was deactivated for that partition, so the new owner's position stands",
                 index,
@@ -1105,119 +1085,128 @@ fn high_water_mark(consumer_name: &'static str, stream: &str) -> Option<u64> {
         .copied()
 }
 
-/// Partitions this process has been DEACTIVATED for, per consumer group.
+/// Ownership and in-flight flushes per `(consumer_name, partition)`, under ONE
+/// plain mutex that is never held across an `.await` (so it cannot deadlock).
 ///
 /// Single-active-consumer handovers cross pod boundaries, so the process-local
 /// high-water mark above cannot detect a successor that has already committed
 /// further ahead — its marks live in another process. What we DO learn locally is
-/// the broker's `consumer_update(active = 0)` callback: once we have replied to it
-/// we no longer own the partition, and any offset our still-running batcher holds
-/// is by definition not authoritative. Refusing to store for a revoked partition is
-/// therefore the cross-pod guard; the records we were holding are replayed by the
-/// new owner.
-///
-/// Re-activation removes the entry, since we own the partition again.
-/// An ASYNC `RwLock`, not a `std::sync::Mutex`, and that choice is the guard.
-///
-/// A plain mutex can only make the *check* atomic, not check-then-store: the
-/// `store_offset` call awaits, so a revocation landing in that window would be
-/// recorded while a store that already passed the check is still on its way out —
-/// the write escapes revocation entirely. Taking a READ guard across check+store
-/// and the WRITE guard to revoke makes the two mutually exclusive, so every store
-/// either completes while we still own the partition, or is refused.
+/// the broker's `consumer_update(active = 0)` callback, and the broker activates
+/// the successor only once we reply to it (`rabbit_stream_sac_coordinator`). So
+/// `hand_over_partition` marks the partition `Draining`, waits for `in_flight` to
+/// reach zero (a flush counts from its snapshot until its offset store returns),
+/// marks it `Revoked`, and only then replies: no store of ours can still be on its
+/// way out when the successor starts. After that, stores are refused, since the
+/// successor's position is authoritative; our held records are replayed by it.
 ///
 /// `StoreOffset` carries only `(reference, stream, offset)` — no epoch or fencing
-/// token — and has no response, so the broker cannot reject a stale store. What
-/// keeps a store from landing after the successor started is the handover order
-/// in `hand_over_partition`: the broker activates the successor only once we reply
-/// to the deactivation (`rabbit_stream_sac_coordinator`), and we reply only after
-/// revoking here and seeing our last store in `query_offset`.
-static PARTITION_OWNERSHIP: LazyLock<tokio::sync::RwLock<HashMap<&'static str, GroupOwnership>>> =
-    LazyLock::new(|| tokio::sync::RwLock::new(HashMap::new()));
-
-#[derive(Default)]
-struct GroupOwnership {
-    /// Stepped down: nothing is flushed or stored for these.
-    revoked: HashSet<String>,
-    /// Deactivation received, reply pending: NEW flushes discard these partitions,
-    /// but a flush that snapshotted before may still insert and store.
-    draining: HashSet<String>,
-}
-
-impl GroupOwnership {
-    /// Partitions a new flush must drop, records and offsets together.
-    fn excluded(&self) -> HashSet<String> {
-        self.revoked.union(&self.draining).cloned().collect()
-    }
-}
-
-async fn revoke_partition(consumer_name: &'static str, stream: &str) {
-    let mut ownership = PARTITION_OWNERSHIP.write().await;
-    let group = ownership.entry(consumer_name).or_default();
-    group.draining.remove(stream);
-    group.revoked.insert(stream.to_string());
-}
-
-async fn restore_partition(consumer_name: &'static str, stream: &str) {
-    if let Some(group) = PARTITION_OWNERSHIP.write().await.get_mut(consumer_name) {
-        group.draining.remove(stream);
-        group.revoked.remove(stream);
-    }
-}
-
-/// Flushes per `(consumer_name, partition)` that snapshotted ownership and have
-/// not finished their offset store yet. A sync mutex so `InFlightFlush` can
-/// release in `Drop`, which also covers a batcher aborted mid-flush.
-static IN_FLIGHT_FLUSHES: LazyLock<Mutex<HashMap<(&'static str, String), usize>>> =
+/// token — and has no response, so the broker cannot reject a stale store itself.
+/// Past the handover timeout we revoke with a flush still in flight; a store that
+/// passed its ownership check just before can then land after our reply. That
+/// store only covers records we inserted, so it is never loss: at worst it moves
+/// the group's position back until the successor's next store overwrites it.
+static PARTITIONS: LazyLock<Mutex<HashMap<(&'static str, String), PartitionState>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Woken whenever an in-flight flush finishes.
 static FLUSH_FINISHED: LazyLock<Notify> = LazyLock::new(Notify::new);
 
-fn lock_in_flight_flushes() -> std::sync::MutexGuard<'static, HashMap<(&'static str, String), usize>>
-{
-    match IN_FLIGHT_FLUSHES.lock() {
-        Ok(flushes) => flushes,
+#[derive(Default)]
+struct PartitionState {
+    ownership: Ownership,
+    /// Flushes that admitted this partition and have not finished their store.
+    in_flight: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Ownership {
+    #[default]
+    Owned,
+    /// Deactivation received, reply pending: new flushes drop the partition, a
+    /// flush already in flight may still insert and store.
+    Draining,
+    /// Stepped down: nothing is flushed or stored for it.
+    Revoked,
+}
+
+fn lock_partitions()
+-> std::sync::MutexGuard<'static, HashMap<(&'static str, String), PartitionState>> {
+    match PARTITIONS.lock() {
+        Ok(partitions) => partitions,
         Err(poisoned) => poisoned.into_inner(),
     }
 }
 
-/// Marks a flush's partitions in flight until dropped.
+fn ownership(consumer_name: &'static str, stream: &str) -> Ownership {
+    lock_partitions()
+        .get(&(consumer_name, stream.to_string()))
+        .map(|state| state.ownership)
+        .unwrap_or_default()
+}
+
+fn set_ownership(consumer_name: &'static str, stream: &str, ownership: Ownership) {
+    lock_partitions()
+        .entry((consumer_name, stream.to_string()))
+        .or_default()
+        .ownership = ownership;
+}
+
+fn revoke_partition(consumer_name: &'static str, stream: &str) {
+    set_ownership(consumer_name, stream, Ownership::Revoked);
+}
+
+fn restore_partition(consumer_name: &'static str, stream: &str) {
+    set_ownership(consumer_name, stream, Ownership::Owned);
+}
+
+/// A flush's claim on its partitions, released in `Drop` (which also covers a
+/// batcher aborted mid-flush).
 struct InFlightFlush {
     consumer_name: &'static str,
     partitions: Vec<String>,
 }
 
 impl InFlightFlush {
-    /// Call while holding the `PARTITION_OWNERSHIP` read guard the flush took its
-    /// snapshot under: `hand_over_partition` sets `draining` under the write guard,
-    /// so a flush is either registered before it looks, or sees the partition
-    /// draining and drops it.
-    fn enter(consumer_name: &'static str, partitions: Vec<String>) -> Self {
-        let mut flushes = lock_in_flight_flushes();
-        for partition in &partitions {
-            *flushes
-                .entry((consumer_name, partition.clone()))
-                .or_default() += 1;
+    /// Drop records and offsets of partitions we no longer own, then claim the
+    /// rest. One lock acquisition, so a handover either sees this flush in flight
+    /// or this flush sees the partition draining. Returns the claim and how many
+    /// records were dropped.
+    fn admit<M>(
+        consumer_name: &'static str,
+        entries: &mut Vec<(String, M)>,
+        offsets: &mut HashMap<String, u64>,
+    ) -> (Self, usize) {
+        let mut partitions = lock_partitions();
+        let excluded: HashSet<String> = partitions
+            .iter()
+            .filter(|((name, _), state)| {
+                *name == consumer_name && state.ownership != Ownership::Owned
+            })
+            .map(|((_, stream), _)| stream.clone())
+            .collect();
+        let dropped = discard_revoked_entries(&excluded, entries, offsets);
+        let claimed: Vec<String> = offsets.keys().cloned().collect();
+        for stream in &claimed {
+            partitions
+                .entry((consumer_name, stream.clone()))
+                .or_default()
+                .in_flight += 1;
         }
-        Self {
+        let claim = Self {
             consumer_name,
-            partitions,
-        }
+            partitions: claimed,
+        };
+        (claim, dropped)
     }
 }
 
 impl Drop for InFlightFlush {
     fn drop(&mut self) {
         {
-            let mut flushes = lock_in_flight_flushes();
-            for partition in self.partitions.drain(..) {
-                let key = (self.consumer_name, partition);
-                if let Some(count) = flushes.get_mut(&key) {
-                    *count -= 1;
-                    if *count == 0 {
-                        flushes.remove(&key);
-                    }
+            let mut partitions = lock_partitions();
+            for stream in self.partitions.drain(..) {
+                if let Some(state) = partitions.get_mut(&(self.consumer_name, stream)) {
+                    state.in_flight = state.in_flight.saturating_sub(1);
                 }
             }
         }
@@ -1226,7 +1215,9 @@ impl Drop for InFlightFlush {
 }
 
 fn is_flush_in_flight(consumer_name: &'static str, stream: &str) -> bool {
-    lock_in_flight_flushes().contains_key(&(consumer_name, stream.to_string()))
+    lock_partitions()
+        .get(&(consumer_name, stream.to_string()))
+        .is_some_and(|state| state.in_flight > 0)
 }
 
 /// Wait until no flush for this partition is in flight, or `deadline`. Returns
@@ -1298,18 +1289,9 @@ async fn step_down(
     stream: &str,
     deadline: tokio::time::Instant,
 ) -> bool {
-    PARTITION_OWNERSHIP
-        .write()
-        .await
-        .entry(consumer_name)
-        .or_default()
-        .draining
-        .insert(stream.to_string());
-
+    set_ownership(consumer_name, stream, Ownership::Draining);
     let drained = wait_for_in_flight_flushes(consumer_name, stream, deadline).await;
-    // Awaits the write guard, so a store still under the read guard finishes first;
-    // after this every store for the partition is refused.
-    revoke_partition(consumer_name, stream).await;
+    revoke_partition(consumer_name, stream);
     drained
 }
 
@@ -1736,15 +1718,15 @@ mod tests {
     /// — not offset comparison — is what guards a cross-pod handover. After
     /// `consumer_update(active = 0)` the still-running batcher must store nothing
     /// for that partition, however far ahead its own offsets look.
-    /// Test-only mirror of the inline check in `store_offsets`, which holds the read
-    /// guard across its `store_offset` await and so can't be factored into a helper
-    /// without giving up exactly the property being tested.
-    async fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
-        PARTITION_OWNERSHIP
-            .read()
-            .await
-            .get(consumer_name)
-            .is_some_and(|group| group.revoked.contains(stream))
+    fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
+        ownership(consumer_name, stream) == Ownership::Revoked
+    }
+
+    /// What `flush_and_commit` does for a batch touching only `partition`.
+    fn claim(consumer_name: &'static str, partition: &str) -> InFlightFlush {
+        let mut entries: Vec<(String, ())> = vec![(partition.to_string(), ())];
+        let mut offsets = HashMap::from([(partition.to_string(), 1u64)]);
+        InFlightFlush::admit(consumer_name, &mut entries, &mut offsets).0
     }
 
     /// Records for a revoked partition must be dropped WITH their offsets: the
@@ -1786,75 +1768,63 @@ mod tests {
         assert_eq!(offsets.len(), 1);
     }
 
-    #[tokio::test]
-    async fn revoked_partition_blocks_stores_regardless_of_offset() {
+    #[test]
+    fn revoked_partition_blocks_stores_regardless_of_offset() {
         let group = "test_group_revoked";
         let partition = "observations_stream-11";
 
-        assert!(!is_partition_revoked(group, partition).await);
+        assert!(!is_partition_revoked(group, partition));
 
-        revoke_partition(group, partition).await;
-        assert!(is_partition_revoked(group, partition).await);
+        revoke_partition(group, partition);
+        assert!(is_partition_revoked(group, partition));
         // Even an offset that trivially "advances" the local mark must be refused:
         // the new owner's position is authoritative and lives elsewhere.
         assert!(offset_advances_high_water_mark(group, partition, 10_000));
 
         // Re-activation restores ownership.
-        restore_partition(group, partition).await;
-        assert!(!is_partition_revoked(group, partition).await);
+        restore_partition(group, partition);
+        assert!(!is_partition_revoked(group, partition));
     }
 
-    #[tokio::test]
-    async fn revocation_is_scoped_per_partition_and_group() {
+    #[test]
+    fn revocation_is_scoped_per_partition_and_group() {
         let group = "test_group_revoke_scope";
-        revoke_partition(group, "p-0").await;
+        revoke_partition(group, "p-0");
 
         // Revoking one partition must not silence commits for the others we still
         // own, nor for a different consumer group.
-        assert!(is_partition_revoked(group, "p-0").await);
-        assert!(!is_partition_revoked(group, "p-1").await);
-        assert!(!is_partition_revoked("other_group", "p-0").await);
+        assert!(is_partition_revoked(group, "p-0"));
+        assert!(!is_partition_revoked(group, "p-1"));
+        assert!(!is_partition_revoked("other_group", "p-0"));
     }
 
-    /// Pins the MECHANISM the fix relies on: revocation needs the WRITE guard, so it
-    /// blocks while any store holds the READ guard across its await.
-    ///
-    /// It does NOT pin that `store_offsets` actually holds the guard that way — this
-    /// test drives the lock directly, so it still passes against a check-only
-    /// implementation. Verifying the call site needs a live broker to make
-    /// `store_offset` await; the invariant is enforced by review + the comment on
-    /// `PARTITION_OWNERSHIP`. Do not read a pass here as coverage of the race itself.
-    #[tokio::test]
-    async fn revocation_blocks_while_a_read_guard_is_held() {
-        let group = "test_group_inflight_fence";
-        let partition = "observations_stream-21";
+    /// A flush admitted while the partition drains or after it was revoked drops
+    /// its records and offsets and claims nothing, so it cannot hold a handover up.
+    #[test]
+    fn admit_drops_partitions_we_no_longer_own() {
+        let group = "test_group_admit";
+        set_ownership(group, "p-0", Ownership::Draining);
+        revoke_partition(group, "p-1");
 
-        // Simulate `store_offsets`: take the read guard, then await mid-"store".
-        let ownership = PARTITION_OWNERSHIP.read().await;
-        let revoker = tokio::spawn(async move { revoke_partition(group, partition).await });
+        let mut entries = vec![
+            ("p-0".to_string(), 1u8),
+            ("p-1".to_string(), 2u8),
+            ("p-2".to_string(), 3u8),
+        ];
+        let mut offsets = HashMap::from([
+            ("p-0".to_string(), 10u64),
+            ("p-1".to_string(), 20u64),
+            ("p-2".to_string(), 30u64),
+        ]);
+        let (in_flight, dropped) = InFlightFlush::admit(group, &mut entries, &mut offsets);
 
-        // Yield generously; the revoke task must still be parked on the write guard.
-        for _ in 0..8 {
-            tokio::task::yield_now().await;
-        }
-        assert!(
-            !revoker.is_finished(),
-            "revocation must block until the in-flight store releases the read guard"
-        );
-
-        // Releasing the guard (store finished) lets the revocation proceed.
-        drop(ownership);
-        revoker.await.expect("revoke task panicked");
-        assert!(is_partition_revoked(group, partition).await);
-    }
-
-    async fn excluded_partitions(consumer_name: &'static str) -> HashSet<String> {
-        PARTITION_OWNERSHIP
-            .read()
-            .await
-            .get(consumer_name)
-            .map(GroupOwnership::excluded)
-            .unwrap_or_default()
+        assert_eq!(dropped, 2);
+        assert_eq!(entries, vec![("p-2".to_string(), 3u8)]);
+        assert_eq!(offsets, HashMap::from([("p-2".to_string(), 30u64)]));
+        assert!(!is_flush_in_flight(group, "p-0"));
+        assert!(is_flush_in_flight(group, "p-2"));
+        drop(in_flight);
+        assert!(!is_flush_in_flight(group, "p-2"));
     }
 
     /// The handover's core: stepping down waits for a flush that was already in
@@ -1865,7 +1835,7 @@ mod tests {
         let group = "test_group_step_down";
         let partition = "spans_stream-3";
 
-        let in_flight = InFlightFlush::enter(group, vec![partition.to_string()]);
+        let in_flight = claim(group, partition);
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
         let stepping_down = tokio::spawn(step_down(group, partition, deadline));
 
@@ -1876,21 +1846,18 @@ mod tests {
             !stepping_down.is_finished(),
             "must wait for the in-flight flush"
         );
-        assert!(
-            excluded_partitions(group).await.contains(partition),
-            "new flushes must drop a draining partition"
-        );
-        assert!(
-            !is_partition_revoked(group, partition).await,
-            "the in-flight flush must still be allowed to store"
+        assert_eq!(
+            ownership(group, partition),
+            Ownership::Draining,
+            "new flushes must drop the partition, the in-flight one may still store"
         );
 
         drop(in_flight);
         assert!(stepping_down.await.unwrap(), "drained before the deadline");
-        assert!(is_partition_revoked(group, partition).await);
+        assert!(is_partition_revoked(group, partition));
 
-        restore_partition(group, partition).await;
-        assert!(excluded_partitions(group).await.is_empty());
+        restore_partition(group, partition);
+        assert_eq!(ownership(group, partition), Ownership::Owned);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1898,11 +1865,11 @@ mod tests {
         let group = "test_group_step_down_timeout";
         let partition = "spans_stream-4";
 
-        let _stuck = InFlightFlush::enter(group, vec![partition.to_string()]);
+        let _stuck = claim(group, partition);
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
 
         assert!(!step_down(group, partition, deadline).await);
-        assert!(is_partition_revoked(group, partition).await);
+        assert!(is_partition_revoked(group, partition));
     }
 
     #[tokio::test]
@@ -1911,11 +1878,11 @@ mod tests {
         let partition = "spans_stream-5";
 
         // Another partition's flush must not hold this handover up.
-        let _other = InFlightFlush::enter(group, vec!["spans_stream-6".to_string()]);
+        let _other = claim(group, "spans_stream-6");
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
 
         assert!(step_down(group, partition, deadline).await);
-        assert!(is_partition_revoked(group, partition).await);
+        assert!(is_partition_revoked(group, partition));
     }
 
     /// A batcher aborted mid-flush (reader teardown) must not leave its partitions
@@ -1926,7 +1893,7 @@ mod tests {
         let partition = "spans_stream-7";
 
         let flush = tokio::spawn(async move {
-            let _in_flight = InFlightFlush::enter(group, vec![partition.to_string()]);
+            let _in_flight = claim(group, partition);
             std::future::pending::<()>().await;
         });
         while !is_flush_in_flight(group, partition) {
@@ -1943,8 +1910,8 @@ mod tests {
         let group = "test_group_overlapping_flushes";
         let partition = "spans_stream-8";
 
-        let first = InFlightFlush::enter(group, vec![partition.to_string()]);
-        let second = InFlightFlush::enter(group, vec![partition.to_string()]);
+        let first = claim(group, partition);
+        let second = claim(group, partition);
         drop(first);
         assert!(is_flush_in_flight(group, partition));
         drop(second);
