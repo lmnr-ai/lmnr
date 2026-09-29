@@ -7,7 +7,7 @@ import { useSWRConfig } from "swr";
 import { ChartType, type DisplayMode, resolveDisplayMode } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { injectIdMetrics } from "@/components/dashboards/editor/utils";
-import { type DashboardChart } from "@/components/dashboards/types";
+import { type DashboardChart, getChartsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,8 +32,8 @@ type SaveChartPayload = {
   queryStructure: QueryStructure | null;
 };
 
-const createChartViaApi = async (projectId: string, data: SaveChartPayload) => {
-  const response = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+const createChartViaApi = async (chartsUrl: string, data: SaveChartPayload) => {
+  const response = await fetch(chartsUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -47,8 +47,8 @@ const createChartViaApi = async (projectId: string, data: SaveChartPayload) => {
   return response.json();
 };
 
-const updateChartViaApi = async (projectId: string, chartId: string, data: SaveChartPayload) => {
-  const response = await fetch(`/api/projects/${projectId}/dashboard-charts/${chartId}`, {
+const updateChartViaApi = async (chartsUrl: string, chartId: string, data: SaveChartPayload) => {
+  const response = await fetch(`${chartsUrl}/${chartId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -68,7 +68,7 @@ interface QueryBuilderFieldsProps {
 }
 
 export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilderFieldsProps) => {
-  const { projectId } = useParams();
+  const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
@@ -89,7 +89,9 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
   const { getValues } = useFormContext<QueryStructure>();
 
   const handleSaveChart = useCallback(async () => {
-    if (!hasChartConfig || !projectId || !chart.name.trim()) return;
+    if (!hasChartConfig || !projectId || !dashboardId || !chart.name.trim()) return;
+
+    const chartsUrl = getChartsUrl(projectId, dashboardId);
 
     setIsSaving(true);
     setSaveError(null);
@@ -112,12 +114,10 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
 
       const id = chart?.id;
 
-      const result = id
-        ? await updateChartViaApi(String(projectId), id, data)
-        : await createChartViaApi(String(projectId), data);
+      const result = id ? await updateChartViaApi(chartsUrl, id, data) : await createChartViaApi(chartsUrl, data);
 
       await mutate<DashboardChart[]>(
-        `/api/projects/${projectId}/dashboard-charts`,
+        chartsUrl,
         (current = []) => {
           if (id) {
             return current.map((item) => (item.id === result.id ? result : item));
@@ -129,7 +129,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
 
       track("dashboards", id ? "chart_updated" : "chart_created", { chart_type: chart.settings.config?.type });
       toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
-      router.push(`/project/${projectId}/dashboards${chart.id ? "" : "?newChart=1"}`);
+      router.push(`/project/${projectId}/dashboards/${dashboardId}${chart.id ? "" : "?newChart=1"}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save chart";
       setSaveError(errorMessage);
@@ -141,6 +141,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     chart.name,
     chart.query,
     chart.settings.config,
+    dashboardId,
     getValues,
     hasChartConfig,
     mutate,

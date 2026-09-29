@@ -3,11 +3,14 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { createChart, getCharts, updateChartsLayout } from "@/lib/actions/dashboard";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ projectId: string; dashboardId: string }> }
+): Promise<Response> {
+  const { projectId, dashboardId } = await props.params;
 
   try {
-    const charts = await getCharts({ projectId });
+    const charts = await getCharts({ projectId, dashboardId });
 
     return Response.json(charts);
   } catch (error) {
@@ -22,13 +25,16 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ projectI
   }
 }
 
-export async function PATCH(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
+export async function PATCH(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; dashboardId: string }> }
+): Promise<Response> {
+  const { projectId, dashboardId } = await props.params;
 
   try {
     const body = await req.json();
 
-    await updateChartsLayout({ projectId, ...body });
+    await updateChartsLayout({ ...body, projectId, dashboardId });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -43,15 +49,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ project
   }
 }
 
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; dashboardId: string }> }
+): Promise<Response> {
+  const { projectId, dashboardId } = await props.params;
 
   try {
     const body = await req.json();
 
     const chart = await createChart({
-      projectId,
       ...body,
+      projectId,
+      dashboardId,
     });
 
     return Response.json(chart);

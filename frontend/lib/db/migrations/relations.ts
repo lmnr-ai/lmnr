@@ -44,6 +44,7 @@ import {
   playgrounds,
   eventDefinitions,
   dashboardCharts,
+  dashboards,
   sharedPayloads,
   debuggerSessions,
   debuggerSessionBlocks,
@@ -139,6 +140,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   playgrounds: many(playgrounds),
   eventDefinitions: many(eventDefinitions),
   dashboardCharts: many(dashboardCharts),
+  dashboards: many(dashboards),
   sharedPayloads: many(sharedPayloads),
   debuggerSessions: many(debuggerSessions),
   debuggerSessionBlocks: many(debuggerSessionBlocks),
@@ -487,6 +489,18 @@ export const dashboardChartsRelations = relations(dashboardCharts, ({ one }) => 
     fields: [dashboardCharts.projectId],
     references: [projects.id],
   }),
+  dashboard: one(dashboards, {
+    fields: [dashboardCharts.dashboardId],
+    references: [dashboards.id],
+  }),
+}));
+
+export const dashboardsRelations = relations(dashboards, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [dashboards.projectId],
+    references: [projects.id],
+  }),
+  dashboardCharts: many(dashboardCharts),
 }));
 
 export const sharedPayloadsRelations = relations(sharedPayloads, ({ one }) => ({

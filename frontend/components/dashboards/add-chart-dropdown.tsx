@@ -7,6 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/dashboards/chart-presets";
+import { getChartsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +27,8 @@ const TABLE_FILTERS: { label: string; value: PresetTable }[] = [
 ];
 
 const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) => {
-  const { projectId } = useParams();
+  const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
+  const chartsUrl = getChartsUrl(projectId, dashboardId);
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -37,7 +39,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
   const handleSelect = useCallback(
     async (preset: ChartPreset) => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+        const res = await fetch(chartsUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -57,14 +59,14 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
           return;
         }
 
-        await mutate(`/api/projects/${projectId}/dashboard-charts`);
+        await mutate(chartsUrl);
         setOpen(false);
         requestAnimationFrame(() => onChartCreated?.());
       } catch {
         toast({ variant: "destructive", title: "Something went wrong" });
       }
     },
-    [projectId, mutate, toast, onChartCreated]
+    [chartsUrl, mutate, toast, onChartCreated]
   );
 
   return (
@@ -74,7 +76,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-1 border-b">
-          <Link href={{ pathname: "dashboards/new" }} onClick={() => setOpen(false)}>
+          <Link href={`/project/${projectId}/dashboards/${dashboardId}/charts/new`} onClick={() => setOpen(false)}>
             <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer">
               <Pen className="size-3.5 text-muted-foreground" />
               Custom

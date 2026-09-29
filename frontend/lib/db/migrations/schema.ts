@@ -1242,6 +1242,24 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   signalCostIncludedMicroUsd: bigint("signal_cost_included_micro_usd", { mode: "number" }).default(0).notNull(),
 });
 
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    index("dashboards_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dashboards_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const dashboardCharts = pgTable(
   "dashboard_charts",
   {
@@ -1251,12 +1269,19 @@ export const dashboardCharts = pgTable(
     query: text().notNull(),
     settings: jsonb().notNull(),
     projectId: uuid("project_id").notNull(),
+    dashboardId: uuid("dashboard_id").notNull(),
   },
   (table) => [
+    index("dashboard_charts_dashboard_id_idx").using("btree", table.dashboardId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "dashboard_charts_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.dashboardId],
+      foreignColumns: [dashboards.id],
+      name: "dashboard_charts_dashboard_id_fkey",
     }).onDelete("cascade"),
   ]
 );
