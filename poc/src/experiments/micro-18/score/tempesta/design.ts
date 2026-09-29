@@ -2,8 +2,8 @@ import type {ScoreCues} from '../cues';
 import {chordAt, radialPops, toneOf} from '../rounded';
 import {bowed, impact, pizz, timpani, whoosh, type Mix, type Route} from '../voices';
 import {taiko} from '../overdrive/instruments';
-import {tempestaPlan} from './composition';
-import {G_MAJOR, G_MINOR, note, run} from './instruments';
+import {tempestaPlan, tempestaScale} from './composition';
+import {note, run} from './instruments';
 
 /*
  * Tempesta foley: the orchestra plays the picture too. Camera moves are violin swoops over a soft
@@ -22,7 +22,7 @@ export function tempestaDucks(mix: Mix, cues: ScoreCues) {
 export function designTempesta(mix: Mix, cues: ScoreCues) {
   const plan = tempestaPlan(cues), {ultimate2: u2, cost, flow, issues, conclusion} = cues;
   const tone = (time: number, index: number, floor: number) => toneOf(chordAt(plan, time), index, floor);
-  const scaleAt = (time: number) => time >= flow.reveal && time < flow.coverShut || time >= issues.native ? G_MAJOR : G_MINOR;
+  const scaleAt = (time: number) => tempestaScale(cues, time);
   const move = (span: {at: number; duration: number}, up: boolean, level = 1) => {
     const duration = Math.max(.3, span.duration);
     whoosh(mix, span.at, duration, FX, {from: up ? 400 : 1600, to: up ? 1800 : 300, level: .3 * level, panFrom: up ? -.6 : .6, panTo: up ? .6 : -.6, peak: .8, air: .4});
