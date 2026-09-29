@@ -101,10 +101,11 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   if (clouds) for (const key of ['slideIn', 'partialRecede', 'recede'] as const) {
     if (equal(clouds.timing[key], original.clouds!.timing[key])) clouds.timing[key] = VOICEOVER_DEFAULTS.clouds!.timing[key];
   }
-  const cost = raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, PREVIOUS_DEFAULTS.cost.timing, VOICEOVER_DEFAULTS.cost.timing)} : raw.cost;
-  const flow = raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, PREVIOUS_DEFAULTS.flow.timing21!, VOICEOVER_DEFAULTS.flow.timing21!)} : raw.flow;
-  const issues = raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, PREVIOUS_DEFAULTS.issues.timing22!, VOICEOVER_DEFAULTS.issues.timing22!)} : raw.issues;
-  const voiceover = raw.voiceover?.phrases ? {...raw.voiceover, phrases: upgrade(raw.voiceover.phrases, PREVIOUS_DEFAULTS.voiceover!.phrases, VOICEOVER_DEFAULTS.voiceover!.phrases)} : raw.voiceover;
+  // The whole voice retime moves together, so historical cuts keep Cost clips and n09 too.
+  const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, PREVIOUS_DEFAULTS.cost.timing, VOICEOVER_DEFAULTS.cost.timing)} : raw.cost;
+  const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, PREVIOUS_DEFAULTS.flow.timing21!, VOICEOVER_DEFAULTS.flow.timing21!)} : raw.flow;
+  const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, PREVIOUS_DEFAULTS.issues.timing22!, VOICEOVER_DEFAULTS.issues.timing22!)} : raw.issues;
+  const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: upgrade(raw.voiceover.phrases, PREVIOUS_DEFAULTS.voiceover!.phrases, VOICEOVER_DEFAULTS.voiceover!.phrases)} : raw.voiceover;
   return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}),
     ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: raw.ultimate2?.streamBlocksRemoved ?? 10},
     ...(clouds ? {clouds} : {})};

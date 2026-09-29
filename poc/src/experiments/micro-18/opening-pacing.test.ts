@@ -4,7 +4,9 @@ import imported from '../../../handoff/voiceover-retime/retimed-settings.json';
 import {routeLayout, visibleRouteBlocks, worldState} from '../micro-17/geometry';
 import {sampleMicro17} from '../micro-17/sample';
 import {chapterSchedule, sampleUltimate3, ultimate3DurationFrames} from './sample';
-import {normalizeSettings} from './settings';
+import {FLOW_21_TIMING, normalizeSettings} from './settings';
+import {MICRO_22_TIMING} from '../micro-22/timeline';
+import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
 import {FLOW_HOLD, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES, VOICEOVER_PHRASES_V4} from './voiceover-phrases';
@@ -117,4 +119,21 @@ test('load-only fieldwise migration recognizes old generated values; authored cl
   assert.deepEqual((restored as any).selection, {active: 'n08'});
   // Edits of the September 27 take's vo* clips never move the new take's phrases.
   assert.deepEqual(load({...old, voiceover: {version: 1, phrases: {vo06: {at: 30, duration: 1}}}}).voiceover, VOICEOVER_DEFAULTS.voiceover);
+});
+
+test('saved historical cuts reload without any piece of the voice retime', () => {
+  const n09 = {at: issues4Placements[8].at, duration: issues4Placements[8].b - issues4Placements[8].a};
+  const historical = normalizeVoiceoverSettings({...imported, voiceover: {version: 1, phrases: {...VOICEOVER_DEFAULTS.voiceover!.phrases, n09}}});
+  const kept20 = {...historical, flow: {...historical.flow, sourceVersion: 21 as const, timing21: FLOW_21_TIMING},
+    issues: {...historical.issues, sourceVersion: 20 as const, timing22: MICRO_22_TIMING}};
+  for (const saved of [historical, kept20]) {
+    const reloaded = load(saved);
+    assert.notDeepEqual(saved.cost.timing, VOICEOVER_DEFAULTS.cost.timing);
+    assert.deepEqual(reloaded.cost.timing, saved.cost.timing);
+    assert.deepEqual(reloaded.voiceover!.phrases.n09, n09);
+    assert.deepEqual(reloaded.flow.timing21, saved.flow.timing21);
+    assert.deepEqual(reloaded.issues.timing22, saved.issues.timing22);
+    assert.deepEqual(reloaded.pacing, saved.pacing);
+    assert.deepEqual(reloaded.allocations.flow, saved.allocations.flow);
+  }
 });
