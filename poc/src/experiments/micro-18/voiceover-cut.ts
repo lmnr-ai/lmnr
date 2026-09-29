@@ -5,6 +5,7 @@ import {normalizeSettings, FLOW_21_TIMING, type ClipTiming} from './settings';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
 import captionPlacements from '../../../handoff/voiceover-captions/placements.json';
+import soakPlacements from '../../../handoff/voiceover-soak/placements.json';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
 export const VOICEOVER_SOUNDTRACK_URL = '/audio/voiceover/ultimate3-voiceover-v4.wav';
@@ -14,9 +15,12 @@ export const OPENING_RIPPLE = 13.5 - 9.79;
 export const OPENING_STREAM_SPEED = (importedSettings.ultimate2.controls.streamerSpeed
   * importedSettings.ultimate2.timing.streamRun.duration + 720)
   / (importedSettings.ultimate2.timing.streamRun.duration + OPENING_RIPPLE);
-// Every phrase of the September 29 take sits at its authored slot on the Issue Clusters 4 cut.
+const phrasesOf = (placements: {a: number; b: number; at: number}[]) =>
+  Object.fromEntries(placements.map((p, i) => [`n${String(i + 1).padStart(2, '0')}`, {at: p.at, duration: p.b - p.a}]));
+// Every phrase of the approved A/subtle take sits at its authored slot; the 10-04 take's (soak) slots stay recognizable.
 const takePhrases = Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]));
-const original = normalizeSettings({...importedSettings, voiceover: {version: 1, phrases: takePhrases}});
+const soakPhrases = phrasesOf(soakPlacements);
+const original = normalizeSettings({...importedSettings, voiceover: {version: 1, phrases: soakPhrases}});
 const retimeClip = (clip: ClipTiming, at: number, duration = clip.duration): ClipTiming => ({
   ...clip, at, duration, ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration}} : {}),
 });
@@ -67,8 +71,8 @@ const unretimed = {...original,
     controls: {...original.ultimate2.controls, streamerSpeed: OPENING_STREAM_SPEED}},
 };
 /** The editable-v5 defaults: storage still holding one of their (or v6's) generated fields upgrades it. */
-const PREVIOUS_DEFAULTS = normalizeSettings({...unretimed, voiceover: {version: 1, phrases: {...takePhrases,
-  n09: {at: issues4Placements[8].at, duration: issues4Placements[8].b - issues4Placements[8].a}}}});
+const PREVIOUS_PHRASES = {...soakPhrases, n09: {at: issues4Placements[8].at, duration: issues4Placements[8].b - issues4Placements[8].a}};
+const PREVIOUS_DEFAULTS = normalizeSettings({...unretimed, voiceover: {version: 1, phrases: PREVIOUS_PHRASES}});
 /** The editable-v6 defaults (script captions, picture retimed to the voice). */
 const V6_DEFAULTS = normalizeSettings({...unretimed,
   issues: {...unretimed.issues, timing22: retime(MICRO_22_TIMING, ISSUES_RETIME)},
@@ -76,7 +80,7 @@ const V6_DEFAULTS = normalizeSettings({...unretimed,
   cost: {...original.cost, timing: retime(original.cost.timing, COST_RETIME)},
   pacing: {...original.pacing, flowTrimEnd: original.pacing.flowTrimEnd + FLOW_HOLD},
   allocations: {...unretimed.allocations, flow: original.allocations.flow + FLOW_HOLD, issues: original.allocations.issues - FLOW_HOLD},
-  voiceover: {version: 1, phrases: Object.fromEntries(captionPlacements.map((p, i) => [`n${String(i + 1).padStart(2, '0')}`, {at: p.at, duration: p.b - p.a}]))},
+  voiceover: {version: 1, phrases: phrasesOf(captionPlacements)},
 });
 const {placeholder, logo} = V6_DEFAULTS.conclusion;
 export const VOICEOVER_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
@@ -91,6 +95,8 @@ export const VOICEOVER_DEFAULTS = normalizeSettings({...V6_DEFAULTS,
   voiceover: {version: 1, phrases: takePhrases},
 });
 const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS];
+// Raw, since normalizing clamps the 10-04 take's durations to the shorter A/subtle trims; v7 is this cut on the 10-04 take.
+const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases];
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
@@ -129,7 +135,8 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, d => d.cost.timing)} : raw.cost;
   const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, d => d.flow.timing21)} : raw.flow;
   const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, d => d.issues.timing22)} : raw.issues;
-  const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: upgrade(raw.voiceover.phrases, d => d.voiceover?.phrases)} : raw.voiceover;
+  const voiceover = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: Object.fromEntries(Object.entries(raw.voiceover.phrases).map(([id, clip]) =>
+    [id, GENERATED_PHRASES.some(phrases => equal(clip, phrases[id])) ? VOICEOVER_DEFAULTS.voiceover!.phrases[id] : clip]))} : raw.voiceover;
   const conclusion = retimed && raw.conclusion ? upgrade(raw.conclusion, d => d.conclusion) : raw.conclusion;
   return {...raw, allocations, ...(pacing ? {pacing} : {}), ...(cost ? {cost} : {}), ...(flow ? {flow} : {}), ...(issues ? {issues} : {}), ...(voiceover ? {voiceover} : {}), ...(conclusion ? {conclusion} : {}),
     ultimate2: {...raw.ultimate2, timing, controls, streamBlocksRemoved: raw.ultimate2?.streamBlocksRemoved ?? 10},

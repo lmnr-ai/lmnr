@@ -4,7 +4,7 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {normalizeVoiceoverSettings} from '../src/experiments/micro-18/voiceover-cut';
-import {VOICEOVER_PHRASES} from '../src/experiments/micro-18/voiceover-phrases';
+import {VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from '../src/experiments/micro-18/voiceover-phrases';
 import {mixVoiceoverPcm, type StereoPcm} from '../src/experiments/micro-18/voiceover-schedule';
 import {ultimate3DurationFrames} from '../src/experiments/micro-18/sample';
 
@@ -16,7 +16,7 @@ const settingsFile = value('--settings'), out = value('--out');
 if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav>');
 const output = resolve(out), manifestPath = output.replace(/\.wav$/, '.json');
 if (existsSync(output) || existsSync(manifestPath)) throw new Error('Refusing to overwrite existing WAV or manifest');
-const assetRoot = resolve(root, 'public/audio/voiceover/editable-v5');
+const assetRoot = resolve(root, 'public', `.${VOICEOVER_SOURCE_ROOT}`);
 const provenance = JSON.parse(readFileSync(resolve(assetRoot, 'manifest.json'), 'utf8'));
 const settingsBytes = readFileSync(resolve(settingsFile));
 const settings = normalizeVoiceoverSettings(JSON.parse(settingsBytes.toString()));

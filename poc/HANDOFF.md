@@ -9,8 +9,9 @@ validation. This includes the latest local work, not just the new voice file.
 The user selected **A / subtle** from the latest recording's three processed
 versions. Start with **[handoff/voiceover-subtle-a/README.md](handoff/voiceover-subtle-a/README.md)**.
 The approved [voice_A_subtle.wav](public/audio/voiceover/voice_A_subtle.wav) is
-included with processing metadata and a verified hash. It is speech only and
-requires new phrase alignment; existing playback remains unchanged.
+included with processing metadata and a verified hash. It is now split, aligned
+and wired into playback and export as `editable-v8`; see the README's
+"Integration" section.
 
 ## Existing integration: Issue Clusters 4 and previous voice recording
 

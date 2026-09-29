@@ -4,6 +4,7 @@ import {DialStore, type DialValue} from 'dialkit';
 import {parseTimelineConfig} from 'dialkit/timeline';
 import importedSettings from '../../../handoff/voiceover-retime/retimed-settings.json';
 import placements from '../../../handoff/voiceover-issues4/placements.json';
+import subtlePlacements from '../../../handoff/voiceover-subtle-a/placements.json';
 import {installMicro20AuthoringCompatibility} from '../micro-20/authoring';
 import {issuesTimelineConfig} from './authoring';
 import {chapterSchedule, issueHandoffValidation, sampleUltimate3, ultimate3DurationFrames} from './sample';
@@ -47,6 +48,8 @@ test('opening retime retains imported downstream chapters and deterministic reve
     assert.ok(phrase.at >= 0 && phrase.b > phrase.a && phrase.a >= 0 && phrase.b <= 76.928);
     assert.ok(phrase.at + phrase.b - phrase.a <= duration);
   }
+  // The approved A/subtle take is 70.101333s long.
+  for (const phrase of subtlePlacements) assert.ok(phrase.a >= 0 && phrase.b > phrase.a && phrase.b <= 70.101333 && phrase.at + phrase.b - phrase.a <= duration);
 });
 
 test('v4 preview has matching score, phrase placement and rendered audio provenance', () => {

@@ -4,13 +4,15 @@ import {computeClipState, computeStaticTimeline, parseTimelineConfig} from 'dial
 import {ULTIMATE2_CLOUD_KEY, ultimate2CloudTimelineConfig, ultimate2CloudTimelineValues, settingsFromUltimate2CloudTimeline} from './authoring';
 import {VOICEOVER_DEFAULTS, readVoiceoverSettings} from './voiceover-cut';
 import returnedSettings from '../../../handoff/voiceover-soak/default-settings.json';
+import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import {normalizeSettings} from './settings';
 import {sampleMicro17} from '../micro-17/sample';
 
 const defaults = normalizeSettings(VOICEOVER_DEFAULTS);
 
-test('pasted Main defaults apply exact cloud timing/easing and chapter rounding without changing narration', () => {
+test('pasted Main defaults apply exact cloud timing/easing and chapter rounding; narration only switches to the A/subtle take', () => {
   const previous = normalizeSettings(returnedSettings);
+  const voiceover = {version: 1 as const, phrases: Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]))};
   const cloudEnter = {at: 12.49, duration: 6.17,
     transition: {type: 'easing' as const, duration: 6.17, ease: [.2, 0, .55, .2] as [number, number, number, number]}};
   const expected = normalizeSettings({...previous, allocations: {ultimate2: 22.41, cost: 13.7, flow: 15.192, issues: 19.308, conclusion: 6.55},
@@ -19,12 +21,12 @@ test('pasted Main defaults apply exact cloud timing/easing and chapter rounding 
     issues: {...previous.issues, timing22: {...previous.issues.timing22, explanationTyping: {
       ...previous.issues.timing22!.explanationTyping, duration: 1.2,
       transition: {type: 'easing', duration: 1.2, ease: [.45, 0, .55, 1]},
-    }}}});
+    }}}, voiceover});
   assert.deepEqual(defaults, expected);
   assert.deepEqual(readVoiceoverSettings({getItem: () => null}), expected);
-  assert.deepEqual(readVoiceoverSettings({getItem: () => JSON.stringify(previous)}), expected);
+  assert.deepEqual(readVoiceoverSettings({getItem: () => JSON.stringify(returnedSettings)}), expected);
   assert.deepEqual(ultimate2CloudTimelineConfig(defaults)[ULTIMATE2_CLOUD_KEY], {...cloudEnter, from: {progress: 0}, to: {progress: 1}});
-  assert.deepEqual(defaults.voiceover?.phrases, previous.voiceover?.phrases);
+  assert.deepEqual(defaults.voiceover, voiceover);
   // Updating code defaults must not erase a saved manual tune.
   const custom = normalizeSettings({...expected, ultimate2: {...expected.ultimate2, timing: {...expected.ultimate2.timing,
     cloudEnter: {...cloudEnter, at: 14.25}}}});

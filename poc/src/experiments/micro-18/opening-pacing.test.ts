@@ -8,16 +8,17 @@ import {FLOW_21_TIMING, normalizeSettings} from './settings';
 import {MICRO_22_TIMING} from '../micro-22/timeline';
 import issues4Placements from '../../../handoff/voiceover-issues4/placements.json';
 import v6 from '../../../handoff/voiceover-captions/default-settings.json';
+import v7 from '../../../handoff/latest-ultimate3/settings.json';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
 import {CLUSTER_BREATH, FLOW_HOLD, GRID_SOAK, migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES, VOICEOVER_PHRASES_V4} from './voiceover-phrases';
 
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
-// Storage written before the September 29 take: the old cut with the old take's vo* clips.
+// Storage written before the September 29 takes: the old cut with the old take's vo* clips.
 const old = {...normalizeSettings(imported), voiceover: {version: 1 as const, phrases: Object.fromEntries(VOICEOVER_PHRASES_V4.map(p => [p.id, p.placed]))}};
 const load = (value: unknown) => readVoiceoverSettings({getItem: key => key === VOICEOVER_SETTINGS_ID ? JSON.stringify(value) : null});
 
-test('the September 29 take sits at its authored slots as linear DialKit bars with immutable source durations', () => {
+test('the approved A/subtle take sits at its authored slots as linear DialKit bars with immutable source durations', () => {
   const s = VOICEOVER_DEFAULTS, config = voiceoverTimelineConfig(s).narration!;
   assert.equal(VOICEOVER_PHRASES.length, 23);
   for (const p of VOICEOVER_PHRASES) {
@@ -137,6 +138,16 @@ test('editable-v6 storage takes the clustering breath and grid soak; its authore
   assert.deepEqual(reloaded.conclusion, VOICEOVER_DEFAULTS.conclusion);
 });
 
+test('editable-v7 storage (the 10-04 take) switches to the A/subtle phrases; its authored phrases stay', () => {
+  assert.deepEqual(load(v7), VOICEOVER_DEFAULTS);
+  const authored = structuredClone(v7);
+  authored.voiceover.phrases.n05.at = 14;
+  const reloaded = load(authored);
+  // The authored slot stays; the duration is capped to the A/subtle trim.
+  assert.deepEqual(reloaded.voiceover!.phrases.n05, {at: 14, duration: VOICEOVER_PHRASES[4].b - VOICEOVER_PHRASES[4].a});
+  assert.deepEqual(reloaded.voiceover!.phrases.n06, VOICEOVER_DEFAULTS.voiceover!.phrases.n06);
+});
+
 test('saved historical cuts reload without any piece of the voice retime', () => {
   const n09 = {at: issues4Placements[8].at, duration: issues4Placements[8].b - issues4Placements[8].a};
   const historical = normalizeVoiceoverSettings({...imported, voiceover: {version: 1, phrases: {...VOICEOVER_DEFAULTS.voiceover!.phrases, n09}}});
@@ -146,7 +157,9 @@ test('saved historical cuts reload without any piece of the voice retime', () =>
     const reloaded = load(saved);
     assert.notDeepEqual(saved.cost.timing, VOICEOVER_DEFAULTS.cost.timing);
     assert.deepEqual(reloaded.cost.timing, saved.cost.timing);
-    assert.deepEqual(reloaded.voiceover!.phrases.n09, n09);
+    // The A/subtle source caps the old n09 trim; its slot stays.
+    assert.deepEqual(reloaded.voiceover!.phrases.n09, saved.voiceover!.phrases.n09);
+    assert.equal(reloaded.voiceover!.phrases.n09.at, n09.at);
     assert.deepEqual(reloaded.flow.timing21, saved.flow.timing21);
     assert.deepEqual(reloaded.issues.timing22, saved.issues.timing22);
     assert.deepEqual(reloaded.pacing, saved.pacing);

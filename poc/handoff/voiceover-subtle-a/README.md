@@ -41,3 +41,32 @@ The subsequent [latest Ultimate3 handoff](../latest-ultimate3/README.md) also
 synchronizes the separate `signals-launch-video` checkout's latest visual and
 timing changes. The existing audio integration is intentionally unchanged;
 this approved replacement recording still needs integration.
+
+## Integration (editable-v8)
+
+The A/subtle take now drives the editable cut (`?experiment=micro-18`). The picture is the
+[latest Ultimate3](../latest-ultimate3/README.md) cut unchanged: 2315 frames, chapters
+0 / 22.41 / 36.11 / 51.302 / 70.61s. `processing.json` is left as delivered.
+
+- **Split.** Whisper (medium.en) located the 23 phrases; each cut sits in silence on the
+  speech envelope (about 70ms pre-roll, 120ms tail), or at the quietest frame between words
+  on tight joins (n03|n04, n18|n19, n20|n21). There is no time-stretch and no second mastering
+  pass: each trim is sample-identical to the WAV. n08's label follows the take ("Powerful
+  LLMs find deep issues,"). Captions already matched the script.
+- **Placement.** Each phrase's speech onset lands on the 10-04 take's (editable-v7) onset,
+  so the picture cues are unchanged. The one exception is n12, which stays at 41.75s so the
+  flow-1 reveal does not move ("surpassing" starts 45ms earlier). No phrases overlap; the
+  closest gap is 0.11s (n14→n15).
+- **Balance.** Gated, these trims measure 1dB under the 10-04 trims (-15.9 vs -14.9 LUFS), so
+  the bed drops from -5.5dB to -6.5dB instead of re-mastering the voice.
+- **Bed.** It is rescored to the latest settings (cloud entry and faster explanation typing).
+- [placements.json](placements.json) holds the source `a`/`b` and timeline `at` for each phrase;
+  [default-settings.json](default-settings.json) holds the current `VOICEOVER_DEFAULTS`.
+- `node scripts/build-ultimate3-issues4-vo.mjs editable-v8 voiceover-subtle-a voice_A_subtle.wav`
+  wrote `public/audio/voiceover/editable-v8/`. `scripts/export-ultimate3-editable-vo.ts` now
+  reads the current edition.
+- Storage holding editable-v5/v6/v7 generated phrase slots switches to these phrases one by
+  one. Authored slots stay, with durations capped to the new trims; historical cuts stay literal.
+
+Published render: `lam-2305/ultimate3-subtle-a-arabesque-voiceover.mp4`. It uses the same mix
+chain as voiceover-soak and measures -14.9 LUFS, -1.0 dBTP.
