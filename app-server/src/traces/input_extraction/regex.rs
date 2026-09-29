@@ -19,7 +19,7 @@ use crate::cache::keys::{USER_TASK_REGEX_CACHE_KEY, USER_TASK_TEMPLATE_REGEX_CAC
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
 
-pub(super) const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Backtracking budget per regex application. LLM-generated patterns can
 /// backtrack heavily on large inputs; exceeding the budget aborts the
 /// match (treated as `NoMatch`) instead of burning CPU indefinitely.
@@ -262,8 +262,8 @@ pub fn regex_target(
 pub enum Resolution {
     /// A cached regex for the resolved version was applied.
     Cached,
-    /// The version had no regex yet; a sibling version's regex fit and was
-    /// adopted (`inherit.rs`).
+    /// The version had no regex yet; a sibling version's regex extracted, and
+    /// was used provisionally instead of an LLM call (`inherit.rs`).
     Inherited,
     /// The version resolved but carried no regex yet, so a direct LLM
     /// extraction ran. Should trend to zero as cohorts accumulate samples.

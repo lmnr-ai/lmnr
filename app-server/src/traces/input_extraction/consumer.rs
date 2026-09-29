@@ -6,9 +6,9 @@
 //!      else the memo, else the `user_template_versions` row for the winning
 //!      span;
 //!   2. a cached regex for that version → apply it;
-//!   3. no regex yet → adopt a sibling version's regex if one fits
-//!      (`inherit.rs`); else record the user text as a cohort sample
-//!      (triggering the multi-sample agent once the cohort fills) and extract
+//!   3. no regex yet → record the user text as a cohort sample (triggering the
+//!      multi-sample agent once the cohort fills), then use a sibling version's
+//!      regex if one extracts (`inherit.rs`, never cached), else extract
 //!      directly with one LLM call;
 //!   4. no version at all → extract directly, nothing cached.
 //!
@@ -217,8 +217,14 @@ impl InputExtractionHandler {
         };
 
         if let Some((agent_hash, version)) = cohort {
+            // Cohort-level, so it is recorded even for a candidate this trace
+            // will drop as superseded or resolve by inheritance: the sample is
+            // valid for the cohort either way and needs no LLM call to produce.
+            self.record_cohort_sample(message, agent_hash, version)
+                .await;
             // A re-minted template usually still fits its predecessor's regex;
-            // adopting it skips this version's whole cold start.
+            // using it spares this trace an LLM call until the cohort's own
+            // regex lands.
             if let Some(result) = inherit_sibling_regex(
                 &self.cache,
                 message.project_id,
@@ -242,11 +248,6 @@ impl InputExtractionHandler {
                     Some(result)
                 };
             }
-            // Cohort-level, so it is recorded even for a candidate this trace
-            // will drop as superseded: the sample is valid for the cohort either
-            // way and needs no LLM call to produce.
-            self.record_cohort_sample(message, agent_hash, version)
-                .await;
         }
 
         // The legacy path generates and CACHES a regex keyed by user-message

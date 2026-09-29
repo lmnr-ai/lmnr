@@ -5,19 +5,22 @@
 //! window settling. Each new version is a new regex cohort, and on its own it
 //! pays a direct LLM extraction per trace until five samples and an agent run
 //! produce its regex, while a sibling version's regex usually still fits: the
-//! template barely moved. So before that cold start, the worker tries the
-//! siblings' regexes on the trace's own text and adopts the first that
-//! extracts. A wrong adoption self-heals like any cached regex: the first
-//! `NoMatch` evicts it and the cohort takes the sample path.
+//! template barely moved. So during that cold start, the worker tries the
+//! siblings' regexes on each trace's own text and uses the first that extracts
+//! instead of an LLM call.
+//!
+//! Inheritance is PROVISIONAL: the sibling regex is never cached under this
+//! version's key. It was validated on one text from a different version, and a
+//! regex that matches but captures too little never self-heals (only `NoMatch`
+//! evicts). So the version's traces keep reaching the worker and keep feeding
+//! the cohort's samples, and the agent's regex — validated on this version's
+//! own samples — replaces inheritance once it lands.
 
 use std::sync::Arc;
 
 use uuid::Uuid;
 
-use super::regex::{
-    ApplyRegexResult, REGEX_CACHE_TTL_SECONDS, apply_regex, is_passthrough_regex,
-    template_regex_cache_key,
-};
+use super::regex::{ApplyRegexResult, apply_regex, is_passthrough_regex, template_regex_cache_key};
 use crate::cache::{Cache, CacheTrait};
 use crate::traces::sp_versioning::{VersionKind, similarity, versions};
 
@@ -27,9 +30,9 @@ use crate::traces::sp_versioning::{VersionKind, similarity, versions};
 const MIN_SIBLING_OVERLAP: f64 = 0.5;
 
 /// Try the partition's sibling versions' regexes, most similar first, and
-/// cache the first one that extracts from `signposted_text` under this
-/// version's key. Passthrough regexes are never inherited — they extract from
-/// anything, so they would pass the check without saying anything about fit.
+/// return the result of the first one that extracts from `signposted_text`.
+/// Passthrough regexes are never inherited — they extract from anything, so
+/// they would pass the check without saying anything about fit.
 pub async fn inherit_sibling_regex(
     cache: &Arc<Cache>,
     project_id: Uuid,
@@ -84,14 +87,6 @@ pub async fn inherit_sibling_regex(
         }
         let result = apply_regex(&pattern, signposted_text);
         if matches!(result, ApplyRegexResult::Extracted(_)) {
-            let own_key =
-                template_regex_cache_key(project_id, agent_hash, version_hash, has_history);
-            if let Err(e) = cache
-                .insert_with_ttl(&own_key, &pattern, REGEX_CACHE_TTL_SECONDS)
-                .await
-            {
-                log::warn!("user-task: failed to cache inherited regex {own_key}: {e:?}");
-            }
             return Some(result);
         }
     }
@@ -139,7 +134,7 @@ mod tests {
     const TEXT: &str = "<ctx>\nstate\n</ctx>\n<task>\nfix the bug\n</task>\n<footer/>";
 
     #[tokio::test]
-    async fn a_re_minted_template_adopts_its_siblings_regex() {
+    async fn a_re_minted_template_uses_its_siblings_regex_provisionally() {
         let cache = cache();
         let project_id = Uuid::new_v4();
         register(&cache, project_id, "old", OLD).await;
@@ -152,8 +147,8 @@ mod tests {
             Some(ApplyRegexResult::Extracted("fix the bug".to_string()))
         );
         assert!(
-            own_regex(&cache, project_id, "new").await.is_some(),
-            "later traces of the new version hit the cache inline"
+            own_regex(&cache, project_id, "new").await.is_none(),
+            "never cached: the version's own regex must come from its own samples"
         );
     }
 
@@ -191,7 +186,6 @@ mod tests {
             inherit_sibling_regex(&cache, project_id, AGENT, "new", false, TEXT).await,
             None
         );
-        assert!(own_regex(&cache, project_id, "new").await.is_none());
     }
 
     #[tokio::test]
