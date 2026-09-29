@@ -102,6 +102,16 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 - `highlife`: G major. Interlocking Karplus-Strong guitars (a high single-note line over offbeat chanks), a 3-3-4-2-4 FM bell and synthesized congas, plus horns harmonised a diatonic third below. The cues are answered on a balafon (`highlife/instruments.ts`).
 - `stomp-glock`: C major indie-folk. Stomps, double handclaps and tambourine (`stomp/instruments.ts`), sampled pizz chugging in eighths (`strings: true`), a dry piano pulse, and a glockenspiel carrying every tune.
 
+### `tidepool`, `lumen`, `windup` — rounded-digital concepts (LAM-2311)
+
+Three sound designs written from scratch for the voiceover cut. They share nothing with the piano/foley family above. Instead they use `rounded.ts`: sine-only modal resonators (marimba, kalimba, glass, music box, wood, vibe), blips, bubbles, springs, noise glides, breathing sine pads, a Karplus-Strong string, and harmony helpers (`chordAt`/`toneOf`). With those helpers every pitched SFX lands on a tone of the chord under it. Each concept puts SFX in three tiers: tier 1 is the failure, the warnings, the Flow-1 reveal and the logo. Tier 2 covers camera moves, entries, drawers, bash, budget, cover and window. Tier 3 covers stream blocks, beads, typing, labels and issue pops. Each concept also ducks its music bus under every narration phrase (`voiceBed`, from `cues.voice`) and plays a short motif in each pause of at least ~1 s.
+
+- `tidepool`: F major, 96 BPM. The bed is kalimba, marimba and water: there is no beat before Flow-1, so the agent's stream blocks play the melody as kalimba droplets. A marimba pulse enters with the cheap models, and the budget drips away in slowing, falling bubbles. Flow-1 lands a brushed, half-time groove with a string bass and a kalimba arpeggio. The C–F–G–A vibe motif resolves on the logo.
+- `lumen`: A major, 120 BPM. Light and data: a 16th-note sine-blip arpeggio is the agent thinking from the first frame. It stutters and stops at the failure, returns with the insights, and detunes downward as the budget dims. Flow-1 blooms into a soft four-on-the-floor with FM glass and a sine bass. Motion is tuned air with a sine sliding between chord tones, and the answer motif is a 1–5–3 bell call.
+- `windup`: G major, swung 112 BPM. A clockwork toy: a tick-tock escapement, a music box, and a walking plucked bass. Every camera move turns an eased ratchet, arrivals are springs and closes are wooden clunks. At the budget depletion the whole music bus winds down (`mix.tapeStop`). A key winds up into Flow-1, which releases into an I–vi–IV–V toy-band groove with a music-box tune.
+
+`cues.ts` now also gives `ultimate2.blocks` (when each stream pill or tool icon first enters the frame, sampled from the Micro17 world) and `voice` (the narration spans). `scripts/mix-ultimate3-concept.mjs` places the editable-v7 phrases under a rendered bed (bed −5.5 dB, sidechain duck, loudnorm −14.7 LUFS / −1 dBTP) and muxes the result onto a silent picture.
+
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
 ## Foley

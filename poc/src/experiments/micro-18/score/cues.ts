@@ -5,6 +5,7 @@ import {resolvePreludeSchedule} from '../../micro-20/timeline';
 import {normalizeMicro22Timing} from '../../micro-22/timeline';
 import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
 import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
+import {worldState, visibleRouteBlocks} from '../../micro-17/geometry';
 import {ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow} from '../sound';
 
 export type Span = {at: number; duration: number};
@@ -111,6 +112,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       collapse: span(u2Start, u2.streamCollapse),
       cloudIn: clouds.cloudIn!,
       ifOnly: at(u2Start, u2.subtitleIfOnly),
+      blocks: streamBlocks(settings, chapter.ultimate2),
     },
     cost: {
       cloudOut: clouds.cloudOut!,
@@ -173,6 +175,8 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       queryBadge: at(issuesNative, issues.queryWarningIn),
       windowUp: span(issuesNative, issues.agentWindowExit),
     },
+    /** Narration phrases, so music can answer in the gaps; empty for the unnarrated cut. */
+    voice: Object.values(settings.voiceover?.phrases ?? {}).map(({at, duration}): Span => ({at: round(at), duration: round(duration)})).sort((a, b) => a.at - b.at),
     conclusion: {
       start: chapter.conclusion.start,
       logo: round(chapter.conclusion.start + settings.conclusion.logo.at),
@@ -202,6 +206,20 @@ function issuePops(settings: Ultimate3Settings, native: number): IssuePop[] {
   const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   return [...seen.values()].map(({time, x, y}) =>
     ({at: time, pan: ((x - minX) / (maxX - minX || 1)) * 1.6 - .8, height: 1 - (y - minY) / (maxY - minY || 1)})).sort((a, b) => a.at - b.at);
+}
+
+/** When each opening stream block starts to draw; icons are the small square tool badges. */
+function streamBlocks(settings: Ultimate3Settings, span: {start: number; end: number}) {
+  const seen = new Map<string, {at: number; icon: boolean}>();
+  for (let time = span.start; time < span.end; time += 1 / 240) {
+    const playback = sampleUltimate3(time, settings).ultimate2;
+    if (!playback) continue;
+    const state = worldState(playback, settings.ultimate2.controls, settings.ultimate2.streamBlocksRemoved);
+    if (!state.streamVisible || state.bigGridVisible) continue;
+    for (const block of visibleRouteBlocks(state, -2000, 2000)) if (!seen.has(block.key))
+      seen.set(block.key, {at: round(time), icon: !block.label});
+  }
+  return [...seen.values()].sort((a, b) => a.at - b.at);
 }
 
 function clusterLocks(settings: Ultimate3Settings, native: number) {
