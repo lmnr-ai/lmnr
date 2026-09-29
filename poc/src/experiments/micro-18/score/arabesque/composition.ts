@@ -34,6 +34,36 @@ const WHOLE_TONE = [48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76];
 const subBass = (mix: Mix, time: number, midi: number, duration: number, velocity: number, glide = 0) => bass(mix, time, midi, duration, velocity, SUB, {glide, drive: 1.1});
 
 /**
+ * Source22's longer prelude: the arabesque walks I6 – vi – IV – ii7 – IV – V under the report, a chord per beat of
+ * the story, and stays under the voice's band while it narrates. Each report stage gets one soft touch on top.
+ */
+function composeReportBridge(mix: Mix, cues: ScoreCues, g: (beat: number) => number, at: (time: number, division?: number) => number, resume: number, nativeBeat: number) {
+  const p = cues.issues.prelude as {[K in keyof ScoreCues['issues']['prelude']]-?: NonNullable<ScoreCues['issues']['prelude'][K]>};
+  const stop = at(p.bashStop, 1), bubble = at(p.bubble, 1), labels = at(p.labels.at, 1), explain = at(p.explanation.at, 1);
+  const zoomBeat = at(p.zoomOut.at, 1), growBeat = at(p.circleGrow.at, 1);
+  const bridge = progression([resume, C.Bsus], [stop, C.ES], [bubble, C.Csm], [labels, C.A], [explain, C.Fsm], [zoomBeat, C.A], [growBeat, C.Bsus]);
+  figure(mix, g, resume, nativeBeat, bridge, {step: TRIPLET, pattern: ARABESQUE, route: PIANO, bright: .42, length: .8,
+    velocity: b => .16 + .06 * (b - resume) / (nativeBeat - resume) + (b >= zoomBeat ? .04 : 0), bass: {velocity: .34, length: 2.2}});
+  piano(mix, p.bashStop, 40, .28, {...PIANO, pan: -.3}, {length: 2.4, bright: .3});
+  // It finds deep issues: the log lines scroll down a pentatonic ripple; the highlight is a single E.
+  [88, 85, 83, 80, 78, 76, 73, 71].forEach((midi, i) => piano(mix, p.descent.at + p.descent.duration * i / 8, midi, .15 - i * .008, {...CLOSE, pan: .3 - i * .08}, {length: .5, bright: .55}));
+  piano(mix, p.highlight, 88, .2, {...ECHO, pan: .2}, {length: 1.6, bright: .5});
+  // …and reports them: the bubble opens on a high C♯ minor touch.
+  rolled(mix, p.bubble, [80, 85, 88], .18, {...ECHO, pan: .25}, {length: 1.8, bright: .55, spread: .03});
+  // Not just with labels: one note per staggered row, climbing.
+  [83, 85, 88].forEach((midi, i) => piano(mix, p.labels.at + p.labels.duration * i / 3, midi, .17 + i * .015, {...ECHO, pan: -.2 + i * .2}, {length: 1.2, bright: .55}));
+  // …but with any structure you define: the explanation types out as a quiet climb in thirds.
+  [81, 85, 88, 90, 92, 93].forEach((midi, i) => piano(mix, p.explanation.at + p.explanation.duration * i / 6, midi, .12 + i * .008, {...CLOSE, pan: .3 - i * .1}, {length: .7, bright: .5}));
+  // Across every trace: the bubble leaves and the zoom out opens upward across the keyboard.
+  const rise = [64, 68, 71, 73, 76, 80, 83, 85, 88, 92];
+  rise.forEach((midi, i) => piano(mix, p.zoomOut.at + p.zoomOut.duration * (i / rise.length) ** 1.2, midi, .15 + i * .012, {...ECHO, pan: -.4 + i * .09}, {length: 1, bright: .55}));
+  rolled(mix, g(zoomBeat), [33, 45, 52, 57, 61, 64], .32, PIANO, {length: 3.5, bright: .4, spread: .02});
+  // The detection circle grows under the theme's first two notes; the agent's scale-out is the pickup into the grid.
+  melody(mix, g, [[growBeat, 80, 1], [growBeat + 1, 83, 1]], {...PIANO, pan: .2}, {velocity: .34, bright: .55});
+  [66, 71, 75, 78, 83].forEach((midi, i) => piano(mix, p.scaleOut + i * .07, midi, .15 + i * .02, {...ECHO, pan: -.3 + i * .15}, {length: 1, bright: .55}));
+}
+
+/**
  * `acoustic` drops the sine sub and the telemetry beeps; the slowing arabesque already carries the budget drain.
  * `chill` swaps everything before Flow-1 for one steady bed (`chill.ts`) and keeps the rest.
  */
@@ -166,7 +196,8 @@ export function composeArabesque(mix: Mix, cues: ScoreCues, {acoustic = false, c
 
   // ── Our agent, built to analyze traces at scale: the arabesque picks up behind the door and walks I – IV – V home to E.
   const p = issues.prelude, nativeBeat = (issues.native - g(0)) / .5, resume = Math.ceil(shutBeat + 1.5);
-  if (nativeBeat - resume >= 4) {
+  if (p.source22 && nativeBeat - resume >= 4) composeReportBridge(mix, cues, g, at, resume, nativeBeat);
+  else if (nativeBeat - resume >= 4) {
     const zoomBeat = at(p.zoomOut.at, 1), growBeat = at(p.circleGrow.at, 1);
     const bridge = progression([resume, C.Bsus], [at(p.bashStop, 1), C.ES], [zoomBeat, C.A], [growBeat, C.Bsus]);
     figure(mix, g, resume, nativeBeat, bridge, {step: TRIPLET, pattern: ARABESQUE, route: PIANO, bright: .45, length: .8,

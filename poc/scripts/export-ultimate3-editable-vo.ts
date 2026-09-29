@@ -16,7 +16,7 @@ const settingsFile = value('--settings'), out = value('--out');
 if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav>');
 const output = resolve(out), manifestPath = output.replace(/\.wav$/, '.json');
 if (existsSync(output) || existsSync(manifestPath)) throw new Error('Refusing to overwrite existing WAV or manifest');
-const assetRoot = resolve(root, 'public/audio/voiceover/editable-v4');
+const assetRoot = resolve(root, 'public/audio/voiceover/editable-v5');
 const provenance = JSON.parse(readFileSync(resolve(assetRoot, 'manifest.json'), 'utf8'));
 const settingsBytes = readFileSync(resolve(settingsFile));
 const settings = normalizeVoiceoverSettings(JSON.parse(settingsBytes.toString()));
@@ -64,5 +64,5 @@ writeFileSync(output, audio, {flag: 'wx'});
 writeFileSync(manifestPath, JSON.stringify({version: 1, videoFrames: ultimate3DurationFrames(settings), audioSamples: (audio.length - 44) / 8,
   sampleRate: 48000, channels: 2, format: 'float32', settingsSha256: hash(settingsBytes),
   preparedManifestSha256: hash(readFileSync(resolve(assetRoot, 'manifest.json'))), outputSha256: hash(audio),
-  limitation: 'Voice-free score bed is frozen at the Animation 21 cut timings; extending the composition pads silence. Original v4 mixed WAV cannot be reused for edited narration.'}, null, 2) + '\n', {flag: 'wx'});
+  limitation: 'Voice-free score bed is frozen at the Issue Clusters 4 cut timings; extending the composition pads silence.'}, null, 2) + '\n', {flag: 'wx'});
 console.log(JSON.stringify({output, frames: ultimate3DurationFrames(settings), sha256: hash(audio)}));

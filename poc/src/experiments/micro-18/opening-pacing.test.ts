@@ -7,39 +7,28 @@ import {chapterSchedule, sampleUltimate3, ultimate3DurationFrames} from './sampl
 import {normalizeSettings} from './settings';
 import {ultimate2TimelineConfig, voiceoverTimelineConfig} from './authoring';
 import {migrateStoredVoiceoverOpening, normalizeVoiceoverSettings, OPENING_RIPPLE, OPENING_STREAM_SPEED, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
-import {VOICEOVER_PHRASES} from './voiceover-phrases';
-import {VOICEOVER_FADE} from './voiceover-schedule';
+import {VOICEOVER_PHRASES, VOICEOVER_PHRASES_V4} from './voiceover-phrases';
 
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
-const old = normalizeSettings({...imported, voiceover: {version: 1, phrases: Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]))}});
+// Storage written before the September 29 take: the old cut with the old take's vo* clips.
+const old = {...normalizeSettings(imported), voiceover: {version: 1 as const, phrases: Object.fromEntries(VOICEOVER_PHRASES_V4.map(p => [p.id, p.placed]))}};
 const load = (value: unknown) => readVoiceoverSettings({getItem: key => key === VOICEOVER_SETTINGS_ID ? JSON.stringify(value) : null});
 
-test('opening phrases are actual default linear DialKit bars with immutable source durations and downstream gap', () => {
-  const s = VOICEOVER_DEFAULTS;
-  const target = [[.69, 1.25], [3.44, 2.7299999999999995], [8.37, 1.2399999999999984],
-    [10.51, 1.4100000000000001], [13.5, 6.1800000000000015]];
-  const config = voiceoverTimelineConfig(s).narration!;
-  for (let i = 0; i < 5; i++) {
-    const id = VOICEOVER_PHRASES[i].id, clip = s.voiceover!.phrases[id];
-    assert.deepEqual([clip.at, clip.duration], target[i]);
-    assert.deepEqual(config[id], {at: clip.at, duration: clip.duration, from: {progress: 0}, to: {progress: 1},
+test('the September 29 take sits at its authored slots as linear DialKit bars with immutable source durations', () => {
+  const s = VOICEOVER_DEFAULTS, config = voiceoverTimelineConfig(s).narration!;
+  assert.equal(VOICEOVER_PHRASES.length, 23);
+  for (const p of VOICEOVER_PHRASES) {
+    const clip = s.voiceover!.phrases[p.id];
+    assert.deepEqual([clip.at, clip.duration], [p.defaultAt, p.b - p.a]);
+    assert.deepEqual(config[p.id], {at: clip.at, duration: clip.duration, from: {progress: 0}, to: {progress: 1},
       transition: {type: 'easing', duration: clip.duration, ease: [0, 0, 1, 1]}});
-    close(clip.duration, VOICEOVER_PHRASES[i].b - VOICEOVER_PHRASES[i].a);
   }
-  for (const p of VOICEOVER_PHRASES.slice(5).filter(p => p.id !== 'vo16')) {
-    close(s.voiceover!.phrases[p.id].at, p.defaultAt + OPENING_RIPPLE);
-    close(s.voiceover!.phrases[p.id].duration, p.b - p.a);
-  }
-  // vo16 is re-joined to vo17 as recorded: source-contiguous, overlapping by exactly one fade.
-  const [vo16, vo17] = [s.voiceover!.phrases.vo16, s.voiceover!.phrases.vo17], [p16, p17] = [VOICEOVER_PHRASES[15], VOICEOVER_PHRASES[16]];
-  close(p17.a - p16.a, vo17.at - vo16.at);
-  close(vo16.at + vo16.duration - vo17.at, VOICEOVER_FADE);
-  assert.ok(vo16.duration <= p16.b - p16.a);
-  close(s.voiceover!.phrases.vo06.at - (s.voiceover!.phrases.vo05.at + s.voiceover!.phrases.vo05.duration), .6);
   for (let i = 0; i < VOICEOVER_PHRASES.length - 1; i++) {
     const a = s.voiceover!.phrases[VOICEOVER_PHRASES[i].id], b = s.voiceover!.phrases[VOICEOVER_PHRASES[i + 1].id];
-    assert.ok(b.at >= a.at + a.duration - (i === 15 ? VOICEOVER_FADE : 0) - 1e-8, `overlap after vo${i + 1}`);
+    assert.ok(b.at >= a.at + a.duration - 1e-8, `overlap after ${VOICEOVER_PHRASES[i].id}`);
   }
+  const last = s.voiceover!.phrases.n23;
+  assert.ok(last.at + last.duration <= ultimate3DurationFrames(s) / 30);
 });
 
 test('four actual blocks add 720px; new run preserves the 391.025604px approach and continuous blue lift', () => {
@@ -108,30 +97,23 @@ test('load-only fieldwise migration recognizes old generated values; authored cl
   const migrated = load(old);
   assert.deepEqual(migrated, VOICEOVER_DEFAULTS);
   assert.deepEqual(migrateStoredVoiceoverOpening(migrated), migrated);
-  // The previous generated vo16 default (0.7s ahead of "at scale.") also upgrades; an authored vo16 does not.
-  const previous = structuredClone(VOICEOVER_DEFAULTS);
-  previous.voiceover!.phrases.vo16 = {at: VOICEOVER_PHRASES[15].placed.at + OPENING_RIPPLE, duration: VOICEOVER_PHRASES[15].placed.duration};
-  assert.deepEqual(load(previous), VOICEOVER_DEFAULTS);
-  previous.voiceover!.phrases.vo16.at = 49.5;
-  assert.equal(load(previous).voiceover!.phrases.vo16.at, 49.5);
   const authored = structuredClone(old);
-  authored.voiceover!.phrases.vo02 = {at: 4.1, duration: .7};
-  authored.voiceover!.phrases.vo08.at = 21.7;
+  authored.voiceover!.phrases.n02 = {at: 4.1, duration: .7};
+  authored.voiceover!.phrases.n08 = {at: 21.7, duration: 1};
   authored.ultimate2.timing.warningEnter.at = 10.1;
   authored.ultimate2.controls.warningXOffset = 99;
   authored.clouds!.timing.partialRecede.at = 30;
   authored.allocations.cost = 16;
-  (authored as any).selection = {active: 'vo08'};
+  (authored as any).selection = {active: 'n08'};
   const restored = migrateStoredVoiceoverOpening(authored) as typeof authored;
-  assert.equal(restored.voiceover!.phrases.vo02.at, 4.1);
-  assert.equal(restored.voiceover!.phrases.vo02.duration, .7);
-  assert.equal(restored.voiceover!.phrases.vo08.at, 21.7);
+  assert.equal(restored.voiceover!.phrases.n02.at, 4.1);
+  assert.equal(restored.voiceover!.phrases.n02.duration, .7);
+  assert.equal(restored.voiceover!.phrases.n08.at, 21.7);
   assert.equal(restored.ultimate2.timing.warningEnter.at, 10.1);
   assert.equal(restored.ultimate2.controls.warningXOffset, 99);
   assert.equal(restored.clouds!.timing.partialRecede.at, 30);
   assert.equal(restored.allocations.cost, 16);
-  assert.deepEqual((restored as any).selection, {active: 'vo08'});
-  assert.equal(restored.voiceover!.phrases.vo06.at, old.voiceover!.phrases.vo06.at + OPENING_RIPPLE);
-  // Explicit imports are normalization-only: they do not undergo the storage migration.
-  assert.equal(normalizeVoiceoverSettings(authored).voiceover!.phrases.vo06.at, old.voiceover!.phrases.vo06.at);
+  assert.deepEqual((restored as any).selection, {active: 'n08'});
+  // Edits of the September 27 take's vo* clips never move the new take's phrases.
+  assert.deepEqual(load({...old, voiceover: {version: 1, phrases: {vo06: {at: 30, duration: 1}}}}).voiceover, VOICEOVER_DEFAULTS.voiceover);
 });

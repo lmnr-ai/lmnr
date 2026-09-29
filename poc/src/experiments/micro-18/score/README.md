@@ -68,7 +68,7 @@ The same three scores with no electronics:
 
 On the Animation 21 cut (`flow.sourceVersion: 21`), the Flow cues come from `flow.timing21`: the bead landings, the string entry, the graph spread and the axis entry replace the legacy number rows and bars. The editable VO bed is `scripts/build-ultimate3-flow21-bed.mjs`.
 
-All Arabesque styles bridge the Issues analysis prelude (`cues.issues.prelude`: bash descent, zoom out, circle grow) with a triplet arabesque walking I – IV – V into the issue grid.
+All Arabesque styles bridge the Issues analysis prelude (`cues.issues.prelude`: bash descent, zoom out, circle grow) with a triplet arabesque walking I – IV – V into the issue grid. On source22 the cues read its own report prelude (`timing22`), and the bridge touches the bubble, the label rows and the typed explanation.
 
 ### `nocturne-duet` — piano and violin
 

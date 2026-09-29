@@ -3,7 +3,7 @@ import test from 'node:test';
 import {DialStore, type DialValue} from 'dialkit';
 import {parseTimelineConfig} from 'dialkit/timeline';
 import importedSettings from '../../../handoff/voiceover-retime/retimed-settings.json';
-import placements from '../../../handoff/voiceover-retime/placements.json';
+import placements from '../../../handoff/voiceover-issues4/placements.json';
 import {installMicro20AuthoringCompatibility} from '../micro-20/authoring';
 import {issuesTimelineConfig} from './authoring';
 import {chapterSchedule, issueHandoffValidation, sampleUltimate3, ultimate3DurationFrames} from './sample';
@@ -21,7 +21,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
   assert.equal(VOICEOVER_DEFAULTS.version, 4);
   const {clouds, voiceover} = VOICEOVER_DEFAULTS;
   assert.ok(clouds!.timing.slideIn.at > 0);
-  assert.equal(Object.keys(voiceover!.phrases).length, 22);
+  assert.equal(Object.keys(voiceover!.phrases).length, 23);
   assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2276);
   assert.equal(issueHandoffValidation(VOICEOVER_DEFAULTS), null);
   assert.equal(VOICEOVER_DEFAULTS.conclusion.logo.at, 3.75);
@@ -37,7 +37,7 @@ test('opening retime retains imported downstream chapters and deterministic reve
   const forward = times.map(time => sampleUltimate3(time, VOICEOVER_DEFAULTS));
   [...times].reverse().forEach((time, i) => assert.deepEqual(sampleUltimate3(time, VOICEOVER_DEFAULTS), forward[forward.length - i - 1]));
   for (const phrase of placements) {
-    assert.ok(phrase.at >= 0 && phrase.b > phrase.a && phrase.a >= 0 && phrase.b <= 58.901333);
+    assert.ok(phrase.at >= 0 && phrase.b > phrase.a && phrase.a >= 0 && phrase.b <= 76.928);
     assert.ok(phrase.at + phrase.b - phrase.a <= duration);
   }
 });

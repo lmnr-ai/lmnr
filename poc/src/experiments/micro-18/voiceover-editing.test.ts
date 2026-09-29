@@ -14,27 +14,27 @@ import {createHash} from 'node:crypto';
 const changed = (id: string, at: number, duration: number) => normalizeVoiceoverSettings({...VOICEOVER_DEFAULTS,
   voiceover: {...VOICEOVER_DEFAULTS.voiceover!, phrases: {...VOICEOVER_DEFAULTS.voiceover!.phrases, [id]: {at, duration}}}});
 
-test('22 real timeline bars and first six in Ultimate 2 share phrase settings; import/reset, trim, overlaps and export end', () => {
+test('23 real timeline bars and first six in Ultimate 2 share phrase settings; import/reset, trim, overlaps and export end', () => {
   const full = voiceoverTimelineConfig(VOICEOVER_DEFAULTS).narration!;
-  assert.equal(Object.keys(full).length, 22);
+  assert.equal(Object.keys(full).length, 23);
   assert.deepEqual(Object.keys(voiceoverTimelineConfig(VOICEOVER_DEFAULTS, true).narration!), VOICEOVER_PHRASES.slice(0, 6).map(p => p.id));
-  assert.equal(Object.keys(voiceoverTimelineValues(VOICEOVER_DEFAULTS)).length, 110);
-  const edited = changed('vo02', .37, .5);
+  assert.equal(Object.keys(voiceoverTimelineValues(VOICEOVER_DEFAULTS)).length, 115);
+  const edited = changed('n02', .37, .5);
   assert.deepEqual(voiceoverSchedule(edited).slice(0, 2).map(p => p.at), [.37, .69]);
-  assert.equal(voiceoverSchedule(edited).find(p => p.id === 'vo02')?.duration, .5);
-  const timeline = {narration: {...full, vo02: {...full.vo02, at: 3, duration: .1,
+  assert.equal(voiceoverSchedule(edited).find(p => p.id === 'n02')?.duration, .5);
+  const timeline = {narration: {...full, n02: {...full.n02, at: 3, duration: .1,
     transition: {type: 'easing', duration: .1, ease: [.1, 0, .9, 1]}, from: {progress: .3}}}};
   assert.deepEqual(settingsFromVoiceoverTimeline({narration: full}, VOICEOVER_DEFAULTS), VOICEOVER_DEFAULTS,
     'visual-only transition values never enter authored sound');
   const result = settingsFromVoiceoverTimeline(timeline, VOICEOVER_DEFAULTS);
-  assert.equal(result.voiceover?.phrases.vo02.at, 3);
-  assert.equal(result.voiceover?.phrases.vo02.duration, .1);
+  assert.equal(result.voiceover?.phrases.n02.at, 3);
+  assert.equal(result.voiceover?.phrases.n02.duration, .1);
   assert.deepEqual(normalizeVoiceoverSettings(JSON.parse(JSON.stringify(result))), result);
-  assert.equal(normalizeVoiceoverSettings({...VOICEOVER_DEFAULTS, voiceover: undefined}).voiceover?.phrases.vo02.at, VOICEOVER_DEFAULTS.voiceover!.phrases.vo02.at);
-  const last = changed('vo22', 2276 / 30, 2);
-  assert.equal(last.voiceover!.phrases.vo22.duration, 0);
-  assert.equal(changed('vo01', 1, 0).voiceover!.phrases.vo01.duration, 0);
-  assert.equal(changed('vo01', 1, 100).voiceover!.phrases.vo01.duration, VOICEOVER_PHRASES[0].b - VOICEOVER_PHRASES[0].a);
+  assert.equal(normalizeVoiceoverSettings({...VOICEOVER_DEFAULTS, voiceover: undefined}).voiceover?.phrases.n02.at, VOICEOVER_DEFAULTS.voiceover!.phrases.n02.at);
+  const last = changed('n23', 2276 / 30, 2);
+  assert.equal(last.voiceover!.phrases.n23.duration, 0);
+  assert.equal(changed('n01', 1, 0).voiceover!.phrases.n01.duration, 0);
+  assert.equal(changed('n01', 1, 100).voiceover!.phrases.n01.duration, VOICEOVER_PHRASES[0].b - VOICEOVER_PHRASES[0].a);
   assert.equal(normalizeSettings({}).voiceover, undefined, 'original cut never gains a voiceover section');
 });
 
@@ -42,32 +42,31 @@ test('shared schedule/PCM uses true trims, overlaps, silence, fades and one line
   const bed = {l: new Float32Array(200000).fill(.2), r: new Float32Array(200000).fill(-.2)};
   const source = {l: new Float32Array(100000).fill(.3), r: new Float32Array(100000).fill(.1)};
   const settings = normalizeVoiceoverSettings({...VOICEOVER_DEFAULTS, voiceover: {version: 1, phrases: Object.fromEntries(
-    VOICEOVER_PHRASES.map(p => [p.id, {at: 0, duration: p.id === 'vo01' || p.id === 'vo02' ? .5 : 0}]))}});
-  const pcm = mixVoiceoverPcm(bed, {vo01: source, vo02: source}, settings, 1);
-  const both = pcm.l[4800], one = mixVoiceoverPcm(bed, {vo01: source}, settings, 1).l[4800];
+    VOICEOVER_PHRASES.map(p => [p.id, {at: 0, duration: p.id === 'n01' || p.id === 'n02' ? .5 : 0}]))}});
+  const pcm = mixVoiceoverPcm(bed, {n01: source, n02: source}, settings, 1);
+  const both = pcm.l[4800], one = mixVoiceoverPcm(bed, {n01: source}, settings, 1).l[4800];
   assert.ok(Math.abs((both - one) - .3 / 6.98) < 1e-7);
   assert.equal(phraseGain(0, .5), 0);
   assert.equal(phraseGain(.25, .5), 1);
   assert.equal(phraseGain(.5, .5), 0);
-  const doubled = mixVoiceoverPcm(bed, {vo01: source, vo02: source}, settings, 2);
+  const doubled = mixVoiceoverPcm(bed, {n01: source, n02: source}, settings, 2);
   assert.equal(doubled.l[4800], 2 * both);
   assert.equal(pcm.l.length, 2276 * 1600);
-  assert.equal(mixVoiceoverPcm(bed, {vo01: source, vo02: source}, settings, 0).l[4800], 0);
+  assert.equal(mixVoiceoverPcm(bed, {n01: source, n02: source}, settings, 0).l[4800], 0);
 });
 
-test('new prepared assets are exactly the immutable 22 trims and keyboard-bearing v4 score', () => {
-  const base = new URL('../../../public/audio/voiceover/editable-v4/', import.meta.url);
+test('prepared assets are exactly the immutable 23 trims of the September 29 take and the Issue Clusters 4 score', () => {
+  const base = new URL('../../../public/audio/voiceover/editable-v5/', import.meta.url);
   const read = (file: string) => readFileSync(new URL(file, base));
   const manifest = JSON.parse(read('manifest.json').toString());
-  assert.equal(manifest.phrases.length, 22);
+  assert.equal(manifest.phrases.length, 23);
   assert.equal(manifest.scoreStyle, 'arabesque-acoustic-chill');
   const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
   assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
   assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
-  assert.equal(manifest.samples, 2085 * 1600);
-  assert.equal(`/audio/voiceover/editable-v4/${manifest.bed.file}`, VOICEOVER_BED_URL);
-  // The v4 bed stays byte-for-byte for provenance.
-  assert.equal(sha(read('bed.wav')), manifest.previousBeds[0].sha256);
+  assert.equal(manifest.samples, 2276 * 1600);
+  assert.equal(`/audio/voiceover/editable-v5/${manifest.bed.file}`, VOICEOVER_BED_URL);
+  assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../Signals-launch-09-29-10-04.m4a', base))));
   for (const entry of manifest.phrases) {
     const phrase = VOICEOVER_PHRASES.find(p => p.id === entry.id)!;
     assert.equal(entry.text, phrase.text);
@@ -224,7 +223,7 @@ test('live engine cancels stale nodes on seek/edit/pause; delayed decoding canno
     engine.update(5, true, VOICEOVER_DEFAULTS, 3);
     assert.ok(originalNodes.every(node => node.stops === 1));
     const newNodes = [...Context.latest.sources];
-    engine.update(5, true, changed('vo02', 4.5, 1), 3);
+    engine.update(5, true, changed('n02', 4.5, 1), 3);
     assert.ok(newNodes.slice(originalNodes.length).every(node => node.stops === 1));
     assert.ok(Context.latest.sources.some(node => node.starts.some(([, offset]) => offset === .5)));
     engine.update(6, false, VOICEOVER_DEFAULTS);

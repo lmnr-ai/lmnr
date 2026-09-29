@@ -18,7 +18,7 @@ This updates `sandbox/signals-launch-video` on top of upstream `9e5e09ccb4b05a56
 - AAC, stereo, 48kHz; **76.928 seconds**, 1,070,010 bytes.
 - SHA-256: `e79d8e458cb5d06d1af55a3c9bda0240e25fe9dccab783a039064a16edd87403`.
 - Machine-readable metadata: [recording.json](recording.json).
-- **Attached only:** not transcribed, split, aligned, mixed, or wired into playback. Existing VO media, phrase schedules and frozen music remain unchanged by this transfer. Do not assume the old audio is aligned to the new visuals.
+- Now split, placed and wired into playback: see [../voiceover-issues4/README.md](../voiceover-issues4/README.md).
 
 ## Visual and subtitle contract
 

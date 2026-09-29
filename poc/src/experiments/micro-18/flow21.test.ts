@@ -48,7 +48,7 @@ test('storage-only source upgrade is idempotent and does not mutate other author
   old.cost.timing.cameraDownToBudget.at = 8.9;
   old.flow.controls.coverMotion = 'right';
   old.flow.entrySlide.duration = 1.7;
-  old.voiceover!.phrases.vo08.at = 34.567;
+  old.voiceover!.phrases.n08.at = 34.567;
   const before = structuredClone(old);
   const upgraded = migrateStoredVoiceoverFlow21(old) as typeof s;
   assert.deepEqual(old, before);

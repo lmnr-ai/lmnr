@@ -2,6 +2,7 @@ import {resolveMicro16Clips} from '../../micro-16/timeline';
 import {sampleUltimate3, chapterSchedule, ultimate3DurationFrames, issueHandoffValidation} from '../sample';
 import {beadStagger} from '../../introducing-flow-1-2/beads';
 import {resolvePreludeSchedule} from '../../micro-20/timeline';
+import {normalizeMicro22Timing} from '../../micro-22/timeline';
 import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
 import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
 import {ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow} from '../sound';
@@ -36,6 +37,8 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
   const postludeActive = !issueHandoffValidation(settings) && issuesNative < chapter.issues.end;
   const issues = settings.issues.timing;
   const preludeStart = round(issuesStart + issueEntryEnd(settings)), prelude = resolvePreludeSchedule(settings.issues.preludeTiming);
+  // Source22 plays its own prelude (report bubble, labels, explanation); source20's schedule is only its fallback.
+  const source22 = settings.issues.sourceVersion === 22, prelude22 = normalizeMicro22Timing(settings.issues.timing22), p = source22 ? prelude22 : prelude;
   const clouds = ultimate3CloudWhooshWindows(settings);
   const flow21 = settings.flow.sourceVersion === 21 && settings.flow.timing21;
   // Animation 21 has no number rows or bars: the six bead landings are the drops, the graph spread is the swap.
@@ -131,14 +134,20 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       leadIn: {at: issuesStart, duration: round(issuesNative - issuesStart)},
       // The analysis prelude between the Signals door and the issue grid.
       prelude: {
-        bashEntry: span(preludeStart, prelude.blueBashEntry),
-        bashStop: at(preludeStart, prelude.blueBashStop),
-        descent: span(preludeStart, prelude.bashDescent),
-        highlight: at(preludeStart, prelude.bashHighlight),
-        zoomOut: span(preludeStart, prelude.analysisZoomOut),
-        collapse: at(preludeStart, prelude.analysisTraceCollapse),
-        circleGrow: span(preludeStart, prelude.analysisCircleGrow),
-        scaleOut: at(preludeStart, prelude.analysisAgentScaleOut),
+        source22,
+        bashEntry: span(preludeStart, p.blueBashEntry),
+        bashStop: at(preludeStart, p.blueBashStop),
+        descent: span(preludeStart, p.bashDescent),
+        highlight: at(preludeStart, p.bashHighlight),
+        // Source22's report: the bubble opens, the label rows reveal, the explanation types, the bubble leaves.
+        bubble: source22 ? at(preludeStart, prelude22.bubble) : undefined,
+        labels: source22 ? span(preludeStart, prelude22.labelReveal) : undefined,
+        explanation: source22 ? span(preludeStart, prelude22.explanationTyping) : undefined,
+        bubbleExit: source22 ? at(preludeStart, prelude22.bubbleExit) : undefined,
+        zoomOut: span(preludeStart, p.analysisZoomOut),
+        collapse: at(preludeStart, p.analysisTraceCollapse),
+        circleGrow: span(preludeStart, p.analysisCircleGrow),
+        scaleOut: at(preludeStart, p.analysisAgentScaleOut),
       },
       native: issuesNative,
       pops: postludeActive ? issuePops(settings, issuesNative) : [],

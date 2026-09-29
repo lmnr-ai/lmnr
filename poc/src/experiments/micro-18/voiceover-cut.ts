@@ -3,7 +3,6 @@ import {upgradeStoredMicro22Timing, upgradeStoredMicro22Captions} from '../micro
 import importedSettings from '../../../handoff/voiceover-retime/retimed-settings.json';
 import {normalizeSettings, FLOW_21_TIMING, type ClipTiming} from './settings';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
-import {VOICEOVER_FADE} from './voiceover-schedule';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
 export const VOICEOVER_SOUNDTRACK_URL = '/audio/voiceover/ultimate3-voiceover-v4.wav';
@@ -13,13 +12,9 @@ export const OPENING_RIPPLE = 13.5 - 9.79;
 export const OPENING_STREAM_SPEED = (importedSettings.ultimate2.controls.streamerSpeed
   * importedSettings.ultimate2.timing.streamRun.duration + 720)
   / (importedSettings.ultimate2.timing.streamRun.duration + OPENING_RIPPLE);
-const openingPhrases = [
-  {at: .69, duration: 1.25}, {at: 3.44, duration: 2.7299999999999995},
-  {at: 8.37, duration: 1.2399999999999984}, {at: 10.51, duration: 1.4100000000000001},
-  {at: 13.5, duration: 6.1800000000000015},
-];
-const original = normalizeSettings({...importedSettings, voiceover: {version: 1, phrases: Object.fromEntries(
-  VOICEOVER_PHRASES.map(p => [p.id, p.placed]))}});
+// Every phrase of the September 29 take sits at its authored slot on the Issue Clusters 4 cut.
+const takePhrases = Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]));
+const original = normalizeSettings({...importedSettings, voiceover: {version: 1, phrases: takePhrases}});
 const retimeClip = (clip: ClipTiming, at: number, duration = clip.duration): ClipTiming => ({
   ...clip, at, duration, ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration}} : {}),
 });
@@ -28,11 +23,6 @@ const openingTiming = Object.fromEntries(Object.entries(original.ultimate2.timin
   return [key, retimeClip(clip, clip.at + (clip.at >= original.ultimate2.timing.continueStraight.at ? OPENING_RIPPLE : 0),
     clip.duration + (extend ? OPENING_RIPPLE : 0))];
 })) as typeof original.ultimate2.timing;
-const placedDefault = (p: typeof VOICEOVER_PHRASES[number]) => ({at: p.placed.at + OPENING_RIPPLE, duration: p.placed.duration});
-const phrase = (id: string) => VOICEOVER_PHRASES.find(p => p.id === id)!;
-// "traces at scale" was one breath: vo16 butts onto vo17's first sample and overlaps it by one fade, so the linear
-// fade-out/fade-in of identical source samples sums to unity and the join is the take itself.
-const JOINS: Record<string, ClipTiming> = {vo16: {at: placedDefault(phrase('vo17')).at - phrase('vo16').placed.duration, duration: phrase('vo16').placed.duration + VOICEOVER_FADE}};
 export const VOICEOVER_DEFAULTS = normalizeSettings({...original,
   issues: {...original.issues, sourceVersion: 22, timing22: MICRO_22_TIMING, controls22: MICRO_22_DEFAULTS, migration22: 1},
   flow: {...original.flow, sourceVersion: 21, timing21: FLOW_21_TIMING},
@@ -41,8 +31,7 @@ export const VOICEOVER_DEFAULTS = normalizeSettings({...original,
     [key, retimeClip(clip, clip.at + OPENING_RIPPLE)])) as NonNullable<typeof original.clouds>['timing']},
   ultimate2: {...original.ultimate2, timing: openingTiming, streamBlocksRemoved: 10,
     controls: {...original.ultimate2.controls, streamerSpeed: OPENING_STREAM_SPEED}},
-  voiceover: {version: 1, phrases: Object.fromEntries(VOICEOVER_PHRASES.map((p, index) => [p.id,
-    index < 5 ? openingPhrases[index] : JOINS[p.id] ?? placedDefault(p)]))},
+  voiceover: {version: 1, phrases: takePhrases},
 });
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
@@ -60,11 +49,6 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   for (const key of Object.keys(openingTiming) as (keyof typeof openingTiming)[]) {
     if (equal(timing[key], original.ultimate2.timing[key])) timing[key] = openingTiming[key];
   }
-  const phrases = {...raw.voiceover?.phrases};
-  for (const [index, phrase] of VOICEOVER_PHRASES.entries()) {
-    const previous = original.voiceover!.phrases[phrase.id];
-    if (equal(phrases[phrase.id], previous) || (index >= 5 && equal(phrases[phrase.id], placedDefault(phrase)))) phrases[phrase.id] = VOICEOVER_DEFAULTS.voiceover!.phrases[phrase.id];
-  }
   const allocations = {...raw.allocations};
   if (allocations.ultimate2 === original.allocations.ultimate2) allocations.ultimate2 = VOICEOVER_DEFAULTS.allocations.ultimate2;
   const controls = {...raw.ultimate2?.controls};
@@ -75,7 +59,7 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   }
   return {...raw, allocations, ultimate2: {...raw.ultimate2, timing, controls,
     streamBlocksRemoved: raw.ultimate2?.streamBlocksRemoved ?? 10},
-    ...(raw.voiceover ? {voiceover: {...raw.voiceover, phrases}} : {}), ...(clouds ? {clouds} : {})};
+    ...(clouds ? {clouds} : {})};
 }
 
 /** Upgrade only unversioned v4 editor storage. Explicit imports and source13
