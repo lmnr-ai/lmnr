@@ -55,9 +55,16 @@
 //! discards batched records for deactivated partitions together with their
 //! pending offsets, so the successor's replay is the only write. Flushing them
 //! while the store is refused would double-write the held backlog on every
-//! handover. The revoked set is a per-flush snapshot; a revocation landing
-//! mid-flush still duplicates at most that one in-flight batch, with the
-//! read-guard fence in `store_offsets` as the backstop.
+//! handover.
+//!
+//! A handover (SAC rebalance, e.g. a new pod joining during a rollout) is
+//! drained, not cut: the broker keeps the successor inactive until we reply to
+//! the deactivation, so `hand_over_partition` first stops new flushes of the
+//! partition, lets a flush already in flight insert AND store its offset, revokes,
+//! and waits until `query_offset` shows that store before replying. Otherwise
+//! every handover that caught a flush mid-insert replayed that whole batch. Past
+//! `RABBITMQ_STREAM_HANDOVER_TIMEOUT_MS` it steps down anyway and that one batch
+//! is replayed.
 //!
 //! Reader teardown never drains: every exit path aborts the batchers (then
 //! awaits the cancellation) and drops whatever they hold. Held records were
@@ -71,8 +78,8 @@
 //! Graceful shutdown (SIGTERM) closes that window without draining either: the
 //! reader stops taking records, each batcher finishes the flush it is IN (insert
 //! AND offset store) and exits without flushing what it still holds, and only
-//! then is the consumer closed — so the successor activates on an offset that
-//! covers everything this pod wrote. A batcher still in flight after
+//! once those stores are visible via `query_offset` is the consumer closed — so
+//! the successor activates on an offset that covers everything this pod wrote. A batcher still in flight after
 //! `GRACEFUL_SHUTDOWN_TIMEOUT_MS` (a transient-retry loop) falls back to abort.
 //!
 //! A skipped record still forwards its OFFSET to the batcher (as a
@@ -115,9 +122,13 @@ const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
 /// so the fresh activation re-queries — never a guessed start position.
 const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
 
-/// Bound on the explicit consumer close at shutdown; past it the process exit
-/// drops the connection anyway.
+/// Bound on each shutdown step before the close (offset visibility, then the close
+/// itself); past it the process exit drops the connection anyway.
 const CONSUMER_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How often a handover or shutdown re-queries the stored offset while waiting for
+/// our last store to become visible.
+const VISIBLE_OFFSET_POLL: Duration = Duration::from_millis(50);
 
 /// One record off a partition.
 ///
@@ -311,15 +322,12 @@ impl<H: StreamBatchHandler> StreamReader<H> {
                 let stream = context.stream();
                 // `active` is the wire-level flag (0 = deactivated), not a bool.
                 if active == 0 {
-                    // Deactivated: the successor — possibly in another pod — owns
-                    // this partition now and its committed position is
-                    // authoritative. Mark the partition revoked so our still-
-                    // running batcher neither flushes its held records for it nor
-                    // stores an offset — the new owner replays them instead
-                    // (at-least-once, consistent with the queue path).
-                    // Awaits the write guard, so it cannot land while a store for
-                    // this partition is mid-flight under the read guard.
-                    revoke_partition(consumer_name, &stream).await;
+                    // Deactivated: the successor — possibly in another pod —
+                    // activates once we reply. Held records are dropped (it
+                    // replays them), but an in-flight flush finishes and its offset
+                    // store becomes visible first, so nothing we inserted is
+                    // replayed. Afterwards the partition is revoked.
+                    hand_over_partition(consumer_name, &context).await;
                     log::info!("Stream partition {} deactivated for this consumer", stream);
                     return OffsetSpecification::Next;
                 }
@@ -561,8 +569,16 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         }
 
         // Close explicitly (rather than on process exit) so the broker hands our
-        // partitions over only after every store above was sent on this client.
+        // partitions over only after every store above is visible to successors.
         if stopping {
+            let deadline = tokio::time::Instant::now() + CONSUMER_CLOSE_TIMEOUT;
+            if !confirm_owned_offsets_visible(&client, self.consumer_name, deadline).await {
+                log::warn!(
+                    "Stream reader {} ({}) closing before every stored offset was visible; a successor may replay the last batch",
+                    self.id,
+                    self.super_stream
+                );
+            }
             match tokio::time::timeout(CONSUMER_CLOSE_TIMEOUT, consumer.handle().close()).await {
                 Ok(Ok(())) => log::info!(
                     "Stream reader {} ({}) closed its consumer after shutdown",
@@ -826,14 +842,18 @@ async fn flush_and_commit<H: StreamBatchHandler>(
 
     // Snapshot only — holding the read guard across the flush await would block
     // `consumer_update`'s write for the length of a ClickHouse insert. The fence
-    // in `store_offsets` stays authoritative for a revocation landing mid-flush.
-    let revoked = REVOKED_PARTITIONS
-        .read()
-        .await
-        .get(consumer_name)
-        .cloned()
-        .unwrap_or_default();
-    let dropped = discard_revoked_entries(&revoked, &mut entries, &mut offsets);
+    // in `store_offsets` stays authoritative for a revocation landing mid-flush;
+    // a handover waits for `_in_flight` to drop before revoking.
+    let (dropped, _in_flight) = {
+        let ownership = PARTITION_OWNERSHIP.read().await;
+        let excluded = ownership
+            .get(consumer_name)
+            .map(GroupOwnership::excluded)
+            .unwrap_or_default();
+        let dropped = discard_revoked_entries(&excluded, &mut entries, &mut offsets);
+        let in_flight = InFlightFlush::enter(consumer_name, offsets.keys().cloned().collect());
+        (dropped, in_flight)
+    };
     if dropped > 0 {
         log::info!(
             "Stream batcher {} discarding {} batched records for revoked partitions; the new owner replays them",
@@ -945,8 +965,7 @@ fn discard_revoked_entries<M>(
 /// The revocation check is held under a READ guard ACROSS the `store_offset` await,
 /// so a concurrent revocation (which needs the write guard) cannot slip in between
 /// the check and the write. Checking without holding it would leave the in-flight
-/// store unfenced — see `REVOKED_PARTITIONS` for why that's the interesting race and
-/// what residual window the protocol leaves open.
+/// store unfenced — see `PARTITION_OWNERSHIP` for why that's the interesting race.
 async fn store_offsets(
     index: usize,
     client: &Client,
@@ -962,10 +981,10 @@ async fn store_offsets(
         // flush was in flight.
         //
         // Held for the whole check-and-store so revocation can't interleave.
-        let ownership = REVOKED_PARTITIONS.read().await;
+        let ownership = PARTITION_OWNERSHIP.read().await;
         if ownership
             .get(consumer_name)
-            .is_some_and(|streams| streams.contains(&stream))
+            .is_some_and(|group| group.revoked.contains(&stream))
         {
             log::warn!(
                 "Stream batcher {} not storing offset {} for stream {}: this consumer was deactivated for that partition, so the new owner's position stands",
@@ -1079,14 +1098,21 @@ fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offs
     }
 }
 
+/// Last offset this process confirmed storing for the partition, if any.
+fn high_water_mark(consumer_name: &'static str, stream: &str) -> Option<u64> {
+    lock_high_water_marks()
+        .get(&(consumer_name, stream.to_string()))
+        .copied()
+}
+
 /// Partitions this process has been DEACTIVATED for, per consumer group.
 ///
 /// Single-active-consumer handovers cross pod boundaries, so the process-local
 /// high-water mark above cannot detect a successor that has already committed
 /// further ahead — its marks live in another process. What we DO learn locally is
-/// the broker's `consumer_update(active = 0)` callback: from that moment we no
-/// longer own the partition, and any offset our still-running batcher holds is by
-/// definition not authoritative. Refusing to store for a revoked partition is
+/// the broker's `consumer_update(active = 0)` callback: once we have replied to it
+/// we no longer own the partition, and any offset our still-running batcher holds
+/// is by definition not authoritative. Refusing to store for a revoked partition is
 /// therefore the cross-pod guard; the records we were holding are replayed by the
 /// new owner.
 ///
@@ -1094,40 +1120,253 @@ fn commit_offset_high_water_mark(consumer_name: &'static str, stream: &str, offs
 /// An ASYNC `RwLock`, not a `std::sync::Mutex`, and that choice is the guard.
 ///
 /// A plain mutex can only make the *check* atomic, not check-then-store: the
-/// `store_offset` call awaits, so a `consumer_update(active = 0)` landing in that
-/// window would be recorded while a store that already passed the check is still
-/// on its way out — the write escapes revocation entirely. Taking a READ guard
-/// across check+store and the WRITE guard to revoke makes the two mutually
-/// exclusive, so every store either completes while we still (as far as the broker
-/// has told us) own the partition, or is refused.
+/// `store_offset` call awaits, so a revocation landing in that window would be
+/// recorded while a store that already passed the check is still on its way out —
+/// the write escapes revocation entirely. Taking a READ guard across check+store
+/// and the WRITE guard to revoke makes the two mutually exclusive, so every store
+/// either completes while we still own the partition, or is refused.
 ///
-/// **Residual risk, unfixable client-side:** `StoreOffset` carries only
-/// `(reference, stream, offset)` — no epoch, generation, or fencing token — and the
-/// protocol marks it "expects response: No", so the broker cannot distinguish a
-/// store from the active consumer from a stale one under the same reference, and we
-/// get no rejection path. The stream protocol also doesn't specify that the broker
-/// waits for our `ConsumerUpdateResponse` before promoting the successor. So if it
-/// activates the successor before notifying us, a store we consider legitimate can
-/// still land late. That degrades to a REWIND (the successor re-reads and
-/// reprocesses), never a skip-forward, which is the same at-least-once outcome a
-/// handover already produces for records the predecessor held unflushed.
-static REVOKED_PARTITIONS: LazyLock<
-    tokio::sync::RwLock<HashMap<&'static str, std::collections::HashSet<String>>>,
-> = LazyLock::new(|| tokio::sync::RwLock::new(HashMap::new()));
+/// `StoreOffset` carries only `(reference, stream, offset)` — no epoch or fencing
+/// token — and has no response, so the broker cannot reject a stale store. What
+/// keeps a store from landing after the successor started is the handover order
+/// in `hand_over_partition`: the broker activates the successor only once we reply
+/// to the deactivation (`rabbit_stream_sac_coordinator`), and we reply only after
+/// revoking here and seeing our last store in `query_offset`.
+static PARTITION_OWNERSHIP: LazyLock<tokio::sync::RwLock<HashMap<&'static str, GroupOwnership>>> =
+    LazyLock::new(|| tokio::sync::RwLock::new(HashMap::new()));
+
+#[derive(Default)]
+struct GroupOwnership {
+    /// Stepped down: nothing is flushed or stored for these.
+    revoked: HashSet<String>,
+    /// Deactivation received, reply pending: NEW flushes discard these partitions,
+    /// but a flush that snapshotted before may still insert and store.
+    draining: HashSet<String>,
+}
+
+impl GroupOwnership {
+    /// Partitions a new flush must drop, records and offsets together.
+    fn excluded(&self) -> HashSet<String> {
+        self.revoked.union(&self.draining).cloned().collect()
+    }
+}
 
 async fn revoke_partition(consumer_name: &'static str, stream: &str) {
-    REVOKED_PARTITIONS
+    let mut ownership = PARTITION_OWNERSHIP.write().await;
+    let group = ownership.entry(consumer_name).or_default();
+    group.draining.remove(stream);
+    group.revoked.insert(stream.to_string());
+}
+
+async fn restore_partition(consumer_name: &'static str, stream: &str) {
+    if let Some(group) = PARTITION_OWNERSHIP.write().await.get_mut(consumer_name) {
+        group.draining.remove(stream);
+        group.revoked.remove(stream);
+    }
+}
+
+/// Flushes per `(consumer_name, partition)` that snapshotted ownership and have
+/// not finished their offset store yet. A sync mutex so `InFlightFlush` can
+/// release in `Drop`, which also covers a batcher aborted mid-flush.
+static IN_FLIGHT_FLUSHES: LazyLock<Mutex<HashMap<(&'static str, String), usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Woken whenever an in-flight flush finishes.
+static FLUSH_FINISHED: LazyLock<Notify> = LazyLock::new(Notify::new);
+
+fn lock_in_flight_flushes() -> std::sync::MutexGuard<'static, HashMap<(&'static str, String), usize>>
+{
+    match IN_FLIGHT_FLUSHES.lock() {
+        Ok(flushes) => flushes,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+/// Marks a flush's partitions in flight until dropped.
+struct InFlightFlush {
+    consumer_name: &'static str,
+    partitions: Vec<String>,
+}
+
+impl InFlightFlush {
+    /// Call while holding the `PARTITION_OWNERSHIP` read guard the flush took its
+    /// snapshot under: `hand_over_partition` sets `draining` under the write guard,
+    /// so a flush is either registered before it looks, or sees the partition
+    /// draining and drops it.
+    fn enter(consumer_name: &'static str, partitions: Vec<String>) -> Self {
+        let mut flushes = lock_in_flight_flushes();
+        for partition in &partitions {
+            *flushes
+                .entry((consumer_name, partition.clone()))
+                .or_default() += 1;
+        }
+        Self {
+            consumer_name,
+            partitions,
+        }
+    }
+}
+
+impl Drop for InFlightFlush {
+    fn drop(&mut self) {
+        {
+            let mut flushes = lock_in_flight_flushes();
+            for partition in self.partitions.drain(..) {
+                let key = (self.consumer_name, partition);
+                if let Some(count) = flushes.get_mut(&key) {
+                    *count -= 1;
+                    if *count == 0 {
+                        flushes.remove(&key);
+                    }
+                }
+            }
+        }
+        FLUSH_FINISHED.notify_waiters();
+    }
+}
+
+fn is_flush_in_flight(consumer_name: &'static str, stream: &str) -> bool {
+    lock_in_flight_flushes().contains_key(&(consumer_name, stream.to_string()))
+}
+
+/// Wait until no flush for this partition is in flight, or `deadline`. Returns
+/// whether it drained.
+async fn wait_for_in_flight_flushes(
+    consumer_name: &'static str,
+    stream: &str,
+    deadline: tokio::time::Instant,
+) -> bool {
+    loop {
+        // Registered before the check, so a flush finishing in between still wakes us.
+        let finished = FLUSH_FINISHED.notified();
+        tokio::pin!(finished);
+        finished.as_mut().enable();
+        if !is_flush_in_flight(consumer_name, stream) {
+            return true;
+        }
+        if tokio::time::timeout_at(deadline, finished).await.is_err() {
+            return false;
+        }
+    }
+}
+
+/// Step down from a partition the broker is moving to another consumer, so the
+/// successor starts exactly where our last insert ended.
+///
+/// The broker keeps the successor inactive until we reply to this deactivation,
+/// so before replying: stop new flushes of the partition (held records are
+/// dropped and replayed by the successor), let a flush already in flight finish
+/// its insert AND offset store, revoke, then wait until `query_offset` shows that
+/// store. The last step is needed because `store_offset` is fire-and-forget on the
+/// super stream's client connection while our reply goes out on the partition
+/// consumer's, so nothing orders the two at the broker.
+///
+/// Bounded by `RABBITMQ_STREAM_HANDOVER_TIMEOUT_MS` (the broker waits forever):
+/// past it we step down anyway, the in-flight store is refused, and the successor
+/// replays that one batch.
+async fn hand_over_partition(consumer_name: &'static str, context: &MessageContext) {
+    let stream = context.stream();
+    let timeout = Duration::from_millis(env::streams::HANDOVER_TIMEOUT_MS.get());
+    let deadline = tokio::time::Instant::now() + timeout;
+
+    if !step_down(consumer_name, &stream, deadline).await {
+        log::warn!(
+            "Stream partition {} handover: flush still in flight after {:?}; stepping down anyway, the successor replays that batch",
+            stream,
+            timeout
+        );
+        return;
+    }
+
+    let Some(stored) = high_water_mark(consumer_name, &stream) else {
+        return;
+    };
+    if !wait_for_visible_offset(&context.client(), consumer_name, &stream, stored, deadline).await {
+        log::warn!(
+            "Stream partition {} handover: stored offset {} not visible after {:?}; the successor may replay the last batch",
+            stream,
+            stored,
+            timeout
+        );
+    }
+}
+
+/// Drain then revoke: new flushes drop the partition at once, a flush already in
+/// flight gets until `deadline` to finish its store. Returns whether it drained.
+async fn step_down(
+    consumer_name: &'static str,
+    stream: &str,
+    deadline: tokio::time::Instant,
+) -> bool {
+    PARTITION_OWNERSHIP
         .write()
         .await
         .entry(consumer_name)
         .or_default()
+        .draining
         .insert(stream.to_string());
+
+    let drained = wait_for_in_flight_flushes(consumer_name, stream, deadline).await;
+    // Awaits the write guard, so a store still under the read guard finishes first;
+    // after this every store for the partition is refused.
+    revoke_partition(consumer_name, stream).await;
+    drained
 }
 
-async fn restore_partition(consumer_name: &'static str, stream: &str) {
-    if let Some(streams) = REVOKED_PARTITIONS.write().await.get_mut(consumer_name) {
-        streams.remove(stream);
+/// Poll `query_offset` until the group's stored offset for `stream` is at least
+/// `offset`, or `deadline`.
+async fn wait_for_visible_offset(
+    client: &Client,
+    consumer_name: &'static str,
+    stream: &str,
+    offset: u64,
+    deadline: tokio::time::Instant,
+) -> bool {
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(
+            remaining,
+            client.query_offset(consumer_name.to_string(), stream),
+        )
+        .await
+        {
+            Ok(Ok(stored)) if stored >= offset => return true,
+            // Behind, or `OffsetNotFound` for a first-ever store: not applied yet.
+            Ok(_) => {}
+            Err(_) => return false,
+        }
+        if tokio::time::Instant::now() + VISIBLE_OFFSET_POLL >= deadline {
+            return false;
+        }
+        tokio::time::sleep(VISIBLE_OFFSET_POLL).await;
     }
+}
+
+/// Before the shutdown close: make every offset we stored for a partition we still
+/// own visible at the broker. Closing removes our consumer and the broker activates
+/// successors right away, so this is the same store-vs-reply race as a handover.
+async fn confirm_owned_offsets_visible(
+    client: &Client,
+    consumer_name: &'static str,
+    deadline: tokio::time::Instant,
+) -> bool {
+    let revoked = PARTITION_OWNERSHIP
+        .read()
+        .await
+        .get(consumer_name)
+        .map(|group| group.revoked.clone())
+        .unwrap_or_default();
+    let stored: Vec<(String, u64)> = lock_high_water_marks()
+        .iter()
+        .filter(|((name, stream), _)| *name == consumer_name && !revoked.contains(stream))
+        .map(|((_, stream), offset)| (stream.clone(), *offset))
+        .collect();
+    future::join_all(stored.iter().map(|(stream, offset)| {
+        wait_for_visible_offset(client, consumer_name, stream, *offset, deadline)
+    }))
+    .await
+    .into_iter()
+    .all(|visible| visible)
 }
 
 #[cfg(test)]
@@ -1504,11 +1743,11 @@ mod tests {
     /// guard across its `store_offset` await and so can't be factored into a helper
     /// without giving up exactly the property being tested.
     async fn is_partition_revoked(consumer_name: &'static str, stream: &str) -> bool {
-        REVOKED_PARTITIONS
+        PARTITION_OWNERSHIP
             .read()
             .await
             .get(consumer_name)
-            .is_some_and(|streams| streams.contains(stream))
+            .is_some_and(|group| group.revoked.contains(stream))
     }
 
     /// Records for a revoked partition must be dropped WITH their offsets: the
@@ -1587,14 +1826,14 @@ mod tests {
     /// test drives the lock directly, so it still passes against a check-only
     /// implementation. Verifying the call site needs a live broker to make
     /// `store_offset` await; the invariant is enforced by review + the comment on
-    /// `REVOKED_PARTITIONS`. Do not read a pass here as coverage of the race itself.
+    /// `PARTITION_OWNERSHIP`. Do not read a pass here as coverage of the race itself.
     #[tokio::test]
     async fn revocation_blocks_while_a_read_guard_is_held() {
         let group = "test_group_inflight_fence";
         let partition = "observations_stream-21";
 
         // Simulate `store_offsets`: take the read guard, then await mid-"store".
-        let ownership = REVOKED_PARTITIONS.read().await;
+        let ownership = PARTITION_OWNERSHIP.read().await;
         let revoker = tokio::spawn(async move { revoke_partition(group, partition).await });
 
         // Yield generously; the revoke task must still be parked on the write guard.
@@ -1610,6 +1849,109 @@ mod tests {
         drop(ownership);
         revoker.await.expect("revoke task panicked");
         assert!(is_partition_revoked(group, partition).await);
+    }
+
+    async fn excluded_partitions(consumer_name: &'static str) -> HashSet<String> {
+        PARTITION_OWNERSHIP
+            .read()
+            .await
+            .get(consumer_name)
+            .map(GroupOwnership::excluded)
+            .unwrap_or_default()
+    }
+
+    /// The handover's core: stepping down waits for a flush that was already in
+    /// flight (so its insert gets its offset stored) while new flushes drop the
+    /// partition right away, and only then revokes.
+    #[tokio::test]
+    async fn step_down_waits_for_the_in_flight_flush_then_revokes() {
+        let group = "test_group_step_down";
+        let partition = "spans_stream-3";
+
+        let in_flight = InFlightFlush::enter(group, vec![partition.to_string()]);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        let stepping_down = tokio::spawn(step_down(group, partition, deadline));
+
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !stepping_down.is_finished(),
+            "must wait for the in-flight flush"
+        );
+        assert!(
+            excluded_partitions(group).await.contains(partition),
+            "new flushes must drop a draining partition"
+        );
+        assert!(
+            !is_partition_revoked(group, partition).await,
+            "the in-flight flush must still be allowed to store"
+        );
+
+        drop(in_flight);
+        assert!(stepping_down.await.unwrap(), "drained before the deadline");
+        assert!(is_partition_revoked(group, partition).await);
+
+        restore_partition(group, partition).await;
+        assert!(excluded_partitions(group).await.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn step_down_revokes_anyway_after_the_deadline() {
+        let group = "test_group_step_down_timeout";
+        let partition = "spans_stream-4";
+
+        let _stuck = InFlightFlush::enter(group, vec![partition.to_string()]);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+
+        assert!(!step_down(group, partition, deadline).await);
+        assert!(is_partition_revoked(group, partition).await);
+    }
+
+    #[tokio::test]
+    async fn step_down_without_in_flight_flush_is_immediate() {
+        let group = "test_group_step_down_idle";
+        let partition = "spans_stream-5";
+
+        // Another partition's flush must not hold this handover up.
+        let _other = InFlightFlush::enter(group, vec!["spans_stream-6".to_string()]);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+
+        assert!(step_down(group, partition, deadline).await);
+        assert!(is_partition_revoked(group, partition).await);
+    }
+
+    /// A batcher aborted mid-flush (reader teardown) must not leave its partitions
+    /// marked in flight, or every later handover of them would wait the full timeout.
+    #[tokio::test]
+    async fn aborted_flush_releases_its_partitions() {
+        let group = "test_group_aborted_flush";
+        let partition = "spans_stream-7";
+
+        let flush = tokio::spawn(async move {
+            let _in_flight = InFlightFlush::enter(group, vec![partition.to_string()]);
+            std::future::pending::<()>().await;
+        });
+        while !is_flush_in_flight(group, partition) {
+            tokio::task::yield_now().await;
+        }
+
+        flush.abort();
+        let _ = flush.await;
+        assert!(!is_flush_in_flight(group, partition));
+    }
+
+    #[test]
+    fn overlapping_flushes_of_one_partition_are_counted() {
+        let group = "test_group_overlapping_flushes";
+        let partition = "spans_stream-8";
+
+        let first = InFlightFlush::enter(group, vec![partition.to_string()]);
+        let second = InFlightFlush::enter(group, vec![partition.to_string()]);
+        drop(first);
+        assert!(is_flush_in_flight(group, partition));
+        drop(second);
+        assert!(!is_flush_in_flight(group, partition));
     }
 
     /// `commit_offset_high_water_mark` is max-wins and reports whether it actually
@@ -1719,5 +2061,228 @@ mod tests {
         // record-count semantics via the trait default.
         let record = vec![0u8; 40];
         assert_eq!(CountingHandler::message_weight(&record), 1);
+    }
+
+    /// Live-broker check that a SAC handover doesn't replay inserted records. Each
+    /// consumer is a separate child process (ownership state is per process, like
+    /// per pod). Needs a local RabbitMQ with the stream plugin; run with:
+    /// `cargo test --bin app-server mq::stream::reader::tests::live_handover -- --ignored --nocapture`
+    /// Children with `RABBITMQ_STREAM_HANDOVER_TIMEOUT_MS=0` reproduce the old
+    /// revoke-immediately behaviour.
+    mod live_handover {
+        use std::io::Write;
+        use std::process::{Child, Command};
+
+        use serde::Deserialize;
+
+        use super::*;
+        use crate::mq::stream::{publisher::StreamPublisher, topology::StreamTopology};
+        use crate::runtime::wait_stop_signal;
+
+        const ROLE_VAR: &str = "LMNR_TEST_HANDOVER_ROLE";
+        const STREAM_VAR: &str = "LMNR_TEST_HANDOVER_STREAM";
+        const OUT_VAR: &str = "LMNR_TEST_HANDOVER_OUT";
+        const RECORDS: u64 = 4_000;
+
+        #[derive(Deserialize)]
+        struct Record {
+            n: u64,
+        }
+
+        /// "Inserts" by appending each record to a file, after a delay standing in
+        /// for ClickHouse latency so a flush is almost always in flight.
+        struct FileSink {
+            out: Mutex<std::fs::File>,
+        }
+
+        #[async_trait]
+        impl StreamBatchHandler for FileSink {
+            type Message = Record;
+
+            fn interval(&self) -> Duration {
+                Duration::from_millis(100)
+            }
+
+            fn batch_size(&self) -> usize {
+                20
+            }
+
+            async fn flush(&self, messages: &[Record]) -> Result<(), HandlerError> {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                let mut out = self.out.lock().unwrap();
+                for record in messages {
+                    writeln!(out, "{}", record.n).unwrap();
+                }
+                out.flush().unwrap();
+                Ok(())
+            }
+        }
+
+        fn leak(value: String) -> &'static str {
+            Box::leak(value.into_boxed_str())
+        }
+
+        fn spawn_member(stream: &str, out: &str) -> Child {
+            Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "mq::stream::reader::tests::live_handover::member",
+                    "--exact",
+                    "--ignored",
+                    "--nocapture",
+                ])
+                .env(ROLE_VAR, "member")
+                .env(STREAM_VAR, stream)
+                .env(OUT_VAR, out)
+                .stderr(std::fs::File::create(format!("{out}.log")).unwrap())
+                .spawn()
+                .unwrap()
+        }
+
+        fn terminate(child: &mut Child) {
+            Command::new("kill")
+                .args(["-TERM", &child.id().to_string()])
+                .status()
+                .unwrap();
+            child.wait().unwrap();
+        }
+
+        fn read_inserted(paths: &[&str]) -> Vec<u64> {
+            paths
+                .iter()
+                .flat_map(|path| {
+                    std::fs::read_to_string(path)
+                        .unwrap_or_default()
+                        .lines()
+                        .map(|line| line.parse().unwrap())
+                        .collect::<Vec<u64>>()
+                })
+                .collect()
+        }
+
+        /// One consumer of the group, until SIGTERM. A no-op unless spawned by
+        /// `handover_does_not_replay_inserted_records`.
+        #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+        #[ignore]
+        async fn member() {
+            if std::env::var(ROLE_VAR).is_err() {
+                return;
+            }
+            let stream = std::env::var(STREAM_VAR).unwrap();
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter("info")
+                .with_writer(std::io::stderr)
+                .try_init();
+            let out = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(std::env::var(OUT_VAR).unwrap())
+                .unwrap();
+
+            let shutdown = CancellationToken::new();
+            {
+                let shutdown = shutdown.clone();
+                tokio::spawn(async move {
+                    wait_stop_signal("handover test member").await;
+                    shutdown.cancel();
+                });
+            }
+            let stream = leak(stream);
+            let reader = StreamReader::new(
+                stream,
+                leak(format!("{stream}_group")),
+                StreamEnvironment::connect().await.unwrap(),
+                FileSink {
+                    out: Mutex::new(out),
+                },
+                4,
+                shutdown,
+            );
+            reader.run().await;
+        }
+
+        /// A starts alone, B joins mid-stream (rebalance: the handover path), then A
+        /// gets SIGTERM (the shutdown-close path). Every record must be inserted
+        /// exactly once across both.
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        #[ignore]
+        async fn handover_does_not_replay_inserted_records() {
+            let environment = StreamEnvironment::connect()
+                .await
+                .expect("local stream broker not reachable");
+            // Brokers before 3.13 lack `CreateSuperStream`: pre-create one with
+            // `rabbitmq-streams add_super_stream <name> --partitions 4` and pass it here.
+            let stream = match std::env::var(STREAM_VAR) {
+                Ok(stream) => leak(stream),
+                Err(_) => {
+                    let stream = leak(format!(
+                        "lmnr_test_handover_{}",
+                        &Uuid::new_v4().simple().to_string()[..8]
+                    ));
+                    StreamTopology {
+                        partitions: 4,
+                        max_length_bytes: 100_000_000,
+                        max_age: Duration::from_secs(3600),
+                        max_segment_size_bytes: 10_000_000,
+                        replication_factor: 1,
+                    }
+                    .declare(&environment, stream)
+                    .await
+                    .unwrap();
+                    stream
+                }
+            };
+            let publisher = StreamPublisher::new(&environment, stream).await.unwrap();
+            for n in 0..RECORDS {
+                publisher
+                    .publish(format!(r#"{{"n": {n}}}"#).as_bytes(), &n.to_string())
+                    .await
+                    .unwrap();
+            }
+
+            let dir = std::env::temp_dir();
+            let out_a = dir
+                .join(format!("{stream}_a"))
+                .to_string_lossy()
+                .into_owned();
+            let out_b = dir
+                .join(format!("{stream}_b"))
+                .to_string_lossy()
+                .into_owned();
+            let outputs = [out_a.as_str(), out_b.as_str()];
+
+            let mut a = spawn_member(stream, &out_a);
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            let mut b = spawn_member(stream, &out_b);
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            terminate(&mut a);
+
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(120);
+            while read_inserted(&outputs)
+                .into_iter()
+                .collect::<HashSet<_>>()
+                .len()
+                < RECORDS as usize
+                && tokio::time::Instant::now() < deadline
+            {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            // Let a replay, if any, land before counting.
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            terminate(&mut b);
+
+            let inserted = read_inserted(&outputs);
+            let unique: HashSet<u64> = inserted.iter().copied().collect();
+            let from_a = read_inserted(&outputs[..1]).len();
+            eprintln!(
+                "[handover] inserted={} unique={} duplicates={} (A inserted {}, B inserted {})",
+                inserted.len(),
+                unique.len(),
+                inserted.len() - unique.len(),
+                from_a,
+                inserted.len() - from_a
+            );
+            assert_eq!(unique.len(), RECORDS as usize, "records lost");
+            assert_eq!(inserted.len(), unique.len(), "records inserted twice");
+        }
     }
 }
