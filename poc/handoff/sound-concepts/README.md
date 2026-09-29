@@ -9,6 +9,7 @@ These concepts replace the Arabesque piano bed and thocks entirely; the editable
 | `windup` | Clockwork toy: escapement, music box, springs and ratchets; swung G major, 112 BPM | [ultimate3-windup-voiceover-v1.mp4](https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2311/ultimate3-windup-voiceover-v1.mp4) |
 | `bluenote` | Round 2, jazz: swinging piano trio + vibes, big-band shout on Flow-1, Basie ending; F → A♭, 152 BPM | [ultimate3-bluenote-voiceover-v1.mp4](https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2311/ultimate3-bluenote-voiceover-v1.mp4) |
 | `overdrive` | Round 2, maximal: trailer braams, taiko and celli, festival supersaw drops, fake-outs, key change on the logo; D minor → D major → E♭, 128 BPM | [ultimate3-overdrive-voiceover-v1.mp4](https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2311/ultimate3-overdrive-voiceover-v1.mp4) |
+| `tempesta` | Round 3, classical: a virtuoso violin concerto at presto (Vivaldi "Summer" / Paganini), sampled solo violin over tremolo strings, hammered celli and timpani; G minor → G major, 144 BPM | [ultimate3-tempesta-voiceover-v1.mp4](https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2311/ultimate3-tempesta-voiceover-v1.mp4) |
 
 ## Reproduce
 
@@ -21,12 +22,14 @@ for s in tidepool lumen windup bluenote; do
   pnpm ultimate3:score --style $s --settings handoff/voiceover-soak/default-settings.json --out out/concepts/$s.wav
   node scripts/mix-ultimate3-concept.mjs --bed out/concepts/$s.wav --out out/concepts/u3-$s-vo.mp4
 done
-# overdrive rides louder under the voice; negative values need `=`
+# overdrive and tempesta ride louder under the voice; negative values need `=`
 pnpm ultimate3:score --style overdrive --settings handoff/voiceover-soak/default-settings.json --out out/concepts/overdrive.wav
 node scripts/mix-ultimate3-concept.mjs --bed out/concepts/overdrive.wav --out out/concepts/u3-overdrive-vo.mp4 --bed-db=-4
+pnpm ultimate3:score --style tempesta --settings handoff/voiceover-soak/default-settings.json --out out/concepts/tempesta.wav
+node scripts/mix-ultimate3-concept.mjs --bed out/concepts/tempesta.wav --out out/concepts/u3-tempesta-vo.mp4 --bed-db=-4.5
 ```
 
-Each bed masters to -14.0 LUFS / -1.2 dBTP, with music and SFX stems within ~1 LU of each other on round 1 and ~1.7 LU (music louder) on round 2. At peak the limiter takes 2.6 dB of gain reduction on `bluenote` and ~4 dB on `overdrive` (groove density, by design). The voiceover mixes measure -14.8 to -15.0 LUFS / -0.8 to -1.0 dBFS, the same chain and target as the published Arabesque voiceover cut. Every cue is derived from settings, so a retime only needs a re-render.
+Each bed masters to -14.0 LUFS / -1.2 dBTP, with music and SFX stems within ~1 LU of each other on round 1 and ~1.7 LU (music louder) on round 2. At peak the limiter takes 2.6 dB of gain reduction on `bluenote` ~4 dB on `overdrive` (groove density, by design) and ~4.2 dB on `tempesta` (its tutti hits). `tempesta`'s music stem sits ~4 LU above its SFX, because the orchestra plays most of the picture itself. The voiceover mixes measure -14.8 to -15.0 LUFS / -0.8 to -1.0 dBFS, the same chain and target as the published Arabesque voiceover cut. Every cue is derived from settings, so a retime only needs a re-render.
 
 ## Limitations
 
