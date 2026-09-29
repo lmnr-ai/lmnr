@@ -79,8 +79,9 @@
 //! reader stops taking records, each batcher finishes the flush it is IN (insert
 //! AND offset store) and exits without flushing what it still holds, and only
 //! once those stores are visible via `query_offset` is the consumer closed — so
-//! the successor activates on an offset that covers everything this pod wrote. A batcher still in flight after
-//! `GRACEFUL_SHUTDOWN_TIMEOUT_MS` (a transient-retry loop) falls back to abort.
+//! the successor activates on an offset that covers everything this pod wrote.
+//! All of it shares one `GRACEFUL_SHUTDOWN_TIMEOUT_MS` deadline; a batcher still
+//! in flight near it (a transient-retry loop) falls back to abort.
 //!
 //! A skipped record still forwards its OFFSET to the batcher (as a
 //! `StreamDelivery` with `message: None`). Skipping the offset too would pin the
@@ -122,9 +123,9 @@ const TRANSIENT_RETRY_LOG_EVERY: u32 = 20;
 /// so the fresh activation re-queries — never a guessed start position.
 const OFFSET_QUERY_RETRY_BUDGET: Duration = Duration::from_secs(10);
 
-/// Bound on each shutdown step before the close (offset visibility, then the close
-/// itself); past it the process exit drops the connection anyway.
-const CONSUMER_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+/// Slice at the end of the shutdown budget kept for `close()` itself, so a slow
+/// batcher cannot use up the time the close needs.
+const CONSUMER_CLOSE_RESERVE: Duration = Duration::from_secs(5);
 
 /// How often a handover or shutdown re-queries the stored offset while waiting for
 /// our last store to become visible.
@@ -555,31 +556,34 @@ impl<H: StreamBatchHandler> StreamReader<H> {
         //
         // On shutdown, first give the batchers (which saw the same token) time to
         // finish the flush + store they're in, so nothing written goes unstored.
+        //
+        // Every shutdown step shares ONE deadline, `GRACEFUL_SHUTDOWN_TIMEOUT_MS`
+        // from now, which is also what `main` waits for us: separate per-step
+        // timeouts added up past it, and the process exited before the close.
         drop(senders);
         let stopping = self.shutdown.is_cancelled();
-        let drain_timeout = stopping
-            .then(|| Duration::from_millis(env::server::GRACEFUL_SHUTDOWN_TIMEOUT_MS.get()));
-        if !stop_batchers(batcher_handles, drain_timeout).await && stopping {
+        let budget = Duration::from_millis(env::server::GRACEFUL_SHUTDOWN_TIMEOUT_MS.get());
+        let deadline = tokio::time::Instant::now() + budget;
+        let close_by = deadline - CONSUMER_CLOSE_RESERVE.min(budget / 2);
+        if !stop_batchers(batcher_handles, stopping.then_some(close_by)).await && stopping {
             log::warn!(
-                "Stream reader {} ({}) batchers still flushing after {:?}; aborted them — an in-flight insert may be replayed",
+                "Stream reader {} ({}) batchers still flushing at the shutdown deadline; aborted them — an in-flight insert may be replayed",
                 self.id,
-                self.super_stream,
-                drain_timeout
+                self.super_stream
             );
         }
 
         // Close explicitly (rather than on process exit) so the broker hands our
         // partitions over only after every store above is visible to successors.
         if stopping {
-            let deadline = tokio::time::Instant::now() + CONSUMER_CLOSE_TIMEOUT;
-            if !confirm_stored_offsets_visible(&client, self.consumer_name, deadline).await {
+            if !confirm_stored_offsets_visible(&client, self.consumer_name, close_by).await {
                 log::warn!(
                     "Stream reader {} ({}) closing before every stored offset was visible; a successor may replay the last batch",
                     self.id,
                     self.super_stream
                 );
             }
-            match tokio::time::timeout(CONSUMER_CLOSE_TIMEOUT, consumer.handle().close()).await {
+            match tokio::time::timeout_at(deadline, consumer.handle().close()).await {
                 Ok(Ok(())) => log::info!(
                     "Stream reader {} ({}) closed its consumer after shutdown",
                     self.id,
@@ -603,14 +607,17 @@ impl<H: StreamBatchHandler> StreamReader<H> {
     }
 }
 
-/// Wait up to `drain_timeout` for the batchers to exit on their own (`None` = don't
+/// Wait until `drain_deadline` for the batchers to exit on their own (`None` = don't
 /// wait), then abort whatever is left and AWAIT the cancellation. Returns whether
 /// every batcher exited without being aborted.
-async fn stop_batchers(handles: Vec<JoinHandle<()>>, drain_timeout: Option<Duration>) -> bool {
+async fn stop_batchers(
+    handles: Vec<JoinHandle<()>>,
+    drain_deadline: Option<tokio::time::Instant>,
+) -> bool {
     let abort_handles: Vec<AbortHandle> = handles.iter().map(JoinHandle::abort_handle).collect();
     let mut batchers = future::join_all(handles);
-    if let Some(drain_timeout) = drain_timeout
-        && tokio::time::timeout(drain_timeout, &mut batchers)
+    if let Some(drain_deadline) = drain_deadline
+        && tokio::time::timeout_at(drain_deadline, &mut batchers)
             .await
             .is_ok()
     {
@@ -1521,7 +1528,13 @@ mod tests {
             tokio::time::sleep(Duration::from_secs(1)).await;
             finished_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
         });
-        assert!(stop_batchers(vec![quick], Some(Duration::from_secs(5))).await);
+        assert!(
+            stop_batchers(
+                vec![quick],
+                Some(tokio::time::Instant::now() + Duration::from_secs(5))
+            )
+            .await
+        );
         assert!(
             finished.load(std::sync::atomic::Ordering::SeqCst),
             "a batcher that finishes within the timeout must not be aborted"
@@ -1534,7 +1547,7 @@ mod tests {
             stuck_finished_in_task.store(true, std::sync::atomic::Ordering::SeqCst);
         });
         let started = tokio::time::Instant::now();
-        assert!(!stop_batchers(vec![stuck], Some(Duration::from_secs(5))).await);
+        assert!(!stop_batchers(vec![stuck], Some(started + Duration::from_secs(5))).await);
         assert!(started.elapsed() < Duration::from_secs(10));
         assert!(!stuck_finished.load(std::sync::atomic::Ordering::SeqCst));
     }
