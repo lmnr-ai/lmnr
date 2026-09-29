@@ -173,13 +173,13 @@ export function softKick(mix: Mix, time: number, velocity: number, route: Route,
 /** Karplus-Strong plucked string, darkened: upright-ish bass and nylon plucks. */
 export function string(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {length?: number; damping?: number; bright?: number} = {}) {
   const hz = mtof(midi), period = SR / hz, size = Math.floor(period), fraction = period - size;
-  const length = options.length ?? 1.4, out = buffer(length), line = new Float32Array(size + 2);
+  const length = options.length ?? 1.4, out = buffer(length), line = new Float32Array(size);
   const pre = OnePole.lowpass(600 + 5000 * (options.bright ?? .4) * velocity);
   for (let i = 0; i < line.length; i++) line[i] = pre.process(noise(mix.random));
   const damping = options.damping ?? .996;
   let index = 0, last = 0;
   for (let i = 0; i < out.length; i++) {
-    const a = line[index], b = line[(index + 1) % line.length];
+    const a = line[index], b = line[(index + 1) % size];
     const value = a + (b - a) * fraction;
     const next = (value + last) * .5 * damping; last = value;
     line[index] = next; index = (index + 1) % size;
