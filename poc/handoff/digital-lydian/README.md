@@ -6,7 +6,7 @@ the narration, the settings and the animation are unchanged: nothing in `public/
 default mix is untouched.
 
 - A (current): `lam-2305/ultimate3-tighter-cadence-arabesque-voiceover.mp4`
-- B (candidate, v4): `lam-2315/ultimate3-digital-lydian-voiceover-v4-final.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v4.mp4` with the bed alone
+- B (candidate, v4): `lam-2315/ultimate3-digital-lydian-voiceover-v4-fix.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v4-fix.mp4` with the bed alone
 - v3, which ducks the whole bed under the voice: `lam-2315/ultimate3-digital-lydian-voiceover-v3.mp4`
 - v2, which scores over the picture rather than to it: `lam-2315/ultimate3-digital-lydian-voiceover-v2.mp4`
 

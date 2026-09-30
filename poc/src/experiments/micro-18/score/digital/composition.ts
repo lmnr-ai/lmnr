@@ -130,12 +130,12 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
    * The half-time trap bar (16 sixteenths) from an anchor hit: 808 on 1, the "a" of 2 and the "and" of 3; clap on
    * 3; 16th hats with a 32nd roll into every second bar. `mute` removes the whole kit (the picture moves), `bare`
    * leaves only the 808, and `still` (the picture holds) drops the clap and the stabs to quarter hats at 0.8.
-   * The anchor is a tier-A hit with its own 808, so the
-   * groove's first downbeat is left to it instead of stacking a second, differently bent D1 on top.
+   * By default the anchor is a tier-A hit with its own 808, so the groove's first downbeat is left to it instead of
+   * stacking a second, differently bent D1 on top; `unanchored` grooves play their own.
    */
   type TrapOptions = {
     level?: number; clap?: boolean; stabs?: boolean; hats?: 8 | 16; q?: number; cutoff?: [number, number];
-    mute?: [number, number][]; bare?: [number, number][]; still?: [number, number][]; hits?: number[];
+    mute?: [number, number][]; bare?: [number, number][]; still?: [number, number][]; hits?: number[]; unanchored?: boolean;
   };
   const trap = (progression: Progression, anchor: number, beats: number, options: TrapOptions = {}) => {
     const level = options.level ?? 1, q = options.q ?? Q, grid = (beat: number) => anchor + beat * q;
@@ -143,7 +143,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
       const t = grid(step / 4), s = step % 16, bar = Math.floor(step / 16), voiced = chordAt(progression, step / 4)[1] as Voiced;
       if (within(t, options.mute ?? [])) continue;
       const bare = within(t, options.bare ?? []), still = within(t, options.still ?? []);
-      const lift = still ? .8 : 1, onHit = step === 0 || (options.hits ?? []).some(hit => Math.abs(t - hit) < .03);
+      const lift = still ? .8 : 1, onHit = (step === 0 && !options.unanchored) || (options.hits ?? []).some(hit => Math.abs(t - hit) < .03);
       if ((s === 0 && !onHit) || s === 7 || s === 10) sub808(mix, t, voiced.bass + (s === 10 ? 12 : 0), s === 0 ? q * 1.7 : q * .8, (s === 0 ? .95 : .75) * level * lift, SUB, {drop: s === 0 ? 26 : 19});
       if (bare) continue;
       if (options.clap !== false && !still && s === 8) clap(mix, t, .8 * level, {...KIT, pan: wide(t, .1)});
@@ -238,7 +238,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   const legsFrom = cost.cheapLegs[0]?.at ?? cost.cloudOut.at + .64;
   haze(mix, cost.cloudOut.at, legsFrom, MOVE, progress => [400 + 2600 * progress ** 2, .28 * progress ** 1.5], 7000);
   const cheapBeats = Math.floor((cost.cameraToBash.at - legsFrom) / Q * 4) / 4;
-  trap(loopBars(0, cheapBeats, [iii, II], 0), legsFrom, cheapBeats, {level: .72, clap: false, hats: 8});
+  trap(loopBars(0, cheapBeats, [iii, II], 0), legsFrom, cheapBeats, {level: .72, clap: false, hats: 8, unanchored: true});
   cost.cheapLegs.forEach(leg => {
     const right = leg.direction === 'leftToRight';
     // Short moves: the sweep starts a frame early and peaks early, with a click on the first frame.
