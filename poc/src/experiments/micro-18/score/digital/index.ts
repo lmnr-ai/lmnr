@@ -6,14 +6,14 @@ import {blip, click, droplet, hat, sweep, zap} from './instruments';
 
 const UI: Route = {bus: 'sfx', gain: .9, room: .06};
 
-/** The agent window's foley in the same language: keys are data blips, the window switches with zaps and latches. */
+/** The agent window's foley in the same language: keys are data taps, the window switches with flicks and latches. */
 function designDigital(mix: Mix, cues: ScoreCues) {
   const issues = cues.issues;
   sweep(mix, issues.windowDown.at, issues.windowDown.duration, .3, UI, {peak: .4, split: true});
   zap(mix, issues.windowDown.at, 86, 74, issues.windowDown.duration * .6, .3, UI);
   zap(mix, issues.windowShut, 54, 42, .015, .55, UI);
   click(mix, issues.windowShut, .35, UI);
-  // Typing is a stream of blips on D Lydian, one pitch per key identity, kept above D6 and out of the voice's band.
+  // Typing is a stream of taps on D Lydian, one pitch per key identity, kept above D6 and out of the voice's band.
   if (mix.typingEnabled) issues.typingEvents.forEach(event => blip(mix, event.time, [86, 90, 88, 93, 92][(event.voice ?? 0) % 5], .24, {...UI, pan: .15 * Math.sin(event.voice ?? 0)}, .02));
   // The badges are the blue agent's droplet; the send rises on a zap over a 32nd hat roll.
   droplet(mix, issues.issueBadge, 93, .4, UI, {fifth: true});
@@ -39,5 +39,6 @@ export const digitalLydian: ScoreStyle = {
     delay: {time: .3, feedback: .28, damping: 6000},
     returns: [.4, 1.2, 1],
   },
-  eq: {highpass: 24, lowShelf: [70, 0], highShelf: [9000, 1.5]},
+  // The top octave is taken down: the taps' transients carry the edge, not 10 kHz hiss.
+  eq: {highpass: 24, lowShelf: [70, 0], highShelf: [9000, -1.5]},
 };
