@@ -9,108 +9,158 @@ import type {Mix, Route} from '../voices';
 
 const buffer = (duration: number) => new Float32Array(Math.max(1, Math.round(duration * 48_000)));
 const noise = (mix: Mix) => mix.random() * 2 - 1;
+/** Soft clip with a bias, so it adds even harmonics too; callers high-pass the DC away. */
+const sat = (x: number, drive: number, bias = 0) => (Math.tanh((x + bias) * drive) - Math.tanh(bias * drive)) / Math.tanh(drive);
 /** Hard gate: a 2 ms on, a 4 ms off. Long enough not to click, short enough to read as a switch. */
 const gate = (t: number, length: number) => t < 0 || t > length ? 0 : Math.min(1, t / .002, (length - t) / .004);
 
-/** 808: a driven sine that drops from `drop` semitones above its note in ~60 ms, so hits read as a "zap" into the sub. */
+/**
+ * 808: a sine that drops from `drop` semitones above its note in ~60 ms, through a biased saturator, so hits read as a
+ * "zap" into the sub and the 2nd and 3rd harmonics carry it on speakers that can't play D1.
+ */
 export function sub808(mix: Mix, time: number, midi: number, duration: number, velocity: number, route: Route, options: {drop?: number; fall?: number; drive?: number; decay?: number} = {}) {
   const drop = options.drop ?? 24, fall = options.fall ?? .045, drive = options.drive ?? 2.4, decay = options.decay ?? 9;
-  const out = buffer(duration), osc = new Sine(), click = OnePole.lowpass(2400), hz = mtof(midi);
+  const out = buffer(duration), osc = new Sine(), dc = new Svf(), click = OnePole.lowpass(2400), hz = mtof(midi);
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000;
-    const value = Math.tanh(osc.next(hz * 2 ** (drop * Math.exp(-t / fall) / 12)) * drive) / Math.tanh(drive);
+    dc.process(sat(osc.next(hz * 2 ** (drop * Math.exp(-t / fall) / 12)), drive, .25), 20, .7);
     const snap = click.process(noise(mix)) * Math.exp(-t / .0015);
-    out[i] = (value * Math.exp(-t / decay) + snap * .6) * gate(t, duration) * velocity * .5;
+    out[i] = (dc.hp * Math.exp(-t / decay) + snap * .6) * gate(t, duration) * velocity * .5;
   }
   mix.emit(time, route, out); mix.count('sub808');
 }
 
 /**
- * A gated chord block: two detuned saws per tone under a low-pass, plus a saw an octave under the root for the
- * reference's buzzing low stack. `crush` sample-holds the block at that rate for a grittier, digital read.
- * `pulse` gates it into 60%-duty steps of that length (from `start`), so a chord under the voice moves instead of droning.
+ * A gated chord block: three drifting saws per tone (-11, 0, +10 cents) under a low-pass that bites open by ~1.3
+ * octaves on the gate and settles, then a soft drive for the edge above the cutoff; plus a saw an octave under the
+ * root for the reference's buzzing low stack. `pulse` gates it into 60%-duty steps of that length (from `start`), so
+ * a chord under the voice moves instead of droning. `width` spreads the three saws of each tone to ±width.
  */
-export function block(mix: Mix, start: number, end: number, tones: readonly number[], route: Route, options: {cutoff?: [number, number]; level?: number; root?: number; crush?: number; q?: number; swell?: boolean; pulse?: number} = {}) {
-  const duration = Math.max(.02, end - start), [from, to] = options.cutoff ?? [700, 1100], level = (options.level ?? 1) * .2 / Math.sqrt(tones.length + 1);
-  const out = buffer(duration), filter = new Svf(), low = new Svf();
-  const oscillators = tones.flatMap(midi => [-7, 6].map(cents => ({saw: new Saw(mix.random()), hz: mtof(midi + cents / 100)})));
-  const root = options.root === undefined ? undefined : {saw: new Saw(mix.random()), hz: mtof(options.root)};
-  const hold = options.crush ? Math.max(1, Math.round(48_000 / options.crush)) : 1;
-  let held = 0;
-  for (let i = 0; i < out.length; i++) {
+export function block(mix: Mix, start: number, end: number, tones: readonly number[], route: Route, options: {cutoff?: [number, number]; level?: number; root?: number; drive?: number; q?: number; swell?: boolean; pulse?: number; width?: number} = {}) {
+  const duration = Math.max(.02, end - start), [from, to] = options.cutoff ?? [900, 1500], level = (options.level ?? 1) * .2 / Math.sqrt(tones.length + 1);
+  const width = options.width ?? 0, drive = options.drive ?? 2.4, pan = route.pan ?? 0;
+  const left = buffer(duration), right = width ? buffer(duration) : left, filters = [new Svf(), new Svf()], low = new Svf();
+  const spread = [-11, 0, 10].map((cents, k) => ({cents, gains: panGains(clamp(pan + (k - 1) * width, -1, 1))}));
+  const oscillators = tones.flatMap(midi => spread.map(voice => ({
+    saw: new Saw(mix.random()), hz: mtof(midi + voice.cents / 100), gains: voice.gains,
+    rate: 2 * Math.PI * (.15 + .3 * mix.random()), phase: 2 * Math.PI * mix.random(),
+  })));
+  const root = options.root === undefined ? undefined : {saw: new Saw(mix.random()), hz: mtof(options.root)}, centre = panGains(pan);
+  // Unity gain for small signals, so `drive` changes the edge, not the level.
+  const driven = (x: number) => sat(x * .5, drive) * Math.tanh(drive) / (.5 * drive);
+  for (let i = 0; i < left.length; i++) {
     const t = i / 48_000;
-    let value = 0;
-    for (const oscillator of oscillators) value += oscillator.saw.next(oscillator.hz);
-    const cutoff = from + (to - from) * clamp(t / duration);
-    // A little of the unfiltered buzz above the cutoff gives the blocks the reference's 1-4 kHz edge.
-    value = filter.process(value, cutoff, options.q ?? .9) + filter.hp * .1;
-    if (root) value += low.process(root.saw.next(root.hz), 260, .7) * 2.2;
-    if (i % hold === 0) held = value;
-    // `swell` is a reversed block: it blooms into its end and is cut there, the breath in before a hit.
+    let l = 0, r = 0;
+    for (const oscillator of oscillators) {
+      const value = oscillator.saw.next(oscillator.hz * (1 + .0015 * Math.sin(oscillator.rate * t + oscillator.phase)));
+      if (width) { l += value * oscillator.gains[0]; r += value * oscillator.gains[1]; } else l += value;
+    }
+    // Three saws per tone at the old two-saw loudness.
+    l *= .8165; r *= .8165;
+    // The bite: the cutoff jumps open on the gate and settles in 25 ms, the "chk" of a switched block.
+    const cutoff = (from + (to - from) * clamp(t / duration)) * (1 + 2.5 * Math.exp(-t / .025)), q = options.q ?? 1.4;
+    const bass = root ? low.process(root.saw.next(root.hz), 260, .7) * 2.2 : 0;
     const step = options.pulse ? gate(t % options.pulse, options.pulse * .6) : 1;
-    out[i] = held * gate(t, duration) * step * level * (options.swell ? (t / duration) ** 3 * 1.6 : 1);
+    const g = gate(t, duration) * step * level * (options.swell ? (t / duration) ** 3 * 1.6 : 1);
+    // `swell` is a reversed block: it blooms into its end and is cut there, the breath in before a hit.
+    if (!width) { left[i] = (driven(filters[0].process(l, cutoff, q)) + bass) * g; continue; }
+    left[i] = (driven(filters[0].process(l, cutoff, q)) + bass * centre[0]) * g;
+    right[i] = (driven(filters[1].process(r, cutoff, q)) + bass * centre[1]) * g;
   }
-  mix.emit(start, route, out); mix.count('block');
+  // A stereo block carries its own pan (emit ignores route.pan for stereo buffers).
+  mix.emit(start, route, left, right); mix.count('block');
 }
 
 /**
- * Data tap: the reference's square blip made tactile. A 3.5 kHz transient, a body two octaves under the note that
- * drops a further octave in 6 ms, and the square tone (odd harmonics under 6 kHz, with a +7-cent twin) under a
- * low-pass closing from `bright` to 1.2 kHz in 15 ms. `length` is the tone's decay. Hero hits pass `exact`; the rest
- * vary by ±1.5 dB and ±3 ms so repeats don't read as a machine gun.
+ * Data tap: a sub-millisecond 6 kHz click, then a 2-operator FM tone that chirps down 7 semitones into its note in
+ * ~3 ms while its index and a key-tracked low-pass close (the spectrum falls ~1.5 octaves across the hit), two short
+ * upper partials, a biased saturator, and a small body two octaves under. `length` is the tone's decay. Hero hits
+ * pass `exact`; the rest vary level (±1.5 dB), time (±3 ms), FM index (±15 %) and chirp (±1 st).
  */
 export function blip(mix: Mix, time: number, midi: number, velocity: number, route: Route, length = .035, options: {bright?: number; exact?: boolean; body?: number} = {}) {
-  const jitter = options.exact ? 0 : (mix.random() - .5) * .006, humane = options.exact ? 1 : 10 ** ((mix.random() - .5) * 3 / 20);
+  const exact = options.exact, jitter = exact ? 0 : (mix.random() - .5) * .006, humane = exact ? 1 : 10 ** ((mix.random() - .5) * 3 / 20);
   const tau = Math.max(.012, length), out = buffer(Math.min(.5, tau * 5 + .01)), hz = mtof(midi);
-  const harmonics = [1, 3, 5].filter(k => k * hz < 6000), tones = harmonics.map(() => [new Sine(), new Sine()]);
-  const lowpass = new Svf(), snap = new Svf(), body = new Sine(), bright = options.bright ?? 7000, weight = options.body ?? .5;
+  const bright = (options.bright ?? 7000) / 7000, weight = (options.body ?? .5) * .5;
+  const index = 1.6 * bright * (exact ? 1 : .85 + .3 * mix.random()), chirp = 7 + (exact ? 0 : mix.random() * 2 - 1);
+  const carrier = new Sine(), modulator = new Sine(), second = new Sine(), fourth = new Sine(), body = new Sine();
+  const lowpass = new Svf(), snap = new Svf(), dc = new Svf();
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
-    let square = 0;
-    harmonics.forEach((k, index) => { square += (tones[index][0].next(hz * k) + .3 * tones[index][1].next(hz * k * 2 ** (7 / 1200))) / k; });
-    const tone = lowpass.process(square, 1200 + (bright - 1200) * Math.exp(-t / .015), .7) * Math.min(1, t / .001) * Math.exp(-t / tau);
-    snap.process(noise(mix), 3500, .7);
-    const thump = body.next(mtof(midi - 24 - 12 * (1 - Math.exp(-t / .006)))) * Math.exp(-t / .025) * weight;
-    out[i] = (tone + thump + snap.bp * Math.exp(-t / .0006) * .25) * Math.min(1, (out.length - i) / 192) * velocity * humane * .32;
+    const t = i / 48_000, f = hz * 2 ** (chirp * Math.exp(-t / .0025) / 12);
+    let tone = carrier.next(f + modulator.next(f * 2) * f * (index * Math.exp(-t / .009) + .8));
+    tone += .35 * second.next(f * 2.001) * Math.exp(-t / .006) + .18 * fourth.next(f * 4.2) * Math.exp(-t / .012);
+    tone = lowpass.process(tone, Math.min(16_000, f * 3.5 + 10_000 * bright * Math.exp(-t / .006)), .8);
+    let value = sat(tone * Math.min(1, t / .0004) * Math.exp(-t / tau), 1.6, .15);
+    value += body.next(mtof(midi - 24 - 12 * (1 - Math.exp(-t / .004)))) * Math.exp(-t / .008) * weight;
+    dc.process(value, 40, .7); value = dc.hp;
+    snap.process(noise(mix), 6000, .9);
+    out[i] = (value + snap.hp * Math.exp(-t / .00035) * .55) * Math.min(1, (out.length - i) / 192) * velocity * humane * .3;
   }
   mix.emit(time + jitter, route, out); mix.count('blip');
 }
 
-/** Pitch flick: the glide is done in 40 ms and the flick in 90 ms, low-passed at 3 kHz. Sub zaps (both ends at or under B3) keep their length. */
+/**
+ * Pitch flick: an FM tone (1:1, index 1.5 → 0.3) whose glide is done in 40 ms and the flick in 90 ms, under a
+ * low-pass that tracks three times its pitch, lightly saturated. Sub zaps (both ends at or under B3) keep their
+ * length and stay a driven sine.
+ */
 export function zap(mix: Mix, time: number, fromMidi: number, toMidi: number, duration: number, velocity: number, route: Route) {
   // A retime can collapse the cue span; progress divides by it.
   if (!(duration > 0)) return;
   const low = Math.max(fromMidi, toMidi) <= 59, length = low ? duration : Math.min(duration, .09), bend = low ? duration : Math.min(duration, .04);
-  const out = buffer(length), osc = new Sine(), soften = new Svf();
+  const out = buffer(length), osc = new Sine(), modulator = new Sine(), soften = new Svf(), dc = new Svf();
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000, progress = Math.min(1, t / bend);
-    const value = osc.next(mtof(fromMidi + (toMidi - fromMidi) * (1 - Math.exp(-progress * 4)) / (1 - Math.exp(-4))));
-    out[i] = (low ? Math.tanh(value * 1.8) * (1 - t / length * .6) : soften.process(value, 3000, .6) * Math.exp(-t / .03) * 1.4) * gate(t, length) * velocity * .3;
+    const hz = mtof(fromMidi + (toMidi - fromMidi) * (1 - Math.exp(-progress * 4)) / (1 - Math.exp(-4)));
+    if (low) { out[i] = Math.tanh(osc.next(hz) * 1.8) * (1 - t / length * .6) * gate(t, length) * velocity * .3; continue; }
+    const value = osc.next(hz + modulator.next(hz) * hz * (.8 * Math.exp(-t / .025) + .15));
+    dc.process(sat(soften.process(value, hz * 2, 1.5), 1.4, .1), 40, .7);
+    out[i] = dc.hp * Math.exp(-t / .03) * 1.4 * gate(t, length) * velocity * .3;
   }
   mix.emit(time, route, out); mix.count('zap');
 }
 
-/** Crisp closed hat: high-passed noise, very short. */
+/**
+ * 808 hat: six band-limited squares at the 808's inharmonic ratios plus noise, band-passed around 8.5 kHz and
+ * high-passed at 6.5 kHz, with a 3 ms tick over a body whose decay varies ±20 % and grows with velocity.
+ */
 export function hat(mix: Mix, time: number, velocity: number, route: Route, decay = .018) {
-  const out = buffer(decay * 5), filter = new Svf();
+  const out = buffer(decay * 6 + .01), band = new Svf(), high = new Svf(), air = new Svf();
+  const squares = [205.3, 304.4, 369.6, 522.7, 540, 800].map(hz => { const phase = mix.random(); return {hz: hz * 1.6, a: new Saw(phase), b: new Saw((phase + .5) % 1)}; });
+  const body = decay * (.8 + .4 * mix.random()) * (.7 + .6 * velocity), centre = 8500 * (.9 + .2 * mix.random());
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000;
-    filter.process(noise(mix), 9000, .9);
-    out[i] = filter.hp * pluckEnv(t, .0004, decay) * velocity * .6;
+    let metal = 0;
+    for (const square of squares) metal += (square.a.next(square.hz) - square.b.next(square.hz)) * .5;
+    band.process(metal / 6 * .6 + noise(mix) * .5, centre, 1.2);
+    high.process(band.bp, 6500, .7);
+    air.process(high.hp, 12_000, .6);
+    out[i] = air.lp * Math.min(1, t / .0003) * (Math.exp(-t / .003) * .5 + Math.exp(-t / body) * .6) * velocity * 1.1;
   }
   mix.emit(time, route, out); mix.count('hat');
 }
 
-/** Tight trap clap: three bursts and a short, bright tail. */
+/**
+ * Trap clap: four bursts, each through its own band-pass between 1.1 and 1.6 kHz, a 5 kHz sizzle, and a 90 ms tail
+ * of independent left and right noise so the clap has a body in the room instead of a mono point.
+ */
 export function clap(mix: Mix, time: number, velocity: number, route: Route) {
-  const out = buffer(.22), filter = new Svf();
-  for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
-    const bursts = [0, .007, .014].reduce((sum, offset) => sum + (t >= offset ? Math.exp(-(t - offset) / .003) : 0), 0);
-    filter.process(noise(mix), 1800, .9);
-    out[i] = filter.bp * (bursts * .7 + Math.exp(-t / .05) * .5) * velocity * .95;
+  const left = buffer(.22), right = buffer(.22), sizzle = new Svf(), tails = [new Svf(), new Svf()];
+  const bursts = [0, .006, .013, .021].map(offset => ({offset, filter: new Svf(), centre: 1100 + 500 * mix.random()}));
+  const [gl, gr] = panGains(route.pan ?? 0);
+  for (let i = 0; i < left.length; i++) {
+    const t = i / 48_000, n = noise(mix);
+    let dry = 0;
+    for (const burst of bursts) {
+      burst.filter.process(n, burst.centre, 1.1);
+      if (t >= burst.offset) dry += burst.filter.bp * Math.exp(-(t - burst.offset) / .003);
+    }
+    sizzle.process(n, 5000, .7);
+    dry = dry * .8 + sizzle.hp * Math.exp(-t / .03) * .3;
+    tails[0].process(noise(mix), 1500, .9); tails[1].process(noise(mix), 1500, .9);
+    const tail = Math.exp(-t / .09) * .45, g = velocity * .95 * Math.SQRT2;
+    left[i] = (dry + tails[0].bp * tail) * gl * g; right[i] = (dry + tails[1].bp * tail) * gr * g;
   }
-  mix.emit(time, route, out); mix.count('clap');
+  mix.emit(time, route, left, right); mix.count('clap');
 }
 
 /** Switch click: a 1 ms noise edge band-passed at 3.5 kHz over a small low-passed knock, never full-band. */
@@ -187,13 +237,13 @@ export function sweep(mix: Mix, start: number, duration: number, level: number, 
   mix.emit(start, route, left, right); mix.count('sweep');
 }
 
-/** The agent ball: a sine droplet bent up into its note, with a 3.5 kHz snap on the touch and a small sub thump. `fifth` is the blue (Signals) agent. */
+/** The agent ball: a sine droplet bent up 9 semitones into its note (a bubble's rise), with a faster octave partial, a 3.5 kHz snap on the touch and a small sub thump. `fifth` is the blue (Signals) agent. */
 export function droplet(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {fifth?: boolean; detune?: boolean; thump?: number} = {}) {
-  const out = buffer(.09), a = new Sine(), b = new Sine(), c = new Sine(), low = new Sine(), snap = new Svf();
+  const out = buffer(.09), a = new Sine(), second = new Sine(), b = new Sine(), c = new Sine(), low = new Sine(), snap = new Svf();
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000, hz = mtof(midi - 5 * Math.exp(-t / .005));
+    const t = i / 48_000, hz = mtof(midi - 9 * Math.exp(-t / .008));
     snap.process(noise(mix), 3500, .7);
-    let value = a.next(hz);
+    let value = a.next(hz) + second.next(hz * 2) * .18 * Math.exp(-t / .015);
     if (options.detune) value = value * .7 + b.next(hz * 2 ** (18 / 1200)) * .5;
     if (options.fifth) value += c.next(hz * 1.5) * .45;
     value += low.next(mtof(28 + 12 * Math.exp(-t / .01))) * (options.thump ?? 0) * Math.exp(-t / .025);
@@ -213,20 +263,29 @@ export function warn(mix: Mix, time: number, velocity: number, route: Route, opt
   for (const offset of [0, .075]) for (const midi of [base, base + 11]) blip(mix, time + offset, midi, velocity * .75, route, .045, {exact: true});
 }
 
-/** A pure sine tick (no harmonics): the softened issue triangles and the heartbeat. */
+/**
+ * A near-pure bell tick: the note plus two quicker inharmonic partials (2.76 and 5.4), a 3-semitone drop into pitch
+ * in ~2 ms, a 1 ms 6 kHz tick, and a raised-cosine attack. The softened issue triangles, the heartbeat, the latch.
+ */
 export function pure(mix: Mix, time: number, midi: number, velocity: number, route: Route, length = .03) {
-  const out = buffer(length), osc = new Sine(), hz = mtof(midi);
-  for (let i = 0; i < out.length; i++) out[i] = osc.next(hz) * gate(i / 48_000, length) * Math.exp(-i / 48_000 / length * 2) * velocity * .45;
+  const out = buffer(length), osc = new Sine(), upper = new Sine(), top = new Sine(), edge = new Svf(), hz = mtof(midi);
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000, f = hz * 2 ** (3 * Math.exp(-t / .002) / 12);
+    const tone = osc.next(f) + .25 * upper.next(f * 2.76) * Math.exp(-t / (length / 3)) + .18 * top.next(f * 5.4) * Math.exp(-t / (length / 4));
+    edge.process(noise(mix), 6000, 1);
+    const attack = t < .0005 ? .5 - .5 * Math.cos(Math.PI * t / .0005) : 1;
+    out[i] = (tone * attack * Math.exp(-t / length * 2) + edge.bp * Math.exp(-t / .001) * .15) * gate(t, length) * velocity * .45;
+  }
   mix.emit(time, route, out); mix.count('pure');
 }
 
-/** Log and count-up data: a clack (noise at 2.2 kHz, 1 ms) on a 4 ms 1.1 kHz sine, `rise` semitones up. */
+/** Log and count-up data: a 2.2 kHz clack that also strikes two resonators at 1.1 kHz·2^(rise/12) and 2.3× that. */
 export function tick(mix: Mix, time: number, velocity: number, route: Route, rise = 0) {
-  const out = buffer(.02), osc = new Sine(), clack = new Svf(), hz = 1100 * 2 ** (rise / 12), jitter = (mix.random() - .5) * .004;
+  const out = buffer(.02), clack = new Svf(), mode = new Svf(), overtone = new Svf(), third = new Svf(), hz = 1100 * 2 ** (rise / 12), jitter = (mix.random() - .5) * .004;
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000;
-    clack.process(noise(mix), 2200, 1);
-    out[i] = (clack.bp * Math.exp(-t / .001) * 1.5 + osc.next(hz) * Math.exp(-t / .004) * .5) * gate(t, .02) * velocity * .3;
+    const t = i / 48_000, strike = noise(mix) * Math.exp(-t / .001);
+    clack.process(strike, 2200, 1); mode.process(strike, hz, 40); overtone.process(strike, hz * 2.3, 60); third.process(strike, hz * 4.1, 80);
+    out[i] = (clack.bp * 1.5 + (mode.bp * .3 + overtone.bp * .07 + third.bp * .03) * 2.5) * gate(t, .02) * velocity * .3;
   }
   mix.emit(time + jitter, route, out); mix.count('tick');
 }

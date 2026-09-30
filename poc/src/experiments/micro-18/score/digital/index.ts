@@ -4,7 +4,7 @@ import type {Mix, Route} from '../voices';
 import {composeDigital} from './composition';
 import {blip, click, droplet, hat, sweep, zap} from './instruments';
 
-const UI: Route = {bus: 'sfx', gain: .9, room: .06};
+const UI: Route = {bus: 'sfx', gain: .9, room: .14};
 
 /** The agent window's foley in the same language: keys are data taps, the window switches with flicks and latches. */
 function designDigital(mix: Mix, cues: ScoreCues) {
@@ -32,13 +32,15 @@ export const digitalLydian: ScoreStyle = {
   ducks: () => {},
   compose: composeDigital,
   design: designDigital,
-  // Near mono and dry, like the reference: a short room, a quick 16th-note echo on the blips, almost no hall.
+  // Near mono but never in a vacuum: a small, bright room (decorrelated, so it widens without panning), a 16th-note echo on the blips, almost no hall.
   space: {
     hall: {rt60: 1.4, predelay: .01, damping: 6000, size: .8, lowCut: 400},
-    room: {rt60: .3, predelay: .003, damping: 9000, size: .35, lowCut: 300},
+    room: {rt60: .35, predelay: .006, damping: 11_000, size: .3, lowCut: 350},
     delay: {time: .3, feedback: .28, damping: 6000},
-    returns: [.4, 1.2, 1],
+    returns: [.4, 6, 2.2],
+    // Width is one of the things the first half withholds, so its room is mono until the drop.
+    monoUntil: cues => cues.flow.reveal,
   },
-  // The top octave is taken down: the taps' transients carry the edge, not 10 kHz hiss.
-  eq: {highpass: 24, lowShelf: [70, 0], highShelf: [9000, -1.5]},
+  // The 808 hats and the taps' clicks carry the top octave now; a gentle lift keeps it open.
+  eq: {highpass: 24, lowShelf: [90, -5.5], highShelf: [4500, 4]},
 };

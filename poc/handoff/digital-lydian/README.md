@@ -6,7 +6,8 @@ the narration, the settings and the animation are unchanged: nothing in `public/
 default mix is untouched.
 
 - A (current): `lam-2305/ultimate3-tighter-cadence-arabesque-voiceover.mp4`
-- B (candidate, v4): `lam-2315/ultimate3-digital-lydian-voiceover-v4-fix.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v4-fix.mp4` with the bed alone
+- B (candidate, v5): `lam-2315/ultimate3-digital-lydian-voiceover-v5.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v5.mp4` with the bed alone
+- v4, the same score with the earlier sine palette: `lam-2315/ultimate3-digital-lydian-voiceover-v4-fix.mp4`
 - v3, which ducks the whole bed under the voice: `lam-2315/ultimate3-digital-lydian-voiceover-v3.mp4`
 - v2, which scores over the picture rather than to it: `lam-2315/ultimate3-digital-lydian-voiceover-v2.mp4`
 
@@ -16,7 +17,7 @@ I decoded the reference and split it with Demucs (`htdemucs`) into voice and mus
 
 | Trait | Reference (music stem) | How it shows up |
 |---|---|---|
-| Sub-first | 80 % of energy under 120 Hz (46 % under 60 Hz) | An 808 on D1 that drops about two octaves into its note in ~50 ms. The low end carries the track; the mids stay open for the voice. |
+| Sub-first | 43 % of energy under 120 Hz (9 % under 60 Hz), peaking at 104 Hz; 29 % in 250 Hz–4 kHz and 4 % above 4 kHz | An 808 on D1 that drops about two octaves into its note in ~50 ms. The low end carries the track; the mids stay open for the voice. |
 | Harmony | Dmaj7♯11 ↔ E/D, F♯m, A | Bright but uncanny Lydian. The ♯11 (G♯) is the signature colour. |
 | Gating | Blocks start and stop on a sample | Chord blocks are switched, not faded, and silence is the punctuation. The breakdown is about 1 s of near dead air before the groove. |
 | Data | Square blips around 1 kHz, pitch zaps | Telemetry sounds fill the holes between blocks. |
@@ -27,6 +28,39 @@ I decoded the reference and split it with Demucs (`htdemucs`) into voice and mus
 ## What it does on Ultimate 3
 
 The code is `src/experiments/micro-18/score/digital/`: `instruments.ts` holds the palette, `composition.ts` the score, and `index.ts` the style and foley.
+
+### v5: sound design polish
+
+v5 follows a sound-design critique of v4, which the client heard as 85 % there but "amateur" in the individual
+effects. The critic measured the palette against the reference and agreed only in part. The effects were the biggest
+single cause, but not the only one, and repetition wasn't one of them (the reference repeats more). Its causes, ranked:
+
+- **A test-tone palette (about 35 %).** The median SFX event had 2 partials; the whole mix had 19 spectral peaks against the reference's 42.
+- **A dry vacuum (about 25 %).** The room return sat 40 dB under the music, so nothing shared a space.
+- **Tonal balance (about 20 %).** 63 % of the energy was under 60 Hz, 7 % in 250 Hz–4 kHz and 0.4 % above 4 kHz.
+  The 808 had no audible 2nd harmonic, and the blocks had nothing above 2 kHz.
+- **Static synthesis (about 12 %).** Nothing drifted, and the `crush` sample-hold on the blocks added 17 dB of alias hash above 4 kHz.
+- **The kit (about 8 %).** A mono clap and identical hats.
+
+What changed (`instruments.ts` unless noted):
+
+- **Taps (`blip`):** a 0.35 ms click, then a 2-operator FM tone that chirps 7 semitones down into its note in ~3 ms.
+  Its index and a key-tracked low-pass close together, so the spectrum falls 1.3–1.4 octaves across the hit. There are two
+  short upper partials, a biased saturator and a small body. Non-hero taps vary their FM index and chirp as well as level and time.
+- **Blocks:** three drifting saws per tone. The cutoff bites open on the gate and settles in 25 ms, and a unity-gain
+  saturator replaces `crush` (`drive`). After the drop, the saws spread ±0.35 (`width`). `chord()` caps the cutoff at 2 kHz
+  before the drop, and at 2.4 kHz under the voice.
+- **808:** biased saturation puts the 2nd harmonic 12 dB under the fundamental, so it reads on laptop speakers. The groove 808 rings longer.
+- **Kit:** an 808-style hat (six square partials into a band-pass at about 10 kHz, with a varying decay and accents). The
+  clap is four band-passed bursts with a decorrelated stereo tail.
+- **Small voices:** `tick` is a struck resonator with three modes, `pure` a chirped bell with inharmonic partials, and
+  `droplet` has a second partial. The flick is FM and saturated, darker than before.
+- **Space (`index.ts`):**
+  - A short, bright room (0.35 s) on the object, kit and texture routes.
+  - The returns are summed to mono until the drop (`space.monoUntil`), so the first half gains depth without giving away width.
+  - The master EQ tilts down 5.5 dB under 90 Hz and up 4 dB above 4.5 kHz.
+- **Tried and dropped:** a music-bus glue compressor and parallel master saturation. The compressor worked against the
+  track's own average, so it flattened the arc: the logo fell below the climb. The saturation measured as a no-op.
 
 ### v4: the voice without the dimming, tactile objects, and a withheld tonic
 
@@ -102,15 +136,15 @@ Controls (all in `digital/`):
   - The chord voicings: `I`, `Iwant` (the first half's I on F♯), `II`, `iii`, `V`, `vi`, `iv0` and `Isharp`, plus `onD()`, which puts D under a chord.
   - `STREAM` (the span-snap fractions), `SCALE` and `MOTIF`.
   - The `trap()` options: `level`, `clap`, `stabs`, `hats`, `q`, `mute`, `bare`, `still` and `hits`.
-  - The per-section `level`, `cutoff`, `sub` and `pulse` of `chord()`. Before the drop, `chord()` caps the cutoff at 1.2 kHz and holds the level at 80 %, and `wide()` returns centre.
+  - The per-section `level`, `cutoff`, `sub` and `pulse` of `chord()`. Before the drop, `chord()` caps the cutoff at 2 kHz and holds the level at 65 %, and `wide()` returns centre. Under the voice it caps it at 2.4 kHz.
   - `OBJ`, `ECHO` and `TEXTURE` are the routes for the object sounds.
 - `instruments.ts`:
   - `sub808`: pitch drop, fall, drive and decay.
-  - `block`: cutoff sweep, root, crush, swell and pulse.
-  - `blip`: `length`, `bright`, `body` and `exact`.
+  - `block`: cutoff sweep, root, drive, width, swell and pulse.
+  - `blip`: `length`, `bright` (the FM index and the opening of the low-pass), `body` and `exact`.
   - `sweep`: speed curve, split, grab and land.
   - Also `riser` (with a hat roll), `droplet`, `warn`, `tick`, `haze` and `meter`.
-- `index.ts`: the room, delay and hall sends (`space`) and the master `eq`.
+- `index.ts`: the room, delay and hall sends and returns (`space`, including `monoUntil`) and the master `eq`.
 - Mix script:
   - `--chain approved` is the default: the published full-band duck with the bed at -6.5 dB.
   - `--chain carve` is v4's mix, with the bed at -7.5 dB. The third argument overrides the bed level.
@@ -119,16 +153,16 @@ Controls (all in `digital/`):
 
 ```sh
 cd poc
-# 1. Score (music + foley), mastered to -14 LUFS / -1.2 dBTP; about 8 s.
+# 1. Score (music + foley), mastered to -14 LUFS / -1.2 dBTP; about 11 s.
 pnpm ultimate3:score --style digital-lydian --settings handoff/voiceover-tighter-cadence/default-settings.json \
   --seed 107290 --out /tmp/u3v4/digital.wav
 # 2. Voiceover mix with the carve chain (v10 phrases at their `at`, 15 ms fades, static -7.5 dB bed with an EQ carve,
 #    a 2:1 duck on 250 Hz–5 kHz only, two-pass linear loudnorm -14.7), muxed over a silent render of the same settings.
 node scripts/mix-ultimate3-candidate-vo.mjs /tmp/u3v4/digital.wav /tmp/u3v4/digital-vo.wav --chain carve \
-  --video /tmp/u3/silent.mp4 --mp4 /tmp/u3v4/ultimate3-digital-lydian-voiceover-v4.mp4
+  --video /tmp/u3/silent.mp4 --mp4 /tmp/u3v4/ultimate3-digital-lydian-voiceover-v5.mp4
 # 3. Music only: the score over the same silent render.
 ffmpeg -i /tmp/u3/silent.mp4 -i /tmp/u3v4/digital.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 320k -shortest \
-  /tmp/u3v4/ultimate3-digital-lydian-music-only-v4.mp4
+  /tmp/u3v4/ultimate3-digital-lydian-music-only-v5.mp4
 ```
 
 The same script run on `public/audio/voiceover/editable-v10/bed.wav` with a bed gain of `0` (and the default
@@ -137,31 +171,46 @@ at -6.5 dB.
 
 ## A/B and checks
 
-| | A: arabesque (piano) | digital v2 | digital v3 | B: digital v4 |
-|---|---|---|---|---|
-| Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP | -14.8 LUFS, -1.0 dBTP | -14.6 LUFS, -1.0 dBFS peak |
-| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.9 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.8 dB limiting |
-| Bed gain reduction under the voice, median (p95) | full band | full band | full band, 13.6 dB | 250 Hz–5 kHz only, 2.3 dB (4.2 dB); none elsewhere |
-| Voice over bed, 300 Hz–4 kHz, median (worst phrase) | +2.3 dB (-4.2) | +9.2 dB (+1.4) | +8.0 dB (+0.9) | +8.2 dB (+1.9) |
-| Voice over bed, broadband, median | +5.3 dB | +2.3 dB | +3.1 dB | +1.6 dB (K-weighted), with no duck |
-| faster-whisper `small.en` script recovery | 139/148 words | 142/148 words | 141/149 words | 144/149 words |
-| Energy under 120 Hz / 250 Hz–4 kHz | | 83 % / 7 % | 81 % / 9 % | 85 % / 7 % (reference: 80 % / 10 %) |
-| First half (0–19.7 s) vs drop, LUFS | | | -18.0 / -13.7 vs -12.2 | -19.5 / -15.2 vs -10.8 |
-| Climb vs logo, LUFS | | | -13.5 vs -12.7 | -13.1 vs -11.7 |
-| Sustained tones over 120 ms in the SFX stem | | | 5, including 0.55 s glides | 9, all repeated taps (longest 0.29 s) |
-| Audio onsets (of which over a static picture) | | 301 (28 %) | 178 (26 %) | 226 (21 %) |
-| Picture onsets with sound within 67 ms (median offset) | | 50 % (68 ms) | 48 % (74 ms) | 59 % (46 ms) |
-| Onsets that jump ≥ 3 dB in 300 Hz–10 kHz (median jump) | | 10 % (-0.6 dB) | 34 % (+1.3 dB) | 28 % (+0.8 dB) |
-| Motion energy vs 300 Hz–10 kHz loudness, correlation | | 0.04 | 0.19 | 0.14 |
+| | A: arabesque (piano) | digital v2 | digital v3 | digital v4 | B: digital v5 |
+|---|---|---|---|---|---|
+| Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP | -14.8 LUFS, -1.0 dBTP | -14.6 LUFS, -1.0 dBFS peak | -14.7 LUFS, -1.0 dBFS peak |
+| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.9 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.8 dB limiting | -14.1 LUFS, -1.2 dBTP, 7.5 dB peak limiting (over 1 dB 4.3 % of the time) |
+| Bed gain reduction under the voice, median (p95) | full band | full band | full band, 13.6 dB | 250 Hz–5 kHz only, 2.3 dB (4.2 dB); none elsewhere | same chain as v4 |
+| Voice over bed, 300 Hz–4 kHz, median (worst phrase) | +2.3 dB (-4.2) | +9.2 dB (+1.4) | +8.0 dB (+0.9) | +8.2 dB (+1.9) | +8.1 dB (+3.3) on a -9 dB carve model (v4 on the same model: +9.7, +3.4); worst 250 ms window -15.9 dB (v4: -20.1) |
+| Voice over bed, broadband, median | +5.3 dB | +2.3 dB | +3.1 dB | +1.6 dB (K-weighted), with no duck | |
+| faster-whisper `small.en` script recovery | 139/148 words | 142/148 words | 141/149 words | 144/149 words | 145/149 words |
+| Energy under 120 Hz / 250 Hz–4 kHz | | 83 % / 7 % | 81 % / 9 % | 85 % / 7 % | 72 % / 11 % (reference: 43 % / 29 %) |
+| First half (0–19.7 s) vs drop, LUFS | | | -18.0 / -13.7 vs -12.2 | -19.5 / -15.2 vs -10.8 | -19.8 / -15.9 vs -11.6 |
+| Climb vs logo, LUFS | | | -13.5 vs -12.7 | -13.1 vs -11.7 | -14.5 vs -12.9 |
+| Sustained tones over 120 ms in the SFX stem | | | 5, including 0.55 s glides | 9, all repeated taps (longest 0.29 s) | |
+| Audio onsets (of which over a static picture) | | 301 (28 %) | 178 (26 %) | 226 (21 %) | |
+| Picture onsets with sound within 67 ms (median offset) | | 50 % (68 ms) | 48 % (74 ms) | 59 % (46 ms) | |
+| Onsets that jump ≥ 3 dB in 300 Hz–10 kHz (median jump) | | 10 % (-0.6 dB) | 34 % (+1.3 dB) | 28 % (+0.8 dB) | |
+| Motion energy vs 300 Hz–10 kHz loudness, correlation | | 0.04 | 0.19 | 0.14 | |
 
 The motion measures come from frame differences of the silent render against onset and band-loudness curves of the score. The onset hit rate is a strict proxy and barely moves: v3 has about 40 % fewer onsets, so a larger share of its sounds are placed on the picture's events. The reaction measures show the change. A v3 onset is a real event: a third of them jump at least 3 dB, against a tenth in v2, and the sound's loudness now follows how much the picture moves.
 v4's taps and pushes land closer to the picture (59 % within 67 ms). Its jump rate and correlation fall back a little, though. The first half is deliberately quieter and narrower, and several hits now land on the dead air that follows a cut rather than on the cut itself.
+
+v5 was checked against the critic's 39 acceptance measures (isolated voices plus the master). v4 passes 4 of them and
+v5 passes 36. Three still miss:
+- The mids are 11 % of the energy against a 12 % floor.
+- The median per-onset side/mid is -29 dB against -27 dB. This one is by design: the first half is mono.
+- The 400 ms crest factor is 10.96 dB against an 11 dB floor.
+
+The motion rows weren't re-measured, because v5 keeps v4's event timing. Measured with the critic's figures, the
+reference's energy peaks at 104 Hz and only 43 % of it sits under 120 Hz. The 80 % that earlier versions of this README
+gave was mis-measured.
 
 Mixing notes (hard-won):
 
 - On a sub-heavy bed, any full-band duck is heard as the music dimming. The ear follows the 808, and the 808 is where the gain reduction lands. Carve the voice's band and duck only that.
 - Single-pass `loudnorm` is dynamic and adds its own slow pumping. Measure first, then apply with `linear=true`. The measurement JSON goes to stderr, after the ffmpeg log.
 - With the carve, -5 dB left the voice level with the bed (K-weighted median -0.9 dB). At -7.5 dB it matches v3's intelligibility without a full-band duck.
+- `Mix.emit` ignores `route.pan` for stereo buffers (when `left !== right`), so a stereo voice applies `panGains` itself.
+- `--stems` writes the reverb and echo stems before their return gain (`space.returns`). Add `20·log10(return)` before comparing them with the music stem.
+- `Svf.bp` peaks at a gain of Q. When you raise a resonator's Q for a longer ring, scale its gain by the ratio of the old Q to the new one.
+- Compressing the music bus against the track's own average RMS flattens the arc: the loudest sections take the most gain reduction. On this score it cost the drop and the logo about 1.2 dB each.
+- In the master, sub-heavy moments (the drop, the logo) are limited by peak. Raising their 808 mostly feeds the limiter; take energy out of the sections around them instead.
 
 - Audio and video are both 70.967 s; the WAV is padded and trimmed to the manifest's 3,406,400 samples.
 - The score is deterministic for a given seed and settings (`pnpm ultimate3:score:test`).

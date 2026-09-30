@@ -18,22 +18,22 @@ import {blip, block, clap, click, droplet, hat, haze, meter, pure, riser, sub808
  * - five tier-A hits (Bash, the drop, the door, the grid, the logo) each come out of dead air;
  * - the voice is kept on top by the mix (a static carve and a mid-band-only duck), not by the score thinning.
  * The arc is a withheld tonic. Until "Introducing Flow-1" there is no D in the bass, the motif never completes,
- * there is no clap, no 16th hats, nothing brighter than 1.2 kHz and nothing wide: curiosity (F♯m9, sparse) →
+ * there is no clap, no 16th hats, nothing brighter than 2 kHz and nothing panned: curiosity (F♯m9, sparse) →
  * pressure (Cost: the minor side, thin). The drop gives all of it at once (D1, the whole motif, the first clap,
  * a wide octave block); Issues is order; the millions climb over a D pedal into the logo's Dmaj9♯11 over four octaves.
  */
 
 const SUB: Route = {bus: 'music', gain: 1};
 const BLOCK: Route = {bus: 'music', gain: 1, room: .05};
-const HIGH: Route = {bus: 'music', gain: .9, room: .08, delay: .12};
-const KIT: Route = {bus: 'music', gain: 1, room: .04};
-const DATA: Route = {bus: 'music', gain: .8, delay: .1};
+const HIGH: Route = {bus: 'music', gain: .9, room: .16, delay: .12};
+const KIT: Route = {bus: 'music', gain: 1, room: .12};
+const DATA: Route = {bus: 'music', gain: .8, room: .1, delay: .1};
 /** Motion and object sounds sit on the foley bus, so the score's stutters and tape stops never bend them. */
-const MOVE: Route = {bus: 'sfx', gain: 1.3, room: .04};
-/** Object sounds are dry; echo is kept for a few hand-picked hits in the gaps (ECHO). */
-const OBJ: Route = {bus: 'sfx', gain: 1.7, room: .05};
+const MOVE: Route = {bus: 'sfx', gain: 1.3, room: .08};
+/** Object sounds sit in a small, bright room; echo is kept for a few hand-picked hits in the gaps (ECHO). */
+const OBJ: Route = {bus: 'sfx', gain: 1.7, room: .14};
 const ECHO: Route = {...OBJ, delay: .12};
-const TEXTURE: Route = {bus: 'sfx', gain: 1.1, room: .06};
+const TEXTURE: Route = {bus: 'sfx', gain: 1.1, room: .14};
 
 type Voiced = Chord & {root: number};
 /** Tones are the gated block's voicing; `root` is the buzzing saw an octave under the 808's note, as in the reference. */
@@ -46,7 +46,7 @@ const V: Voiced = {bass: 33, root: 33, tones: [52, 57, 61, 64, 66]};
 /** The minor side of the Lydian collection, for the problems: Bm and G♯ø. */
 const vi: Voiced = {bass: 23, root: 35, tones: [47, 50, 54, 57, 61]};
 const iv0: Voiced = {bass: 32, root: 32, tones: [50, 54, 56, 59, 62]};
-/** The ♯11 exposed on top and crushed: the pink/salmon "Thinking…" spans. */
+/** The ♯11 exposed on top and driven harder: the pink/salmon "Thinking…" spans. */
 const Isharp: Voiced = {...Iwant, tones: [...Iwant.tones, 80]};
 /** The last climb over a D pedal: E/D, F♯m/D, A/D. */
 const onD = (voiced: Voiced): Voiced => ({...voiced, bass: 26, root: 26});
@@ -86,15 +86,16 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   const nearest = (midi: number) => SCALE.reduce((best, note) => Math.abs(note - midi) < Math.abs(best - midi) ? note : best);
 
   /**
-   * A block chord from `start` to `end`, 808 underneath, switched hard at both ends. Nothing opens past 1.2 kHz
-   * before the drop or past 1.4 kHz under the voice; `pulse` gates it in 16ths so a long chord moves.
+   * A block chord from `start` to `end`, 808 underneath, switched hard at both ends. Nothing opens past 2 kHz
+   * before the drop or past 2.4 kHz under the voice, and only chords after the drop are wide; `pulse` gates it in
+   * 16ths so a long chord moves.
    */
-  const chord = (start: number, end: number, voiced: Voiced, options: {level?: number; cutoff?: [number, number]; crush?: number; sub?: number; swell?: boolean; pulse?: boolean} = {}) => {
+  const chord = (start: number, end: number, voiced: Voiced, options: {level?: number; cutoff?: [number, number]; drive?: number; sub?: number; swell?: boolean; pulse?: boolean} = {}) => {
     if (end - start < .03) return;
-    const ceiling = start < drop ? 1200 : speaking(start) || speaking(end) ? 1400 : Infinity, [from, to] = options.cutoff ?? [700, 1100];
+    const ceiling = start < drop ? 2000 : speaking(start) || speaking(end) ? 2400 : Infinity, [from, to] = options.cutoff ?? [700, 1100];
     // The first half also sits a few dB under the drop.
-    const held = start < drop ? .8 : 1;
-    block(mix, start, end, voiced.tones, BLOCK, {root: voiced.root, level: (options.level ?? 1) * held, cutoff: [Math.min(from, ceiling), Math.min(to, ceiling)], crush: options.crush, swell: options.swell, pulse: options.pulse ? Q / 4 : undefined});
+    const held = start < drop ? .65 : 1;
+    block(mix, start, end, voiced.tones, BLOCK, {root: voiced.root, level: (options.level ?? 1) * held, cutoff: [Math.min(from, ceiling), Math.min(to, ceiling)], drive: options.drive, swell: options.swell, pulse: options.pulse ? Q / 4 : undefined, width: start < drop ? 0 : .35});
     if (options.sub) sub808(mix, start, voiced.bass + 12, end - start, options.sub * held, SUB, {drop: 12, decay: 4, drive: 1.4});
   };
   /** A run of blips `every` seconds apart walking the scale, panned from `panFrom` to `panTo`. */
@@ -144,13 +145,13 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
       if (within(t, options.mute ?? [])) continue;
       const bare = within(t, options.bare ?? []), still = within(t, options.still ?? []);
       const lift = still ? .8 : 1, onHit = (step === 0 && !options.unanchored) || (options.hits ?? []).some(hit => Math.abs(t - hit) < .03);
-      if ((s === 0 && !onHit) || s === 7 || s === 10) sub808(mix, t, voiced.bass + (s === 10 ? 12 : 0), s === 0 ? q * 1.7 : q * .8, (s === 0 ? .95 : .75) * level * lift, SUB, {drop: s === 0 ? 26 : 19});
+      if ((s === 0 && !onHit) || s === 7 || s === 10) sub808(mix, t, voiced.bass + (s === 10 ? 12 : 0), s === 0 ? q * 1.7 : q * .8, (s === 0 ? .95 : .75) * level * lift, SUB, {drop: s === 0 ? 26 : 19, decay: 2.5});
       if (bare) continue;
       if (options.clap !== false && !still && s === 8) clap(mix, t, .8 * level, {...KIT, pan: wide(t, .1)});
       const eighths = options.hats === 8;
       if (still) { if (s % 4 === 0) hat(mix, t, .4 * level, {...KIT, pan: wide(t, -.15)}); }
       else if ((bar & 1) === 1 && s >= 12 && !eighths) [0, .05].forEach(offset => hat(mix, t + offset, (.38 + .1 * (s - 12)) * level, {...KIT, pan: wide(t, .4)}));
-      else if (s % 2 === 0 || !eighths) hat(mix, t, (s % 2 ? .28 : .46) * level, {...KIT, pan: wide(t, s % 4 === 2 ? .4 : -.3)});
+      else if (s % 2 === 0 || !eighths) hat(mix, t, (s % 2 ? .28 : .46) * level, {...KIT, pan: wide(t, s % 4 === 2 ? .4 : -.3)}, .018 * (s % 2 ? .6 : 1.2));
       const stab = s === 0 || s === 3 || s === 6 || s === 11 || s === 14;
       if (options.stabs && stab && !still && !onHit) block(mix, t, Math.min(grid(beats), t + .085), voiced.tones, BLOCK, {level: .95 * level * lift, cutoff: options.cutoff ?? [1600, 900]});
     }
@@ -171,7 +172,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   // Only the first span gets an 808: ten in five seconds would spend the hits the film needs later.
   spans.forEach(([fraction, voiced], i) => {
     const from = at(fraction), to = i + 1 < spans.length ? at(spans[i + 1][0]) - .035 : streamEnd;
-    chord(from, Math.min(to, streamEnd), voiced, {level: .5, cutoff: [700, 1150], sub: i === 0 ? .25 : 0, crush: voiced === Isharp ? 8000 : undefined});
+    chord(from, Math.min(to, streamEnd), voiced, {level: .5, cutoff: [700, 1150], sub: i === 0 ? .25 : 0, drive: voiced === Isharp ? 2.5 : undefined});
   });
   /** One pitch per span type: Thinking (the ♯11 spans), Read, Write. */
   const spanPitch = (voiced: Voiced) => voiced === Isharp ? 85 : voiced === II ? 88 : voiced === iii ? 81 : 86;
@@ -301,7 +302,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   const introduced = drop + .25;
   [0, -.8, .8].forEach(pan => {
     const tones = I.tones.map(t => t + 12 + pan * .15), route = {...HIGH, pan};
-    block(mix, drop, introduced, tones, route, {level: pan ? .4 : .55, cutoff: [3800, 3000]});
+    block(mix, drop, introduced, tones, route, {level: pan ? .4 : .55, cutoff: [6000, 4800]});
     block(mix, introduced, drop + .9, tones, route, {level: pan ? .2 : .25, cutoff: [1400, 900]});
   });
   clap(mix, drop, .9, KIT);
@@ -349,7 +350,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   sweep(mix, engineFrom, flow.cameraToEngine.duration, .5, MOVE, {peak: .45, split: true});
   riser(mix, engineFrom, settle(flow.cameraToEngine), 50, 62, .25, BLOCK);
   motif(flow.moduleActivation, .4, [92, 93]);
-  block(mix, flow.moduleActivation, flow.moduleActivation + .3, I.tones.map(t => t + 12), HIGH, {level: .4, cutoff: [3000, 1200]});
+  block(mix, flow.moduleActivation, flow.moduleActivation + .3, I.tones.map(t => t + 12), HIGH, {level: .4, cutoff: [4800, 1900]});
   for (let t = flow.engineSpinner.at, k = 0; t < settle(flow.engineSpinner); k++) {
     const progress = (t - flow.engineSpinner.at) / flow.engineSpinner.duration;
     blip(mix, t, lydian(k), .22 + .12 * progress, DATA, .018);
@@ -417,7 +418,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   const grooveBeats = Math.round((end.start - native) / gridQ);
   const gridChords = progression([0, I], [4, II], [8, I], [12, iii], [16, V], [20, II], [24, I], [28, II]);
   sub808(mix, native, 26, 1.2, 1, SUB, {drop: 34, drive: 3.4});
-  block(mix, native, native + .6, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [3500, 1200]});
+  block(mix, native, native + .6, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [5600, 1900]});
   trap(gridChords, native, grooveBeats, {
     level: .95, stabs: true, q: gridQ,
     bare: [[typingFrom, end.start]],
@@ -436,7 +437,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
     }
     // The clusters lock: each colour strikes its own chord tone over a stab and an 808.
     issues.clusters.forEach((time, i) => blip(mix, time, CLUSTERS[Math.min(5, i)], .45, {...HIGH, pan: -.3 + Math.min(5, i) * .12}, .12, {exact: true, body: .8}));
-    block(mix, lock, lock + .5, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [3200, 1200]});
+    block(mix, lock, lock + .5, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [5100, 1900]});
     sub808(mix, lock, 26, .8, .85, SUB, {drop: 30});
   }
 
@@ -449,7 +450,7 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
     chord(from, to, voiced, {level: .45 + i * .07, cutoff: [700 + i * 150, 900 + i * 100], pulse: true});
   });
   sub808(mix, end.start, 26, .9, .8, SUB, {drop: 24, drive: 1.6});
-  trap(progression(...ladder.map((voiced, i) => [i * quarter, voiced] as [number, Voiced])), end.start, climbBeats, {level: .8});
+  trap(progression(...ladder.map((voiced, i) => [i * quarter, voiced] as [number, Voiced])), end.start, climbBeats, {level: .65});
   block(mix, swell, rollEnd, V.tones, BLOCK, {root: 26, level: .8, cutoff: [600, 2600], swell: true});
   riser(mix, swell - .6, rollEnd, 50, 74, .15, BLOCK, {every: Q / 4, route: KIT, level: .4});
   for (let t = end.start + .1; t < rollEnd - .02;) {
@@ -464,13 +465,13 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
   sub808(mix, logo, 26, named - logo, 1, SUB, {drop: 34, drive: 3, decay: 2.2});
   clap(mix, logo, .9, KIT);
   block(mix, logo, named, DMAJ, BLOCK, {root: 38, level: .6, cutoff: [1300, 900]});
-  block(mix, logo, logo + .12, OCTAVE, HIGH, {level: .5, cutoff: [3500, 1500]});
+  block(mix, logo, logo + .12, OCTAVE, HIGH, {level: .5, cutoff: [5600, 2400]});
   // The whole motif flicks by before the voice's first syllable (120 ms after the hit), dry, then waits for the name.
   MOTIF.forEach((midi, i) => blip(mix, logo + i * .04, midi, .42, {...HIGH, delay: 0}, .05, {exact: true}));
   sub808(mix, named, 26, bloomEnd - named, 1, SUB, {drop: 24, drive: 3.2, decay: 1.6});
   clap(mix, named, .8, {...KIT, pan: .1});
-  block(mix, named, bloomEnd, DMAJ, BLOCK, {root: 38, level: 1.1, cutoff: [1500, 3500]});
-  [0, -.8, .8].forEach(pan => block(mix, named, bloomEnd, OCTAVE.map(t => t + pan * .15), {...HIGH, pan, delay: 0}, {level: pan ? .42 : .5, cutoff: [2500, 4000]}));
+  block(mix, named, bloomEnd, DMAJ, BLOCK, {root: 38, level: 1.4, cutoff: [2400, 5600]});
+  [0, -.8, .8].forEach(pan => block(mix, named, bloomEnd, OCTAVE.map(t => t + pan * .15), {...HIGH, pan, delay: 0}, {level: pan ? .42 : .5, cutoff: [4000, 6400]}));
   motif(named + .02, .38, [93, 98], .12);
   // D7 answers itself three times, and that is the last sound.
   [-.4, .4, 0].forEach((pan, k) => blip(mix, named + .14 + (k + 1) * .22, 98, .3 * .55 ** (k + 1), {...HIGH, delay: 0, pan}, .06, {exact: true}));
