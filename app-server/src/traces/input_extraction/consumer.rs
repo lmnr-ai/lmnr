@@ -10,7 +10,10 @@
 //!      multi-sample agent once the cohort fills), then use a sibling version's
 //!      regex if one extracts (`inherit.rs`, never cached), else extract
 //!      directly with one LLM call;
-//!   4. no version at all → extract directly, nothing cached.
+//!   4. no version at all → extract directly.
+//!
+//! A direct extraction first checks the short-lived result cache for the exact
+//! same text (`extract.rs`).
 //!
 //! Spans with no system message never get a version and keep the legacy
 //! agent-hash + tag-fingerprint keying with its single-sample regex generation.
@@ -22,7 +25,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::accumulator::{cohort_cache_key, record_sample};
-use super::extract::extract_user_task_directly;
+use super::extract::{cache_direct_result, cached_direct_result, extract_user_task_directly};
 use super::inherit::inherit_sibling_regex;
 use super::lock::{UserTaskLockState, lock_cache_key, write_lock_merged};
 use super::metadata::extraction_outcome_value;
@@ -252,8 +255,9 @@ impl InputExtractionHandler {
 
         // The legacy path generates and CACHES a regex keyed by user-message
         // shape, so its work outlives this candidate and the supersession check
-        // stays after it. A direct extraction caches nothing, so a superseded
-        // candidate's call is pure waste — check first.
+        // stays after it. A direct extraction's result outlives it only for the
+        // few minutes of the result cache, so a superseded candidate's call is
+        // waste — check first.
         let legacy_generation = matches!(target, RegexTarget::Keyed { version: None, .. });
         if !legacy_generation && self.superseded(message).await {
             return None;
@@ -269,6 +273,19 @@ impl InputExtractionHandler {
             } else {
                 Some(result)
             };
+        }
+
+        if let Some(result) =
+            cached_direct_result(&self.cache, message.project_id, &message.signposted_text).await
+        {
+            record_resolution(
+                Resolution::DirectCached,
+                message.project_id,
+                message.trace_id,
+                version_hash,
+                message.has_history,
+            );
+            return Some(result);
         }
 
         record_resolution(
@@ -300,7 +317,14 @@ impl InputExtractionHandler {
             extract_user_task_directly(&self.llm_client, &message.signposted_text, &scope).await;
         match &result {
             Some(result) => {
-                self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")))
+                self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
+                cache_direct_result(
+                    &self.cache,
+                    message.project_id,
+                    &message.signposted_text,
+                    result,
+                )
+                .await;
             }
             None => self_tracing::set_metadata_bool(&root, "llm_failed", true),
         }
