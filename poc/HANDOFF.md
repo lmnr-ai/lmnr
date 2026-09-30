@@ -15,6 +15,8 @@ and wired into playback and export as `editable-v8`; see the README's
 
 The opening trace run is then 1.25s shorter (two fewer blocks, a slightly faster agent),
 as `editable-v9`: **[handoff/voiceover-quicker-trace/README.md](handoff/voiceover-quicker-trace/README.md)**.
+Everything before "Introducing Flow-1" is then 4.95s tighter, closer to Flow's cadence,
+as `editable-v10`: **[handoff/voiceover-tighter-cadence/README.md](handoff/voiceover-tighter-cadence/README.md)**.
 
 ## Existing integration: Issue Clusters 4 and previous voice recording
 

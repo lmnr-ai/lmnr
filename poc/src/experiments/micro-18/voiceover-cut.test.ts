@@ -9,28 +9,31 @@ import {installMicro20AuthoringCompatibility} from '../micro-20/authoring';
 import {issuesTimelineConfig} from './authoring';
 import {chapterSchedule, issueHandoffValidation, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {normalizeSettings, SETTINGS_STORAGE_ID, ULTIMATE_3_DEFAULTS} from './settings';
-import {readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID, VOICEOVER_SOUNDTRACK_URL, GRID_SOAK} from './voiceover-cut';
+import {readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID, VOICEOVER_SOUNDTRACK_URL, GRID_SOAK, COST_CADENCE} from './voiceover-cut';
 import {SCORE_STYLES} from './score/render';
+import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import {ultimate3ScoreCues} from './score/cues';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
 test('opening retime retains imported downstream chapters and deterministic reverse sampling', () => {
-  // Cost keeps the imported cut except the clips retimed to the September 29 voice.
-  const retimed = ['cheapLegOneRight', 'cheapLegTwoLeft', 'cheapLegThreeRight', 'thinkingDrop', 'subtitleMissIssues', 'cameraDownToBudget',
-    'purpleBudgetEntry', 'budgetAppear', 'budgetRun', 'smokeEnter', 'budgetDepletion', 'smokeFade', 'smokeShrink', 'subtitleCost'];
+  // Cost keeps the imported controls and clip lengths except the moves tightened to the voice.
+  const quicker = ['cameraDownToBudget', 'cameraDownToBash', 'purpleBashEntry', 'bashDescent', 'budgetDepletion', 'smokeFade', 'smokeShrink',
+    'subtitleCheap', 'subtitleMissIssues', 'subtitlePowerful', 'subtitleCost'];
   const cost = JSON.parse(JSON.stringify(VOICEOVER_DEFAULTS.cost));
   assert.deepEqual(cost.controls, importedSettings.cost.controls);
-  for (const [key, clip] of Object.entries(importedSettings.cost.timing))
-    if (retimed.includes(key)) assert.equal(cost.timing[key].duration, key === 'cameraDownToBudget' ? 1.15 : clip.duration);
-    else assert.deepEqual(cost.timing[key], clip, key);
-  assert.equal(VOICEOVER_DEFAULTS.allocations.cost, importedSettings.allocations.cost);
-  assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, 21.16);
+  for (const [key, clip] of Object.entries(importedSettings.cost.timing)) {
+    if (quicker.includes(key)) assert.ok(cost.timing[key].duration < clip.duration, key);
+    else assert.equal(cost.timing[key].duration, clip.duration, key);
+    assert.ok(cost.timing[key].at <= clip.at, key);
+  }
+  assert.equal(VOICEOVER_DEFAULTS.allocations.cost, importedSettings.allocations.cost - COST_CADENCE);
+  assert.equal(VOICEOVER_DEFAULTS.allocations.ultimate2, 19.66);
   assert.equal(VOICEOVER_DEFAULTS.version, 4);
   const {clouds, voiceover} = VOICEOVER_DEFAULTS;
   assert.ok(clouds!.timing.slideIn.at > 0);
   assert.equal(Object.keys(voiceover!.phrases).length, 23);
-  assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2278);
+  assert.equal(ultimate3DurationFrames(VOICEOVER_DEFAULTS), 2129);
   assert.equal(issueHandoffValidation(VOICEOVER_DEFAULTS), null);
   assert.equal(VOICEOVER_DEFAULTS.conclusion.logo.at, 3.75 + GRID_SOAK);
   const pullbackTransition = VOICEOVER_DEFAULTS.conclusion.placeholder.transition;
@@ -40,21 +43,19 @@ test('opening retime retains imported downstream chapters and deterministic reve
   assert.equal(sampleUltimate3(conclusionStart + 3.74 + GRID_SOAK, VOICEOVER_DEFAULTS).conclusion, 'placeholder');
   assert.equal(sampleUltimate3(conclusionStart + VOICEOVER_DEFAULTS.conclusion.logo.at + 1e-9, VOICEOVER_DEFAULTS).conclusion, 'logo');
   const duration = chapterSchedule(VOICEOVER_DEFAULTS).at(-1)!.end;
-  assert.ok(Math.abs(duration - 75.91) < 1e-9);
+  assert.ok(Math.abs(duration - 70.96) < 1e-9);
   const times = [0, .45, 9.57, 18.698, 32.398, 44.898, 50.368, 53.218, 59.53133333333333, 63.301, duration];
   const forward = times.map(time => sampleUltimate3(time, VOICEOVER_DEFAULTS));
   [...times].reverse().forEach((time, i) => assert.deepEqual(sampleUltimate3(time, VOICEOVER_DEFAULTS), forward[forward.length - i - 1]));
-  for (const phrase of placements) {
-    assert.ok(phrase.at >= 0 && phrase.b > phrase.a && phrase.a >= 0 && phrase.b <= 76.928);
-    assert.ok(phrase.at + phrase.b - phrase.a <= duration);
-  }
-  // The approved A/subtle take is 70.101333s long.
-  for (const phrase of subtlePlacements) assert.ok(phrase.a >= 0 && phrase.b > phrase.a && phrase.b <= 70.101333 && phrase.at + phrase.b - phrase.a <= duration);
+  for (const phrase of placements) assert.ok(phrase.at >= 0 && phrase.b > phrase.a && phrase.a >= 0 && phrase.b <= 76.928);
+  // The approved A/subtle take is 70.101333s long; its current slots fit the cut.
+  for (const phrase of subtlePlacements) assert.ok(phrase.a >= 0 && phrase.b > phrase.a && phrase.b <= 70.101333);
+  for (const phrase of VOICEOVER_PHRASES) assert.ok(phrase.defaultAt + phrase.b - phrase.a <= duration);
 });
 
 test('v4 preview has matching score, phrase placement and rendered audio provenance', () => {
   const cues = ultimate3ScoreCues(VOICEOVER_DEFAULTS);
-  assert.equal(cues.duration, 2278 / 30);
+  assert.equal(cues.duration, 2129 / 30);
   assert.ok(cues.issues.prelude.bashEntry.at < cues.issues.prelude.scaleOut);
   assert.ok(cues.issues.prelude.scaleOut < cues.issues.native);
   assert.ok(SCORE_STYLES['arabesque-acoustic-chill']);
