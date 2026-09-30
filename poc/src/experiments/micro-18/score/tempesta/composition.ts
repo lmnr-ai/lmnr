@@ -56,7 +56,8 @@ export function tempestaPlan(cues: ScoreCues): Chord[] {
 export function tempestaScale(cues: ScoreCues, time: number) {
   const {flow, issues} = cues;
   if (time >= issues.leadIn.at && time < issues.prelude.zoomOut.at) return E_MINOR;
-  return time >= flow.reveal - .01 && time < flow.coverShut || time >= issues.native - .01 ? G_MAJOR : G_MINOR;
+  // From the zoom out the plan climbs C → D7 → G, so the scale is already G major.
+  return time >= flow.reveal - .01 && time < flow.coverShut || time >= issues.prelude.zoomOut.at - .01 ? G_MAJOR : G_MINOR;
 }
 
 type Figure = 'storm' | 'arp' | 'bariolage' | 'repeat' | 'double';
