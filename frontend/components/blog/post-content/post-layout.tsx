@@ -50,7 +50,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">
-          <div className="flex flex-col gap-8 min-w-0 max-w-[42em]">
+          <div className="flex flex-col gap-8 min-w-0">
             <BlogMeta data={data} />
             {/* PostHog promotes `data-ph-capture-attribute-*` from any ancestor of a
                 clicked element onto the $autocapture event, so this one attribute
@@ -59,7 +59,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
                 MDX components map. */}
             <article
               data-ph-capture-attribute-link_surface="blog_article"
-              className="blog-article typeset typeset-docs z-30 w-full font-sans-landing font-[460] [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0"
+              className="blog-article typeset typeset-docs z-30 w-full font-sans-landing font-[460] [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0 [&_:is(h1,h2,h3,h4)]:scroll-mt-24"
             >
               {children}
             </article>
