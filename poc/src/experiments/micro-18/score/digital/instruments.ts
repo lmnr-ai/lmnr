@@ -64,6 +64,8 @@ export function blip(mix: Mix, time: number, midi: number, velocity: number, rou
 
 /** Exponential pitch sweep between two notes on a triangle-ish sine: failures fall, sends rise. */
 export function zap(mix: Mix, time: number, fromMidi: number, toMidi: number, duration: number, velocity: number, route: Route) {
+  // A retime can collapse the cue span; progress divides by it.
+  if (!(duration > 0)) return;
   const out = buffer(duration), osc = new Sine();
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000, progress = t / duration;
@@ -105,6 +107,7 @@ export function click(mix: Mix, time: number, velocity: number, route: Route) {
 
 /** Rising filtered-noise sweep with a tone underneath, cut dead at `end` (never faded) so the next hit lands on silence. */
 export function riser(mix: Mix, start: number, end: number, fromMidi: number, toMidi: number, level: number, route: Route) {
+  if (!(end > start)) return;
   const duration = end - start, out = buffer(duration), filter = new Svf(), tone = new Saw(mix.random()), soften = new Svf();
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000, progress = t / duration, hz = mtof(fromMidi + (toMidi - fromMidi) * progress);

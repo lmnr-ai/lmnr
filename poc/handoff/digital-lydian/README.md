@@ -6,7 +6,7 @@ the narration, the settings and the animation are unchanged: nothing in `public/
 default mix is untouched.
 
 - A (current): `lam-2305/ultimate3-tighter-cadence-arabesque-voiceover.mp4`
-- B (candidate): `lam-2315/ultimate3-digital-lydian-voiceover.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only.mp4` with the bed alone
+- B (candidate): `lam-2315/ultimate3-digital-lydian-voiceover-v2.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v2.mp4` with the bed alone
 
 ## What makes the reference
 
@@ -68,7 +68,7 @@ so the A/B below compares like with like.
 | | A: arabesque (piano) | B: digital-lydian |
 |---|---|---|
 | Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP (-0.8 dBFS after AAC) |
-| Score master | | -14.0 LUFS, -1.2 dBTP, 2.2 dB peak limiting |
+| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB peak limiting |
 | Voice over bed, 300 Hz–4 kHz, median across phrases | +2.3 dB | +9.2 dB |
 | Voice over bed, broadband, median | +5.3 dB | +2.3 dB (the sub) |
 | faster-whisper `small.en` script recovery | 139/148 words | 142/148 words |

@@ -63,7 +63,8 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
       const next = Math.min(grid(to), grid((step + 1) / 4));
       if (s === 0 || s === 7 || s === 10) sub808(mix, t, voiced.bass + (s === 10 ? 12 : 0), s === 0 ? Q * 1.7 : Q * .8, (s === 0 ? .95 : .75) * level, SUB, {drop: s === 0 ? 26 : 19});
       if (options.clap !== false && s === 8) clap(mix, t, .8 * level, {...KIT, pan: .05});
-      const roll = (bar % 2 === 1) && s >= 12 && density > .5;
+      // Cost runs at negative beats (before the drop), where `bar % 2` is -1: test the low bit instead.
+      const roll = (bar & 1) === 1 && s >= 12 && density > .5;
       if (roll) [0, .05].forEach(offset => hat(mix, t + offset, (.38 + .1 * (s - 12)) * level, {...KIT, pan: .2}));
       else if (s % 2 === 0 || density > .5) hat(mix, t, (s % 2 ? .28 : .46) * level, {...KIT, pan: s % 4 === 2 ? .25 : -.15});
       // The stabs chop the chord into gated 16ths on the syncopations; the rest of the bar is silence around the 808.
