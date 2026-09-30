@@ -101,8 +101,9 @@ export function composePrimaveraDawn(mix: Mix, cues: ScoreCues) {
   bowed(mix, suspend - .3, reveal + .05, 40, DRONE, {section: 'celli', dynamics: [.18, .45], attack: 1, release: .06, level: .7, bright: .4});
   for (const {time, index} of grid.steps(suspend, reveal - .1, 2)) pizz(mix, time, Math.round(index * 2) % 2 ? 71 : 64, .14 + .14 * (time - suspend) / (reveal - suspend), {...DROP, pan: Math.round(index * 2) % 2 ? .3 : -.3}, {length: .4});
   roll(mix, reveal - BEAT * 1.5, reveal - .04, 40, [.02, .09], DRUM);
+  // The pickup waits for the voice to clear; a phrase running into the reveal leaves no room, so there is no run.
   const voiceOut = Math.max(reveal - BEAT * 1.2, ...cues.voice.filter(s => s.at < reveal).map(s => s.at + s.duration + .05));
-  run(mix, voiceOut, reveal - .02, 71, 80, A_MAJOR, [.3, .5], THEME, {curve: 1.2, level: .5});
+  if (voiceOut < reveal - .15) run(mix, voiceOut, reveal - .02, 71, 80, A_MAJOR, [.3, .5], THEME, {curve: 1.2, level: .5});
 
   // ------------------------------------------------ The answer: the section re-voices every chord, no pedal.
   const finale = (time: number) => time >= conclusion.start - .01;
