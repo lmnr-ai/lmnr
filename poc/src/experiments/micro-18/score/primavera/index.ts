@@ -2,7 +2,7 @@ import type {ScoreStyle} from '../style';
 import {composePrimavera} from './composition';
 import {designPrimavera, primaveraDucks} from './design';
 import {composePrimaveraAmbient, designPrimaveraAmbient} from './ambient';
-import {composePrimaveraDawn, dawnPlan} from './dawn';
+import {composePrimaveraDawn, designPrimaveraDawn} from './dawn';
 
 export const primavera: ScoreStyle = {
   id: 'primavera',
@@ -45,7 +45,7 @@ export const primaveraDawn: ScoreStyle = {
   strings: true,
   ducks: primaveraDucks,
   compose: composePrimaveraDawn,
-  design: (mix, cues) => designPrimaveraAmbient(mix, cues, dawnPlan(cues)),
+  design: designPrimaveraDawn,
   space: primaveraAmbient.space,
   eq: {highpass: 34, lowShelf: [90, .5], highShelf: [7000, -1.5]},
 };

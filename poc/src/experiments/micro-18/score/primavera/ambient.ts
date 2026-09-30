@@ -102,14 +102,18 @@ export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[],
   });
 }
 
-/** The picture gets only a few soft plucks; the voice and the bed carry it. */
-export function designPrimaveraAmbient(mix: Mix, cues: ScoreCues, plan = ambientPlan(cues)) {
-  const {ultimate2: u2, cost, flow, issues} = cues;
+/** Soft in-key plucks for the picture: single notes, warning dyads and three-note lifts on camera moves. */
+export function foleyKit(mix: Mix, plan: readonly Chord[]) {
   const tone = (time: number, index: number, floor: number) => toneOf(chordAt(plan, time), index, floor);
   const pluck = (time: number, index: number, velocity: number, pan = 0, floor = 71) => pizz(mix, time, tone(time, index, floor), velocity, {...FX, pan}, {length: .7});
   const dyad = (time: number, velocity = .25, pan = 0) => { pluck(time, 0, velocity, pan, 64); pluck(time + .02, 2, velocity * .8, pan + .1, 76); };
   const lift = (span: {at: number; duration: number}, up: boolean, velocity = .18) => [0, 1, 2].forEach(k => pluck(span.at + Math.max(.3, span.duration) * (.4 + k * .2), up ? k + 1 : 3 - k, velocity, up ? -.3 + k * .3 : .3 - k * .3, 76));
+  return {tone, pluck, dyad, lift};
+}
 
+/** The foley for the problem half (Ultimate2 and cost). */
+export function problemFoley(mix: Mix, cues: ScoreCues, plan: readonly Chord[]) {
+  const {ultimate2: u2, cost} = cues, {pluck, dyad, lift} = foleyKit(mix, plan);
   u2.blocks.forEach((block, i) => { if (i % 2 === 0) pluck(block.at, i % 5, .16, i % 4 ? .3 : -.3, 76); });
   dyad(u2.failure, .22);
   lift(u2.backtrack, false);
@@ -122,6 +126,12 @@ export function designPrimaveraAmbient(mix: Mix, cues: ScoreCues, plan = ambient
   for (let i = 0; i < 4; i++) pluck(cost.bashDescent.at + i * cost.bashDescent.duration * .85 / 4, 3 - i, .15, (i - 1.5) * .2);
   dyad(cost.bashWarning, .22, .2);
   for (let t = cost.budgetRun.at, i = 0; t < cost.depletion.at; t += .2, i++) pluck(t, Math.max(0, 4 - i), .13, .3);
+}
+
+/** The picture gets only a few soft plucks; the voice and the bed carry it. */
+export function designPrimaveraAmbient(mix: Mix, cues: ScoreCues) {
+  const plan = ambientPlan(cues), {flow, issues} = cues, {tone, pluck, dyad, lift} = foleyKit(mix, plan);
+  problemFoley(mix, cues, plan);
 
   lift(flow.cameraZoom, true);
   flow.numberDrops.forEach((time, i) => { if (i % 2 === 0) pluck(time, 4 - i, .16, -.4 + i * .2, 76); });
@@ -139,4 +149,3 @@ export function designPrimaveraAmbient(mix: Mix, cues: ScoreCues, plan = ambient
   dyad(issues.queryBadge, .16, .3);
   lift(issues.windowUp, true);
 }
-

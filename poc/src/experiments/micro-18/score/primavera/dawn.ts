@@ -1,67 +1,92 @@
 import type {ScoreCues} from '../cues';
-import {chordAt, pulse, speaking, toneOf, type Chord} from '../rounded';
+import {chordAt, pulse, radialPops, speaking, toneOf, type Chord} from '../rounded';
 import {bowed, pizz, timpani, type Mix, type Route} from '../voices';
 import {humanize} from '../writing';
-import {note, roll, run} from '../tempesta/instruments';
+import {roll, run} from '../tempesta/instruments';
 import {A_MAJOR} from './composition';
-import {ambientLayers, ambientPlan, DROP} from './ambient';
+import {ambientLayers, ambientPlan, DROP, foleyKit, problemFoley} from './ambient';
 
 /*
  * Primavera dawn — the ambient spring bed for the problem, then daylight for the answer. Up to the
  * budget running out it is primavera-ambient: soft add9 chords, drones and droplets, bright but
  * unresolved. Under "Until now." the strings swell on an E sus4 dominant over a timpani roll, the
- * suspension falls to E7, and "Introducing Flow-1" lands on a full A major tutti. From there the
- * harmony only moves through consonant diatonic chords (I–V6–vi–IV…), celli pulse in eighths, and
- * a slow singing line rises across the announcement. Every section boundary (the cover shutting,
- * "It clusters issues", the logo) resolves V–I onto A.
+ * suspension falls to E7, and "Introducing Flow-1" lands on A major. From there nothing is held
+ * still: every voicing moves, there is no pedal, no high shimmer and no pizzicato clock, and a
+ * violin theme climbs the A major scale one bar at a time. Each chapter plays a little fuller, and
+ * the grid zoom-out completes the theme over IV–I–ii7–V7 into a wide A major on the logo.
  */
 
-const BEAT = 60 / 120, BAR = BEAT * 4, S8 = BEAT / 2;
+// The zoom-out plays on the loud layer for its warmth, so its levels come down to keep it ~3 dB over Flow-1.
+const BEAT = 60 / 120, BAR = BEAT * 4, FINALE = .5;
 const PAD: Route = {bus: 'music', hall: .55, room: .04, pan: -.2};
 const DRONE: Route = {bus: 'music', hall: .5, room: .05, pan: .25};
-const PULSE: Route = {bus: 'music', hall: .35, room: .08, pan: .3};
-const AIR: Route = {bus: 'music', hall: .7, room: .02, pan: .35};
-const THEME: Route = {bus: 'music', hall: .55, room: .05, pan: .1};
+const THEME: Route = {bus: 'music', hall: .55, room: .05, pan: .15};
+const SECONDS: Route = {bus: 'music', hall: .55, room: .05, pan: -.3};
 const DRUM: Route = {bus: 'music', gain: .7, hall: .5, room: .08};
 
 type Voicing = Omit<Chord, 'at'>;
 const v = (bass: number, ...pad: number[]): Voicing => ({bass, pad});
-const ESUS = v(40, 59, 64, 69, 71), E7 = v(40, 59, 62, 64, 68), E = v(40, 59, 64, 68, 71);
-const A = v(33, 57, 61, 64, 69), ACS = v(37, 57, 61, 64, 69), EGS = v(44, 59, 64, 68, 71);
-const FSM7 = v(42, 57, 61, 64, 69), D = v(38, 57, 62, 66, 69), BM7 = v(35, 57, 62, 66, 69);
+// The dominant under "Until now."
+const ESUS = v(40, 59, 64, 69, 71), E7 = v(40, 59, 62, 64, 68);
+// The answer: the bass is the exact celli pitch, and no two neighbouring chords share a pad.
+const A = v(45, 57, 64, 69, 73), ACS = v(49, 57, 64, 69, 73), EGS = v(44, 59, 64, 68, 71), E = v(40, 56, 59, 64, 68);
+const FSM7 = v(42, 57, 61, 66, 69), D = v(38, 54, 62, 66, 74), BM7 = v(47, 59, 62, 66, 71);
+// The finale: wide, with celli in octaves.
+const D_WIDE = v(38, 54, 57, 62, 66, 69, 74), A_WIDE = v(45, 57, 61, 64, 69, 73, 76), BM7_WIDE = v(47, 57, 62, 66, 71, 74);
+const E7_WIDE = v(40, 56, 59, 62, 64, 68, 71), A_FINAL = v(45, 57, 61, 64, 69, 73, 76, 81);
+
+/** The timeline of the answer: where each chapter's chords fall. */
+function sections(cues: ScoreCues) {
+  const {flow, issues, conclusion} = cues, bars = pulse(flow.reveal, BAR);
+  return {
+    flow: bars.steps(flow.reveal, flow.coverShut - BEAT).map(s => s.time),
+    issues: bars.steps(flow.coverShut + BEAT * 2, issues.native - BAR * .5 - BEAT).map(s => s.time),
+    clusters: bars.steps(issues.native + BEAT, conclusion.start - BEAT).map(s => s.time),
+    finale: [conclusion.start, conclusion.logo - BAR * 1.5, conclusion.logo - BAR, conclusion.logo - BAR * .5],
+  };
+}
 
 /** The ambient plan until the budget runs out, then the dominant and A major's diatonic walk. */
 export function dawnPlan(cues: ScoreCues): Chord[] {
-  const {cost, flow, issues, conclusion} = cues, reveal = flow.reveal, logo = conclusion.logo;
-  const bars = pulse(reveal, BAR);
-  const c = (at: number, voicing: Voicing): Chord => ({at, ...voicing});
-  const walk = (from: number, to: number, cycle: readonly Voicing[]) =>
-    bars.steps(from, to - BEAT).map((s, i) => c(s.time, cycle[i % cycle.length]));
+  const {cost, flow, issues, conclusion} = cues, reveal = flow.reveal, at = sections(cues);
+  const c = (time: number, voicing: Voicing): Chord => ({at: time, ...voicing});
+  const walk = (times: number[], cycle: readonly Voicing[]) => times.map((time, i) => c(time, cycle[i % cycle.length]));
   return [
     ...ambientPlan(cues).filter(chord => chord.at < cost.depletion.at + .01),
     c(reveal - BAR * .75, ESUS), c(reveal - BEAT * .75, E7),
     // Flow-1: I V6 vi IV I ii7 V, and the cover shuts on the tonic.
-    ...walk(reveal, flow.coverShut, [A, EGS, FSM7, D, A, BM7, E]), c(flow.coverShut, A),
-    // Signals and Issues open on IV, wander through vi and ii, and cadence onto "It clusters issues".
-    ...walk(flow.coverShut + BEAT * 2, issues.native - BAR * .5, [D, ACS, BM7, A, FSM7, D]), c(issues.native - BAR * .5, E), c(issues.native, A),
-    ...walk(issues.native + BEAT, conclusion.start, [EGS, FSM7, ACS]),
-    // The conclusion: IV, vi7, ii7, the suspension once more, and it resolves on the logo.
-    c(conclusion.start, D), c(logo - BAR * 1.5, FSM7), c(logo - BAR, BM7), c(logo - BAR * .5, ESUS), c(logo - BEAT * .75, E), c(logo, A),
+    ...walk(at.flow, [A, EGS, FSM7, D, A, BM7, E]), c(flow.coverShut, A),
+    // Signals and Issues: the bass walks down D C♯ B G♯ A, then IV–V–I onto "It clusters issues".
+    ...walk(at.issues, [D, ACS, BM7, EGS, A, D]), c(issues.native - BAR * .5, E), c(issues.native, A),
+    ...walk(at.clusters, [EGS, FSM7, ACS]),
+    // The grid zoom-out: IV I ii7 V7, and a perfect cadence on the logo.
+    ...walk(at.finale, [D_WIDE, A_WIDE, BM7_WIDE, E7_WIDE]), c(conclusion.logo, A_FINAL),
   ].sort((a, b) => a.at - b.at);
 }
 
-/** The singing line's register over time: it climbs across each section and peaks at the resolutions. */
-function themeTarget(cues: ScoreCues, time: number) {
-  const {flow, issues, conclusion} = cues;
-  const points: [number, number][] = [
-    [flow.reveal, 81], [flow.reveal + BAR * 2, 76], [flow.coverShut - BAR, 80], [flow.coverShut, 81],
-    [issues.leadIn.at + BAR, 78], [issues.prelude.zoomOut.at, 74], [issues.native - BAR * .5, 80], [issues.native, 81],
-    [conclusion.start, 83], [conclusion.logo - BAR, 80], [conclusion.logo, 81],
+/** The theme as [time, midi]: a scale climbing to A5, a head motif, and the head again on the zoom-out. */
+function theme(cues: ScoreCues): [number, number][] {
+  const {flow, issues, conclusion} = cues, native = issues.native, logo = conclusion.logo, at = sections(cues);
+  const on = (times: number[], notes: number[]) => notes.map((midi, i): [number, number] => [times[i], midi]);
+  const notes: [number, number][] = [
+    ...on(at.flow, [73, 71, 73, 74, 76, 78, 80]), [flow.coverShut, 81],
+    ...on(at.issues, [78, 76, 78, 80, 81]),
+    [native - BAR, 78], [native - BAR + .75, 81], [native - BEAT * 2, 83],
+    [native, 85], ...on(at.clusters, [83, 81, 76]),
+    ...on(at.finale, [78, 81, 83, 86]), [logo, 85],
   ];
-  const i = points.findIndex(([at]) => at > time);
-  if (i <= 0) return points[i === 0 ? 0 : points.length - 1][1];
-  const [[t0, m0], [t1, m1]] = [points[i - 1], points[i]];
-  return m0 + (m1 - m0) * (time - t0) / (t1 - t0);
+  return notes.filter(([time]) => time !== undefined).sort((a, b) => a[0] - b[0]);
+}
+
+/** The dynamics per chapter: each one a little fuller, the zoom-out swelling into the logo. */
+function arc(cues: ScoreCues, time: number) {
+  const {issues, conclusion} = cues, logo = conclusion.logo;
+  if (time < issues.leadIn.at) return {pad: .35, celli: .35, speech: .32, gap: .38};
+  if (time < issues.native) return {pad: .37, celli: .37, speech: .34, gap: .4};
+  if (time < conclusion.start - .01) return {pad: .4, celli: .4, speech: .38, gap: .44};
+  const p = Math.min(1, (time - conclusion.start) / (logo - conclusion.start));
+  if (time < logo - .01) return {pad: .45 + .17 * p, celli: .5 + .15 * p, speech: .5 + .12 * p, gap: .5 + .12 * p};
+  return {pad: .62, celli: .65, speech: .62, gap: .62};
 }
 
 export function composePrimaveraDawn(mix: Mix, cues: ScoreCues) {
@@ -79,46 +104,65 @@ export function composePrimaveraDawn(mix: Mix, cues: ScoreCues) {
   const voiceOut = Math.max(reveal - BEAT * 1.2, ...cues.voice.filter(s => s.at < reveal).map(s => s.at + s.duration + .05));
   run(mix, voiceOut, reveal - .02, 71, 80, A_MAJOR, [.3, .5], THEME, {curve: 1.2, level: .5});
 
-  // ------------------------------------------------ The answer: every chord from the reveal to the end.
-  const tutti = (time: number) => Math.abs(time - reveal) < .01 || Math.abs(time - logo) < .01;
+  // ------------------------------------------------ The answer: the section re-voices every chord, no pedal.
+  const finale = (time: number) => time >= conclusion.start - .01;
   plan.forEach((chord, i) => {
     if (chord.at < reveal - .01) return;
-    const next = plan[i + 1]?.at ?? end, from = chord.at, to = Math.min(end - .2, next + .25), last = !plan[i + 1];
-    const bloom = tutti(from), dyn: [number, number] = bloom ? [.45, .3] : [.3, .28];
-    chord.pad.forEach((midi, k) => bowed(mix, from, to, midi, {...PAD, pan: -.5 + k * .33}, {section: 'violins', dynamics: dyn, attack: bloom ? .05 : .3, release: last ? 2.2 : .9, level: .42, bright: .45, offset: .08 * k}));
-    const root = chord.bass < 36 ? chord.bass + 12 : chord.bass;
-    bowed(mix, from, to, root, DRONE, {section: 'celli', dynamics: bloom ? [.42, .3] : [.3, .26], attack: bloom ? .04 : .3, release: last ? 2.2 : .9, level: .65, bright: .35});
-    bowed(mix, from + (bloom ? 0 : .4), to, toneOf(chord, 1, 83), AIR, {dynamics: bloom ? [.3, .16] : [.15, .16], attack: bloom ? .3 : 1.2, release: 1.2, level: .3, bright: .35});
+    const from = chord.at, next = plan[i + 1]?.at ?? end, last = !plan[i + 1], to = last ? end - .2 : next + .2;
+    const bloom = Math.abs(from - reveal) < .01;
+    const dyn: [number, number] = bloom ? [.45, .32] : last ? [.62, .42] : [arc(cues, from).pad, arc(cues, next - .02).pad];
+    chord.pad.forEach((midi, k) => bowed(mix, from, to, midi, {...PAD, pan: -.5 + k * (1 / Math.max(1, chord.pad.length - 1))}, {section: 'violins', dynamics: dyn, attack: bloom ? .05 : .25, release: last ? 2.2 : .6, level: finale(from) ? .42 * FINALE : .42, bright: .45, offset: .08 * k}));
+    // Celli hold the root through Flow-1 and in octaves on the zoom-out; Issues gets a walking line instead.
+    if (from < issues.leadIn.at || finale(from)) {
+      const celli: [number, number] = bloom ? [.45, .32] : last ? [.65, .42] : [arc(cues, from).celli, arc(cues, next - .02).celli];
+      for (const midi of finale(from) ? [chord.bass, chord.bass + 12] : [chord.bass])
+        bowed(mix, from, to, midi, DRONE, {section: 'celli', dynamics: celli, attack: bloom ? .04 : .25, release: last ? 2.2 : .6, level: finale(from) ? .6 * FINALE : .6, bright: .4});
+    }
   });
-  for (const time of [reveal, flow.coverShut, issues.native, logo]) {
-    const {bass} = chordAt(plan, time + .001), size = time === reveal || time === logo ? 1 : .7;
-    timpani(mix, time, bass < 36 ? bass + 12 : bass, .22 * size, DRUM, {decay: 1.6});
-    [0, 1, 2, 3, 4, 5].forEach(k => pizz(mix, time + k * .07, toneOf(chordAt(plan, time + .001), k, 64 + 5 * (time === logo ? 1 : 0)), .2 * size, {...DROP, pan: -.4 + k * .16}, {length: 1}));
-  }
 
-  // The heartbeat: celli eighths on the root and off-beat pizzicato, forward but never busy.
-  for (const {time, index} of grid.steps(reveal, logo, 2)) {
-    const chord = chordAt(plan, time + .001), e = ((Math.round(index * 2) % 8) + 8) % 8;
-    const lift = time >= issues.native ? 1 : time >= flow.coverShut && time < issues.native - BAR ? .8 : .9;
-    const pitch = chord.bass < 36 ? chord.bass + 24 : chord.bass + 12;
-    const [at, velocity] = humanize(mix, time, (e % 2 ? .24 : .32) * lift);
-    note(mix, at, pitch, S8 * .75, velocity, PULSE, {section: 'celli', level: .5, bright: .45});
-    if (e % 2 === 1) pizz(mix, at, toneOf(chord, [2, 3, 4, 3][e >> 1], 64), .24 * lift, {...DROP, pan: -.35 + .15 * (e >> 1)}, {length: .5});
-  }
+  // Issues: celli half notes, root then fifth; the clusters: legato quarters, root, fifth, octave, fifth.
+  const line = (from: number, to: number, beats: number, shape: readonly number[]) => {
+    for (const {time, index} of grid.steps(from, to, 1 / beats)) {
+      const chord = chordAt(plan, time + .001), k = ((Math.round(index / beats) % shape.length) + shape.length) % shape.length;
+      const [at, dyn] = humanize(mix, time, arc(cues, time).celli);
+      bowed(mix, at, time + BEAT * beats + .05, chord.bass + shape[k], DRONE, {section: 'celli', dynamics: [dyn, dyn * .9], attack: .08, release: .25, level: .6, bright: .4, offset: .08});
+    }
+  };
+  line(issues.leadIn.at - .2, issues.native, 2, [0, 7]);
+  line(issues.native, conclusion.start - .01, 1, [0, 7, 12, 7]);
 
-  // The theme: the chord tone nearest a slowly climbing target, every half bar, held while it repeats.
-  const line: {at: number; midi: number}[] = [];
-  for (const {time} of grid.steps(reveal, logo + .01, 2)) {
-    const chord = chordAt(plan, time + .001), target = themeTarget(cues, time), prev = line.at(-1)?.midi;
-    let best = toneOf(chord, 0, 64);
-    for (let midi = 64; midi <= 90; midi++) if (toneOf(chord, 0, midi) === midi && Math.abs(midi - target) < Math.abs(best - target)) best = midi;
-    const keep = prev !== undefined && toneOf(chord, 0, prev) === prev && Math.abs(prev - target) <= 2;
-    const midi = keep ? prev : best;
-    if (midi !== prev) line.push({at: time, midi});
-  }
-  line.forEach(({at, midi}, i) => {
-    const until = i + 1 < line.length ? line[i + 1].at + .06 : end - .4, final = i === line.length - 1;
-    const soft = speaking(cues, at + .2, .1);
-    bowed(mix, at, until, midi, THEME, {dynamics: [soft ? .24 : .34, final ? .18 : soft ? .22 : .28], attack: .18, release: final ? 2 : .3, level: .45, bright: .4});
+  // Soft timpani only where the harmony lands: the cover, "It clusters issues", the zoom-out and the logo.
+  timpani(mix, reveal, 45, .16, DRUM, {decay: 1.6});
+  timpani(mix, flow.coverShut, 45, .15, DRUM, {decay: 1.6});
+  timpani(mix, issues.native, 45, .15, DRUM, {decay: 1.6});
+  timpani(mix, conclusion.start, 38, .1, DRUM, {decay: 1.8});
+  roll(mix, logo - BAR * .5, logo - .03, 40, [.02, .07], DRUM);
+  timpani(mix, logo, 45, .24, DRUM, {decay: 2.2});
+  for (const time of [reveal, logo]) [0, 1, 2, 3, 4, 5].forEach(k => pizz(mix, time + k * .07, toneOf(chordAt(plan, time + .001), k, time === logo ? 69 : 64), .18, {...DROP, pan: -.4 + k * .16}, {length: 1}));
+
+  // The theme: the violin section, swelling in under speech and speaking in the gaps.
+  const notes = theme(cues);
+  notes.forEach(([at, midi], i) => {
+    const final = i === notes.length - 1, until = final ? end - .3 : notes[i + 1][0] + .06;
+    const soft = speaking(cues, at + .2, .1), {speech, gap} = arc(cues, at);
+    const level = soft ? speech : gap, fall: number = final ? .42 : level * .92;
+    bowed(mix, at, until, midi, THEME, {section: 'violins', dynamics: [level, fall], attack: soft ? .4 : .15, release: final ? 2.2 : .3, level: finale(at) ? .45 * FINALE : .45, bright: .42});
+    // On the zoom-out the seconds double the theme an octave below.
+    if (finale(at)) bowed(mix, at, until, midi - 12, SECONDS, {section: 'violins', dynamics: [level * .9, fall * .9], attack: soft ? .4 : .15, release: final ? 2.2 : .3, level: .38 * FINALE, bright: .4});
   });
+  // After "with Laminar." the firsts open up to E6 over the held C♯6.
+  const lastWord = cues.voice.at(-1), lift = lastWord ? lastWord.at + lastWord.duration + .07 : logo + 1.1;
+  if (lift < end - 1) bowed(mix, lift, end - .2, 88, THEME, {section: 'violins', dynamics: [.3, .42], attack: .8, release: 2.2, level: .4 * FINALE, bright: .42});
+}
+
+/** The problem half's foley as in primavera-ambient; after the reveal only rising, sparse gestures remain. */
+export function designPrimaveraDawn(mix: Mix, cues: ScoreCues) {
+  const plan = dawnPlan(cues), {flow, issues} = cues, {tone, pluck, lift} = foleyKit(mix, plan);
+  problemFoley(mix, cues, plan);
+  lift(flow.cameraZoom, true);
+  lift(flow.cameraToEngine, true);
+  radialPops(cues).forEach((pop, i) => { if (i % 6 === 0) pizz(mix, pop.at, tone(pop.at, Math.round(pop.height * 6), 76), .06, {...DROP, bus: 'sfx', pan: pop.pan}, {length: .5}); });
+  lift(issues.travel, true);
+  pluck(issues.issueBadge, 2, .14, .3, 76);
+  pluck(issues.queryBadge, 3, .14, .3, 76);
 }
