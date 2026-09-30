@@ -49,7 +49,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
           {data.tags?.[0] ? ` · ${data.tags[0]}` : ""}
         </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-9 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">
           <div className="flex flex-col gap-8 min-w-0">
             <BlogMeta data={data} />
             {/* PostHog promotes `data-ph-capture-attribute-*` from any ancestor of a
