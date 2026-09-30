@@ -36,10 +36,11 @@ test('current Cost-to-Flow bridge holds horizontal viewport center while descend
   close(cameraAt(end, s).scale, 1);
 });
 
-test('layout shifts three whole cells; settled Flow framing and downstream grid alignment stay intact', () => {
+// The quicker budget drain stops Cost's camera sooner along the run, so Flow snaps six cells over.
+test('layout shifts six whole cells; settled Flow framing and downstream grid alignment stay intact', () => {
   const flow = sampleFlow(VOICEOVER_DEFAULTS.allocations.flow, VOICEOVER_DEFAULTS);
   const layout = flow.worldLayout!;
-  assert.equal(layout.placement.x, FLOW_PLACEMENT.x - 3 * CANONICAL_GRID.pitch);
+  assert.equal(layout.placement.x, FLOW_PLACEMENT.x - 6 * CANONICAL_GRID.pitch);
   assert.equal(layout.placement.y, FLOW_PLACEMENT.y);
   close(layout.placement.x % CANONICAL_GRID.pitch, 0);
   const state = flow2WorldState(flow.playback21!);
@@ -50,7 +51,7 @@ test('layout shifts three whole cells; settled Flow framing and downstream grid 
     const b = projectWorldPoint({x: p.x + layout.placement.x, y: p.y + layout.placement.y}, after);
     close(a.x, b.x); close(a.y, b.y);
   }
-  close(issueSurfacePlacement(after).x, issueSurfacePlacement(before).x - 300);
+  close(issueSurfacePlacement(after).x, issueSurfacePlacement(before).x - 600);
   close(issueSurfacePlacement(after).y, issueSurfacePlacement(before).y);
 });
 
@@ -84,7 +85,7 @@ test('actual scene uses the aligned camera, content placement and world-attached
     const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(start + local, s), settings: s}));
     const expected = cameraAt(local, s);
     for (const key of ['x', 'y', 'scale'] as const) close(Number(html.match(new RegExp(`data-camera-${key}="([^"]+)"`))![1]), expected[key]);
-    assert.match(html, /data-world-x="900" data-world-y="4800"/);
+    assert.match(html, /data-world-x="600" data-world-y="4800"/);
     assert.equal((html.match(/class="micro09-clouds"/g) ?? []).length, 1);
   }
 });
