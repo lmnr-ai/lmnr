@@ -34,7 +34,7 @@ export function composePrimaveraSun(mix: Mix, cues: ScoreCues) {
   /** The 3+3+2 cell over each chord's root; `fifths` swaps the listed cell positions for the fifth. */
   const cell = (from: number, to: number, length: number, velocity: (time: number) => [number, number], {fifths = [] as number[], sparse = 0} = {}) => {
     for (const {time, index} of eighths.steps(from, to)) {
-      const k = ((Math.round(index * 2) % 8) + 8) % 8, accent = ACCENTS.has(k);
+      const k = ((Math.round(index) % 8) + 8) % 8, accent = ACCENTS.has(k);
       if (time < sparse && !accent) continue;
       const bass = chordAt(plan, time + .001).bass, root = bass < 40 ? bass + 12 : bass;
       const midi = fifths.includes(k) ? root + 7 : [0, 3, 6].includes(k) ? root : root + 12;
@@ -53,7 +53,7 @@ export function composePrimaveraSun(mix: Mix, cues: ScoreCues) {
   // "Until now.": straight eighths on the E pedal, swelling, cut dead with the E7.
   for (const {time, index} of eighths.steps(suspend, reveal - BEAT * .75)) {
     const p = (time - suspend) / (reveal - BEAT * .75 - suspend);
-    play(time, Math.round(index * 2) % 2 ? 52 : 40, .2, .28 + .17 * p, Math.round(index * 2) % 2 ? .15 : -.15);
+    play(time, Math.round(index) % 2 ? 52 : 40, .2, .28 + .17 * p, Math.round(index) % 2 ? .15 : -.15);
   }
 
   // The answer: a bar's rest for "Introducing Flow-1", then the cell with the fifth, growing each chapter.
