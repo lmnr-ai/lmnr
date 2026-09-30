@@ -118,6 +118,14 @@ The agent window types on a modelled keyboard from `keyboards.ts`: `thock` (a lu
 - `voices.ts` contains the synth/sample voices and the `Mix` buses and sends. `dsp.ts` provides the filters, FDN reverb, ping-pong delay, look-around limiter, BS.1770 loudness and master EQ.
 - `render.ts` sums the dry buses and returns, applies the master EQ, normalises, limits, and adds the final fade.
 
+### `digital-lydian` — 808 trap, D Lydian (LAM-2315)
+
+After the digital reference in `handoff/sound-design-digital-inspo/`; analysis and A/B are in `handoff/digital-lydian/README.md`. Everything is synthesized in `digital/instruments.ts`, near mono and dry, with no fades: sounds are switched on and off (2 ms on, 4 ms off) and silence is the punctuation.
+
+- **Palette:** a driven, pitch-dropping 808 carrying most of the energy, gated detuned-saw chord blocks with a buzzing root, square data blips, pitch zaps, 16th hats with 32nd rolls, and a tight clap.
+- **Arc:** stop-start blocks until the failure, which cuts to dead air. The Cost section is a dense half-time trap at 150 BPM that stutters on the miss and tape-stops through the depletion. "Until now" is a held sub, then 100 ms of silence before the Flow-1 drop. From there the groove runs (I – II – iii – V), the Signals door cuts it, blocks and blips return for the report prelude, the groove comes back on the issue grid, and the logo lands on a final Dmaj7♯11. Typing and window foley are data blips, clicks and zaps, never keyboard thocks.
+- The voice sits over the sub, not in it: the style puts ~84 % of its energy under 120 Hz and ~7 % in 250 Hz–4 kHz.
+
 The preserved original at `?experiment=micro-18&cut=original` uses an **Arabesque Acoustic typing-free bed + one live thock scheduler**, not the earlier full Web Audio effects engine. `pnpm ultimate3:score --style arabesque-acoustic --split-arabesque --tuning src/experiments/micro-18/score/arabesque/softness-8-tuning.json --out <new-path>.wav` writes that bed, a split-playback parity export, and frozen provenance. See `../AUDIO_EXPORT.md` for the exact gain/control contract and static-bed retiming limitation. Ordinary score renders bake shared thock PCM through their score buses; split playback keeps the keyboard dry and outside bed mastering. The `keyClick` API/tuner identifier remains for compatibility, but its old bright bandpass recipe is gone. No original WAV or frozen export is overwritten.
 
 ## Credits
