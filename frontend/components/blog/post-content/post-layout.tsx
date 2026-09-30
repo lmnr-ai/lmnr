@@ -25,7 +25,7 @@ interface Props {
 
 // Two-column post layout: title spans the full container width on top; below,
 // the article fills a 1fr left column (with metadata inline above the hero)
-// and the 200px sticky sidebar (CTA + TOC only) sits on the right. Below `lg`
+// and the 220px sticky sidebar (CTA + TOC only) sits on the right. Below `lg`
 // the sidebar drops; the inline metadata stays since it lives in the article
 // column, not in the sidebar.
 export default function PostLayout({ data, backHref, tocItems, children }: Props) {
@@ -49,7 +49,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
           {data.tags?.[0] ? ` · ${data.tags[0]}` : ""}
         </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_200px] gap-8 lg:gap-9 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-9 mt-6">
           <div className="flex flex-col gap-8 min-w-0">
             <BlogMeta data={data} />
             {/* PostHog promotes `data-ph-capture-attribute-*` from any ancestor of a
