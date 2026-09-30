@@ -2,6 +2,7 @@ import type {ScoreStyle} from '../style';
 import {composePrimavera} from './composition';
 import {designPrimavera, primaveraDucks} from './design';
 import {composePrimaveraAmbient, designPrimaveraAmbient} from './ambient';
+import {composePrimaveraDawn, dawnPlan} from './dawn';
 
 export const primavera: ScoreStyle = {
   id: 'primavera',
@@ -35,4 +36,16 @@ export const primaveraAmbient: ScoreStyle = {
     returns: [1.25, .6, 0],
   },
   eq: {highpass: 34, lowShelf: [90, 0], highShelf: [7000, -1.5]},
+};
+
+/** Primavera ambient's tense first half, then an A major resolution that carries the announcement (round 6). */
+export const primaveraDawn: ScoreStyle = {
+  id: 'primavera-dawn',
+  title: 'Primavera dawn',
+  strings: true,
+  ducks: primaveraDucks,
+  compose: composePrimaveraDawn,
+  design: (mix, cues) => designPrimaveraAmbient(mix, cues, dawnPlan(cues)),
+  space: primaveraAmbient.space,
+  eq: {highpass: 34, lowShelf: [90, .5], highShelf: [7000, -1.5]},
 };

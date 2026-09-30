@@ -20,13 +20,13 @@ import {windup} from './windup';
 import {bluenote} from './bluenote';
 import {overdrive} from './overdrive';
 import {tempesta} from './tempesta';
-import {primavera, primaveraAmbient} from './primavera';
+import {primavera, primaveraAmbient, primaveraDawn} from './primavera';
 import {Stereo, db, integratedLufs, limit, masterEq, pingPong, reverb, samples, seeded, toDb, truePeak} from './dsp';
 import {Mix, type PianoBank, type StringBanks} from './voices';
 import {normalizeEffectTuning, type EffectTuning} from './tuning';
 import type {Ultimate3Settings} from '../settings';
 
-export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock, tidepool, lumen, windup, bluenote, overdrive, tempesta, primavera, primaveraAmbient].map(style => [style.id, style]));
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock, tidepool, lumen, windup, bluenote, overdrive, tempesta, primavera, primaveraAmbient, primaveraDawn].map(style => [style.id, style]));
 
 export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean; tuning?: EffectTuning; typing?: boolean};
 export type ScoreReport = {

@@ -16,7 +16,7 @@ const DRONE: Route = {bus: 'music', hall: .55, room: .04, pan: .25};
 const AIR: Route = {bus: 'music', hall: .75, room: .02, pan: .35};
 const SOLO: Route = {bus: 'music', hall: .6, room: .05, pan: .12};
 // Plucks sit ~5 dB under the bowed bed: their transients, not the pads, would otherwise drive the limiter.
-const DROP: Route = {bus: 'music', gain: .55, hall: .6, room: .05};
+export const DROP: Route = {bus: 'music', gain: .55, hall: .6, room: .05};
 const FX: Route = {bus: 'sfx', gain: .55, room: .08, hall: .55};
 
 type Voicing = Omit<Chord, 'at'>;
@@ -49,11 +49,23 @@ export function ambientPlan(cues: ScoreCues): Chord[] {
 const hash = (n: number) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
-  const plan = ambientPlan(cues), {flow, conclusion} = cues, end = cues.duration;
+  const plan = ambientPlan(cues), {flow, conclusion} = cues;
+  ambientLayers(mix, cues, plan, cues.duration);
+
+  // "Until now.": a pizzicato arpeggio lifts into the A major bloom; the logo gets the same, higher.
+  const arpeggio = (time: number, floor: number) => [0, 1, 2, 3, 4, 5].forEach(k => pizz(mix, time - .45 + k * .09, toneOf(chordAt(plan, time + .001), k, floor), .28, {...DROP, pan: -.4 + k * .16}, {length: 1}));
+  arpeggio(flow.reveal, 64);
+  arpeggio(conclusion.logo, 69);
+}
+
+/** The bed, droplets and gap-answering solo over `plan`, for chords and gaps that start before `until`. */
+export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[], until: number) {
+  const {flow, conclusion} = cues, end = cues.duration;
   const grid = pulse(flow.reveal, BEAT);
 
   // The bed: every chord bowed softly from its start into the next, overlapping so the changes cross-fade.
   plan.forEach((chord, i) => {
+    if (chord.at >= until) return;
     const from = Math.max(0, chord.at - .4), to = Math.min(end - .2, (plan[i + 1]?.at ?? end) + .6);
     if (to - from < .3) return;
     const bloom = chord.at >= flow.reveal - .01 && chord.at < flow.reveal + .01 || chord.at >= conclusion.logo - .01;
@@ -65,7 +77,7 @@ export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
   });
 
   // Droplets: a sparse high pizzicato on about a third of the off-beats, a little thicker between phrases.
-  for (const {time, index} of grid.steps(.5, end - 1.5, 2)) {
+  for (const {time, index} of grid.steps(.5, Math.min(until, end - 1.5), 2)) {
     const chance = speaking(cues, time, .2) ? .2 : .45;
     if (hash(index) > chance) continue;
     const chord = chordAt(plan, time + .001), midi = toneOf(chord, Math.floor(hash(index + 17) * 5), 76);
@@ -79,7 +91,7 @@ export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
   if (spans.length) gaps.unshift([.4, spans[0].at - .15]);
   gaps.forEach(([from, to], g) => {
     const room = to - from;
-    if (room < .9) return;
+    if (room < .9 || to > until) return;
     const notes = Math.min(4, Math.max(2, Math.floor(room / .45))), gap = room / notes;
     const shape = [[0, 1, 2, 3], [2, 1, 2, 4], [1, 2, 3, 2]][g % 3];
     for (let k = 0; k < notes; k++) {
@@ -88,16 +100,11 @@ export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
       bowed(mix, at, at + (last ? gap + .6 : gap * .95), midi, SOLO, {dynamics: [.3, last ? .15 : .26], attack: .12, release: last ? 1.4 : .4, level: .45, bright: .4});
     }
   });
-
-  // "Until now.": a pizzicato arpeggio lifts into the A major bloom; the logo gets the same, higher.
-  const arpeggio = (time: number, floor: number) => [0, 1, 2, 3, 4, 5].forEach(k => pizz(mix, time - .45 + k * .09, toneOf(chordAt(plan, time + .001), k, floor), .28, {...DROP, pan: -.4 + k * .16}, {length: 1}));
-  arpeggio(flow.reveal, 64);
-  arpeggio(conclusion.logo, 69);
 }
 
 /** The picture gets only a few soft plucks; the voice and the bed carry it. */
-export function designPrimaveraAmbient(mix: Mix, cues: ScoreCues) {
-  const plan = ambientPlan(cues), {ultimate2: u2, cost, flow, issues} = cues;
+export function designPrimaveraAmbient(mix: Mix, cues: ScoreCues, plan = ambientPlan(cues)) {
+  const {ultimate2: u2, cost, flow, issues} = cues;
   const tone = (time: number, index: number, floor: number) => toneOf(chordAt(plan, time), index, floor);
   const pluck = (time: number, index: number, velocity: number, pan = 0, floor = 71) => pizz(mix, time, tone(time, index, floor), velocity, {...FX, pan}, {length: .7});
   const dyad = (time: number, velocity = .25, pan = 0) => { pluck(time, 0, velocity, pan, 64); pluck(time + .02, 2, velocity * .8, pan + .1, 76); };
