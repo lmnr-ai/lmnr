@@ -71,3 +71,9 @@ master each apply once, including active release tails. The manifest retains its
 legacy `typingTick` event-count key. The legacy music, error chime, camera/agent whoosh, ratchet, soundboard, saved mix,
 and Silk implementation remain intact. The active Arabesque route and its new
 score bed are described above; this legacy export command does not reproduce that bed.
+
+## Candidate score beds under the published voiceover
+
+- `node scripts/mix-ultimate3-candidate-vo.mjs <score.wav> <out.wav> [bed dB] [--video silent.mp4 --mp4 out.mp4]` is the published v9/v10 chain (15ms phrase fades, voice-keyed `sidechaincompress` 3.5:1, `loudnorm=I=-14.7:TP=-1`). Run on `editable-v10/bed.wav` with bed `0`, it rebuilds the approved A side for a like-for-like A/B. It refuses to write into `public/`.
+- Judge intelligibility in the 300 Hz–4 kHz band, not broadband. A sub-heavy bed (`digital-lydian`) reads 3 dB louder broadband than the piano but leaves the voice 7 dB more room where speech lives.
+- faster-whisper's own decoder breaks on the PyAV that Demucs pulls in (`metadata_errors`). Pass it a 16 kHz numpy array from librosa instead of a file path.

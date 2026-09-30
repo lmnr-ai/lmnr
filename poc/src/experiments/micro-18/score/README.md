@@ -118,6 +118,21 @@ The agent window types on a modelled keyboard from `keyboards.ts`: `thock` (a lu
 - `voices.ts` contains the synth/sample voices and the `Mix` buses and sends. `dsp.ts` provides the filters, FDN reverb, ping-pong delay, look-around limiter, BS.1770 loudness and master EQ.
 - `render.ts` sums the dry buses and returns, applies the master EQ, normalises, limits, and adds the final fade.
 
+### `digital-lydian` — 808 trap, D Lydian (LAM-2315)
+
+After the digital reference in `handoff/sound-design-digital-inspo/`; analysis and A/B are in `handoff/digital-lydian/README.md`. Everything is synthesized in `digital/instruments.ts`, with no fades: sounds are switched on and off (2 ms on, 4 ms off) and silence is the punctuation. A short, bright room gives the objects and the kit one shared space; its returns stay mono until the drop (`space.monoUntil`).
+
+- **Palette:**
+  - a pitch-dropping 808 whose biased saturation gives it a 2nd harmonic;
+  - gated chord blocks of three drifting saws per tone, with a 25 ms filter bite, a saturator and a buzzing root (pulsed under the voice);
+  - data taps: a click, then an FM tone that chirps into its note while its spectrum closes;
+  - 90 ms FM flicks, pink-noise camera pushes that land with a thump, struck-resonator ticks, droplets and crushed haze;
+  - foreground details as glints (a sine plus a short octave, 1.5 ms attack) folded onto E8–D9, off-centre, thinned under the voice and fuller in its gaps; typing is a 700 Hz noise thock;
+  - 808-style metallic hats with 32nd rolls, and a four-burst clap with a stereo tail.
+- **Scored to the motion:** every camera move is a push that grabs on its first frame and lands on its settle frame, and every object has one sound. Five tier-A hits (Bash, the drop, the door, the grid, the logo) each come out of dead air. The groove runs only in Cost, Flow-1 and the issue grid; it mutes, goes bare or thins with the picture (`trap()`'s `mute`, `bare`, `still`).
+- **Arc (the withheld tonic):** before "Introducing Flow-1" nothing lands on D. The bass sits on F♯, the chords stop under 2 kHz, the motif never completes, the groove has no clap and no 16th hats, and everything is mono. The drop gives all of it at once: D1, the full motif, the clap, the width and the top octave. The issue grid resolves the swarm onto Dmaj7♯11, and the ending climbs I → E/D → F♯m/D → A/D to the logo, which blooms Dmaj9♯11 across four octaves after "Laminar".
+- The score never ducks or thins itself for the voice: ~72 % of the energy is under 120 Hz and ~11 % in 250 Hz–4 kHz, and the `--chain carve` mix in `scripts/mix-ultimate3-candidate-vo.mjs` carves a static hole for the voice instead of dimming the bed.
+
 The preserved original at `?experiment=micro-18&cut=original` uses an **Arabesque Acoustic typing-free bed + one live thock scheduler**, not the earlier full Web Audio effects engine. `pnpm ultimate3:score --style arabesque-acoustic --split-arabesque --tuning src/experiments/micro-18/score/arabesque/softness-8-tuning.json --out <new-path>.wav` writes that bed, a split-playback parity export, and frozen provenance. See `../AUDIO_EXPORT.md` for the exact gain/control contract and static-bed retiming limitation. Ordinary score renders bake shared thock PCM through their score buses; split playback keeps the keyboard dry and outside bed mastering. The `keyClick` API/tuner identifier remains for compatibility, but its old bright bandpass recipe is gone. No original WAV or frozen export is overwritten.
 
 ## Credits

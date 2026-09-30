@@ -18,6 +18,8 @@ export type ScoreStyle = {
     delay?: {time: number; feedback: number; damping: number};
     /** Return levels for [hall, room, delay] into the master. */
     returns?: [number, number, number];
+    /** The returns are summed to mono until this time (s), so a style can add depth without width. */
+    monoUntil?: (cues: ScoreCues) => number;
   };
   eq?: {highpass: number; lowShelf: [number, number]; highShelf: [number, number]};
 };

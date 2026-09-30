@@ -3,6 +3,7 @@ import {aria, ariaAcoustic} from './aria';
 import {ultimate3ScoreCues} from './cues';
 import {KEYBOARDS} from './keyboards';
 import {cityPop} from './city-pop';
+import {digitalLydian} from './digital';
 import {lofiRhodes} from './lofi';
 import {minimalTechno} from './techno';
 import {nocturne, nocturneAcoustic, nocturneDigital, nocturneDuet} from './nocturne';
@@ -14,12 +15,12 @@ import {sunlitSynth} from './sunlit';
 import type {ScoreStyle} from './style';
 import {tactileGlass} from './tactile-glass';
 import {tintinnabuli} from './tintinnabuli';
-import {Stereo, db, integratedLufs, limit, masterEq, pingPong, reverb, samples, seeded, toDb, truePeak} from './dsp';
+import {Stereo, clamp, db, integratedLufs, limit, masterEq, pingPong, reverb, samples, seeded, toDb, truePeak} from './dsp';
 import {Mix, type PianoBank, type StringBanks} from './voices';
 import {normalizeEffectTuning, type EffectTuning} from './tuning';
 import type {Ultimate3Settings} from '../settings';
 
-export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock].map(style => [style.id, style]));
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock, digitalLydian].map(style => [style.id, style]));
 
 export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean; tuning?: EffectTuning; typing?: boolean};
 export type ScoreReport = {
@@ -57,6 +58,14 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
   const delay = space.delay ?? {time: .375, feedback: .38, damping: 3800};
   const echo = pingPong(mix.delay, delay.time, delay.feedback, delay.damping);
   const [hallReturn, roomReturn, echoReturn] = space.returns ?? [2.4, 2, 1.4];
+  if (space.monoUntil) {
+    // Crossfade from mono to stereo over the 50 ms before the time.
+    const until = samples(space.monoUntil(cues)), fade = samples(.05);
+    for (const stem of [hall, room, echo]) for (let n = 0; n < Math.min(until, stem.length); n++) {
+      const width = clamp((n - (until - fade)) / fade), mid = (stem.l[n] + stem.r[n]) / 2;
+      stem.l[n] = mid + (stem.l[n] - mid) * width; stem.r[n] = mid + (stem.r[n] - mid) * width;
+    }
+  }
   const master = sum(length, [[mix.music, tuning.mix.music], [mix.sfx, tuning.mix.sfx], [hall, hallReturn * tuning.mix.hall], [room, roomReturn * tuning.mix.room], [echo, echoReturn * tuning.mix.delay]]);
   masterEq(master, style.eq ?? {highpass: 26, lowShelf: [70, -2.5], highShelf: [7000, 3.5]});
 
