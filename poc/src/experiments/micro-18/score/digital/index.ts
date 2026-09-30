@@ -2,20 +2,25 @@ import type {ScoreCues} from '../cues';
 import type {ScoreStyle} from '../style';
 import type {Mix, Route} from '../voices';
 import {composeDigital} from './composition';
-import {blip, click, zap} from './instruments';
+import {blip, click, droplet, hat, sweep, zap} from './instruments';
 
 const UI: Route = {bus: 'sfx', gain: .9, room: .06};
 
-/** The agent window's foley in the same language: keys are data blips, the window switches with clicks and zaps. */
+/** The agent window's foley in the same language: keys are data blips, the window switches with zaps and latches. */
 function designDigital(mix: Mix, cues: ScoreCues) {
   const issues = cues.issues;
+  sweep(mix, issues.windowDown.at, issues.windowDown.duration, .3, UI, {peak: .4, split: true});
   zap(mix, issues.windowDown.at, 86, 74, issues.windowDown.duration * .6, .3, UI);
-  click(mix, issues.windowShut, .5, UI);
-  // Typing is a stream of blips on D Lydian, one pitch per key identity, never the mechanical keyboard.
-  if (mix.typingEnabled) issues.typingEvents.forEach(event => blip(mix, event.time, [81, 85, 83, 88, 86][(event.voice ?? 0) % 5], .32, {...UI, pan: .15 * Math.sin(event.voice ?? 0)}, .022));
-  blip(mix, issues.issueBadge, 80, .45, UI, .06);
+  zap(mix, issues.windowShut, 54, 42, .015, .55, UI);
+  click(mix, issues.windowShut, .35, UI);
+  // Typing is a stream of blips on D Lydian, one pitch per key identity, kept above D6 and out of the voice's band.
+  if (mix.typingEnabled) issues.typingEvents.forEach(event => blip(mix, event.time, [86, 90, 88, 93, 92][(event.voice ?? 0) % 5], .24, {...UI, pan: .15 * Math.sin(event.voice ?? 0)}, .02));
+  // The badges are the blue agent's droplet; the send rises on a zap over a 32nd hat roll.
+  droplet(mix, issues.issueBadge, 93, .4, UI, {fifth: true});
   zap(mix, issues.messageSend, 74, 93, .18, .3, UI);
-  blip(mix, issues.queryBadge, 80, .45, UI, .06);
+  for (let i = 0; i < 4; i++) hat(mix, issues.messageSend + i * .05, .25 + i * .06, {...UI, pan: .2});
+  droplet(mix, issues.queryBadge, 93, .4, UI, {fifth: true});
+  sweep(mix, issues.windowUp.at, issues.windowUp.duration, .35, UI, {peak: .5, split: true});
   zap(mix, issues.windowUp.at, 74, 86, issues.windowUp.duration * .6, .28, UI);
 }
 

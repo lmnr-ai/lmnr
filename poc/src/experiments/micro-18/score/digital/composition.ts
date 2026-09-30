@@ -1,27 +1,36 @@
 import type {ScoreCues} from '../cues';
+import {clamp} from '../dsp';
 import type {Mix, Route} from '../voices';
-import {cascade, chordAt, loopBars, type Chord, type Progression} from '../writing';
-import {blip, block, clap, click, hat, riser, sub808, zap} from './instruments';
+import {VOICEOVER_PHRASES} from '../../voiceover-phrases';
+import {chordAt, loopBars, progression, type Chord, type Progression} from '../writing';
+import {blip, block, clap, click, droplet, glide, hat, haze, meter, pure, riser, sub808, sweep, tick, warn, zap} from './instruments';
 
 /*
- * "Digital, after the X reference" (LAM-2315) — D Lydian at 150 BPM, half-time.
+ * "Digital, after the X reference" (LAM-2315) — D Lydian at 150 BPM, half-time, scored to the motion.
  *
- * What makes the reference itself: an 808 sub that carries ~70% of the energy, bright-but-uncanny Lydian
- * harmony (Dmaj7♯11 against E/D and F♯m), chord blocks switched on and off with no fades, square data blips
- * in the holes, pitch-drop zaps and 16th hats at 0.1s. The arc is stop-start blocks, a dense trap section, a
- * breakdown into dead air, a steady groove, and a hard stop.
- *
- * Here: the opening is gated blocks cut by the picture (the failure is a cut to silence). Cost is the dense
- * half-time trap; the budget tape-stops into "Until now", a held breath and 100ms of dead air before the drop.
- * Flow-1 is the groove, the Signals door cuts it, the report prelude goes back to blocks and blips, the issue
- * grid brings the groove back, and "with Laminar" is one last Dmaj7♯11 over the sub.
+ * The reference's language (a driven 808 carrying the energy, Dmaj7♯11 against E/D and F♯m, chord blocks
+ * switched with no fades, square data blips, zaps, 16th hats) is played by the picture, not over it:
+ * - every camera move is a sweep shaped to its speed and gated on its settle frame;
+ * - each object has one sound (agent ball, span, warning, window, cloud, meter, the Flow-1 motif), and hits
+ *   land on the frame a move settles, not the frame it starts;
+ * - the groove is earned: Cost from the Bash window, Flow-1 from the drop, and the issue grid. Elsewhere blocks
+ *   are gated by what appears, and the kit drops out for every big move;
+ * - five tier-A hits (Bash, the drop, the door, the grid, the logo) each come out of dead air;
+ * - under the voice the stabs thin to two a bar and darken; gestures go in the gaps.
+ * The arc: curiosity (bright, sparse) → pressure (Cost: darker, minor side, thin) → release (Flow-1: brightest,
+ * loudest, the motif) → order (Issues: clean UI sound, the swarm converging on one chord) → awe and the logo.
  */
 
 const SUB: Route = {bus: 'music', gain: 1};
 const BLOCK: Route = {bus: 'music', gain: 1, room: .05};
 const HIGH: Route = {bus: 'music', gain: .9, room: .08, delay: .12};
 const KIT: Route = {bus: 'music', gain: 1, room: .04};
-const DATA: Route = {bus: 'music', gain: .8, delay: .18};
+const DATA: Route = {bus: 'music', gain: .8, delay: .1};
+/** Motion and object sounds sit on the foley bus, so the score's stutters and tape stops never bend them. */
+const MOVE: Route = {bus: 'sfx', gain: 1.3, room: .04};
+const OBJ: Route = {bus: 'sfx', gain: 2, room: .06, delay: .08};
+/** Under narration an object sound is quieter and dry, so its echo never lands on a syllable. */
+const QUIET: Route = {bus: 'sfx', gain: 1.4, room: .06};
 
 type Voiced = Chord & {root: number};
 /** Tones are the gated block's voicing; `root` is the buzzing saw an octave under the 808's note, as in the reference. */
@@ -29,176 +38,407 @@ const I: Voiced = {bass: 26, root: 26, tones: [50, 54, 57, 61, 68]};
 const II: Voiced = {bass: 28, root: 28, tones: [52, 56, 59, 62, 66]};
 const iii: Voiced = {bass: 30, root: 30, tones: [49, 54, 57, 61, 64]};
 const V: Voiced = {bass: 33, root: 33, tones: [52, 57, 61, 64, 66]};
-const LOOP = [I, II, iii, II], GROOVE = [I, II, iii, V];
-/** D Lydian, high: the data blips never leave it except for the one wrong note on the miss. */
+/** The minor side of the Lydian collection, for the problems: Bm and G♯ø. */
+const vi: Voiced = {bass: 23, root: 35, tones: [47, 50, 54, 57, 61]};
+const iv0: Voiced = {bass: 32, root: 32, tones: [50, 54, 56, 59, 62]};
+/** The ♯11 exposed on top and crushed: the pink/salmon "Thinking…" spans. */
+const Isharp: Voiced = {...I, tones: [50, 54, 57, 61, 68, 80]};
+const GROOVE = [I, II, iii, V], PRESSURE = [iii, II, vi, II];
+/** D Lydian, high: the data never leaves it except for the one wrong note on each failure. */
 const SCALE = [74, 76, 78, 80, 81, 83, 85, 86, 88, 90, 92, 93];
+/** Flow-1's motif: 9, ♯11, 5 (E6–G♯6–A6); on the logo it finally resolves to D7. */
+const MOTIF = [88, 92, 93];
+/** The stream, as the picture lays it out: each span snaps in at a fraction of the run (H = tool hexagon, B = chat bubble, S = settle). */
+const STREAM: [number, 'H' | 'B' | 'S' | Voiced][] = [
+  [.006, 'H'], [.102, II], [.199, 'B'], [.238, Isharp], [.270, 'S'], [.458, iii], [.508, 'H'],
+  [.593, I], [.643, 'S'], [.798, 'H'], [.914, II], [.960, 'B'], [.998, Isharp],
+];
+/** The blue agent's hops down the report's Bash log, as fractions of the descent. */
+const HOPS = [.052, .206, .483, .637, .768];
+/** Narration windows; phrases closer than 0.4 s are one window, so the kit doesn't flicker between modes in a breath. */
+const VOICE = VOICEOVER_PHRASES.map(phrase => ({from: phrase.placed.at - .05, to: phrase.placed.at + phrase.placed.duration + .05}))
+  .reduce<{from: number; to: number}[]>((merged, phrase) => {
+    const last = merged[merged.length - 1];
+    if (last && phrase.from - last.to < .3) last.to = Math.max(last.to, phrase.to); else merged.push({...phrase});
+    return merged;
+  }, []);
+const speaking = (time: number) => VOICE.some(phrase => time >= phrase.from && time < phrase.to);
+const within = (time: number, ranges: readonly [number, number][]) => ranges.some(([from, to]) => time >= from && time < to);
+const obj = (time: number, pan = 0): Route => ({...(speaking(time) ? QUIET : OBJ), pan});
 
 export function composeDigital(mix: Mix, cues: ScoreCues) {
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion, p = issues.prelude;
-  const drop = flow.reveal, Q = .4;
-  /** One 150 BPM grid whose beat 0 is the Flow-1 drop; the second groove re-anchors on the issue grid. */
-  const g = (beat: number) => drop + beat * Q;
-  const beatOf = (time: number) => Math.round((time - drop) / Q);
+  const drop = flow.reveal, Q = .4, BAR = 4 * Q;
   const lydian = (step: number) => SCALE[((step % SCALE.length) + SCALE.length) % SCALE.length];
+  const settle = (span: {at: number; duration: number}) => span.at + span.duration;
+  /** Ease-out moves read as landed at 70 % of their span; the rest is the easing tail. */
+  const lands = (span: {at: number; duration: number}) => span.at + .7 * span.duration;
+  const FRAME = 1 / 30;
 
   /** A block chord from `start` to `end`, 808 underneath, switched hard at both ends. */
-  const chord = (start: number, end: number, voiced: Voiced, options: {level?: number; cutoff?: [number, number]; crush?: number; sub?: number} = {}) => {
+  const chord = (start: number, end: number, voiced: Voiced, options: {level?: number; cutoff?: [number, number]; crush?: number; sub?: number; swell?: boolean} = {}) => {
     if (end - start < .03) return;
-    block(mix, start, end, voiced.tones, BLOCK, {root: voiced.root, level: options.level ?? 1, cutoff: options.cutoff, crush: options.crush});
-    if (options.sub !== 0) sub808(mix, start, voiced.bass + 12, end - start, options.sub ?? .7, SUB, {drop: 12, decay: 4});
+    block(mix, start, end, voiced.tones, BLOCK, {root: voiced.root, level: options.level ?? 1, cutoff: options.cutoff, crush: options.crush, swell: options.swell});
+    if (options.sub) sub808(mix, start, voiced.bass + 12, end - start, options.sub, SUB, {drop: 12, decay: 4, drive: 1.4});
   };
-  /** A run of blips `every` seconds apart walking the Lydian scale. */
-  const run = (time: number, from: number, steps: number, direction: 1 | -1, every = .05, velocity = .5, length = .03) => {
-    for (let i = 0; i < steps; i++) blip(mix, time + i * every, lydian(from + i * direction), velocity * (1 - i * .03), {...DATA, pan: .25 * Math.sin(i * 1.7)}, length);
+  /** A run of blips `every` seconds apart walking the scale, panned from `panFrom` to `panTo`. */
+  const run = (time: number, from: number, steps: number, direction: 1 | -1, every: number, velocity: number, options: {length?: number; panFrom?: number; panTo?: number; route?: Route} = {}) => {
+    for (let i = 0; i < steps; i++) {
+      const pan = (options.panFrom ?? 0) + ((options.panTo ?? 0) - (options.panFrom ?? 0)) * i / Math.max(1, steps - 1);
+      blip(mix, time + i * every, lydian(from + i * direction), velocity * (1 - i * .03), {...(options.route ?? DATA), pan}, options.length ?? .025);
+    }
+  };
+  /** The motif, doubled an octave down only in the clear: E5–A5 is the voice's formant range. */
+  const motif = (time: number, velocity: number, notes = MOTIF, every = Q / 4) => notes.forEach((midi, i) => {
+    const t = time + i * every;
+    blip(mix, t, midi, velocity, {...HIGH, delay: .22}, .06);
+    if (!speaking(t)) blip(mix, t, midi - 12, velocity * .45, HIGH, .06);
+  });
+  /** A window opening (up-zap and a click) or shutting (down-zap and a low sine latch). */
+  const window = (time: number, open: boolean, velocity = .5) => {
+    zap(mix, time, open ? 62 : 74, open ? 74 : 62, .06, velocity, obj(time));
+    if (open) click(mix, time + .06, velocity * .7, obj(time + .06)); else latch(time + .06, velocity * 1.4);
+  };
+  /** A latch is a low zap for the body plus a click and a 2.5 kHz tick, so it still reads on laptop speakers. */
+  const latch = (time: number, velocity = .5) => {
+    zap(mix, time, 54, 42, .015, velocity, obj(time));
+    click(mix, time, .25, obj(time));
+    pure(mix, time, 98, velocity * .5, obj(time), .008);
+  };
+  const scan = (time: number, duration: number, velocity: number, detuned: boolean, until = Infinity) => {
+    sweep(mix, time, duration, velocity, {...MOVE, gain: .6}, {from: 5000, to: 8000, peak: .35, panFrom: -.25, panTo: .25});
+    if (detuned) block(mix, time, time + Math.min(duration * .8, until - time), [80, 80.12], HIGH, {level: .5, cutoff: [2400, 1800]});
   };
 
   /**
-   * The half-time trap bar (16 sixteenths): 808 on 1, the "a" of 2 and the "and" of 3; clap on 3; hats in 16ths
-   * with accents on the 8ths and a 32nd roll into the last beat of every second bar. `density` 0 is 8th hats only.
+   * The half-time trap bar (16 sixteenths) from an anchor hit: 808 on 1, the "a" of 2 and the "and" of 3; clap on
+   * 3; 16th hats with a 32nd roll into every second bar. `mute` removes the whole kit (the picture moves), `bare`
+   * leaves only the 808, and `still` (the picture holds) drops the clap and the stabs to quarter hats at 0.8.
+   * Under the voice the stabs thin to two a bar and darken. The anchor is a tier-A hit with its own 808, so the
+   * groove's first downbeat is left to it instead of stacking a second, differently bent D1 on top.
    */
-  const trap = (progression: Progression, from: number, to: number, options: {density?: number; level?: number; clap?: boolean; stabs?: boolean; grid?: (beat: number) => number} = {}) => {
-    const density = options.density ?? 1, level = options.level ?? 1, grid = options.grid ?? g;
-    for (let step = Math.ceil(from * 4 - 1e-9); step < to * 4 - 1e-9; step++) {
-      const t = grid(step / 4), s = ((step % 16) + 16) % 16, bar = Math.floor(step / 16), [, c] = chordAt(progression, step / 4), voiced = c as Voiced;
-      const next = Math.min(grid(to), grid((step + 1) / 4));
-      if (s === 0 || s === 7 || s === 10) sub808(mix, t, voiced.bass + (s === 10 ? 12 : 0), s === 0 ? Q * 1.7 : Q * .8, (s === 0 ? .95 : .75) * level, SUB, {drop: s === 0 ? 26 : 19});
-      if (options.clap !== false && s === 8) clap(mix, t, .8 * level, {...KIT, pan: .05});
-      // Cost runs at negative beats (before the drop), where `bar % 2` is -1: test the low bit instead.
-      const roll = (bar & 1) === 1 && s >= 12 && density > .5;
-      if (roll) [0, .05].forEach(offset => hat(mix, t + offset, (.38 + .1 * (s - 12)) * level, {...KIT, pan: .2}));
-      else if (s % 2 === 0 || density > .5) hat(mix, t, (s % 2 ? .28 : .46) * level, {...KIT, pan: s % 4 === 2 ? .25 : -.15});
-      // The stabs chop the chord into gated 16ths on the syncopations; the rest of the bar is silence around the 808.
-      if (options.stabs && (s === 0 || s === 3 || s === 6 || s === 11 || s === 14)) block(mix, t, Math.min(next, t + .085), voiced.tones, BLOCK, {level: .95 * level, cutoff: [1500, 900]});
+  type TrapOptions = {
+    level?: number; clap?: boolean; stabs?: boolean; hats?: 8 | 16; q?: number; cutoff?: [number, number];
+    mute?: [number, number][]; bare?: [number, number][]; still?: [number, number][]; hits?: number[];
+  };
+  const trap = (progression: Progression, anchor: number, beats: number, options: TrapOptions = {}) => {
+    const level = options.level ?? 1, q = options.q ?? Q, grid = (beat: number) => anchor + beat * q;
+    for (let step = 0; step < beats * 4 - 1e-9; step++) {
+      const t = grid(step / 4), s = step % 16, bar = Math.floor(step / 16), voiced = chordAt(progression, step / 4)[1] as Voiced;
+      if (within(t, options.mute ?? [])) continue;
+      const bare = within(t, options.bare ?? []), still = within(t, options.still ?? []), voice = speaking(t);
+      const lift = (voice ? .8 : 1) * (still ? .8 : 1), onHit = step === 0 || (options.hits ?? []).some(hit => Math.abs(t - hit) < .03);
+      if ((s === 0 && !onHit) || s === 7 || s === 10) sub808(mix, t, voiced.bass + (s === 10 ? 12 : 0), s === 0 ? q * 1.7 : q * .8, (s === 0 ? .95 : .75) * level * lift, SUB, {drop: s === 0 ? 26 : 19});
+      if (bare) continue;
+      if (options.clap !== false && !still && s === 8) clap(mix, t, .8 * level, {...KIT, pan: .05});
+      const eighths = options.hats === 8 || voice;
+      if (still) { if (s % 4 === 0) hat(mix, t, .4 * level, {...KIT, pan: -.15}); }
+      else if ((bar & 1) === 1 && s >= 12 && !eighths) [0, .05].forEach(offset => hat(mix, t + offset, (.38 + .1 * (s - 12)) * level, {...KIT, pan: .2}));
+      else if (s % 2 === 0 || !eighths) hat(mix, t, (s % 2 ? .28 : .46) * level, {...KIT, pan: s % 4 === 2 ? .25 : -.15});
+      const stab = voice ? s === 0 || s === 11 : s === 0 || s === 3 || s === 6 || s === 11 || s === 14;
+      if (options.stabs && stab && !still && !onHit) block(mix, t, Math.min(grid(beats), t + .085), voiced.tones, BLOCK, {level: .95 * level * lift, cutoff: voice ? [1100, 750] : options.cutoff ?? [1600, 900]});
     }
   };
 
-  // ── This is the agent you've built: a Dmaj7♯11 block switched on with the picture and off before the stream.
-  chord(u2.agentEnter, u2.stream.at - .06, I, {cutoff: [500, 900], sub: .75});
-  blip(mix, u2.firstThinking.at + .1, 85, .4, HIGH, .04);
-  blip(mix, u2.firstThinking.at + .35, 80, .3, HIGH, .04);
+  // ════ Chapter 1 — curiosity. Out of silence, the pill grows the first chord; the stream plays itself.
+  droplet(mix, u2.agentEnter + .01, 86, .55, obj(u2.agentEnter + .01), {thump: .35});
+  const pillSettle = lands(u2.firstThinking), stream = u2.stream.at;
+  block(mix, u2.firstThinking.at, pillSettle, I.tones, BLOCK, {root: I.root, level: .7, cutoff: [250, 1400]});
+  sweep(mix, u2.firstThinking.at, u2.firstThinking.duration, .25, {...MOVE, pan: -.1}, {from: 600, to: 2000, peak: .3});
+  chord(pillSettle, stream - .04, I, {level: .6, cutoff: [1400, 900], sub: .4});
+  blip(mix, pillSettle, 85, .45, HIGH, .04);
+  haze(mix, u2.firstThinking.at + .07, stream + 1.6, MOVE, progress => [350, .12 * Math.min(1, progress * 6, (1 - progress) * 3)]);
 
-  // ── Every time it runs, it leaves a trace: stop-start blocks, a hole every bar filled by data blips.
-  const streamEnd = u2.failure - .02, BAR = 4 * Q;
-  for (let t = u2.stream.at, k = 0; t < streamEnd - .1; t += BAR, k++) {
-    const hole = k % 2 ? .3 : .16, stop = Math.min(streamEnd, t + BAR - hole);
-    chord(t, stop, LOOP[k % LOOP.length], {cutoff: [650, 1100], level: .9, sub: .65});
-    for (let b = stop + .04; b < Math.min(streamEnd, t + BAR) - .03; b += .08) blip(mix, b, lydian(k * 2 + Math.round((b - stop) / .08)), .32, DATA, .025);
-  }
-
-  // ── When your agent fails: dead air, a falling zap and one off-key blip.
-  zap(mix, u2.failure, 62, 38, .32, .9, {...BLOCK, pan: 0});
-  blip(mix, u2.failure + .38, 79, .42, HIGH, .06);
-  // The trace can tell you why: F♯m climbs back in (the upward turn), the backtrack rewinds down the scale.
-  chord(u2.upwardTurn.at, u2.backtrack.at - .03, iii, {cutoff: [400, 1300], level: .8, sub: .6});
-  run(u2.backtrack.at, 11, 10, -1, Math.min(.06, u2.backtrack.duration / 12), .45);
-  u2.drawers.forEach((time, i) => { blip(mix, time, [81, 85, 88][i], .5, {...HIGH, pan: -.25 + i * .25}, .05); click(mix, time, .35, KIT); });
-  // The ♯11, the reference's signature colour, on the highlight; the warning is an 808 hit under it.
-  blip(mix, u2.highlight.at, 80, .5, HIGH, .09);
-  sub808(mix, u2.warning, 26, .9, .8, SUB, {drop: 30});
-
-  // ── The insights are hidden across thousands of traces: blocks come back with 8th hats; the zoom builds to 16ths.
-  const insightsBeat = beatOf(u2.insights) + 1, collapse = u2.collapse.at;
-  const insights = loopBars(insightsBeat, beatOf(collapse), LOOP, beatOf(collapse));
-  insights.forEach(([beat, c], i) => {
-    const next = i + 1 < insights.length ? insights[i + 1][0] : beatOf(collapse);
-    chord(g(beat), g(next) - .12, c as Voiced, {cutoff: [600, 1200], level: .85, sub: .7});
+  // ── Every time it runs, it leaves a trace: each span that snaps in switches the chord; tools tick, bubbles chirp.
+  const at = (fraction: number) => stream + fraction * u2.stream.duration, streamEnd = u2.failure - .02;
+  const spans = STREAM.filter(([, kind]) => typeof kind !== 'string') as [number, Voiced][];
+  // Only the first span gets an 808: ten in five seconds would spend the hits the film needs later.
+  spans.forEach(([fraction, voiced], i) => {
+    const from = at(fraction), to = i + 1 < spans.length ? at(spans[i + 1][0]) - .035 : streamEnd;
+    chord(from, Math.min(to, streamEnd), voiced, {level: .5, cutoff: [700, 1150], sub: i === 0 ? .25 : 0, crush: voiced === Isharp ? 8000 : undefined});
   });
-  for (let t = g(insightsBeat), k = 0; t < collapse - .05; t += t >= u2.zoom.at ? Q / 4 : Q / 2, k++) hat(mix, t, t >= u2.zoom.at ? .3 + .12 * (k % 2) : .34, {...KIT, pan: k % 2 ? .2 : -.2});
-  riser(mix, u2.zoom.at + .6, collapse, 50, 74, .35, {...BLOCK, pan: 0});
-  // The collapse: a hard 808 zap on the cut; an F♯m under "…across thousands of traces", dark and low.
-  sub808(mix, collapse, 30, .8, .95, SUB, {drop: 30});
-  chord(collapse + .6, u2.ifOnly - .1, iii, {cutoff: [300, 650], level: .7, sub: .45});
-  // If only someone could read them all: dead air and the ♯11 left in the echo.
-  blip(mix, u2.ifOnly + .05, 92, .45, {...HIGH, delay: .5}, .07);
-  chord(u2.ifOnly + .9, cost.cloudOut.at, II, {cutoff: [350, 500], level: .5, sub: .4});
+  /** One pitch per span type: Thinking (the ♯11 spans), Read, Write. */
+  const spanPitch = (voiced: Voiced) => voiced === Isharp ? 85 : voiced === II ? 88 : voiced === iii ? 81 : 86;
+  // Before the first span, the stream opens on I behind the tool hexagon.
+  chord(at(STREAM[0][0]), at(spans[0][0]) - .035, I, {level: .55, cutoff: [700, 1000], sub: .3});
+  STREAM.forEach(([fraction, kind], i) => {
+    const time = at(fraction), pan = .1 * Math.sin(i * 1.3);
+    click(mix, time, .15, obj(time, pan));
+    if (kind === 'H') { sub808(mix, time, 38, .06, .3, SUB, {drop: 12, drive: 1}); blip(mix, time, 81, .4, obj(time, pan), .03); }
+    else if (kind === 'B') { blip(mix, time, 85, .35, obj(time, .15), .03); blip(mix, time + .04, 88, .35, obj(time + .04, .15), .03); }
+    else if (kind === 'S') blip(mix, time, lydian(i), .28, obj(time, pan), .025);
+    else blip(mix, time, spanPitch(kind), .3, obj(time, pan), .025);
+  });
 
-  // ── Cheap LLMs: the half-time trap; each pass is a 32nd blip run in its direction.
-  const trapFrom = beatOf(cost.cloudOut.at), depletion = cost.depletion.at, trapTo = (depletion - drop) / Q;
-  const cost1 = loopBars(trapFrom, trapTo, LOOP, 0);
-  trap(cost1, trapFrom, trapTo, {density: 1, stabs: true});
-  cost.cheapLegs.forEach(leg => run(leg.at, leg.direction === 'leftToRight' ? 0 : 9, 8, leg.direction === 'leftToRight' ? 1 : -1, leg.duration / 8, .42, .022));
-  // …but fail to find crucial issues: a buffer stutter and the G♮ against the ♯11.
-  const missAt = cost.missIssues + .15;
-  blip(mix, missAt + .3, 79, .5, HIGH, .12);
-  // Powerful LLMs: the bash window lands on a long, heavy 808 with the block wide open.
-  sub808(mix, cost.bashStop, 26, 1.4, 1, SUB, {drop: 31, drive: 3.2});
-  block(mix, cost.bashStop, cost.bashStop + .7, I.tones.map(t => t + 12), HIGH, {level: .5, cutoff: [3000, 1200]});
-  run(cost.bashDescent.at, 11, 8, -1, cost.bashDescent.duration / 10, .3, .025);
-  blip(mix, cost.budgetAppear, 88, .45, HIGH, .05);
-  blip(mix, cost.budgetRun.at, 85, .35, HIGH, .04);
+  // ── When your agent fails: the chain glitches into dead air, a falling zap and one off-key G♮.
+  zap(mix, u2.failure, 62, 38, .32, .9, BLOCK);
+  blip(mix, u2.failure + .37, 79, .42, HIGH, .06);
+  // The Bash span turns upward; F♯m enters on the frame it settles.
+  const turned = settle(u2.upwardTurn);
+  zap(mix, u2.upwardTurn.at, 55, 67, u2.upwardTurn.duration, .35, {...OBJ, delay: 0});
+  click(mix, turned, .45, obj(turned));
+  chord(turned, u2.highlight.at + .1, iii, {level: .6, cutoff: [500, 1100], sub: .45});
+  // The trace can tell you why: the camera backs up; the drawers glide down into their notes and latch.
+  sweep(mix, u2.backtrack.at, u2.backtrack.duration, .5, MOVE, {from: 300, to: 2400, peak: .45, panFrom: .3, panTo: -.3, split: speaking(u2.backtrack.at + .5)});
+  u2.drawers.forEach((time, i) => {
+    const note = [78, 81, 85][i];
+    zap(mix, time, note + 5, note, .025, .3, obj(time, -.2 + i * .2));
+    blip(mix, time + .025, note, .45, obj(time + .025, -.2 + i * .2), .05);
+    latch(time + .25 - (i === 2 ? .13 : 0), .35);
+  });
+  // The red highlight scans, then 60 ms of nothing, then the warning over an 808 and the minor side (G♯ø).
+  scan(u2.highlight.at, u2.highlight.duration, .4, true, u2.warning - .07);
+  warn(mix, u2.warning, .6, obj(u2.warning));
+  sub808(mix, u2.warning, 26, .9, .8, SUB, {drop: 30});
+  // ── The insights are hidden: the G♯ø opens with the camera's drop (a split sweep under the voice); F♯m lands on the settle.
+  const insightsSettle = u2.insights + .62, zoom = u2.zoom.at, collapse = u2.collapse.at;
+  chord(u2.warning + .05, u2.insights, iv0, {level: .5, cutoff: [500, 700], sub: 0});
+  chord(u2.insights, insightsSettle - .03, iv0, {level: .6, cutoff: [700, 1500], sub: 0});
+  sweep(mix, u2.insights, insightsSettle - u2.insights, .45, MOVE, {peak: .35, split: true, sub: [38, 31]});
+  chord(insightsSettle, zoom, iii, {level: .55, cutoff: [600, 800], sub: .45});
+  for (let t = insightsSettle, k = 0; t < zoom - .05; t += Q / 2, k++) hat(mix, t, .26, {...KIT, pan: k % 2 ? .2 : -.2});
+  // The zoom out opens the filter (seeing more is brighter), the hats double, a riser is cut dead before the collapse.
+  const zoomHalf = zoom + (collapse - zoom) / 2;
+  chord(zoom, zoomHalf, I, {level: .6, cutoff: [700, 1300], sub: .5});
+  chord(zoomHalf, collapse - .09, II, {level: .7, cutoff: [1300, 2600], sub: .55});
+  for (let t = zoom, k = 0; t < collapse - .09; t += t >= zoomHalf ? Q / 4 : Q / 2, k++) hat(mix, t, t >= zoomHalf ? .3 + .12 * (k % 2) : .3, {...KIT, pan: k % 2 ? .2 : -.2});
+  riser(mix, zoom + .6, collapse - .08, 50, 74, .35, BLOCK);
+  sweep(mix, zoom, collapse - zoom - .08, .3, MOVE, {from: 400, to: 5000, peak: .9, split: true});
+  // The collapse into the grid: an 808 and a shatter of tiny warnings across the field.
+  sub808(mix, collapse, 30, .8, .9, SUB, {drop: 30, drive: 2});
+  for (let i = 0; i < 12; i++) warn(mix, collapse + .02 + mix.random() * .25, .2, obj(collapse + .02 + mix.random() * .25, (mix.random() - .5) * .6), {soft: true, midi: [68, 80, 92][Math.floor(mix.random() * 3)]});
+  // The cloud rises over the warnings and sinks everything into a low Bm.
+  const cloudTop = settle(u2.cloudIn);
+  haze(mix, collapse + .25, cloudTop + .6, MOVE, progress => [150 + 750 * progress ** 1.5, .3 * Math.min(1, progress * 1.4) * (progress > .88 ? (1 - progress) / .12 : 1)], 5000);
+  chord(collapse + .3, u2.ifOnly - .14, vi, {level: .5, cutoff: [300, 600], sub: .5});
+  // If only someone could read them all: the ♯11 alone in the echo as the line changes, then E/D left hanging.
+  blip(mix, u2.ifOnly - .12, 92, .42, {...HIGH, delay: .5}, .07);
+  chord(u2.ifOnly + .75, cost.cloudOut.at, II, {level: .42, cutoff: [350, 520], sub: .3});
 
-  // Buffer edits act on what is already written: stutter the miss, cut dead air on the bash warning.
-  mix.stutter(missAt, .05, 6);
-  // ── …but the costs are unsustainable: the whole track tape-stops through the depletion.
+  // ════ Chapter 2 — pressure. The cloud parts, then a thin, dark trap; the purple ball zips across.
+  const legsFrom = cost.cheapLegs[0]?.at ?? cost.cloudOut.at + .64;
+  haze(mix, cost.cloudOut.at, legsFrom, MOVE, progress => [400 + 2600 * progress ** 2, .28 * progress ** 1.5], 7000);
+  const cheapBeats = Math.floor((cost.cameraToBash.at - legsFrom) / Q * 4) / 4;
+  trap(loopBars(0, cheapBeats, [iii, II], 0), legsFrom, cheapBeats, {level: .72, clap: false, hats: 8});
+  cost.cheapLegs.forEach(leg => {
+    const right = leg.direction === 'leftToRight';
+    // Short moves: the sweep starts a frame early and peaks early, with a click on the first frame.
+    sweep(mix, leg.at - FRAME, leg.duration, .3, MOVE, {from: 500, to: 2600, peak: .25, panFrom: right ? -.3 : .3, panTo: right ? .3 : -.3, split: true});
+    click(mix, leg.at, .3, obj(leg.at, right ? -.3 : .3));
+    run(leg.at, right ? 0 : 9, 8, right ? 1 : -1, leg.duration / 8, .38, {length: .02, panFrom: right ? -.3 : .3, panTo: right ? .3 : -.3});
+  });
+  // …but fail to find crucial issues: three warnings fall off the trace, the buffer stutters.
+  [-.25, 0, .25].forEach((pan, i) => {
+    const time = cost.thinkingDrop.at + i * .06;
+    warn(mix, time, .35, obj(time, pan), {soft: true});
+    zap(mix, time + .05, 80, 56, .4, .22, obj(time + .05, pan));
+  });
+  mix.stutter(cost.missIssues + .15, .05, 6);
+
+  // Powerful LLMs: the film's biggest camera move empties the room, then Bash lands out of dead air.
+  const bash = cost.bashStop;
+  sweep(mix, cost.cameraToBash.at, bash - .1 - cost.cameraToBash.at, .75, MOVE, {from: 250, to: 3200, peak: .45, sub: [50, 26], split: speaking(cost.cameraToBash.at + .1)});
+  window(cost.bashEntry.at, true, .45);
+  sub808(mix, bash, 26, 1.4, 1, SUB, {drop: 31, drive: 3.2});
+  block(mix, bash, bash + .6, iii.tones.map(t => t + 12), HIGH, {level: .5, cutoff: [2200, 700]});
+  block(mix, cost.bashExpand, cost.bashExpand + .15, iii.tones, BLOCK, {level: .6, cutoff: [800, 2000]});
+  const depletion = cost.depletion.at, costBeats = (depletion - bash) / Q;
+  trap(loopBars(0, costBeats, PRESSURE, 0), bash, costBeats, {
+    level: .85, stabs: true, cutoff: [1000, 700],
+    mute: [[cost.bashWarning, cost.bashWarning + Q]],
+    bare: [[cost.cameraToBudget.at, settle(cost.cameraToBudget)]],
+  });
+  // The log scrolls in ticks; the three lines are scanned; the warning stops the kit for a beat.
+  for (let t = cost.bashDescent.at, i = 0; t < settle(cost.bashDescent); t += 1 / 12, i++) tick(mix, t, .3 - i * .01, obj(t, -.1));
+  [0, .12, .24].forEach(offset => scan(cost.bashHighlight.at + offset, .2, .25, true));
+  warn(mix, cost.bashWarning, .6, obj(cost.bashWarning));
+  // The purple agent is one detuned droplet: it appears, drops down the log, moves onto the highlight, leaves.
+  [cost.bashEntry.at + .31, cost.bashDescent.at + .34, cost.bashHighlight.at - .11, cost.cameraToBudget.at + .62]
+    .forEach((time, i) => droplet(mix, time, [85, 83, 81, 78][i], .38, obj(time, -.1 + i * .08), {detune: true}));
+  // The camera drops to the budget; smoke; the $ is a coin, and the meter's pitch is its fill.
+  sweep(mix, cost.cameraToBudget.at, cost.cameraToBudget.duration, .45, MOVE, {peak: .45, split: true, sub: [38, 30]});
+  haze(mix, cost.smokeEnter, settle(cost.depletion), MOVE, progress => [200 + 300 * progress, .16 * Math.min(1, progress * 4)], 4000);
+  blip(mix, cost.budgetAppear, 93, .4, obj(cost.budgetAppear), .05); blip(mix, cost.budgetAppear, 100, .25, obj(cost.budgetAppear), .05);
+  const full = settle(cost.budgetRun), drained = settle(cost.depletion);
+  meter(mix, cost.budgetAppear, full, .25, QUIET, progress => 74 + 7 * clamp((cost.budgetAppear + progress * (full - cost.budgetAppear) - cost.budgetRun.at) / cost.budgetRun.duration));
+  meter(mix, full, depletion, .25, QUIET, () => 81);
+  // …but the costs are unsustainable: the meter drains and crushes while the whole score tape-stops.
+  meter(mix, depletion, drained, .38, QUIET, progress => 81 - 19 * progress ** 1.3, progress => 12_000 * (1500 / 12_000) ** progress);
+  for (let t = depletion, gap = 1 / 12; t < drained; t += gap, gap *= 1.18) tick(mix, t, .25, obj(t));
   mix.tapeStop(depletion, Math.min(cost.depletion.duration, drop - depletion - .9), 1.2);
 
-  // ── Until now: a held breath (sub and one high A), then 100ms of dead air before the drop.
-  const breath = depletion + Math.min(cost.depletion.duration, drop - depletion - .9) + .05, gap = drop - .1;
-  sub808(mix, breath, 26, gap - breath, .45, SUB, {drop: 0, drive: 1.6});
-  blip(mix, breath + .05, 81, .22, {...HIGH, delay: .4}, gap - breath - .1);
-  riser(mix, Math.max(breath, gap - 1.2), gap, 45, 69, .4, {...BLOCK, pan: 0});
+  // ════ Chapter 3 — release. "Until now": a held breath; the camera rises into 310 ms of dead air, then the drop.
+  const breath = depletion + Math.min(cost.depletion.duration, drop - depletion - .9) + .05, gap = drop - .31;
+  sub808(mix, breath, 26, gap - breath, .42, SUB, {drop: 0, drive: 1.6});
+  blip(mix, breath + .05, 81, .22, {...HIGH, delay: .4}, .12);
+  riser(mix, flow.entry.at, gap, 45, 69, .4, BLOCK);
+  sweep(mix, flow.entry.at, gap - flow.entry.at, .35, MOVE, {from: 300, to: 4500, peak: .85, grab: 1.5});
+  droplet(mix, flow.entry.at, 81, .4, obj(flow.entry.at), {thump: .3});
 
-  // ── Introducing Flow-1: the groove. Stabs on the syncopations, 808 following I – II – iii – V.
-  const shut = flow.coverShut, shutBeat = (shut - drop) / Q;
-  const flowBars = loopBars(0, shutBeat, GROOVE, 0);
+  // Introducing Flow-1: the brightest hit in the film, the motif on top, then the groove (I – II – iii – V).
+  const shut = flow.coverShut, flowBeats = Math.round((shut - drop) / Q);
   sub808(mix, drop, 26, 1.2, 1, SUB, {drop: 34, drive: 3.4});
-  block(mix, drop, drop + .9, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [3500, 1500]});
-  trap(flowBars, 0, shutBeat, {density: 1, stabs: true});
-  // The bead landings climb the scale, flow-1's (the third) the highest and longest.
-  flow.numberDrops.forEach((time, i) => blip(mix, time, lydian(4 + [0, 2, 7, 3, 4, 5][i]), i === 2 ? .6 : .4, {...HIGH, pan: -.3 + i * .12}, i === 2 ? .12 : .04));
-  run(flow.countUp.at, 0, 8, 1, flow.countUp.duration / 8, .3, .022);
-  // Surpassing, while analyzing 20x more: a riser into the graph spread, a run on the axis.
-  riser(mix, flow.cameraToAnalysis.at, flow.cameraToAnalysis.at + flow.cameraToAnalysis.duration * .8, 50, 76, .25, {...BLOCK, pan: 0});
-  run(flow.analysisCountUp.at, 3, 10, 1, flow.analysisCountUp.duration / 10, .32, .02);
-  // Flow-1 powers Signals: the engine spins in 32nd blips; the door shuts on a cut and an 808.
-  run(flow.engineSpinner.at, 0, Math.round(flow.engineSpinner.duration / .05), 1, .05, .26, .02);
-  zap(mix, flow.cameraToEngine.at, 50, 74, flow.cameraToEngine.duration, .35, BLOCK);
+  block(mix, drop, drop + .9, I.tones.map(t => t + 12), HIGH, {level: .6, cutoff: [3800, 1500]});
+  motif(drop, .55);
+  haze(mix, drop, drop + 1.5, MOVE, progress => [6000 - 4000 * progress, .22 * (1 - progress) ** 2], 12_000);
+  const cameraHole: [number, number] = [flow.cameraZoom.at + .4, settle(flow.cameraZoom) - .34];
+  const engineFrom = flow.cameraToEngine.at;
+  // The harmony changes with the picture: V on the analysis move, I on the frame the "20×" lands.
+  const spread = flow.cameraToAnalysis, spreadEnd = settle(spread), beatOf = (time: number) => (time - drop) / Q;
+  const flowChords = progression([0, I], [4, II], [8, iii], [12, V], [16, I], [beatOf(spread.at), V], [beatOf(spreadEnd), I], [beatOf(spreadEnd) + 4, II], [beatOf(spreadEnd) + 8, iii]);
+  const beadLanded = flow.numberDrops[2];
+  trap(flowChords, drop, flowBeats, {
+    level: 1, stabs: true, cutoff: [1800, 1000],
+    mute: [cameraHole, [engineFrom, shut + 1]],
+    bare: [[spread.at, spreadEnd]],
+    still: [[beadLanded + .1, spread.at], [spreadEnd + .05, spreadEnd + 1.25]],
+  });
+  // The fly-through: a big sweep through the cloud exit; the percentage counts up in ticks.
+  sweep(mix, flow.cameraZoom.at, flow.cameraZoom.duration, .6, MOVE, {from: 300, to: 4200, peak: .5, split: true});
+  haze(mix, flow.cloudExit.at, settle(flow.cloudExit), MOVE, progress => [2500 * (1 - progress) + 300, .14 * (1 - progress)], 8000);
+  for (let i = 0; i < 8; i++) tick(mix, flow.countUp.at + i * flow.countUp.duration / 8, .22 + i * .02, obj(flow.countUp.at + i * flow.countUp.duration / 8));
+  block(mix, flow.benchmark, flow.benchmark + .12, II.tones.map(t => t + 12), HIGH, {level: .35, cutoff: [1600, 1000]});
+  // The beads drop onto the chart, pitched by score (flow-1's is the motif, above everyone else).
+  const beadPitch = [93, 90, 0, 86, 81, 80];
+  flow.numberDrops.forEach((time, i) => {
+    if (i === 2) { motif(time, .45); sub808(mix, time, 38, .3, .45, SUB, {drop: 18, drive: 1}); return; }
+    droplet(mix, time, beadPitch[i], .3, obj(time, -.3 + i * .12));
+  });
+  // Flow-1's bead drops in last while the chart re-spaces: it falls on a rising zap straight into the motif.
+  const beadFall = Math.max(...flow.numberDrops.filter((_, i) => i !== 2)) + .29;
+  if (beadLanded - beadFall > .2) {
+    sweep(mix, beadFall, beadLanded - beadFall, .3, MOVE, {peak: .6, split: true, panFrom: -.1, panTo: .1});
+    zap(mix, beadFall, 80, 88, beadLanded - beadFall, .2, obj(beadFall, .05));
+  }
+  // 20x more traces per dollar: flow-1's bead glides right on its motif; the kit drops to the 808 until it settles.
+  zap(mix, spread.at, 88, 93, spread.duration, .25, obj(spread.at, .15));
+  riser(mix, spread.at, spreadEnd - .02, 50, 76, .25, BLOCK);
+  sweep(mix, spread.at, spread.duration, .35, MOVE, {peak: .4, split: true, panFrom: -.1, panTo: .3});
+  for (let i = 0; i < 10; i++) tick(mix, flow.analysisCountUp.at + i * flow.analysisCountUp.duration / 10, .2, obj(flow.analysisCountUp.at + i * flow.analysisCountUp.duration / 10));
+  sub808(mix, spreadEnd, 26, .6, .75, SUB, {drop: 20, drive: 1.2});
+  block(mix, spreadEnd, spreadEnd + .25, I.tones.map(t => t + 12), HIGH, {level: .35, cutoff: [1600, 900]});
+  blip(mix, spreadEnd, 93, .4, {...HIGH, delay: .3}, .08);
+  // Flow-1 powers Signals: the camera flies to the engine (kit out), the module lights on the motif, the spinner
+  // accelerates, the two halves of the door converge, and it shuts on a tape stop and an 808.
+  sweep(mix, engineFrom, flow.cameraToEngine.duration, .5, MOVE, {peak: .45, split: true});
+  zap(mix, engineFrom, 50, 74, flow.cameraToEngine.duration, .3, BLOCK);
+  motif(flow.moduleActivation, .4, [92, 93]);
+  block(mix, flow.moduleActivation, flow.moduleActivation + .3, I.tones.map(t => t + 12), HIGH, {level: .4, cutoff: [3000, 1200]});
+  for (let t = flow.engineSpinner.at, k = 0; t < settle(flow.engineSpinner); k++) {
+    const progress = (t - flow.engineSpinner.at) / flow.engineSpinner.duration;
+    blip(mix, t, lydian(k), .22 + .12 * progress, DATA, .018);
+    t += 1 / (8 + 16 * progress);
+  }
+  [-.3, .3].forEach(pan => zap(mix, flow.cover.at, pan < 0 ? 74 : 98, 86, flow.cover.duration * .9, .25, obj(flow.cover.at, pan)));
+  block(mix, flow.coverTint.at, shut - .02, I.tones, BLOCK, {level: .45, cutoff: [600, 2400], swell: true});
   mix.tapeStop(shut - .18, .16, 2);
   sub808(mix, shut, 26, 1.6, 1, SUB, {drop: 30, drive: 3});
   click(mix, shut, .6, KIT);
+  block(mix, shut, shut + .3, I.tones.map(t => t + 12), HIGH, {level: .4, cutoff: [2600, 900]});
+  // The Signals circle turns: a heartbeat on A.
+  for (let t = shut + Q * 2; t < issues.leadIn.at - .1; t += Q) pure(mix, t, 81, .3, {...HIGH, delay: .15}, .05);
 
-  // ── Our agent, built to analyze traces at scale: back to blocks and blips over 8th hats, no kick.
-  const native = issues.native, preludeEnd = native - .2;
-  const preludeFrom = shut + 1.2;
-  for (let t = preludeFrom, k = 0; t < p.zoomOut.at - .1; t += BAR, k++) {
-    const stop = Math.min(p.zoomOut.at - .05, t + BAR - (k % 2 ? .3 : .12));
-    chord(t, stop, LOOP[k % LOOP.length], {cutoff: [500, 900], level: .75, sub: .55});
+  // ════ Chapter 4 — competence, then order. The circle dives into the rows; the report is precise UI sound.
+  const rows = issues.leadIn.at + .57, native = issues.native;
+  sweep(mix, issues.leadIn.at, rows - issues.leadIn.at, .45, MOVE, {peak: .3, split: true, sub: [45, 33]});
+  droplet(mix, rows, 86, .5, obj(rows), {fifth: true, thump: .25});
+  const reportFrom = p.labels?.at ?? p.descent.at + p.descent.duration + 1;
+  for (let t = rows, k = 0; t < reportFrom - .1; t += BAR, k++) chord(t, Math.min(reportFrom - .06, t + BAR - (k % 2 ? .3 : .12)), [I, II][k % 2], {level: .5, cutoff: [800, 1150], sub: .35});
+  window(p.bashEntry.at, true, .4);
+  sub808(mix, p.bashStop, 26, .9, .7, SUB, {drop: 20, drive: 1});
+  const descentEnd = settle(p.descent);
+  for (let t = p.descent.at; t < descentEnd; t += Q / 2) hat(mix, t, .22, {...KIT, pan: .15});
+  for (let t = p.descent.at, i = 0; t < descentEnd; t += 1 / 12, i++) tick(mix, t, .22, obj(t, -.1));
+  HOPS.forEach((fraction, i) => droplet(mix, p.descent.at + fraction * p.descent.duration, [90, 88, 86, 85, 83][i], .4, obj(p.descent.at + fraction * p.descent.duration, .1), {fifth: true}));
+  droplet(mix, p.highlight - .03, 86, .32, obj(p.highlight, .1), {fifth: true});
+  scan(p.highlight, .5, .3, false);
+  if (p.bubble !== undefined) { warn(mix, p.bubble, .55, obj(p.bubble), {resolve: true}); droplet(mix, p.bubble - .03, 93, .3, obj(p.bubble - .03)); }
+  // Not just with labels: the card opens and each row reads true / false / critical.
+  if (p.labels) {
+    zap(mix, p.labels.at, 62, 81, .3, .3, obj(p.labels.at));
+    chord(p.labels.at, (p.explanation?.at ?? p.labels.at + 2) - .05, I, {level: .38, cutoff: [600, 800], sub: .25});
+    [93, 74, 93].forEach((midi, i) => blip(mix, p.labels!.at + (i + 1) * p.labels!.duration / 4, midi, midi === 74 ? .3 : .42, obj(p.labels!.at + (i + 1) * p.labels!.duration / 4, -.15 + i * .1), .05));
+    warn(mix, p.labels.at + p.labels.duration, .3, obj(p.labels.at + p.labels.duration), {soft: true});
   }
-  for (let t = preludeFrom; t < p.zoomOut.at - .05; t += Q / 2) hat(mix, t, .26, {...KIT, pan: .15});
-  sub808(mix, p.bashStop, 26, .9, .85, SUB, {drop: 28});
-  run(p.descent.at, 11, 10, -1, p.descent.duration / 12, .3, .025);
-  blip(mix, p.highlight, 80, .45, HIGH, .08);
-  if (p.bubble !== undefined) blip(mix, p.bubble, 86, .45, HIGH, .06);
-  // It finds deep issues and reports them: a blip per label row; the typed explanation is 16th data.
-  if (p.labels) for (let i = 0; i < 4; i++) blip(mix, p.labels.at + i * p.labels.duration / 4, lydian(2 + i * 2), .42, {...HIGH, pan: -.2 + i * .13}, .04);
-  if (p.explanation) for (let t = p.explanation.at, i = 0; t < p.explanation.at + p.explanation.duration; t += .1, i++) blip(mix, t, lydian([4, 6, 5, 8][i % 4]), .3, DATA, .025);
-  // Across every trace: the zoom out rises; the collapse zaps; the circle grows on a swelling block and a snare-roll, cut before the grid.
-  riser(mix, p.zoomOut.at, p.collapse, 45, 69, .3, {...BLOCK, pan: 0});
-  sub808(mix, p.collapse, 30, .7, .85, SUB, {drop: 30});
-  block(mix, p.circleGrow.at, preludeEnd, II.tones, BLOCK, {root: II.root, level: .85, cutoff: [300, 2200]});
-  for (let t = p.circleGrow.at + .4, k = 0; t < preludeEnd - .02; t += t > preludeEnd - .8 ? .05 : .1, k++) clap(mix, t, .2 + .5 * (t - p.circleGrow.at) / (preludeEnd - p.circleGrow.at), {...KIT, pan: k % 2 ? .1 : -.1});
+  const exit = p.bubbleExit ?? p.zoomOut.at;
+  // …but with any structure you define: the explanation types in quiet high ticks over a held E/D.
+  if (p.explanation) {
+    latch(p.explanation.at - .6, .3);
+    chord(p.explanation.at, exit - .02, II, {level: .38, cutoff: [600, 850], sub: .3});
+    for (let t = p.explanation.at; t < settle(p.explanation); t += 1 / 12) tick(mix, t, .18, obj(t, .1));
+  }
+  // Across every trace: the bubble exits, the camera pulls back on a riser cut at the collapse, which sucks in.
+  sweep(mix, exit, .5, .35, MOVE, {peak: .35, panFrom: 0, panTo: -.3, split: true});
+  riser(mix, p.zoomOut.at + .3, p.collapse - .06, 45, 69, .3, BLOCK);
+  sweep(mix, p.zoomOut.at, p.collapse - p.zoomOut.at - .06, .3, MOVE, {from: 400, to: 5000, peak: .8, split: true});
+  zap(mix, p.collapse - .3, 26, 50, .3, .5, SUB);
+  click(mix, p.collapse, .5, obj(p.collapse));
+  // The circle grows over the grid and reveals each triangle as it passes it, on a swelling E/D and a clap roll.
+  const swarmEnd = native - .2;
+  block(mix, p.circleGrow.at, swarmEnd, II.tones, BLOCK, {root: II.root, level: .85, cutoff: [300, 2200]});
+  for (let t = p.circleGrow.at + .4, k = 0; t < swarmEnd - .02; t += t > swarmEnd - .8 ? .05 : .1, k++) clap(mix, t, .2 + .5 * (t - p.circleGrow.at) / (swarmEnd - p.circleGrow.at), {...KIT, pan: k % 2 ? .1 : -.1});
+  const grown = settle(p.circleGrow);
+  issues.pops.forEach(pop => {
+    const radius = Math.min(1, Math.hypot(pop.pan, (pop.height - .5) * 1.2) / .75);
+    const time = p.circleGrow.at + radius * (grown - p.circleGrow.at) * .95;
+    if (time < swarmEnd - .01) pure(mix, time, lydian(Math.round(pop.height * 11)), .22, obj(time, pop.pan * .5), .02);
+  });
 
-  // ── It clusters issues into high-level patterns: the groove again, anchored on the grid's appearance.
-  const h = (beat: number) => native + beat * Q, homeTo = (end.start - native) / Q;
-  const home = loopBars(0, homeTo, GROOVE, 0);
+  // ── The issue grid: out of 200 ms of silence, the third big hit, and the groove anchored on it.
+  // The grid's tempo is stretched a few percent so its third bar line lands on the clusters' lock, on I.
+  const lock = issues.clusters[0], typingFrom = issues.windowDown.at;
+  const gridQ = lock !== undefined && lock > native + 2 ? (lock - native) / 8 : Q;
+  const grooveBeats = Math.round((end.start - native) / gridQ);
+  const gridChords = progression([0, I], [4, II], [8, I], [12, iii], [16, V], [20, II], [24, I], [28, II]);
   sub808(mix, native, 26, 1.2, 1, SUB, {drop: 34, drive: 3.4});
-  trap(home, 0, homeTo, {stabs: true, grid: h});
+  block(mix, native, native + .6, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [3500, 1200]});
+  trap(gridChords, native, grooveBeats, {
+    level: .95, stabs: true, q: gridQ,
+    bare: [[typingFrom, end.start]],
+    still: lock !== undefined ? [[native + gridQ * 2, lock - .02]] : [], hits: lock !== undefined ? [lock] : [],
+  });
   if (issues.postludeActive) {
-    // Every issue triangle is a blip, fanned out by height into a cascade over the D Lydian scale.
-    cascade(issues.pops, SCALE, .025).forEach((note, i) => blip(mix, note.time, note.midi, .34 - Math.min(.2, i * .004), {...DATA, pan: note.pan * .5}, .025));
-    // The clusters lock on a wide block stab over the 808.
-    const lock = issues.clusters[0];
-    block(mix, lock, lock + .5, I.tones.map(t => t + 12), HIGH, {level: .6, cutoff: [3200, 1200]});
-    sub808(mix, lock, 26, .8, .9, SUB, {drop: 30});
+    // The triangles migrate: six cluster voices glide from scattered pitches onto Dmaj7♯11 over the whole travel,
+    // each arriving on its own cluster's lock, with a few sparse pops over them.
+    const CLUSTERS = [74, 78, 81, 85, 88, 92], travel = issues.travel, SCATTER = [83, 90, 76, 93, 80, 86];
+    issues.clusters.slice(0, 6).forEach((arrive, i) => {
+      glide(mix, travel.at, arrive, SCATTER[i], CLUSTERS[i], .1, {...QUIET, pan: -.3 + i * .12});
+    });
+    issues.pops.filter((_, i) => i % 4 === 0).slice(0, 12).forEach((pop, i) => {
+      const time = travel.at + .2 + i * (travel.duration - .4) / 12;
+      pure(mix, time, lydian(Math.round(pop.height * 11)) + 12, .12, {...QUIET, pan: pop.pan * .5}, .015);
+    });
+    // The clusters lock: each colour strikes its own chord tone over a stab and an 808.
+    issues.clusters.forEach((time, i) => blip(mix, time, CLUSTERS[Math.min(5, i)], .45, {...HIGH, pan: -.3 + Math.min(5, i) * .12}, .12));
+    block(mix, lock, lock + .5, I.tones.map(t => t + 12), HIGH, {level: .55, cutoff: [3200, 1200]});
+    sub808(mix, lock, 26, .8, .85, SUB, {drop: 30});
   }
 
-  // ── Unlock the insights hiding in millions of agent traces: the kit drops away, blocks switch on and off.
-  const logo = end.logo;
-  for (let t = end.start, k = 0; t < logo - .15; t += BAR, k++) chord(t, Math.min(logo - .15, t + BAR - (k % 2 ? .28 : .12)), LOOP[k % LOOP.length], {cutoff: [700, 1300], level: .8, sub: .6});
-  for (let t = end.start; t < logo - .15; t += Q / 2) hat(mix, t, .24, {...KIT, pan: -.1});
-  // ── With Laminar: one last Dmaj7♯11 over a long 808, the ♯11 on top; everything else is off.
+  // ════ Chapter 5 — awe. The grid multiplies into millions: a sparse shimmer that follows the picture's motion over
+  // a climb through I – iii – V – E/D, then E/D breathing in reverse, so I arrives only with the logo.
+  const logo = end.logo, swell = logo - .62;
+  const climb: [number, Voiced][] = [[end.start, I], [end.start + 1.2, iii], [end.start + 2.4, V], [end.start + 3.02, II]];
+  climb.forEach(([from, voiced], i) => {
+    const to = i + 1 < climb.length ? climb[i + 1][0] - .04 : swell - .03;
+    chord(from, to, voiced, {level: .5 + i * .08, cutoff: [700 + i * 600, 1300 + i * 600], sub: .4 + i * .06});
+  });
+  sub808(mix, end.start, 26, .9, .7, SUB, {drop: 24, drive: 1.2});
+  // Density and level peak where the zoom moves fastest (about 1.9 s in) and are gone before the last chord.
+  const motionPeak = end.start + (swell - end.start) * .55, shimmerEnd = climb[3][0];
+  for (let t = end.start + .1; t < shimmerEnd;) {
+    const energy = t < motionPeak ? (t - end.start) / (motionPeak - end.start) : 1 - (t - motionPeak) / (shimmerEnd - motionPeak);
+    pure(mix, t, SCALE[7 + Math.floor(mix.random() * 5)] + 12, .05 + .05 * energy, {...QUIET, room: .08, pan: (mix.random() - .5) * .6}, .018);
+    t += 1 / (6 + 34 * Math.max(0, energy));
+  }
+  chord(swell, logo - .12, II, {level: .8, cutoff: [600, 2600], swell: true});
+  // With Laminar: the logo lands on I and the motif's first notes; the resolution to D waits until the name is said.
   sub808(mix, logo, 26, end.end - logo - .4, 1, SUB, {drop: 34, drive: 3, decay: 2.2});
-  block(mix, logo, end.end - .5, I.tones, BLOCK, {root: I.root, level: .9, cutoff: [1600, 500]});
-  block(mix, logo, logo + 1.2, I.tones.map(t => t + 12), HIGH, {level: .45, cutoff: [3500, 900]});
-  blip(mix, logo + .8, 92, .35, {...HIGH, delay: .5}, .08);
+  block(mix, logo, end.end - .76, I.tones, BLOCK, {root: I.root, level: .8, cutoff: [1500, 500]});
+  // The octave stab is short and its tail dark, so "with Laminar" stays on top of it.
+  block(mix, logo, logo + .12, I.tones.map(t => t + 12), HIGH, {level: .5, cutoff: [3500, 1500]});
+  block(mix, logo + .12, logo + .9, I.tones.map(t => t + 12), HIGH, {level: .16, cutoff: [1100, 500]});
+  // The whole motif flicks by before the voice's first syllable (120 ms after the hit), dry, then waits for the name.
+  MOTIF.forEach((midi, i) => { blip(mix, logo + i * .04, midi, .42, {...HIGH, delay: 0}, .05); blip(mix, logo + i * .04, midi - 12, .2, {...HIGH, delay: 0}, .05); });
+  const named = VOICE.find(phrase => phrase.from > logo - .5)?.to ?? logo + 1.1;
+  motif(named + .02, .38, [93, 98], .12);
 }

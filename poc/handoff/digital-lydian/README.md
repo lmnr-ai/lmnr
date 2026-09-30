@@ -6,7 +6,8 @@ the narration, the settings and the animation are unchanged: nothing in `public/
 default mix is untouched.
 
 - A (current): `lam-2305/ultimate3-tighter-cadence-arabesque-voiceover.mp4`
-- B (candidate): `lam-2315/ultimate3-digital-lydian-voiceover-v2.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v2.mp4` with the bed alone
+- B (candidate, v3): `lam-2315/ultimate3-digital-lydian-voiceover-v3.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v3.mp4` with the bed alone
+- v2, which scores over the picture rather than to it: `lam-2315/ultimate3-digital-lydian-voiceover-v2.mp4`
 
 ## What makes the reference
 
@@ -26,24 +27,37 @@ I decoded the reference and split it with Demucs (`htdemucs`) into voice and mus
 
 The code is `src/experiments/micro-18/score/digital/`: `instruments.ts` holds the palette, `composition.ts` the score, and `index.ts` the style and foley.
 
-| Section | Music |
+v3 is scored to the motion, following two passes of review from a sound-design critic:
+
+- **Camera moves:** each one is a `sweep` shaped to its speed curve. The sweep is split (body plus air) under the voice and gated on the frame the move lands. Ease-out moves land at 70 % of their span; short moves peak early and start a frame early, with a click on the first frame.
+- **One sound per object:**
+  - The blue agent is a droplet with a fifth; the purple agent is a detuned droplet.
+  - Each span type has its own blip: Thinking 85, Read 88, Write 81.
+  - The warning is a G♯/A dyad, and the clouds and smoke are crushed haze.
+  - The budget is a held square: its pitch is the fill, and it crushes as the budget drains.
+  - The window is a zap plus a latch (a low zap, a click and a D7 tick).
+- **Five tier-A hits:** Bash, the drop, the door, the grid and the logo. Each comes out of dead air and has the only 808 on its downbeat; the groove anchored on it leaves bar 1's downbeat to the hit.
+- **The groove is earned.** It runs only in Cost (from Bash), in Flow-1 and on the issue grid. It drops out during big moves (`mute`), leaves only the 808 during medium moves (`bare`), and thins to quarter hats while the picture holds (`still`). Under the voice the stabs thin to two a bar and darken.
+- **Harmony follows the picture.** The Flow-1 chords change on the analysis move (V) and the "20×" settle (I). The issue grid is stretched 4 % so its third bar line lands on I at the clusters' lock.
+
+| Section | Motion → sound |
 |---|---|
-| Agent and trace stream | Gated Dmaj7♯11 blocks cut by the picture, with a hole every bar filled by Lydian data blips |
-| Failure | Cut to dead air, a falling zap and one off-key G♮ blip |
-| Backtrack and drawers | Blip runs down the scale, a blip and click per drawer, an 808 under the warning |
-| Insights and zoom | Blocks over 8th hats, then 16ths and a riser into an 808 on the collapse |
-| Cost | The half-time trap. Cheap-model legs are 32nd blip runs; the miss is a buffer stutter; the Bash window is a long 808; the budget tape-stops the whole track |
-| "Until now" | A held sub and a high A, then 100 ms of silence |
-| Flow-1 | The drop (808 and a wide stab), then the groove with stabs on the syncopations (I – II – iii – V). The bead landings climb the scale, the engine spins in blips, and the Signals door tape-stops into an 808 |
-| Report prelude | Back to blocks and blips over 8th hats, a riser on the zoom-out, and a swelling block with a clap roll cut before the grid |
-| Issue grid | The groove again, anchored on the grid. Every issue pop is a blip cascade, and the clusters lock on a stab |
-| Conclusion and logo | The kit drops out and blocks switch on and off; the logo is one Dmaj7♯11 over a long 808 |
-| Foley | Typing is data blips on D Lydian, one pitch per key. The window moves on zaps, shuts on a click, and the badges and send are blips and a rising zap |
+| Agent and trace stream | The agent's droplet; the pill's block opens its filter as it grows; each span switches the chord on its snap frame |
+| Failure → drawers | A falling zap into dead air, and one off-key G♮. The upward turn is a rising zap, with F♯m on its settle. The backtrack is a panned sweep, and each drawer glides into its note and latches |
+| Warning → collapse | The scan stops 60 ms before the warning. G♯ø opens with the insights move, the zoom opens the filter over a riser, and the collapse is an 808 with a shatter of soft warnings on G♯ |
+| Cost | The cloud parts on haze; a thin, dark trap; each leg is a panned sweep and blip run; three warnings fall off and the buffer stutters |
+| Powerful LLMs | The biggest sweep in the film ends 100 ms before Bash. The purple agent drops down the log, and the budget meter fills, holds and drains while the score tape-stops |
+| "Until now" → Flow-1 | A held breath, a sweep into 310 ms of dead air, then the drop: an 808, an octave stab and the motif E6–G♯6–A6. Flow-1's bead falls on a rising zap into the motif |
+| Engine and door | The engine sweep, the module on the motif, an accelerating spinner, converging cover zaps, a reversed block into the shut, and a heartbeat on A |
+| Report prelude | The blue agent hops down the log, the labels read true/false/critical, and the collapse is sucked in by a reversed 808 zap. Circle-grow pops sound as the circle passes each triangle |
+| Issue grid | The grid hit, then six cluster voices glide from scattered pitches onto Dmaj7♯11, each arriving on its cluster's lock |
+| Conclusion and logo | The chord climbs I → iii → V → E/D with a sparse shimmer following the zoom's speed, and an E/D swell holds I back. The logo is I with the whole motif flicked in before "with"; the motif resolves A → D after "Laminar" |
+| Foley | Typing is data blips on D Lydian, one pitch per key. The window moves on sweeps and zaps and shuts on a latch; the badges are the blue agent's droplet; the send is a rising zap over a hat roll |
 
 Controls (all in `digital/`):
 
-- `composition.ts`: the chord voicings (`I`, `II`, `iii`, `V`), the `LOOP`/`GROOVE` progressions and the `SCALE`. `trap()` options (`density`, `level`, `clap`, `stabs`, `grid`) and the per-section `level`/`cutoff`/`sub` of `chord()` set the balance.
-- `instruments.ts`: the `sub808` pitch drop, fall, drive and decay, the `block` cutoff sweep, root, crush and buzz, and the blip level and length.
+- `composition.ts`: the chord voicings (`I`, `II`, `iii`, `V`, `vi`, `iv0`, `Isharp`), `STREAM` (the span-snap fractions), `SCALE` and `MOTIF`. The `trap()` options (`level`, `clap`, `stabs`, `hats`, `q`, `mute`, `bare`, `still`, `hits`) and the per-section `level`/`cutoff`/`sub` of `chord()` set the balance. `OBJ`/`QUIET` are the object sounds outside and under the narration.
+- `instruments.ts`: the `sub808` pitch drop, fall, drive and decay; the `block` cutoff sweep, root, crush and swell; the `sweep` speed curve, split and grab; plus `droplet`, `warn`, `glide`, `haze` and `meter`.
 - `index.ts`: the room, delay and hall sends (`space`) and the master `eq`.
 - Bed level under the voice: the third argument of the mix script (default -6.5 dB, the same as the approved bed).
 
@@ -53,11 +67,14 @@ Controls (all in `digital/`):
 cd poc
 # 1. Score (music + foley), mastered to -14 LUFS / -1.2 dBTP; about 8 s.
 pnpm ultimate3:score --style digital-lydian --settings handoff/voiceover-tighter-cadence/default-settings.json \
-  --seed 107290 --out /tmp/u3/digital.wav
+  --seed 107290 --out /tmp/u3v3/digital.wav
 # 2. Voiceover mix with the published chain (v10 phrases at their `at`, 15 ms fades, voice-keyed sidechain 3.5:1,
 #    loudnorm -14.7), muxed over a silent render of the same settings.
-node scripts/mix-ultimate3-candidate-vo.mjs /tmp/u3/digital.wav /tmp/u3/digital-vo.wav -6.5 \
-  --video /tmp/u3/silent.mp4 --mp4 /tmp/u3/ultimate3-digital-lydian-voiceover.mp4
+node scripts/mix-ultimate3-candidate-vo.mjs /tmp/u3v3/digital.wav /tmp/u3v3/digital-vo.wav -6.5 \
+  --video /tmp/u3/silent.mp4 --mp4 /tmp/u3v3/ultimate3-digital-lydian-voiceover-v3.mp4
+# 3. Music only: the score over the same silent render.
+ffmpeg -i /tmp/u3/silent.mp4 -i /tmp/u3v3/digital.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 320k -shortest \
+  /tmp/u3v3/ultimate3-digital-lydian-music-only-v3.mp4
 ```
 
 The same script run on `public/audio/voiceover/editable-v10/bed.wav` with a bed gain of `0` reproduces the A side's chain,
@@ -65,16 +82,22 @@ so the A/B below compares like with like.
 
 ## A/B and checks
 
-| | A: arabesque (piano) | B: digital-lydian |
-|---|---|---|
-| Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP (-0.8 dBFS after AAC) |
-| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB peak limiting |
-| Voice over bed, 300 Hz–4 kHz, median across phrases | +2.3 dB | +9.2 dB |
-| Voice over bed, broadband, median | +5.3 dB | +2.3 dB (the sub) |
-| faster-whisper `small.en` script recovery | 139/148 words | 142/148 words |
-| Energy under 120 Hz / 250 Hz–4 kHz | | 84 % / 7 % (reference: 80 % / 10 %) |
+| | A: arabesque (piano) | digital v2 | B: digital v3 |
+|---|---|---|---|
+| Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP | -14.8 LUFS, -1.0 dBTP |
+| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.9 dB limiting |
+| Voice over bed, 300 Hz–4 kHz, median (worst phrase) | +2.3 dB (-4.2) | +9.2 dB (+1.4) | +8.0 dB (+0.9) |
+| Voice over bed, broadband, median | +5.3 dB | +2.3 dB | +3.1 dB |
+| faster-whisper `small.en` script recovery | 139/148 words | 142/148 words | 141/149 words ("with Laminar" recovered) |
+| Energy under 120 Hz / 250 Hz–4 kHz | | 83 % / 7 % | 81 % / 9 % (reference: 80 % / 10 %) |
+| Audio onsets (of which over a static picture) | | 301 (28 %) | 178 (26 %) |
+| Picture onsets with sound within 67 ms (median offset) | | 50 % (68 ms) | 48 % (74 ms) |
+| Onsets that jump ≥ 3 dB in 300 Hz–10 kHz (median jump) | | 10 % (-0.6 dB) | 34 % (+1.3 dB) |
+| Motion energy vs 300 Hz–10 kHz loudness, correlation | | 0.04 | 0.19 |
+
+The motion measures come from frame differences of the silent render against onset and band-loudness curves of the score. The onset hit rate is a strict proxy and barely moves: v3 has about 40 % fewer onsets, so a larger share of its sounds are placed on the picture's events. The reaction measures show the change. A v3 onset is a real event: a third of them jump at least 3 dB, against a tenth in v2, and the sound's loudness now follows how much the picture moves.
 
 - Audio and video are both 70.967 s; the WAV is padded and trimmed to the manifest's 3,406,400 samples.
-- The score is deterministic for a given seed and settings, and the render counts every voice (for example 83 808 hits and 112 blocks).
+- The score is deterministic for a given seed and settings (`pnpm ultimate3:score:test`).
 - Not done: the split-arabesque viewer path. The editor's live preview still plays the arabesque bed, and a
   `digital-lydian` editable bed would need `build-ultimate3-issues4-vo.mjs` support before this could become the default.
