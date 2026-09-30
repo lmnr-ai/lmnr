@@ -6,7 +6,8 @@ the narration, the settings and the animation are unchanged: nothing in `public/
 default mix is untouched.
 
 - A (current): `lam-2305/ultimate3-tighter-cadence-arabesque-voiceover.mp4`
-- B (candidate, v5): `lam-2315/ultimate3-digital-lydian-voiceover-v5.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v5.mp4` with the bed alone
+- B (candidate, v6): `lam-2315/ultimate3-digital-lydian-voiceover-v6.mp4`, plus `lam-2315/ultimate3-digital-lydian-music-only-v6.mp4` with the bed alone
+- v5, the same bed with the pitched pings: `lam-2315/ultimate3-digital-lydian-voiceover-v5.mp4`
 - v4, the same score with the earlier sine palette: `lam-2315/ultimate3-digital-lydian-voiceover-v4-fix.mp4`
 - v3, which ducks the whole bed under the voice: `lam-2315/ultimate3-digital-lydian-voiceover-v3.mp4`
 - v2, which scores over the picture rather than to it: `lam-2315/ultimate3-digital-lydian-voiceover-v2.mp4`
@@ -28,6 +29,60 @@ I decoded the reference and split it with Demucs (`htdemucs`) into voice and mus
 ## What it does on Ultimate 3
 
 The code is `src/experiments/micro-18/score/digital/`: `instruments.ts` holds the palette, `composition.ts` the score, and `index.ts` the style and foley.
+
+### v6: foreground details that stay out of the way
+
+The client liked the bed and the arc but not the pings. v6 changes only the foreground layer; the bed, the groove, the
+routes and the space are v5's. A sound-design expert compared v5's foreground with Glide's (PR #2466), whose details
+read as polish rather than as events. Intelligibility was never the problem: v5's pings cost almost no speech
+audibility. What they did was capture attention. The expert's causes, ranked:
+
+- **The pings sat in the voice's band (about 35 %).** The median ping partial was 1.18 kHz, and 270 tonal onsets in
+  1–4 kHz fell inside speech. Anything in the voice's presence band competes for the same attention as the words
+  (informational masking), even when it's quiet enough not to mask them.
+- **They were melodies (about 25 %).** 252 notes during speech formed runs of three or more. The ear tracks a pitch
+  sequence as a second line and follows it. Above about 5 kHz, pitch salience is weak, so the same rhythm reads as texture.
+- **They talked over the narrator (about 15 %).** There were 5.8 onsets/s in speech, which is more than in the gaps.
+  Glide takes turns: its details fill the gaps between phrases and thin out under them.
+- **Level, centre pan, timbre and crest (the remaining 25 %).** The foreground sat 9.5 LU under the voice, and 54 %
+  of the onsets were dead centre, on top of the voice. Taps, bells, zaps and blips changed timbre from hit to hit, so
+  each one was a new event (novelty capture). Some notes were a semitone off the chord.
+
+Glide's glint is a sine plus a short octave partial with a 1.5 ms attack at around 7 kHz. It is off-centre, one timbre
+throughout, and fills the gaps. v6 adopts the principles, not the sound:
+
+- **`glint` (`instruments.ts`)** replaces every pitched ping. It is a sine plus a 0.3 octave partial, with a 1.5 ms
+  raised-cosine attack and a 60 ms decay. `hi()` (`composition.ts`) folds every ping onto E8–D9, holds the tonic D back
+  before the drop, and moves any class that is a semitone off the sounding chord to the nearest scale tone.
+- **Turn-taking.** `ping`, `bead`, `flick`, `alarm` and `shard` play the full gesture in the gaps. In speech they turn
+  into sparser glints: streams, pops, cluster travel and logo rain are thinned by a golden-ratio `keep()`, and meters,
+  spinners and scans run at half rate. Motif echoes are dry just before a phrase, so they don't land on its first word.
+- **Off-centre.** Before the drop the specks alternate at ±0.12 (the returns are still mono); after it they sit at
+  ±0.25–0.45.
+- **Tick, droplet and typing.** `tick` moved to 5.9 kHz, the droplet's snap moved to 9 kHz, and its rise is 0.5 semitone
+  (a 9-semitone bend swept into the voice's band). Typing is `thock`, a 700 Hz noise knock under a 180 Hz body. The
+  window and send zaps are glints.
+
+The expert's 15 checks on the split foreground (`split.mts`) against the narration:
+
+| Check | v5 | v6 | Target |
+|---|---|---|---|
+| Foreground vs voice in 1–4 kHz, speech only | -7.3 dB | -26.3 dB | ≤ -24 |
+| Median onset partial | 1.18 kHz | 6.6 kHz | ≥ 4.5 kHz |
+| Tonal in-band onsets in speech / notes in melodic runs | 270 / 252 | 0 / 0 | ≤ 30 / ≤ 24 |
+| Onsets per second in speech; gap density / speech density | 5.8; 0.76 | 3.6; 1.14 | ≤ 4; ≥ 1.1 |
+| Foreground loudness vs voice | -9.5 LU | -14.3 LU | -20 to -14 |
+| Onsets dead centre | 54 % | 16 % | ≤ 35 % |
+| Spectral distance between consecutive onsets | 11.7 dB | 5.1 dB | ≤ 9 |
+| Speech audibility lost to the foreground, p95 | 0.325 | 0.04 | guard |
+| Checks passed | 2/15 | 13/15 | |
+
+Two checks still fail, and they're a judgement call:
+
+- **Foreground share in 1–4 kHz: 18.5 % against 12 %.** This is the hero motif and the warning, which play in the gaps.
+  Glide's own foreground, bell included, measures 14.3 %.
+- **Semitone clashes: 16.7 % against 12 %.** Few tonal onsets are left, and the flagged ones are the ♯11 motif and
+  warning (on purpose) plus chroma false positives. A small time shift flips it to passing.
 
 ### v5: sound design polish
 
@@ -159,10 +214,10 @@ pnpm ultimate3:score --style digital-lydian --settings handoff/voiceover-tighter
 # 2. Voiceover mix with the carve chain (v10 phrases at their `at`, 15 ms fades, static -7.5 dB bed with an EQ carve,
 #    a 2:1 duck on 250 Hz–5 kHz only, two-pass linear loudnorm -14.7), muxed over a silent render of the same settings.
 node scripts/mix-ultimate3-candidate-vo.mjs /tmp/u3v4/digital.wav /tmp/u3v4/digital-vo.wav --chain carve \
-  --video /tmp/u3/silent.mp4 --mp4 /tmp/u3v4/ultimate3-digital-lydian-voiceover-v5.mp4
+  --video /tmp/u3/silent.mp4 --mp4 /tmp/u3v4/ultimate3-digital-lydian-voiceover-v6.mp4
 # 3. Music only: the score over the same silent render.
 ffmpeg -i /tmp/u3/silent.mp4 -i /tmp/u3v4/digital.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 320k -shortest \
-  /tmp/u3v4/ultimate3-digital-lydian-music-only-v5.mp4
+  /tmp/u3v4/ultimate3-digital-lydian-music-only-v6.mp4
 ```
 
 The same script run on `public/audio/voiceover/editable-v10/bed.wav` with a bed gain of `0` (and the default
@@ -171,22 +226,22 @@ at -6.5 dB.
 
 ## A/B and checks
 
-| | A: arabesque (piano) | digital v2 | digital v3 | digital v4 | B: digital v5 |
-|---|---|---|---|---|---|
-| Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP | -14.8 LUFS, -1.0 dBTP | -14.6 LUFS, -1.0 dBFS peak | -14.7 LUFS, -1.0 dBFS peak |
-| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.9 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.8 dB limiting | -14.1 LUFS, -1.2 dBTP, 7.5 dB peak limiting (over 1 dB 4.3 % of the time) |
-| Bed gain reduction under the voice, median (p95) | full band | full band | full band, 13.6 dB | 250 Hz–5 kHz only, 2.3 dB (4.2 dB); none elsewhere | same chain as v4 |
-| Voice over bed, 300 Hz–4 kHz, median (worst phrase) | +2.3 dB (-4.2) | +9.2 dB (+1.4) | +8.0 dB (+0.9) | +8.2 dB (+1.9) | +8.1 dB (+3.3) on a -9 dB carve model (v4 on the same model: +9.7, +3.4); worst 250 ms window -15.9 dB (v4: -20.1) |
-| Voice over bed, broadband, median | +5.3 dB | +2.3 dB | +3.1 dB | +1.6 dB (K-weighted), with no duck | |
-| faster-whisper `small.en` script recovery | 139/148 words | 142/148 words | 141/149 words | 144/149 words | 145/149 words |
-| Energy under 120 Hz / 250 Hz–4 kHz | | 83 % / 7 % | 81 % / 9 % | 85 % / 7 % | 72 % / 11 % (reference: 43 % / 29 %) |
-| First half (0–19.7 s) vs drop, LUFS | | | -18.0 / -13.7 vs -12.2 | -19.5 / -15.2 vs -10.8 | -19.8 / -15.9 vs -11.6 |
-| Climb vs logo, LUFS | | | -13.5 vs -12.7 | -13.1 vs -11.7 | -14.5 vs -12.9 |
-| Sustained tones over 120 ms in the SFX stem | | | 5, including 0.55 s glides | 9, all repeated taps (longest 0.29 s) | |
-| Audio onsets (of which over a static picture) | | 301 (28 %) | 178 (26 %) | 226 (21 %) | |
-| Picture onsets with sound within 67 ms (median offset) | | 50 % (68 ms) | 48 % (74 ms) | 59 % (46 ms) | |
-| Onsets that jump ≥ 3 dB in 300 Hz–10 kHz (median jump) | | 10 % (-0.6 dB) | 34 % (+1.3 dB) | 28 % (+0.8 dB) | |
-| Motion energy vs 300 Hz–10 kHz loudness, correlation | | 0.04 | 0.19 | 0.14 | |
+| | A: arabesque (piano) | digital v2 | digital v3 | digital v4 | digital v5 | B: digital v6 |
+|---|---|---|---|---|---|---|
+| Final mix | -14.9 LUFS, -1.0 dBTP | -15.0 LUFS, -1.0 dBTP | -14.8 LUFS, -1.0 dBTP | -14.6 LUFS, -1.0 dBFS peak | -14.7 LUFS, -1.0 dBFS peak | -14.7 LUFS, -1.0 dBFS peak |
+| Score master | | -14.0 LUFS, -1.2 dBTP, 2.4 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.9 dB limiting | -14.0 LUFS, -1.2 dBTP, 2.8 dB limiting | -14.1 LUFS, -1.2 dBTP, 7.5 dB peak limiting (over 1 dB 4.3 % of the time) | -14.1 LUFS, -1.2 dBTP, 7.7 dB peak limiting |
+| Bed gain reduction under the voice, median (p95) | full band | full band | full band, 13.6 dB | 250 Hz–5 kHz only, 2.3 dB (4.2 dB); none elsewhere | same chain as v4 | same chain as v4 |
+| Voice over bed, 300 Hz–4 kHz, median (worst phrase) | +2.3 dB (-4.2) | +9.2 dB (+1.4) | +8.0 dB (+0.9) | +8.2 dB (+1.9) | +8.1 dB (+3.3) on a -9 dB carve model (v4 on the same model: +9.7, +3.4); worst 250 ms window -15.9 dB (v4: -20.1) | +10.8 dB (+6.3) on the same model; worst 250 ms window -16.4 dB |
+| Voice over bed, broadband, median | +5.3 dB | +2.3 dB | +3.1 dB | +1.6 dB (K-weighted), with no duck | | |
+| faster-whisper `small.en` script recovery | 139/148 words | 142/148 words | 141/149 words | 144/149 words | 145/149 words | 144/149 words |
+| Energy under 120 Hz / 250 Hz–4 kHz | | 83 % / 7 % | 81 % / 9 % | 85 % / 7 % | 72 % / 11 % (reference: 43 % / 29 %) | |
+| First half (0–19.7 s) vs drop, LUFS | | | -18.0 / -13.7 vs -12.2 | -19.5 / -15.2 vs -10.8 | -19.8 / -15.9 vs -11.6 | -21.1 / -16.0 vs -11.5 |
+| Climb vs logo, LUFS | | | -13.5 vs -12.7 | -13.1 vs -11.7 | -14.5 vs -12.9 | -14.7 vs -12.2 |
+| Sustained tones over 120 ms in the SFX stem | | | 5, including 0.55 s glides | 9, all repeated taps (longest 0.29 s) | | |
+| Audio onsets (of which over a static picture) | | 301 (28 %) | 178 (26 %) | 226 (21 %) | | |
+| Picture onsets with sound within 67 ms (median offset) | | 50 % (68 ms) | 48 % (74 ms) | 59 % (46 ms) | | |
+| Onsets that jump ≥ 3 dB in 300 Hz–10 kHz (median jump) | | 10 % (-0.6 dB) | 34 % (+1.3 dB) | 28 % (+0.8 dB) | | |
+| Motion energy vs 300 Hz–10 kHz loudness, correlation | | 0.04 | 0.19 | 0.14 | | |
 
 The motion measures come from frame differences of the silent render against onset and band-loudness curves of the score. The onset hit rate is a strict proxy and barely moves: v3 has about 40 % fewer onsets, so a larger share of its sounds are placed on the picture's events. The reaction measures show the change. A v3 onset is a real event: a third of them jump at least 3 dB, against a tenth in v2, and the sound's loudness now follows how much the picture moves.
 v4's taps and pushes land closer to the picture (59 % within 67 ms). Its jump rate and correlation fall back a little, though. The first half is deliberately quieter and narrower, and several hits now land on the dead air that follows a cut rather than on the cut itself.
@@ -210,6 +265,15 @@ Mixing notes (hard-won):
 - `--stems` writes the reverb and echo stems before their return gain (`space.returns`). Add `20·log10(return)` before comparing them with the music stem.
 - `Svf.bp` peaks at a gain of Q. When you raise a resonator's Q for a longer ring, scale its gain by the ratio of the old Q to the new one.
 - Compressing the music bus against the track's own average RMS flattens the arc: the loudest sections take the most gain reduction. On this score it cost the drop and the logo about 1.2 dB each.
+- A foreground detail in the voice's 1–4 kHz band grabs attention even when it costs no intelligibility. Speech-audibility
+  measures pass while the listener still hears "pings". Measure the foreground's share of that band during speech, and its onset rate.
+- The checker's split (`split.mts`) counts a kind as foreground by its `mix.count()` name, so the 808's sub zaps count as `subZap`, not `zap`.
+- Echoes on a gap's motif spill onto the next phrase's first word. Keep them dry when a phrase starts within the echo.
+- A droplet's pitch bend sweeps through every band between its start and its note: a 9-semitone rise from 7 kHz passes 3–4 kHz.
+- In v5 the pings carried much of the room and echo energy and the mids. Without them, the critic's v5 checks now miss
+  the room return (20–21 dB under the music against 14–20), the echo return (33 dB against 16–24), the mids (7.8 %
+  against 12 %) and energy under 60 Hz (46.3 % against 45 %). That leaves 33/39, against v5's 36. Raising the block and
+  kit sends moved these numbers only slightly, and it changed the bed, so v6 leaves them as they were.
 - In the master, sub-heavy moments (the drop, the logo) are limited by peak. Raising their 808 mostly feeds the limiter; take energy out of the sections around them instead.
 
 - Audio and video are both 70.967 s; the WAV is padded and trimmed to the manifest's 3,406,400 samples.

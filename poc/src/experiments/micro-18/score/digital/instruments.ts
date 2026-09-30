@@ -116,7 +116,8 @@ export function zap(mix: Mix, time: number, fromMidi: number, toMidi: number, du
     dc.process(sat(soften.process(value, hz * 2, 1.5), 1.4, .1), 40, .7);
     out[i] = dc.hp * Math.exp(-t / .03) * 1.4 * gate(t, length) * velocity * .3;
   }
-  mix.emit(time, route, out); mix.count('zap');
+  // Sub zaps are the 808's bends, not detail, and are counted apart.
+  mix.emit(time, route, out); mix.count(low ? 'subZap' : 'zap');
 }
 
 /**
@@ -237,12 +238,12 @@ export function sweep(mix: Mix, start: number, duration: number, level: number, 
   mix.emit(start, route, left, right); mix.count('sweep');
 }
 
-/** The agent ball: a sine droplet bent up 9 semitones into its note (a bubble's rise), with a faster octave partial, a 3.5 kHz snap on the touch and a small sub thump. `fifth` is the blue (Signals) agent. */
-export function droplet(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {fifth?: boolean; detune?: boolean; thump?: number} = {}) {
+/** The agent ball: a sine droplet bent up `rise` semitones (default 9) into its note (a bubble's rise), with a faster octave partial, a 9 kHz snap on the touch and a small sub thump. `fifth` is the blue (Signals) agent. */
+export function droplet(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: {fifth?: boolean; detune?: boolean; thump?: number; rise?: number} = {}) {
   const out = buffer(.09), a = new Sine(), second = new Sine(), b = new Sine(), c = new Sine(), low = new Sine(), snap = new Svf();
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000, hz = mtof(midi - 9 * Math.exp(-t / .008));
-    snap.process(noise(mix), 3500, .7);
+    const t = i / 48_000, hz = mtof(midi - (options.rise ?? 9) * Math.exp(-t / .008));
+    snap.process(noise(mix), 9000, .7);
     let value = a.next(hz) + second.next(hz * 2) * .18 * Math.exp(-t / .015);
     if (options.detune) value = value * .7 + b.next(hz * 2 ** (18 / 1200)) * .5;
     if (options.fifth) value += c.next(hz * 1.5) * .45;
@@ -279,15 +280,45 @@ export function pure(mix: Mix, time: number, midi: number, velocity: number, rou
   mix.emit(time, route, out); mix.count('pure');
 }
 
-/** Log and count-up data: a 2.2 kHz clack that also strikes two resonators at 1.1 kHz·2^(rise/12) and 2.3× that. */
+/**
+ * Log and count-up data: a 7 kHz clack that also strikes three resonators at 5.9 kHz·2^(rise/12), 2.3× and 4.1× that
+ * (the upper two fold into air). Above 5 kHz the ear hears a tick, not a note, so a scrolling log never becomes a tune.
+ */
 export function tick(mix: Mix, time: number, velocity: number, route: Route, rise = 0) {
-  const out = buffer(.02), clack = new Svf(), mode = new Svf(), overtone = new Svf(), third = new Svf(), hz = 1100 * 2 ** (rise / 12), jitter = (mix.random() - .5) * .004;
+  const out = buffer(.02), clack = new Svf(), mode = new Svf(), overtone = new Svf(), third = new Svf(), hz = 5900 * 2 ** (rise / 12), jitter = (mix.random() - .5) * .004;
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000, strike = noise(mix) * Math.exp(-t / .001);
-    clack.process(strike, 2200, 1); mode.process(strike, hz, 40); overtone.process(strike, hz * 2.3, 60); third.process(strike, hz * 4.1, 80);
-    out[i] = (clack.bp * 1.5 + (mode.bp * .3 + overtone.bp * .07 + third.bp * .03) * 2.5) * gate(t, .02) * velocity * .3;
+    clack.process(strike, 7000, 1); mode.process(strike, hz, 40); overtone.process(strike, Math.min(20_000, hz * 2.3), 60); third.process(strike, Math.min(21_000, hz * 4.1), 80);
+    out[i] = (clack.bp * .6 + (mode.bp * .3 + overtone.bp * .07 + third.bp * .03) * 2.5) * gate(t, .02) * velocity * .3;
   }
   mix.emit(time + jitter, route, out); mix.count('tick');
+}
+
+/**
+ * The detail layer's one voice: a sine with an octave partial that dies twice as fast, a 1.5 ms raised-cosine
+ * attack and an exponential tail, varied by ±1 dB and ±2 ms. Played in octave 8 (see `hi()` in the composition),
+ * where it is a glint of light rather than a note and sits above the voice's presence band.
+ */
+export function glint(mix: Mix, time: number, midi: number, velocity: number, route: Route, length = .06) {
+  const out = buffer(length * 4 + .01), a = new Sine(), b = new Sine(), hz = mtof(midi);
+  const jitter = (mix.random() - .5) * .004, humane = 10 ** ((mix.random() - .5) * 2 / 20);
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000, attack = t < .0015 ? .5 - .5 * Math.cos(Math.PI * t / .0015) : 1;
+    const tone = a.next(hz) + .3 * b.next(hz * 2) * Math.exp(-t / (length / 2));
+    out[i] = tone * attack * Math.exp(-t / length) * Math.min(1, (out.length - i) / 192) * velocity * humane * .12;
+  }
+  mix.emit(time + jitter, route, out); mix.count('glint');
+}
+
+/** A key: a 700 Hz band of noise (4 ms) over a 180 Hz knock (10 ms). Felt under the voice, not heard over it. */
+export function thock(mix: Mix, time: number, velocity: number, route: Route) {
+  const out = buffer(.03), body = new Svf(), knock = new Sine();
+  for (let i = 0; i < out.length; i++) {
+    const t = i / 48_000;
+    body.process(noise(mix), 700, 1.2);
+    out[i] = (body.bp * Math.exp(-t / .004) * .8 + knock.next(180) * Math.exp(-t / .01) * .5) * gate(t, .03) * velocity * .35;
+  }
+  mix.emit(time, route, out); mix.count('thock');
 }
 
 /** Clouds and smoke: crushed noise under a moving low-pass; `shape(progress)` gives [cutoff Hz, level]. */
@@ -305,13 +336,13 @@ export function haze(mix: Mix, start: number, end: number, route: Route, shape: 
 }
 
 /**
- * The budget meter as a train of taps: `rate(progress)` taps a second at `pitch(progress)`, each closing from
- * `bright(progress)`. Filling speeds up and rises; draining slows, falls and darkens.
+ * The budget meter as a train of glints: `rate(progress)` a second at `pitch(progress)`, each `length(progress)`
+ * long. Filling speeds up and rises; draining slows, falls and rings out.
  */
-export function meter(mix: Mix, start: number, end: number, velocity: number, route: Route, pitch: (progress: number) => number, rate: (progress: number) => number, bright: (progress: number) => number = () => 6000) {
+export function meter(mix: Mix, start: number, end: number, velocity: number, route: Route, pitch: (progress: number) => number, rate: (progress: number) => number, length: (progress: number) => number = () => .03) {
   for (let t = start; t < end - .01;) {
     const progress = (t - start) / (end - start);
-    blip(mix, t, pitch(progress), velocity, route, .025, {bright: bright(progress), body: .3});
+    glint(mix, t, pitch(progress), velocity, route, length(progress));
     t += 1 / rate(progress);
   }
 }

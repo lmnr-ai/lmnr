@@ -127,6 +127,7 @@ After the digital reference in `handoff/sound-design-digital-inspo/`; analysis a
   - gated chord blocks of three drifting saws per tone, with a 25 ms filter bite, a saturator and a buzzing root (pulsed under the voice);
   - data taps: a click, then an FM tone that chirps into its note while its spectrum closes;
   - 90 ms FM flicks, pink-noise camera pushes that land with a thump, struck-resonator ticks, droplets and crushed haze;
+  - foreground details as glints (a sine plus a short octave, 1.5 ms attack) folded onto E8–D9, off-centre, thinned under the voice and fuller in its gaps; typing is a 700 Hz noise thock;
   - 808-style metallic hats with 32nd rolls, and a four-burst clap with a stereo tail.
 - **Scored to the motion:** every camera move is a push that grabs on its first frame and lands on its settle frame, and every object has one sound. Five tier-A hits (Bash, the drop, the door, the grid, the logo) each come out of dead air. The groove runs only in Cost, Flow-1 and the issue grid; it mutes, goes bare or thins with the picture (`trap()`'s `mute`, `bare`, `still`).
 - **Arc (the withheld tonic):** before "Introducing Flow-1" nothing lands on D. The bass sits on F♯, the chords stop under 2 kHz, the motif never completes, the groove has no clap and no 16th hats, and everything is mono. The drop gives all of it at once: D1, the full motif, the clap, the width and the top octave. The issue grid resolves the swarm onto Dmaj7♯11, and the ending climbs I → E/D → F♯m/D → A/D to the logo, which blooms Dmaj9♯11 across four octaves after "Laminar".
