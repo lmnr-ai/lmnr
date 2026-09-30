@@ -9,6 +9,13 @@ export const VOICEOVER_PHRASES = placements.map((phrase, index) => {
 export const VOICEOVER_SOURCE_ROOT = '/audio/voiceover/editable-v11/';
 // Scored to the voice-retimed Issue Clusters 4 cut (scripts/build-ultimate3-issues4-vo.mjs); editable-v10/v9/v8/v7/v6/v5/v4 keep the earlier beds and takes.
 export const VOICEOVER_BED_URL = `${VOICEOVER_SOURCE_ROOT}bed.wav`;
+/** Auditionable soundtracks under the same phrases. Arabesque is the approved default; Glide is the
+ * TurboPuffer-reference candidate (scripts/build-ultimate3-glide-bed.ts), frozen to the pricing-timing cut. */
+export const VOICEOVER_BEDS = {
+  arabesque: {label: 'Arabesque (approved)', url: VOICEOVER_BED_URL},
+  glide: {label: 'Glide · TurboPuffer ref', url: '/audio/voiceover/editable-v11-glide/bed.wav'},
+} as const;
+export type VoiceoverBedId = keyof typeof VOICEOVER_BEDS;
 
 // "traces" runs straight into "at scale"; the v4 trim stopped mid-hiss. This source keeps the whole "s" (tapered) for when vo16 and vo17 are pulled apart.
 const RETRIMS: Partial<Record<string, {b: number; file: string}>> = {vo16: {b: 44.55, file: 'vo16-tail.wav'}};

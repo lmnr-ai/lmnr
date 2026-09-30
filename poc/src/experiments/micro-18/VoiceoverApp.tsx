@@ -4,13 +4,20 @@ import {useAutomaticAudio} from '../automatic-audio';
 import {installMicro20AuthoringCompatibility} from '../micro-20/authoring';
 import {Micro18App, ULTIMATE3_PANEL_IDS, type Ultimate3AudioProps, type Ultimate3Edition, type Ultimate3PanelIds} from './App';
 import {VoiceoverEngine} from './voiceover-engine';
+import {VOICEOVER_BEDS, type VoiceoverBedId} from './voiceover-phrases';
 import {readVoiceoverSettings, normalizeVoiceoverSettings, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+
+const SOUNDTRACKS = Object.entries(VOICEOVER_BEDS).map(([value, bed]) => ({value, label: bed.label}));
 
 export const VOICEOVER_PANEL_IDS = Object.fromEntries(Object.keys(ULTIMATE3_PANEL_IDS).map(key =>
   [key, `ultimate3-voiceover-${key}-v4`])) as Ultimate3PanelIds;
 
 function VoiceoverAudio({settings, globalTime, playing, inspecting, seekGeneration}: Ultimate3AudioProps) {
-  const mix = useDialKit('Ultimate 3 · Voiceover mix', {masterVolume: [6.98, 0, 10, .01]}, {id: 'ultimate3-voiceover-sound-v4', persist: true});
+  const mix = useDialKit('Ultimate 3 · Voiceover mix', {
+    masterVolume: [6.98, 0, 10, .01],
+    // A/B the soundtrack under the same narration; the approved bed stays the default.
+    soundtrack: {type: 'select', options: SOUNDTRACKS, default: 'arabesque'},
+  }, {id: 'ultimate3-voiceover-sound-v4', persist: true});
   const engine = useRef<VoiceoverEngine | null>(null);
   engine.current ??= new VoiceoverEngine();
   const active = playing && !inspecting;
@@ -25,6 +32,7 @@ function VoiceoverAudio({settings, globalTime, playing, inspecting, seekGenerati
     };
   }, []);
   useEffect(() => engine.current?.setMasterVolume(mix.masterVolume), [mix.masterVolume]);
+  useEffect(() => engine.current?.setBed(mix.soundtrack as VoiceoverBedId), [mix.soundtrack]);
   useEffect(() => engine.current?.update(globalTime, active, settings, seekGeneration), [globalTime, active, ready, settings, seekGeneration]);
   return <span title="Editable, unstretched phrase trims over the frozen v4 keyboard-bearing score. No old mixed voiceover plays on this route.">
     Editable voiceover · <a href="?experiment=micro-18&cut=original">Original cut</a>

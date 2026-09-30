@@ -1,0 +1,255 @@
+import type {ScoreCues} from '../cues';
+import {bass, hat, impact, kick, marker, pop, puff, reverseSwell, riser, snare, thock, tick, whoosh, type Mix, type Route} from '../voices';
+import {cascade} from '../writing';
+import {air, drone, glint, haze, keys, shimmer, thump} from './instruments';
+
+/*
+ * "Glide" — the TurboPuffer reference's arc on the Ultimate 3 picture. No piano, no struck melody: an
+ * airy G-major synth bed whose single timeline filter opens and closes with the story (bright on the
+ * trace, slammed shut on the failure, dark under Cost, warm on Flow-1, glittering over the issue grid),
+ * a muffled 89 BPM thump under the problem, silence before each reveal, and the only real beat — a soft
+ * boom-bap on the same 89 BPM grid — held back for the conclusion, logo on beat 6.
+ * Detail lives far above the voice (glints ≥ 4.7 kHz) or far below it (sub, thumps ≤ 1 kHz).
+ */
+
+const PAD: Route = {bus: 'music', hall: .45};
+const AIR: Route = {bus: 'music', hall: .3};
+const SUB: Route = {bus: 'music'};
+const KIT: Route = {bus: 'music', room: .18, gain: .7};
+const COMP: Route = {bus: 'music', hall: .25, delay: .18};
+const FX: Route = {bus: 'sfx', hall: .25};
+const SPECK: Route = {bus: 'sfx', hall: .4, delay: .2};
+const FLOOR: Route = {bus: 'sfx', room: .25};
+
+// Voicings stay in G major / E minor, like the reference; the only foreign colour is Cost's F and B♭.
+// One octave above the voice's body (G4–A5), so the bed is air and mid, not chest; the sub carries the floor.
+const up = (notes: readonly number[]) => notes.map(midi => midi + 12);
+const Gmaj9 = up([55, 59, 62, 66, 69]), Em9 = up([52, 55, 59, 62, 66]), Cmaj9 = up([52, 55, 59, 62, 64]), Dsus = up([50, 55, 57, 62, 66]);
+const Am9 = up([57, 60, 64, 67, 71]), Fmaj7 = up([53, 57, 60, 64, 69]), Esus = up([52, 57, 59, 64]), Bbmaj7 = up([50, 53, 57, 62]);
+const Gwarm = [55, 62, 66, 71, 74], GoverB = up([47, 55, 59, 62, 67]);
+/** Glint scale: G-major pentatonic from D8 up — specks sit above the voice's presence band (≥ 4.7 kHz). */
+const SPECKS = [110, 112, 115, 117, 119, 122, 124, 127];
+
+type Knot = readonly [time: number, hz: number];
+/** Log-linear interpolation through the knots; beyond the last knot the filter is fully open. */
+const automation = (knots: readonly Knot[]) => (time: number) => {
+  if (time <= knots[0][0]) return knots[0][1];
+  for (let i = 1; i < knots.length; i++) if (time <= knots[i][0]) {
+    const [t0, h0] = knots[i - 1], [t1, h1] = knots[i], p = (time - t0) / Math.max(1e-6, t1 - t0);
+    return h0 * (h1 / h0) ** p;
+  }
+  return knots[knots.length - 1][1];
+};
+
+/** The conclusion's tempo: beat 6 lands on the logo, which is ≈ 89 BPM like the reference groove. */
+export const glideGrid = (cues: ScoreCues) => {
+  const start = cues.conclusion.start, beat = (cues.conclusion.logo - start) / 6;
+  return {beat, at: (n: number) => start + n * beat};
+};
+
+export function composeGlide(mix: Mix, cues: ScoreCues) {
+  const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
+  const shut = flow.coverShut, drop = end.start - .9, cmp = flow.comparison;
+  const returnAt = cmp ? cmp.comparison_returnToGrid.at : flow.cameraToEngine.at;
+
+  // --- Ultimate 2: one open chord that drifts; the filter tells the story.
+  haze(mix, 0, u2.failure + .2, Gmaj9, PAD, {attack: 1.6, release: 1.2, level: 1});
+  haze(mix, u2.failure, u2.highlight.at + .3, Em9, PAD, {attack: .5, release: 1.4, level: .9});
+  haze(mix, u2.highlight.at, u2.zoom.at + u2.zoom.duration, Cmaj9, PAD, {attack: 1.2, release: 1.8, level: 1});
+  haze(mix, u2.zoom.at + u2.zoom.duration - .4, cues.chapter.cost.start + .8, Dsus, PAD, {attack: 1.4, release: 1.6, level: .75});
+  air(mix, 0, cues.chapter.cost.start + .5, AIR, {hz: 3200, level: .05, shape: p => Math.min(1, p * 8) * (1 - p) ** .5});
+
+  // --- Cost: the floor drops to a sub drone under a dark, thin pad.
+  haze(mix, cost.cloudOut.at, cost.powerful, Am9, PAD, {attack: 1.2, release: .8, level: .7, tone: 1600});
+  haze(mix, cost.powerful, cost.budgetEntry.at, Fmaj7, PAD, {attack: .4, release: .8, level: .7, tone: 1500});
+  haze(mix, cost.budgetEntry.at, cost.depletion.at, Esus, PAD, {attack: .4, release: .6, level: .65, tone: 1400});
+  haze(mix, cost.depletion.at, cost.depletion.at + cost.depletion.duration, Bbmaj7, PAD, {attack: .3, release: .8, level: .6, tone: 1100});
+  drone(mix, cost.cloudOut.at + .4, cost.powerful, 33, SUB, {level: .06, attack: 1.4});
+  drone(mix, cost.powerful, cost.budgetEntry.at, 29, SUB, {level: .065, attack: .15});
+  drone(mix, cost.budgetEntry.at, cost.depletion.at, 28, SUB, {level: .06, attack: .15});
+  drone(mix, cost.depletion.at, cost.depletion.at + cost.depletion.duration, 34, SUB, {level: .06, toMidi: 30, attack: .12, release: .4});
+
+  // --- "Until now": near-silence, then a reversed breath into the Flow-1 reveal.
+  reverseSwell(mix, flow.reveal, 1.2, [55, 62, 66, 71], {...PAD, gain: .5});
+
+  // --- Flow: warm, low-passed Gmaj7 (the reference's reveal voicing), walking G → Em → C → D → G.
+  const numberFlow = flow.numberDrops[2];
+  haze(mix, flow.reveal, numberFlow, Gwarm, PAD, {attack: .25, release: 1.2, level: 1.1, tone: 2200});
+  haze(mix, numberFlow, cmp?.comparison_gridShrink.at ?? flow.cameraToEngine.at, Em9, PAD, {attack: .6, release: 1.2, level: 1, tone: 2200});
+  haze(mix, cmp?.comparison_gridShrink.at ?? flow.cameraToEngine.at, returnAt, Cmaj9, PAD, {attack: .6, release: 1, level: 1, tone: 2400});
+  haze(mix, returnAt, flow.moduleActivation, Dsus, PAD, {attack: .6, release: .6, level: .95, tone: 2600});
+  haze(mix, flow.moduleActivation, shut + .1, Gmaj9, PAD, {attack: .2, release: .5, level: 1, tone: 2800});
+  drone(mix, flow.reveal, numberFlow, 31, SUB, {level: .045, attack: .05, release: 1});
+
+  // --- Issues: the room behind the Signals door, an ambient walk that brightens into the grid.
+  const p = issues.prelude, grid = p.zoomOut.at;
+  haze(mix, shut + .05, p.labels?.at ?? p.highlight, Em9, PAD, {attack: .9, release: 1.2, level: .9, tone: 1800});
+  haze(mix, p.labels?.at ?? p.highlight, p.explanation?.at ?? grid, Cmaj9, PAD, {attack: .9, release: 1.2, level: .9, tone: 1900});
+  haze(mix, p.explanation?.at ?? grid, grid, GoverB, PAD, {attack: .9, release: 1, level: .9, tone: 2000});
+  haze(mix, grid, issues.native, Dsus, PAD, {attack: 1.4, release: .8, level: .9, tone: 3200});
+  haze(mix, issues.native, issues.clusters[0] ?? issues.ready, Gmaj9, PAD, {attack: .3, release: 1, level: 1, tone: 3400});
+  haze(mix, issues.clusters[0] ?? issues.ready, issues.messageSend, Em9, PAD, {attack: .3, release: .8, level: .95, tone: 2800});
+  haze(mix, issues.messageSend, drop + .5, Cmaj9, PAD, {attack: .3, release: .6, level: .9, tone: 2400});
+  reverseSwell(mix, end.start, .85, [55, 59, 66, 69], {...PAD, gain: .55});
+
+  // The one filter: every tonal layer so far rides the story's brightness.
+  const zoomEnd = u2.zoom.at + u2.zoom.duration, depletionEnd = cost.depletion.at + cost.depletion.duration;
+  mix.sweep(automation([
+    [0, 1100], [u2.stream.at, 1500], [u2.failure - .05, 4200], [u2.failure + .12, 420], [u2.upwardTurn.at + .8, 1400],
+    [u2.highlight.at, 1600], [zoomEnd, 6500], [u2.ifOnly, 2400], [cues.chapter.cost.start, 900],
+    [cost.powerful, 1300], [cost.depletion.at, 1100], [depletionEnd, 260], [flow.reveal - .7, 300], [flow.reveal - .02, 1700],
+    [flow.reveal + .15, 1900], [numberFlow, 2600], [returnAt, 4200], [shut - .05, 5200], [shut + .08, 650],
+    [p.bashEntry.at, 900], [grid, 1800], [p.circleGrow.at + p.circleGrow.duration, 9000], [issues.clusters[0] ?? issues.ready, 6500],
+    [issues.windowDown.at, 3000], [drop, 2200], [end.start - .6, 420], [end.start - .02, 2800], [end.start, 20_000],
+  ]));
+
+  // --- Conclusion: the payoff groove, on the logo's grid (≈ 89 BPM, swung 16ths).
+  const {beat, at} = glideGrid(cues);
+  const swing = (sixteenth: number) => at(sixteenth / 4 + (sixteenth % 2 ? .06 : 0));
+  const total = Math.floor((end.end - end.start) / beat * 4);
+  const tail = 24; // The kit drops out on the logo (beat 6), leaving "with Laminar" over a held chord.
+  for (let s = 0; s < Math.min(total, tail + 1); s++) {
+    const step = s % 16, time = swing(s);
+    if (s === tail) { kick(mix, time, .6, KIT); break; }
+    if (step === 0 || step === 10 || (step === 7 && s > 16)) kick(mix, time, step === 0 ? .8 : .55, KIT);
+    if (step === 4 || step === 12) snare(mix, time, .55, KIT, .35);
+    if (step % 2 === 0) hat(mix, time, step % 4 === 0 ? .62 : .45, {...KIT, pan: .18}, .024);
+    else if (step === 15 || step === 11) hat(mix, time, .28, {...KIT, pan: .18}, .02);
+    if (step === 14) hat(mix, time, .42, {...KIT, pan: -.2}, .12);
+  }
+  // Roots G2/E2/C2 stay under the voice's fundamental (~100–250 Hz).
+  const chords: [number, number, readonly number[], number][] = [[0, 4, Gmaj9, 43], [4, 6, Em9, 40], [6, 8, Cmaj9, 36], [8, (end.end - end.start) / beat, Gmaj9, 43]];
+  for (const [from, to, tones, root] of chords) {
+    haze(mix, at(from), at(to), tones, PAD, {attack: .2, release: 1.2, level: from < 6 ? .8 : .5, tone: from < 6 ? 3000 : 1800});
+    bass(mix, at(from), root, Math.min(to - from, 2) * beat - .08, from < 6 ? .4 : .22, SUB, {glide: -1.5, drive: 1.6});
+    if (to - from >= 4 && from < 6) bass(mix, at(from + 2.5), root, beat * 1.3, .3, SUB, {drive: 1.6});
+    if (from < 6) keys(mix, at(from), tones.slice(1), .3, COMP, 1.1);
+    if (to - from >= 2 && from < 6) keys(mix, swing(from * 4 + 6), tones.slice(2), .2, COMP, .7);
+  }
+}
+
+export function designGlide(mix: Mix, cues: ScoreCues) {
+  const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
+  const cmp = flow.comparison;
+  const speck = (time: number, index: number, velocity: number, pan = 0, decay = .05) => glint(mix, time, SPECKS[Math.max(0, Math.min(SPECKS.length - 1, index))], velocity, {...SPECK, pan}, decay);
+  const stream = (start: number, endAt: number, spacing: [number, number], velocity: number, panFrom: number, panTo: number, rise = 0) => {
+    for (let time = start; time < endAt;) {
+      const p = (time - start) / Math.max(.01, endAt - start);
+      speck(time, Math.floor(mix.random() * 5 + rise * p * 4), velocity * (.6 + .4 * mix.random()), panFrom + (panTo - panFrom) * p, .025);
+      time += spacing[0] + (spacing[1] - spacing[0]) * mix.random();
+    }
+  };
+
+  // --- Ultimate 2
+  speck(u2.agentEnter + .05, 4, .5, -.2, .12);
+  stream(u2.firstThinking.at, u2.firstThinking.at + u2.firstThinking.duration, [.1, .18], .35, -.3, .1);
+  stream(u2.stream.at, u2.stream.at + u2.stream.duration, [.06, .13], .42, -.6, .6, 1);
+  thump(mix, u2.failure, .9, FLOOR, .9);
+  puff(mix, u2.failure + .02, .5, FX, 500);
+  whoosh(mix, u2.upwardTurn.at, u2.upwardTurn.duration, FX, {from: 300, to: 1400, level: .12, panFrom: .3, panTo: -.2});
+  whoosh(mix, u2.backtrack.at, u2.backtrack.duration, FX, {from: 1200, to: 350, level: .11, panFrom: .4, panTo: -.4});
+  u2.drawers.forEach((time, i) => speck(time, 2 + i * 2, .55, -.3 + i * .3, .09));
+  marker(mix, u2.highlight.at, u2.highlight.duration, FX, .1);
+  thump(mix, u2.warning, .55, FLOOR, 1.2);
+  speck(u2.warning + .01, 1, .5, .2, .2);
+  [0, 2, 4, 6].forEach((index, i) => speck(u2.insights + i * .07, index, .45 - i * .05, -.4 + i * .27, .12));
+  whoosh(mix, u2.zoom.at, u2.zoom.duration, FX, {from: 250, to: 1800, level: .1, peak: .8, air: .6});
+  stream(u2.zoom.at + u2.zoom.duration * .5, u2.zoom.at + u2.zoom.duration, [.05, .11], .3, -.5, .5, 1);
+  puff(mix, u2.collapse.at, .35, FX, 700);
+  whoosh(mix, u2.cloudIn.at + u2.cloudIn.duration - 1.6, 1.6, FX, {from: 400, to: 1100, level: .08, air: .5});
+  speck(u2.ifOnly, 6, .4, 0, .3);
+
+  // --- Cost: the muffled pulse (syncopated 8ths on the 89 BPM grid), zips, and the budget running dry.
+  const {beat, at} = glideGrid(cues);
+  const firstEighth = Math.ceil((cost.cloudOut.at + cost.cloudOut.duration * .5 - end.start) / beat * 2);
+  const lastEighth = Math.floor((cost.depletion.at - end.start) / beat * 2);
+  for (let e = firstEighth; e < lastEighth; e++) {
+    const step = ((e % 8) + 8) % 8, velocity = step === 0 ? .8 : step === 3 ? .5 : step === 6 ? .62 : step === 7 ? .22 : 0;
+    if (velocity) thump(mix, at(e / 2), velocity, FLOOR, step === 0 ? .9 : 1);
+  }
+  [0, .55, 1.25].forEach((offset, i) => thump(mix, cost.depletion.at + offset, .6 - i * .16, FLOOR, .85 - i * .08));
+  whoosh(mix, cost.cloudOut.at, cost.cloudOut.duration, FX, {from: 900, to: 300, level: .09, air: .5, panFrom: -.2, panTo: .4});
+  cost.cheapLegs.forEach(leg => whoosh(mix, leg.at, leg.duration, FX, {from: 700, to: 2200, level: .1, q: 1.6, peak: .5,
+    panFrom: leg.direction === 'leftToRight' ? -.6 : .6, panTo: leg.direction === 'leftToRight' ? .6 : -.6}));
+  speck(cost.missIssues, 3, .4, 0, .2);
+  speck(cost.missIssues + .14, 1, .3, 0, .25);
+  whoosh(mix, cost.cameraToBash.at, cost.cameraToBash.duration, FX, {from: 1300, to: 350, level: .1});
+  thump(mix, cost.bashEntry.at + cost.bashEntry.duration * .6, .4, FLOOR, 1.3);
+  tick(mix, cost.bashStop, 112, .3, SPECK);
+  impact(mix, cost.powerful, .22, FLOOR);
+  air(mix, cost.bashExpand, cost.bashExpand + .8, FX, {hz: 1200, level: .06});
+  for (let i = 0; i < 8; i++) speck(cost.bashDescent.at + i * cost.bashDescent.duration / 8, 7 - i, .25, .3 - i * .08, .03);
+  marker(mix, cost.bashHighlight.at, cost.bashHighlight.duration, FX, .09);
+  thump(mix, cost.bashWarning, .45, FLOOR, 1.25);
+  whoosh(mix, cost.cameraToBudget.at, cost.cameraToBudget.duration, FX, {from: 1200, to: 320, level: .1});
+  thump(mix, cost.budgetEntry.at + cost.budgetEntry.duration * .6, .38, FLOOR, 1.3);
+  puff(mix, cost.smokeEnter, .45, FX, 650);
+  speck(cost.budgetAppear, 5, .4, 0, .12);
+  for (let time = cost.budgetRun.at, i = 0; time < cost.budgetRun.at + cost.budgetRun.duration; time += .06, i++) tick(mix, time, 112 + (i % 5), .16, SPECK, .008);
+  whoosh(mix, cost.depletion.at, cost.depletion.duration, FX, {from: 900, to: 180, level: .07, peak: .3});
+
+  // --- Flow
+  impact(mix, flow.reveal, .4, FLOOR);
+  flow.numberDrops.forEach((time, i) => {
+    const flowOne = i === 2;
+    keys(mix, time, flowOne ? [74, 79, 83] : [[74], [76], [], [79], [81], [83]][i], flowOne ? .5 : .3, {...COMP, bus: 'sfx', pan: -.5 + i * .2}, flowOne ? 1.4 : .6);
+    if (flowOne) thump(mix, time, .45, FLOOR, 1.1);
+  });
+  whoosh(mix, flow.cameraZoom.at, flow.cameraZoom.duration, FX, {from: 300, to: 1500, level: .09, air: .5});
+  whoosh(mix, flow.cloudExit.at, flow.cloudExit.duration, FX, {from: 800, to: 400, level: .06, air: .6});
+  for (let time = flow.countUp.at, i = 0; time < flow.countUp.at + flow.countUp.duration; time += .05, i++) tick(mix, time, 110 + Math.min(9, i >> 1), .14, SPECK, .008);
+  speck(flow.benchmark, 6, .35, 0, .15);
+  if (cmp) {
+    whoosh(mix, cmp.comparisonExit.at, cmp.comparisonExit.duration + .15, FX, {from: 1100, to: 400, level: .08});
+    air(mix, cmp.comparison_gridShrink.at, cmp.comparison_gridShrink.at + cmp.comparison_gridShrink.duration + .3, FX, {hz: 5500, q: .6, level: .06});
+    speck(cmp.comparison_headlineReveal.at + .05, 5, .3, 0, .15);
+    // GPT-5.5's few orange dots: a short warm flutter.
+    const orange = cmp.comparison_orangeDots;
+    for (let i = 0; i < 6; i++) speck(orange.at + i * orange.duration / 6, i % 3, .3, .45, .04);
+    thump(mix, cmp.comparison_gptNumber.at, .32, FLOOR, 1.35);
+    // Flow-1's many blue dots: a dense bright shower that fills the width, all above the voice.
+    shimmer(mix, cmp.comparison_blueDots.at, cmp.comparison_blueDots.at + cmp.comparison_blueDots.duration, SPECKS.slice(2), {...SPECK, bus: 'sfx'}, {level: .32, density: [28, 70]});
+    keys(mix, cmp.comparison_flowNumber.at, [79, 83, 86, 90], .34, {...COMP, bus: 'sfx'}, 1.6);
+    thump(mix, cmp.comparison_flowNumber.at, .4, FLOOR, 1.1);
+    const back = cmp.comparison_returnToGrid;
+    whoosh(mix, back.at, back.duration, FX, {from: 300, to: 1600, level: .1, peak: .75, air: .6, panFrom: -.3, panTo: .3});
+    riser(mix, back.at + back.duration * .3, flow.moduleActivation, FX, {level: .05, fromMidi: 55, toMidi: 67});
+  }
+  thump(mix, flow.moduleActivation, .5, FLOOR, 1.1);
+  keys(mix, flow.moduleActivation, [79, 83, 86], .3, {...COMP, bus: 'sfx'}, 1);
+  for (let time = flow.engineSpinner.at, i = 0; time < flow.engineSpinner.at + flow.engineSpinner.duration; time += .1, i++) tick(mix, time, 115 + (i % 2) * 2, .12, SPECK, .01);
+  whoosh(mix, flow.cover.at, flow.cover.duration, FX, {from: 1000, to: 260, level: .09});
+  thump(mix, flow.coverShut, 1, FLOOR, .8);
+  thock(mix, flow.coverShut, .5, FX, .8);
+
+  // --- Issues
+  const p = issues.prelude;
+  thump(mix, p.bashEntry.at + p.bashEntry.duration * .6, .35, FLOOR, 1.3);
+  tick(mix, p.bashStop, 112, .25, SPECK);
+  for (let i = 0; i < 8; i++) speck(p.descent.at + i * p.descent.duration / 8, 7 - i, .22, .3 - i * .08, .03);
+  marker(mix, p.highlight, .5, FX, .08);
+  if (p.bubble !== undefined) { pop(mix, p.bubble, 84, .35, FX); speck(p.bubble + .03, 6, .3, 0, .12); }
+  if (p.labels) for (let i = 0; i < 4; i++) speck(p.labels.at + i * p.labels.duration / 4, 3 + i, .25, -.3 + i * .2, .06);
+  if (p.explanation) stream(p.explanation.at, p.explanation.at + p.explanation.duration, [.07, .12], .18, -.2, .2);
+  whoosh(mix, p.zoomOut.at, p.zoomOut.duration, FX, {from: 900, to: 300, level: .08, air: .6});
+  puff(mix, p.collapse, .35, FX, 700);
+  shimmer(mix, p.circleGrow.at - .6, issues.native, SPECKS, SPECK, {level: .26, density: [6, 34]});
+  whoosh(mix, p.scaleOut, .5, FX, {from: 600, to: 1600, level: .06});
+  for (const note of cascade(issues.pops, SPECKS.slice(1), .018)) speck(note.time, SPECKS.indexOf(note.midi), .3, note.pan, .07);
+  whoosh(mix, issues.travel.at, issues.travel.duration, FX, {from: 500, to: 1200, level: .06, peak: .5, air: .6});
+  speck(issues.ready, 4, .3, 0, .15);
+  if (issues.clusters.length) {
+    keys(mix, issues.clusters[0], [71, 74, 78, 83], .32, {...COMP, bus: 'sfx'}, 1.4);
+    thump(mix, issues.clusters[0], .4, FLOOR, 1.1);
+  }
+  whoosh(mix, issues.windowDown.at, issues.windowDown.duration, FX, {from: 1100, to: 350, level: .08});
+  thock(mix, issues.windowShut, .45, FX);
+  pop(mix, issues.issueBadge, 86, .3, FX);
+  whoosh(mix, issues.messageSend, .35, FX, {from: 500, to: 2000, level: .07, peak: .7, panFrom: -.2, panTo: .4});
+  pop(mix, issues.queryBadge, 88, .3, FX);
+  whoosh(mix, issues.windowUp.at, issues.windowUp.duration, FX, {from: 400, to: 1300, level: .07});
+
+  // --- Conclusion: the logo lands as light, not a stab — any mid-range hit masks "with Laminar".
+  [0, 2, 4, 6].forEach((index, i) => speck(end.logo + i * .045, index, .32 - i * .04, -.3 + i * .2, .35));
+  air(mix, end.logo - beat, end.end, FX, {hz: 6500, q: .5, level: .03, shape: q => Math.min(1, q * 4) * (1 - q)});
+}

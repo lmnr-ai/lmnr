@@ -71,3 +71,20 @@ master each apply once, including active release tails. The manifest retains its
 legacy `typingTick` event-count key. The legacy music, error chime, camera/agent whoosh, ratchet, soundboard, saved mix,
 and Silk implementation remain intact. The active Arabesque route and its new
 score bed are described above; this legacy export command does not reproduce that bed.
+
+## Alternate editable-v11 beds (`VOICEOVER_BEDS`)
+
+The editable route can play any bed listed in `voiceover-phrases.ts` `VOICEOVER_BEDS` (the preview's
+*Soundtrack* select, export `--bed <id>`). Each alternate bed lives in its own
+`public/audio/voiceover/<folder>/` with a `manifest.json` whose `phraseManifestSha256` must match
+`editable-v11/manifest.json`. The export refuses a mismatch. Notes for the next bed:
+
+- There is no live compressor, so the ducking has to be baked in at build time, keyed on the placed phrases (see
+  `scripts/build-ultimate3-glide-bed.ts`). That makes the bed valid only for the cut it was built with: rebuild it after retiming.
+- Bed + voice is a plain sum, so score mastering can't guarantee the mix ceiling. The Glide builder
+  dips only the bed where `|voice + bed| > -1.6 dBFS`, which lands at about -1.3 dBTP.
+- To measure intelligibility, derive a voice-only stem as `export(arabesque) − editable-v11/bed.wav`,
+  then compare the per-phrase voice/bed RMS inside each `voiceoverSchedule` span, both full-band and 500 Hz–4 kHz.
+  Arabesque's baseline is a 3.9 / 1.5 dB median. Whisper `small.en` is the transcript check.
+- `Mix.sweep` filters only the music emitted *before* the call. Compose layers after it (the Glide groove) and
+  the sfx bus stay open.

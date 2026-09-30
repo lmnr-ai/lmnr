@@ -104,6 +104,10 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
+### `glide` — ambient synth after the TurboPuffer reference, G major
+
+No piano. Wide detuned pads, a sub drone and muffled thumps carry the story, and one timeline filter (`Mix.sweep`) opens and slams shut with the picture. An 89 BPM grid (the logo lands on beat 6 of the conclusion) drives a felt thump pulse under Cost, then a boom-bap payoff that drops out on the logo. All detail sits at or above 4.7 kHz, or at or below 1 kHz. It is built as a voice-ducked editable-v11 bed by `scripts/build-ultimate3-glide-bed.ts`, and `ducks` is empty because the build script ducks against the real narration. See `handoff/turbopuffer-sound/README.md`.
+
 ## Foley
 
 Whooshes are pink noise through a broad, gently resonant band-pass whose centre is soft-capped under 2.4 kHz, with a low "body" band and the hiss rolled off above 4.2 kHz. Narrow white-noise sweeps put most of their energy at 2–5 kHz, where hearing is most sensitive, and read as a whistle. Nocturne, Aria and Arabesque share one foley design (`nocturne/design.ts`, `designInKey`) transposed into each score's key.

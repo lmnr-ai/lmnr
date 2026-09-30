@@ -1,6 +1,13 @@
 # Signals launch video — agent handoff
 
-## Latest handoff: v11 cadence + new pricing animation + audio reference
+## Latest handoff: alternate "Glide" soundtrack (LAM-2316)
+
+Start with **[handoff/turbopuffer-sound/README.md](handoff/turbopuffer-sound/README.md)**.
+It adds an auditionable TurboPuffer-inspired soundtrack for the same editable-v11
+narration and picture: a *Soundtrack* select in the preview and `--bed glide` in the export.
+Arabesque stays the default until a new one is chosen.
+
+## Previous handoff: v11 cadence + new pricing animation + audio reference
 
 Start with **[handoff/pricing-timing-audio/README.md](handoff/pricing-timing-audio/README.md)**.
 It combines the latest upstream editable-v11 timing with the local traces-per-dollar
