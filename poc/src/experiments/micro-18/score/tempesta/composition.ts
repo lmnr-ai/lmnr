@@ -1,7 +1,6 @@
 import type {ScoreCues} from '../cues';
-import {chordAt, pulse, toneOf, voiceBed, type Chord} from '../rounded';
+import {chordAt, pulse, toneOf, type Chord} from '../rounded';
 import {bowed, pizz, timpani, type Mix, type Route} from '../voices';
-import {cymbal} from '../bluenote/instruments';
 import {taiko} from '../overdrive/instruments';
 import {drainLine, humanize} from '../writing';
 import {E_MINOR, G_MAJOR, G_MINOR, note, roll, run, step, trill} from './instruments';
@@ -67,11 +66,10 @@ export function composeTempesta(mix: Mix, cues: ScoreCues) {
   const grid = pulse(flow.reveal, BEAT), bars = pulse(flow.reveal, BAR);
   const sixteenthOf = (index: number) => ((Math.round(index * 4) % 16) + 4096) % 16;
   const scaleAt = (time: number) => tempestaScale(cues, time);
-  voiceBed(mix, cues, .5);
 
-  /** The whole orchestra on one chord: celli and basses, violins, the soloist, timpani, gran cassa, cymbals. */
-  const tutti = (time: number, size: number, chord = chordAt(plan, time), length = .5, crash = size > 1) => {
-    // Past forte a hit gets longer and wider (cymbals), not peakier: the strings and drums stop growing.
+  /** The whole orchestra on one chord: celli and basses, violins, the soloist, timpani, gran cassa. */
+  const tutti = (time: number, size: number, chord = chordAt(plan, time), length = .5, ring = size > 1) => {
+    // Past forte a hit gets longer and wider (a high violin octave), not peakier: the strings and drums stop growing.
     const dyn: [number, number] = [Math.min(1, .75 + .2 * size), .5], body = Math.min(1.2, size), drum = Math.min(1.1, size);
     bowed(mix, time, time + length, chord.bass, VC, {section: 'celli', dynamics: dyn, attack: .004, release: .5, level: .9 * body});
     bowed(mix, time, time + length, chord.bass + 12, VC, {section: 'celli', dynamics: dyn, attack: .004, release: .5, level: .7 * body});
@@ -79,7 +77,8 @@ export function composeTempesta(mix: Mix, cues: ScoreCues) {
     bowed(mix, time, time + length, toneOf(chord, 0, 79), SOLO, {dynamics: dyn, attack: .004, release: .6, level: .7 * body, bright: .85});
     timpani(mix, time, chord.bass < 36 ? chord.bass + 12 : chord.bass, .6 * drum, DRUM, {decay: 1.2 + .5 * size});
     taiko(mix, time, .28 * drum, DRUM, .7);
-    if (crash) { cymbal(mix, time, 'crash', .45 * size, {...DRUM, pan: -.3}, {decay: 2.4}); cymbal(mix, time + .008, 'crash', .35 * size, {...DRUM, pan: .3}, {decay: 2}); }
+    // No cymbals: the synthesized crash is filtered noise, which turns to grain in the hall.
+    if (ring) bowed(mix, time, time + length + .3, toneOf(chord, 0, 88), {...HIGH, pan: .25}, {dynamics: [1, .4], attack: .004, release: .8, level: .45 * body, bright: .9});
   };
   /** Build into `to`: violins swell on tremolo, the soloist runs up, timpani roll. */
   const build = (from: number, to: number, level = 1, top = 91) => {
@@ -139,7 +138,6 @@ export function composeTempesta(mix: Mix, cues: ScoreCues) {
       chord.pad.slice(-2).forEach((midi, i) => bowed(mix, time, until, midi + 12, {...HIGH, pan: -.3 + i * .3}, {dynamics: [.5 * levelAt(time), .65 * levelAt(time)], attack: .12, release: .3, level: .55, bright: .7}));
     }
   };
-  const crashes = (from: number, to: number, level = .45) => { for (const {time, index} of bars.steps(from, to)) if (Math.round(index) % 4 === 0) cymbal(mix, time, 'crash', level, {...DRUM, pan: .35}, {decay: 2}); };
 
   // ------------------------------------------------ Ultimate2: the storm breaks at once.
   tutti(0, 1, chordAt(plan, 0), .9, true);
@@ -183,7 +181,6 @@ export function composeTempesta(mix: Mix, cues: ScoreCues) {
   // "Powerful": everything, fortissimo, with the soloist in double stops.
   tutti(cost.bashStop, 1.4, chordAt(plan, cost.bashStop), .8, true);
   drive(cost.bashStop, cost.depletion.at - BEAT / 2, {solo: 'double', tremolo: 32, chug: 16, timp: 'drive', cassa: true, level: 1});
-  crashes(cost.bashStop + BEAT, cost.depletion.at);
   tutti(cost.bashWarning, 1.1, chordAt(plan, cost.bashWarning), .35);
   // The budget runs out: the orchestra stops dead and the violin drains down a slowing G minor line.
   tutti(cost.depletion.at, 1.2, chordAt(plan, cost.depletion.at), .3, true);
@@ -203,7 +200,6 @@ export function composeTempesta(mix: Mix, cues: ScoreCues) {
   // ------------------------------------------------ Flow-1: G major, the whole orchestra, presto.
   tutti(drop, 1.6, chordAt(plan, drop), 1, true);
   drive(drop, flow.cameraToAnalysis.at - BEAT, {solo: 'storm', tremolo: 32, chug: 16, timp: 'drive', cassa: true, sustain: true, level: 1});
-  crashes(drop + BAR, flow.cameraToAnalysis.at);
   tutti(flow.cameraToAnalysis.at, 1.1, chordAt(plan, flow.cameraToAnalysis.at), .4, true);
   drive(flow.cameraToAnalysis.at + BEAT, flow.cameraToEngine.at - BAR, {solo: 'arp', tremolo: 32, chug: 16, timp: 'drive', sustain: true, level: 1});
   build(flow.cameraToEngine.at - BAR, flow.cameraToEngine.at, 1, 93);
@@ -223,7 +219,6 @@ export function composeTempesta(mix: Mix, cues: ScoreCues) {
   drive(prelude.zoomOut.at, issues.native - BEAT, {chug: 16, timp: 'drive', level: [.7, 1]});
   tutti(issues.native, 1.5, chordAt(plan, issues.native), .9, true);
   drive(issues.native, conclusion.start, {solo: 'storm', tremolo: 32, chug: 16, timp: 'drive', cassa: true, sustain: true, level: 1});
-  crashes(issues.native + BAR, conclusion.start);
   tutti(issues.clusters[0], 1.1, chordAt(plan, issues.clusters[0]), .35, true);
 
   // ------------------------------------------------ Conclusion: the cadenza, the logo, the hammer strokes.
