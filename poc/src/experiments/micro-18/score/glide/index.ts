@@ -1,4 +1,5 @@
 import type {ScoreStyle} from '../style';
+import {composeArc, designArc} from './arc';
 import {composeGlide, designGlide} from './composition';
 
 /** TurboPuffer-inspired glide: synth swells under one story-driven filter, groove held for the payoff. */
@@ -16,4 +17,14 @@ export const glide: ScoreStyle = {
     returns: [2.2, 1.4, 1],
   },
   eq: {highpass: 28, lowShelf: [90, 1], highShelf: [8000, 1.5]},
+};
+
+/** Glide 2: the same palette as one continuous arc on an 89.5 BPM grid (reveal = bar 0, logo = bar 14). */
+export const glideArc: ScoreStyle = {
+  ...glide,
+  id: 'glide-arc',
+  title: 'Glide 2 · continuous arc',
+  compose: composeArc,
+  design: designArc,
+  space: {...glide.space, delay: {time: .6705 * .75, feedback: .3, damping: 3600}},
 };

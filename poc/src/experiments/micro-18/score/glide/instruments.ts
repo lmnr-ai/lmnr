@@ -1,5 +1,5 @@
 import {OnePole, Saw, Sine, Svf, clamp, gateEnv, mtof, panGains, pluckEnv, samples} from '../dsp';
-import {bell, type Mix, type Route} from '../voices';
+import {bell, pumpGain, type Mix, type Pump, type Route} from '../voices';
 
 /*
  * The TurboPuffer-reference palette: nothing is struck hard. Tone arrives as filtered swells, rhythm as
@@ -10,15 +10,20 @@ import {bell, type Mix, type Route} from '../voices';
 const buffer = (duration: number) => new Float32Array(Math.max(1, samples(duration)));
 const noise = (mix: Mix) => mix.random() * 2 - 1;
 
-/** Wide, soft synth pad: a sine and two detuned saws per note, each ear chorused apart. */
-export function haze(mix: Mix, start: number, end: number, notes: readonly number[], route: Route, options: {attack?: number; release?: number; level?: number; tone?: number} = {}) {
+/**
+ * Wide, soft synth pad: a sine and two detuned saws per note, each ear chorused apart. `coherent` shares the
+ * sine across both ears and narrows the saw detune, so the pad survives a mono fold-down; `pump` breathes on the grid.
+ */
+export function haze(mix: Mix, start: number, end: number, notes: readonly number[], route: Route, options: {attack?: number; release?: number; level?: number; tone?: number; coherent?: boolean; pump?: Pump} = {}) {
   const attack = options.attack ?? 1.4, release = options.release ?? 2, tone = options.tone ?? 2600;
   if (end <= start) return;
   const left = buffer(end - start + release), right = buffer(end - start + release);
   notes.forEach((midi, index) => {
-    const hz = mtof(midi), voices = [0, 1].map(ear => ({
-      sine: new Sine(mix.random()), a: new Saw(mix.random()), b: new Saw(mix.random()), filter: new Svf(),
-      drift: mix.random() * 6.28, detune: ear ? 1.0045 : .9955,
+    // Draw the shared phase only when coherent, so the default keeps its random sequence (and the v1 bed).
+    const hz = mtof(midi), spread = options.coherent ? .0015 : .0045, phase = options.coherent ? mix.random() : 0, drift = options.coherent ? mix.random() * 6.28 : 0;
+    const voices = [0, 1].map(ear => ({
+      sine: new Sine(options.coherent ? phase : mix.random()), a: new Saw(mix.random()), b: new Saw(mix.random()), filter: new Svf(),
+      drift: options.coherent ? drift : mix.random() * 6.28, detune: ear ? 1 + spread : 1 - spread,
     }));
     const hold = Math.max(0, end - start - attack), [spreadL, spreadR] = panGains((index % 2 ? .35 : -.35) * (index / Math.max(1, notes.length - 1)));
     for (let i = 0; i < left.length; i++) {
@@ -33,7 +38,7 @@ export function haze(mix: Mix, start: number, end: number, notes: readonly numbe
     }
   });
   const level = (options.level ?? 1) * .07 / Math.sqrt(notes.length);
-  for (let i = 0; i < left.length; i++) { left[i] *= level; right[i] *= level; }
+  for (let i = 0; i < left.length; i++) { const g = level * pumpGain(options.pump, start + i / 48_000); left[i] *= g; right[i] *= g; }
   mix.emit(start, route, left, right); mix.count('haze');
 }
 

@@ -14,6 +14,7 @@ export const VOICEOVER_BED_URL = `${VOICEOVER_SOURCE_ROOT}bed.wav`;
 export const VOICEOVER_BEDS = {
   arabesque: {label: 'Arabesque (approved)', url: VOICEOVER_BED_URL},
   glide: {label: 'Glide · TurboPuffer ref', url: '/audio/voiceover/editable-v11-glide/bed.wav'},
+  'glide-arc': {label: 'Glide 2 · continuous arc', url: '/audio/voiceover/editable-v11-glide-arc/bed.wav'},
 } as const;
 export type VoiceoverBedId = keyof typeof VOICEOVER_BEDS;
 

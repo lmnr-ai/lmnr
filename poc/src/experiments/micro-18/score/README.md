@@ -108,6 +108,10 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 No piano. Wide detuned pads, a sub drone and muffled thumps carry the story, and one timeline filter (`Mix.sweep`) opens and slams shut with the picture. An 89 BPM grid (the logo lands on beat 6 of the conclusion) drives a felt thump pulse under Cost, then a boom-bap payoff that drops out on the logo. All detail sits at or above 4.7 kHz, or at or below 1 kHz. It is built as a voice-ducked editable-v11 bed by `scripts/build-ultimate3-glide-bed.ts`, and `ducks` is empty because the build script ducks against the real narration. See `handoff/turbopuffer-sound/README.md`.
 
+### `glide-arc` — Glide 2, one continuous arc
+
+The same palette, written as one piece on a single 89.5 BPM grid (`glide/arc.ts`, `arcGrid`), with the Flow-1 reveal on bar 0 and the logo on bar 14. The problem is an ostinato that stops at the failure and a pulse that tape-stops at the depletion. After "Until now", a motor starts on the reveal and gains a layer every few bars: the kit lands with Signals, there's a breakdown over the zoom-out, and the groove drops for the payoff. Pads are phase-coherent (`haze({coherent})`) and pumped from the reveal, and everything under 150 Hz is mono. Tonal layers go through two slow `Mix.sweep` curves, and the kit is emitted afterwards, so it stays unfiltered. Foley is snapped to the 16th grid. `arcLevels` is the bed's level curve against the voice, in dB with linear interpolation, applied by the bed builder (`--style glide-arc`), which also ducks more gently.
+
 ## Foley
 
 Whooshes are pink noise through a broad, gently resonant band-pass whose centre is soft-capped under 2.4 kHz, with a low "body" band and the hiss rolled off above 4.2 kHz. Narrow white-noise sweeps put most of their energy at 2–5 kHz, where hearing is most sensitive, and read as a whistle. Nocturne, Aria and Arabesque share one foley design (`nocturne/design.ts`, `designInKey`) transposed into each score's key.

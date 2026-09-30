@@ -121,7 +121,7 @@ const buffer = (duration: number) => new Float32Array(Math.max(1, samples(durati
 
 /** Sidechain-style pump: dips on every `period` from `origin`, recovering over ~60% of the period. */
 export type Pump = {origin: number; period: number; depth: number};
-const pumpGain = (pump: Pump | undefined, time: number) => {
+export const pumpGain = (pump: Pump | undefined, time: number) => {
   if (!pump || time < pump.origin) return 1;
   const phase = ((time - pump.origin) % pump.period) / pump.period;
   return 1 - pump.depth * (1 - clamp(phase / .6)) ** 2;

@@ -85,6 +85,8 @@ The editable route can play any bed listed in `voiceover-phrases.ts` `VOICEOVER_
   dips only the bed where `|voice + bed| > -1.6 dBFS`, which lands at about -1.3 dBTP.
 - To measure intelligibility, derive a voice-only stem as `export(arabesque) − editable-v11/bed.wav`,
   then compare the per-phrase voice/bed RMS inside each `voiceoverSchedule` span, both full-band and 500 Hz–4 kHz.
+- `build-ultimate3-glide-bed.ts --style` selects a per-style profile (the bed-under-voice level, duck depth, presence dip, release, gap bridging, score LUFS and level curve), recorded in the bed's manifest. Beds: `glide` → `editable-v11-glide/`, `glide-arc` → `editable-v11-glide-arc/`.
+  The level curve is multiplied in *before* the bed-under-voice trim, so it redistributes level across sections rather than raising the whole bed.
   Arabesque's baseline is a 3.9 / 1.5 dB median. Whisper `small.en` is the transcript check.
 - `Mix.sweep` filters only the music emitted *before* the call. Compose layers after it (the Glide groove) and
   the sfx bus stay open.

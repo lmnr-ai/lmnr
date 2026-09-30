@@ -6,6 +6,7 @@ Start with **[handoff/turbopuffer-sound/README.md](handoff/turbopuffer-sound/REA
 It adds an auditionable TurboPuffer-inspired soundtrack for the same editable-v11
 narration and picture: a *Soundtrack* select in the preview and `--bed glide` in the export.
 Arabesque stays the default until a new one is chosen.
+A follow-up, **Glide 2 · continuous arc** (`--bed glide-arc`), reworks it after a sound-design review. It uses one grid and one arc, and the rhythm starts at the Flow-1 reveal. See the same README.
 
 ## Previous handoff: v11 cadence + new pricing animation + audio reference
 
