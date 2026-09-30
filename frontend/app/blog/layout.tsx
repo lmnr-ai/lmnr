@@ -11,7 +11,7 @@ export default async function BlogLayout({ children }: PropsWithChildren) {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-150">
-      <div className="sticky top-0 z-50 w-full bg-surface-150">
+      <div className="sticky top-0 z-50 w-full bg-surface-150/80 backdrop-blur-lg">
         <LandingHeader
           hasSession={session !== null && session !== undefined}
           isIncludePadding
