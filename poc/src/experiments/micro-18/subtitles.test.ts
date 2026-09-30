@@ -208,8 +208,8 @@ test('the voiceover cut draws one verbatim script caption per line, following it
     if (i) assert.ok(windows[i - 1].end <= w.start);
   }
   // Moving a phrase moves its caption.
-  const moved = {...s, voiceover: {...s.voiceover!, phrases: {...s.voiceover!.phrases, n07: {at: 21.2, duration: 2}}}};
+  const moved = {...s, voiceover: {...s.voiceover!, phrases: {...s.voiceover!.phrases, n07: {at: 20, duration: 2}}}};
   const cheap = voiceoverCaptionWindows(moved.voiceover).find(w => w.text.startsWith('Cheap'))!;
-  assert.equal(cheap.start, 21.2);
-  assert.equal(renderToStaticMarkup(createElement(Ultimate3Scene, {settings: moved, sample: sampleUltimate3(20.9, moved)})).includes('data-voiceover-caption'), false);
+  assert.equal(cheap.start, 20);
+  assert.equal(renderToStaticMarkup(createElement(Ultimate3Scene, {settings: moved, sample: sampleUltimate3(19.8, moved)})).includes('data-voiceover-caption'), false);
 });
