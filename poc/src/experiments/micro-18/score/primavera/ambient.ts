@@ -46,7 +46,7 @@ export function ambientPlan(cues: ScoreCues): Chord[] {
 }
 
 /** A fixed 0–1 value per grid step: which off-beats get a droplet is composed, not seeded. */
-const hash = (n: number) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+export const hash = (n: number) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
   const plan = ambientPlan(cues), {flow, conclusion} = cues;
@@ -59,7 +59,7 @@ export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
 }
 
 /** The bed, droplets and gap-answering solo over `plan`, for chords and gaps that start before `until`. */
-export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[], until: number) {
+export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[], until: number, {droplets = true} = {}) {
   const {flow, conclusion} = cues, end = cues.duration;
   const grid = pulse(flow.reveal, BEAT);
 
@@ -77,7 +77,7 @@ export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[],
   });
 
   // Droplets: a sparse high pizzicato on about a third of the off-beats, a little thicker between phrases.
-  for (const {time, index} of grid.steps(.5, Math.min(until, end - 1.5), 2)) {
+  if (droplets) for (const {time, index} of grid.steps(.5, Math.min(until, end - 1.5), 2)) {
     const chance = speaking(cues, time, .2) ? .2 : .45;
     if (hash(index) > chance) continue;
     const chord = chordAt(plan, time + .001), midi = toneOf(chord, Math.floor(hash(index + 17) * 5), 76);

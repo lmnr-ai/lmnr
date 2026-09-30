@@ -36,7 +36,7 @@ const D_WIDE = v(38, 54, 57, 62, 66, 69, 74), A_WIDE = v(45, 57, 61, 64, 69, 73,
 const E7_WIDE = v(40, 56, 59, 62, 64, 68, 71), A_FINAL = v(45, 57, 61, 64, 69, 73, 76, 81);
 
 /** The timeline of the answer: where each chapter's chords fall. */
-function sections(cues: ScoreCues) {
+export function sections(cues: ScoreCues) {
   const {flow, issues, conclusion} = cues, bars = pulse(flow.reveal, BAR);
   return {
     flow: bars.steps(flow.reveal, flow.coverShut - BEAT).map(s => s.time),
@@ -89,17 +89,18 @@ function arc(cues: ScoreCues, time: number) {
   return {pad: .62, celli: .65, speech: .62, gap: .62};
 }
 
-export function composePrimaveraDawn(mix: Mix, cues: ScoreCues) {
+/** `pizzicato: false` leaves the droplets, the "Until now." eighths and the arpeggios to primavera-felt's piano. */
+export function composePrimaveraDawn(mix: Mix, cues: ScoreCues, {pizzicato = true} = {}) {
   const plan = dawnPlan(cues), {flow, issues, conclusion} = cues, end = cues.duration;
   const reveal = flow.reveal, logo = conclusion.logo, suspend = reveal - BAR * .75;
   const grid = pulse(reveal, BEAT);
-  ambientLayers(mix, cues, plan, suspend);
+  ambientLayers(mix, cues, plan, suspend, {droplets: pizzicato});
 
   // ------------------------------------------------ "Until now.": the dominant swells and the suspension falls.
   ESUS.pad.forEach((midi, k) => bowed(mix, suspend - .3, reveal - BEAT * .75 + .15, midi, {...PAD, pan: -.5 + k * .33}, {section: 'violins', dynamics: [.14, .42], attack: 1, release: .1, level: .42, bright: .45}));
   E7.pad.forEach((midi, k) => bowed(mix, reveal - BEAT * .75, reveal + .05, midi, {...PAD, pan: -.5 + k * .33}, {section: 'violins', dynamics: [.42, .46], attack: .06, release: .06, level: .42, bright: .5}));
   bowed(mix, suspend - .3, reveal + .05, 40, DRONE, {section: 'celli', dynamics: [.18, .45], attack: 1, release: .06, level: .7, bright: .4});
-  for (const {time, index} of grid.steps(suspend, reveal - .1, 2)) pizz(mix, time, Math.round(index * 2) % 2 ? 71 : 64, .14 + .14 * (time - suspend) / (reveal - suspend), {...DROP, pan: Math.round(index * 2) % 2 ? .3 : -.3}, {length: .4});
+  if (pizzicato) for (const {time, index} of grid.steps(suspend, reveal - .1, 2)) pizz(mix, time, Math.round(index * 2) % 2 ? 71 : 64, .14 + .14 * (time - suspend) / (reveal - suspend), {...DROP, pan: Math.round(index * 2) % 2 ? .3 : -.3}, {length: .4});
   roll(mix, reveal - BEAT * 1.5, reveal - .04, 40, [.02, .09], DRUM);
   // The pickup waits for the voice to clear; a phrase running into the reveal leaves no room, so there is no run.
   const voiceOut = Math.max(reveal - BEAT * 1.2, ...cues.voice.filter(s => s.at < reveal).map(s => s.at + s.duration + .05));
@@ -139,7 +140,7 @@ export function composePrimaveraDawn(mix: Mix, cues: ScoreCues) {
   timpani(mix, conclusion.start, 38, .1, DRUM, {decay: 1.8});
   roll(mix, logo - BAR * .5, logo - .03, 40, [.02, .07], DRUM);
   timpani(mix, logo, 45, .24, DRUM, {decay: 2.2});
-  for (const time of [reveal, logo]) [0, 1, 2, 3, 4, 5].forEach(k => pizz(mix, time + k * .07, toneOf(chordAt(plan, time + .001), k, time === logo ? 69 : 64), .18, {...DROP, pan: -.4 + k * .16}, {length: 1}));
+  if (pizzicato) for (const time of [reveal, logo]) [0, 1, 2, 3, 4, 5].forEach(k => pizz(mix, time + k * .07, toneOf(chordAt(plan, time + .001), k, time === logo ? 69 : 64), .18, {...DROP, pan: -.4 + k * .16}, {length: 1}));
 
   // The theme: the violin section, swelling in under speech and speaking in the gaps.
   const notes = theme(cues);
