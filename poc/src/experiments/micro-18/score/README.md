@@ -104,6 +104,31 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
+### `cursor-paper` — tape organ and paper knocks, A♭ major (LAM-2317)
+
+This style comes from Cursor's "Software is changing" (`handoff/cursor-sound-design/`). It has no piano. The palette lives in `cursor/instruments.ts`:
+
+- `tapePad`: a detuned additive organ with wow and flutter, a low-pass and a 0.54 Hz breath.
+- `sub`: the bass.
+- `knock`: paper knocks, from thumps to ticks.
+- `mallet`: a soft wooden mallet.
+- `ratchet`: a gliding tick run.
+- `paper`: a grainy band-swept slide.
+
+How it is scored:
+
+- The first half has no bass.
+- The bass enters at the Flow-1 reveal.
+- After that the harmony moves only on camera moves: I, then IV (analysis), V (engine), vi/IV (report), V (zoom-out), I (clusters), and IV → V → I at the logo.
+
+It is the only style that ducks from `cues.voice`, the placed narration:
+
+- The music breathes about 3.6 dB under each phrase.
+- The dry foley bus tucks 4 dB under words.
+- Knocks, mallets and paper saturate softly instead of spiking the master.
+
+It bakes its own paper-tap typing (guarded by `mix.typingEnabled`). Its bed is `public/audio/voiceover/editable-v11-cursor/`, built by `scripts/build-ultimate3-cursor-bed.mjs`.
+
 ## Foley
 
 Whooshes are pink noise through a broad, gently resonant band-pass whose centre is soft-capped under 2.4 kHz, with a low "body" band and the hiss rolled off above 4.2 kHz. Narrow white-noise sweeps put most of their energy at 2–5 kHz, where hearing is most sensitive, and read as a whistle. Nocturne, Aria and Arabesque share one foley design (`nocturne/design.ts`, `designInKey`) transposed into each score's key.

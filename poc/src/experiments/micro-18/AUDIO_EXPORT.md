@@ -24,6 +24,22 @@ This writes the typing-free bed, an adjacent `.playback.wav` (exact split mix at
 Browser regression (existing editor only, isolated Chrome, session cleaned up):
 `node scripts/test-active-arabesque.cjs /tmp/active-arabesque-browser.json`.
 
+## Editable voiceover beds (LAM-2317)
+
+The editable-voiceover cut plays one frozen bed plus the editable-v11 phrase WAVs through `VoiceoverEngine`. `VOICEOVER_BEDS` in `voiceover-phrases.ts` lists the beds.
+
+- **`cursor` (live):** `editable-v11-cursor/bed.wav`, the `cursor-paper` score at -7.8 dB.
+- **`piano`:** the untouched `editable-v11/bed.wav` Arabesque bed.
+
+Append `?bed=piano` to the editor URL for an A/B. It swaps the only bed and never adds a second music owner. Typing is baked into both beds, so no live keyboard runs.
+
+`scripts/export-ultimate3-editable-vo.ts --bed cursor|piano` (default `cursor`) exports with the same `mixVoiceoverPcm` math. It verifies:
+
+- the bed hash against the bed's own `manifest.json`;
+- the phrase hashes against `editable-v11/manifest.json`.
+
+Beds are frozen at `handoff/cursor-sound-design/preview-settings.json` timings. Rebuild into a new directory after retiming picture. The build script refuses to overwrite.
+
 ## Legacy effects exporter (retained, not the active viewer)
 
 Run from `poc/` with explicit frozen scene props and a flat or DialKit-grouped mix JSON:
