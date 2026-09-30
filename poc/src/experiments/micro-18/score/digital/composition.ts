@@ -427,7 +427,9 @@ export function composeDigital(mix: Mix, cues: ScoreCues) {
     // The triangles migrate: six cluster voices take turns in a 16th arpeggio, each walking through D Lydian from a
     // scattered pitch onto its note of Dmaj7♯11 and dropping out on its own cluster's lock.
     const CLUSTERS = [74, 78, 81, 85, 88, 92], travel = issues.travel, SCATTER = [83, 90, 76, 93, 80, 86];
-    for (let t = travel.at, k = 0; t < lock - .02; t += gridQ / 4, k++) {
+    // The locks are sorted, so the walk runs until the last voice has arrived, not just the first.
+    const lastLock = Math.max(lock, ...issues.clusters);
+    for (let t = travel.at, k = 0; t < lastLock - .02; t += gridQ / 4, k++) {
       const i = k % 6, arrive = issues.clusters[i] ?? lock, progress = clamp((t - travel.at) / (arrive - travel.at));
       if (t >= arrive - .02) continue;
       blip(mix, t, nearest(SCATTER[i] + (CLUSTERS[i] - SCATTER[i]) * (1 - (1 - progress) ** 2)), .14 + .14 * progress, {...TEXTURE, pan: -.3 + i * .12}, .025, {body: .3});
