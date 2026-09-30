@@ -8,6 +8,7 @@ import captionPlacements from '../../../handoff/voiceover-captions/placements.js
 import soakPlacements from '../../../handoff/voiceover-soak/placements.json';
 import subtlePlacements from '../../../handoff/voiceover-subtle-a/placements.json';
 import quickerTracePlacements from '../../../handoff/voiceover-quicker-trace/placements.json';
+import tighterCadencePlacements from '../../../handoff/voiceover-tighter-cadence/placements.json';
 import {BLOCK_TEMPLATE} from '../micro-12/geometry';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
@@ -153,7 +154,8 @@ const COST_CADENCE_RETIME: Retime = {cloudSweep: c9.cloudSweep.at - .4, subtitle
     [key, [c9[key].at - 2.5, c9[key].duration - .95] as [number, number]]))};
 const cloudShift = {slideIn: -OPENING_CADENCE, partialRecede: COST_CADENCE_RETIME.cloudSweep as number - c9.cloudSweep.at - OPENING_CADENCE - HANDOFF_CADENCE,
   recede: -CADENCE_TRIM};
-export const VOICEOVER_DEFAULTS = normalizeSettings({...V9_DEFAULTS,
+/** The editable-v10 defaults (4.95s tighter before "Introducing Flow-1"). */
+const V10_DEFAULTS = normalizeSettings({...V9_DEFAULTS,
   allocations: {...V9_DEFAULTS.allocations, ultimate2: V9_DEFAULTS.allocations.ultimate2 - OPENING_CADENCE - HANDOFF_CADENCE,
     cost: V9_DEFAULTS.allocations.cost - COST_CADENCE},
   pacing: {...V9_DEFAULTS.pacing, costTrimEnd: V9_DEFAULTS.pacing.costTrimEnd - COST_CADENCE},
@@ -161,11 +163,50 @@ export const VOICEOVER_DEFAULTS = normalizeSettings({...V9_DEFAULTS,
     [key, retimeClip(clip, clip.at + cloudShift[key as keyof typeof cloudShift])])) as NonNullable<typeof original.clouds>['timing']},
   ultimate2: {...V9_DEFAULTS.ultimate2, timing: cadenceTiming, controls: {...V9_DEFAULTS.ultimate2.controls, streamerSpeed: CADENCE_STREAM_SPEED}},
   cost: {...V9_DEFAULTS.cost, timing: retime(c9, COST_CADENCE_RETIME)},
+  voiceover: {version: 1, phrases: phrasesOf(tighterCadencePlacements)},
+});
+// Another 1.48s: n03 and n05 each come 0.3s sooner on a 0.3s-shorter run and a quicker lift,
+// then Cost loses 0.88s of pauses before "Cheap", "Powerful", "but the costs" and "Until now".
+export const BRISK_RUN_TRIM = .3;
+export const OPENING_BRISK = .6;
+export const COST_BRISK = .88;
+export const BRISK_TRIM = OPENING_BRISK + COST_BRISK;
+const t10 = V10_DEFAULTS.ultimate2.timing, c10 = V10_DEFAULTS.cost.timing;
+export const BRISK_STREAM_SPEED = CADENCE_STREAM_SPEED * t10.streamRun.duration / (t10.streamRun.duration - BRISK_RUN_TRIM);
+const briskBacktrack = t10.cameraBacktrack.at - BRISK_RUN_TRIM;
+const OPENING_BRISK_RETIME: Retime = {
+  streamRun: [t10.streamRun.at, t10.streamRun.duration - BRISK_RUN_TRIM], subtitleTrace: [t10.subtitleTrace.at, t10.subtitleTrace.duration - BRISK_RUN_TRIM],
+  ...shifted(t10, ['continueStraight', 'upwardTurn', 'subtitleFailure'], -BRISK_RUN_TRIM),
+  cameraBacktrack: [briskBacktrack, 1.1], redThinkingLift: briskBacktrack + .4, readLift: briskBacktrack + .75, thinkingLift: briskBacktrack + 1.1,
+  highlight: briskBacktrack + 1.55, warningEnter: briskBacktrack + 1.75, subtitleWhy: [briskBacktrack, t10.subtitleWhy.duration - .3],
+  ...shifted(t10, ['warningFocus', 'finalZoom', 'streamCollapse', 'loaderFade', 'dotDim', 'smallGridFade', 'cloudEnter', 'cloudHold',
+    'subtitleInsights', 'subtitleIfOnly'], -OPENING_BRISK)};
+const briskTiming = retime(t10, OPENING_BRISK_RETIME);
+const briskClip = (key: keyof typeof t10, clip: ClipTiming) =>
+  retimeClip(clip, clip.at + briskTiming[key].at - t10[key].at, clip.duration + briskTiming[key].duration - t10[key].duration);
+// The legs and warnings follow "Cheap" 0.15s sooner; a quicker bash camera lands the purple Bash
+// 0.43s sooner, the budget arrives 0.58s sooner and drains in 1.35s.
+const COST_BRISK_RETIME: Retime = {
+  ...shifted(c10, ['cheapLegOneRight', 'cheapLegTwoLeft', 'cheapLegThreeRight', 'thinkingDrop', 'subtitleMissIssues'], -.15),
+  cameraDownToBash: [c10.cameraDownToBash.at - .2, .95], ...shifted(c10, ['purpleBashEntry', 'purpleBashStop', 'bashExpand'], -.43),
+  bashDescent: [c10.bashDescent.at - .43, c10.bashDescent.duration - .1], subtitlePowerful: [c10.subtitlePowerful.at - .43, c10.subtitlePowerful.duration - .15],
+  ...shifted(c10, ['bashHighlight', 'bashWarning'], -.5),
+  ...shifted(c10, ['cameraDownToBudget', 'purpleBudgetEntry', 'budgetAppear', 'budgetRun', 'smokeEnter'], -.58),
+  ...Object.fromEntries((['budgetDepletion', 'smokeFade', 'smokeShrink', 'subtitleCost'] as const).map(key =>
+    [key, [c10[key].at - .58, c10[key].duration - .3] as [number, number]]))};
+export const VOICEOVER_DEFAULTS = normalizeSettings({...V10_DEFAULTS,
+  allocations: {...V10_DEFAULTS.allocations, ultimate2: V10_DEFAULTS.allocations.ultimate2 - OPENING_BRISK, cost: V10_DEFAULTS.allocations.cost - COST_BRISK},
+  pacing: {...V10_DEFAULTS.pacing, costTrimEnd: V10_DEFAULTS.pacing.costTrimEnd - COST_BRISK},
+  clouds: {...V10_DEFAULTS.clouds!, timing: Object.fromEntries(Object.entries(V10_DEFAULTS.clouds!.timing).map(([key, clip]) =>
+    [key, retimeClip(clip, clip.at + (key === 'recede' ? -BRISK_TRIM : -OPENING_BRISK))])) as NonNullable<typeof original.clouds>['timing']},
+  ultimate2: {...V10_DEFAULTS.ultimate2, timing: briskTiming, controls: {...V10_DEFAULTS.ultimate2.controls, streamerSpeed: BRISK_STREAM_SPEED}},
+  cost: {...V10_DEFAULTS.cost, timing: retime(c10, COST_BRISK_RETIME)},
   voiceover: {version: 1, phrases: takePhrases},
 });
-const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS, V8_DEFAULTS, V9_DEFAULTS];
+const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS, V8_DEFAULTS, V9_DEFAULTS, V10_DEFAULTS];
 // Raw, since normalizing clamps the 10-04 take's durations to the shorter A/subtle trims; v7 is this cut on the 10-04 take.
-const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases, phrasesOf(subtlePlacements), phrasesOf(quickerTracePlacements)];
+const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases, phrasesOf(subtlePlacements), phrasesOf(quickerTracePlacements),
+  phrasesOf(tighterCadencePlacements)];
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
@@ -185,13 +226,16 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
     if (equal(timing[key], original.ultimate2.timing[key])) timing[key] = openingTiming[key];
   }
   const controls = {...raw.ultimate2?.controls};
-  // The shorter runs need their faster speed; a tuned speed keeps its own (v8 or v9) opening and Cost.
-  const generatedSpeed = [original.ultimate2.controls.streamerSpeed, OPENING_STREAM_SPEED, TRACE_STREAM_SPEED, CADENCE_STREAM_SPEED].includes(controls.streamerSpeed!);
-  if (generatedSpeed) controls.streamerSpeed = CADENCE_STREAM_SPEED;
-  const opening = generatedSpeed ? VOICEOVER_DEFAULTS : raw.ultimate2?.streamBlocksRemoved === 12 ? V9_DEFAULTS : V8_DEFAULTS;
+  // The shorter runs need their faster speed; a tuned speed keeps its own (v8, v9 or v10) opening and Cost.
+  const generatedSpeed = [original.ultimate2.controls.streamerSpeed, OPENING_STREAM_SPEED, TRACE_STREAM_SPEED, CADENCE_STREAM_SPEED, BRISK_STREAM_SPEED]
+    .includes(controls.streamerSpeed!);
+  if (generatedSpeed) controls.streamerSpeed = BRISK_STREAM_SPEED;
+  // v9 and v10 both drop 12 blocks; v10's shorter run tells them apart.
+  const opening = generatedSpeed ? VOICEOVER_DEFAULTS : raw.ultimate2?.streamBlocksRemoved !== 12 ? V8_DEFAULTS
+    : equal(timing.streamRun, t10.streamRun) ? V10_DEFAULTS : V9_DEFAULTS;
   const allocations = {...raw.allocations};
   // The opening route upgrades even on historical cuts, so its chapter length follows.
-  if ([original, V8_DEFAULTS, V9_DEFAULTS].some(d => allocations.ultimate2 === d.allocations.ultimate2)) allocations.ultimate2 = opening.allocations.ultimate2;
+  if ([original, V8_DEFAULTS, V9_DEFAULTS, V10_DEFAULTS].some(d => allocations.ultimate2 === d.allocations.ultimate2)) allocations.ultimate2 = opening.allocations.ultimate2;
   // A source13 Flow or kept source20 Issues never had the voice retime.
   const retimed = raw.flow?.sourceVersion !== 13 && !(raw.issues?.migration22 === 1 && raw.issues.sourceVersion === 20);
   const pacing = raw.pacing && retimed ? upgrade(raw.pacing, d => d.pacing, opening) : raw.pacing;
@@ -200,14 +244,14 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
     timing.cloudEnter = opening.ultimate2.timing.cloudEnter;
   // Then the trace trim and cadence, on clips still at an earlier run's generated values.
   if (generatedSpeed) for (const key of Object.keys(openingTiming) as (keyof typeof openingTiming)[]) {
-    if (key !== 'cloudEnter' && [V8_DEFAULTS, V9_DEFAULTS].some(d => equal(timing[key], d.ultimate2.timing[key]))) timing[key] = VOICEOVER_DEFAULTS.ultimate2.timing[key];
-    else if (equal(timing[key], openingTiming[key])) timing[key] = cadenceClip(key, traceClip(key, openingTiming[key]));
+    if (key !== 'cloudEnter' && [V8_DEFAULTS, V9_DEFAULTS, V10_DEFAULTS].some(d => equal(timing[key], d.ultimate2.timing[key]))) timing[key] = VOICEOVER_DEFAULTS.ultimate2.timing[key];
+    else if (equal(timing[key], openingTiming[key])) timing[key] = briskClip(key, cadenceClip(key, traceClip(key, openingTiming[key])));
   }
   if (retimed) for (const id of ['ultimate2', 'cost', 'flow', 'issues', 'conclusion'] as const)
     if (GENERATED.some(d => allocations[id] === d.allocations[id])) allocations[id] = opening.allocations[id];
   const clouds = raw.clouds ? {...raw.clouds, timing: {...raw.clouds.timing}} : undefined;
   if (clouds) for (const key of ['slideIn', 'partialRecede', 'recede'] as const) {
-    if ([original, V8_DEFAULTS, V9_DEFAULTS].some(d => equal(clouds.timing[key], d.clouds!.timing[key]))) clouds.timing[key] = opening.clouds!.timing[key];
+    if ([original, V8_DEFAULTS, V9_DEFAULTS, V10_DEFAULTS].some(d => equal(clouds.timing[key], d.clouds!.timing[key]))) clouds.timing[key] = opening.clouds!.timing[key];
   }
   // The whole voice retime moves together, so historical cuts keep Cost clips and n09 too.
   const cost = retimed && raw.cost?.timing ? {...raw.cost, timing: upgrade(raw.cost.timing, d => d.cost.timing, opening)} : raw.cost;

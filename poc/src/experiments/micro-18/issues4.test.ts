@@ -29,7 +29,7 @@ test('only current v4 upgrades; source20 stays available; restored postlude exte
   assert.deepEqual(migrateStoredVoiceoverIssues22(next),next);
   for(const key of ['allocations','pacing','ultimate2','cost','flow','conclusion','clouds','voiceover'] as const) assert.deepEqual(next[key],previous[key]);
   for(const key of ['timing','controls','preludeTiming','preludeControls','issueStart','leadIn'] as const) assert.deepEqual(next.issues[key],previous.issues[key]);
-  close(chapterSchedule(s)[4].start,64.41);
+  close(chapterSchedule(s)[4].start,62.93);
   assert.ok(issueEntryEnd(s)+issueEndpoint(s)<=s.allocations.issues);
 });
 test('all new timing fields, endpoints, curves and controls round-trip independently from source20',()=>{

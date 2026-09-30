@@ -18,7 +18,7 @@ const graph = (time: number) => graphState(playback(time), s.flow.controls.beadS
 
 test('five peers enter first; flow-1, 73.0 and its dot stay hidden until n12', () => {
   const at = s.voiceover!.phrases.n12.at;
-  for (const time of [34.0, 34.6, 35.2, at - .001, at]) assert.equal(graph(time).ball.opacity, 0);
+  for (const time of [32.52, 33.12, 33.72, at - .001, at]) assert.equal(graph(time).ball.opacity, 0);
   const before = graph(at - .001);
   assert.equal(before.string.opacity, 1);
   assert.equal(before.points.length, 5);
@@ -31,7 +31,7 @@ test('five peers enter first; flow-1, 73.0 and its dot stay hidden until n12', (
 });
 
 test('peer stagger has no empty Flow slot and late group edits still put Flow last', () => {
-  const base = playback(34.0), gap = s.flow.controls.beadStaggerSeconds!;
+  const base = playback(32.52), gap = s.flow.controls.beadStaggerSeconds!;
   const peers = ['opus', 'sonnet', 'sol', 'gemini', 'luna'] as const;
   peers.forEach((id, index) => {
     const time = flowStart + s.flow.entrySlide.at + s.flow.entrySlide.duration + base.timing.beadsEntry.at + index * gap + .001;
@@ -46,7 +46,7 @@ test('peer stagger has no empty Flow slot and late group edits still put Flow la
 });
 
 test('scene hides all three flow markers, not the line, before the spoken cue', () => {
-  const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(35.54, s), settings: s}));
+  const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(34.06, s), settings: s}));
   for (const name of ['flow2-ball', 'flow2-flow-score', 'flow2-flow-label']) {
     assert.match(html, new RegExp(`class="${name}"[^>]*style="[^"]*opacity:0`));
   }
@@ -64,10 +64,10 @@ test('voiceover and chapter retiming move the native reveal cue without mutating
 });
 
 test('reverse seeks are deterministic and the later chart spread remains identical', () => {
-  const times = [34.1, 35.54, 35.7, 36.1, 36.5, 38.8, 40.3];
+  const times = [32.62, 34.06, 34.22, 34.62, 35.02, 37.32, 38.82];
   const forward = times.map(graph);
   [...times].reverse().forEach((time, i) => assert.deepEqual(graph(time), forward[forward.length - 1 - i]));
-  for (const time of [38.72, 39.3, 40.3]) {
+  for (const time of [37.24, 37.82, 38.82]) {
     assert.deepEqual(graph(time), graphState(playback(time), s.flow.controls.beadStaggerSeconds));
   }
 });
