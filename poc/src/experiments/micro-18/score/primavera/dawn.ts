@@ -46,13 +46,13 @@ export function sections(cues: ScoreCues) {
   };
 }
 
-/** The ambient plan until the budget runs out, then the dominant and A major's diatonic walk. */
-export function dawnPlan(cues: ScoreCues): Chord[] {
+/** The ambient plan until the budget runs out, then the dominant and A major's diatonic walk. `motor` changes the problem half's chords every bar. */
+export function dawnPlan(cues: ScoreCues, {motor = false} = {}): Chord[] {
   const {cost, flow, issues, conclusion} = cues, reveal = flow.reveal, at = sections(cues);
   const c = (time: number, voicing: Voicing): Chord => ({at: time, ...voicing});
   const walk = (times: number[], cycle: readonly Voicing[]) => times.map((time, i) => c(time, cycle[i % cycle.length]));
   return [
-    ...ambientPlan(cues).filter(chord => chord.at < cost.depletion.at + .01),
+    ...ambientPlan(cues, {every: motor ? 1 : 2}).filter(chord => chord.at < cost.depletion.at + .01),
     c(reveal - BAR * .75, ESUS), c(reveal - BEAT * .75, E7),
     // Flow-1: I V6 vi IV I ii7 V, and the cover shuts on the tonic.
     ...walk(at.flow, [A, EGS, FSM7, D, A, BM7, E]), c(flow.coverShut, A),
@@ -89,12 +89,15 @@ function arc(cues: ScoreCues, time: number) {
   return {pad: .62, celli: .65, speech: .62, gap: .62};
 }
 
-/** `pizzicato: false` leaves the droplets, the "Until now." eighths and the arpeggios to primavera-felt's piano. */
-export function composePrimaveraDawn(mix: Mix, cues: ScoreCues, {pizzicato = true} = {}) {
-  const plan = dawnPlan(cues), {flow, issues, conclusion} = cues, end = cues.duration;
+/**
+ * `pizzicato: false` leaves the droplets, the "Until now." eighths and the arpeggios to primavera-felt's piano.
+ * `motor` (primavera-sun) brightens the problem half and leaves the celli's rhythm to its eighth-note motor.
+ */
+export function composePrimaveraDawn(mix: Mix, cues: ScoreCues, {pizzicato = true, motor = false} = {}) {
+  const plan = dawnPlan(cues, {motor}), {flow, issues, conclusion} = cues, end = cues.duration;
   const reveal = flow.reveal, logo = conclusion.logo, suspend = reveal - BAR * .75;
   const grid = pulse(reveal, BEAT);
-  ambientLayers(mix, cues, plan, suspend, {droplets: pizzicato});
+  ambientLayers(mix, cues, plan, suspend, {droplets: pizzicato, bright: motor});
 
   // ------------------------------------------------ "Until now.": the dominant swells and the suspension falls.
   ESUS.pad.forEach((midi, k) => bowed(mix, suspend - .3, reveal - BEAT * .75 + .15, midi, {...PAD, pan: -.5 + k * .33}, {section: 'violins', dynamics: [.14, .42], attack: 1, release: .1, level: .42, bright: .45}));
@@ -116,9 +119,10 @@ export function composePrimaveraDawn(mix: Mix, cues: ScoreCues, {pizzicato = tru
     chord.pad.forEach((midi, k) => bowed(mix, from, to, midi, {...PAD, pan: -.5 + k * (1 / Math.max(1, chord.pad.length - 1))}, {section: 'violins', dynamics: dyn, attack: bloom ? .05 : .25, release: last ? 2.2 : .6, level: finale(from) ? .42 * FINALE : .42, bright: .45, offset: .08 * k}));
     // Celli hold the root through Flow-1 and in octaves on the zoom-out; Issues gets a walking line instead.
     if (from < issues.leadIn.at || finale(from)) {
-      const celli: [number, number] = bloom ? [.45, .32] : last ? [.65, .42] : [arc(cues, from).celli, arc(cues, next - .02).celli];
+      const thin = motor && !finale(from) && !bloom ? .7 : 1;
+      const celli: [number, number] = bloom ? [.45, .32] : last ? [.65, .42] : [arc(cues, from).celli * thin, arc(cues, next - .02).celli * thin];
       for (const midi of finale(from) ? [chord.bass, chord.bass + 12] : [chord.bass])
-        bowed(mix, from, to, midi, DRONE, {section: 'celli', dynamics: celli, attack: bloom ? .04 : .25, release: last ? 2.2 : .6, level: finale(from) ? .6 * FINALE : .6, bright: .4});
+        bowed(mix, from, to, midi, DRONE, {section: 'celli', dynamics: celli, attack: bloom ? .04 : .25, release: last ? 2.2 : .6, level: finale(from) ? (motor ? .45 : .6) * FINALE : .6, bright: .4});
     }
   });
 
@@ -130,8 +134,10 @@ export function composePrimaveraDawn(mix: Mix, cues: ScoreCues, {pizzicato = tru
       bowed(mix, at, time + BEAT * beats + .05, chord.bass + shape[k], DRONE, {section: 'celli', dynamics: [dyn, dyn * .9], attack: .08, release: .25, level: .6, bright: .4, offset: .08});
     }
   };
-  line(issues.leadIn.at - .2, issues.native, 2, [0, 7]);
-  line(issues.native, conclusion.start - .01, 1, [0, 7, 12, 7]);
+  if (!motor) {
+    line(issues.leadIn.at - .2, issues.native, 2, [0, 7]);
+    line(issues.native, conclusion.start - .01, 1, [0, 7, 12, 7]);
+  }
 
   // Soft timpani only where the harmony lands: the cover, "It clusters issues", the zoom-out and the logo.
   timpani(mix, reveal, 45, .16, DRUM, {decay: 1.6});

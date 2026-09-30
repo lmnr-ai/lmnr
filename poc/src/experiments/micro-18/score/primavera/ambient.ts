@@ -28,9 +28,10 @@ const FSM9 = v(42, 61, 64, 68, 69), GSM7 = v(44, 59, 63, 66, 71), B = v(35, 59, 
 const E7 = v(40, 59, 62, 64, 68), AADD9 = v(33, 59, 61, 64, 69), DMAJ7 = v(38, 61, 66, 69, 73), E = v(40, 59, 64, 68, 71);
 const FMAJ7 = v(41, 60, 64, 69, 72), BM9 = v(35, 61, 62, 66, 69), DMAJ9 = v(38, 61, 64, 66, 69), FSM7 = v(42, 61, 64, 69, 73), A = v(33, 61, 64, 69, 73);
 
-export function ambientPlan(cues: ScoreCues): Chord[] {
+/** `every`: how many bars each looped chord lasts. */
+export function ambientPlan(cues: ScoreCues, {every = 2} = {}): Chord[] {
   const {ultimate2: u2, cost, flow, issues, conclusion} = cues;
-  const bars = pulse(flow.reveal, BAR * 2);
+  const bars = pulse(flow.reveal, BAR * every);
   const c = (at: number, voicing: Voicing): Chord => ({at, ...voicing});
   const loop = (from: number, to: number, cycle: readonly Voicing[]) =>
     [c(from, cycle[0]), ...bars.steps(from + BAR, to - BAR).map((s, i) => c(s.time, cycle[(i + 1) % cycle.length]))];
@@ -58,8 +59,12 @@ export function composePrimaveraAmbient(mix: Mix, cues: ScoreCues) {
   arpeggio(conclusion.logo, 69);
 }
 
-/** The bed, droplets and gap-answering solo over `plan`, for chords and gaps that start before `until`. */
-export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[], until: number, {droplets = true} = {}) {
+/**
+ * The bed, droplets and gap-answering solo over `plan`, for chords and gaps that start before `until`.
+ * `bright` (primavera-sun) bows the pads quicker and brighter, lets the high violin play on every chord,
+ * and drops the drone ~3 dB, because a celli motor carries the bass.
+ */
+export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[], until: number, {droplets = true, bright = false} = {}) {
   const {flow, conclusion} = cues, end = cues.duration;
   const grid = pulse(flow.reveal, BEAT);
 
@@ -69,11 +74,11 @@ export function ambientLayers(mix: Mix, cues: ScoreCues, plan: readonly Chord[],
     const from = Math.max(0, chord.at - .4), to = Math.min(end - .2, (plan[i + 1]?.at ?? end) + .6);
     if (to - from < .3) return;
     const bloom = chord.at >= flow.reveal - .01 && chord.at < flow.reveal + .01 || chord.at >= conclusion.logo - .01;
-    const dyn: [number, number] = bloom ? [.32, .2] : [.18, .2];
-    chord.pad.forEach((midi, k) => bowed(mix, from, to, midi, {...PAD, pan: -.5 + k * .33}, {section: 'violins', dynamics: dyn, attack: 1.6, release: 2, level: .42, bright: .35, offset: .1 * k}));
-    bowed(mix, from, to, chord.bass < 36 ? chord.bass + 12 : chord.bass, DRONE, {section: 'celli', dynamics: [.2, .18], attack: 2, release: 2, level: .65, bright: .3});
+    const dyn: [number, number] = bloom ? [.32, .2] : bright ? [.17, .24] : [.18, .2];
+    chord.pad.forEach((midi, k) => bowed(mix, from, to, midi, {...PAD, pan: -.5 + k * .33}, {section: 'violins', dynamics: dyn, attack: bright ? .7 : 1.6, release: bright ? 1.2 : 2, level: .42, bright: bright ? .42 : .35, offset: .1 * k}));
+    bowed(mix, from, to, chord.bass < 36 ? chord.bass + 12 : chord.bass, DRONE, {section: 'celli', dynamics: [.2, .18], attack: 2, release: 2, level: bright ? .46 : .65, bright: .3});
     // The light on top: a high violin on the fifth or ninth, very soft, every other chord.
-    if (i % 2 === 0 || bloom) bowed(mix, from + .8, to, toneOf(chord, 1, 83), AIR, {dynamics: [.12, .18], attack: 2.4, release: 2.4, level: .3, bright: .3});
+    if (i % 2 === 0 || bloom || bright) bowed(mix, from + .8, to, toneOf(chord, 1, 83), AIR, {dynamics: [.12, .18], attack: 2.4, release: 2.4, level: .3, bright: bright ? .4 : .3});
   });
 
   // Droplets: a sparse high pizzicato on about a third of the off-beats, a little thicker between phrases.

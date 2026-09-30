@@ -4,6 +4,7 @@ import {designPrimavera, primaveraDucks} from './design';
 import {composePrimaveraAmbient, designPrimaveraAmbient} from './ambient';
 import {composePrimaveraDawn, designPrimaveraDawn} from './dawn';
 import {composePrimaveraFelt, designPrimaveraFelt} from './felt';
+import {composePrimaveraSun, designPrimaveraSun} from './sun';
 
 export const primavera: ScoreStyle = {
   id: 'primavera',
@@ -52,4 +53,7 @@ export const primaveraDawn: ScoreStyle = {
 };
 
 /** Primavera dawn with a felt piano in place of every pizzicato, and the ticking gestures removed (round 7). */
-export const primaveraFelt: ScoreStyle = {...primaveraDawn, id: 'primavera-felt', title: 'Primavera felt', compose: composePrimaveraFelt, design: designPrimaveraFelt};
+export const primaveraFelt: ScoreStyle = {...primaveraDawn, id: 'primavera-felt', title: 'Primavera felt', compose: (mix, cues) => composePrimaveraFelt(mix, cues), design: (mix, cues) => designPrimaveraFelt(mix, cues)};
+
+/** Primavera felt with a low celli motor and a quicker, brighter problem half: yellow and green energy (round 8). */
+export const primaveraSun: ScoreStyle = {...primaveraDawn, id: 'primavera-sun', title: 'Primavera sun', compose: composePrimaveraSun, design: designPrimaveraSun};

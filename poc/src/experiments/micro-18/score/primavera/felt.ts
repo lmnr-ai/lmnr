@@ -26,9 +26,10 @@ const key = (mix: Mix, time: number, midi: number, velocity: number, route: Rout
 const rolled = (mix: Mix, time: number, notes: readonly number[], velocities: (k: number) => number, gap: number, length: number, gain = PIANO.gain) =>
   notes.forEach((midi, k) => key(mix, time + k * gap, midi, velocities(k), {...PIANO, gain, pan: -.3 + .6 * k / Math.max(1, notes.length - 1)}, length));
 
-export function composePrimaveraFelt(mix: Mix, cues: ScoreCues) {
-  composePrimaveraDawn(mix, cues, {pizzicato: false});
-  const plan = dawnPlan(cues), {flow, conclusion} = cues, end = cues.duration;
+/** `motor` is primavera-sun: dawn's brighter variant, with the zoom-out wash lifted clear of the celli motor. */
+export function composePrimaveraFelt(mix: Mix, cues: ScoreCues, {motor = false} = {}) {
+  composePrimaveraDawn(mix, cues, {pizzicato: false, motor});
+  const plan = dawnPlan(cues, {motor}), {flow, conclusion} = cues, end = cues.duration;
   const reveal = flow.reveal, logo = conclusion.logo, suspend = reveal - BAR * .75;
 
   // Droplets: on the beat only, at least 1.5 s apart and never the same pitch twice.
@@ -52,7 +53,7 @@ export function composePrimaveraFelt(mix: Mix, cues: ScoreCues) {
   const zoom = pulse(reveal, BEAT / 2).steps(conclusion.start, logo - .05);
   zoom.forEach(({time}, i) => {
     const chord = chordAt(plan, time + .001), p = (time - conclusion.start) / (logo - conclusion.start);
-    key(mix, time, toneOf(chord, i % 6, 57), .14 + .1 * p, {...WASH, pan: -.35 + .7 * (i % 6) / 5}, 2);
+    key(mix, time, toneOf(chord, i % 6, motor ? 64 : 57), .14 + .1 * p, {...WASH, pan: -.35 + .7 * (i % 6) / 5}, 2);
   });
 
   // The logo: a wide rolled A major, then piano doubling the violins' E6 after the last word.
@@ -75,8 +76,8 @@ function feltKit(mix: Mix, cues: ScoreCues, plan: readonly Chord[]) {
   return {note, dyad, lift};
 }
 
-export function designPrimaveraFelt(mix: Mix, cues: ScoreCues) {
-  const plan = dawnPlan(cues), {ultimate2: u2, cost, flow, issues} = cues, {note, dyad, lift} = feltKit(mix, cues, plan);
+export function designPrimaveraFelt(mix: Mix, cues: ScoreCues, {motor = false} = {}) {
+  const plan = dawnPlan(cues, {motor}), {ultimate2: u2, cost, flow, issues} = cues, {note, dyad, lift} = feltKit(mix, cues, plan);
   dyad(u2.failure);
   lift(u2.backtrack, false);
   dyad(u2.warning, .2);
