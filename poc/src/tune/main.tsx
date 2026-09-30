@@ -23,6 +23,8 @@ import '../experiments/micro-18/styles.css';
 import '../experiments/micro-20/styles.css';
 import '../experiments/introducing-flow-1/styles.css';
 import '../experiments/introducing-flow-1-2/styles.css';
+import '../experiments/micro-24/styles.css';
+import '../experiments/micro-23/styles.css';
 import {App} from './App';
 import {MicroAnimationApp} from '../experiments/micro-01/App';
 import {EmptyAnimationApp} from '../experiments/micro-02/App';
@@ -50,9 +52,16 @@ import {Ultimate3SilkApp} from '../experiments/ultimate-3-silk/App';
 import {IntroducingFlow1App} from '../experiments/introducing-flow-1/App';
 import {IntroducingFlow2App} from '../experiments/introducing-flow-1-2/App';
 
+const Micro24App = lazy(() => import('../experiments/micro-24/App').then(module => ({default: module.IntroducingFlow3App})));
+const Micro23App = lazy(() => import('../experiments/micro-23/App').then(module => ({default: module.Micro23App})));
+
 const params = new URLSearchParams(window.location.search);
 const experiment = params.get('experiment');
-const content = experiment === 'micro-01'
+const content = experiment === 'micro-24'
+  ? <Suspense fallback={<p role="status">Loading Introducing Flow-1 3…</p>}><Micro24App /></Suspense>
+  : experiment === 'micro-23'
+  ? <Suspense fallback={<p role="status">Loading Traces per dollar…</p>}><Micro23App /></Suspense>
+  : experiment === 'micro-01'
   ? <MicroAnimationApp />
   : experiment === 'micro-02'
     ? <EmptyAnimationApp />

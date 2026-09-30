@@ -16,6 +16,9 @@
 .micro18-frame>.micro17-composition>.micro17-subtitle-layer{z-index:11}
 .micro18-shared-scene{background:#1a1a1a;color:#fff;font-family:FlowMono,'JetBrains Mono',monospace}
 .micro18-shared-world{position:absolute;left:0;top:0;width:1px;height:1px;transform-origin:0 0;will-change:transform}
+/* The common comparison/engine camera must not reveal earlier Flow artwork
+   again when it starts at the dense grid's wider zoom. */
+.micro18-shared-scene[data-comparison-active] .micro18-flow-content > :not(.flow1-engine){visibility:hidden}
 .micro18-shared-grid{position:absolute;left:-10000px;top:-10000px;width:20000px;height:20000px;background-image:linear-gradient(#333 calc(1px / var(--micro18-camera-scale)),transparent calc(1px / var(--micro18-camera-scale))),linear-gradient(90deg,#333 calc(1px / var(--micro18-camera-scale)),transparent calc(1px / var(--micro18-camera-scale)));background-size:100px 100px;pointer-events:none}
 .micro18-cost-space{position:absolute;left:0;top:0;width:1px;height:1px;transform-origin:0 0}
 .micro18-cost-content,.micro18-cost-budget{position:absolute;left:-2000px;top:-1000px;width:10000px;height:7000px;overflow:visible;pointer-events:none}

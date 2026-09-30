@@ -12,6 +12,7 @@ import {createFlow2Sampler, originalFlowPlayback, type Flow2Playback} from '../i
 import {FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
 import {CHAPTER_IDS, chapterFloors, issueEntryEnd, issueEndpoint, issuePostludeOffset, issuePreludeEnd, costEndpoint, flowEndpoint, normalizeSettings, ultimate2Endpoint, type ChapterId, type ClipTiming, type Ultimate3Settings} from './settings';
 import {createFlowWorldLayout, type FlowWorldLayout} from './transitions';
+import {sampleFlowComparison} from './flow-comparison';
 
 export type ChapterSegment = {id: ChapterId; label: string; start: number; duration: number; end: number};
 const labels: Record<ChapterId, string> = {ultimate2: '17 Ultimate 2', cost: '16 Cost', flow: '13 Introducing Flow-1', issues: '20 Issue clusters 3', conclusion: 'Conclusion'};
@@ -41,7 +42,7 @@ export function flowNarrationRevealAt(settings: Ultimate3Settings): number | und
   return cue.at - start - (settings.flow.entrySlide.at + settings.flow.entrySlide.duration);
 }
 
-export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings): {entryProgress: number; nativeTime: number; playback: FlowPlayback; playback21?: Flow2Playback; worldLayout?: FlowWorldLayout} {
+export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings): {entryProgress: number; nativeTime: number; playback: FlowPlayback; playback21?: Flow2Playback; worldLayout?: FlowWorldLayout; comparison?: ReturnType<typeof sampleFlowComparison>} {
   const entry = settings.flow.entrySlide; const entryEnd = entry.at + entry.duration;
   const nativeTime = Math.min(flowEndpoint(settings), Math.max(0, localChapterTime - entryEnd));
   if (settings.flow.sourceVersion === 21) {
@@ -53,7 +54,8 @@ export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings
     // The opening cloud plane rides into view with Flow's world already revealed.
     playback21.progress.cloudReveal = 1;
     return {entryProgress: progress(localChapterTime, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21),
-      ...(worldLayout ? {worldLayout} : {})};
+      ...(worldLayout ? {worldLayout} : {}),
+      ...(settings.flow.comparison ? {comparison: sampleFlowComparison(nativeTime, settings.flow.comparison)} : {})};
   }
   const timing = Object.fromEntries(FLOW_CLIP_KEYS.map(key => {
     if (key === 'cloudReveal') return [key, {at: 0, duration: 0}];

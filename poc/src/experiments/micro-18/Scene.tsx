@@ -15,6 +15,8 @@ import {Flow1WorldContent, useFlow1FontReady} from '../introducing-flow-1/Scene'
 import {Subtitles as FlowSubtitles} from '../introducing-flow-1/Subtitles';
 import {introducingFlowState} from '../introducing-flow-1/geometry';
 import {Flow2Graph} from '../introducing-flow-1-2/Scene';
+import {Micro23Grid, Micro23Scene} from '../micro-23/Scene';
+import {flowComparisonArrival} from './flow-comparison';
 import {flow2WorldState} from '../introducing-flow-1-2/geometry';
 import {Subtitles as Flow21Subtitles} from '../introducing-flow-1-2/Subtitles';
 import {Subtitles as IssueSubtitles} from '../micro-20/Subtitles';
@@ -23,6 +25,7 @@ import type {Ultimate3Sample} from './sample';
 import {flowNarrationRevealAt, sampleFlow} from './sample';
 import {ConclusionSubtitles} from './Subtitles';
 import {VoiceoverCaptions} from './VoiceoverCaptions';
+import {PaperTexture} from './PaperTexture';
 import {costEndpoint, type Ultimate3Settings} from './settings';
 import {sampleMicro16} from '../micro-16/sample';
 import {
@@ -53,9 +56,26 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
   const flowPlacement = flow.worldLayout?.placement ?? FLOW_PLACEMENT;
   const outgoing = flowCameraInSharedWorld(flowState.camera, flow.worldLayout, flow.playback21);
   const issuePlacement = issueSurfacePlacement(outgoing);
-  const camera = issues ? flowIssuesCamera(outgoing, issues.entering ? issues.entryProgress : 1) : isFlow
+  const nativeCamera = issues ? flowIssuesCamera(outgoing, issues.entering ? issues.entryProgress : 1) : isFlow
     ? sharedWorldCamera({entryProgress: flow.entryProgress, outgoingCostCamera: cost.camera, flowPlayback: flow.playback, flowPlayback21: flow.playback21, flowLayout: flow.worldLayout})
     : costCameraInSharedWorld(cost.camera);
+  const comparison = flow.comparison;
+  const engineTiming = flow.playback21?.timing.cameraToEngine;
+  const comparisonEnd = comparison?.continuous ? Math.max(comparison.returnEnd, engineTiming!.at + engineTiming!.duration) : engineTiming?.at ?? 0;
+  const showingComparison = !!(isFlow && comparison && flow.nativeTime >= comparison.start && flow.nativeTime < comparisonEnd);
+  const returning = !!(showingComparison && comparison?.continuous && flow.nativeTime >= comparison.returnAt);
+  const endpointCamera = (progress: number) => {
+    const playback = {...flow.playback21!, progress: {...flow.playback21!.progress, cameraToEngine: progress}};
+    return flowCameraInSharedWorld(flow2WorldState(playback).camera, flow.worldLayout, playback);
+  };
+  const arrival = returning ? flowComparisonArrival(endpointCamera(0), endpointCamera(1), comparison!.sample.progress.returnToGrid, comparison!.sample.progress.gridShrink) : undefined;
+  // A delayed return must not expose the hidden legacy camera's descent.
+  // The v2 return clip is the only departure clock, including native edits.
+  const camera = arrival?.camera ?? (showingComparison && comparison?.continuous ? endpointCamera(0) : nativeCamera);
+  const arrivalGrid = arrival && comparison ? {...comparison.sample, cellSize: camera.scale * 100, gridY: camera.y} : undefined;
+  const phase = (n: number) => ((n % 60) + 60) % 60;
+  // The insert shares the continuous world's grid origin, not standalone24's.
+  const gridOffset = {x: phase(camera.x) - 40, y: phase(camera.y)};
   const cameraStyle = {
     transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`,
     '--micro18-camera-scale': camera.scale,
@@ -72,13 +92,14 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
     && cloudBounds.x + cloudBounds.width > 0 && cloudBounds.y + cloudBounds.height > 0;
 
   return <div className="micro18-shared-scene" aria-label="Cost, Introducing flow-1 and Issue clusters 3 shared world"
-    data-world-kind="persistent-cost-flow" data-camera-x={camera.x} data-camera-y={camera.y} data-camera-scale={camera.scale}>
+    data-world-kind="persistent-cost-flow" data-camera-x={camera.x} data-camera-y={camera.y} data-camera-scale={camera.scale} data-comparison-active={showingComparison ? true : undefined} data-comparison-arrival={returning ? comparison!.sample.progress.returnToGrid : undefined}>
+    {showingComparison && <Micro23Grid sample={arrivalGrid ?? comparison!.sample} gridStrokeWidth={comparison!.gridStrokeWidth} gridOffset={arrival ? {x: camera.x - 640, y: 0} : gridOffset}/>}
     <div className="micro18-shared-world" style={cameraStyle} data-world-origin="0,0" data-shared-camera="true">
       {/* CSS grid edges become source20's SVG stroke centers by arrival.
           The half-screen-pixel inset is continuous and avoids a border flash. */}
-      {(!issues || issues.entering) && <div className="micro18-shared-grid" data-grid-pitch="100" style={issues ? {height: Math.max(20000, issuePlacement.y + 12000),
+      {!showingComparison && (!issues || issues.entering) && <div className="micro18-shared-grid" data-grid-pitch="100" style={issues ? {height: Math.max(20000, issuePlacement.y + 12000),
         transform: `translate(${-issues.entryProgress * .5 / camera.scale}px,${-issues.entryProgress * .5 / camera.scale}px)`} : undefined}/>}
-      <div className="micro18-cost-space" style={{transform: costTransform}} data-native-scale={COST_NATIVE_TO_WORLD.scale}>
+      <div className="micro18-cost-space" style={{transform: costTransform, ...(showingComparison ? {visibility: 'hidden'} as const : {})}} data-native-scale={COST_NATIVE_TO_WORLD.scale}>
         <svg className="micro18-cost-content" viewBox="-2000 -1000 10000 7000">
           <Micro16WorldContent state={cost} id={id}/>
         </svg>
@@ -93,13 +114,17 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
       <div className="micro18-flow-content" data-world-x={flowPlacement.x} data-world-y={flowPlacement.y}
         style={{transform: `translate(${flowPlacement.x}px,${flowPlacement.y}px)`, '--flow1-muted-gray': settings.flow.controls.mutedGray} as React.CSSProperties}>
         <Flow1WorldContent taperDotRows={!!flow.playback21} modelName="flow-1" state={flowState} time={flow.playback.time} blueDotScale={settings.flow.controls.blueDotScale} numberRowStagger={settings.flow.controls.numberRowStagger} coverMotion={settings.flow.controls.coverMotion}
-          benchmarkContent={flow.playback21 ? <Flow2Graph playback={flow.playback21} beadStaggerSeconds={settings.flow.controls.beadStaggerSeconds} flowRevealAt={flowNarrationRevealAt(settings)}/> : undefined}/>
+          benchmarkContent={flow.playback21 ? <Flow2Graph playback={flow.playback21} beadStaggerSeconds={settings.flow.controls.beadStaggerSeconds} flowRevealAt={flowNarrationRevealAt(settings)} comparison={comparison}/>  : undefined}/>
       </div>
       {issues && <div className="micro18-issues-surface" data-entry={issues.entering} data-native-time={issues.nativeTime}
         style={{transform: `translate(${issuePlacement.x}px,${issuePlacement.y}px) scale(${issuePlacement.scale})`}}>
         {issues.source22 ? <Micro22Scene sample={issues.source22} sharedEntry={issues.entering} showSubtitles={false}/> : <Micro20Scene sample={issues.source20} sharedEntry={issues.entering} showSubtitles={false}/>}
       </div>}
     </div>
+    {showingComparison && <div className="micro18-flow-comparison" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
+      <Micro23Scene sample={comparison!.sample} gridStrokeWidth={comparison!.gridStrokeWidth} gridOffset={arrival ? undefined : gridOffset}
+        worldTransform={arrival?.worldTransform} transparent showGrid={false}/>
+    </div>}
     {(isFlow || outgoingCloudsVisible) && <div className="micro18-flow-cloud-layer" data-cloud-attachment={issues ? 'outgoing-world' : flow.entryProgress < 1 ? 'opening-world' : 'screen'}
       style={{transform: `translate(${cloudTransform.x}px,${cloudTransform.y}px) scale(${cloudTransform.scale})`}}>
       <DitherClouds progress={flowState.cloudProgress} yOffset={settings.flow.controls.cloudYOffset} translateY={flowState.cloudTranslateY}/>
@@ -143,5 +168,6 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
     {content}
     {clouds && <DitherClouds {...clouds}/>} 
     {settings.voiceover && <VoiceoverCaptions time={sample.time} voiceover={settings.voiceover}/>}
+    {settings.paperTexture === true && <PaperTexture/>}
   </div>;
 };

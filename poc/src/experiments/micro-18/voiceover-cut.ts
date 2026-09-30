@@ -10,6 +10,7 @@ import subtlePlacements from '../../../handoff/voiceover-subtle-a/placements.jso
 import quickerTracePlacements from '../../../handoff/voiceover-quicker-trace/placements.json';
 import tighterCadencePlacements from '../../../handoff/voiceover-tighter-cadence/placements.json';
 import {BLOCK_TEMPLATE} from '../micro-12/geometry';
+import {withFlowComparison} from './flow-comparison';
 
 export const VOICEOVER_SETTINGS_ID = 'ultimate3-voiceover-retime-settings-v4';
 export const VOICEOVER_SOUNDTRACK_URL = '/audio/voiceover/ultimate3-voiceover-v4.wav';
@@ -194,7 +195,7 @@ const COST_BRISK_RETIME: Retime = {
   ...shifted(c10, ['cameraDownToBudget', 'purpleBudgetEntry', 'budgetAppear', 'budgetRun', 'smokeEnter'], -.58),
   ...Object.fromEntries((['budgetDepletion', 'smokeFade', 'smokeShrink', 'subtitleCost'] as const).map(key =>
     [key, [c10[key].at - .58, c10[key].duration - .3] as [number, number]]))};
-export const VOICEOVER_DEFAULTS = normalizeSettings({...V10_DEFAULTS,
+export const VOICEOVER_DEFAULTS = withFlowComparison(normalizeSettings({...V10_DEFAULTS,
   allocations: {...V10_DEFAULTS.allocations, ultimate2: V10_DEFAULTS.allocations.ultimate2 - OPENING_BRISK, cost: V10_DEFAULTS.allocations.cost - COST_BRISK},
   pacing: {...V10_DEFAULTS.pacing, costTrimEnd: V10_DEFAULTS.pacing.costTrimEnd - COST_BRISK},
   clouds: {...V10_DEFAULTS.clouds!, timing: Object.fromEntries(Object.entries(V10_DEFAULTS.clouds!.timing).map(([key, clip]) =>
@@ -202,7 +203,7 @@ export const VOICEOVER_DEFAULTS = normalizeSettings({...V10_DEFAULTS,
   ultimate2: {...V10_DEFAULTS.ultimate2, timing: briskTiming, controls: {...V10_DEFAULTS.ultimate2.controls, streamerSpeed: BRISK_STREAM_SPEED}},
   cost: {...V10_DEFAULTS.cost, timing: retime(c10, COST_BRISK_RETIME)},
   voiceover: {version: 1, phrases: takePhrases},
-});
+}));
 const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS, V8_DEFAULTS, V9_DEFAULTS, V10_DEFAULTS];
 // Raw, since normalizing clamps the 10-04 take's durations to the shorter A/subtle trims; v7 is this cut on the 10-04 take.
 const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases, phrasesOf(subtlePlacements), phrasesOf(quickerTracePlacements),
@@ -211,7 +212,7 @@ export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
   // Stamp imported historical cuts so a later storage load cannot upgrade them.
-  return {...settings, issues: {...settings.issues, migration22: 1 as const}, flow: {...settings.flow, sourceVersion: settings.flow.sourceVersion ?? 13 as const}};
+  return {...settings, issues: {...settings.issues, migration22: 1 as const}, flow: {...settings.flow, sourceVersion: settings.flow.sourceVersion ?? 13 as const, ...(settings.flow.sourceVersion === 21 ? {comparison: settings.flow.comparison ?? false} : {})}};
 }
 
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -281,7 +282,7 @@ export function migrateStoredVoiceoverFlow21(input: unknown): unknown {
 export function readVoiceoverSettings(storage: Pick<Storage, 'getItem'>) {
   try {
     const stored = storage.getItem(VOICEOVER_SETTINGS_ID);
-    return normalizeVoiceoverSettings(stored ? migrateStoredVoiceoverMotion22(migrateStoredVoiceoverIssues22(migrateStoredVoiceoverFlow21(migrateStoredVoiceoverOpening(JSON.parse(stored))))) : VOICEOVER_DEFAULTS);
+    return normalizeVoiceoverSettings(stored ? withFlowComparison(normalizeSettings(migrateStoredVoiceoverMotion22(migrateStoredVoiceoverIssues22(migrateStoredVoiceoverFlow21(migrateStoredVoiceoverOpening(JSON.parse(stored))))))) : VOICEOVER_DEFAULTS);
   } catch {
     return normalizeVoiceoverSettings(VOICEOVER_DEFAULTS);
   }

@@ -7,6 +7,7 @@ import quickerTrace from '../../../handoff/voiceover-quicker-trace/default-setti
 import returnedSettings from '../../../handoff/voiceover-soak/default-settings.json';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import {normalizeSettings} from './settings';
+import {withFlowComparison} from './flow-comparison';
 import {sampleMicro17} from '../micro-17/sample';
 
 const defaults = normalizeSettings(VOICEOVER_DEFAULTS);
@@ -22,7 +23,7 @@ test('pasted Main defaults apply exact cloud timing/easing and chapter rounding;
   const sooner = <T extends {at: number}>(clip: T) => ({...clip, at: clip.at - TRACE_TRIM});
   const {timing} = previous.ultimate2, run = timing.streamRun.duration - TRACE_TRIM;
   const shortened = clip(timing.streamRun, run), trace = clip(timing.subtitleTrace, run);
-  const expected = normalizeSettings({...previous, allocations: {ultimate2: 21.16, cost: 13.7, flow: 15.192, issues: 19.308, conclusion: 6.55},
+  const expected = withFlowComparison(normalizeSettings({...previous, allocations: {ultimate2: 21.16, cost: 13.7, flow: 15.192, issues: 19.308, conclusion: 6.55},
     clouds: {...previous.clouds!, timing: Object.fromEntries(Object.entries(previous.clouds!.timing).map(([key, c]) => [key, sooner(c)])) as NonNullable<typeof previous.clouds>['timing']},
     ultimate2: {streamBlocksRemoved: 12, controls: {...previous.ultimate2.controls, streamerSpeed: TRACE_STREAM_SPEED},
       timing: {...Object.fromEntries(Object.entries(timing).map(([key, c]) => [key, c.at >= timing.continueStraight.at ? sooner(c) : c])) as typeof timing,
@@ -31,9 +32,9 @@ test('pasted Main defaults apply exact cloud timing/easing and chapter rounding;
     issues: {...previous.issues, timing22: {...previous.issues.timing22, explanationTyping: {
       ...previous.issues.timing22!.explanationTyping, duration: 1.2,
       transition: {type: 'easing', duration: 1.2, ease: [.45, 0, .55, 1]},
-    }}}, voiceover});
-  // That is the frozen editable-v9 cut; the cadence passes then only move the opening, Cost and voice.
-  assert.deepEqual(normalizeSettings(quickerTrace), expected);
+    }}}, voiceover}));
+  // Cadence moves the opening, Cost and voice; comparison uses the unchanged Flow-native slot.
+  assert.deepEqual(withFlowComparison(normalizeSettings(quickerTrace)), expected);
   const {allocations, pacing, clouds, ultimate2, cost} = expected;
   assert.deepEqual({...defaults, allocations, pacing, clouds, cost, voiceover, ultimate2: {...defaults.ultimate2, timing: ultimate2.timing, controls: ultimate2.controls}}, expected);
   assert.deepEqual(readVoiceoverSettings({getItem: () => null}), defaults);

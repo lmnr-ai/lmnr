@@ -1,6 +1,14 @@
 # Signals launch video — agent handoff
 
-## Latest handoff: current Ultimate3 visuals/timing and approved voiceover
+## Latest handoff: v11 cadence + new pricing animation + audio reference
+
+Start with **[handoff/pricing-timing-audio/README.md](handoff/pricing-timing-audio/README.md)**.
+It combines the latest upstream editable-v11 timing with the local traces-per-dollar
+animation, standalone Animations 23/24, and paper-texture toggle. The folder contains
+the current combined preview settings and extracted `turbopuffer.m4a` reference for
+the next agent's sound-design pass. Approved narration and soundtrack remain unchanged.
+
+## Previous handoff: current Ultimate3 visuals/timing and approved voiceover
 
 Start with **[handoff/latest-ultimate3/README.md](handoff/latest-ultimate3/README.md)**
 for the synchronized animation/timing changes, exact rendered settings, and

@@ -1,5 +1,70 @@
 # Animation 18 — Ultimate 3
 
+## Animation 19 picker entry: updated Flow comparison
+
+The default `?experiment=micro-18` narrated cut now uses Animation 23's shared
+traces-per-dollar artwork, as in Animation 24, without retiming the narration:
+
+- **37.01–37.28s:** intelligence title folds down; its original beads, labels,
+  scores, narration-cued flow-1 ball and string move left together.
+- **37.30–40.07s:** zoom out, headline/dots/labels and 37/756 cards. The spoken
+  “while analyzing 20 times more traces per dollar” is at **37.30–40.05s**.
+- **40.07–41.33s:** one continuous camera zoom/descent from the comparison into
+  “Flow-1 powers Signals.” No stop on an empty grid and no second camera move.
+  Engine activation/cover beats keep their original times.
+
+Only this dense insert uses `#1f1f1f` / .5px; both ends match the original
+`#333333` / 1px shared-world grid. The insert retains its authored Flow-relative
+clips; upstream editable-v11 moves the whole Flow chapter 6.43s earlier. All
+chapter boundaries, 2085-frame duration, voice clips, bed, master gain and other
+chapters retain the upstream v11 values.
+
+`flow.comparison` v2 stores twelve independent native clips in the existing Flow
+detail timeline. The return clip owns both zoom and descent, ending at the old
+engine camera's settled pose. Its old separate camera bar is hidden, while that
+camera's timing metadata is retained for the soundtrack and historical cuts. Their actual `clip.current`, starts, durations, endpoints and
+transitions drive the shared renderer; inspection and Remotion use the same
+sample. The replaced graph bars no longer appear, while their old timing data
+is retained for historical settings/audio metadata. Existing Flow panel IDs and
+named presets are not deleted. Stored source21 settings get a load-only,
+idempotent addition fitted to their own existing comparison/engine window.
+A load-only v1→v2 migration extends only an unedited default return clip;
+custom return timings and other clips survive. Named presets are retained.
+Explicit historical JSON imports keep their literal version (or the old graph
+with `comparison:false`), and `?cut=original` remains unchanged. The return's
+native progress drives both layers under a common camera and grid; no opacity
+crossfade or duplicate engine animation is used.
+
+Checks: `flow-comparison.test.ts` and `flow-comparison.browser.test.sh` cover
+fixed timing, native edits, migration/presets, reverse sampling and grid cuts.
+
+## Latest synced cut and master paper texture
+
+Merged with `sandbox/signals-launch-video` at `0755714a7`: approved A/subtle
+editable-v11 voiceover, brisk opening/Cost cadence, **2085 frames**, chapter starts
+**0 / 19.06 / 28.43 / 43.622 / 62.93s**. See
+[brisk-cadence handoff](../../../handoff/voiceover-brisk-cadence/README.md) and
+[combined pricing/audio handoff](../../../handoff/pricing-timing-audio/README.md).
+The older sections below retain the history of previous cuts.
+
+**Ultimate 3 · Master appearance → Paper Texture** is a persistent DialKit
+toggle available in Main and every detail view. It is stored as the optional
+boolean `paperTexture` in Settings JSON and the same Remotion `settings` prop.
+Missing/false means off, preserving historical presets. The current preview can
+be enabled independently without changing narration, timings, or master gain.
+
+The exact Figma `image 233` (`4859:7955`, inside `4740:28387`) is saved at
+`public/micro-18/paper-texture.png`: **Multiply, opacity 1, object-fit cover,
+90° clockwise rotation**, 891×1320 before rotation. Placement `(1300,-32)` with
+top-left rotation origin produces bounds **(-20,-32,1320,891)** on the authored
+1280×720 canvas. No extra tint, filter, fade, tiling, or strength adjustment.
+Source hash and settings: `public/micro-18/paper-texture.source.json`.
+
+The single layer is the final child of the isolated/clipped shared frame,
+above clouds and captions but outside every camera transform; toolbar/DialKit
+are untouched. Remotion waits for image decoding during export; the plain React
+preview uses the same image and styles without requiring a Remotion context.
+
 Five fixed-order chapters reuse the read-only Animation 17, 16, Introducing Flow-1, and the full Animation 20 Issue clusters 3 scene renderer, followed by the supplied Figma Laminar logo.
 
 - **Main timeline:** exactly five contiguous chapter allocations. Expanding an editable endpoint ripples later starts; extra allocation is a terminal hold. Playback is never sped up.

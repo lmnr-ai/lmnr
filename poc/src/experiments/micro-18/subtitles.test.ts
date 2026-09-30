@@ -183,7 +183,7 @@ test('Ultimate 2 subtitles escape its scene stack and stay above the shared hand
 test('Flow subtitles are screen-space siblings above shared artwork and clouds', () => {
   const scene = readFileSync(new URL('./Scene.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
-  const worldEnd = scene.indexOf('</div>\n    {(isFlow || outgoingCloudsVisible)');
+  const worldEnd = scene.indexOf('</div>\n    {showingComparison');
   const cloudsEnd = scene.indexOf('</div>}\n    {/* The narrated cut draws');
   const subtitlesAt = scene.indexOf(': isFlow ? (flow.playback21 ? <Flow21Subtitles');
   assert.ok(worldEnd >= 0 && cloudsEnd > worldEnd && subtitlesAt > cloudsEnd,

@@ -12,6 +12,7 @@ import type {ClipTiming, Ultimate3Settings} from './settings';
 import {ISSUE_KEYS, PRELUDE_KEYS, normalizeClip} from '../micro-20/timeline';
 import {CLOUD_KEYS} from './clouds';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
+import {COMPARISON_KEYS, REPLACED_GRAPH_KEYS, sampleFlowComparison, type ComparisonKey, type FlowComparison} from './flow-comparison';
 
 /** Retiming must retain each source clip's from/to values for DialKit clip.current. */
 export function mergeTimelineTiming(
@@ -75,10 +76,14 @@ export function liveIssuesPreview(timeline: any, settings: Ultimate3Settings) {
 
 export function flowTimelineSettings(settings: Ultimate3Settings) {
   const sequel = settings.flow.sourceVersion === 21;
+  const comparison = sequel && settings.flow.comparison;
+  const keys = (sequel ? FLOW_2_CLIP_KEYS : FLOW_CLIP_KEYS).filter(key => key !== 'cloudReveal' && (!comparison || !(REPLACED_GRAPH_KEYS as readonly string[]).includes(key))
+    && !(comparison && comparison.version === 2 && key === 'cameraToEngine'));
+  const timing = {...(sequel ? settings.flow.timing21 ?? FLOW_21_TIMING : settings.flow.timing), ...(comparison ? comparison.timing : {})};
   return {
-    keys: (sequel ? FLOW_2_CLIP_KEYS : FLOW_CLIP_KEYS).filter(key => key !== 'cloudReveal') as string[],
-    source: (sequel ? FLOW_2_TIMELINE : INTRODUCING_FLOW_1_TIMELINE) as Record<string, unknown>,
-    timing: (sequel ? settings.flow.timing21 ?? FLOW_21_TIMING : settings.flow.timing) as Record<string, ClipTiming>,
+    keys: [...keys, ...(comparison ? COMPARISON_KEYS : [])],
+    source: {...(sequel ? FLOW_2_TIMELINE : INTRODUCING_FLOW_1_TIMELINE), ...(comparison ? comparison.timing : {})} as Record<string, unknown>,
+    timing: Object.fromEntries([...keys, ...(comparison ? COMPARISON_KEYS : [])].map(key => [key, timing[key as keyof typeof timing]])) as Record<string, ClipTiming>,
   };
 }
 export function flowTimelineConfig(settings: Ultimate3Settings) {
@@ -89,7 +94,24 @@ export function flowTimelineConfig(settings: Ultimate3Settings) {
     ...mergeTimelineTiming(source, timing, keys, entry.at + entry.duration)};
 }
 
-export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
+export function settingsFromFlowTimeline(timeline: any, settings: Ultimate3Settings) {
+  const entrySlide = normalizeClip(timeline.entrySlide, settings.flow.entrySlide);
+  const entryEnd = entrySlide.at + entrySlide.duration;
+  const {keys, timing} = flowTimelineSettings(settings);
+  const authored = Object.fromEntries(keys.map(key => {
+    const at = Math.max(0, timeline[key].at - entryEnd);
+    // Do not rewrite unchanged native timings with subtraction roundoff.
+    return [key, normalizeClip({...timeline[key], at: Math.abs(at - timing[key].at) < 1e-9 ? timing[key].at : at}, timing[key])];
+  })) as Record<string, ClipTiming>;
+  const comparison = settings.flow.comparison;
+  const timingKey = settings.flow.sourceVersion === 21 ? 'timing21' : 'timing';
+  return normalizeSettings({...settings, flow: {...settings.flow, entrySlide,
+    [timingKey]: {...settings.flow[timingKey], ...Object.fromEntries(keys.filter(key => !(COMPARISON_KEYS as readonly string[]).includes(key)).map(key => [key, authored[key]]))},
+    ...(comparison ? {comparison: {version: comparison.version, timing: Object.fromEntries(COMPARISON_KEYS.map(key => [key, authored[key]])) as FlowComparison['timing']}} : {}),
+  }});
+}
+
+export function liveFlowPreview(timeline: any, settings: Ultimate3Settings): ReturnType<typeof sampleFlow> {
   const entry = settings.flow.entrySlide;
   const entryEnd = entry.at + entry.duration;
   const unclippedNativeTime = Math.max(0, timeline.time - entryEnd);
@@ -99,13 +121,17 @@ export function liveFlowPreview(timeline: any, settings: Ultimate3Settings) {
   if (unclippedNativeTime >= flowEndpoint(settings)) return sampleFlow(timeline.time, settings);
   const nativeTime = unclippedNativeTime;
   if (settings.flow.sourceVersion === 21) {
+    const authored = settingsFromFlowTimeline(timeline, settings);
+    const base = sampleFlow(timeline.time, authored);
+    const active = new Set(flowTimelineSettings(settings).keys);
     const playback21: Flow2Playback = {time: nativeTime,
-      timing: Object.fromEntries(FLOW_2_CLIP_KEYS.map(key => [key, key === 'cloudReveal'
-        ? {at: FLOW_2_TIMELINE.cloudReveal.at, duration: FLOW_2_TIMELINE.cloudReveal.duration}
-        : {at: timeline[key].at - entryEnd, duration: timeline[key].duration}])) as Flow2Playback['timing'],
-      progress: Object.fromEntries(FLOW_2_CLIP_KEYS.map(key => [key, key === 'cloudReveal' ? 1 : timeline[key].current.progress])) as Flow2Playback['progress'],
+      timing: Object.fromEntries(FLOW_2_CLIP_KEYS.map(key => [key, active.has(key)
+        ? {at: timeline[key].at - entryEnd, duration: timeline[key].duration} : base.playback21!.timing[key]])) as Flow2Playback['timing'],
+      progress: Object.fromEntries(FLOW_2_CLIP_KEYS.map(key => [key, active.has(key) ? timeline[key].current.progress : base.playback21!.progress[key]])) as Flow2Playback['progress'],
     };
-    return {entryProgress: liveProgress(timeline, 'entrySlide', timeline.time, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21)};
+    return {...base, entryProgress: liveProgress(timeline, 'entrySlide', timeline.time, entry), nativeTime, playback21, playback: originalFlowPlayback(playback21),
+      ...(authored.flow.comparison ? {comparison: sampleFlowComparison(nativeTime, authored.flow.comparison,
+        Object.fromEntries(COMPARISON_KEYS.map(key => [key, timeline[key].current.progress])) as Record<ComparisonKey, number>)} : {})};
   }
   const timing = Object.fromEntries(FLOW_CLIP_KEYS.map(key => [key, key === 'cloudReveal'
     ? {at: 0, duration: 0}

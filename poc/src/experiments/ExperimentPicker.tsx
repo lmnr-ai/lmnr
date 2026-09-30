@@ -19,6 +19,8 @@ const EXPERIMENTS = [
   {id: 'micro-18', label: 'Animation 19 - Ultimate 3'},
   {id: 'ultimate-3-silk', label: 'Ultimate 3 — Silk sound design'},
   {id: 'micro-22', label: 'Animation 22 - Issue clusters 4'},
+  {id: 'micro-23', label: 'Animation 23 - Traces per dollar'},
+  {id: 'micro-24', label: 'Animation 24 — Introducing Flow-1 3'},
   {id: 'micro-20', label: 'Animation 20 - Issue clusters 3'},
   {id: 'introducing-flow-1-2', label: 'Animation 21 — Introducing Flow-1 2'},
 ] as const;

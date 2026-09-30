@@ -9,11 +9,16 @@ import {DEFAULT_BEAD_STAGGER_SECONDS} from './beads';
 export type Flow2Appearance = {cloudYOffset: number; blueDotScale: number; coverMotion: CoverMotion; mutedGray: string; beadStaggerSeconds: number};
 export const FLOW_2_APPEARANCE: Flow2Appearance = {cloudYOffset: 37, blueDotScale: 1.2, coverMotion: 'split', mutedGray: '#474747', beadStaggerSeconds: DEFAULT_BEAD_STAGGER_SECONDS};
 
-export const Flow2Graph = ({playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS, flowRevealAt}: {playback: Flow2Playback; beadStaggerSeconds?: number; flowRevealAt?: number}) => {
-  const graph = graphState(playback, beadStaggerSeconds, flowRevealAt);
-  const axes = graphAxesState(playback);
-  const p = playback.progress;
+export const Flow2Graph = ({playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_SECONDS, flowRevealAt, comparison}: {playback: Flow2Playback; beadStaggerSeconds?: number; flowRevealAt?: number; comparison?: {assemblyExit: number; headingExit: number}}) => {
+  // Optional Ultimate 3 exit: keep the original intelligence pose and cue-driven
+  // ball, replacing only the subsequent spread/axes choreography.
+  const held = comparison ? {...playback, progress: {...playback.progress, graphSpread: 0, stringExit: 0, flowLabel: 0,
+    xAxisEntry: 0, analysisHeading: 0, benchmarkHeadingExit: comparison.headingExit}} : playback;
+  const graph = graphState(held, beadStaggerSeconds, flowRevealAt);
+  const axes = graphAxesState(held);
+  const p = held.progress;
   return <div className="flow2-graph" style={{left: GRAPH_WORLD_ORIGIN.x, top: GRAPH_WORLD_ORIGIN.y}}>
+    <div className="flow2-intelligence-assembly" style={comparison ? {transform: `translateX(${-1500 * comparison.assemblyExit}px)`} : {display: 'contents'}}>
     <div className="flow2-string" style={{left: graph.string.x, opacity: graph.string.opacity}}/>
     <div className="flow2-crossbar" style={{left: graph.ball.x, top: graph.ball.y, opacity: graph.string.crossbar}}/>
     <div className="flow2-ball" data-flow-point="true" style={{left: graph.ball.x, top: graph.ball.y, opacity: graph.ball.opacity}}>
@@ -27,15 +32,16 @@ export const Flow2Graph = ({playback, beadStaggerSeconds = DEFAULT_BEAD_STAGGER_
       <span className="flow2-score" style={{left: 'auto', right: 30, opacity: graph.scoresOpacity}}>{point.descF1.toFixed(1)}</span>
       <span style={{left: 30 * (1 - 2 * point.labelFlip), transform: `translateX(${-100 * point.labelFlip}%)`}}>{point.label}</span>
     </div>)}
-    <div className="flow2-heading flow2-heading-intelligence">
+    <span className="flow2-flow-label" style={{left: graph.flowLabel.x, top: graph.flowLabel.y, opacity: graph.ball.opacity}}>flow-1</span>
+    </div>
+    <div className="flow2-heading flow2-heading-intelligence" style={comparison?.headingExit === 1 ? {visibility: 'hidden'} : undefined}>
       <div className="flow2-heading-slide" style={{transform: `translateY(${100 * (p.benchmarkHeading - 1 + p.benchmarkHeadingExit)}%)`}}>
         <span>Trace analysis<br/>intelligence</span>
       </div>
     </div>
-    <SlideReveal progress={p.analysisHeading} className="flow2-heading flow2-heading-value">
+    {(!comparison || comparison.headingExit < 1) && <SlideReveal progress={p.analysisHeading} className="flow2-heading flow2-heading-value">
       <span>20x more traces<br/>analyzed per dollar</span>
-    </SlideReveal>
-    <span className="flow2-flow-label" style={{left: graph.flowLabel.x, top: graph.flowLabel.y, opacity: graph.ball.opacity}}>flow-1</span>
+    </SlideReveal>}
     <div className="flow2-axis flow2-axis-y" aria-hidden={!axes.y.visible} style={{left: axes.y.x, visibility: axes.y.visible ? 'visible' : 'hidden'}}>
       <span className="flow2-axis-title">Trace analysis intelligence</span>
       {AXIS_TICKS.y.map(tick => <span key={tick.position} className="flow2-axis-tick flow2-axis-tick-y" data-value={tick.value} style={{top: tick.position}}>{tick.label}</span>)}

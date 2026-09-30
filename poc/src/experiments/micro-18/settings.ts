@@ -10,6 +10,7 @@ import {FLOW_2_TIMELINE, FLOW_2_CLIP_KEYS, type Flow2ClipKey} from '../introduci
 import {DEFAULT_BEAD_STAGGER_SECONDS} from '../introducing-flow-1-2/beads';
 import {STREAM_RUN_TRIM_SECONDS} from '../micro-17/stream-trim';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
+import {normalizeComparison, type FlowComparison} from './flow-comparison';
 
 // Preserve the production composition's handoff/audio schedule when standalone
 // Ultimate 2 changes its cloud-entry default. Explicit composition edits still win.
@@ -28,6 +29,8 @@ export type CloudSettings = {timing: Record<'slideIn'|'partialRecede'|'recede', 
 export type VoiceoverSettings = {version: 1; phrases: Record<string, {at: number; duration: number}>};
 export type Ultimate3Settings = {
   version: 2 | 4;
+  /** Master, screen-pinned paper layer. Absent in historical settings means off. */
+  paperTexture?: boolean;
   voiceover?: VoiceoverSettings;
   /** Missing in legacy presets; normalized settings always include the computed v4 defaults. */
   clouds?: CloudSettings;
@@ -35,7 +38,7 @@ export type Ultimate3Settings = {
   pacing: {ultimate2HandoffHold: number; costTrimEnd: number; flowTrimEnd: number};
   ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10 | 12};
   cost: {timing: Micro16Timing; controls: Micro16Controls};
-  flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
+  flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; comparison?: FlowComparison | false; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
   issues: {sourceVersion: 20 | 22; timing22?: Micro22Timing; controls22?: Micro22Controls; migration22?: 1; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
   conclusion: {placeholder: ClipTiming; logo: ClipTiming};
 };
@@ -205,6 +208,7 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
   const pacingRaw = (raw as Partial<Ultimate3Settings>).pacing;
   const normalized: Ultimate3Settings = {
     version: 4,
+    ...(typeof raw.paperTexture === 'boolean' ? {paperTexture: raw.paperTexture} : {}),
     allocations: {...ULTIMATE_3_DEFAULTS.allocations},
     pacing: {
       ultimate2HandoffHold: finite(pacingRaw?.ultimate2HandoffHold, .5, 0, 30),
@@ -233,6 +237,8 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
       issueStart: finite(issues.issueStart, ISSUE_START), ...(issues.legacySource15 ? {legacySource15: issues.legacySource15} : {})},
     conclusion: {placeholder: {...clip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder), ...normalizeClip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder)}, logo: clip(conclusion.logo, ULTIMATE_3_DEFAULTS.conclusion.logo)},
   };
+  if (normalized.flow.sourceVersion === 21 && flow.comparison !== undefined)
+    normalized.flow.comparison = normalizeComparison(flow.comparison, normalized.flow.timing21!);
   // Conclusion stages are a contiguous two-card sequence: resizing/moving the
   // placeholder ripples the logo cut rather than leaving a stale visual boundary.
   normalized.conclusion.logo.at = normalized.conclusion.placeholder.at + normalized.conclusion.placeholder.duration;

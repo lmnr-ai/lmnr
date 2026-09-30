@@ -19,6 +19,7 @@ import {sharedWorldCamera, flowCameraInSharedWorld, costCameraInSharedWorld} fro
 
 const close = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 const s = VOICEOVER_DEFAULTS;
+const legacyGraph = {...s, flow: {...s.flow, comparison: false as const}};
 const entryEnd = s.flow.entrySlide.at + s.flow.entrySlide.duration;
 const start = chapterSchedule(s).find(chapter => chapter.id === 'flow')!.start;
 const at = (native: number) => start + entryEnd + native;
@@ -63,20 +64,20 @@ test('storage-only source upgrade is idempotent and does not mutate other author
   assert.equal(readVoiceoverSettings({getItem: () => JSON.stringify(old)}).flow.sourceVersion, 21);
 });
 
-test('stitched graph reuses shared rendering with its narration cue and no between-statistics camera pan', () => {
+test('legacy source21 graph reuses shared rendering with its narration cue and no between-statistics camera pan', () => {
   for (const native of [2.9, 3.5, 4.5, 5.2, 5.6, 6.5, 7.5, 8.97, 9.7, 11, 13.2]) {
     const sample = sampleUltimate3(at(native), s).flow!;
     const source = createFlow2Sampler({...FLOW_2_TIMELINE, ...s.flow.timing21}).sample(sample.nativeTime);
     source.progress.cloudReveal = 1;
     assert.deepEqual(sample.playback21, source);
     const graph = renderToStaticMarkup(createElement(Flow2Graph, {playback: source, beadStaggerSeconds: .11, flowRevealAt: flowNarrationRevealAt(s)}));
-    assert.ok(render(at(native)).includes(graph));
+    assert.ok(render(at(native), legacyGraph).includes(graph));
   }
   const early = sampleFlow(entryEnd + 5.2, s).playback21!;
   const spread = sampleFlow(entryEnd + 9.7, s).playback21!;
   assert.deepEqual(flow2WorldState(early).camera, flow2WorldState(spread).camera);
   assert.equal(graphState(spread).ball.x, 1150); assert.equal(graphState(spread).ball.y, 270);
-  const markup = render(at(9.7));
+  const markup = render(at(9.7), legacyGraph);
   assert.match(markup, /while analyzing 20 times more traces per dollar/);
   assert.doesNotMatch(markup, /At 2% of the cost/);
   assert.match(markup, /data-model="sol"[^>]*color:#808080/);
@@ -92,7 +93,7 @@ test('both shared-camera seams use source21 state, including its actual retimed 
     const expected = flowCameraInSharedWorld(flow2WorldState(sample.playback21!).camera);
     const actual = sharedWorldCamera({entryProgress: 1, outgoingCostCamera: sample.outgoingCost.camera, flowPlayback: sample.playback, flowPlayback21: sample.playback21});
     assert.deepEqual(actual, expected);
-    const html = render(at(native));
+    const html = render(at(native), legacyGraph);
     close(Number(html.match(/data-camera-y="([^"]+)"/)![1]), expected.y);
   }
   const retimed = normalizeSettings({...s, flow: {...s.flow, timing21: {...s.flow.timing21, cameraToEngine: {...s.flow.timing21!.cameraToEngine, at: 11}}}});
@@ -121,7 +122,7 @@ test('entry bridge converges on the authored source21 opening camera without a s
 });
 
 test('source21 authoring retains actual current values, custom endpoints and curves, and export parity', () => {
-  const edited = normalizeVoiceoverSettings({...s, flow: {...s.flow, controls: {...s.flow.controls, beadStaggerSeconds: .2},
+  const edited = normalizeVoiceoverSettings({...legacyGraph, flow: {...legacyGraph.flow, controls: {...s.flow.controls, beadStaggerSeconds: .2},
     timing21: {...s.flow.timing21, graphSpread: {at: 5, duration: 2, from: {progress: .2}, to: {progress: .8}, transition: {type: 'easing', duration: 2, ease: [0,0,1,1]}}}}});
   assert.equal(edited.flow.timing21!.graphSpread.from!.progress, .2);
   assert.equal(edited.flow.controls.beadStaggerSeconds, .2);

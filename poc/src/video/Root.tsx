@@ -1,3 +1,7 @@
+import {MicroAnimation24, FLOW_3_VIDEO_DEFAULTS} from './MicroAnimation24';
+import {flow3DurationFrames} from '../experiments/micro-24/sample';
+import {MicroAnimation23, MICRO_23_VIDEO_DEFAULTS} from './MicroAnimation23';
+import {micro23DurationFrames} from '../experiments/micro-23/sample';
 import {MicroAnimation22, MICRO_22_VIDEO_DEFAULTS} from './MicroAnimation22';
 import {micro22DurationFrames} from '../experiments/micro-22/timeline';
 import { Composition } from 'remotion';
@@ -49,6 +53,26 @@ const { duration } = createSampler(tuned);
 
 export const RemotionRoot = () => (
   <>
+  <Composition
+    id="MicroAnimation24"
+    component={MicroAnimation24}
+    defaultProps={FLOW_3_VIDEO_DEFAULTS}
+    durationInFrames={flow3DurationFrames(FLOW_3_VIDEO_DEFAULTS.timeline)}
+    calculateMetadata={({props}) => ({durationInFrames: flow3DurationFrames(props.timeline)})}
+    fps={30}
+    width={1280}
+    height={720}
+  />
+  <Composition
+    id="MicroAnimation23"
+    component={MicroAnimation23}
+    defaultProps={MICRO_23_VIDEO_DEFAULTS}
+    durationInFrames={micro23DurationFrames(MICRO_23_VIDEO_DEFAULTS)}
+    calculateMetadata={({props}) => ({durationInFrames: micro23DurationFrames(props)})}
+    fps={30}
+    width={1280}
+    height={720}
+  />
   <Composition
     id="TraceView"
     component={TraceView}
