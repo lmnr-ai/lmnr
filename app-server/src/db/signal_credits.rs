@@ -5,9 +5,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, FromRow)]
 pub struct SignalCreditState {
+    pub granted_micro_usd: i64,
     pub remaining_micro_usd: i64,
-    pub available_this_period_micro_usd: i64,
-    pub applied_delta_micro_usd: i64,
 }
 
 /// Reconcile the workspace's lifetime Signals credit against gross usage in
@@ -25,9 +24,11 @@ pub async fn reconcile_signal_credit(
         WITH current_state AS (
             SELECT
                 id,
+                signal_credit_granted_micro_usd AS granted_micro_usd,
                 signal_credit_remaining_micro_usd AS remaining_micro_usd,
                 CASE
-                    WHEN signal_credit_period_start = $2
+                    WHEN date_trunc('milliseconds', signal_credit_period_start) =
+                         date_trunc('milliseconds', $2::timestamptz)
                     THEN signal_credit_applied_micro_usd
                     ELSE 0
                 END AS previously_applied_micro_usd
@@ -37,6 +38,7 @@ pub async fn reconcile_signal_credit(
         ), reconciled AS (
             SELECT
                 id,
+                granted_micro_usd,
                 remaining_micro_usd + previously_applied_micro_usd AS available_this_period_micro_usd,
                 LEAST(
                     remaining_micro_usd + previously_applied_micro_usd,
@@ -50,14 +52,12 @@ pub async fn reconcile_signal_credit(
             signal_credit_remaining_micro_usd =
                 reconciled.available_this_period_micro_usd - reconciled.applied_this_period_micro_usd,
             signal_credit_applied_micro_usd = reconciled.applied_this_period_micro_usd,
-            signal_credit_period_start = $2
+            signal_credit_period_start = date_trunc('milliseconds', $2::timestamptz)
         FROM reconciled
         WHERE workspaces.id = reconciled.id
         RETURNING
-            workspaces.signal_credit_remaining_micro_usd AS remaining_micro_usd,
-            reconciled.available_this_period_micro_usd,
-            reconciled.applied_this_period_micro_usd - reconciled.previously_applied_micro_usd
-                AS applied_delta_micro_usd
+            reconciled.granted_micro_usd,
+            workspaces.signal_credit_remaining_micro_usd AS remaining_micro_usd
         "#,
     )
     .bind(workspace_id)

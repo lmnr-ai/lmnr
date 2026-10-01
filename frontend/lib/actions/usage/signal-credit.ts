@@ -73,11 +73,14 @@ export async function reconcileSignalCredit(
       throw new Error(`Workspace not found: ${workspaceId}`);
     }
 
+    // JavaScript dates have millisecond precision. Rust reconciliation applies
+    // the same truncation in SQL so both writers agree on the billing period.
+    const canonicalPeriodStart = periodStart.toISOString();
     const state = calculateSignalCreditState({
       grantedMicroUsd: Number(workspace.grantedMicroUsd),
       remainingMicroUsd: Number(workspace.remainingMicroUsd),
       previouslyAppliedMicroUsd: Number(workspace.appliedMicroUsd),
-      samePeriod: new Date(workspace.periodStart).getTime() === periodStart.getTime(),
+      samePeriod: new Date(workspace.periodStart).toISOString() === canonicalPeriodStart,
       currentPeriodCostMicroUsd,
     });
 
@@ -86,7 +89,7 @@ export async function reconcileSignalCredit(
       .set({
         signalCreditRemainingMicroUsd: state.remainingMicroUsd,
         signalCreditAppliedMicroUsd: state.appliedThisPeriodMicroUsd,
-        signalCreditPeriodStart: periodStart.toISOString(),
+        signalCreditPeriodStart: canonicalPeriodStart,
       })
       .where(eq(workspaces.id, workspaceId));
 

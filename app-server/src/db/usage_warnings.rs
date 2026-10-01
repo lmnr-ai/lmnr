@@ -36,6 +36,9 @@ pub enum UsageItem {
     /// Signals billed by token cost in micro-USD.
     #[serde(rename = "signal_cost")]
     SignalCost,
+    /// One-time Signals credit exhaustion, deduplicated for the workspace lifetime.
+    #[serde(rename = "signal_credit")]
+    SignalCredit,
 }
 
 impl UsageItem {
@@ -43,6 +46,7 @@ impl UsageItem {
         match s.to_lowercase().trim() {
             "bytes" => Ok(Self::Bytes),
             "signal_cost" | "signalcost" => Ok(Self::SignalCost),
+            "signal_credit" | "signalcredit" => Ok(Self::SignalCredit),
             x => Err(anyhow::anyhow!("unknown usage item value {}", x)),
         }
     }
@@ -53,6 +57,7 @@ impl Display for UsageItem {
         let s = match self {
             Self::Bytes => "bytes",
             Self::SignalCost => "signal_cost",
+            Self::SignalCredit => "signal_credit",
         };
         f.write_str(s)
     }
@@ -120,9 +125,10 @@ pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result
 
 /// Fetch the hard-limit notification timestamp for a `(workspace_id, usage_item)`
 /// pair, or `None` if the workspace has never been notified for this item. Hard
-/// limits dedup per billing cycle via this timestamp (mirroring usage warnings),
-/// stored in a dedicated table because `workspace_usage_limits` has no row for
-/// free-tier workspaces, which still enforce the tier's included allowance.
+/// recurring limits deduplicate per billing cycle via this timestamp. One-time
+/// credit exhaustion uses its own usage-item key and treats any timestamp as
+/// final. This table is separate because free-tier workspaces have no custom
+/// `workspace_usage_limits` row.
 pub async fn get_hard_limit_last_notified_at(
     pool: &PgPool,
     workspace_id: Uuid,
@@ -143,8 +149,8 @@ pub async fn get_hard_limit_last_notified_at(
 }
 
 /// Mark the hard limit for `(workspace_id, usage_item)` as notified now. Upserts
-/// the dedup row so the first crossing in a billing cycle inserts it and later
-/// cycles update it.
+/// the dedup row so the first crossing inserts it and recurring limits can
+/// update it in later billing cycles.
 pub async fn mark_hard_limit_as_notified(
     pool: &PgPool,
     workspace_id: Uuid,

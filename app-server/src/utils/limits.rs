@@ -146,7 +146,6 @@ pub async fn get_workspace_bytes_limit_exceeded(
         UsageItem::Bytes,
         bytes_ingested,
         Some(effective_limit),
-        false,
     )
     .await;
 
@@ -215,7 +214,21 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
             "Workspace Signals credit check: {} micro-USD remaining",
             credit.remaining_micro_usd
         );
-        return Ok(credit.remaining_micro_usd == 0);
+        if credit.remaining_micro_usd == 0 {
+            check_notify_hard_limit(
+                db,
+                cache,
+                queue,
+                workspace_id,
+                project_info.reset_time,
+                UsageItem::SignalCredit,
+                signal_cost,
+                Some(credit.granted_micro_usd),
+            )
+            .await;
+            return Ok(true);
+        }
+        return Ok(false);
     }
 
     let effective_limit = effective_limit.expect("paid workspace limit checked above");
@@ -237,7 +250,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         UsageItem::SignalCost,
         signal_cost,
         Some(effective_limit),
-        false,
     )
     .await;
 
@@ -448,7 +460,6 @@ pub async fn update_workspace_bytes_ingested(
         UsageItem::Bytes,
         current_value,
         effective_bytes_limit,
-        false,
     )
     .await;
 
@@ -656,20 +667,16 @@ pub async fn update_workspace_signal_tokens(
     .await;
 
     if project_info.tier_name.is_free() {
-        // Notify only on the transition that consumes the final credit. Calling
-        // the monthly hard-limit notifier from every later preflight would send
-        // a misleading reminder each cycle even though the credit never resets.
-        if credit.remaining_micro_usd == 0 && credit.applied_delta_micro_usd > 0 {
+        if credit.remaining_micro_usd == 0 {
             check_notify_hard_limit(
                 db,
                 cache,
                 queue,
                 workspace_id,
                 project_info.reset_time,
-                UsageItem::SignalCost,
+                UsageItem::SignalCredit,
                 current_cost,
-                Some(credit.available_this_period_micro_usd),
-                true,
+                Some(credit.granted_micro_usd),
             )
             .await;
         }
@@ -683,7 +690,6 @@ pub async fn update_workspace_signal_tokens(
             UsageItem::SignalCost,
             current_cost,
             project_info.signal_cost_hard_limit_micro_usd,
-            false,
         )
         .await;
     }
@@ -777,7 +783,7 @@ async fn send_soft_limit_notification(
         // Signals no longer has a recurring tier allowance. The one-time
         // workspace credit is reconciled separately and is never represented
         // by a monthly warning row.
-        UsageItem::SignalCost => None,
+        UsageItem::SignalCost | UsageItem::SignalCredit => None,
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
     let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
@@ -835,13 +841,9 @@ async fn send_soft_limit_notification(
     }
 }
 
-/// Check the hard limit against the current usage value and, the first time the
-/// workspace crosses it this billing cycle, enqueue a notification telling owners
-/// that the metered activity (data ingestion / signal runs) is now blocked until
-/// the cycle resets. Dedup mirrors soft warnings exactly: a `last_notified_at`
-/// timestamp (in `workspace_hard_limit_notifications`) is compared against the
-/// billing-period start, so we email once per crossing per cycle rather than on
-/// every blocked batch.
+/// Check the hard limit and enqueue a notification the first time it is reached.
+/// Recurring limits deduplicate per billing cycle; the one-time Signals credit
+/// deduplicates permanently under its own usage-item key.
 async fn check_notify_hard_limit(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -851,13 +853,13 @@ async fn check_notify_hard_limit(
     usage_item: UsageItem,
     current_value: i64,
     effective_limit: Option<i64>,
-    one_time_credit_exhausted: bool,
 ) {
+    let one_time_credit_exhausted = usage_item == UsageItem::SignalCredit;
     let limit = match effective_limit {
         Some(l) => l,
         None => return,
     };
-    if current_value < limit {
+    if !one_time_credit_exhausted && current_value < limit {
         return;
     }
 
@@ -870,15 +872,15 @@ async fn check_notify_hard_limit(
     // caching "not notified" would widen the duplicate-enqueue race window from
     // milliseconds to the cache TTL, past what the consumer-side send lock covers.
     if let Ok(Some(t)) = cache.get::<DateTime<Utc>>(&cache_key).await {
-        if t >= billing_start {
+        if one_time_credit_exhausted || t >= billing_start {
             return;
         }
     }
 
     match usage_warnings::get_hard_limit_last_notified_at(&db.pool, workspace_id, &usage_item).await
     {
-        Ok(Some(t)) if t >= billing_start => {
-            // Already notified this billing cycle; seed the cache so subsequent
+        Ok(Some(t)) if one_time_credit_exhausted || t >= billing_start => {
+            // Already notified for this one-time event or billing cycle; seed the cache so subsequent
             // blocked requests skip the DB read.
             if let Err(e) = cache
                 .insert_with_ttl(&cache_key, t, HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS)
@@ -987,7 +989,7 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
             };
             ("Data ingestion".to_string(), formatted)
         }
-        UsageItem::SignalCost => {
+        UsageItem::SignalCost | UsageItem::SignalCredit => {
             // limit_value is in micro-USD (1e-6 USD); render as dollars.
             let dollars = limit_value as f64 / 1_000_000.0;
             ("Signals cost".to_string(), format!("${:.2}", dollars))

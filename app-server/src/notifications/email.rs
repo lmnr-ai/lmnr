@@ -549,7 +549,7 @@ fn render_usage_hard_limit_email(
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
-        "signal_cost" => ("Signal runs", "signals cost"),
+        "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
     };
     let link = with_utm(
@@ -1067,12 +1067,13 @@ mod tests {
         let html = render_usage_hard_limit_email(
             "Workspace",
             Uuid::nil(),
-            "signal_cost",
+            "signal_credit",
             "$5.00",
             "$5.00",
             true,
         );
 
+        assert!(html.contains("Signal runs has paused"));
         assert!(html.contains("used its one-time Signals credit"));
         assert!(html.contains("Upgrade to continue"));
         assert!(!html.contains("billing cycle resets"));
