@@ -8,6 +8,38 @@ The default preview and default export still use Arabesque.
 - Candidate video (Glide + approved narration): https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-turbopuffer-voiceover.mp4
 - A/B, approved Arabesque mix, same picture: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-arabesque-approved-ab.mp4
 
+## Glide · minimal (`glide-minimal`), the minimal candidate
+
+The feedback on Glide v1 was: "lacking polish". It suggested the music arrives at the very end and then cuts out after "with Laminar", and asked to keep the music in and hold the logo. Glide 2 stays as the more musical candidate.
+
+A sound-design review agreed about the cut-off and found more behind the feeling, ranked:
+
+1. **The ending was truncated, not resolved.** A fresh Gmaj9 pad and G2 bass started at 68.33 s, just as the duck released. Then the 0.35 s end fade chopped it at 69.15 s. Stopping the drums under "with Laminar" was right, but nothing answered it.
+2. **The music arrived as one late block,** and the score limiter took 3 dB off the kit.
+3. **The bed swelled to -14.7 LUFS between n22 and n23,** the loudest moment of the film. On top of that, the beat-5.5 keys' delay echoes landed on "with La-": n23's speech-band SNR was 3.5 dB.
+4. **The voice was masked in the middle.** n12 (0.0 dB), n13 and n21 sat under 4 dB because of the Flow-1 keys and pads. The safety stage also punched holes in the bed: 3.2 s of dips deeper than 3 dB, the worst at -68 dB.
+
+What changed. All of it lives in `composeGlide`/`designGlide` with `minimal = true`, and v1 rebuilds byte-identically.
+
+- **The picture:** `minimal-settings.json` is `preview-settings.json` with `paperTexture: false` and a 6.75 s logo hold (`conclusion.logo.duration`, allocation 10.8). That makes 2212 frames (73.73 s), and the end lands exactly on conclusion beat 16.
+- **The ending:** the duck now holds through the conclusion's pauses (`bridge` 1.3 s from the conclusion start), so the bed no longer swells between phrases. The beat-5.5 keys are gone.
+  The answer lands on beat 8, 0.27 s after "Laminar": a soft kick, G bass, full Gmaj9 keys, pad, sub and four glints. Echoes follow on beats 10 and 12, and the low-pass then closes to 700 Hz by 73.39 s. The music keeps going under the logo and comes to rest; it doesn't stop.
+- **Under the voice:** the Flow and Issues pads and the Flow-1 keys are lighter, and the Flow-1 keys are dry. The kit is at 0.55. The score renders at -20 LUFS, so it needs no limiting, and the ceiling is -1.25 dBFS.
+
+| | Glide v1 | Glide · minimal |
+|---|---|---|
+| Integrated / peak | -16.3 LUFS / -1.3 dBTP | -16.4 LUFS / -1.2 dBFS sample, -1.18 dBTP; score limiter 0 dB |
+| Speech-band SNR, median (min) | 7.6 dB (0.0) | 7.3 dB (4.0, n21); n12 4.7, n22 5.6, n23 6.2 |
+| Worst bed safety dip | -68 dB | -14.8 dB |
+| Ending | chord chopped at 69.15 s | answer at about -15.8 LUFS momentary (68.5 s), decaying to -45 by 73.5 s |
+| Whisper small.en | full script | full script, ending "…millions of agent traces. With Laminar." |
+
+- Candidate video: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-minimal-voiceover.mp4
+- **Preview:** apply `handoff/turbopuffer-sound/minimal-settings.json` through **Settings JSON**, then pick *Glide · minimal* under **Soundtrack**.
+- **Export:** `--settings handoff/turbopuffer-sound/minimal-settings.json --bed glide-minimal`. The export matches the builder's sum to 6e-8.
+- **Rebuild:** `--style glide-minimal`, which defaults to that settings file.
+- **Tests:** `pnpm -s ultimate3:score:test glide glide-minimal glide-arc` checks only the listed styles, in about 2 minutes. This change is audio-only, so the video tests were skipped.
+
 ## Glide 2 · continuous arc (`glide-arc`), the follow-up
 
 Feedback on Glide: "85% there, lacking polish. Should the conclusion's beat start at *Introducing Flow-1*?"
@@ -64,10 +96,10 @@ Mix changes:
 ## Audition
 
 - **Preview:** `?experiment=micro-18` → panel *Ultimate 3 · Voiceover mix* → **Soundtrack**:
-  `Arabesque (approved)` / `Glide · TurboPuffer ref` / `Glide 2 · continuous arc`. Switching re-anchors playback at the playhead.
-- **Export:** `pnpm exec tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/pricing-timing-audio/preview-settings.json --out <path>.wav --bed glide` (or `--bed glide-arc`)
+  `Arabesque (approved)` / `Glide · TurboPuffer ref` / `Glide · minimal` / `Glide 2 · continuous arc`. Switching re-anchors playback at the playhead.
+- **Export:** `pnpm exec tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/pricing-timing-audio/preview-settings.json --out <path>.wav --bed glide` (or `--bed glide-arc`; `glide-minimal` uses `handoff/turbopuffer-sound/minimal-settings.json`)
   (omit `--bed` for Arabesque). It refuses a bed built for a different phrase manifest.
-- **Rebuild the bed:** `pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide-arc] --out <new dir>`. It never overwrites.
+- **Rebuild the bed:** `pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide-minimal|glide-arc] --out <new dir>`. It never overwrites.
   Re-run it after retiming the narration, because the ducking is baked in, keyed on the placed phrases.
 
 ## What the reference does (turbopuffer.m4a, 73.32 s)

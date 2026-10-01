@@ -9,6 +9,7 @@ pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score --style nocturne-acoustic --keyboard spring  # type on another modelled keyboard (default thock)
 pnpm ultimate3:score:test
+pnpm -s ultimate3:score:test glide glide-minimal       # only these styles (about 2 min instead of 10+)
 ```
 
 Rendering takes 15–40 seconds. The output is a deterministic function of settings, the samples and the seed (`score.test.ts` asserts identical hashes across runs), and it is mastered to -14 LUFS integrated with true peak ≤ -1 dBTP.
@@ -107,6 +108,10 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 ### `glide` — ambient synth after the TurboPuffer reference, G major
 
 No piano. Wide detuned pads, a sub drone and muffled thumps carry the story, and one timeline filter (`Mix.sweep`) opens and slams shut with the picture. An 89 BPM grid (the logo lands on beat 6 of the conclusion) drives a felt thump pulse under Cost, then a boom-bap payoff that drops out on the logo. All detail sits at or above 4.7 kHz, or at or below 1 kHz. It is built as a voice-ducked editable-v11 bed by `scripts/build-ultimate3-glide-bed.ts`, and `ducks` is empty because the build script ducks against the real narration. See `handoff/turbopuffer-sound/README.md`.
+
+### `glide-minimal` — Glide v1 with a resolved ending
+
+This is `composeGlide`/`designGlide` with `minimal = true`, and it renders `glide` itself unchanged. The pads and keys under the voice are lighter and drier, and the kit is softer. Nothing new starts on the logo. Instead the answer lands on conclusion beat 8, just after "with Laminar": kick, G bass, Gmaj9 keys, pad and glints. Echoes follow on beats 10 and 12, and a sweep closes the music to 700 Hz by beat 15.5. The bed is built on `handoff/turbopuffer-sound/minimal-settings.json`, whose ending is 16 beats long.
 
 ### `glide-arc` — Glide 2, one continuous arc
 

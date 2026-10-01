@@ -20,6 +20,13 @@ const COMP: Route = {bus: 'music', hall: .25, delay: .18};
 const FX: Route = {bus: 'sfx', hall: .25};
 const SPECK: Route = {bus: 'sfx', hall: .4, delay: .2};
 const FLOOR: Route = {bus: 'sfx', room: .25};
+/** `glide-minimal`'s quieter kit, so the conclusion arrives about 2 dB softer. */
+const SOFT_KIT: Route = {...KIT, gain: .55};
+/**
+ * `glide-minimal`'s answer to "with Laminar", in beats of the conclusion grid: the drums stay stopped under the brand
+ * line, then G lands on beat 8 (just after the word), holds 3 beats and rests through a closing filter.
+ */
+const BUTTON = {hold: 3, release: 3, pad: .5, bass: .28, sub: .04, kick: .55, keys: .26, closeHz: 700};
 
 // Voicings stay in G major / E minor, like the reference; the only foreign colour is Cost's F and B♭.
 // One octave above the voice's body (G4–A5), so the bed is air and mid, not chest; the sub carries the floor.
@@ -47,7 +54,8 @@ export const glideGrid = (cues: ScoreCues) => {
   return {beat, at: (n: number) => start + n * beat};
 };
 
-export function composeGlide(mix: Mix, cues: ScoreCues) {
+/** `minimal` is the `glide-minimal` cut: v1 with quieter mid-range under the voice and an ending that rests. */
+export function composeGlide(mix: Mix, cues: ScoreCues, minimal = false) {
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
   const shut = flow.coverShut, drop = end.start - .9, cmp = flow.comparison;
   const returnAt = cmp ? cmp.comparison_returnToGrid.at : flow.cameraToEngine.at;
@@ -75,8 +83,8 @@ export function composeGlide(mix: Mix, cues: ScoreCues) {
   // --- Flow: warm, low-passed Gmaj7 (the reference's reveal voicing), walking G → Em → C → D → G.
   const numberFlow = flow.numberDrops[2];
   haze(mix, flow.reveal, numberFlow, Gwarm, PAD, {attack: .25, release: 1.2, level: 1.1, tone: 2200});
-  haze(mix, numberFlow, cmp?.comparison_gridShrink.at ?? flow.cameraToEngine.at, Em9, PAD, {attack: .6, release: 1.2, level: 1, tone: 2200});
-  haze(mix, cmp?.comparison_gridShrink.at ?? flow.cameraToEngine.at, returnAt, Cmaj9, PAD, {attack: .6, release: 1, level: 1, tone: 2400});
+  haze(mix, numberFlow, cmp?.comparison_gridShrink.at ?? flow.cameraToEngine.at, Em9, PAD, {attack: .6, release: 1.2, level: minimal ? .7 : 1, tone: 2200});
+  haze(mix, cmp?.comparison_gridShrink.at ?? flow.cameraToEngine.at, returnAt, Cmaj9, PAD, {attack: .6, release: 1, level: minimal ? .75 : 1, tone: 2400});
   haze(mix, returnAt, flow.moduleActivation, Dsus, PAD, {attack: .6, release: .6, level: .95, tone: 2600});
   haze(mix, flow.moduleActivation, shut + .1, Gmaj9, PAD, {attack: .2, release: .5, level: 1, tone: 2800});
   drone(mix, flow.reveal, numberFlow, 31, SUB, {level: .045, attack: .05, release: 1});
@@ -88,7 +96,7 @@ export function composeGlide(mix: Mix, cues: ScoreCues) {
   haze(mix, p.explanation?.at ?? grid, grid, GoverB, PAD, {attack: .9, release: 1, level: .9, tone: 2000});
   haze(mix, grid, issues.native, Dsus, PAD, {attack: 1.4, release: .8, level: .9, tone: 3200});
   haze(mix, issues.native, issues.clusters[0] ?? issues.ready, Gmaj9, PAD, {attack: .3, release: 1, level: 1, tone: 3400});
-  haze(mix, issues.clusters[0] ?? issues.ready, issues.messageSend, Em9, PAD, {attack: .3, release: .8, level: .95, tone: 2800});
+  haze(mix, issues.clusters[0] ?? issues.ready, issues.messageSend, Em9, PAD, {attack: .3, release: .8, level: minimal ? .6 : .95, tone: 2800});
   haze(mix, issues.messageSend, drop + .5, Cmaj9, PAD, {attack: .3, release: .6, level: .9, tone: 2400});
   reverseSwell(mix, end.start, .85, [55, 59, 66, 69], {...PAD, gain: .55});
 
@@ -108,27 +116,37 @@ export function composeGlide(mix: Mix, cues: ScoreCues) {
   const swing = (sixteenth: number) => at(sixteenth / 4 + (sixteenth % 2 ? .06 : 0));
   const total = Math.floor((end.end - end.start) / beat * 4);
   const tail = 24; // The kit drops out on the logo (beat 6), leaving "with Laminar" over a held chord.
+  const kit = minimal ? SOFT_KIT : KIT;
   for (let s = 0; s < Math.min(total, tail + 1); s++) {
     const step = s % 16, time = swing(s);
-    if (s === tail) { kick(mix, time, .6, KIT); break; }
-    if (step === 0 || step === 10 || (step === 7 && s > 16)) kick(mix, time, step === 0 ? .8 : .55, KIT);
-    if (step === 4 || step === 12) snare(mix, time, .55, KIT, .35);
-    if (step % 2 === 0) hat(mix, time, step % 4 === 0 ? .62 : .45, {...KIT, pan: .18}, .024);
-    else if (step === 15 || step === 11) hat(mix, time, .28, {...KIT, pan: .18}, .02);
-    if (step === 14) hat(mix, time, .42, {...KIT, pan: -.2}, .12);
+    if (s === tail) { kick(mix, time, .6, kit); break; }
+    if (step === 0 || step === 10 || (step === 7 && s > 16)) kick(mix, time, step === 0 ? .8 : .55, kit);
+    if (step === 4 || step === 12) snare(mix, time, .55, kit, .35);
+    if (step % 2 === 0) hat(mix, time, step % 4 === 0 ? .62 : .45, {...kit, pan: .18}, .024);
+    else if (step === 15 || step === 11) hat(mix, time, .28, {...kit, pan: .18}, .02);
+    if (step === 14) hat(mix, time, .42, {...kit, pan: -.2}, .12);
   }
   // Roots G2/E2/C2 stay under the voice's fundamental (~100–250 Hz).
-  const chords: [number, number, readonly number[], number][] = [[0, 4, Gmaj9, 43], [4, 6, Em9, 40], [6, 8, Cmaj9, 36], [8, (end.end - end.start) / beat, Gmaj9, 43]];
+  // Minimal drops the keys on beat 5.5, whose delay repeats land on "with La-".
+  const chords: [number, number, readonly number[], number][] = [[0, 4, Gmaj9, 43], [4, 6, Em9, 40], [6, 8, Cmaj9, 36], [8, minimal ? 8 + BUTTON.hold : (end.end - end.start) / beat, Gmaj9, 43]];
   for (const [from, to, tones, root] of chords) {
-    haze(mix, at(from), at(to), tones, PAD, {attack: .2, release: 1.2, level: from < 6 ? .8 : .5, tone: from < 6 ? 3000 : 1800});
-    bass(mix, at(from), root, Math.min(to - from, 2) * beat - .08, from < 6 ? .4 : .22, SUB, {glide: -1.5, drive: 1.6});
+    const button = minimal && from === 8;
+    haze(mix, at(from), at(to), tones, PAD, button ? {attack: .12, release: BUTTON.release, level: BUTTON.pad, tone: 2600}
+      : {attack: .2, release: 1.2, level: from < 6 ? .8 : .5, tone: from < 6 ? 3000 : 1800});
+    bass(mix, at(from), root, button ? beat * 1.5 : Math.min(to - from, 2) * beat - .08, button ? BUTTON.bass : from < 6 ? minimal ? .32 : .4 : .22, SUB, {glide: -1.5, drive: 1.6});
     if (to - from >= 4 && from < 6) bass(mix, at(from + 2.5), root, beat * 1.3, .3, SUB, {drive: 1.6});
     if (from < 6) keys(mix, at(from), tones.slice(1), .3, COMP, 1.1);
-    if (to - from >= 2 && from < 6) keys(mix, swing(from * 4 + 6), tones.slice(2), .2, COMP, .7);
+    if (to - from >= 2 && from < (minimal ? 4 : 6)) keys(mix, swing(from * 4 + 6), tones.slice(2), .2, COMP, .7);
   }
+  if (!minimal) return;
+  // The answer to "with Laminar": the full chord, a sub under it, and two echoes of it rising as it rests.
+  drone(mix, at(8), at(8 + BUTTON.hold), 31, SUB, {level: BUTTON.sub, attack: .03, release: BUTTON.release});
+  keys(mix, at(8), Gmaj9.slice(1), BUTTON.keys, COMP, 2.2);
+  keys(mix, at(10), Gmaj9.slice(3), BUTTON.keys * .55, COMP, 1.8);
+  keys(mix, at(12), [86, 91], BUTTON.keys * .35, COMP, 2);
 }
 
-export function designGlide(mix: Mix, cues: ScoreCues) {
+export function designGlide(mix: Mix, cues: ScoreCues, minimal = false) {
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
   const cmp = flow.comparison;
   const speck = (time: number, index: number, velocity: number, pan = 0, decay = .05) => glint(mix, time, SPECKS[Math.max(0, Math.min(SPECKS.length - 1, index))], velocity, {...SPECK, pan}, decay);
@@ -192,7 +210,9 @@ export function designGlide(mix: Mix, cues: ScoreCues) {
   impact(mix, flow.reveal, .4, FLOOR);
   flow.numberDrops.forEach((time, i) => {
     const flowOne = i === 2;
-    keys(mix, time, flowOne ? [74, 79, 83] : [[74], [76], [], [79], [81], [83]][i], flowOne ? .5 : .3, {...COMP, bus: 'sfx', pan: -.5 + i * .2}, flowOne ? 1.4 : .6);
+    // Minimal plays Flow-1's chord softly and dry: it lands mid-sentence, in the voice's band.
+    const quiet = minimal && flowOne;
+    keys(mix, time, flowOne ? [74, 79, 83] : [[74], [76], [], [79], [81], [83]][i], quiet ? .18 : flowOne ? .5 : .3, {...COMP, bus: 'sfx', pan: -.5 + i * .2, delay: quiet ? 0 : COMP.delay}, flowOne ? 1.4 : .6);
     if (flowOne) thump(mix, time, .45, FLOOR, 1.1);
   });
   whoosh(mix, flow.cameraZoom.at, flow.cameraZoom.duration, FX, {from: 300, to: 1500, level: .09, air: .5});
@@ -209,7 +229,7 @@ export function designGlide(mix: Mix, cues: ScoreCues) {
     thump(mix, cmp.comparison_gptNumber.at, .32, FLOOR, 1.35);
     // Flow-1's many blue dots: a dense bright shower that fills the width, all above the voice.
     shimmer(mix, cmp.comparison_blueDots.at, cmp.comparison_blueDots.at + cmp.comparison_blueDots.duration, SPECKS.slice(2), {...SPECK, bus: 'sfx'}, {level: .32, density: [28, 70]});
-    keys(mix, cmp.comparison_flowNumber.at, [79, 83, 86, 90], .34, {...COMP, bus: 'sfx'}, 1.6);
+    keys(mix, cmp.comparison_flowNumber.at, [79, 83, 86, 90], minimal ? .22 : .34, {...COMP, bus: 'sfx'}, 1.6);
     thump(mix, cmp.comparison_flowNumber.at, .4, FLOOR, 1.1);
     const back = cmp.comparison_returnToGrid;
     whoosh(mix, back.at, back.duration, FX, {from: 300, to: 1600, level: .1, peak: .75, air: .6, panFrom: -.3, panTo: .3});
@@ -239,7 +259,7 @@ export function designGlide(mix: Mix, cues: ScoreCues) {
   whoosh(mix, issues.travel.at, issues.travel.duration, FX, {from: 500, to: 1200, level: .06, peak: .5, air: .6});
   speck(issues.ready, 4, .3, 0, .15);
   if (issues.clusters.length) {
-    keys(mix, issues.clusters[0], [71, 74, 78, 83], .32, {...COMP, bus: 'sfx'}, 1.4);
+    keys(mix, issues.clusters[0], [71, 74, 78, 83], minimal ? .2 : .32, {...COMP, bus: 'sfx'}, 1.4);
     thump(mix, issues.clusters[0], .4, FLOOR, 1.1);
   }
   whoosh(mix, issues.windowDown.at, issues.windowDown.duration, FX, {from: 1100, to: 350, level: .08});
@@ -251,5 +271,10 @@ export function designGlide(mix: Mix, cues: ScoreCues) {
 
   // --- Conclusion: the logo lands as light, not a stab — any mid-range hit masks "with Laminar".
   [0, 2, 4, 6].forEach((index, i) => speck(end.logo + i * .045, index, .32 - i * .04, -.3 + i * .2, .35));
-  air(mix, end.logo - beat, end.end, FX, {hz: 6500, q: .5, level: .03, shape: q => Math.min(1, q * 4) * (1 - q)});
+  if (!minimal) { air(mix, end.logo - beat, end.end, FX, {hz: 6500, q: .5, level: .03, shape: q => Math.min(1, q * 4) * (1 - q)}); return; }
+  // The answer on beat 8 rises in light, then everything rests through a low-pass closing to beat 15.5.
+  [1, 3, 5, 7].forEach((index, i) => speck(at(8) + i * .06, index, .3 - i * .04, -.3 + i * .2, .4));
+  kick(mix, at(8), BUTTON.kick, SOFT_KIT);
+  air(mix, end.logo - beat, at(14), FX, {hz: 6500, q: .5, level: .03, shape: q => Math.min(1, q * 4) * (1 - q) ** 1.5});
+  mix.sweep(automation([[at(10), 20_000], [at(10.01), 12_000], [at(15.5), BUTTON.closeHz]]));
 }

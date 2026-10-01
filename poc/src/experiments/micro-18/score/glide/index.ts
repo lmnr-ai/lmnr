@@ -19,6 +19,15 @@ export const glide: ScoreStyle = {
   eq: {highpass: 28, lowShelf: [90, 1], highShelf: [8000, 1.5]},
 };
 
+/** The minimal candidate: v1 with less mid-range under the voice and an ending that answers "with Laminar" and rests. */
+export const glideMinimal: ScoreStyle = {
+  ...glide,
+  id: 'glide-minimal',
+  title: 'Glide · minimal',
+  compose: (mix, cues) => composeGlide(mix, cues, true),
+  design: (mix, cues) => designGlide(mix, cues, true),
+};
+
 /** Glide 2: the same palette as one continuous arc on an 89.5 BPM grid (reveal = bar 0, logo = bar 14). */
 export const glideArc: ScoreStyle = {
   ...glide,

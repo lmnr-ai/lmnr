@@ -1,5 +1,5 @@
 // Build the Glide (TurboPuffer-reference) bed for the approved editable-v11 narration; never replaces a bed.
-//   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-arc] [--settings handoff/pricing-timing-audio/preview-settings.json]
+//   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-minimal|glide-arc] [--settings <the profile's settings JSON>]
 //     [--seed 2316] [--out public/audio/voiceover/editable-v11-<style>]
 // The voice ducking is baked here, keyed by the placed narration itself, so the browser preview (bed +
 // phrases at unity) and the export (mixVoiceoverPcm) are the same sum with no live compressor.
@@ -9,9 +9,10 @@ import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ARABESQUE_THOCK_TRIM} from '../src/experiments/micro-18/arabesque-playback';
 import {Stereo, Svf, db, integratedLufs, toDb, truePeak} from '../src/experiments/micro-18/score/dsp';
-import {ultimate3ScoreCues} from '../src/experiments/micro-18/score/cues';
+import {ultimate3ScoreCues, type ScoreCues} from '../src/experiments/micro-18/score/cues';
 import {arcLevels} from '../src/experiments/micro-18/score/glide/arc';
 import {renderUltimate3Score} from '../src/experiments/micro-18/score/render';
+import {ultimate3DurationFrames} from '../src/experiments/micro-18/sample';
 import {renderThockKeystroke} from '../src/experiments/micro-18/thock-typing';
 import {ultimate3TypingTickEvents} from '../src/experiments/micro-18/typing-audio';
 import {normalizeVoiceoverSettings} from '../src/experiments/micro-18/voiceover-cut';
@@ -24,21 +25,28 @@ const args = process.argv.slice(2);
 const option = (name: string) => { const index = args.indexOf(`--${name}`); return index >= 0 ? args[index + 1] : undefined; };
 const hash = (data: Buffer) => createHash('sha256').update(data).digest('hex');
 
-const settingsPath = resolve(option('settings') ?? join(root, 'handoff/pricing-timing-audio/preview-settings.json'));
 const seed = Number(option('seed') ?? 2316);
 const style = option('style') ?? 'glide';
 
 /**
  * Per-style ducking. `glide` keeps its original bed; `glide-arc` ducks less and slower (a steady bed under
  * speech instead of a pumping one), bridges short gaps, follows the arc's level curve, and renders the score
- * with headroom so the final voice-aware stage is the only limiter.
+ * with headroom so the final voice-aware stage is the only limiter. `glide-minimal` keeps v1's ducking but holds it
+ * through the conclusion's pauses (not the earlier ones: the silence before the reveal is part of the story), uses a
+ * ceiling that dips the bed less often, and is built on its own longer-ending settings.
  */
-const PROFILES = {
-  glide: {underVoiceDb: 7, duckDb: 5, presenceDb: 6, release: .35, bridge: 0, targetLufs: -14, levels: undefined},
-  'glide-arc': {underVoiceDb: 8, duckDb: 3, presenceDb: 4, release: .9, bridge: 1, targetLufs: -20, levels: arcLevels},
-} as const;
+type Profile = {underVoiceDb: number; duckDb: number; presenceDb: number; release: number; bridge: number; bridgeFrom?: (cues: ScoreCues) => number;
+  targetLufs: number; ceilingDb: number; levels?: typeof arcLevels; settings: string};
+const PREVIEW = 'handoff/pricing-timing-audio/preview-settings.json';
+const PROFILES: Record<string, Profile> = {
+  glide: {underVoiceDb: 7, duckDb: 5, presenceDb: 6, release: .35, bridge: 0, targetLufs: -14, ceilingDb: -1.6, settings: PREVIEW},
+  'glide-minimal': {underVoiceDb: 7, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3, bridgeFrom: cues => cues.conclusion.start,
+    targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
+  'glide-arc': {underVoiceDb: 8, duckDb: 3, presenceDb: 4, release: .9, bridge: 1, targetLufs: -20, ceilingDb: -1.6, levels: arcLevels, settings: PREVIEW},
+};
 if (!Object.hasOwn(PROFILES, style)) throw new Error(`Unknown --style ${style}; expected ${Object.keys(PROFILES).join(' | ')}`);
-const profile = PROFILES[style as keyof typeof PROFILES];
+const profile = PROFILES[style];
+const settingsPath = resolve(option('settings') ?? join(root, profile.settings));
 const dest = resolve(option('out') ?? join(root, `public/audio/voiceover/editable-v11-${style}`));
 for (const file of ['bed.wav', 'manifest.json']) if (existsSync(join(dest, file))) throw new Error(`Refusing to overwrite ${join(dest, file)}`);
 
@@ -48,7 +56,7 @@ const BED_UNDER_VOICE_DB = profile.underVoiceDb;
 const DUCK_DB = profile.duckDb, PRESENCE_DB = profile.presenceDb;
 const LOOKAHEAD = .04, ATTACK = .06, RELEASE = profile.release, GATE_DB = -42;
 /** Sample-peak ceiling for bed + voice; 4x-oversampled true peak lands ≤ -1 dBTP. */
-const CEILING_DB = -1.6;
+const CEILING_DB = profile.ceilingDb;
 /** The v11 bed's keyboard level: live thock trim × master 6.98, then that bed's -6.5 dB trim. */
 const THOCK_GAIN = ARABESQUE_THOCK_TRIM * 6.98 * db(-6.5);
 
@@ -67,8 +75,8 @@ const sources = Object.fromEntries(VOICEOVER_PHRASES.map(phrase => {
 }));
 
 const {master: score, report} = renderUltimate3Score(settings, [], {style, seed, typing: false, targetLufs: profile.targetLufs});
-const length = phraseManifest.samples as number;
-if (score.length !== length) throw new Error(`Score is ${score.length} samples, the v11 cut is ${length}`);
+const length = ultimate3DurationFrames(settings) * 1600;
+if (score.length !== length) throw new Error(`Score is ${score.length} samples, the cut is ${length}`);
 const silent = {l: new Float32Array(length), r: new Float32Array(length)};
 const voice = mixVoiceoverPcm(silent, sources, settings);
 const stereo = (pcm: StereoPcm) => { const out = new Stereo(length); out.l.set(pcm.l.subarray(0, length)); out.r.set(pcm.r.subarray(0, length)); return out; };
@@ -84,10 +92,10 @@ for (let n = 0; n < length; n++) {
   if (n >= window) { const old = (voice.l[n - window] + voice.r[n - window]) / 2; energy -= old * old; }
   key[n] = toDb(Math.sqrt(Math.max(0, energy) / window)) > GATE_DB ? 1 : 0;
 }
-// Bridge pauses shorter than the profile's `bridge` seconds, so the bed doesn't swell between words.
-const bridge = Math.round(profile.bridge * 48_000);
+// Bridge pauses shorter than the profile's `bridge` seconds (from `bridgeFrom` on), so the bed doesn't swell between words.
+const bridge = Math.round(profile.bridge * 48_000), bridgeFrom = Math.round((profile.bridgeFrom?.(ultimate3ScoreCues(settings)) ?? 0) * 48_000);
 for (let n = 0, last = -Infinity; n < length; n++) if (key[n]) {
-  if (n - last > 1 && n - last <= bridge) key.fill(1, last + 1, n);
+  if (n - last > 1 && n - last <= bridge && last >= bridgeFrom) key.fill(1, last + 1, n);
   last = n;
 }
 const duck = new Float32Array(length), lead = Math.round(LOOKAHEAD * 48_000);
@@ -149,7 +157,7 @@ const manifest = {
   version: 1, scoreStyle: style, seed, sampleRate: 48000, frames: length / 1600, samples: length,
   bed: {file: 'bed.wav', sha256: hash(bedBytes)},
   settingsSha256: hash(settingsBytes), phraseRoot: VOICEOVER_SOURCE_ROOT, phraseManifestSha256: hash(phraseManifestBytes),
-  ducking: {keyedBy: 'placed editable-v11 phrases', duckDb: DUCK_DB, presenceDb: PRESENCE_DB, presenceHz: 2200, lookahead: LOOKAHEAD, attack: ATTACK, release: RELEASE, gateDb: GATE_DB, bridge: profile.bridge, levelCurve: knots},
+  ducking: {keyedBy: 'placed editable-v11 phrases', duckDb: DUCK_DB, presenceDb: PRESENCE_DB, presenceHz: 2200, lookahead: LOOKAHEAD, attack: ATTACK, release: RELEASE, gateDb: GATE_DB, bridge: profile.bridge, bridgeFrom: bridgeFrom / 48_000, ceilingDb: CEILING_DB, levelCurve: knots},
   levels: {
     scoreTargetLufs: profile.targetLufs, voiceLufs, scoreLufs, bedUnderVoiceDb: BED_UNDER_VOICE_DB, thockGain: THOCK_GAIN, scoreLimiterDb: report.limiterDb, bedSafetyDb: safetyDb,
     bedTruePeakDb: toDb(truePeak(stereo(decoded))), mixLufs: integratedLufs(mixed), mixTruePeakDb: toDb(truePeak(mixed)), speakingSeconds: speaking,
