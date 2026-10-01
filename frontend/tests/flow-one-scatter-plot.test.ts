@@ -13,11 +13,11 @@ describe("flow-1 comparison chart", () => {
   it("uses full-benchmark description F1 and under-100K pricing measurements", () => {
     assert.deepEqual(
       BENCHMARK_MODELS.map(({ descF1 }) => descF1),
-      [74.1, 80.6, 76.9, 72.8, 63.8, 65.3]
+      [74.1, 84.8, 77.3, 72.8, 63.8, 65.3]
     );
     assert.deepEqual(
       BENCHMARK_MODELS.map(({ tracesPerDollar }) => tracesPerDollar),
-      [886, 7, 12, 38, 632, 14]
+      [888, 7, 12, 38, 632, 14]
     );
 
     const flowOne = BENCHMARK_MODELS.find(({ label }) => label === "flow-1")!;

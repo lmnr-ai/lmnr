@@ -4,7 +4,7 @@ export const FIRST_COLUMN_WIDTH = 54;
 export const LAST_ROW_HEIGHT = FIRST_COLUMN_WIDTH;
 export const GRID_CELL_SIZE = 32;
 export const MIN_DESC_F1 = 62.5;
-export const MAX_DESC_F1 = 82.5;
+export const MAX_DESC_F1 = 87.5;
 
 const MIN_TRACES_PER_DOLLAR = -5;
 const MAX_TRACES_PER_DOLLAR = 925;
