@@ -259,6 +259,7 @@ export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deploymen
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";
 // Must stay in sync with `HARD_LIMIT_NOTIFIED_CACHE_KEY` in `app-server/src/cache/keys.rs`
 export const HARD_LIMIT_NOTIFIED_CACHE_KEY = "hard_limit_notified";
+export const ONBOARDING_COMPANY_NAME_CACHE_KEY = "onboarding_company_name";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;

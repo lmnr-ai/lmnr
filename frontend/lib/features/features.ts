@@ -22,6 +22,7 @@ export enum Feature {
   LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
+  ONBOARDING_COMPANY_NAME = "ONBOARDING_COMPANY_NAME",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -140,6 +141,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.AGENT) {
     return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.ONBOARDING_COMPANY_NAME) {
+    return process.env.LAMINAR_CLOUD === "true" && isAiProviderConfigured();
   }
 
   if (feature === Feature.TELEMETRY) {

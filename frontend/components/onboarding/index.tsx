@@ -25,6 +25,8 @@ export interface OnboardingInitialValues {
   projectId: string | null;
   step: number;
   defaultValues: OnboardingFormValues;
+  // Recognized company name from the work-email domain; null when unknown.
+  companyName: string | null;
 }
 
 interface OnboardingWizardProps {
@@ -82,6 +84,7 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
       <OnboardingProvider
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
+        companyName={initial.companyName}
         initialResources={{ workspaceId: initial.workspaceId, projectId: initial.projectId }}
       >
         <WizardSteps initialStep={initial.step} />
