@@ -6,7 +6,7 @@ import {normalizeSettings} from './settings';
 import {VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings} from './voiceover-cut';
 import {chapterSchedule, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {comparisonDefaults, withFlowComparison} from './flow-comparison';
-import {VOICEOVER_BED_URL, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from './voiceover-phrases';
+import {voiceoverBedUrl, VOICEOVER_BED_URL, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from './voiceover-phrases';
 import {voiceoverCaptionAt} from './VoiceoverCaptions';
 
 const upstream = normalizeSettings(brisk);
@@ -22,7 +22,8 @@ test('merged cut is exactly upstream editable-v11 plus the local comparison, not
   assert.equal(ultimate3DurationFrames(merged), 2085);
   assert.deepEqual(chapterSchedule(merged).map(c => c.start), [0,19.06,28.43,43.622,62.93]);
   assert.equal(VOICEOVER_SOURCE_ROOT, '/audio/voiceover/editable-v11/');
-  assert.equal(VOICEOVER_BED_URL, '/audio/voiceover/editable-v11/bed.wav');
+  assert.equal(voiceoverBedUrl('piano'), '/audio/voiceover/editable-v11/bed.wav');
+  assert.equal(VOICEOVER_BED_URL, '/audio/voiceover/editable-v11-openai/bed.wav');
   assert.deepEqual(merged.voiceover!.phrases, Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id,p.placed])));
 });
 

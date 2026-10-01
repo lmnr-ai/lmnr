@@ -5,6 +5,7 @@ import {KEYBOARDS} from './keyboards';
 import {cityPop} from './city-pop';
 import {lofiRhodes} from './lofi';
 import {minimalTechno} from './techno';
+import {openaiPulse} from './openai';
 import {nocturne, nocturneAcoustic, nocturneDigital, nocturneDuet} from './nocturne';
 import {phase} from './phase';
 import {highlife} from './highlife';
@@ -19,11 +20,17 @@ import {Mix, type PianoBank, type StringBanks} from './voices';
 import {normalizeEffectTuning, type EffectTuning} from './tuning';
 import type {Ultimate3Settings} from '../settings';
 
-export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock].map(style => [style.id, style]));
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock, openaiPulse].map(style => [style.id, style]));
 
-export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean; tuning?: EffectTuning; typing?: boolean};
+export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean; tuning?: EffectTuning; typing?: boolean;
+  /** Gain per named layer (`ScoreStyle.layers`); 0 mutes one. */
+  layers?: Record<string, number>;
+  /** Apply this exact master gain instead of normalising and limiting, so solo-layer stems sum to the full mix. */
+  gain?: number};
 export type ScoreReport = {
   style: string; duration: number; lufs: number; truePeakDb: number; limiterDb: number;
+  /** The linear master gain normalisation applied (or the fixed `gain`). */
+  gain: number;
   stems: Record<string, {lufs: number; peakDb: number}>; counts: Record<string, number>;
 };
 
@@ -47,6 +54,8 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
   if (!mix.keyboard) throw new Error(`Unknown keyboard "${options.keyboard}". Available: ${Object.keys(KEYBOARDS).join(', ')}`);
 
   mix.typingEnabled = options.typing !== false;
+  for (const name of Object.keys(options.layers ?? {})) if (!style.layers?.includes(name)) throw new Error(`Style "${style.id}" has no layer "${name}". Layers: ${style.layers?.join(', ') ?? 'none'}`);
+  mix.layers = {...options.layers};
   style.ducks(mix, cues);
   style.compose(mix, cues);
   style.design(mix, cues);
@@ -62,17 +71,21 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
 
   // Normalise, brickwall, then correct once for what the limiter shaved off.
   const target = options.targetLufs ?? -14, ceiling = db(options.ceilingDb ?? -1.2);
-  let limiterDb = 0;
-  for (let pass = 0; pass < 2; pass++) {
+  let limiterDb = 0, applied = 1;
+  if (options.gain !== undefined) {
+    applied = options.gain;
+    for (let n = 0; n < length; n++) { master.l[n] *= applied; master.r[n] *= applied; }
+  } else for (let pass = 0; pass < 2; pass++) {
     const gain = db(target - integratedLufs(master));
     for (let n = 0; n < length; n++) { master.l[n] *= gain; master.r[n] *= gain; }
+    applied *= gain;
     limiterDb = Math.min(limiterDb, limit(master, ceiling));
   }
   const fade = samples(.35);
   for (let n = length - fade; n < length; n++) { const g = (length - n) / fade; master.l[n] *= g; master.r[n] *= g; }
 
   const report: ScoreReport = {
-    style: style.id, duration: cues.duration, lufs: integratedLufs(master), truePeakDb: toDb(truePeak(master)), limiterDb,
+    style: style.id, duration: cues.duration, lufs: integratedLufs(master), truePeakDb: toDb(truePeak(master)), limiterDb, gain: applied,
     stems: {}, counts: mix.counts,
   };
   const stems = {music: mix.music, sfx: mix.sfx, hall, room, delay: echo};

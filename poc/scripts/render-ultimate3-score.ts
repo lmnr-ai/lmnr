@@ -2,6 +2,7 @@
 //   pnpm ultimate3:score [--style tactile-glass|nocturne|signal|aria|arabesque|<style>-acoustic|nocturne-duet|nocturne-digital|phase|tintinnabuli] [--settings file.json] [--out out/ultimate3-<style>.wav]
 //                        [--keyboard thock|laptop|clack|spring|membrane]
 //                        [--video out/u3-silent.mp4 --mp4 out/u3.mp4] [--stems] [--tuning arabesque-acoustic-tuning.json]
+//                        [--layers sub=1,keys=.8 | --layers layers.json] [--gain 0.5] [--no-typing]   (layered styles, e.g. openai-pulse)
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';
@@ -73,6 +74,15 @@ const manifestPath = wav.replace(/\.wav$/, '.json');
 const video = option('video');
 const mp4 = video ? resolve(option('mp4') ?? video.replace(/\.mp4$/, '-scored.mp4')) : undefined;
 const seed = Number(option('seed') ?? 0x1a31a);
+// Layer gains for styles that name their layers: `name=gain,...` or a JSON object file. `--gain` fixes the master gain
+// (no loudness normalisation or limiter) so solo renders of each layer sum to the full mix.
+const layersOption = option('layers');
+const layers: Record<string, number> | undefined = layersOption === undefined ? undefined : layersOption.endsWith('.json')
+  ? JSON.parse(fs.readFileSync(resolve(layersOption), 'utf8'))
+  : Object.fromEntries(layersOption.split(',').map(pair => { const [name, value] = pair.split('='); return [name, Number(value)]; }));
+for (const [name, value] of Object.entries(layers ?? {})) if (!Number.isFinite(value) || value < 0) throw new Error(`Layer "${name}" needs a finite nonnegative gain`);
+const gainOption = option('gain'), gain = gainOption === undefined ? undefined : Number(gainOption);
+if (gain !== undefined && !(Number.isFinite(gain) && gain > 0)) throw new Error('--gain must be a positive number');
 const masterVolume = Number(option('master') ?? 6.98), typingVolume = Number(option('typing-volume') ?? 1);
 if (split) {
   if (!wav.endsWith('.wav')) throw new Error('Split output must end in .wav');
@@ -84,7 +94,7 @@ if (split) {
   for (const file of outputs) if (fs.existsSync(file)) throw new Error(`Refusing to overwrite split output: ${file}`);
 }
 const started = performance.now();
-const {master, report, stems, cues} = renderUltimate3Score(settings, loadPiano(), {style, keyboard: option('keyboard'), strings: SCORE_STYLES[style]?.strings ? loadStrings() : {}, stems: args.includes('--stems'), tuning, seed, typing: !split});
+const {master, report, stems, cues} = renderUltimate3Score(settings, SCORE_STYLES[style]?.keys ? [] : loadPiano(), {style, keyboard: option('keyboard'), strings: SCORE_STYLES[style]?.strings ? loadStrings() : {}, stems: args.includes('--stems'), tuning, seed, typing: !split && !args.includes('--no-typing'), layers, gain});
 writeWav(wav, master);
 if (split) {
   // Decode the published 24-bit bed: exports sum the exact samples the browser loads.

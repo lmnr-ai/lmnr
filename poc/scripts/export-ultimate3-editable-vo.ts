@@ -4,7 +4,7 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {normalizeVoiceoverSettings} from '../src/experiments/micro-18/voiceover-cut';
-import {VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from '../src/experiments/micro-18/voiceover-phrases';
+import {isVoiceoverBed, VOICEOVER_BED, VOICEOVER_BEDS, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from '../src/experiments/micro-18/voiceover-phrases';
 import {mixVoiceoverPcm, type StereoPcm} from '../src/experiments/micro-18/voiceover-schedule';
 import {ultimate3DurationFrames} from '../src/experiments/micro-18/sample';
 
@@ -12,16 +12,19 @@ const hash = (data: Buffer | string) => createHash('sha256').update(data).digest
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const value = (flag: string) => {const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1];};
-const settingsFile = value('--settings'), out = value('--out');
-if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav>');
+const settingsFile = value('--settings'), out = value('--out'), bedName = value('--bed') ?? VOICEOVER_BED;
+if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav> [--bed openai|piano]');
+if (!isVoiceoverBed(bedName)) throw new Error(`Unknown bed "${bedName}". Beds: ${Object.keys(VOICEOVER_BEDS).join(', ')}`);
 const output = resolve(out), manifestPath = output.replace(/\.wav$/, '.json');
 if (existsSync(output) || existsSync(manifestPath)) throw new Error('Refusing to overwrite existing WAV or manifest');
-const assetRoot = resolve(root, 'public', `.${VOICEOVER_SOURCE_ROOT}`);
+// Phrases always come from editable-v11; only the bed differs, so every bed shares one narration.
+const assetRoot = resolve(root, 'public', `.${VOICEOVER_SOURCE_ROOT}`), bedRoot = resolve(root, 'public', `.${VOICEOVER_BEDS[bedName]}`);
 const provenance = JSON.parse(readFileSync(resolve(assetRoot, 'manifest.json'), 'utf8'));
+const bedProvenance = JSON.parse(readFileSync(resolve(bedRoot, 'manifest.json'), 'utf8'));
 const settingsBytes = readFileSync(resolve(settingsFile));
 const settings = normalizeVoiceoverSettings(JSON.parse(settingsBytes.toString()));
-const readAsset = (file: string, expectedHash: string) => {
-  const bytes = readFileSync(resolve(assetRoot, file));
+const readAsset = (file: string, expectedHash: string, folder = assetRoot) => {
+  const bytes = readFileSync(resolve(folder, file));
   if (hash(bytes) !== expectedHash) throw new Error(`Prepared source hash mismatch: ${file}`);
   return bytes;
 };
@@ -49,8 +52,8 @@ function encodeFloat32(pcm: StereoPcm) {
   for (let n = 0; n < pcm.l.length; n++) {bytes.writeFloatLE(pcm.l[n], 44 + n * 8); bytes.writeFloatLE(pcm.r[n], 48 + n * 8);}
   return bytes;
 }
-const bed = decodePcm24(readAsset(provenance.bed.file, provenance.bed.sha256));
-if (bed.l.length !== provenance.samples) throw new Error('Frozen score sample count changed');
+const bed = decodePcm24(readAsset(bedProvenance.bed.file, bedProvenance.bed.sha256, bedRoot));
+if (bed.l.length !== bedProvenance.samples || bedProvenance.samples !== provenance.samples) throw new Error('Frozen score sample count changed');
 const sources = Object.fromEntries(VOICEOVER_PHRASES.map(phrase => {
   const record = provenance.phrases.find((entry: {id: string}) => entry.id === phrase.id);
   if (!record || record.a !== phrase.a || record.b !== phrase.b) throw new Error(`Phrase source mismatch: ${phrase.id}`);
@@ -62,7 +65,7 @@ const audio = encodeFloat32(mixVoiceoverPcm(bed, sources, settings));
 mkdirSync(dirname(output), {recursive: true});
 writeFileSync(output, audio, {flag: 'wx'});
 writeFileSync(manifestPath, JSON.stringify({version: 1, videoFrames: ultimate3DurationFrames(settings), audioSamples: (audio.length - 44) / 8,
-  sampleRate: 48000, channels: 2, format: 'float32', settingsSha256: hash(settingsBytes),
-  preparedManifestSha256: hash(readFileSync(resolve(assetRoot, 'manifest.json'))), outputSha256: hash(audio),
+  sampleRate: 48000, channels: 2, format: 'float32', settingsSha256: hash(settingsBytes), bed: bedName,
+  preparedManifestSha256: hash(readFileSync(resolve(assetRoot, 'manifest.json'))), bedManifestSha256: hash(readFileSync(resolve(bedRoot, 'manifest.json'))), outputSha256: hash(audio),
   limitation: 'Voice-free score bed is frozen at the Issue Clusters 4 cut timings; extending the composition pads silence.'}, null, 2) + '\n', {flag: 'wx'});
-console.log(JSON.stringify({output, frames: ultimate3DurationFrames(settings), sha256: hash(audio)}));
+console.log(JSON.stringify({output, bed: bedName, frames: ultimate3DurationFrames(settings), sha256: hash(audio)}));

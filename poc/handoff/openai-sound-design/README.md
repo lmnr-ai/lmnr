@@ -60,3 +60,30 @@ access/conventions, and return a playable link. Never print or commit secrets.
 If upload access is unavailable, report the blocker and provide the local render
 instead of claiming an upload. Open a PR with the implementation and briefly
 explain the key sound-design choices.
+
+## Result (LAM-2320)
+
+Render: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2320/ultimate3-openai-pulse.mp4
+Old mix for comparison: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2320/ultimate3-piano-ab.mp4
+
+Both use the same silent render (these settings, paper off, 2085 frames) and the same editable-v11 phrases; only the bed differs.
+
+**Reference analysis.** −14.6 LUFS, LRA 5.1, C♯ major pentatonic.
+- A pure sine sub (G♯1, sagging ~51→47 Hz) swells in over ~40–60 ms, holds flat and is gated off into ~0.4 s of near-silence every 2 s (120 BPM bars).
+- Soft mid plucks walk 16ths over it. Glassy highs and sparse crisp ticks sit on a ~−50 dB air floor.
+- Form: intro without sub (0–1.2 s) → pressure bars → breakdown without sub (6.2–8 s) → denser build with ticks and a 4.8 kHz whistle → suck-out (9.2–10 s) → a final C♯1 (35 Hz) hold under a C♯5/A♯4/F4/C♯6 shimmer.
+
+**Adaptation (style `openai-pulse`, see `score/README.md`).** That form is laid onto our picture cues rather than stretched:
+- The sub pulses through the trace stream, Cost and the Issues prelude.
+- Breakdowns sit under the drawers, the pricing comparison and "Until now".
+- Builds halve the pulse toward the warning zoom, the engine, the issue grid and the logo.
+- Each downbeat is preceded by a suck-out: failure, collapse, Cost, Powerful LLMs, Flow-1, engine, cover shut, issue grid, logo.
+- The sub withholds the tonic C♯ until Flow-1 and lands its longest, lowest C♯ on the logo.
+- Picture events are answered with glass and ticks (beads, drawers, cluster locks, the 47 pops as one cascade, cheap-agent passes as tick flicks).
+
+**Mix.**
+- **Narration margin.** The bed sits 7.4 LU (median) under the narration, ≥ 4.8 LU on every line; the Arabesque bed gave 4.7 / 0.3.
+- **Peaks.** The bed peaks at −8.5 dBFS. The mix is 69.5 s / 3,336,000 samples; see `AUDIO_EXPORT.md` for the narration-peak overs.
+- **Silence.** It is 25–35 dB down inside every suck-out.
+
+Reproduce: `node scripts/build-ultimate3-openai-bed.mjs` (new edition name), then `npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/openai-sound-design/preview-settings.json --out <new>.wav [--bed piano]`, then mux onto the silent render with `-c:v copy -c:a aac -b:a 320k`.

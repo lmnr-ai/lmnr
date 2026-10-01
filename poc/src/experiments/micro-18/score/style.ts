@@ -20,6 +20,8 @@ export type ScoreStyle = {
     returns?: [number, number, number];
   };
   eq?: {highpass: number; lowShelf: [number, number]; highShelf: [number, number]};
+  /** Named, separately editable layers: `--layers` scales them and `--solo` renders one as a stem at the full mix's gain. */
+  layers?: readonly string[];
 };
 
 /** One grid for the whole film: beat 0 sits 18 ms in, so Cost (14.518s) is beat 29 and the logo is beat 104. */

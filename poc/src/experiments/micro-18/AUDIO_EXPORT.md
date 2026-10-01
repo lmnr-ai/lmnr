@@ -24,6 +24,21 @@ This writes the typing-free bed, an adjacent `.playback.wav` (exact split mix at
 Browser regression (existing editor only, isolated Chrome, session cleaned up):
 `node scripts/test-active-arabesque.cjs /tmp/active-arabesque-browser.json`.
 
+## Voiceover cut beds (LAM-2320)
+
+`?cut=voiceover` plays one bed plus the editable-v11 phrases through `VoiceoverEngine`. `scripts/export-ultimate3-editable-vo.ts` sums the same bed and phrases with `mixVoiceoverPcm`, which keeps preview and export sample-aligned. The bed comes from `VOICEOVER_BEDS` in `voiceover-phrases.ts`:
+
+- **`openai` (the default).** `editable-v11-openai/`, the `openai-pulse` score at −7.5 dB.
+- **`piano`.** The retained Arabesque `editable-v11/` bed, played with `?bed=piano` or exported with `--bed piano`.
+
+Phrases always load from `editable-v11/`, so narration is byte-identical across beds. The bed owns the typing; the voiceover cut has no live scheduler, which leaves exactly one owner per sound.
+
+Rebuild with `node scripts/build-ultimate3-openai-bed.mjs [edition bedDb stemsDir]`. It refuses an existing edition. The script normalises once, then renders the bed and one stem per layer at a fixed gain that leaves −1 dBTP headroom (no limiter), so the stems sum exactly to the bed.
+
+Measured with the preview settings:
+- Narration clears the bed by 7.4 LU median and ≥ 4.8 LU on every line. The Arabesque bed gives 4.7 median and 0.3 minimum.
+- **Known overs in the narration mix.** The narration alone peaks at −1.55 dBFS at master 6.98, so a few voice peaks sum above full scale: +0.34 dBFS on 9 samples with the new bed, and +0.44 dBFS on 12 samples with the Arabesque bed. The float WAV keeps them.
+
 ## Legacy effects exporter (retained, not the active viewer)
 
 Run from `poc/` with explicit frozen scene props and a flat or DialKit-grouped mix JSON:

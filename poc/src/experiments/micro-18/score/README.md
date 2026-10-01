@@ -102,6 +102,15 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 - `highlife`: G major. Interlocking Karplus-Strong guitars (a high single-note line over offbeat chanks), a 3-3-4-2-4 FM bell and synthesized congas, plus horns harmonised a diatonic third below. The cues are answered on a balafon (`highlife/instruments.ts`).
 - `stomp-glock`: C major indie-folk. Stomps, double handclaps and tambourine (`stomp/instruments.ts`), sampled pizz chugging in eighths (`strings: true`), a dry piano pulse, and a glockenspiel carrying every tune.
 
+### `openai-pulse` — gated sub and glass, C♯ major pentatonic (LAM-2320)
+
+After OpenAI's "Get ready" (`handoff/openai-sound-design/`). No piano: everything is synthesized in `openai/instruments.ts`. A sine sub (`pressure`) swells in over ~40 ms, holds flat, and is gated off into silence every 2 s bar; the silence is the rhythm. Over it play soft 16th-note pentatonic keys, glass partials, dry ticks, a −30…−22 dB air floor and a thin whistle before the drops. Breakdowns drop the sub. Builds halve the pulse period and ratchet the ticks. Every downbeat comes after a 170–400 ms suck-out (`suckOuts`, shared by the duck plan and the composition). The sub stays on G♯/A♯/F♯ and only finds C♯ at Flow-1, the cover shut, the issue grid and the logo.
+
+- **Layers.** `ScoreStyle.layers` names `sub keys glass ticks air lift typing`, and each composition route multiplies by `mix.layer(name)`. `pnpm ultimate3:score --style openai-pulse --layers keys=.8,glass=1.2` rebalances. `--gain <g>` fixes the master gain and skips normalisation and the limiter, so solo renders (`--layers <all 0 but one>`) sum exactly to the full mix.
+- **Sub routing.** The sub is the only part on the sfx bus (dry, mono). The voice ducks (`cues.voice`, −4.5 dB) move only the music bus, so `hit` itself plays 3 dB softer under any line it overlaps.
+- **Reference match.** Band balance is within ~1–2 dB of the reference up to 6 kHz. Above 6 kHz it is held ~2.5 dB lower on purpose, keeping sibilance clear under the narration.
+- **Bed build.** `scripts/build-ultimate3-openai-bed.mjs` writes `public/audio/voiceover/editable-v11-openai/` plus the layer stems.
+
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
 ## Foley

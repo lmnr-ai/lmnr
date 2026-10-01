@@ -20,6 +20,9 @@ export class Mix {
   typingEnabled = true;
   /** Optional modelled keyboard; the default Nocturne thock shares the live renderer's PCM. */
   keyboard?: Keyboard;
+  /** Per-layer gain overrides for styles that name their layers (`ScoreStyle.layers`); missing layers play at 1. */
+  layers: Record<string, number> = {};
+  layer(name: string) { return this.layers[name] ?? 1; }
   constructor(
     readonly length: number,
     readonly random: Rng,

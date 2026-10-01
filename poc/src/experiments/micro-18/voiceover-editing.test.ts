@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {normalizeSettings} from './settings';
 import {VOICEOVER_DEFAULTS, normalizeVoiceoverSettings} from './voiceover-cut';
-import {VOICEOVER_BED_URL, VOICEOVER_PHRASES} from './voiceover-phrases';
+import {voiceoverBedUrl, VOICEOVER_PHRASES} from './voiceover-phrases';
 import {mixVoiceoverPcm, phraseGain, voiceoverSchedule} from './voiceover-schedule';
 import {voiceoverTimelineConfig, voiceoverTimelineValues, settingsFromVoiceoverTimeline} from './authoring';
 import {VoiceoverEngine} from './voiceover-engine';
@@ -65,7 +65,7 @@ test('prepared assets are exactly the immutable 23 sample-exact trims of the app
   assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
   assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
   assert.equal(manifest.samples, 2085 * 1600);
-  assert.equal(`/audio/voiceover/editable-v11/${manifest.bed.file}`, VOICEOVER_BED_URL);
+  assert.equal(`/audio/voiceover/editable-v11/${manifest.bed.file}`, voiceoverBedUrl('piano'));
   assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../voice_A_subtle.wav', base))));
   assert.equal(manifest.sourceRecordingSha256, 'af92601ff5a34753d0c637b023280a8374fdc35ff6f7fecca7bf720f51d40640');
   for (const entry of manifest.phrases) {
