@@ -50,7 +50,81 @@ print credentials. If upload access is unavailable, report the blocker and
 provide the local render instead of claiming an upload. Open a PR with the
 implementation and briefly explain the sound-design choices.
 
-## Result (LAM-2317)
+## Result v2 (LAM-2317 review): `cursor-paper-v2`, the live bed
+
+- **New mix:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v2-voiceover.mp4
+- **New bed only:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v2-music-only.mp4
+- v1, below, stays available as `?bed=cursor` / `--bed cursor`.
+
+The client said v1 was "85 % there" but lacked polish. A sound-design review measured v1 against the reference and found these causes, ranked:
+
+1. The bed was 22 separate pad chunks, which left holes at the chord changes (−11 dB at 38 s).
+2. The section loudness spread was only 3.3 LU, so the music had no arc.
+3. There were 249 small hits (3.6 per second): mickey-mousing with no punctuation.
+4. The ending was cut off and heavy in the bass.
+5. There was no glue on the master.
+6. Six lines sat only 3.7 to 4.5 LU over the bed.
+
+v2 fixes them as follows:
+
+- **One undercurrent:** `cursor/bed.ts` holds one oscillator bank per note for the whole film. Chord changes are equal-power crossfades of only the notes that move, with E♭4 as a pedal. `bassLine` does the same for the bass, which still waits for Flow-1.
+- **Arc:** `arcCursorV2` in `cursor/index.ts` multiplies the music bus by the story's gain curve:
+  - Act 1 is small (−4.5 dB);
+  - Cost climbs;
+  - "Until now" is about 10 dB down;
+  - Flow-1 opens up;
+  - a long swell builds into the clusters;
+  - an IV → V crescendo leads into the logo bloom;
+  - the bed then decays fully (−45 dB) before the cut.
+
+  The bed loudness of each section, after the trim, is:
+
+  | Section | LUFS |
+  |---|---|
+  | Act 1 | −26.7 |
+  | Cost | −23.8 |
+  | "Until now" | −31.7 |
+  | Flow-1 | −22.6 |
+  | Swell | −21.4 |
+  | Logo | −25.1 |
+  | Tail | −36.5 |
+- **Punctuation:** `cursor/composition-v2.ts` keeps only the story beats and plays them about 3.5 dB louder:
+  - the agent, the pulse, the failure, the A♮ warning, the collapse, the bash, the depletion run-down;
+  - the reveal, Flow-1's own bead, the cover shut, the native thump;
+  - eight pops, six cluster locks and the logo.
+
+  Tick runs are humanized (`ratchet({human: true})`). Every hit gets a little of the bed's hall.
+- **Glue:** a new `ScoreStyle.master` hook runs `glueCursorV2`:
+  - asymmetric tape saturation;
+  - a slow 2:1 compressor that only holds peaks;
+  - a mono low end below 120 Hz;
+  - a faint tape-hiss floor.
+
+  The hall return goes from 1.6 to 2.2.
+- **Intelligibility:** `EXTRA_DUCK_DB` sets an extra duck for each line, and the bed trim is −9.2 dB (v1: −7.8). Every line clears the bed by at least 5.0 LU, with a median of 6.9; v1's minimum was 3.7.
+
+Checks on the final MP4:
+
+| Check | Result |
+|---|---|
+| Loudness | −16.2 LUFS |
+| Peak | −0.2 dBTP, no samples at full scale |
+| Video | h264, 2085 frames, 69.5 s |
+| Audio | AAC, 69.5 s |
+| Seams | the only drop above 3 dB in 100 ms is the designed fall into "Until now" |
+
+Speech-to-text was not re-run for v2. The voice/bed margins it tracks improved on every line that was crowded in v1.
+
+Reproduce v2:
+
+```sh
+node scripts/build-ultimate3-cursor-bed.mjs   # editable-v11-cursor-v2, cursor-paper-v2 at -9.2 dB; refuses to overwrite
+npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --out /tmp/cursor-v2-vo.wav
+```
+
+Then mux the WAV onto the same silent picture, as below.
+
+## Result v1 (LAM-2317)
 
 Renders (preview-settings.json, 2085 frames / 69.5 s):
 
@@ -162,7 +236,7 @@ The piano score is replaced end to end by the `cursor-paper` style (`src/experim
 ### Reproduce
 
 ```sh
-node scripts/build-ultimate3-cursor-bed.mjs                  # new dir only; refuses to overwrite
+node scripts/build-ultimate3-cursor-bed.mjs editable-v11-cursor cursor-sound-design cursor-paper -7.8   # v1; refuses to overwrite
 npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --out /tmp/cursor-vo.wav
 npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --bed piano --out /tmp/piano-vo.wav
 npx remotion render src/video/index.ts MicroAnimation18 /tmp/silent.mp4 --props=<{"settings": preview-settings.json}> --muted
@@ -171,4 +245,4 @@ ffmpeg -i /tmp/silent.mp4 -i /tmp/cursor-vo.wav -map 0:v -map 1:a -c:v copy -c:a
 
 For editable stems, run `pnpm ultimate3:score --style cursor-paper --settings handoff/cursor-sound-design/preview-settings.json --seed 107290 --stems --out <new>.wav`. It writes music, sfx, hall, room and delay; every cue is one line in `cursor/composition.ts`.
 
-In the editor, the new bed is live. Append `?bed=piano` for the old one.
+In the editor, v2 is live. Append `?bed=cursor` for v1 or `?bed=piano` for the piano bed.

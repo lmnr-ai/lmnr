@@ -1,5 +1,5 @@
 // Prepare the LAM-2317 Cursor-direction bed under the unchanged editable-v11 phrases; never replace a published bed.
-// Usage: node scripts/build-ultimate3-cursor-bed.mjs [edition handoff] (default editable-v11-cursor cursor-sound-design).
+// Usage: node scripts/build-ultimate3-cursor-bed.mjs [edition handoff style bedDb] (default editable-v11-cursor-v2 cursor-sound-design cursor-paper-v2 -9.2).
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
@@ -8,10 +8,10 @@ import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const [edition = 'editable-v11-cursor', handoff = 'cursor-sound-design'] = process.argv.slice(2);
-const style = 'cursor-paper', seed = 107290, phrases = 'editable-v11';
-// 1.3 dB under the piano bed's -6.5 dB trim: the voice clears the bed by ~6.5 LU, as in the Cursor reference.
-const bedDb = -7.8;
+const [edition = 'editable-v11-cursor-v2', handoff = 'cursor-sound-design', style = 'cursor-paper-v2', trim = '-9.2'] = process.argv.slice(2);
+const seed = 107290, phrases = 'editable-v11';
+// Trim so the voice clears the bed by a ~6.5 LU median, as in the Cursor reference (v1, editable-v11-cursor, was cursor-paper at -7.8).
+const bedDb = Number(trim);
 const dest = join(root, 'public/audio/voiceover', edition);
 if (existsSync(dest)) throw new Error(`Refusing to overwrite existing bed: ${dest}`);
 const settings = `handoff/${handoff}/preview-settings.json`;

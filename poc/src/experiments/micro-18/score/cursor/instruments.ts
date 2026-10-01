@@ -83,7 +83,7 @@ export function sub(mix: Mix, start: number, end: number, midi: number, route: R
   mix.emit(start, route, out); mix.count('sub');
 }
 
-export type KnockOptions = {decay?: number; wood?: number; click?: number; drop?: number};
+export type KnockOptions = {decay?: number; wood?: number; click?: number; drop?: number; clickHz?: number; cents?: number};
 
 /**
  * Paper-cutout knock: a body that falls into its pitch in ~6 ms, an inharmonic wooden mode and a
@@ -92,10 +92,10 @@ export type KnockOptions = {decay?: number; wood?: number; click?: number; drop?
 export function knock(mix: Mix, time: number, midi: number, velocity: number, route: Route, options: KnockOptions = {}) {
   const decay = options.decay ?? .05, wood = options.wood ?? .45, clickLevel = options.click ?? .5, drop = options.drop ?? 1.1;
   const out = buffer(decay * 7 + .02), body = new Sine(), mode = new Sine(), click = new Svf(), soften = OnePole.lowpass(3600);
-  const hz = mtof(midi);
+  const hz = mtof(midi) * 2 ** ((options.cents ?? 0) / 1200), clickHz = options.clickHz ?? 1300;
   for (let i = 0; i < out.length; i++) {
     const t = i / 48_000;
-    click.process(noise(mix.random), 1300, 1.2);
+    click.process(noise(mix.random), clickHz, 1.2);
     const f = hz * (1 + drop * Math.exp(-t / .006));
     const value = body.next(f) * pluckEnv(t, .0008, decay)
       + mode.next(f * 2.76) * pluckEnv(t, .0005, decay * .35) * wood
@@ -123,12 +123,17 @@ export function mallet(mix: Mix, time: number, midi: number, velocity: number, r
 
 /** Tick ratchet from `start` to `end`: knocks whose rate glides `rate[0]` → `rate[1]` per second, over a pitch set. */
 export function ratchet(mix: Mix, start: number, end: number, pitches: readonly number[], route: Route,
-  options: {rate?: [number, number]; level?: [number, number]; pan?: [number, number]} = {}) {
+  options: {rate?: [number, number]; level?: [number, number]; pan?: [number, number]; human?: boolean} = {}) {
   const [r0, r1] = options.rate ?? [8, 16], [v0, v1] = options.level ?? [.12, .2], [p0, p1] = options.pan ?? [0, 0];
   for (let t = start, k = 0; t < end; k++) {
     const x = clamp((t - start) / Math.max(.01, end - start));
     const velocity = (v0 + (v1 - v0) * x) * (.85 + .3 * mix.random());
-    knock(mix, t + (mix.random() - .5) * .004, pitches[k % pitches.length], velocity, {...route, pan: p0 + (p1 - p0) * x}, {decay: .012, wood: .2, click: .8, drop: .6});
+    // Human: every tick differs in decay, click colour, wood and pitch, with an accent per four, so a run never reads as a machine gun.
+    const shape = options.human
+      ? {decay: .012 * (.7 + .6 * mix.random()), wood: .1 + .25 * mix.random(), click: .8, drop: .6, clickHz: 1100 + 500 * mix.random(), cents: (mix.random() - .5) * 40}
+      : {decay: .012, wood: .2, click: .8, drop: .6};
+    const jitter = options.human ? .01 : .004;
+    knock(mix, t + (mix.random() - .5) * jitter, pitches[k % pitches.length], velocity * (options.human && k % 4 === 0 ? 1.35 : 1), {...route, pan: p0 + (p1 - p0) * x}, shape);
     t += 1 / (r0 + (r1 - r0) * x);
   }
 }

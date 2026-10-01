@@ -1,5 +1,5 @@
 import type {ScoreCues} from './cues';
-import type {ReverbOptions} from './dsp';
+import type {ReverbOptions, Stereo} from './dsp';
 import type {Mix, PianoBank} from './voices';
 
 /** One complete soundtrack. `ducks` runs first, then `compose` (music bus), then `design` (foley bus). */
@@ -20,6 +20,8 @@ export type ScoreStyle = {
     returns?: [number, number, number];
   };
   eq?: {highpass: number; lowShelf: [number, number]; highShelf: [number, number]};
+  /** Master-bus processing (saturation, glue) on the summed mix, before the EQ and normalisation. */
+  master?(master: Stereo, cues: ScoreCues): void;
 };
 
 /** One grid for the whole film: beat 0 sits 18 ms in, so Cost (14.518s) is beat 29 and the logo is beat 104. */

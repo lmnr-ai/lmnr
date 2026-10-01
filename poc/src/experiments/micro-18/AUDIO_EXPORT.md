@@ -28,10 +28,11 @@ Browser regression (existing editor only, isolated Chrome, session cleaned up):
 
 The editable-voiceover cut plays one frozen bed plus the editable-v11 phrase WAVs through `VoiceoverEngine`. `VOICEOVER_BEDS` in `voiceover-phrases.ts` lists the beds.
 
-- **`cursor` (live):** `editable-v11-cursor/bed.wav`, the `cursor-paper` score at -7.8 dB.
+- **`cursor-v2` (live):** `editable-v11-cursor-v2/bed.wav`, the `cursor-paper-v2` score at -9.2 dB.
+- **`cursor`:** the v1 bed, `editable-v11-cursor/bed.wav`: the `cursor-paper` score at -7.8 dB.
 - **`piano`:** the untouched `editable-v11/bed.wav` Arabesque bed.
 
-Append `?bed=piano` to the editor URL for an A/B. It swaps the only bed and never adds a second music owner. Typing is baked into both beds, so no live keyboard runs.
+Append `?bed=cursor` or `?bed=piano` to the editor URL for an A/B. It swaps the only bed and never adds a second music owner. Typing is baked into both beds, so no live keyboard runs.
 
 `scripts/export-ultimate3-editable-vo.ts --bed cursor|piano` (default `cursor`) exports with the same `mixVoiceoverPcm` math. It verifies:
 
@@ -87,3 +88,5 @@ master each apply once, including active release tails. The manifest retains its
 legacy `typingTick` event-count key. The legacy music, error chime, camera/agent whoosh, ratchet, soundboard, saved mix,
 and Silk implementation remain intact. The active Arabesque route and its new
 score bed are described above; this legacy export command does not reproduce that bed.
+
+`export-ultimate3-editable-vo.ts` sums the voice and the bed with no limiter, which keeps it identical to the preview. So check the voice mix's peaks after changing a bed: a louder bed can push the voice past full scale even when the score alone is limited at -1.2 dBTP.

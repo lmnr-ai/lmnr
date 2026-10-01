@@ -104,6 +104,17 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
+### `cursor-paper-v2` — the same palette as one continuous, arcing bed (LAM-2317 review)
+
+`cursor/composition-v2.ts` re-scores `cursor-paper` in four ways:
+
+- **One bed:** `bed`/`bassLine` in `cursor/bed.ts` keep one oscillator bank per note for the whole film and crossfade between keyframes, so shared notes never re-attack and there are no holes at the seams.
+- **An arc:** `arcCursorV2` multiplies `musicGain`.
+- **Fewer, louder hits.**
+- **Master glue:** through the `ScoreStyle.master` hook, which runs before the EQ and normalisation.
+
+Per-line extra ducks (`EXTRA_DUCK_DB`) are tuned to this cut's 23 phrases. Re-measure them if the narration moves. Note that deeper ducks are partly undone by the −14 LUFS normalisation, so retune the bed trim with them.
+
 ### `cursor-paper` — tape organ and paper knocks, A♭ major (LAM-2317)
 
 This style comes from Cursor's "Software is changing" (`handoff/cursor-sound-design/`). It has no piano. The palette lives in `cursor/instruments.ts`:

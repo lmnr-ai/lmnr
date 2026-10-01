@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {normalizeSettings} from './settings';
 import {VOICEOVER_DEFAULTS, normalizeVoiceoverSettings} from './voiceover-cut';
-import {VOICEOVER_BED_URL, VOICEOVER_PHRASES, voiceoverBedUrl} from './voiceover-phrases';
+import {VOICEOVER_PHRASES, voiceoverBedUrl} from './voiceover-phrases';
 import {mixVoiceoverPcm, phraseGain, voiceoverSchedule} from './voiceover-schedule';
 import {voiceoverTimelineConfig, voiceoverTimelineValues, settingsFromVoiceoverTimeline} from './authoring';
 import {VoiceoverEngine} from './voiceover-engine';
@@ -76,19 +76,20 @@ test('prepared assets are exactly the immutable 23 sample-exact trims of the app
   }
 });
 
-test('the live Cursor bed is one frozen, hashed, full-length bed over the same editable-v11 phrases', () => {
-  const base = new URL('../../../public/audio/voiceover/editable-v11-cursor/', import.meta.url);
-  const read = (file: string) => readFileSync(new URL(file, base));
-  const manifest = JSON.parse(read('manifest.json').toString());
-  const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
-  assert.equal(manifest.scoreStyle, 'cursor-paper');
-  assert.equal(`/audio/voiceover/editable-v11-cursor/${manifest.bed.file}`, VOICEOVER_BED_URL);
-  assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
-  assert.equal(manifest.samples, 2085 * 1600);
-  assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
-  assert.equal(manifest.phrases, '/audio/voiceover/editable-v11/');
-  assert.equal(manifest.phraseManifestSha256, sha(readFileSync(new URL('../editable-v11/manifest.json', base))));
-});
+for (const [bed, style, dir] of [['cursor-v2', 'cursor-paper-v2', 'editable-v11-cursor-v2'], ['cursor', 'cursor-paper', 'editable-v11-cursor']] as const)
+  test(`the ${bed} bed is one frozen, hashed, full-length bed over the same editable-v11 phrases`, () => {
+    const base = new URL(`../../../public/audio/voiceover/${dir}/`, import.meta.url);
+    const read = (file: string) => readFileSync(new URL(file, base));
+    const manifest = JSON.parse(read('manifest.json').toString());
+    const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+    assert.equal(manifest.scoreStyle, style);
+    assert.equal(`/audio/voiceover/${dir}/${manifest.bed.file}`, voiceoverBedUrl(bed));
+    assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
+    assert.equal(manifest.samples, 2085 * 1600);
+    assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
+    assert.equal(manifest.phrases, '/audio/voiceover/editable-v11/');
+    assert.equal(manifest.phraseManifestSha256, sha(readFileSync(new URL('../editable-v11/manifest.json', base))));
+  });
 
 test('DialKit seek observation is scoped, idempotent, reversible, and skips ordinary transport notifications', () => {
   const active = 'ultimate3-v4-seek-test', foreign = 'unrelated-timeline-seek-test';

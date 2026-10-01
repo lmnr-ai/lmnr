@@ -1,7 +1,9 @@
 import type {ScoreCues} from '../cues';
+import {OnePole, db, integratedLufs, seeded, type Stereo} from '../dsp';
 import type {ScoreStyle} from '../style';
 import type {Mix} from '../voices';
 import {AIR, KNOCK, TICK, composeCursor} from './composition';
+import {AIR as AIR2, KNOCK as KNOCK2, TICK as TICK2, composeCursorV2} from './composition-v2';
 import {knock, mallet, paper} from './instruments';
 
 /** The reference bed sits ~6.5 dB under its narrator and swells ~2 dB in the gaps: slow dips, never pumping. */
@@ -49,4 +51,79 @@ export const cursorPaper: ScoreStyle = {
   },
   // A dark top (the reference has under 0.4 % of its energy above 2 kHz) and a round low end.
   eq: {highpass: 28, lowShelf: [110, 1.5], highShelf: [5000, -4]},
+};
+
+/** Extra duck per phrase (dB), measured so every line clears the bed by ~6.5 LU despite the arc under it (n13 and n16 also hold the voice peaks). */
+const EXTRA_DUCK_DB = [0, 0, 0, -1.3, 0, 0, 0, -.4, -3.9, 0, -2, -2.1, -2, 0, -1.4, -2, 0, -.4, -3.9, -.8, -2.6, 0, -4.5];
+
+/** The story's loudness arc for the music bus (dB), interpolated linearly in dB, so ramps read as fades. */
+const arcCursorV2 = (cues: ScoreCues): [number, number][] => {
+  const cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
+  const silence = cost.depletion.at + cost.depletion.duration - .2;
+  return [
+    [0, -4.5], [cues.chapter.cost.start - .5, -4], // Act 1 is small and close
+    [cues.chapter.cost.start, -3], [cost.depletion.at, 0], [silence, 0], // Cost climbs to the depletion
+    [silence + .3, -10], [flow.reveal - .08, -10], // "Until now" is near silence
+    [flow.reveal, 1], [flow.cameraToAnalysis.at, 0], [cues.chapter.issues.start, -.5], // Flow-1 opens up
+    [issues.prelude.explanation?.at ?? issues.prelude.zoomOut.at - 2.5, -.5], [issues.native, 1.5], [issues.native + 1, .5], // a long swell into the clusters
+    [end.start, 0], [end.logo, 3], [end.logo + .8, 2.5], [cues.duration - .1, -45], // IV → V crescendo, a bloom, then a full decay
+  ];
+};
+
+const ducksCursorV2 = (mix: Mix, cues: ScoreCues) => {
+  cues.voice.forEach((phrase, i) => mix.duck(phrase.at, .66 * db(EXTRA_DUCK_DB[i] ?? 0), .35, phrase.duration, .8));
+  const arc = arcCursorV2(cues);
+  for (let n = 0, k = 0; n < mix.length; n++) {
+    const t = n / 48_000;
+    while (k + 1 < arc.length && arc[k + 1][0] <= t) k++;
+    const [t0, d0] = arc[k], [t1, d1] = arc[k + 1] ?? arc[k];
+    mix.musicGain[n] *= db(t1 > t0 ? d0 + (d1 - d0) * Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : d0);
+  }
+};
+
+const designCursorV2 = (mix: Mix, cues: ScoreCues) => {
+  const issues = cues.issues;
+  if (!issues.postludeActive) return;
+  paper(mix, issues.windowDown.at, issues.windowDown.duration + .05, AIR2, {level: .22, from: 1100, to: 450, peak: .3, pan: [0, 0]});
+  knock(mix, issues.windowShut, 40, .5, {...KNOCK2, pan: 0}, {decay: .08, wood: .35, click: .4});
+  if (mix.typingEnabled) issues.typingEvents.forEach((event, i) =>
+    knock(mix, event.time, [79, 77, 80, 75][(event.voice ?? i) % 4], .16, {...TICK2, pan: .15 * Math.sin(i * 1.7), delay: 0},
+      {decay: .015 * (.8 + .4 * mix.random()), wood: .5, click: .9, drop: .4, clickHz: 1150 + 400 * mix.random()}));
+  mallet(mix, issues.issueBadge, 75, .34, {...KNOCK2, pan: -.2}, .4);
+  paper(mix, issues.windowUp.at, issues.windowUp.duration + .05, AIR2, {level: .2, from: 450, to: 1100, peak: .6, pan: [0, 0]});
+};
+
+/**
+ * Glue, as a mix engineer's master chain would: gentle asymmetric tape saturation, a slow 2:1 bus
+ * compressor (~2 dB), a mono low end below 120 Hz and a faint tape-hiss floor, so bed and foley share one space.
+ */
+const glueCursorV2 = (master: Stereo) => {
+  const scale = db(-16 - integratedLufs(master)), drive = 1.4, bias = .08, offset = Math.tanh(drive * bias);
+  const sat = (x: number) => (Math.tanh(drive * (x * scale + bias)) - offset) / drive / scale;
+  const random = seeded(0x7a9e), hiss = [OnePole.lowpass(6000), OnePole.lowpass(6000)], side = [OnePole.lowpass(120), OnePole.lowpass(120)];
+  const attack = 1 - Math.exp(-1 / (.03 * 48_000)), release = 1 - Math.exp(-1 / (.3 * 48_000));
+  // Threshold sits above the -16 LUFS working level, so only peaks are held and the arc survives.
+  const threshold = db(-17) / scale, floor = db(-50) / scale;
+  let power = 0;
+  for (let n = 0; n < master.length; n++) {
+    let l = sat(master.l[n]), r = sat(master.r[n]);
+    const mid = (l + r) / 2, s = (l - r) / 2, low = side[1].process(side[0].process(s));
+    l = mid + s - low; r = mid - s + low;
+    const square = (l * l + r * r) / 2;
+    power += (square > power ? attack : release) * (square - power);
+    const rms = Math.sqrt(power), gain = rms > threshold ? (threshold / rms) ** .5 : 1;
+    master.l[n] = l * gain + hiss[0].process(random() * 2 - 1) * floor;
+    master.r[n] = r * gain + hiss[1].process(random() * 2 - 1) * floor;
+  }
+};
+
+export const cursorPaperV2: ScoreStyle = {
+  id: 'cursor-paper-v2',
+  title: 'Cursor paper v2 (one continuous bed, story arc, fewer hits, master glue)',
+  ducks: ducksCursorV2,
+  compose: composeCursorV2,
+  design: (mix, cues) => { designCursorV2(mix, cues); tuckFoley(mix, cues); },
+  space: {...cursorPaper.space, returns: [2.2, 1.2, .7]},
+  eq: cursorPaper.eq,
+  master: glueCursorV2,
 };
