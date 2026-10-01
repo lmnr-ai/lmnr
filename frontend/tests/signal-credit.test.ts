@@ -43,6 +43,25 @@ test("carries unused credit into the next billing period without replenishing it
   );
 });
 
+test("does not restore spent credit when reported usage temporarily decreases", () => {
+  assert.deepEqual(
+    calculateSignalCreditState({
+      grantedMicroUsd: CREDIT,
+      remainingMicroUsd: 3_000_000,
+      previouslyAppliedMicroUsd: 2_000_000,
+      samePeriod: true,
+      currentPeriodCostMicroUsd: 0,
+    }),
+    {
+      grantedMicroUsd: CREDIT,
+      remainingMicroUsd: 3_000_000,
+      appliedThisPeriodMicroUsd: 2_000_000,
+      availableThisPeriodMicroUsd: CREDIT,
+      appliedDeltaMicroUsd: 0,
+    }
+  );
+});
+
 test("does not grant credit to pre-deployment workspaces", () => {
   assert.deepEqual(
     calculateSignalCreditState({

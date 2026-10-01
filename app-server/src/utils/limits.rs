@@ -184,16 +184,17 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     }
 
     let workspace_id = project_info.workspace_id;
+    let billing_start = current_billing_period_start(project_info.reset_time);
 
     let (input_tokens, cache_read_tokens, output_tokens) = get_workspace_signal_tokens_cached(
         &clickhouse,
         cache.clone(),
         workspace_id,
         &project_info.workspace_project_ids,
-        project_info.reset_time,
+        billing_start,
         project_id,
     )
-    .await;
+    .await?;
 
     // Tokens are stored raw; price into micro-USD here so the hard limit
     // compares against the same unit as `effective_limit` (also micro-USD).
@@ -202,7 +203,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
             as i64;
 
     if is_free {
-        let billing_start = current_billing_period_start(project_info.reset_time);
         let credit = db::signal_credits::reconcile_signal_credit(
             &db.pool,
             workspace_id,
@@ -259,19 +259,29 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
 /// Read the workspace's accumulated signal `(input_tokens, cache_read_tokens,
 /// output_tokens)` from the three token cache keys, reseeding all from
 /// ClickHouse on a miss.
+fn workspace_signal_token_cache_keys(
+    workspace_id: Uuid,
+    billing_start: DateTime<Utc>,
+) -> (String, String, String) {
+    let period = billing_start.timestamp_millis();
+    (
+        format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}:{period}"),
+        format!("{WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:{workspace_id}:{period}"),
+        format!("{WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}:{period}"),
+    )
+}
+
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 async fn get_workspace_signal_tokens_cached(
     clickhouse: &clickhouse::Client,
     cache: Arc<Cache>,
     workspace_id: Uuid,
     workspace_project_ids: &[Uuid],
-    reset_time: DateTime<Utc>,
+    billing_start: DateTime<Utc>,
     project_id: Uuid,
-) -> (u64, u64, u64) {
-    let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let cache_read_key =
-        format!("{WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let output_key = format!("{WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
+) -> Result<(u64, u64, u64)> {
+    let (input_key, cache_read_key, output_key) =
+        workspace_signal_token_cache_keys(workspace_id, billing_start);
 
     let cached_input = cache.get::<i64>(&input_key).await.ok().flatten();
     let cached_cache_read = cache.get::<i64>(&cache_read_key).await.ok().flatten();
@@ -280,31 +290,28 @@ async fn get_workspace_signal_tokens_cached(
     if let (Some(input), Some(cache_read), Some(output)) =
         (cached_input, cached_cache_read, cached_output)
     {
-        return (
+        return Ok((
             input.max(0) as u64,
             cache_read.max(0) as u64,
             output.max(0) as u64,
-        );
+        ));
     }
 
     // Any key missing - recompute all from ClickHouse and seed them.
-    let tokens = match get_workspace_signal_tokens_by_project_ids(
+    let tokens = get_workspace_signal_tokens_by_project_ids(
         clickhouse.clone(),
         workspace_project_ids.to_vec(),
-        reset_time,
+        billing_start,
     )
     .await
-    {
-        Ok(tokens) => tokens,
-        Err(e) => {
-            log::error!(
-                "Failed to get workspace signal tokens for project [{}]: {:?}",
-                project_id,
-                e
-            );
-            WorkspaceSignalTokens::default()
-        }
-    };
+    .map_err(|e| {
+        log::error!(
+            "Failed to get workspace signal tokens for project [{}]: {:?}",
+            project_id,
+            e
+        );
+        e
+    })?;
     let WorkspaceSignalTokens {
         input_tokens,
         cache_read_tokens,
@@ -350,7 +357,7 @@ async fn get_workspace_signal_tokens_cached(
         );
     }
 
-    (input_tokens, cache_read_tokens, output_tokens)
+    Ok((input_tokens, cache_read_tokens, output_tokens))
 }
 
 pub async fn update_workspace_bytes_ingested(
@@ -513,10 +520,9 @@ pub async fn update_workspace_signal_tokens(
     };
 
     let workspace_id = project_info.workspace_id;
-    let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let cache_read_key =
-        format!("{WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let output_key = format!("{WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
+    let billing_start = current_billing_period_start(project_info.reset_time);
+    let (input_key, cache_read_key, output_key) =
+        workspace_signal_token_cache_keys(workspace_id, billing_start);
 
     let cached_input = cache.get::<i64>(&input_key).await.ok().flatten();
     let cached_cache_read = cache.get::<i64>(&cache_read_key).await.ok().flatten();
@@ -609,7 +615,7 @@ pub async fn update_workspace_signal_tokens(
         } = match get_workspace_signal_tokens_by_project_ids(
             clickhouse,
             project_info.workspace_project_ids,
-            project_info.reset_time,
+            billing_start,
         )
         .await
         {
@@ -620,7 +626,7 @@ pub async fn update_workspace_signal_tokens(
                     project_id,
                     e
                 );
-                WorkspaceSignalTokens::default()
+                return Ok(());
             }
         };
         cache
@@ -645,7 +651,6 @@ pub async fn update_workspace_signal_tokens(
         crate::utils::signal_token_cost_micro_usd(total_input, total_cache_read, total_output)
             as i64;
 
-    let billing_start = current_billing_period_start(project_info.reset_time);
     let credit = db::signal_credits::reconcile_signal_credit(
         &db.pool,
         workspace_id,

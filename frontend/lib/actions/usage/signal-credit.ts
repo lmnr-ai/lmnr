@@ -32,9 +32,9 @@ export function calculateSignalCreditState({
 }): SignalCreditState {
   const appliedBeforeReconciliation = samePeriod ? previouslyAppliedMicroUsd : 0;
   const availableThisPeriodMicroUsd = remainingMicroUsd + appliedBeforeReconciliation;
-  const appliedThisPeriodMicroUsd = Math.min(
-    availableThisPeriodMicroUsd,
-    Math.max(0, Math.round(currentPeriodCostMicroUsd))
+  const appliedThisPeriodMicroUsd = Math.max(
+    appliedBeforeReconciliation,
+    Math.min(availableThisPeriodMicroUsd, Math.max(0, Math.round(currentPeriodCostMicroUsd)))
   );
 
   return {

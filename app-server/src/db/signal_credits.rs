@@ -40,9 +40,12 @@ pub async fn reconcile_signal_credit(
                 id,
                 granted_micro_usd,
                 remaining_micro_usd + previously_applied_micro_usd AS available_this_period_micro_usd,
-                LEAST(
-                    remaining_micro_usd + previously_applied_micro_usd,
-                    $3
+                GREATEST(
+                    previously_applied_micro_usd,
+                    LEAST(
+                        remaining_micro_usd + previously_applied_micro_usd,
+                        GREATEST($3, 0)
+                    )
                 ) AS applied_this_period_micro_usd,
                 previously_applied_micro_usd
             FROM current_state

@@ -83,21 +83,8 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
 pub async fn get_workspace_signal_tokens_by_project_ids(
     clickhouse: Client,
     project_ids: Vec<Uuid>,
-    reset_time: DateTime<Utc>,
+    billing_period_start: DateTime<Utc>,
 ) -> Result<WorkspaceSignalTokens> {
-    let now = Utc::now();
-    let months_elapsed = complete_months_elapsed(reset_time, now);
-
-    let latest_reset_time = if months_elapsed > 0 {
-        // Unwrap is safe, because the date is unlikely to be out of range
-        // and we are using UTC, so DST is not an issue
-        reset_time
-            .checked_add_months(Months::new(months_elapsed))
-            .unwrap_or(reset_time)
-    } else {
-        reset_time
-    };
-
     // Signals are billed by the token cost the agent spent. Tokens are stored
     // raw per run and returned raw here; cost is derived at the call boundary
     // at the current per-token rate so a future rate change re-prices history.
@@ -115,7 +102,7 @@ pub async fn get_workspace_signal_tokens_by_project_ids(
     let result = clickhouse
         .query(&query)
         .param("project_ids", project_ids)
-        .param("latest_reset_time", latest_reset_time.naive_utc())
+        .param("latest_reset_time", billing_period_start.naive_utc())
         .fetch_optional::<WorkspaceSignalTokens>()
         .await?;
 
