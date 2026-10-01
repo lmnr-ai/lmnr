@@ -1,0 +1,14 @@
+{
+  "sourceUrl": "https://x.com/OpenAI/status/2104651136699609518",
+  "title": "Get ready.",
+  "file": "openai-get-ready.m4a",
+  "extraction": "AAC stream copy with FFmpeg; no re-encoding or audio processing",
+  "codec": "aac",
+  "sampleRate": 48000,
+  "channels": 2,
+  "durationSeconds": 12.16,
+  "bytes": 197642,
+  "sha256": "67ba7644d630f2484b64746a6ba78966b495cb91ef6701ddd8f5f4b1feb124cf",
+  "validation": "ffprobe metadata and full-file decoding passed; repository copy matches Downloads",
+  "analysisPerformed": false
+}
