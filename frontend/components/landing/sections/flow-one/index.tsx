@@ -12,7 +12,7 @@ const FlowOne = () => (
         <span className="text-primary-100">flow-1</span> was fine-tuned and post-trained with RL for intelligent and
         efficient trace analysis. <br className="hidden sm:block" />
         {` `}
-        Surpassing <span className="text-primary-100">GPT-6 Sol</span> in trace analysis intelligence, while analyzing{" "}
+        Matching <span className="text-primary-100">GPT-6 Sol</span> in trace analysis intelligence, while analyzing{" "}
         <span className="text-primary-100">20x</span> more traces per dollar.
       </p>
       <LearnMoreLink className="mt-5" label="Learn more about flow-1" href="https://laminar.sh/blog/flow-1" />
