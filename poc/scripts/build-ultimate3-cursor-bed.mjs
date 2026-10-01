@@ -1,5 +1,5 @@
 // Prepare the LAM-2317 Cursor-direction bed under the unchanged editable-v11 phrases; never replace a published bed.
-// Usage: node scripts/build-ultimate3-cursor-bed.mjs [edition handoff style bedDb] (default editable-v11-cursor-v2 cursor-sound-design cursor-paper-v2 -9.2).
+// Usage: node scripts/build-ultimate3-cursor-bed.mjs [edition handoff style bedDb] (default editable-v11-cursor-v3 cursor-sound-design cursor-paper-v3 -9.2).
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
@@ -8,7 +8,7 @@ import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const [edition = 'editable-v11-cursor-v2', handoff = 'cursor-sound-design', style = 'cursor-paper-v2', trim = '-9.2'] = process.argv.slice(2);
+const [edition = 'editable-v11-cursor-v3', handoff = 'cursor-sound-design', style = 'cursor-paper-v3', trim = '-9.2'] = process.argv.slice(2);
 const seed = 107290, phrases = 'editable-v11';
 // Trim so the voice clears the bed by a ~6.5 LU median, as in the Cursor reference (v1, editable-v11-cursor, was cursor-paper at -7.8).
 const bedDb = Number(trim);

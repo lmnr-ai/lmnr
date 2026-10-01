@@ -4,6 +4,7 @@ import type {ScoreStyle} from '../style';
 import type {Mix} from '../voices';
 import {AIR, KNOCK, TICK, composeCursor} from './composition';
 import {AIR as AIR2, KNOCK as KNOCK2, TICK as TICK2, composeCursorV2} from './composition-v2';
+import {composeCursorV3, designCursorV3} from './composition-v3';
 import {knock, mallet, paper} from './instruments';
 
 /** The reference bed sits ~6.5 dB under its narrator and swells ~2 dB in the gaps: slow dips, never pumping. */
@@ -70,8 +71,8 @@ const arcCursorV2 = (cues: ScoreCues): [number, number][] => {
   ];
 };
 
-const ducksCursorV2 = (mix: Mix, cues: ScoreCues) => {
-  cues.voice.forEach((phrase, i) => mix.duck(phrase.at, .66 * db(EXTRA_DUCK_DB[i] ?? 0), .35, phrase.duration, .8));
+const ducksArc = (mix: Mix, cues: ScoreCues, extra: readonly number[]) => {
+  cues.voice.forEach((phrase, i) => mix.duck(phrase.at, .66 * db(extra[i] ?? 0), .35, phrase.duration, .8));
   const arc = arcCursorV2(cues);
   for (let n = 0, k = 0; n < mix.length; n++) {
     const t = n / 48_000;
@@ -120,10 +121,24 @@ const glueCursorV2 = (master: Stereo) => {
 export const cursorPaperV2: ScoreStyle = {
   id: 'cursor-paper-v2',
   title: 'Cursor paper v2 (one continuous bed, story arc, fewer hits, master glue)',
-  ducks: ducksCursorV2,
+  ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB),
   compose: composeCursorV2,
   design: (mix, cues) => { designCursorV2(mix, cues); tuckFoley(mix, cues); },
   space: {...cursorPaper.space, returns: [2.2, 1.2, .7]},
+  eq: cursorPaper.eq,
+  master: glueCursorV2,
+};
+
+/** Extra duck per phrase (dB) for v3, whose keys add energy at 300–500 Hz under the voice. */
+const EXTRA_DUCK_DB_V3 = EXTRA_DUCK_DB.map((value, i) => value - ({10: .6, 11: .6, 20: 1, 22: 1.2}[i] ?? 0));
+
+export const cursorPaperV3: ScoreStyle = {
+  id: 'cursor-paper-v3',
+  title: 'Cursor paper v3 (repeating swelled keys, sine pops and thumps, soft breaths)',
+  ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB_V3),
+  compose: composeCursorV3,
+  design: (mix, cues) => { designCursorV3(mix, cues); tuckFoley(mix, cues); },
+  space: cursorPaperV2.space,
   eq: cursorPaper.eq,
   master: glueCursorV2,
 };

@@ -59,8 +59,14 @@ const resolve = (keys: readonly BedKey[]): Resolved[] => {
 
 const wow = (t: number, depth = 4) => depth * Math.sin(2 * Math.PI * .31 * t + 1.3) + .6 * Math.sin(2 * Math.PI * 5.1 * t);
 
-/** The warm tape organ of `tapePad` (two detuned additive voices per note), held across the whole film. */
-export function bed(mix: Mix, keys: readonly BedKey[], route: Route) {
+/** Per-note copies: detune (cents), gain and pan. v2's pair beats at ~2 Hz in lockstep across every note. */
+export type BedVoicing = {copies: readonly {cents: number; gain: number; pan: number}[]; spread: number};
+const PAIR: BedVoicing = {copies: [{cents: -5, gain: 1, pan: -.55}, {cents: 5, gain: 1, pan: .55}], spread: 0};
+/** v3: unequal copies, and each note offset by a few cents so no two notes beat together. */
+export const CHORUS: BedVoicing = {copies: [{cents: 0, gain: 1, pan: 0}, {cents: 7, gain: .5, pan: .55}, {cents: -11, gain: .35, pan: -.55}], spread: 3};
+
+/** The warm tape organ of `tapePad` (detuned additive copies per note), held across the whole film. */
+export function bed(mix: Mix, keys: readonly BedKey[], route: Route, voicing: BedVoicing = PAIR) {
   const resolved = resolve(keys), ids = [...new Set(resolved.flatMap(key => key.notes))].sort((a, b) => a - b);
   const control = (pick: (key: Resolved) => number, time: (key: Resolved) => number, initial: number) =>
     Track.build(resolved.map(key => ({at: key.at, value: pick(key), time: time(key)})), initial);
@@ -72,7 +78,10 @@ export function bed(mix: Mix, keys: readonly BedKey[], route: Route) {
   const notes = ids.map((midi, index) => ({
     hz: mtof(midi),
     gain: Track.build(resolved.map(key => ({at: key.at, value: key.notes.includes(midi) ? 1 : 0, time: key.fade})), 0, true),
-    voices: [-5, 5].map((cents, v) => ({cents, pan: panGains((v ? .55 : -.55) + (index % 2 ? .1 : -.1)), oscillators: partials.map(() => new Sine(mix.random()))})),
+    voices: voicing.copies.map(copy => ({
+      cents: copy.cents + voicing.spread * Math.sin(index * 2.4), gain: copy.gain,
+      pan: panGains(copy.pan + (index % 2 ? .1 : -.1)), oscillators: partials.map(() => new Sine(mix.random())),
+    })),
   }));
   const start = samples(resolved[0].at), length = mix.length - start;
   const left = new Float32Array(length), right = new Float32Array(length), filters = [new Svf(), new Svf()];
@@ -86,6 +95,7 @@ export function bed(mix: Mix, keys: readonly BedKey[], route: Route) {
         const f = note.hz * 2 ** ((drift + (voice.cents + sway) / 100) / 12);
         let value = 0;
         for (let k = 0; k < 6; k++) value += voice.oscillators[k].next(f * (k + 1)) * partials[k];
+        value *= voice.gain;
         l += value * voice.pan[0] * g; r += value * voice.pan[1] * g;
       }
     }

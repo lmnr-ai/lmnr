@@ -76,7 +76,7 @@ test('prepared assets are exactly the immutable 23 sample-exact trims of the app
   }
 });
 
-for (const [bed, style, dir] of [['cursor-v2', 'cursor-paper-v2', 'editable-v11-cursor-v2'], ['cursor', 'cursor-paper', 'editable-v11-cursor']] as const)
+for (const [bed, style, dir] of [['cursor-v3', 'cursor-paper-v3', 'editable-v11-cursor-v3'], ['cursor-v2', 'cursor-paper-v2', 'editable-v11-cursor-v2'], ['cursor', 'cursor-paper', 'editable-v11-cursor']] as const)
   test(`the ${bed} bed is one frozen, hashed, full-length bed over the same editable-v11 phrases`, () => {
     const base = new URL(`../../../public/audio/voiceover/${dir}/`, import.meta.url);
     const read = (file: string) => readFileSync(new URL(file, base));

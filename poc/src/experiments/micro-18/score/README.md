@@ -104,6 +104,15 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
+### `cursor-paper-v3` — swelled keys and tonal foley over v2's bed (LAM-2317 second review)
+
+`cursor/composition-v3.ts` keeps v2's continuous bed, arc, ducks and glue. The changes come from forensics on the reference's music stem:
+
+- **Re-articulation:** `swellKey` (in `cursor/tactile.ts`) is a near-sine that swells in over about 250 ms. `repeats` plays two or three of them, each repeating every ~0.84 s and staggered by 0.28 s, inside a near-static chord. This gives the reference's E♭ → A♭ → G cell, and it follows the story.
+- **De-throbbed bed:** `bed(…, CHORUS)` uses unequal copies at 0/+7/−11 cents, offset per note, so notes never beat together. The bed plays 3 dB under the keys and fades between fewer harmonies.
+- **Tonal foley:** `pop`, `thump` (with an optional double hit and a separate faint high click), `droplet`, `tick`, `click` and `dots`. They are pure sines on chord tones with no pitch drop, and they play dry.
+- **Breath, not paper:** `breath` is grain-free pink noise through Q 0.5 filters under a bell envelope, in a `pillow` (low-pass) or `feather` (3–9 kHz) flavour. It is used five times; the music carries the other camera moves.
+
 ### `cursor-paper-v2` — the same palette as one continuous, arcing bed (LAM-2317 review)
 
 `cursor/composition-v2.ts` re-scores `cursor-paper` in four ways:

@@ -28,11 +28,12 @@ Browser regression (existing editor only, isolated Chrome, session cleaned up):
 
 The editable-voiceover cut plays one frozen bed plus the editable-v11 phrase WAVs through `VoiceoverEngine`. `VOICEOVER_BEDS` in `voiceover-phrases.ts` lists the beds.
 
-- **`cursor-v2` (live):** `editable-v11-cursor-v2/bed.wav`, the `cursor-paper-v2` score at -9.2 dB.
+- **`cursor-v3` (live):** `editable-v11-cursor-v3/bed.wav`, the `cursor-paper-v3` score at -9.2 dB.
+- **`cursor-v2`:** `editable-v11-cursor-v2/bed.wav`, the `cursor-paper-v2` score at -9.2 dB.
 - **`cursor`:** the v1 bed, `editable-v11-cursor/bed.wav`: the `cursor-paper` score at -7.8 dB.
 - **`piano`:** the untouched `editable-v11/bed.wav` Arabesque bed.
 
-Append `?bed=cursor` or `?bed=piano` to the editor URL for an A/B. It swaps the only bed and never adds a second music owner. Typing is baked into both beds, so no live keyboard runs.
+Append `?bed=cursor-v2`, `?bed=cursor` or `?bed=piano` to the editor URL for an A/B. It swaps the only bed and never adds a second music owner. Typing is baked into both beds, so no live keyboard runs.
 
 `scripts/export-ultimate3-editable-vo.ts --bed cursor|piano` (default `cursor`) exports with the same `mixVoiceoverPcm` math. It verifies:
 

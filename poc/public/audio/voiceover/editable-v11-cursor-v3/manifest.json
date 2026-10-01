@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "scoreStyle": "cursor-paper-v3",
+  "seed": 107290,
+  "sampleRate": 48000,
+  "frames": 2085,
+  "samples": 3336000,
+  "bed": {
+    "file": "bed.wav",
+    "sha256": "0b6c8f96655df3b7e3e0a1d6d887fd55a1fb3574515055c9f5c5d3733f5fc5eb"
+  },
+  "bedDb": -9.2,
+  "settingsSha256": "46a9e789c589a901e412a97a8f1d73edf08182560732b62f34c9966cfed47217",
+  "phrases": "/audio/voiceover/editable-v11/",
+  "phraseManifestSha256": "07d9c6816660636e18ac45de10c1f875351cd3d0e646b260d1adea7206040734",
+  "note": "Voice-free bed (score, foley and paper-tap typing) at -9.2 dB; the narration stays the editable-v11 trims of the approved take."
+}

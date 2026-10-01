@@ -8,15 +8,15 @@ export const VOICEOVER_PHRASES = placements.map((phrase, index) => {
 });
 export const VOICEOVER_SOURCE_ROOT = '/audio/voiceover/editable-v11/';
 /**
- * Frozen voice-free beds under the editable-v11 phrases. `cursor-v2` (live) and `cursor` (v1) are the LAM-2317
+ * Frozen voice-free beds under the editable-v11 phrases. `cursor-v3` (live), `cursor-v2` and `cursor` (v1) are the LAM-2317
  * tape-organ scores (scripts/build-ultimate3-cursor-bed.mjs); `piano` is the Arabesque bed scored to the voice-retimed Issue
  * Clusters 4 cut (scripts/build-ultimate3-issues4-vo.mjs). editable-v10…v4 keep the earlier beds and takes.
  */
 export const VOICEOVER_BEDS = {
-  'cursor-v2': '/audio/voiceover/editable-v11-cursor-v2/', cursor: '/audio/voiceover/editable-v11-cursor/', piano: VOICEOVER_SOURCE_ROOT,
+  'cursor-v3': '/audio/voiceover/editable-v11-cursor-v3/', 'cursor-v2': '/audio/voiceover/editable-v11-cursor-v2/', cursor: '/audio/voiceover/editable-v11-cursor/', piano: VOICEOVER_SOURCE_ROOT,
 } as const;
 export type VoiceoverBed = keyof typeof VOICEOVER_BEDS;
-export const VOICEOVER_BED: VoiceoverBed = 'cursor-v2';
+export const VOICEOVER_BED: VoiceoverBed = 'cursor-v3';
 export const isVoiceoverBed = (value: unknown): value is VoiceoverBed => typeof value === 'string' && Object.hasOwn(VOICEOVER_BEDS, value);
 export const voiceoverBedUrl = (bed: VoiceoverBed = VOICEOVER_BED) => `${VOICEOVER_BEDS[bed]}bed.wav`;
 export const VOICEOVER_BED_URL = voiceoverBedUrl();

@@ -2,7 +2,7 @@ import type {Ultimate3Settings} from './settings';
 import {VOICEOVER_BED, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT, isVoiceoverBed, voiceoverBedUrl} from './voiceover-phrases';
 import {phraseGain, voiceoverSchedule, VOICEOVER_CALIBRATION, VOICEOVER_FADE} from './voiceover-schedule';
 
-/** `?bed=cursor` (v1) or `?bed=piano` swaps the frozen bed for A/B; it is still the only bed, so there is never a second music owner. */
+/** `?bed=cursor-v2`, `?bed=cursor` (v1) or `?bed=piano` swaps the frozen bed for A/B; it is still the only bed, so there is never a second music owner. */
 const selectedBedUrl = () => {
   const requested = typeof location === 'undefined' ? undefined : new URLSearchParams(location.search).get('bed');
   return voiceoverBedUrl(isVoiceoverBed(requested) ? requested : VOICEOVER_BED);

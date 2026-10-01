@@ -50,11 +50,83 @@ print credentials. If upload access is unavailable, report the blocker and
 provide the local render instead of claiming an upload. Open a PR with the
 implementation and briefly explain the sound-design choices.
 
-## Result v2 (LAM-2317 review): `cursor-paper-v2`, the live bed
+## Result v3 (LAM-2317 second review): `cursor-paper-v3`, the live bed
+
+- **New mix:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v3-voiceover.mp4
+- **New bed only:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v3-music-only.mp4
+- v2 and v1 stay available as `?bed=cursor-v2` / `--bed cursor-v2` and `?bed=cursor` / `--bed cursor`.
+
+### Feedback and diagnosis
+
+The client said v2 lacked the reference's nuance. Their specific points were:
+
+- the whooshes were grainy, "like sandpaper";
+- the bed was one chord with no texture, while the reference has a gentle piano melody;
+- the reference's tactile effects were missing.
+
+A sound-design review analysed the reference's Demucs music stem in detail and ranked the causes as follows:
+
+1. **No re-articulation.** The reference has no hammered piano: its "melody" is soft keys that swell in over about 255 ms and repeat about every 0.84 s each, offset by about 0.28 s. That makes about 3.7 notes/s inside a near-static chord, which changes only about 8 times. v2's movement came from a lockstep ±5-cent beat at about 2 Hz, 21 dB deep, which reads as one throbbing chord. More chord changes would not fix it.
+2. **Sandpaper.** The problem is quantity more than grain: 13 midrange noise slides sat in the voice band. Noise at 1.5–6 kHz had a p95 of −20.8 dB against the reference's −25.5 dB, with twice as many hot frames. The reference has only two smooth swishes.
+3. **The wrong anatomy for tactile hits.** The reference's pops and thumps are pure sines on chord tones, flat in pitch, 20–40 ms long, dry and centred, with any click as a separate faint high layer. v2's knocks dropped in pitch, had an off-key wood mode and a 1.3 kHz noise click, and went through an echo.
+
+### What v3 changes
+
+- **Melody:** `swellKey` in `cursor/tactile.ts` is a near-sine with soft upper partials and a +12-cent chorus copy. `repeats` plays two or three voices of it, following the story:
+  - an E♭–A♭–G cell for the agent;
+  - F at the upward turn;
+  - a climb to C5 for "If only";
+  - two sinking voices for Cost;
+  - an A♭3 pulse through "Until now";
+  - the full cell from Flow-1 on, with IV and V on the camera moves;
+  - two voices under the dense analysis lines;
+  - an IV→V acceleration into the logo.
+
+  Accents land on the number drops, the cover lift and the logo.
+- **Bed:** `bed(…, CHORUS)` uses copies at 0/+7/−11 cents, offset per note, so no two notes beat together. It plays 3 dB under the keys, on fewer harmonies, with a 120 Hz low shelf that dips under each thump. The E♭4 modulation now sits at 0.5–0.75 Hz, the reference's rate; v2 was at 1.75 Hz.
+- **Tactile foley:**
+  - `pop`: chord-tone sines for the agent, the stream pulse, labels and the triangle shower.
+  - `thump`: 104–139 Hz sines with double hits for the failure and the bash.
+  - `droplet`: falling sines for the cloud settling, the cheap passes and the clusters.
+  - `tick`: drawers, typing and the spinner.
+  - `click`: the "If only" ping-pong, and Flow-1 landing hard left.
+  - `dots`: the budget running down.
+
+  Hits are dry: no echo, room ≤ 0.06.
+- **Breath:** `breath` replaces `paper`. It is grain-free pink noise through Q 0.5 filters under a bell envelope, in a `pillow` or `feather` flavour, and it is used only five times. Noise at 1.5–6 kHz now has a p95 of −34.9 dB, with 4.7 % of frames hot (reference: −25.5 dB, 12.8 %).
+
+The expert checked the first v3 render: the key rate, swell and decay match the reference, and the ticks, clicks and droplets sit at its level. Their follow-up tweaks are in this render:
+
+- the low shelf, plus thumps 5 dB hotter after the bash;
+- keys 1.5 dB lower under the Flow-1 lines;
+- louder stream pops;
+- brighter key partials, with no added noise;
+- a two-voice Cost section.
+
+### Checks on the final MP4
+
+| Check | Result |
+|---|---|
+| Loudness | −16.2 LUFS |
+| Loudness range | 4.3 LU |
+| Peak | −0.2 dBTP, no clipping |
+| Video | h264, 2085 frames, 69.5 s |
+| Audio | AAC, 69.5 s |
+| Voice over bed, per line | min 5.7 LU, median 7.2 (v2: min 5.0, median 6.9) |
+
+The remaining peaks come from the voice take itself, which peaks at −1.55 dBFS alone, under the no-limiter export. Speech-to-text was not re-run.
+
+Reproduce v3:
+
+```sh
+node scripts/build-ultimate3-cursor-bed.mjs   # editable-v11-cursor-v3, cursor-paper-v3 at -9.2 dB; refuses to overwrite
+npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --out /tmp/cursor-v3-vo.wav
+```
+
+## Result v2 (LAM-2317 review): `cursor-paper-v2`
 
 - **New mix:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v2-voiceover.mp4
 - **New bed only:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v2-music-only.mp4
-- v1, below, stays available as `?bed=cursor` / `--bed cursor`.
 
 The client said v1 was "85 % there" but lacked polish. A sound-design review measured v1 against the reference and found these causes, ranked:
 
@@ -118,8 +190,8 @@ Speech-to-text was not re-run for v2. The voice/bed margins it tracks improved o
 Reproduce v2:
 
 ```sh
-node scripts/build-ultimate3-cursor-bed.mjs   # editable-v11-cursor-v2, cursor-paper-v2 at -9.2 dB; refuses to overwrite
-npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --out /tmp/cursor-v2-vo.wav
+node scripts/build-ultimate3-cursor-bed.mjs editable-v11-cursor-v2 cursor-sound-design cursor-paper-v2 -9.2   # v2; refuses to overwrite
+npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --bed cursor-v2 --out /tmp/cursor-v2-vo.wav
 ```
 
 Then mux the WAV onto the same silent picture, as below.
