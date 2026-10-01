@@ -1,11 +1,15 @@
 //! Direct LLM extraction of the user's task — the fallback when the prompt's
 //! version carries no regex yet, or has no version at all.
 //!
-//! Deliberately regex-free and uncached. It runs once per trace whose cohort has
-//! no regex, which is the same event that fills the accumulator, so the two costs
-//! are one cost. Output is plain text: an empty reply IS the "pure scaffolding,
-//! no user request" verdict, which removes the JSON schema (and its
-//! malformed-response failure mode) that a structured `{found, text}` would need.
+//! Deliberately regex-free. It runs once per trace whose cohort has no regex,
+//! which is the same event that fills the accumulator, so the two costs are one
+//! cost. Output is plain text: an empty reply IS the "pure scaffolding, no user
+//! request" verdict, which removes the JSON schema (and its malformed-response
+//! failure mode) that a structured `{found, text}` would need.
+//!
+//! Results are cached briefly by text ([`cached_direct_result`]): identical
+//! texts arrive in bursts (fan-outs, retry storms, cron jobs), and the result
+//! depends on the text alone.
 //!
 //! This is not a stopgap — nothing re-extracts a trace once a real regex lands,
 //! so it is the permanent extraction path for the early traces of every version.
@@ -17,6 +21,8 @@ use uuid::Uuid;
 use super::generate::call_llm;
 use super::regex::ApplyRegexResult;
 use super::self_tracing::SpanScope;
+use crate::cache::keys::USER_TASK_DIRECT_RESULT_CACHE_KEY;
+use crate::cache::{Cache, CacheTrait};
 use crate::llm::models::{
     ProviderContent, ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderResponse,
 };
@@ -29,6 +35,10 @@ const EXTRACT_SPAN_NAME: &str = "extract_user_task";
 /// Generous enough for a long pasted document to be echoed back verbatim — the
 /// prompt asks for a copy of the instruction, not a summary.
 const MAX_OUTPUT_TOKENS: i32 = 8192;
+
+/// Repeats of one text are mostly seconds apart, so a short TTL catches nearly
+/// all of them without holding a cache entry per extracted text for long.
+const DIRECT_RESULT_CACHE_TTL_SECONDS: u64 = 5 * 60;
 
 const DIRECT_EXTRACTION_SYSTEM_PROMPT: &str = r#"# Task
 
@@ -83,6 +93,51 @@ pub async fn extract_user_task_directly(
         "" => ApplyRegexResult::NoUserRequest,
         task => ApplyRegexResult::Extracted(task.to_string()),
     })
+}
+
+fn direct_result_cache_key(project_id: Uuid, signposted_text: &str) -> String {
+    let hash = hex::encode(blake3::hash(signposted_text.as_bytes()).as_bytes());
+    format!(
+        "{USER_TASK_DIRECT_RESULT_CACHE_KEY}:{project_id}:{}",
+        &hash[..32]
+    )
+}
+
+/// A recent direct extraction of this exact text. Stored as the reply text, so
+/// an empty entry is the "no user request" verdict, as in the LLM reply itself.
+pub async fn cached_direct_result(
+    cache: &Cache,
+    project_id: Uuid,
+    signposted_text: &str,
+) -> Option<ApplyRegexResult> {
+    let key = direct_result_cache_key(project_id, signposted_text);
+    let task = cache.get::<String>(&key).await.ok().flatten()?;
+    Some(if task.is_empty() {
+        ApplyRegexResult::NoUserRequest
+    } else {
+        ApplyRegexResult::Extracted(task)
+    })
+}
+
+/// Best-effort — a failed write only costs the next identical text a call.
+pub async fn cache_direct_result(
+    cache: &Cache,
+    project_id: Uuid,
+    signposted_text: &str,
+    result: &ApplyRegexResult,
+) {
+    let task = match result {
+        ApplyRegexResult::Extracted(task) => task.as_str(),
+        ApplyRegexResult::NoUserRequest => "",
+        ApplyRegexResult::NoMatch => return,
+    };
+    let key = direct_result_cache_key(project_id, signposted_text);
+    if let Err(e) = cache
+        .insert_with_ttl(&key, task, DIRECT_RESULT_CACHE_TTL_SECONDS)
+        .await
+    {
+        log::warn!("user-task: failed to cache direct extraction result: {e:?}");
+    }
 }
 
 /// Concatenated answer text, skipping thought parts (a thinking model would
@@ -175,5 +230,52 @@ mod tests {
     fn empty_response_is_the_no_user_request_verdict() {
         let response = response_with(vec![text_part("   ")]);
         assert_eq!(response_text(&response).trim(), "");
+    }
+
+    fn make_cache() -> Cache {
+        Cache::InMemory(crate::cache::in_memory::InMemoryCache::new(None))
+    }
+
+    #[tokio::test]
+    async fn cached_results_round_trip() {
+        let cache = make_cache();
+        let project_id = Uuid::new_v4();
+        for (text, result) in [
+            (
+                "fix the bug",
+                ApplyRegexResult::Extracted("fix the bug".to_string()),
+            ),
+            ("<scaffolding/>", ApplyRegexResult::NoUserRequest),
+        ] {
+            cache_direct_result(&cache, project_id, text, &result).await;
+            assert_eq!(
+                cached_direct_result(&cache, project_id, text).await,
+                Some(result)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn cached_results_are_scoped_to_project_and_text() {
+        let cache = make_cache();
+        let project_id = Uuid::new_v4();
+        let result = ApplyRegexResult::Extracted("task".to_string());
+        cache_direct_result(&cache, project_id, "task", &result).await;
+        assert_eq!(
+            cached_direct_result(&cache, project_id, "task 2").await,
+            None
+        );
+        assert_eq!(
+            cached_direct_result(&cache, Uuid::new_v4(), "task").await,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn no_match_is_not_cached() {
+        let cache = make_cache();
+        let project_id = Uuid::new_v4();
+        cache_direct_result(&cache, project_id, "text", &ApplyRegexResult::NoMatch).await;
+        assert_eq!(cached_direct_result(&cache, project_id, "text").await, None);
     }
 }

@@ -103,6 +103,9 @@ pub const USER_TASK_TEMPLATE_REGEX_CACHE_KEY: &str = "user_task_template_regex";
 /// `(project, agent_hash, template_version, has_history) → SampleAccumulator` —
 /// the distinct user-message samples feeding the multi-sample regex agent.
 pub const USER_TASK_TEMPLATE_SAMPLES_CACHE_KEY: &str = "user_task_template_samples";
+/// `(project, hash of the signposted text) → String` — a direct extraction's
+/// result, so identical texts arriving in a burst pay one LLM call.
+pub const USER_TASK_DIRECT_RESULT_CACHE_KEY: &str = "user_task_direct_result";
 /// Per-cohort lock serializing the user-task regex agent's run.
 pub const USER_TASK_TEMPLATE_REGEX_AGENT_LOCK_CACHE_KEY: &str =
     "user_task_template_regex_agent_lock";

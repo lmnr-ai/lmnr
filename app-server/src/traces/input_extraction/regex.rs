@@ -270,6 +270,9 @@ pub enum Resolution {
     Fallback,
     /// No live version for this template yet (a cold-start agent).
     NoVersion,
+    /// A direct extraction was due, but the same text was extracted minutes
+    /// ago and its result was reused.
+    DirectCached,
 }
 
 impl Resolution {
@@ -279,6 +282,7 @@ impl Resolution {
             Resolution::Inherited => "inherited",
             Resolution::Fallback => "fallback",
             Resolution::NoVersion => "no_version",
+            Resolution::DirectCached => "direct_cached",
         }
     }
 }
