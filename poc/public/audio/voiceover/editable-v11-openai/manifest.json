@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "scoreStyle": "openai-pulse",
+  "seed": 107290,
+  "sampleRate": 48000,
+  "frames": 2085,
+  "samples": 3336000,
+  "bed": {
+    "file": "bed.wav",
+    "sha256": "1e7c02bce9a2dcc7f6ec26ee2ac6b5e8be67ef73908c8f3e65fdf5238e7dd9eb"
+  },
+  "bedDb": -7.5,
+  "masterGain": 1.2732922437993115,
+  "normalisedGain": 1.5673342429531223,
+  "settingsSha256": "46a9e789c589a901e412a97a8f1d73edf08182560732b62f34c9966cfed47217",
+  "score": {
+    "lufs": -15.75,
+    "truePeakDb": -1,
+    "counts": {
+      "air": 1,
+      "tick": 234,
+      "glint": 79,
+      "key": 220,
+      "pressure": 36,
+      "whistle": 5,
+      "keyClick": 10
+    }
+  },
+  "layers": {
+    "sub": {
+      "lufs": -15.97,
+      "truePeakDb": -4.98
+    },
+    "keys": {
+      "lufs": -23.66,
+      "truePeakDb": -7.7
+    },
+    "glass": {
+      "lufs": -24.61,
+      "truePeakDb": -6.9
+    },
+    "ticks": {
+      "lufs": -35.39,
+      "truePeakDb": -3.76
+    },
+    "air": {
+      "lufs": -40.25,
+      "truePeakDb": -28.19
+    },
+    "lift": {
+      "lufs": -36.37,
+      "truePeakDb": -27.51
+    },
+    "typing": {
+      "lufs": -40.48,
+      "truePeakDb": -21.37
+    }
+  },
+  "phrases": "/audio/voiceover/editable-v11/",
+  "phraseManifestSha256": "07d9c6816660636e18ac45de10c1f875351cd3d0e646b260d1adea7206040734",
+  "note": "Voice-free bed (gated sub, keys, glass, ticks, air, lift and typing; no piano) at -7.5 dB; the narration stays the editable-v11 trims of the approved take. Layer stems render at the same fixed master gain and sum to the bed before the trim."
+}

@@ -1,6 +1,12 @@
 import type {Ultimate3Settings} from './settings';
-import {VOICEOVER_BED_URL, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from './voiceover-phrases';
+import {isVoiceoverBed, voiceoverBedUrl, VOICEOVER_BED, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT, type VoiceoverBed} from './voiceover-phrases';
 import {phraseGain, voiceoverSchedule, VOICEOVER_CALIBRATION, VOICEOVER_FADE} from './voiceover-schedule';
+
+/** `?bed=openai` (v1) or `?bed=piano` (Arabesque) swaps in a comparison bed; anything else plays the default. */
+export const selectedVoiceoverBed = (search = typeof location === 'undefined' ? '' : location.search): VoiceoverBed => {
+  const bed = new URLSearchParams(search).get('bed');
+  return isVoiceoverBed(bed) ? bed : VOICEOVER_BED;
+};
 
 /** One AudioContext/master; one voice-free keyboard-bearing bed plus authored phrase buffers. */
 export class VoiceoverEngine {
@@ -20,7 +26,7 @@ export class VoiceoverEngine {
       const context = this.context = new AudioContext();
       this.master = context.createGain(); this.master.gain.value = this.volume;
       this.master.connect(context.destination);
-      this.loading = Promise.all([['bed', VOICEOVER_BED_URL], ...VOICEOVER_PHRASES.map(p => [p.id, VOICEOVER_SOURCE_ROOT + p.file])].map(async ([id, url]) => {
+      this.loading = Promise.all([['bed', voiceoverBedUrl(selectedVoiceoverBed())], ...VOICEOVER_PHRASES.map(p => [p.id, VOICEOVER_SOURCE_ROOT + p.file])].map(async ([id, url]) => {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Unable to load voiceover source: ${url}`);
         return [id, await context.decodeAudioData(await response.arrayBuffer())] as const;
