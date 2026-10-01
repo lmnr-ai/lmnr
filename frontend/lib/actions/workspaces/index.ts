@@ -5,6 +5,7 @@ import { createProject } from "@/lib/actions/projects";
 import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { createSignal } from "@/lib/actions/signals";
 import { getServerSession } from "@/lib/auth-session";
+import { SIGNALS_SIGNUP_CREDIT_MICRO_USD } from "@/lib/billing/tiers";
 import { defaultReports } from "@/lib/db/default-charts.ts";
 import { DEFAULT_SIGNAL } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
@@ -105,6 +106,8 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     .values({
       name,
       tierId: 1,
+      signalCreditGrantedMicroUsd: SIGNALS_SIGNUP_CREDIT_MICRO_USD,
+      signalCreditRemainingMicroUsd: SIGNALS_SIGNUP_CREDIT_MICRO_USD,
     })
     .returning({
       id: workspaces.id,

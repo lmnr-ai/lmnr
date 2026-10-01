@@ -16,6 +16,8 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+import { reconcileSignalCredit } from "./signal-credit";
+
 interface ProjectBillingInfo {
   id: string;
   name: string;
@@ -24,14 +26,12 @@ interface ProjectBillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   bytesLimit: number;
-  signalCostIncludedMicroUsd: number;
   signalCostHardLimitMicroUsd?: number | null;
 }
 
 interface BillingInfo {
   workspaceId: string;
   tierName: string;
-  signalCostIncludedMicroUsd: number;
   resetTime: string;
   workspaceProjectIds: string[];
   signalCostHardLimitMicroUsd: number | null;
@@ -45,7 +45,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       return {
         workspaceId: cached.workspaceId,
         tierName: cached.tierName,
-        signalCostIncludedMicroUsd: Number(cached.signalCostIncludedMicroUsd),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
         signalCostHardLimitMicroUsd:
@@ -59,7 +58,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   const tierRows = await db
     .select({
       workspaceId: workspaces.id,
-      signalCostIncludedMicroUsd: subscriptionTiers.signalCostIncludedMicroUsd,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
     })
@@ -92,7 +90,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   return {
     workspaceId: row.workspaceId,
     tierName: row.tierName,
-    signalCostIncludedMicroUsd: Number(row.signalCostIncludedMicroUsd),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
     signalCostHardLimitMicroUsd: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
@@ -117,30 +114,21 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   const {
     workspaceId,
     tierName,
-    signalCostIncludedMicroUsd,
     resetTime,
     workspaceProjectIds,
     signalCostHardLimitMicroUsd: customSignalCostLimit,
   } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
-  let effectiveLimit: number;
-  if (isFree) {
-    effectiveLimit = signalCostIncludedMicroUsd;
-  } else {
-    // For paid tiers, use the custom signal cost limit if set
-    if (customSignalCostLimit == null) {
-      return; // No custom limit for paid tier, no enforcement
-    }
-    effectiveLimit = customSignalCostLimit;
-  }
-
-  // For free tier, signalCostIncludedMicroUsd=0 means "no limit configured on this tier"
-  // For custom limits (paid tiers), 0 means "block everything" so we don't skip
-  if (isFree && effectiveLimit === 0) {
+  // Paid tiers only need this preflight path when the owner configured a
+  // monthly safety cap. Their one-time credit is reconciled after successful
+  // runs and before usage/Stripe calculations.
+  if (!isFree && customSignalCostLimit == null) {
     return;
   }
 
+  const resetTimeDate = new Date(resetTime);
+  const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
   const inputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
   const cacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
   const outputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
@@ -166,8 +154,6 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
       return;
     }
 
-    const resetTimeDate = new Date(resetTime);
-    const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
     const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
 
     const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
@@ -189,11 +175,23 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
 
   const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
 
+  const formatUsd = (microUsd: number) =>
+    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  if (isFree) {
+    const credit = await reconcileSignalCredit(workspaceId, latestResetTime, totalSignalCost);
+    if (credit.remainingMicroUsd === 0) {
+      throw new Error(
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
+      );
+    }
+    return;
+  }
+
+  const effectiveLimit = customSignalCostLimit!;
   if (totalSignalCost >= effectiveLimit) {
-    const formatUsd = (microUsd: number) =>
-      `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     throw new Error(
-      `Signal cost limit exceeded. Your workspace has used ${formatUsd(totalSignalCost)} of the ${formatUsd(effectiveLimit)} signal budget allowed this billing period.${isFree ? " Please upgrade your plan." : ""}`
+      `Signal cost limit exceeded. Your workspace has used ${formatUsd(totalSignalCost)} of the ${formatUsd(effectiveLimit)} signal budget allowed this billing period.`
     );
   }
 }

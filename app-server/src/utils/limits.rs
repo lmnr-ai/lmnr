@@ -57,17 +57,6 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
     project_info.custom_bytes_limit
 }
 
-/// Returns the effective signal cost hard limit (micro-USD) for a workspace, or None if no limit should be enforced.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-fn get_effective_signal_cost_limit_micro_usd(
-    project_info: &ProjectWithWorkspaceBillingInfo,
-) -> Option<i64> {
-    if project_info.tier_name.is_free() {
-        return Some(project_info.signal_cost_included_micro_usd);
-    }
-    project_info.signal_cost_hard_limit_micro_usd
-}
-
 /// Compute the start of the current billing period from workspace reset_time.
 fn current_billing_period_start(reset_time: DateTime<Utc>) -> DateTime<Utc> {
     let now = Utc::now();
@@ -157,6 +146,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
         UsageItem::Bytes,
         bytes_ingested,
         Some(effective_limit),
+        false,
     )
     .await;
 
@@ -188,10 +178,11 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         }
     };
 
-    let effective_limit = match get_effective_signal_cost_limit_micro_usd(&project_info) {
-        Some(limit) => limit,
-        None => return Ok(false),
-    };
+    let is_free = project_info.tier_name.is_free();
+    let effective_limit = project_info.signal_cost_hard_limit_micro_usd;
+    if !is_free && effective_limit.is_none() {
+        return Ok(false);
+    }
 
     let workspace_id = project_info.workspace_id;
 
@@ -207,12 +198,27 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
 
     // Tokens are stored raw; price into micro-USD here so the hard limit
     // compares against the same unit as `effective_limit` (also micro-USD).
-    let signal_cost = crate::utils::signal_token_cost_micro_usd(
-        input_tokens,
-        cache_read_tokens,
-        output_tokens,
-    ) as i64;
+    let signal_cost =
+        crate::utils::signal_token_cost_micro_usd(input_tokens, cache_read_tokens, output_tokens)
+            as i64;
 
+    if is_free {
+        let billing_start = current_billing_period_start(project_info.reset_time);
+        let credit = db::signal_credits::reconcile_signal_credit(
+            &db.pool,
+            workspace_id,
+            billing_start,
+            signal_cost,
+        )
+        .await?;
+        log::debug!(
+            "Workspace Signals credit check: {} micro-USD remaining",
+            credit.remaining_micro_usd
+        );
+        return Ok(credit.remaining_micro_usd == 0);
+    }
+
+    let effective_limit = effective_limit.expect("paid workspace limit checked above");
     log::debug!(
         "Workspace signal cost check: {}/{} micro-USD",
         signal_cost,
@@ -220,7 +226,8 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     );
 
     // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
-    // notifies when usage is already over the cap. Dedup via the DB last_notified_at.
+    // notifies when usage is already over a user-configured cap. Dedup via the
+    // DB last_notified_at.
     check_notify_hard_limit(
         db,
         cache,
@@ -230,6 +237,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         UsageItem::SignalCost,
         signal_cost,
         Some(effective_limit),
+        false,
     )
     .await;
 
@@ -440,6 +448,7 @@ pub async fn update_workspace_bytes_ingested(
         UsageItem::Bytes,
         current_value,
         effective_bytes_limit,
+        false,
     )
     .await;
 
@@ -493,9 +502,6 @@ pub async fn update_workspace_signal_tokens(
     };
 
     let workspace_id = project_info.workspace_id;
-    // Capture before `workspace_project_ids` is moved into the ClickHouse query below.
-    let effective_signal_cost_limit = get_effective_signal_cost_limit_micro_usd(&project_info);
-
     let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
     let cache_read_key =
         format!("{WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
@@ -624,11 +630,18 @@ pub async fn update_workspace_signal_tokens(
 
     // Soft limits are denominated in micro-USD; derive cost from the running
     // token totals.
-    let current_cost = crate::utils::signal_token_cost_micro_usd(
-        total_input,
-        total_cache_read,
-        total_output,
-    ) as i64;
+    let current_cost =
+        crate::utils::signal_token_cost_micro_usd(total_input, total_cache_read, total_output)
+            as i64;
+
+    let billing_start = current_billing_period_start(project_info.reset_time);
+    let credit = db::signal_credits::reconcile_signal_credit(
+        &db.pool,
+        workspace_id,
+        billing_start,
+        current_cost,
+    )
+    .await?;
 
     check_soft_limits(
         db.clone(),
@@ -642,17 +655,38 @@ pub async fn update_workspace_signal_tokens(
     )
     .await;
 
-    check_notify_hard_limit(
-        db,
-        cache,
-        queue,
-        workspace_id,
-        project_info.reset_time,
-        UsageItem::SignalCost,
-        current_cost,
-        effective_signal_cost_limit,
-    )
-    .await;
+    if project_info.tier_name.is_free() {
+        // Notify only on the transition that consumes the final credit. Calling
+        // the monthly hard-limit notifier from every later preflight would send
+        // a misleading reminder each cycle even though the credit never resets.
+        if credit.remaining_micro_usd == 0 && credit.applied_delta_micro_usd > 0 {
+            check_notify_hard_limit(
+                db,
+                cache,
+                queue,
+                workspace_id,
+                project_info.reset_time,
+                UsageItem::SignalCost,
+                current_cost,
+                Some(credit.available_this_period_micro_usd),
+                true,
+            )
+            .await;
+        }
+    } else {
+        check_notify_hard_limit(
+            db,
+            cache,
+            queue,
+            workspace_id,
+            project_info.reset_time,
+            UsageItem::SignalCost,
+            current_cost,
+            project_info.signal_cost_hard_limit_micro_usd,
+            false,
+        )
+        .await;
+    }
 
     Ok(())
 }
@@ -740,7 +774,10 @@ async fn send_soft_limit_notification(
 
     let tier_included = match usage_item {
         UsageItem::Bytes => tier_name.included_bytes(),
-        UsageItem::SignalCost => tier_name.included_signal_cost_micro_usd(),
+        // Signals no longer has a recurring tier allowance. The one-time
+        // workspace credit is reconciled separately and is never represented
+        // by a monthly warning row.
+        UsageItem::SignalCost => None,
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
     let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
@@ -814,6 +851,7 @@ async fn check_notify_hard_limit(
     usage_item: UsageItem,
     current_value: i64,
     effective_limit: Option<i64>,
+    one_time_credit_exhausted: bool,
 ) {
     let limit = match effective_limit {
         Some(l) => l,
@@ -890,6 +928,7 @@ async fn check_notify_hard_limit(
             usage_label,
             formatted_limit,
             usage_item: usage_item.to_string(),
+            one_time_credit_exhausted,
         }],
     };
 

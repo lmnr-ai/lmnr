@@ -110,7 +110,6 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_cost_included_micro_usd: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
@@ -164,20 +163,6 @@ impl WorkspaceTierName {
         }
     }
 
-    /// Signal cost included in this tier's monthly plan, in micro-USD (1e-6
-    /// USD). Signals are billed by the token cost the agent spends, so the
-    /// included allowance is a dollar amount: $2.50 Free, $7.50 Hobby, $25 Pro.
-    /// Must stay in sync with `TIER_CONFIG.includedSignalCostMicroUsd` in the
-    /// frontend and the `subscription_tiers.signal_cost_included_micro_usd` DB column.
-    pub fn included_signal_cost_micro_usd(&self) -> Option<i64> {
-        match self {
-            Self::Free => Some(2_500_000),
-            Self::Hobby => Some(7_500_000),
-            Self::Pro => Some(25_000_000),
-            Self::Other => None,
-        }
-    }
-
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Free => "Free",
@@ -185,31 +170,6 @@ impl WorkspaceTierName {
             Self::Pro => "Pro",
             Self::Other => "your",
         }
-    }
-}
-
-#[cfg(test)]
-mod workspace_tier_tests {
-    use super::WorkspaceTierName;
-
-    #[test]
-    fn included_signal_credits_match_tier_configuration() {
-        assert_eq!(
-            WorkspaceTierName::Free.included_signal_cost_micro_usd(),
-            Some(2_500_000)
-        );
-        assert_eq!(
-            WorkspaceTierName::Hobby.included_signal_cost_micro_usd(),
-            Some(7_500_000)
-        );
-        assert_eq!(
-            WorkspaceTierName::Pro.included_signal_cost_micro_usd(),
-            Some(25_000_000)
-        );
-        assert_eq!(
-            WorkspaceTierName::Other.included_signal_cost_micro_usd(),
-            None
-        );
     }
 }
 
@@ -223,7 +183,6 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_cost_included_micro_usd: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
@@ -256,7 +215,6 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             reset_time: self.reset_time,
             workspace_project_ids: self.workspace_project_ids,
             bytes_limit: self.bytes_limit,
-            signal_cost_included_micro_usd: self.signal_cost_included_micro_usd,
             custom_bytes_limit: self.custom_bytes_limit,
             signal_cost_hard_limit_micro_usd: self.signal_cost_hard_limit_micro_usd,
             settings,
@@ -419,7 +377,6 @@ pub async fn get_project_and_workspace_billing_info(
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
             subscription_tiers.bytes_ingested as bytes_limit,
-            subscription_tiers.signal_cost_included_micro_usd as signal_cost_included_micro_usd,
             wul_bytes.limit_value as custom_bytes_limit,
             wul_signal_cost.limit_value as signal_cost_hard_limit_micro_usd,
             projects.settings

@@ -329,8 +329,8 @@ export const handleInvoiceFinalized = async (
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
-// Extra overage warnings fired on Hobby only, above the included allowance, so users
-// accumulating a large overage bill are nudged before it grows further. The signal
+// Extra overage warnings fired on Hobby so users accumulating a large overage
+// bill are nudged before it grows further. The signal
 // threshold is in micro-USD (1e-6 USD): $100
 const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
@@ -360,15 +360,6 @@ const insertNewTierUsageWarnings = async ({
           eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedBytes)
         )
       );
-    await db
-      .delete(workspaceUsageWarnings)
-      .where(
-        and(
-          eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "signal_cost"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalCostMicroUsd)
-        )
-      );
   }
 
   const values = [
@@ -376,11 +367,6 @@ const insertNewTierUsageWarnings = async ({
       workspaceId,
       usageItem: "bytes",
       limitValue: newTierConfig.includedBytes,
-    },
-    {
-      workspaceId,
-      usageItem: "signal_cost",
-      limitValue: newTierConfig.includedSignalCostMicroUsd,
     },
   ];
   if (newTierName === "hobby") {
@@ -439,16 +425,10 @@ const upsertDefaultTierUsageLimits = async ({
   currentTierName?: PaidTier;
 }) => {
   // Preserve user overrides: only clear the default when it still matches a known Hobby
-  // default. TIER_CONFIG["hobby"].includedSignalCostMicroUsd covers workspaces whose default
-  // was written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD.
-  // Looked up here (not accepted from the caller) so the cleanup does not silently skip when
-  // the caller forgets to pass currentTierConfig.
+  // default. Looked up here (not accepted from the caller) so the cleanup does
+  // not silently skip when the caller forgets to pass currentTierConfig.
   if (currentTierName === "hobby" && newTierName !== "hobby") {
     const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD];
-    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalCostMicroUsd;
-    if (!clearableValues.includes(legacyHobbyDefault)) {
-      clearableValues.push(legacyHobbyDefault);
-    }
     const deleted = await db
       .delete(workspaceUsageLimits)
       .where(

@@ -18,6 +18,8 @@ pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;
 pub mod reports;
+#[cfg(feature = "signals")]
+pub mod signal_credits;
 pub mod signal_triggers;
 pub mod signals;
 pub mod slack_integrations;

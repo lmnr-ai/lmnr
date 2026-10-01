@@ -12,6 +12,9 @@ export type WorkspaceStats = {
   // Signal cost usage fields, denominated in micro-USD (1e-6 USD)
   signalCostUsedThisMonth: number;
   signalCostLimit?: number;
+  signalCreditGrantedMicroUsd?: number;
+  signalCreditRemainingMicroUsd?: number;
+  signalCreditAppliedThisPeriodMicroUsd?: number;
   signalCostOverLimit?: number;
   signalCostOverLimitUsd?: number;
 };

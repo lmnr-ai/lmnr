@@ -252,6 +252,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             usage_label,
             formatted_limit,
             usage_item,
+            one_time_credit_exhausted,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
             subject: format!(
@@ -264,6 +265,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 usage_item,
                 formatted_limit,
                 usage_label,
+                *one_time_credit_exhausted,
             ),
         },
     }
@@ -543,6 +545,7 @@ fn render_usage_hard_limit_email(
     usage_item: &str,
     formatted_limit: &str,
     usage_label: &str,
+    one_time_credit_exhausted: bool,
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
@@ -559,10 +562,15 @@ fn render_usage_hard_limit_email(
         "usage_hard_limit",
         "manage_limits",
     );
-    let copy = format!(
-        "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
-        meter
-    );
+    let copy = if one_time_credit_exhausted {
+        "Your workspace has used its one-time Signals credit. Upgrade to continue running Signals."
+            .to_string()
+    } else {
+        format!(
+            "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
+            meter
+        )
+    };
     let rows = vec![
         ("Hard limit".to_string(), html_escape(formatted_limit)),
         ("Usage".to_string(), html_escape(usage_label)),
@@ -1039,13 +1047,35 @@ mod tests {
             "Free",
             false,
         );
-        let hard_limit_html =
-            render_usage_hard_limit_email("Workspace", Uuid::nil(), "bytes", "3 GiB", "3 GiB");
+        let hard_limit_html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "bytes",
+            "3 GiB",
+            "3 GiB",
+            false,
+        );
 
         assert!(warning_html.contains(EMAIL_PRIMARY_50));
         assert!(warning_html.contains("View usage"));
         assert!(hard_limit_html.contains(EMAIL_PRIMARY_50));
         assert!(hard_limit_html.contains("Manage limit"));
+    }
+
+    #[test]
+    fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
+        let html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "signal_cost",
+            "$5.00",
+            "$5.00",
+            true,
+        );
+
+        assert!(html.contains("used its one-time Signals credit"));
+        assert!(html.contains("Upgrade to continue"));
+        assert!(!html.contains("billing cycle resets"));
     }
 
     #[test]

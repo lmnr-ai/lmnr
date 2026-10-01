@@ -25,12 +25,7 @@ import { cn } from "@/lib/utils.ts";
 
 const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
   const { settingsHref } = useProjectContext();
-  const {
-    gbLimit,
-    gbUsedThisMonth,
-    signalCostLimit: signalRunsLimit,
-    signalCostUsedThisMonth: signalRunsUsedThisMonth,
-  } = usageDetails;
+  const { gbLimit, gbUsedThisMonth, signalCreditGrantedMicroUsd, signalCreditRemainingMicroUsd } = usageDetails;
   const formatGB = (gb: number) => {
     if (gb < 0.001) {
       return `${(gb * 1024).toFixed(0)} MB`;
@@ -43,7 +38,13 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
     `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const storagePercentage = gbLimit > 0 ? Math.min((gbUsedThisMonth / gbLimit) * 100, 100) : 0;
-  const runsPercentage = signalRunsLimit > 0 ? Math.min((signalRunsUsedThisMonth / signalRunsLimit) * 100, 100) : 0;
+  const signalCreditUsedPercentage =
+    signalCreditGrantedMicroUsd > 0
+      ? Math.min(
+          ((signalCreditGrantedMicroUsd - signalCreditRemainingMicroUsd) / signalCreditGrantedMicroUsd) * 100,
+          100
+        )
+      : 100;
 
   if (!open) return null;
 
@@ -73,14 +74,20 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
             Signals
           </span>
           <span className="font-medium text-secondary-foreground">
-            <span className="font-semibold">{formatSignalCost(signalRunsUsedThisMonth)}</span> /{" "}
-            {formatSignalCost(signalRunsLimit)}
+            {signalCreditGrantedMicroUsd > 0 ? (
+              <>
+                <span className="font-semibold">{formatSignalCost(signalCreditRemainingMicroUsd)}</span> /{" "}
+                {formatSignalCost(signalCreditGrantedMicroUsd)} credit left
+              </>
+            ) : (
+              "No credit available"
+            )}
           </span>
         </div>
         <Progress
-          value={runsPercentage}
+          value={signalCreditUsedPercentage}
           className="h-1.5 border"
-          indicatorClassName={cn({ "bg-destructive": runsPercentage > 80 })}
+          indicatorClassName={cn({ "bg-destructive": signalCreditUsedPercentage > 80 })}
         />
       </div>
 

@@ -26,7 +26,7 @@ const AxisTickLabels = () => (
             top: `calc(100% - var(--chart-bottom-row) + ${scaledWidth(5)})`,
           }}
         >
-          {tick}
+          {tick.toLocaleString()}
         </span>
       ))}
     </div>

@@ -10,15 +10,19 @@ import {
 } from "@/components/landing/sections/flow-one/chart-geometry";
 
 describe("flow-1 comparison chart", () => {
-  it("uses full-benchmark description F1 and under-16K pricing measurements", () => {
+  it("uses full-benchmark description F1 and under-100K pricing measurements", () => {
     assert.deepEqual(
       BENCHMARK_MODELS.map(({ descF1 }) => descF1),
       [73, 80.6, 76.9, 71.3, 63.8, 65.3]
     );
     assert.deepEqual(
       BENCHMARK_MODELS.map(({ tracesPerDollar }) => tracesPerDollar),
-      [756, 7, 11, 37, 632, 14]
+      [886, 7, 12, 38, 632, 14]
     );
+
+    const flowOne = BENCHMARK_MODELS.find(({ label }) => label === "flow-1")!;
+    const sol = BENCHMARK_MODELS.find(({ label }) => label === "GPT-6 Sol")!;
+    assert.equal(Math.round(flowOne.tracesPerDollar / sol.tracesPerDollar), 23);
   });
 
   it("spaces equal traces-per-dollar intervals equally", () => {
