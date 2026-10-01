@@ -27,6 +27,16 @@ const SOFT_KIT: Route = {...KIT, gain: .55};
  * line, then G lands on beat 8 (just after the word), holds 3 beats and rests through a closing filter.
  */
 const BUTTON = {hold: 3, release: 3, pad: .5, bass: .28, sub: .04, kick: .55, keys: .26, closeHz: 700};
+/**
+ * `glide-minimal` "lift" ending: the payoff lands ON the logo (beat 6), under "with Laminar", not after it.
+ * The groove turns V (Dsus, beat 5) into I (Gmaj9 on the logo), the kit stops on one hit (kick + a long, bright
+ * air "crash" + sub), the chord stays open and rings over the logo hold, and decays by level, not by a low-pass.
+ * Times are in beats of the conclusion grid; `hold`/`subHold` end the logo chord/sub, `closeFrom` starts the last gentle close.
+ */
+const LIFT = {groovePad: .7, grooveTone: 4200, grooveKeys: .75, hats: 1.5, vRelease: .5, logoKick: .9, pad: .42, padTone: 6000, hold: 10, padRelease: 3.2,
+  bass: .3, sub: .05, subHold: 9.5, crash: .14, crashHz: 9000, riser: .07, keys: .2, closeFrom: 14, closeHz: 3500};
+/** The logo's G (over the G2 bass), voiced open and high (B5–D7): bright, and out of 500 Hz–1 kHz, where the bed masks the voice most. */
+const Glogo = [83, 86, 90, 93, 98];
 
 // Voicings stay in G major / E minor, like the reference; the only foreign colour is Cost's F and B♭.
 // One octave above the voice's body (G4–A5), so the bed is air and mid, not chest; the sub carries the floor.
@@ -55,7 +65,8 @@ export const glideGrid = (cues: ScoreCues) => {
 };
 
 /** `minimal` is the `glide-minimal` cut: v1 with quieter mid-range under the voice and an ending that rests. */
-export function composeGlide(mix: Mix, cues: ScoreCues, minimal = false) {
+export function composeGlide(mix: Mix, cues: ScoreCues, minimal = false, ending: 'rest' | 'lift' = 'rest') {
+  const lift = minimal && ending === 'lift';
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
   const shut = flow.coverShut, drop = end.start - .9, cmp = flow.comparison;
   const returnAt = cmp ? cmp.comparison_returnToGrid.at : flow.cameraToEngine.at;
@@ -119,26 +130,43 @@ export function composeGlide(mix: Mix, cues: ScoreCues, minimal = false) {
   const kit = minimal ? SOFT_KIT : KIT;
   for (let s = 0; s < Math.min(total, tail + 1); s++) {
     const step = s % 16, time = swing(s);
-    if (s === tail) { kick(mix, time, .6, kit); break; }
+    if (s === tail) { kick(mix, time, lift ? LIFT.logoKick : .6, kit); break; }
     if (step === 0 || step === 10 || (step === 7 && s > 16)) kick(mix, time, step === 0 ? .8 : .55, kit);
     if (step === 4 || step === 12) snare(mix, time, .55, kit, .35);
-    if (step % 2 === 0) hat(mix, time, step % 4 === 0 ? .62 : .45, {...kit, pan: .18}, .024);
-    else if (step === 15 || step === 11) hat(mix, time, .28, {...kit, pan: .18}, .02);
-    if (step === 14) hat(mix, time, .42, {...kit, pan: -.2}, .12);
+    // Lift: the hats carry the groove's top (≥ 8 kHz, far above the voice), and the last bar swells into the logo.
+    const hats = lift ? LIFT.hats * (s >= 16 ? 1 + .35 * (s - 16) / 8 : 1) : 1;
+    if (step % 2 === 0) hat(mix, time, (step % 4 === 0 ? .62 : .45) * hats, {...kit, pan: .18}, .024);
+    else if (step === 15 || step === 11) hat(mix, time, .28 * hats, {...kit, pan: .18}, .02);
+    if (step === 14) hat(mix, time, .42 * hats, {...kit, pan: -.2}, .12);
   }
   // Roots G2/E2/C2 stay under the voice's fundamental (~100–250 Hz).
   // Minimal drops the keys on beat 5.5, whose delay repeats land on "with La-".
-  const chords: [number, number, readonly number[], number][] = [[0, 4, Gmaj9, 43], [4, 6, Em9, 40], [6, 8, Cmaj9, 36], [8, minimal ? 8 + BUTTON.hold : (end.end - end.start) / beat, Gmaj9, 43]];
+  // Lift keeps the same four pads (same note counts, so the seeded sequence after it is unchanged): G, Em9, then a
+  // Dsus (V) in the gap after "agent traces" that resolves to G (I) on the logo; the G holds and rings out.
+  const chords: [number, number, readonly number[], number][] = lift ? [[0, 4, Gmaj9, 43], [4, 5, Em9, 40], [5, 6, Dsus, 38], [6, LIFT.hold, Glogo, 43]]
+    : [[0, 4, Gmaj9, 43], [4, 6, Em9, 40], [6, 8, Cmaj9, 36], [8, minimal ? 8 + BUTTON.hold : (end.end - end.start) / beat, Gmaj9, 43]];
   for (const [from, to, tones, root] of chords) {
+    if (lift && from === 6) {
+      haze(mix, at(from), at(to), tones, PAD, {attack: .06, release: LIFT.padRelease, level: LIFT.pad, tone: LIFT.padTone});
+      bass(mix, at(from), root, beat * 2, LIFT.bass, SUB, {glide: -1.5, drive: 1.6});
+      continue;
+    }
     const button = minimal && from === 8;
     haze(mix, at(from), at(to), tones, PAD, button ? {attack: .12, release: BUTTON.release, level: BUTTON.pad, tone: 2600}
-      : {attack: .2, release: 1.2, level: from < 6 ? .8 : .5, tone: from < 6 ? 3000 : 1800});
+      : {attack: .2, release: lift && from === 5 ? LIFT.vRelease : 1.2, level: lift ? LIFT.groovePad : from < 6 ? .8 : .5, tone: lift ? LIFT.grooveTone : from < 6 ? 3000 : 1800});
     bass(mix, at(from), root, button ? beat * 1.5 : Math.min(to - from, 2) * beat - .08, button ? BUTTON.bass : from < 6 ? minimal ? .32 : .4 : .22, SUB, {glide: -1.5, drive: 1.6});
     if (to - from >= 4 && from < 6) bass(mix, at(from + 2.5), root, beat * 1.3, .3, SUB, {drive: 1.6});
-    if (from < 6) keys(mix, at(from), tones.slice(1), .3, COMP, 1.1);
-    if (to - from >= 2 && from < (minimal ? 4 : 6)) keys(mix, swing(from * 4 + 6), tones.slice(2), .2, COMP, .7);
+    if (from < (lift ? 5 : 6)) keys(mix, at(from), tones.slice(1), .3 * (lift ? LIFT.grooveKeys : 1), COMP, 1.1);
+    if (to - from >= 2 && from < (minimal ? 4 : 6)) keys(mix, swing(from * 4 + 6), tones.slice(2), .2 * (lift ? LIFT.grooveKeys : 1), COMP, .7);
   }
   if (!minimal) return;
+  if (lift) {
+    // The sub swells under the logo and the brand line; after "Laminar" one soft keys bloom answers, then a high echo.
+    drone(mix, at(6), at(LIFT.subHold), 31, SUB, {level: LIFT.sub, attack: .02, release: 2});
+    keys(mix, at(8), Gmaj9.slice(2), LIFT.keys, COMP, 2.4);
+    keys(mix, at(11), [86, 91], LIFT.keys * .35, COMP, 2);
+    return;
+  }
   // The answer to "with Laminar": the full chord, a sub under it, and two echoes of it rising as it rests.
   drone(mix, at(8), at(8 + BUTTON.hold), 31, SUB, {level: BUTTON.sub, attack: .03, release: BUTTON.release});
   keys(mix, at(8), Gmaj9.slice(1), BUTTON.keys, COMP, 2.2);
@@ -146,7 +174,7 @@ export function composeGlide(mix: Mix, cues: ScoreCues, minimal = false) {
   keys(mix, at(12), [86, 91], BUTTON.keys * .35, COMP, 2);
 }
 
-export function designGlide(mix: Mix, cues: ScoreCues, minimal = false) {
+export function designGlide(mix: Mix, cues: ScoreCues, minimal = false, ending: 'rest' | 'lift' = 'rest') {
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion;
   const cmp = flow.comparison;
   const speck = (time: number, index: number, velocity: number, pan = 0, decay = .05) => glint(mix, time, SPECKS[Math.max(0, Math.min(SPECKS.length - 1, index))], velocity, {...SPECK, pan}, decay);
@@ -272,6 +300,15 @@ export function designGlide(mix: Mix, cues: ScoreCues, minimal = false) {
   // --- Conclusion: the logo lands as light, not a stab — any mid-range hit masks "with Laminar".
   [0, 2, 4, 6].forEach((index, i) => speck(end.logo + i * .045, index, .32 - i * .04, -.3 + i * .2, .35));
   if (!minimal) { air(mix, end.logo - beat, end.end, FX, {hz: 6500, q: .5, level: .03, shape: q => Math.min(1, q * 4) * (1 - q)}); return; }
+  if (ending === 'lift') {
+    // A reversed-air swell pulls into the logo; the logo is the hit (a long bright air "crash"), light glints after "Laminar",
+    // and only the last beats close gently so the hall tail doesn't cut at the end of the file.
+    air(mix, at(4.5), end.logo, FX, {hz: 7000, q: .5, level: LIFT.riser, shape: q => q ** 2.5});
+    air(mix, end.logo, end.end, {...FX, hall: .4}, {hz: LIFT.crashHz, q: .4, level: LIFT.crash, shape: q => Math.min(1, q * 300) * Math.exp(-q * 5)});
+    [1, 3, 5, 7].forEach((index, i) => speck(at(8) + i * .06, index, .24 - i * .03, -.3 + i * .2, .4));
+    mix.sweep(automation([[at(LIFT.closeFrom), 20_000], [at(LIFT.closeFrom) + .01, 16_000], [end.end, LIFT.closeHz]]));
+    return;
+  }
   // The answer on beat 8 rises in light, then everything rests through a low-pass closing to beat 15.5.
   [1, 3, 5, 7].forEach((index, i) => speck(at(8) + i * .06, index, .3 - i * .04, -.3 + i * .2, .4));
   kick(mix, at(8), BUTTON.kick, SOFT_KIT);

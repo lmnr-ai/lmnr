@@ -8,6 +8,38 @@ The default preview and default export still use Arabesque.
 - Candidate video (Glide + approved narration): https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-turbopuffer-voiceover.mp4
 - A/B, approved Arabesque mix, same picture: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-arabesque-approved-ab.mp4
 
+## Glide · minimal (lift) (`glide-minimal-lift`), the ending revised
+
+Feedback on Glide · minimal: the drums build momentum and the excitement is finally satisfied at "Unlock the insights…", but "it still gets muffled at 'with Laminar'". A second review measured the ending. It found these causes, ranked:
+
+1. **The ending deflated on the brand line.** The mix drops 4.6 LU from n22 to n23. Part of that is the take itself: "with Laminar" is the quietest and dullest phrase, -19.6 LUFS against -14.1 for n22, peaking at -4.7 dBFS, with 8.6 dB less 2–4 kHz. The bed made it worse. It fell 2.2 LU, and its 500 Hz–4 kHz body fell 5.7 dB, because the kit stopped, the pad darkened to Cmaj9 at .5 through 1.8 kHz, and the keys dropped out. Nothing was low-passed under the words.
+2. **The payoff landed after the words.** The bed peaked at 68.55 s, 0.5 s after "Laminar", and the brand line sat on IV (C), only resolving to G afterwards.
+3. **The conclusion was dark.** The groove's 2–8 kHz band sat 29 dB under its total level (earlier sections: 19 dB; the reference's music: 12–17 dB).
+4. **The rest closed to 700 Hz,** so the logo hold also ended muffled.
+
+The design is to land the payoff on the logo:
+
+- The groove is unchanged in pattern. The hats are ×1.5 and swell through the last bar, and the groove pad is .7 through a 4.2 kHz filter. The keys are ×.75, which lifts n22's speech-band SNR from 5.6 to 7.3 dB.
+- The harmony goes G → Em9 → **Dsus (V) in the gap after "agent traces"** → **G (I) on the logo**.
+- On the logo, the kit stops on one hit (kick .9). A G2 bass and G1 sub swell in, a reversed-air riser leads into it, and a long bright air "crash" sits around 9 kHz. The chord is G voiced open and high (B5–D7), out of the octave where the bed masks the voice. "With Laminar" rides that crest.
+- After the word, one soft keys bloom with glints answers on beat 8, deliberately smaller than the logo hit, followed by a high echo on beat 11.
+- The chord rings to beat 10 and releases over 3.2 s, so it decays by level. A gentle close to 3.5 kHz starts only at beat 14.
+- The builder levels this bed on the film before the conclusion only (`matchUntil`), so everything before 62.93 s is glide-minimal's bed to within -84 dBFS.
+
+| | Glide · minimal | lift |
+|---|---|---|
+| Integrated / true peak | -16.4 LUFS / -1.18 dBTP | same |
+| n22 / n23 / onset of "with": speech-band SNR | 5.6 / 6.2 / 3.9 dB | **7.3 / 8.0 / 6.7 dB** |
+| Bed under n23 vs n22 | -2.2 LU | **+0.9 LU**; 4–16 kHz +8.3 dB |
+| Loudest bed moment in the ending | 68.55 s, after the words | **67.05 s, on the logo** |
+| Bed level at 70 / 72 / 73.5 s | — | -23.6 / -35.3 / -47.9 |
+| Worst bed safety dip | -14.8 dB | -13.6 dB (the downbeat under "Unlock", unchanged) |
+| Whisper | "…With Laminar." | "…With Laminar." |
+
+- Candidate video: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-minimal-lift-voiceover.mp4. The picture is the same as glide-minimal's.
+- Same settings as glide-minimal: `--settings handoff/turbopuffer-sound/minimal-settings.json --bed glide-minimal-lift`, rebuilt with `--style glide-minimal-lift`.
+- **Not done (the biggest remaining lever):** about +3 dB of clip gain on n23. The review's prototype narrowed the n22 → n23 drop from 3.8 to 1.8 LU (n23 SNR 11 dB). It changes the approved narration's level and needs per-phrase gain in both `mixVoiceoverPcm` and the live preview, so it's left for a decision.
+
 ## Glide · minimal (`glide-minimal`), the minimal candidate
 
 The feedback on Glide v1 was: "lacking polish". It suggested the music arrives at the very end and then cuts out after "with Laminar", and asked to keep the music in and hold the logo. Glide 2 stays as the more musical candidate.
@@ -96,7 +128,7 @@ Mix changes:
 ## Audition
 
 - **Preview:** `?experiment=micro-18` → panel *Ultimate 3 · Voiceover mix* → **Soundtrack**:
-  `Arabesque (approved)` / `Glide · TurboPuffer ref` / `Glide · minimal` / `Glide 2 · continuous arc`. Switching re-anchors playback at the playhead.
+  `Arabesque (approved)` / `Glide · TurboPuffer ref` / `Glide · minimal` / `Glide · minimal (lift)` / `Glide 2 · continuous arc`. Switching re-anchors playback at the playhead.
 - **Export:** `pnpm exec tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/pricing-timing-audio/preview-settings.json --out <path>.wav --bed glide` (or `--bed glide-arc`; `glide-minimal` uses `handoff/turbopuffer-sound/minimal-settings.json`)
   (omit `--bed` for Arabesque). It refuses a bed built for a different phrase manifest.
 - **Rebuild the bed:** `pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide-minimal|glide-arc] --out <new dir>`. It never overwrites.

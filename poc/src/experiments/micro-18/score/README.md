@@ -113,6 +113,10 @@ No piano. Wide detuned pads, a sub drone and muffled thumps carry the story, and
 
 This is `composeGlide`/`designGlide` with `minimal = true`, and it renders `glide` itself unchanged. The pads and keys under the voice are lighter and drier, and the kit is softer. Nothing new starts on the logo. Instead the answer lands on conclusion beat 8, just after "with Laminar": kick, G bass, Gmaj9 keys, pad and glints. Echoes follow on beats 10 and 12, and a sweep closes the music to 700 Hz by beat 15.5. The bed is built on `handoff/turbopuffer-sound/minimal-settings.json`, whose ending is 16 beats long.
 
+### `glide-minimal-lift` — the minimal candidate with the payoff on the logo
+
+`composeGlide`/`designGlide` with `ending = 'lift'`. Up to the conclusion it's glide-minimal. The groove turns V → I onto the logo, the kit stops on one hit with a bright air crash and a sub swell, and an open, high G rings out under "with Laminar". After the word, a smaller keys bloom answers. The lift branch keeps the same count and order of seeded calls as glide-minimal (the same kit loop, four pads), which is what keeps everything before it identical.
+
 ### `glide-arc` — Glide 2, one continuous arc
 
 The same palette, written as one piece on a single 89.5 BPM grid (`glide/arc.ts`, `arcGrid`), with the Flow-1 reveal on bar 0 and the logo on bar 14. The problem is an ostinato that stops at the failure and a pulse that tape-stops at the depletion. After "Until now", a motor starts on the reveal and gains a layer every few bars: the kit lands with Signals, there's a breakdown over the zoom-out, and the groove drops for the payoff. Pads are phase-coherent (`haze({coherent})`) and pumped from the reveal, and everything under 150 Hz is mono. Tonal layers go through two slow `Mix.sweep` curves, and the kit is emitted afterwards, so it stays unfiltered. Foley is snapped to the 16th grid. `arcLevels` is the bed's level curve against the voice, in dB with linear interpolation, applied by the bed builder (`--style glide-arc`), which also ducks more gently.

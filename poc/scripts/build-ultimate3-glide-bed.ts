@@ -1,5 +1,5 @@
 // Build the Glide (TurboPuffer-reference) bed for the approved editable-v11 narration; never replaces a bed.
-//   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-minimal|glide-arc] [--settings <the profile's settings JSON>]
+//   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-minimal|glide-minimal-lift|glide-arc] [--settings <the profile's settings JSON>]
 //     [--seed 2316] [--out public/audio/voiceover/editable-v11-<style>]
 // The voice ducking is baked here, keyed by the placed narration itself, so the browser preview (bed +
 // phrases at unity) and the export (mixVoiceoverPcm) are the same sum with no live compressor.
@@ -33,15 +33,22 @@ const style = option('style') ?? 'glide';
  * speech instead of a pumping one), bridges short gaps, follows the arc's level curve, and renders the score
  * with headroom so the final voice-aware stage is the only limiter. `glide-minimal` keeps v1's ducking but holds it
  * through the conclusion's pauses (not the earlier ones: the silence before the reveal is part of the story), uses a
- * ceiling that dips the bed less often, and is built on its own longer-ending settings.
+ * ceiling that dips the bed less often, and is built on its own longer-ending settings. `glide-minimal-lift` is the same
+ * cut with the payoff on the logo, levelled on the film before the conclusion so only the ending changes.
  */
 type Profile = {underVoiceDb: number; duckDb: number; presenceDb: number; release: number; bridge: number; bridgeFrom?: (cues: ScoreCues) => number;
-  targetLufs: number; ceilingDb: number; levels?: typeof arcLevels; settings: string};
+  targetLufs: number; ceilingDb: number; levels?: typeof arcLevels; settings: string;
+  /** Level the bed against the voice on [0, matchUntil) only, so a new ending can't move the film before it. */
+  matchUntil?: (cues: ScoreCues) => number};
 const PREVIEW = 'handoff/pricing-timing-audio/preview-settings.json';
 const PROFILES: Record<string, Profile> = {
   glide: {underVoiceDb: 7, duckDb: 5, presenceDb: 6, release: .35, bridge: 0, targetLufs: -14, ceilingDb: -1.6, settings: PREVIEW},
   'glide-minimal': {underVoiceDb: 7, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3, bridgeFrom: cues => cues.conclusion.start,
     targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
+  // glide-minimal with the "lift" ending. 7.44 dB is where glide-minimal's bed sits under the voice before the conclusion,
+  // so everything before it matches glide-minimal's bed to within -84 dBFS.
+  'glide-minimal-lift': {underVoiceDb: 7.44, matchUntil: cues => cues.conclusion.start, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3,
+    bridgeFrom: cues => cues.conclusion.start, targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
   'glide-arc': {underVoiceDb: 8, duckDb: 3, presenceDb: 4, release: .9, bridge: 1, targetLufs: -20, ceilingDb: -1.6, levels: arcLevels, settings: PREVIEW},
 };
 if (!Object.hasOwn(PROFILES, style)) throw new Error(`Unknown --style ${style}; expected ${Object.keys(PROFILES).join(' | ')}`);
@@ -79,7 +86,7 @@ const length = ultimate3DurationFrames(settings) * 1600;
 if (score.length !== length) throw new Error(`Score is ${score.length} samples, the cut is ${length}`);
 const silent = {l: new Float32Array(length), r: new Float32Array(length)};
 const voice = mixVoiceoverPcm(silent, sources, settings);
-const stereo = (pcm: StereoPcm) => { const out = new Stereo(length); out.l.set(pcm.l.subarray(0, length)); out.r.set(pcm.r.subarray(0, length)); return out; };
+const stereo = (pcm: StereoPcm, n = length) => { const out = new Stereo(n); out.l.set(pcm.l.subarray(0, n)); out.r.set(pcm.r.subarray(0, n)); return out; };
 const voiceLufs = integratedLufs(stereo(voice));
 
 // Sidechain key: 10 ms RMS of the placed voice, gated, smoothed, and led by LOOKAHEAD so the dip
@@ -121,7 +128,8 @@ for (let n = 0; n < length; n++) {
   bed.l[n] = (score.l[n] - dip * (presence[0].process(score.l[n], 2200, .55), presence[0].bp)) * gain;
   bed.r[n] = (score.r[n] - dip * (presence[1].process(score.r[n], 2200, .55), presence[1].bp)) * gain;
 }
-const trim = db(voiceLufs - BED_UNDER_VOICE_DB - integratedLufs(bed));
+const until = profile.matchUntil && Math.round(profile.matchUntil(ultimate3ScoreCues(settings)) * 48_000);
+const trim = db((until ? integratedLufs(stereo(voice, until)) : voiceLufs) - BED_UNDER_VOICE_DB - integratedLufs(until ? stereo(bed, until) : bed));
 for (let n = 0; n < length; n++) { bed.l[n] *= trim; bed.r[n] *= trim; }
 const scoreLufs = integratedLufs(bed);
 

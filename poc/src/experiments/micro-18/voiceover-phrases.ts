@@ -14,8 +14,9 @@ export const VOICEOVER_BED_URL = `${VOICEOVER_SOURCE_ROOT}bed.wav`;
 export const VOICEOVER_BEDS = {
   arabesque: {label: 'Arabesque (approved)', url: VOICEOVER_BED_URL},
   glide: {label: 'Glide · TurboPuffer ref', url: '/audio/voiceover/editable-v11-glide/bed.wav'},
-  // Built on handoff/turbopuffer-sound/minimal-settings.json (longer logo hold, no paper texture); load those settings with it.
+  // The minimal beds are built on handoff/turbopuffer-sound/minimal-settings.json (longer logo hold, no paper texture); load those settings with them.
   'glide-minimal': {label: 'Glide · minimal', url: '/audio/voiceover/editable-v11-glide-minimal/bed.wav'},
+  'glide-minimal-lift': {label: 'Glide · minimal (lift)', url: '/audio/voiceover/editable-v11-glide-minimal-lift/bed.wav'},
   'glide-arc': {label: 'Glide 2 · continuous arc', url: '/audio/voiceover/editable-v11-glide-arc/bed.wav'},
 } as const;
 export type VoiceoverBedId = keyof typeof VOICEOVER_BEDS;

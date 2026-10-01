@@ -28,6 +28,15 @@ export const glideMinimal: ScoreStyle = {
   design: (mix, cues) => designGlide(mix, cues, true),
 };
 
+/** The minimal candidate with a "lift" ending: the payoff lands on the logo, under "with Laminar", and rings out open. */
+export const glideMinimalLift: ScoreStyle = {
+  ...glideMinimal,
+  id: 'glide-minimal-lift',
+  title: 'Glide · minimal (lift)',
+  compose: (mix, cues) => composeGlide(mix, cues, true, 'lift'),
+  design: (mix, cues) => designGlide(mix, cues, true, 'lift'),
+};
+
 /** Glide 2: the same palette as one continuous arc on an 89.5 BPM grid (reveal = bar 0, logo = bar 14). */
 export const glideArc: ScoreStyle = {
   ...glide,
