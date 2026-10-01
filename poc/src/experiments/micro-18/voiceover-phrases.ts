@@ -17,6 +17,7 @@ export const VOICEOVER_BEDS = {
   // The minimal beds are built on handoff/turbopuffer-sound/minimal-settings.json (longer logo hold, no paper texture); load those settings with them.
   'glide-minimal': {label: 'Glide · minimal', url: '/audio/voiceover/editable-v11-glide-minimal/bed.wav'},
   'glide-minimal-lift': {label: 'Glide · minimal (lift)', url: '/audio/voiceover/editable-v11-glide-minimal-lift/bed.wav'},
+  'glide-minimal-linger': {label: 'Glide · minimal (linger)', url: '/audio/voiceover/editable-v11-glide-minimal-linger/bed.wav'},
   'glide-arc': {label: 'Glide 2 · continuous arc', url: '/audio/voiceover/editable-v11-glide-arc/bed.wav'},
 } as const;
 export type VoiceoverBedId = keyof typeof VOICEOVER_BEDS;

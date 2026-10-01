@@ -117,6 +117,10 @@ This is `composeGlide`/`designGlide` with `minimal = true`, and it renders `glid
 
 `composeGlide`/`designGlide` with `ending = 'lift'`. Up to the conclusion it's glide-minimal. The groove turns V → I onto the logo, the kit stops on one hit with a bright air crash and a sub swell, and an open, high G rings out under "with Laminar". After the word, a smaller keys bloom answers. The lift branch keeps the same count and order of seeded calls as glide-minimal (the same kit loop, four pads), which is what keeps everything before it identical.
 
+### `glide-minimal-linger` — the groove plays the film out, with soft air
+
+`ending = 'linger'`. The conclusion groove keeps going through the logo, with kick and hats only under "with Laminar". It returns in full after the words and thins over the last bar to end on the film's last bar line (`composeLinger`). Every noise move in the film uses the soft palette in `glide/instruments.ts`: `breeze` (pink, low-Q, no band-pass) in place of `whoosh`/`marker`, `feather` in place of `air`, `blip` in place of `tick`, and `shimmer({soft})`. Those helpers are new, so the other styles' renders are unchanged.
+
 ### `glide-arc` — Glide 2, one continuous arc
 
 The same palette, written as one piece on a single 89.5 BPM grid (`glide/arc.ts`, `arcGrid`), with the Flow-1 reveal on bar 0 and the logo on bar 14. The problem is an ostinato that stops at the failure and a pulse that tape-stops at the depletion. After "Until now", a motor starts on the reveal and gains a layer every few bars: the kit lands with Signals, there's a breakdown over the zoom-out, and the groove drops for the payoff. Pads are phase-coherent (`haze({coherent})`) and pumped from the reveal, and everything under 150 Hz is mono. Tonal layers go through two slow `Mix.sweep` curves, and the kit is emitted afterwards, so it stays unfiltered. Foley is snapped to the 16th grid. `arcLevels` is the bed's level curve against the voice, in dB with linear interpolation, applied by the bed builder (`--style glide-arc`), which also ducks more gently.

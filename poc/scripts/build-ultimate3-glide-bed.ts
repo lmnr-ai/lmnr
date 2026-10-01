@@ -1,5 +1,5 @@
 // Build the Glide (TurboPuffer-reference) bed for the approved editable-v11 narration; never replaces a bed.
-//   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-minimal|glide-minimal-lift|glide-arc] [--settings <the profile's settings JSON>]
+//   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-minimal|glide-minimal-lift|glide-minimal-linger|glide-arc] [--settings <the profile's settings JSON>]
 //     [--seed 2316] [--out public/audio/voiceover/editable-v11-<style>]
 // The voice ducking is baked here, keyed by the placed narration itself, so the browser preview (bed +
 // phrases at unity) and the export (mixVoiceoverPcm) are the same sum with no live compressor.
@@ -34,7 +34,8 @@ const style = option('style') ?? 'glide';
  * with headroom so the final voice-aware stage is the only limiter. `glide-minimal` keeps v1's ducking but holds it
  * through the conclusion's pauses (not the earlier ones: the silence before the reveal is part of the story), uses a
  * ceiling that dips the bed less often, and is built on its own longer-ending settings. `glide-minimal-lift` is the same
- * cut with the payoff on the logo, levelled on the film before the conclusion so only the ending changes.
+ * cut with the payoff on the logo, levelled on the film before the conclusion so only the ending changes; `glide-minimal-linger`
+ * uses the lift's profile: its groove plays on after "with Laminar", where nothing is ducked.
  */
 type Profile = {underVoiceDb: number; duckDb: number; presenceDb: number; release: number; bridge: number; bridgeFrom?: (cues: ScoreCues) => number;
   targetLufs: number; ceilingDb: number; levels?: typeof arcLevels; settings: string;
@@ -48,6 +49,8 @@ const PROFILES: Record<string, Profile> = {
   // glide-minimal with the "lift" ending. 7.44 dB is where glide-minimal's bed sits under the voice before the conclusion,
   // so everything before it matches glide-minimal's bed to within -84 dBFS.
   'glide-minimal-lift': {underVoiceDb: 7.44, matchUntil: cues => cues.conclusion.start, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3,
+    bridgeFrom: cues => cues.conclusion.start, targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
+  'glide-minimal-linger': {underVoiceDb: 7.44, matchUntil: cues => cues.conclusion.start, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3,
     bridgeFrom: cues => cues.conclusion.start, targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
   'glide-arc': {underVoiceDb: 8, duckDb: 3, presenceDb: 4, release: .9, bridge: 1, targetLufs: -20, ceilingDb: -1.6, levels: arcLevels, settings: PREVIEW},
 };

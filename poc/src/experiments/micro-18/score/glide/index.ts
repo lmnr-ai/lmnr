@@ -46,3 +46,13 @@ export const glideArc: ScoreStyle = {
   design: designArc,
   space: {...glide.space, delay: {time: .6705 * .75, feedback: .3, damping: 3600}},
 };
+
+/** The minimal candidate with a "linger" ending: the payoff groove plays on through the logo and thins out over the last bar, and every
+ * whoosh, air and click in the film becomes a soft breeze, feather or blip (pink noise, no band-pass, no noise clicks). */
+export const glideMinimalLinger: ScoreStyle = {
+  ...glideMinimal,
+  id: 'glide-minimal-linger',
+  title: 'Glide · minimal (linger)',
+  compose: (mix, cues) => composeGlide(mix, cues, true, 'linger'),
+  design: (mix, cues) => designGlide(mix, cues, true, 'linger'),
+};

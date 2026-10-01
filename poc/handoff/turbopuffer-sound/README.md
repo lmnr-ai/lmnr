@@ -8,6 +8,46 @@ The default preview and default export still use Arabesque.
 - Candidate video (Glide + approved narration): https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-turbopuffer-voiceover.mp4
 - A/B, approved Arabesque mix, same picture: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-arabesque-approved-ab.mp4
 
+## Glide · minimal (linger) (`glide-minimal-linger`), the groove plays out
+
+Feedback on the lift: the music that starts at "Unlock the insights…" stops as soon as the logo appears. It should carry on to the end so the rhythm lingers. Separately, several whoosh, cloud and zoom sounds were grainy, "like pouring sand or sandpaper", where they should feel like a gentle breeze, a pillow or a feather.
+
+The review confirmed both:
+
+1. **The groove did stop on the logo.** Its last hat was at beat 5.5, so there was no rhythm for the last 5.4 s. Bed loudness per bar ran -21.0 / -20.0 / -22.4 / -33.9 LUFS, ending in a ring-out about 20 dB down.
+2. **The grain was band-passed white noise.** The 25 whooshes put their energy in 1–4 kHz, where the ear is most sensitive, and in their windows they supplied 70–100% of the score's 1–4 kHz.
+3. **The `air` layers were flat white hiss.** The opening bed, bashExpand, gridShrink, the shimmers and the lift's logo riser and crash were 80–84% energy above 4 kHz.
+4. **Grain showers.** Clicky counter ticks, the zoom's glint stream and shimmers of up to 70 grains a second land on the cloud and zoom moments.
+
+The design:
+
+- **Ending:** the groove runs four bars and ends on the bar line at 73.73 s.
+  - **Bar A:** the lift's build into the logo.
+  - **Bar B (logo, "with Laminar"):** a kick, bass and the open G, with a feather bloom instead of a hiss crash. The kick and hats keep going, with no snare and nothing in 500 Hz–4 kHz under the words.
+  - **Bar C:** the full groove returns over Em9 → Cmaj9 at ×0.66, with a ghost fill.
+  - **Bar D:** Gmaj9 lands on the downbeat with the last kick and one soft backbeat. The hats thin and fade, the last at 73.06 s, and the chord, sub and echoes decay by level.
+- **Sound effects** (whole film, this style only; `glide/instruments.ts`):
+  - `breeze` replaces every `whoosh` and `marker`: pink noise through a low-Q low-pass that rides the sweep, capped around 1.2 kHz, with a faint top, a 140 Hz floor and a raised-cosine swell. It has no band-pass and no resonance.
+  - `feather` replaces the `air` hiss with lighter pink noise.
+  - `blip` replaces the counter `tick`s with a pure tone and no noise click.
+  - Shimmers (`soft`) and the zoom stream keep half their specks, which decay longer.
+
+| | lift | linger |
+|---|---|---|
+| Integrated / true peak | -16.4 LUFS / -1.18 dBTP | same |
+| Speech-band SNR: n21 / n22 / n23 / "with" onset | 4.0 / 7.3 / 8.0 / 6.7 dB | 4.0 / 7.7 / 7.2 / 6.3 dB |
+| Bed per bar A / B / C / D (LUFS) | -21.0 / -20.0 / -22.4 / -33.9 | -20.7 / -20.7 / -17.8 / -21.9 |
+| Hats in bars C–D | none | 9–35 dB onsets in every bar |
+| Whooshes: 2–4 kHz share / centroid | 1–13% / 296–1252 Hz | 0–2% / 275–586 Hz |
+| Whoosh level change, 1–2 / 2–4 / 4–8 kHz (median) | — | -4.2 / -8.8 / -11.8 dB, at about equal loudness |
+| Logo riser, share above 4 kHz | 84% | 0.1% |
+| Worst bed safety dip | -13.6 dB | -13.8 dB |
+| Whisper | "…With Laminar." | "…With Laminar." |
+
+- Bar C, right after "with Laminar", is about 3 dB louder in the bed than the bars around it because the duck releases after the last word. In the mix it is -17.5 LUFS, under the voiced bars and the film average, so it reads as the music taking over.
+- Candidate video: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-minimal-linger-voiceover.mp4. It uses the same picture and settings as glide-minimal: `--settings handoff/turbopuffer-sound/minimal-settings.json --bed glide-minimal-linger`, rebuilt with `--style glide-minimal-linger`.
+- glide, glide-minimal and glide-minimal-lift still rebuild byte-identically. The soft voices are new helpers, and every swap is gated on `ending === 'linger'`.
+
 ## Glide · minimal (lift) (`glide-minimal-lift`), the ending revised
 
 Feedback on Glide · minimal: the drums build momentum and the excitement is finally satisfied at "Unlock the insights…", but "it still gets muffled at 'with Laminar'". A second review measured the ending. It found these causes, ranked:
@@ -128,7 +168,7 @@ Mix changes:
 ## Audition
 
 - **Preview:** `?experiment=micro-18` → panel *Ultimate 3 · Voiceover mix* → **Soundtrack**:
-  `Arabesque (approved)` / `Glide · TurboPuffer ref` / `Glide · minimal` / `Glide · minimal (lift)` / `Glide 2 · continuous arc`. Switching re-anchors playback at the playhead.
+  `Arabesque (approved)` / `Glide · TurboPuffer ref` / `Glide · minimal` / `Glide · minimal (lift)` / `Glide · minimal (linger)` / `Glide 2 · continuous arc`. Switching re-anchors playback at the playhead.
 - **Export:** `pnpm exec tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/pricing-timing-audio/preview-settings.json --out <path>.wav --bed glide` (or `--bed glide-arc`; `glide-minimal` uses `handoff/turbopuffer-sound/minimal-settings.json`)
   (omit `--bed` for Arabesque). It refuses a bed built for a different phrase manifest.
 - **Rebuild the bed:** `pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide-minimal|glide-arc] --out <new dir>`. It never overwrites.

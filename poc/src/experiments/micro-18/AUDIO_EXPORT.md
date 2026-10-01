@@ -91,9 +91,10 @@ The editable route can play any bed listed in `voiceover-phrases.ts` `VOICEOVER_
   Bridging globally would also fill the silence before the reveal, which is part of the story.
 - The bed is trimmed to sit `underVoiceDb` under the voice's integrated level, so a louder ending lowers the whole film's bed.
   `matchUntil` measures that only before the given time, so a variant that changes just the ending leaves the rest identical.
+- Music after the last word isn't ducked, so a groove that plays on after "with Laminar" sits about 3 dB higher in the bed there. Judge it in the mix, not the bed.
 - To measure intelligibility, derive a voice-only stem as `export(arabesque) − editable-v11/bed.wav`,
   then compare the per-phrase voice/bed RMS inside each `voiceoverSchedule` span, both full-band and 500 Hz–4 kHz.
-- `build-ultimate3-glide-bed.ts --style` selects a per-style profile (the bed-under-voice level, duck depth, presence dip, release, gap bridging, score LUFS and level curve), recorded in the bed's manifest. Beds: `glide` → `editable-v11-glide/`, `glide-minimal` → `editable-v11-glide-minimal/`, `glide-minimal-lift` → `editable-v11-glide-minimal-lift/`, `glide-arc` → `editable-v11-glide-arc/`.
+- `build-ultimate3-glide-bed.ts --style` selects a per-style profile (the bed-under-voice level, duck depth, presence dip, release, gap bridging, score LUFS and level curve), recorded in the bed's manifest. Beds: `glide` → `editable-v11-glide/`, `glide-minimal` → `editable-v11-glide-minimal/`, `glide-minimal-lift` → `editable-v11-glide-minimal-lift/`, `glide-minimal-linger` → `editable-v11-glide-minimal-linger/`, `glide-arc` → `editable-v11-glide-arc/`.
   The level curve is multiplied in *before* the bed-under-voice trim, so it redistributes level across sections rather than raising the whole bed.
   Arabesque's baseline is a 3.9 / 1.5 dB median. Whisper `small.en` is the transcript check.
 - `Mix.sweep` filters only the music emitted *before* the call. Compose layers after it (the Glide groove) and
