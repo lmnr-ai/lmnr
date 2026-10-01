@@ -859,6 +859,9 @@ async fn check_notify_hard_limit(
         Some(l) => l,
         None => return,
     };
+    if one_time_credit_exhausted && limit == 0 {
+        return;
+    }
     if !one_time_credit_exhausted && current_value < limit {
         return;
     }
