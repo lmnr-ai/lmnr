@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 
+import { SIGNALS_SIGNUP_CREDIT_MICRO_USD } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { workspaces } from "@/lib/db/migrations/schema";
 
@@ -59,7 +60,6 @@ export async function reconcileSignalCredit(
   return db.transaction(async (tx) => {
     const [workspace] = await tx
       .select({
-        grantedMicroUsd: workspaces.signalCreditGrantedMicroUsd,
         remainingMicroUsd: workspaces.signalCreditRemainingMicroUsd,
         appliedMicroUsd: workspaces.signalCreditAppliedMicroUsd,
         periodStart: workspaces.signalCreditPeriodStart,
@@ -76,11 +76,13 @@ export async function reconcileSignalCredit(
     // JavaScript dates have millisecond precision. Rust reconciliation applies
     // the same truncation in SQL so both writers agree on the billing period.
     const canonicalPeriodStart = periodStart.toISOString();
+    const eligibleForCredit = workspace.periodStart !== null;
     const state = calculateSignalCreditState({
-      grantedMicroUsd: Number(workspace.grantedMicroUsd),
+      grantedMicroUsd: eligibleForCredit ? SIGNALS_SIGNUP_CREDIT_MICRO_USD : 0,
       remainingMicroUsd: Number(workspace.remainingMicroUsd),
       previouslyAppliedMicroUsd: Number(workspace.appliedMicroUsd),
-      samePeriod: new Date(workspace.periodStart).toISOString() === canonicalPeriodStart,
+      samePeriod:
+        workspace.periodStart !== null && new Date(workspace.periodStart).toISOString() === canonicalPeriodStart,
       currentPeriodCostMicroUsd,
     });
 
@@ -89,7 +91,7 @@ export async function reconcileSignalCredit(
       .set({
         signalCreditRemainingMicroUsd: state.remainingMicroUsd,
         signalCreditAppliedMicroUsd: state.appliedThisPeriodMicroUsd,
-        signalCreditPeriodStart: canonicalPeriodStart,
+        signalCreditPeriodStart: eligibleForCredit ? canonicalPeriodStart : null,
       })
       .where(eq(workspaces.id, workspaceId));
 

@@ -5658,13 +5658,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "signal_credit_granted_micro_usd": {
-          "name": "signal_credit_granted_micro_usd",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 5000000
-        },
         "signal_credit_remaining_micro_usd": {
           "name": "signal_credit_remaining_micro_usd",
           "type": "bigint",
@@ -5683,7 +5676,7 @@
           "name": "signal_credit_period_start",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": "now()"
         },
         "settings": {
@@ -5714,13 +5707,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "workspaces_signal_credit_granted_check": {
-          "name": "workspaces_signal_credit_granted_check",
-          "value": "\"workspaces\".\"signal_credit_granted_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_granted_micro_usd\" <= 5000000"
-        },
         "workspaces_signal_credit_remaining_check": {
           "name": "workspaces_signal_credit_remaining_check",
-          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_remaining_micro_usd\" <= \"workspaces\".\"signal_credit_granted_micro_usd\""
+          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_remaining_micro_usd\" <= 5000000"
         },
         "workspaces_signal_credit_applied_check": {
           "name": "workspaces_signal_credit_applied_check",
@@ -5728,7 +5717,7 @@
         },
         "workspaces_signal_credit_total_check": {
           "name": "workspaces_signal_credit_total_check",
-          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" + \"workspaces\".\"signal_credit_applied_micro_usd\" <= \"workspaces\".\"signal_credit_granted_micro_usd\""
+          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" + \"workspaces\".\"signal_credit_applied_micro_usd\" <= 5000000"
         }
       },
       "isRLSEnabled": false

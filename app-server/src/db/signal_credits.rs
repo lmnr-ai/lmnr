@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+const SIGNALS_SIGNUP_CREDIT_MICRO_USD: i64 = 5_000_000;
+
 #[derive(Debug, Clone, Copy, FromRow)]
 pub struct SignalCreditState {
     pub granted_micro_usd: i64,
@@ -24,11 +26,15 @@ pub async fn reconcile_signal_credit(
         WITH current_state AS (
             SELECT
                 id,
-                signal_credit_granted_micro_usd AS granted_micro_usd,
+                CASE
+                    WHEN signal_credit_period_start IS NULL THEN 0
+                    ELSE $4
+                END AS granted_micro_usd,
                 signal_credit_remaining_micro_usd AS remaining_micro_usd,
                 CASE
-                    WHEN date_trunc('milliseconds', signal_credit_period_start) =
-                         date_trunc('milliseconds', $2::timestamptz)
+                    WHEN signal_credit_period_start IS NOT NULL
+                         AND date_trunc('milliseconds', signal_credit_period_start) =
+                             date_trunc('milliseconds', $2::timestamptz)
                     THEN signal_credit_applied_micro_usd
                     ELSE 0
                 END AS previously_applied_micro_usd
@@ -55,7 +61,10 @@ pub async fn reconcile_signal_credit(
             signal_credit_remaining_micro_usd =
                 reconciled.available_this_period_micro_usd - reconciled.applied_this_period_micro_usd,
             signal_credit_applied_micro_usd = reconciled.applied_this_period_micro_usd,
-            signal_credit_period_start = date_trunc('milliseconds', $2::timestamptz)
+            signal_credit_period_start = CASE
+                WHEN reconciled.granted_micro_usd = 0 THEN NULL
+                ELSE date_trunc('milliseconds', $2::timestamptz)
+            END
         FROM reconciled
         WHERE workspaces.id = reconciled.id
         RETURNING
@@ -66,6 +75,7 @@ pub async fn reconcile_signal_credit(
     .bind(workspace_id)
     .bind(period_start)
     .bind(current_period_cost_micro_usd)
+    .bind(SIGNALS_SIGNUP_CREDIT_MICRO_USD)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| anyhow!("Workspace [{workspace_id}] not found while reconciling Signals credit"))?;

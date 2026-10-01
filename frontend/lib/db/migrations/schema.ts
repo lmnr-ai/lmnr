@@ -541,16 +541,11 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    signalCreditGrantedMicroUsd: bigint("signal_credit_granted_micro_usd", { mode: "number" })
-      .default(5_000_000)
-      .notNull(),
     signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" })
       .default(5_000_000)
       .notNull(),
     signalCreditAppliedMicroUsd: bigint("signal_credit_applied_micro_usd", { mode: "number" }).default(0).notNull(),
-    signalCreditPeriodStart: timestamp("signal_credit_period_start", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
+    signalCreditPeriodStart: timestamp("signal_credit_period_start", { withTimezone: true, mode: "string" }).defaultNow(),
     settings: jsonb().default({}).notNull(),
   },
   (table) => [
@@ -560,12 +555,8 @@ export const workspaces = pgTable(
       name: "workspaces_tier_id_fkey",
     }).onUpdate("cascade"),
     check(
-      "workspaces_signal_credit_granted_check",
-      sql`${table.signalCreditGrantedMicroUsd} >= 0 AND ${table.signalCreditGrantedMicroUsd} <= 5000000`
-    ),
-    check(
       "workspaces_signal_credit_remaining_check",
-      sql`${table.signalCreditRemainingMicroUsd} >= 0 AND ${table.signalCreditRemainingMicroUsd} <= ${table.signalCreditGrantedMicroUsd}`
+      sql`${table.signalCreditRemainingMicroUsd} >= 0 AND ${table.signalCreditRemainingMicroUsd} <= 5000000`
     ),
     check(
       "workspaces_signal_credit_applied_check",
@@ -573,7 +564,7 @@ export const workspaces = pgTable(
     ),
     check(
       "workspaces_signal_credit_total_check",
-      sql`${table.signalCreditRemainingMicroUsd} + ${table.signalCreditAppliedMicroUsd} <= ${table.signalCreditGrantedMicroUsd}`
+      sql`${table.signalCreditRemainingMicroUsd} + ${table.signalCreditAppliedMicroUsd} <= 5000000`
     ),
   ]
 );
