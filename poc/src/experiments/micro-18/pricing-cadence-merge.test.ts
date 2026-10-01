@@ -23,7 +23,7 @@ test('merged cut is exactly upstream editable-v11 plus the local comparison, not
   assert.deepEqual(chapterSchedule(merged).map(c => c.start), [0,19.06,28.43,43.622,62.93]);
   assert.equal(VOICEOVER_SOURCE_ROOT, '/audio/voiceover/editable-v11/');
   assert.equal(voiceoverBedUrl('piano'), '/audio/voiceover/editable-v11/bed.wav');
-  assert.equal(VOICEOVER_BED_URL, '/audio/voiceover/editable-v11-openai/bed.wav');
+  assert.equal(VOICEOVER_BED_URL, '/audio/voiceover/editable-v11-openai-tactile/bed.wav');
   assert.deepEqual(merged.voiceover!.phrases, Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id,p.placed])));
 });
 

@@ -109,7 +109,25 @@ After OpenAI's "Get ready" (`handoff/openai-sound-design/`). No piano: everythin
 - **Layers.** `ScoreStyle.layers` names `sub keys glass ticks air lift typing`, and each composition route multiplies by `mix.layer(name)`. `pnpm ultimate3:score --style openai-pulse --layers keys=.8,glass=1.2` rebalances. `--gain <g>` fixes the master gain and skips normalisation and the limiter, so solo renders (`--layers <all 0 but one>`) sum exactly to the full mix.
 - **Sub routing.** The sub is the only part on the sfx bus (dry, mono). The voice ducks (`cues.voice`, −4.5 dB) move only the music bus, so `hit` itself plays 3 dB softer under any line it overlaps.
 - **Reference match.** Band balance is within ~1–2 dB of the reference up to 6 kHz. Above 6 kHz it is held ~2.5 dB lower on purpose, keeping sibilance clear under the narration.
-- **Bed build.** `scripts/build-ultimate3-openai-bed.mjs` writes `public/audio/voiceover/editable-v11-openai/` plus the layer stems.
+- **Bed build.** `scripts/build-ultimate3-openai-bed.mjs` writes `public/audio/voiceover/editable-v11-openai/` plus the layer stems (`?bed=openai`).
+
+### `openai-tactile` — struck sub, grains and room (LAM-2320 v2)
+
+Built on `openai-pulse`'s form and suck-outs, rebuilt for texture after an expert review of client feedback (`handoff/openai-sound-design/README.md`). Voices are in `openai-tactile/instruments.ts`:
+- **Hits, not tones.** The mids are short felt `pluck`s, the highs 3 ms `grain`s on a 16th/32nd grid, plus short `glass`.
+- **`place`.** Each voice gets its own early reflections (8 taps per ear, 3–23 ms) before a short shared room.
+- **`sub`.** A saturated sine whose low-pass opens on each strike. It is re-struck every eighth, with a syncopated push, and decays toward `floor`. Each hit adds the octave on the music bus (`body`) and a 160 → 70 Hz `thump`.
+
+**Arc.**
+- The major third (F) is withheld until Flow-1.
+- The drain slows the grains and closes the top to 2 kHz; "Until now" reopens it over fundamental-less `overtones` and a reverse `bloom`.
+- Both payoffs (Flow-1, logo) get a grain build, true silence, the film's deepest C♯ and a wide bloom. At the logo the sub hushes under "with Laminar" and is re-struck with the chord after the name.
+
+**Mix.**
+- `carve` dips the music bus 6 dB in the 300 Hz–3 kHz band under every line, and the broadband duck is only −2.5 dB.
+- Non-payoff suck-outs dip 10 dB, and a room-tone `drone` on the sfx bus keeps air in the gaps.
+
+**Layers:** `sub body keys glass grain bloom lift typing`. The bed is built with `scripts/build-ultimate3-openai-bed.mjs <edition> <bedDb> <stemsDir> openai-tactile`.
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 

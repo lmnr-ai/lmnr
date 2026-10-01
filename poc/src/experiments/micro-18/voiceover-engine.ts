@@ -2,7 +2,7 @@ import type {Ultimate3Settings} from './settings';
 import {isVoiceoverBed, voiceoverBedUrl, VOICEOVER_BED, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT, type VoiceoverBed} from './voiceover-phrases';
 import {phraseGain, voiceoverSchedule, VOICEOVER_CALIBRATION, VOICEOVER_FADE} from './voiceover-schedule';
 
-/** `?bed=piano` swaps in the Arabesque comparison bed; anything else plays the default. */
+/** `?bed=openai` (v1) or `?bed=piano` (Arabesque) swaps in a comparison bed; anything else plays the default. */
 export const selectedVoiceoverBed = (search = typeof location === 'undefined' ? '' : location.search): VoiceoverBed => {
   const bed = new URLSearchParams(search).get('bed');
   return isVoiceoverBed(bed) ? bed : VOICEOVER_BED;

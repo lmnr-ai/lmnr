@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import preview from '../../../../../handoff/openai-sound-design/preview-settings.json';
 import type {Ultimate3Settings} from '../../settings';
-import {VOICEOVER_BED, VOICEOVER_BEDS, voiceoverBedUrl} from '../../voiceover-phrases';
+import {VOICEOVER_BEDS, voiceoverBedUrl} from '../../voiceover-phrases';
 import {selectedVoiceoverBed} from '../../voiceover-engine';
 import {ultimate3ScoreCues} from '../cues';
 import {renderUltimate3Score, SCORE_STYLES} from '../render';
@@ -44,11 +44,9 @@ test('every downbeat is preceded by a suck-out and lands a hit', () => {
   }
 });
 
-test('the default bed is the frozen openai-pulse render under the unchanged editable-v11 phrases', () => {
-  assert.equal(VOICEOVER_BED, 'openai');
-  assert.equal(voiceoverBedUrl(), '/audio/voiceover/editable-v11-openai/bed.wav');
-  assert.equal(selectedVoiceoverBed('?bed=piano'), 'piano');
-  assert.equal(selectedVoiceoverBed('?bed=nope'), 'openai');
+test('the v1 openai bed is the frozen openai-pulse render under the unchanged editable-v11 phrases', () => {
+  assert.equal(voiceoverBedUrl('openai'), '/audio/voiceover/editable-v11-openai/bed.wav');
+  assert.equal(selectedVoiceoverBed('?bed=openai'), 'openai');
   const base = new URL('../../../../../public/audio/voiceover/', import.meta.url);
   const read = (file: string) => readFileSync(new URL(file, base));
   const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');

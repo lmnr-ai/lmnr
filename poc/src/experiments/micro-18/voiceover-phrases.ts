@@ -8,13 +8,18 @@ export const VOICEOVER_PHRASES = placements.map((phrase, index) => {
 });
 export const VOICEOVER_SOURCE_ROOT = '/audio/voiceover/editable-v11/';
 /**
- * Voice-free music/FX beds under the same editable-v11 phrases. `openai` is the LAM-2320 gated-sub score
- * (scripts/build-ultimate3-openai-bed.mjs); `piano` keeps the Arabesque bed scored to the Issue Clusters 4 cut
- * (scripts/build-ultimate3-issues4-vo.mjs) for comparison. editable-v10/v9/v8/v7/v6/v5/v4 keep the earlier beds and takes.
+ * Voice-free music/FX beds under the same editable-v11 phrases. `tactile` is the LAM-2320 v2 struck-sub score and
+ * `openai` its v1 gated-sub score (both scripts/build-ultimate3-openai-bed.mjs); `piano` keeps the Arabesque bed scored
+ * to the Issue Clusters 4 cut (scripts/build-ultimate3-issues4-vo.mjs) for comparison. editable-v10/v9/v8/v7/v6/v5/v4
+ * keep the earlier beds and takes.
  */
-export const VOICEOVER_BEDS = {openai: '/audio/voiceover/editable-v11-openai/', piano: VOICEOVER_SOURCE_ROOT} as const;
+export const VOICEOVER_BEDS = {
+  tactile: '/audio/voiceover/editable-v11-openai-tactile/',
+  openai: '/audio/voiceover/editable-v11-openai/',
+  piano: VOICEOVER_SOURCE_ROOT,
+} as const;
 export type VoiceoverBed = keyof typeof VOICEOVER_BEDS;
-export const VOICEOVER_BED: VoiceoverBed = 'openai';
+export const VOICEOVER_BED: VoiceoverBed = 'tactile';
 export const isVoiceoverBed = (value: unknown): value is VoiceoverBed => typeof value === 'string' && Object.hasOwn(VOICEOVER_BEDS, value);
 export const voiceoverBedUrl = (bed: VoiceoverBed = VOICEOVER_BED) => `${VOICEOVER_BEDS[bed]}bed.wav`;
 export const VOICEOVER_BED_URL = voiceoverBedUrl();

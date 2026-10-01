@@ -1,5 +1,6 @@
 // Prepare the LAM-2320 OpenAI-direction bed under the unchanged editable-v11 phrases; never replace a published bed.
-// Usage: node scripts/build-ultimate3-openai-bed.mjs [edition bedDb stemsDir] (default editable-v11-openai -7.5 <tmp>).
+// Usage: node scripts/build-ultimate3-openai-bed.mjs [edition bedDb stemsDir style] (default editable-v11-openai -7.5 <tmp> openai-pulse).
+// v2: node scripts/build-ultimate3-openai-bed.mjs editable-v11-openai-tactile <bedDb> <stemsDir> openai-tactile
 // Writes public/audio/voiceover/<edition>/{bed.wav,manifest.json} plus one solo stem per layer (not committed) that sum to the bed.
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -9,9 +10,15 @@ import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const [edition = 'editable-v11-openai', trim = '-7.5', stemsArg] = process.argv.slice(2);
-const style = 'openai-pulse', seed = 107290, phrases = 'editable-v11', settings = 'handoff/openai-sound-design/preview-settings.json';
-const layers = ['sub', 'keys', 'glass', 'ticks', 'air', 'lift', 'typing'];
+const [edition = 'editable-v11-openai', trim = '-7.5', stemsArg, style = 'openai-pulse'] = process.argv.slice(2);
+const seed = 107290, phrases = 'editable-v11', settings = 'handoff/openai-sound-design/preview-settings.json';
+// Each style's `ScoreStyle.layers` and what its bed holds.
+const STYLES = {
+  'openai-pulse': {layers: ['sub', 'keys', 'glass', 'ticks', 'air', 'lift', 'typing'], holds: 'gated sub, keys, glass, ticks, air, lift and typing'},
+  'openai-tactile': {layers: ['sub', 'body', 'keys', 'glass', 'grain', 'bloom', 'lift', 'typing'], holds: 'struck sub, body, plucks, glass, grains, blooms, lift and typing'},
+};
+if (!STYLES[style]) throw new Error(`Unknown style ${style}; expected ${Object.keys(STYLES).join(' or ')}`);
+const {layers, holds} = STYLES[style];
 // Trim so the narration clears the bed by a ~7 LU median and >= 4.5 LU on every line (the Arabesque bed: 4.7 median, 0.3 min).
 const bedDb = Number(trim);
 if (!Number.isFinite(bedDb)) throw new Error('bedDb must be a number');
@@ -46,5 +53,5 @@ writeFileSync(join(dest, 'manifest.json'), JSON.stringify({version: 1, scoreStyl
   score: {lufs: round(report.lufs), truePeakDb: round(report.truePeakDb), counts: report.counts},
   layers: Object.fromEntries(Object.entries(stemReports).map(([layer, stem]) => [layer, {lufs: round(stem.lufs), truePeakDb: round(stem.truePeakDb)}])),
   phrases: `/audio/voiceover/${phrases}/`, phraseManifestSha256: hash(phraseManifest),
-  note: `Voice-free bed (gated sub, keys, glass, ticks, air, lift and typing; no piano) at ${bedDb} dB; the narration stays the ${phrases} trims of the approved take. Layer stems render at the same fixed master gain and sum to the bed before the trim.`}, null, 2) + '\n', {flag: 'wx'});
+  note: `Voice-free bed (${holds}; no piano) at ${bedDb} dB; the narration stays the ${phrases} trims of the approved take. Layer stems render at the same fixed master gain and sum to the bed before the trim.`}, null, 2) + '\n', {flag: 'wx'});
 console.log(`Prepared ${dest}; layer stems in ${stems}`);

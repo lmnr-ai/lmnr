@@ -1,5 +1,9 @@
 # Signals launch video — agent handoff
 
+## LAM-2320 sound design (OpenAI direction)
+
+See **[handoff/openai-sound-design/README.md](handoff/openai-sound-design/README.md)**. `?cut=voiceover` now defaults to the v2 `openai-tactile` bed. `?bed=openai` plays v1 and `?bed=piano` the Arabesque bed.
+
 ## Latest handoff: v11 cadence + new pricing animation + audio reference
 
 Start with **[handoff/pricing-timing-audio/README.md](handoff/pricing-timing-audio/README.md)**.

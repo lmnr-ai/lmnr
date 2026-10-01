@@ -13,7 +13,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const value = (flag: string) => {const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1];};
 const settingsFile = value('--settings'), out = value('--out'), bedName = value('--bed') ?? VOICEOVER_BED;
-if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav> [--bed openai|piano]');
+if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error(`Use --settings <settings.json> --out <new.wav> [--bed ${Object.keys(VOICEOVER_BEDS).join('|')}]`);
 if (!isVoiceoverBed(bedName)) throw new Error(`Unknown bed "${bedName}". Beds: ${Object.keys(VOICEOVER_BEDS).join(', ')}`);
 const output = resolve(out), manifestPath = output.replace(/\.wav$/, '.json');
 if (existsSync(output) || existsSync(manifestPath)) throw new Error('Refusing to overwrite existing WAV or manifest');

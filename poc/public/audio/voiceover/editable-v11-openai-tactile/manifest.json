@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "scoreStyle": "openai-tactile",
+  "seed": 107290,
+  "sampleRate": 48000,
+  "frames": 2085,
+  "samples": 3336000,
+  "bed": {
+    "file": "bed.wav",
+    "sha256": "e4d724584d084fa011304cdb08bd0c1821ac304e82fbeed69ca405e772a42e1a"
+  },
+  "bedDb": -1,
+  "masterGain": 0.7275067096317076,
+  "normalisedGain": 1.8455408962218975,
+  "settingsSha256": "46a9e789c589a901e412a97a8f1d73edf08182560732b62f34c9966cfed47217",
+  "score": {
+    "lufs": -21.28,
+    "truePeakDb": -1,
+    "counts": {
+      "grain": 584,
+      "glass": 78,
+      "pluck": 217,
+      "sub": 70,
+      "thump": 103,
+      "drone": 1,
+      "crackle": 5,
+      "rise": 5,
+      "overtones": 2,
+      "bloom": 4,
+      "keyClick": 10
+    }
+  },
+  "layers": {
+    "sub": {
+      "lufs": -22.56,
+      "truePeakDb": -6.34
+    },
+    "body": {
+      "lufs": -27.53,
+      "truePeakDb": -6.71
+    },
+    "keys": {
+      "lufs": -31.11,
+      "truePeakDb": -11.2
+    },
+    "glass": {
+      "lufs": -37.56,
+      "truePeakDb": -18.18
+    },
+    "grain": {
+      "lufs": -47.36,
+      "truePeakDb": -15.42
+    },
+    "bloom": {
+      "lufs": -24.48,
+      "truePeakDb": -9.1
+    },
+    "lift": {
+      "lufs": -29.67,
+      "truePeakDb": -15.75
+    },
+    "typing": {
+      "lufs": -45.37,
+      "truePeakDb": -26.39
+    }
+  },
+  "phrases": "/audio/voiceover/editable-v11/",
+  "phraseManifestSha256": "07d9c6816660636e18ac45de10c1f875351cd3d0e646b260d1adea7206040734",
+  "note": "Voice-free bed (struck sub, body, plucks, glass, grains, blooms, lift and typing; no piano) at -1 dB; the narration stays the editable-v11 trims of the approved take. Layer stems render at the same fixed master gain and sum to the bed before the trim."
+}
