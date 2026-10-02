@@ -10,6 +10,8 @@ export const CURRENT_MIX_ID = 'ultimate3-voiceover-sound-v4';
 export const CURRENT_CUT_BACKUP = 'ultimate3-before-current-cut-v1';
 const MIX_MIGRATION = 'ultimate3-current-mix-v1';
 const MIX_BACKUP = 'ultimate3-before-current-mix-v1';
+const URL_MIX_MIGRATION = 'ultimate3-current-mix-v2';
+const URL_MIX_BACKUP = 'ultimate3-before-current-mix-v2';
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const close = (a: number, b: number) => Math.abs(a - b) < 1e-8;
 
@@ -154,6 +156,7 @@ export function loadCurrentVoiceoverSettings(storage: Pick<Storage, 'getItem' | 
   const settings = readCurrentVoiceoverSettings(storage);
   try {
     const before = storage.getItem(VOICEOVER_SETTINGS_ID);
+    const hadUrl = Boolean(before && JSON.parse(before)?.conclusion?.url);
     if (before && !storage.getItem(VOICEOVER_TAKE_BACKUP)) storage.setItem(VOICEOVER_TAKE_BACKUP, before);
     if (before && !storage.getItem(COST_TIMING_RECOVERY_BACKUP)) storage.setItem(COST_TIMING_RECOVERY_BACKUP, before);
     if (before && !storage.getItem(COST_LEAD_IN_BACKUP)) storage.setItem(COST_LEAD_IN_BACKUP, before);
@@ -171,6 +174,17 @@ export function loadCurrentVoiceoverSettings(storage: Pick<Storage, 'getItem' | 
         }
       }
       storage.setItem(MIX_MIGRATION, '1');
+    }
+    if (!storage.getItem(URL_MIX_MIGRATION)) {
+      const key = `dialkit:${CURRENT_MIX_ID}`;
+      const previous = storage.getItem(key);
+      const mix = previous && JSON.parse(previous);
+      // The v4 bed ends 1.77 s before a cut that just gained the url card; a later cursor-v4 pick stays an edit.
+      if (previous && !hadUrl && settings.conclusion.url && mix?.activePresetId == null && mix?.values?.soundtrack === 'cursor-v4') {
+        if (!storage.getItem(URL_MIX_BACKUP)) storage.setItem(URL_MIX_BACKUP, previous);
+        storage.setItem(key, JSON.stringify({...mix, values: {...mix.values, soundtrack: CURRENT_SOUNDTRACK}}));
+      }
+      storage.setItem(URL_MIX_MIGRATION, '1');
     }
   } catch { /* Read-only/blocked storage still gets usable in-memory picture defaults. */ }
   return settings;

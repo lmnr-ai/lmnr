@@ -78,3 +78,21 @@ test('non-default soundtrack choices and active mix presets are not overwritten'
     assert.equal(JSON.parse(storage.getItem(`dialkit:${CURRENT_MIX_ID}`)!).values.soundtrack, soundtrack);
   }
 });
+
+test('a stored cursor-v4 selection follows the cut onto the laminar.sh bed once', () => {
+  const key = `dialkit:${CURRENT_MIX_ID}`;
+  const storage = memory(VOICEOVER_DEFAULTS, 'cursor-v4');
+  const settings = loadCurrentVoiceoverSettings(storage);
+  assert.ok(settings.conclusion.url);
+  assert.equal(JSON.parse(storage.getItem(key)!).values.soundtrack, CURRENT_SOUNDTRACK);
+  // Picking v4 again on the url cut, a preset, or an authored ending without the card, stays literal.
+  storage.setItem(key, JSON.stringify({...JSON.parse(storage.getItem(key)!), values: {soundtrack: 'cursor-v4'}}));
+  loadCurrentVoiceoverSettings(storage);
+  assert.equal(JSON.parse(storage.getItem(key)!).values.soundtrack, 'cursor-v4');
+  const authored = {...VOICEOVER_DEFAULTS, conclusion: {...VOICEOVER_DEFAULTS.conclusion, logo: {...VOICEOVER_DEFAULTS.conclusion.logo, duration: 4}}};
+  for (const [stored, preset] of [[VOICEOVER_DEFAULTS, 'kept'], [authored, null]] as const) {
+    const other = memory(stored, 'cursor-v4', preset);
+    loadCurrentVoiceoverSettings(other);
+    assert.equal(JSON.parse(other.getItem(key)!).values.soundtrack, 'cursor-v4');
+  }
+});
