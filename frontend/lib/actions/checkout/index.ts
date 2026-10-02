@@ -212,7 +212,15 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newTierConfig = TIER_CONFIG[newTier];
   const s = stripe();
 
-  const usage = await getWorkspaceUsage(workspaceId);
+  let usage = await getWorkspaceUsage(workspaceId);
+  let signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
+  if (signalCredit.usageWindowMatched === false) {
+    usage = await getWorkspaceUsage(workspaceId);
+    signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
+    if (signalCredit.usageWindowMatched === false) {
+      throw new Error("Signals usage period changed while switching tiers; please retry");
+    }
+  }
 
   const newMegabytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes) / 1024 / 1024;
 
@@ -232,10 +240,6 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
 
   // Reconcile the lifetime sign-up credit before rebasing the Stripe meter.
   // Only credit applied in this billing period reduces its metered total.
-  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
-  if (signalCredit.usageWindowMatched === false) {
-    throw new Error("Signals usage period changed while switching tiers; please retry");
-  }
   const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
     usage.totalSignalCostMicroUsd,
     signalCredit.appliedThisPeriodMicroUsd,

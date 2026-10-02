@@ -13,7 +13,7 @@ const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceStats> {
   const usage = await getWorkspaceUsage(workspaceId);
   const gbUsedThisMonth = bytesToGB(usage.totalBytesIngested);
-  const signalCostUsedThisMonth = usage.totalSignalCostMicroUsd;
+  let signalCostUsedThisMonth = usage.totalSignalCostMicroUsd;
 
   if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
     return {
@@ -40,7 +40,15 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   }
 
   const limits = limitsRows[0];
-  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, signalCostUsedThisMonth);
+  let signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, signalCostUsedThisMonth);
+  if (signalCredit.usageWindowMatched === false) {
+    const refreshedUsage = await getWorkspaceUsage(workspaceId);
+    signalCostUsedThisMonth = refreshedUsage.totalSignalCostMicroUsd;
+    signalCredit = await reconcileSignalCredit(workspaceId, refreshedUsage.signalResetTime, signalCostUsedThisMonth);
+    if (signalCredit.usageWindowMatched === false) {
+      throw new Error("Signals usage period changed while loading workspace statistics; please retry");
+    }
+  }
   const gbLimit = bytesToGB(Number(limits.bytesLimit));
 
   const gbOverLimit = Math.max(gbUsedThisMonth - gbLimit, 0);
