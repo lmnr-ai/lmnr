@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
+import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { normalizeTier } from "@/lib/billing/tiers";
@@ -229,12 +230,11 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  // `usage.totalSignalCostMicroUsd` and `includedSignalCostMicroUsd` are both
-  // in micro-USD. The Stripe signal-cost meter is priced per USD, so report the
-  // overage as a dollar amount (micro-USD / 1e6), rounded to 5 decimals.
-  const newSignalCostOverageMicroUsd = Math.max(
+  // Credited runs are excluded from the Stripe meter baseline.
+  const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
+    usage.uncreditedSignalCostMicroUsd,
     0,
-    usage.totalSignalCostMicroUsd - newTierConfig.includedSignalCostMicroUsd
+    newTierConfig.includedSignalCostMicroUsd
   );
   const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);
 

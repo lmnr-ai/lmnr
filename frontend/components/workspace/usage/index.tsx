@@ -9,7 +9,14 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { ChartContainer } from "@/components/ui/chart";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { normalizeTier, signalCacheReadRate, signalInputRate, signalOutputRate, TIERS } from "@/lib/billing/tiers";
+import {
+  formatSignalTokenRate,
+  normalizeTier,
+  signalCacheReadRate,
+  signalInputRate,
+  signalOutputRate,
+  TIERS,
+} from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
@@ -26,11 +33,6 @@ interface WorkspaceUsageProps {
 interface TierHint {
   data: string;
   dataGB: number;
-  // Included signal budget, displayed as a dollar amount (e.g. "$7.50").
-  signalBudget: string;
-  // Included signal budget in micro-USD (1e-6 USD) — matches the units stored
-  // in subscription_tiers.signal_cost_included_micro_usd and the usage cache.
-  signalBudgetMicroUsd: number;
   isOverageAllowed: boolean;
   overageDataPrice: number;
   teamMembers: string;
@@ -40,8 +42,6 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   free: {
     data: "1 GB",
     dataGB: 1,
-    signalBudget: "$2.50",
-    signalBudgetMicroUsd: 2_500_000,
     isOverageAllowed: false,
     overageDataPrice: 0,
     teamMembers: "1",
@@ -49,8 +49,6 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   hobby: {
     data: "3 GB",
     dataGB: 3,
-    signalBudget: "$7.50",
-    signalBudgetMicroUsd: 7_500_000,
     isOverageAllowed: true,
     overageDataPrice: 2,
     teamMembers: "Unlimited",
@@ -58,8 +56,6 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   pro: {
     data: "10 GB",
     dataGB: 10,
-    signalBudget: "$25",
-    signalBudgetMicroUsd: 25_000_000,
     isOverageAllowed: true,
     overageDataPrice: 1.5,
     teamMembers: "Unlimited",
@@ -75,18 +71,20 @@ const getTierUsageHint = (tierName: string): TierHint | null => {
   return TIER_USAGE_HINTS[key === "starter" ? "hobby" : key] ?? null;
 };
 
-const getUsageDescription = (tierName?: string): string => {
+const getUsageDescription = (tierName?: string, signalCreditGrantedMicroUsd = 0): string => {
   if (!tierName) return DEFAULT_USAGE_DESCRIPTION;
   const tierHintInfo = getTierUsageHint(tierName);
   if (!tierHintInfo) return DEFAULT_USAGE_DESCRIPTION;
   const tier = normalizeTier(tierName);
-  const tierHint = `${TIERS[tier].name} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalBudget} of included Signals usage per month.`;
-  const tierHintOverages =
-    "If you exceed these limits, " +
-    (tierHintInfo.isOverageAllowed
-      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate()} / 1M input tokens, $${signalCacheReadRate()} / 1M cached input tokens, and $${signalOutputRate()} / 1M output tokens for additional Signals usage.`
-      : "you won't be able to send any more data during current billing cycle.");
-  return `${tierHint} ${tierHintOverages}`;
+  const creditHint =
+    signalCreditGrantedMicroUsd > 0
+      ? " This workspace also received a one-time $5 Signals credit that carries forward until used."
+      : "";
+  const tierHint = `${TIERS[tier].name} tier comes with ${tierHintInfo.data} data per month.${creditHint}`;
+  const tierHintOverages = tierHintInfo.isOverageAllowed
+    ? ` Additional usage costs $${tierHintInfo.overageDataPrice} per GB for data and ${formatSignalTokenRate(signalInputRate())} / 1M input tokens, ${formatSignalTokenRate(signalCacheReadRate())} / 1M cached input tokens, and ${formatSignalTokenRate(signalOutputRate())} / 1M output tokens for Signals.`
+    : " Once a limit or credit is exhausted, upgrade to continue using it.";
+  return `${tierHint}${tierHintOverages}`;
 };
 
 export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
@@ -98,10 +96,12 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
   const signalCostUsed = workspaceStats?.signalCostUsedThisMonth ?? 0;
-  const signalCostLimit = workspaceStats?.signalCostLimit ?? 0;
+  const signalCreditGranted = workspaceStats?.signalCreditGrantedMicroUsd ?? 0;
+  const signalCreditRemaining = workspaceStats?.signalCreditRemainingMicroUsd ?? 0;
 
   const isUnlimited = !isFinite(gbLimit);
-  const hasLimits = gbLimit > 0 && signalCostLimit > 0;
+  const hasDataLimit = gbLimit > 0;
+  const hasSignalCredit = signalCreditGranted > 0;
 
   const formatter = new Intl.NumberFormat("en-US", {
     style: "percent",
@@ -127,7 +127,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
     return `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const usageDescription = getUsageDescription(workspaceStats?.tierName);
+  const usageDescription = getUsageDescription(workspaceStats?.tierName, signalCreditGranted);
 
   return (
     <>
@@ -142,15 +142,15 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
                 <span className="text-sm font-medium">Data usage</span>
                 <span className="text-sm text-secondary-foreground">
                   {formatGB(gbUsedThisMonth)}
-                  {!isUnlimited && hasLimits && ` / ${formatGB(gbLimit)}`}
+                  {!isUnlimited && hasDataLimit && ` / ${formatGB(gbLimit)}`}
                 </span>
-                {!isUnlimited && hasLimits && (
+                {!isUnlimited && hasDataLimit && (
                   <span className="text-xs text-muted-foreground">
                     {formatter.format(safePercent(gbUsedThisMonth, gbLimit))} of limit used
                   </span>
                 )}
               </div>
-              {!isUnlimited && hasLimits && (
+              {!isUnlimited && hasDataLimit && (
                 <UsageProgressDisc color="hsl(var(--chart-1))" value={gbUsedThisMonth} maxValue={gbLimit} />
               )}
             </div>
@@ -161,17 +161,21 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Signals usage</span>
                 <span className="text-sm text-secondary-foreground">
-                  {formatSignalCost(signalCostUsed)}
-                  {!isUnlimited && hasLimits && ` / ${formatSignalCost(signalCostLimit)}`}
+                  {formatSignalCost(signalCostUsed)} this billing period
                 </span>
-                {!isUnlimited && hasLimits && (
+                {hasSignalCredit && (
                   <span className="text-xs text-muted-foreground">
-                    {formatter.format(safePercent(signalCostUsed, signalCostLimit))} of limit used
+                    {formatSignalCost(signalCreditRemaining)} of {formatSignalCost(signalCreditGranted)} one-time credit
+                    remaining
                   </span>
                 )}
               </div>
-              {!isUnlimited && hasLimits && (
-                <UsageProgressDisc color="hsl(var(--chart-2))" value={signalCostUsed} maxValue={signalCostLimit} />
+              {hasSignalCredit && (
+                <UsageProgressDisc
+                  color="hsl(var(--chart-2))"
+                  value={signalCreditGranted - signalCreditRemaining}
+                  maxValue={signalCreditGranted}
+                />
               )}
             </div>
           </div>
@@ -197,7 +201,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
         <LimitsSettings
           workspaceId={workspace.id}
           tierIncludedDataGB={tierHint.dataGB}
-          tierIncludedSignalCostMicroUsd={tierHint.signalBudgetMicroUsd}
+          tierIncludedSignalCostMicroUsd={0}
         />
       )}
     </>

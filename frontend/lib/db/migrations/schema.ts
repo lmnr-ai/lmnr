@@ -541,6 +541,7 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }).default(5_000_000),
     settings: jsonb().default({}).notNull(),
   },
   (table) => [
@@ -549,6 +550,10 @@ export const workspaces = pgTable(
       foreignColumns: [subscriptionTiers.id],
       name: "workspaces_tier_id_fkey",
     }).onUpdate("cascade"),
+    check(
+      "workspaces_signal_credit_remaining_check",
+      sql`${table.signalCreditRemainingMicroUsd} IS NULL OR (${table.signalCreditRemainingMicroUsd} >= 0 AND ${table.signalCreditRemainingMicroUsd} <= 5000000)`
+    ),
   ]
 );
 

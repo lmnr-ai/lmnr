@@ -50,15 +50,20 @@ interface TierEstimate {
   available: boolean;
 }
 
-/** A line costs nothing until usage passes the allowance; past it, the charge
- *  IS the difference, so there is no separate rate to spell out. A tier with no
- *  overage rate cannot bill the difference at all, so it stops instead. */
+/** A line costs nothing until usage passes its recurring allowance; past it,
+ *  the charge IS the difference. The one-time Signals sign-up credit is kept
+ *  out of this monthly estimate so it cannot look like a recurring discount. */
 const usageCell = (used: string, included: string, over: number, overageRate: number): UsageCell => {
   const detail = `${used} / ${included}`;
   if (over > 0 && overageRate === 0) return { charge: "Not available", detail };
   const cost = over * overageRate;
   return { charge: cost > 0 ? `$${formatDollars(cost)}` : "Included", detail };
 };
+
+const signalUsageCell = (costUsd: number, overageAllowed: boolean): UsageCell => ({
+  charge: overageAllowed ? (costUsd > 0 ? `$${formatDollars(costUsd)}` : "Included") : "Not available",
+  detail: overageAllowed ? undefined : "after one-time credit",
+});
 
 const CUSTOM_CELL: UsageCell = { charge: "Custom" };
 
@@ -86,12 +91,7 @@ function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierE
   const signalOverageRate = t.dataOverageRatePerGB > 0 ? 1 : 0;
 
   const data = usageCell(formatDataSize(dataGB), formatDataSize(t.includedBytesGB), dataOver, t.dataOverageRatePerGB);
-  const signals = usageCell(
-    `$${formatDollars(signalCostUsd)}`,
-    `$${t.includedSignalCostUsd}`,
-    signalOver,
-    signalOverageRate
-  );
+  const signals = signalUsageCell(signalCostUsd, signalOverageRate > 0);
 
   const totalUsd = t.basePriceMonthly + dataOver * t.dataOverageRatePerGB + signalOver * signalOverageRate;
   const available = data.charge !== "Not available" && signals.charge !== "Not available";
@@ -254,8 +254,9 @@ export default function PricingCalculator() {
         <TierComparison estimates={estimates} recommended={recommended} />
         <p className={cn(microLabel, "text-foreground-300 text-sm")}>
           Prices above are estimates only. Storage costs are not proportional to token count due to trace compression.
-          Signals are billed by tokens used during analysis by our internal Signals Agent. Signal estimates use median
-          production costs for each trace-size bucket and provisional unified rates; actual billing rates may differ.
+          Signals are billed by tokens used during analysis by our internal Signals Agent. Signal estimates use measured
+          median flow-1 costs for each trace-size bucket and exclude the one-time $5 sign-up credit; actual billing
+          costs may differ.
         </p>
       </div>
     </div>

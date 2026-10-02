@@ -150,7 +150,6 @@ impl Harness {
             reset_time: at(0),
             workspace_project_ids: vec![project_id],
             bytes_limit: i64::MAX,
-            signal_cost_included_micro_usd: 0,
             custom_bytes_limit: None,
             signal_cost_hard_limit_micro_usd: None,
             settings: ProjectSettings {
