@@ -98,12 +98,11 @@ pub async fn delete_dataset(
     project_id: Uuid,
     dataset_id: Uuid,
 ) -> Result<db::datasets::Dataset, DatasetError> {
-    // Match the frontend deletion order: remove Postgres metadata first, then
-    // issue the ClickHouse datapoint mutation. These stores cannot share a transaction.
+    // Delete Postgres metadata first, then retry the ClickHouse mutation even if
+    // a previous attempt already removed the row. These stores cannot share a transaction.
     let dataset = db::datasets::delete_dataset(pool, dataset_id, project_id)
         .await
-        .map_err(DatasetError::Internal)?
-        .ok_or(DatasetError::DatasetNotFound)?;
+        .map_err(DatasetError::Internal)?;
 
     clickhouse
         .query(
@@ -116,8 +115,12 @@ pub async fn delete_dataset(
         .await
         .map_err(anyhow::Error::from)?;
 
-    Ok(dataset)
+    dataset.ok_or(DatasetError::DatasetNotFound)
 }
+
+#[cfg(test)]
+#[path = "service/tests.rs"]
+mod tests;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
