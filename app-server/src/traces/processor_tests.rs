@@ -754,6 +754,8 @@ async fn pipeline_end_to_end() {
     let s1 = f1.span_row(id(S1));
     assert_eq!(s1["input"], json!({ "task": "fix the tests" }).to_string());
     assert_eq!(s1["output"], "\"done\"");
+    // Nothing dedup'd: uncompressed and billed size agree.
+    assert_eq!(s1["uncompressed_size_bytes"], s1["size_bytes"]);
     assert_eq!(s1["user_id"], "u-1");
     assert_eq!(
         serde_json::from_str::<Value>(s1["trace_metadata"].as_str().unwrap()).unwrap(),
@@ -1029,6 +1031,16 @@ async fn pipeline_end_to_end() {
     assert!(
         s3_size > 0 && s3_size < s2_size + 2 * 1024,
         "{s3_size} vs {s2_size}"
+    );
+    // Uncompressed ignores dedup: S3 re-sends S2's history plus one message
+    // and the same tools, so it outgrows S2 even though they are billed as
+    // hashes. Tiny fixture messages are smaller than their 32B hashes, so it
+    // is not compared against the billed size.
+    let s3_uncompressed = s3["uncompressed_size_bytes"].as_u64().unwrap();
+    let s2_uncompressed = s2["uncompressed_size_bytes"].as_u64().unwrap();
+    assert!(
+        s3_uncompressed > s2_uncompressed,
+        "{s3_uncompressed} vs S2 {s2_uncompressed}"
     );
     assert!(h.mark_exists(&trace_new_key(&m3.span, &d3.hashes[3])).await);
     assert!(h.mark_exists(&storage_key(&m3.span, &d3.hashes[3])).await);

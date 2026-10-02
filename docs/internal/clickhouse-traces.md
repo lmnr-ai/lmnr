@@ -31,6 +31,12 @@
 - Deploy ordering: app-server must not ship ahead of the migration, or every span insert fails on the unknown column. The frontend runs CH migrations at startup (`instrumentation.ts`).
 - **Staging ClickHouse is NOT an oracle for "has this migration run".** Its `default._migrations` (columns `uid, version, checksum, migration_name, applied_at`; note the leading underscore) topped out at version 43 while the repo had 60, and its `spans`/`spans_v0` already carried these three columns plus a `trace_view_attributes` column that exists in NEITHER repo — all applied out of band. Staging is still useful for checking a *type* choice via `system.columns`, and a view body can be validated read-only by running its `SELECT` with `param_project_id=…` + `LIMIT 0` instead of creating anything.
 
+## `spans.size_bytes` vs `uncompressed_size_bytes` / `created_at`
+
+- `size_bytes` is the billed, post-dedup size (hashes + newly-stored content); `uncompressed_size_bytes` (CH migration 70) is the same base with input/output/tool definitions at raw JSON size. Both are computed in `charge_span_sizes` (`traces/processor.rs`). For tiny messages uncompressed can be SMALLER than billed (a 32B hash outweighs the message), so never assert `uncompressed >= billed`.
+- The producer strips every dedup'd `input`/`output` off the span before publishing (`traces/producer.rs`) and moves tool definitions out of `raw_attributes`, so the consumer cannot measure them: the raw sizes ride the wire as `MessageDedup.size_bytes` / `ToolDedup.size_bytes` (`#[serde(default)]`, measured pre-PII-redaction).
+- `spans.created_at` is `DEFAULT now64(9)` and is NOT a `CHSpan` field — inserts list columns by name, so ClickHouse fills it. Rows in parts older than migration 70 read back the query time, not their ingest time. Neither column is in `spans_v0`/`spans_v1` (same as `size_bytes`).
+
 ## `traces_agg` AggregatingMergeTree
 
 - **`traces_agg` + `traces_static` are the ONLY trace stores.** `db/trace.rs` keeps only `TraceType` (read by `ch/spans.rs`'s `Into<u8>` and the private signals hook) plus the unrelated `shared_traces` helpers. The physical `traces_replacing` table and the PG `traces` table still exist with historical rows — they are read-dead, not dropped, so `deleteProjectDataFromClickHouse` must keep purging `traces_replacing` (an `ALTER … DELETE` against a missing table throws and aborts the purge).

@@ -177,6 +177,10 @@ pub struct CHSpan {
     /// drives the masked branch of `spans_v1`.
     #[serde(default)]
     pub pii_checked: bool,
+    /// `size_bytes` without content dedup: input, output and tool definitions
+    /// at their raw JSON size. Set by `traces/processor.rs::charge_span_sizes`.
+    #[serde(default)]
+    pub uncompressed_size_bytes: u64,
 }
 
 impl CHSpan {
@@ -257,6 +261,7 @@ impl CHSpan {
             input_masks: Vec::new(),
             output_masks: Vec::new(),
             pii_checked: false,
+            uncompressed_size_bytes: 0,
         }
     }
 }
