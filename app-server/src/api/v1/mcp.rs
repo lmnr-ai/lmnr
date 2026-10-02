@@ -6,8 +6,8 @@ use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions, Implementation,
-        ServerCapabilities, ServerInfo,
+        CallToolResponse, CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions,
+        Implementation, ServerCapabilities, ServerConfig,
     },
     schemars,
     service::{RequestContext, serve_directly},
@@ -178,7 +178,7 @@ impl LaminarMcpServer {
         &self,
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<QuerySqlParams>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let project_id = context
             .extensions
             .get::<ProjectId>()
@@ -205,10 +205,9 @@ impl LaminarMcpServer {
         {
             Ok(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::to_string_pretty(&result).unwrap_or_default(),
-            )])),
-            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(
-                e.to_string(),
-            )])),
+            )])
+            .into()),
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(e.to_string())]).into()),
         }
     }
 
@@ -231,7 +230,7 @@ impl LaminarMcpServer {
         &self,
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<GetTraceContextParams>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let project_id = context
             .extensions
             .get::<ProjectId>()
@@ -242,11 +241,14 @@ impl LaminarMcpServer {
             .get_trace_context_for_mcp(project_id, params.trace_id)
             .await
         {
-            Ok(trace_str) => Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)])),
+            Ok(trace_str) => {
+                Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)]).into())
+            }
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to retrieve trace: {}",
                 e
-            ))])),
+            ))])
+            .into()),
         }
     }
 
@@ -255,7 +257,7 @@ impl LaminarMcpServer {
         &self,
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<AskAgentParams>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let project_id = context
             .extensions
             .get::<ProjectId>()
@@ -269,12 +271,12 @@ impl LaminarMcpServer {
             Ok((answer, conversation_id)) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{answer}\n\n---\nconversationId: {conversation_id}\n(Pass this `conversationId` to the next `ask_agent` call to continue this conversation.)"
-                ))]))
+                ))]).into())
             }
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Agent failed: {}",
                 e
-            ))])),
+            ))]).into()),
         }
     }
 }
@@ -460,8 +462,8 @@ impl LaminarMcpServer {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for LaminarMcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")))
     }
 }
