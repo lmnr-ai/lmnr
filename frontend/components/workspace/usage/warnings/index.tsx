@@ -8,6 +8,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { type WorkspaceUsageWarning } from "@/lib/actions/usage/usage-warnings";
 import { swrFetcher } from "@/lib/utils";
 
+import SurfaceCard from "../surface-card";
 import WarningChip, { AddWarningPopover } from "./warning-row";
 
 interface WarningsSettingsProps {
@@ -42,14 +43,11 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
       <SettingsSectionHeader
         size="sm"
         title="Email warnings"
-        description="Get notified when your total usage this billing cycle reaches a threshold. Thresholds count from zero and include your plan's allowance — so a Signals threshold equal to your included allowance notifies you once it's used up, not after that much again. Multiple thresholds per meter are allowed."
+        description="Get an email when total usage this billing cycle reaches a threshold. Thresholds count from zero, so one set at your included amount fires as soon as it's used up."
       />
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex flex-col rounded-md border flex-1">
-          <div className="flex items-center px-3 h-10">
-            <span className="text-sm font-medium">Data ingestion</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SurfaceCard title="Data ingestion">
+          <div className="flex flex-wrap items-center gap-2">
             {bytesWarnings.map((w) => (
               <WarningChip
                 key={w.id}
@@ -68,13 +66,10 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
               onAdd={handleUpdate}
             />
           </div>
-        </div>
+        </SurfaceCard>
 
-        <div className="flex flex-col rounded-md border flex-1">
-          <div className="flex items-center px-3 h-10">
-            <span className="text-sm font-medium">Signals usage</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+        <SurfaceCard title="Signals usage">
+          <div className="flex flex-wrap items-center gap-2">
             {signalCostWarnings.map((w) => (
               <WarningChip
                 key={w.id}
@@ -93,7 +88,7 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
               onAdd={handleUpdate}
             />
           </div>
-        </div>
+        </SurfaceCard>
       </div>
     </SettingsSection>
   );

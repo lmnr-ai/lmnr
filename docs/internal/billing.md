@@ -15,6 +15,8 @@
 - Stripe invoice line items expose their lookup key in two places: legacy `line.price.lookup_key` and the newer `line.pricing.price_details.price.lookup_key`. Email-subject/body rendering must check BOTH before falling back to `line.description` or a generic "Subscription charge" string, otherwise the subject line silently becomes `Laminar: Payment for  is received.` (trailing empty label).
 - Transactional-email "billing portal" CTAs link to `/checkout/portal?workspaceId=...` (`frontend/app/checkout/portal/page.tsx`), which mints a Stripe billing portal session via `getPaymentMethodPortalUrl` and 302s straight to Stripe. Unauthenticated clicks bounce through `/sign-in?callbackUrl=...`. `getPaymentMethodPortalUrl` requires owner/admin role on the workspace — non-admin recipients hit the catch and get redirected to the workspace billing tab as a graceful fallback. Don't link emails directly to the workspace settings page; that path requires the user to manually click "Billing portal" again.
 
+- **The Usage tab's bill is an estimate, not the invoice** (`lib/billing/usage-estimate.ts`): Stripe charges what meters-job reports. Totals come from the Redis-backed `getWorkspaceStats`; daily charts from `GET /api/workspaces/[id]/usage-breakdown` (ClickHouse, priced server-side, uncached).
+
 ## Workspace Usage Warnings vs Hard Limits
 
 - Usage enforcement lives in two separate tables, both edited via Stripe webhook when a subscription is created or a tier is switched (`frontend/lib/actions/checkout/webhook.ts`):

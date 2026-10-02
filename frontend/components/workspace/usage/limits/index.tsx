@@ -44,7 +44,7 @@ export default function LimitsSettings({
         title="Hard limits"
         description="When a limit is reached, new data ingestion or signal usage will be rejected until the next billing cycle."
       />
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <LimitRow
           workspaceId={workspaceId}
           limitType="bytes"
