@@ -151,19 +151,6 @@ const SetTemplateSignalsSchema = z.object({
   subscriberEmail: z.email().optional(),
 });
 
-// Copies of signal_event_clusters that rebuild-signal-clusters.ts leaves until
-// they are dropped by hand. A purge that skipped them could see clusters return.
-const CLUSTER_SHADOW_TABLES = ["signal_event_clusters_v2", "signal_event_clusters_old"];
-
-const clusterShadowTables = async (): Promise<string[]> => {
-  const rs = await clickhouseClient.query({
-    query: `SELECT name FROM system.tables WHERE database = currentDatabase() AND name IN ({tables: Array(String)})`,
-    query_params: { tables: CLUSTER_SHADOW_TABLES },
-    format: "JSONEachRow",
-  });
-  return (await rs.json<{ name: string }>()).map((r) => r.name);
-};
-
 // Events first so a crash mid-purge can't resurrect clusters via the backfill join.
 // Don't scrub traces_agg — a per-signal UPDATE rewrites the whole table; residue is
 // inert (dictHas on cluster_ids, Postgres for signal identity).
@@ -186,17 +173,14 @@ async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]
         `,
       query_params: { projectId, signalIds },
     });
-    // Shadows before the live table: the rebuild copies from them into it.
-    for (const table of [...(await clusterShadowTables()), "signal_event_clusters"]) {
-      await clickhouseClient.command({
-        query: `
-          DELETE FROM ${table}
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM signal_event_clusters
           WHERE project_id = {projectId: UUID}
             AND signal_id IN ({signalIds: Array(UUID)})
         `,
-        query_params: { projectId, signalIds },
-      });
-    }
+      query_params: { projectId, signalIds },
+    });
   } catch (error) {
     console.error("Failed to purge signals from ClickHouse:", error);
   }

@@ -5,8 +5,8 @@ import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 // (ReplacingMergeTree(updated_at, is_deleted), monthly partitions, no vector
 // index) and swaps it in (LAM-2329). Fire-and-forget on frontend boot. Silent
 // once the status record is `completed`, or the live table has `is_deleted` and
-// signal_event_clusters_v2 is gone (renamed to signal_event_clusters_old after
-// delta2, or dropped).
+// signal_event_clusters_v2 is gone (renamed after delta2 to
+// old_unpartitioned_signal_event_clusters, or dropped).
 //
 // The app-server refuses to start clustering workers until the swap has
 // happened (it would write tombstones the old table reads as live rows), so on
@@ -20,9 +20,10 @@ import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 //   3. EXCHANGE TABLES signal_event_clusters AND signal_event_clusters_v2;
 //   4. Deploy the new app-server, then scale the consumers back up. The next
 //      frontend boot runs delta2 (nothing to copy on a quiet table) and renames
-//      the old table to signal_event_clusters_old.
-//   5. Once verified, DROP TABLE signal_event_clusters_old (or _v2 if the
-//      frontend has not booted since the swap) by hand. Nothing here drops it.
+//      the old table to old_unpartitioned_signal_event_clusters.
+//   5. Once verified, DROP TABLE old_unpartitioned_signal_event_clusters (or
+//      signal_event_clusters_v2 if the frontend has not booted since the swap)
+//      by hand. Nothing here drops it.
 //
 //   -- copy (and delta, with `AND updated_at >= <copy start - 10 min>`)
 //   INSERT INTO signal_event_clusters_v2 (id, project_id, signal_id, name, level,
@@ -40,9 +41,10 @@ import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 //
 // With the consumers at 0 the delta and the post-swap delta2 find nothing; they
 // exist for the self-hosted path, where the old app-server may still be writing.
-// Project and signal purges also delete from signal_event_clusters_v2 and
-// signal_event_clusters_old, so neither the swap nor delta2 can bring back a
-// purged cluster.
+// The project purge also deletes from signal_event_clusters_v2 and
+// old_unpartitioned_signal_event_clusters. Deleting a signal clears only the
+// live table, so a signal deleted mid-rebuild comes back with the swap or
+// delta2 and must be deleted again.
 
 const LOG = "[signal-clusters-rebuild]";
 const LOCK_KEY = "signal_clusters_rebuild_lock";
@@ -51,7 +53,7 @@ const STATUS_KEY = "signal_clusters_rebuild_status";
 const LIVE = "signal_event_clusters";
 const NEXT = "signal_event_clusters_v2";
 // Where the old table goes once delta2 is done; never dropped here.
-const OLD = "signal_event_clusters_old";
+const OLD = "old_unpartitioned_signal_event_clusters";
 
 // Rows are stamped with the app-server's clock before the insert lands, so a
 // delta reads from well before the previous step started.
