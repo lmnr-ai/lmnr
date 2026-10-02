@@ -1,5 +1,77 @@
 # Animation 18 — Ultimate 3
 
+## Current edition: Cost cloud lead-in
+
+The active `?experiment=micro-18` edition is **2212 frames / 73.733333s**
+(frame-rounded). Its chapter starts are **0 / 17.56 / 28.43 / 43.622 / 62.93s**:
+exactly **1.5s** moved from the end of Ultimate2 into the beginning of Cost.
+Cost is now **10.87s** instead of 9.37s. Every existing Cost action and its native
+trim moved +1.5s in chapter seconds, leaving their global beats unchanged at
+that boundary transfer. The subsequently approved Main defaults below tune the
+cloud exit and yellow zip; all later chapters, all 23 narration clips and the
+linger soundtrack remain unchanged.
+
+In **Main**, scroll to **Clouds Slide Out**, directly below **Ultimate2 Cloud
+Enter**. Drag this real native bar left to reveal Cost during the new covered
+lead-in; the earliest start is **17.56s**. Its approved default is **17.61s**
+(Cost-local **0.05s**), duration **2.41s**, easing **[0.45, 0, 0.55, 1]**. **16 Cost → Cloud Sweep** edits the
+same `cost.timing.cloudSweep` clip in chapter seconds, not a second cloud layer.
+Both panels support from/to progress, easing and physics springs, and at least
+50ms authored duration. Bar duration and easing duration are independent native
+DialKit controls; edit the curve duration too when shortening an easing sweep.
+Paused live preview consumes raw `clip.current`; reverse seeking, Settings JSON
+and export use the same endpoints/curve. Dormant `clouds.slideIn/partialRecede/
+recede` metadata is still dormant; no frame-pinned renderer was restored.
+
+**Main → Yellow Agent Zip** is one range bar spanning all three yellow passes:
+default **18.76–20.96s globally**, or **1.20–3.40s within Cost** (duration **2.20s**). Moving it shifts
+all three passes equally; resizing scales their durations and gaps together.
+It does not retime speech, camera moves, warnings or other actions. This is a
+range handle over the existing clips, not another motion clock: its envelope
+stays linear, and individual motion curves remain editable in **16 Cost →
+Cheap Leg One Right / Cheap Leg Two Left / Cheap Leg Three Right**.
+
+The shared defaults live in `current-cut.ts`, not hardcoded overrides in the
+Main hook. `main-timing-request.fixture.json` records all **31 requested clips**;
+`main-timing-defaults.test.ts` and `main-timing-defaults.browser.test.sh` verify
+their starts, durations, easing and 0→1 endpoints. Existing saved edits/imports
+remain literal. The native `clip.current` bindings and production handoff note
+remain in place; no Motion conversion has been performed.
+
+The active loader applies this boundary migration only to generated
+**19.06s / 9.37s** allocations with at least 1.5s of Ultimate2 handoff hold.
+Custom clip starts translate without replacing controls, durations or curves.
+Manually changed boundaries or insufficient holds are left alone and marked;
+explicit imports stay literal, and subsequent edits never re-migrate.
+`ultimate3-before-cost-lead-in-v1` preserves the prior settings JSON;
+`costLeadInVersion: 1` records completion/skip/import. Historical source13/20
+cuts, standalone16/17, saved presets and the handoff snapshots remain available.
+
+A follow-up loader repair handles the observed interrupted hot-reload state:
+the new boundary was saved while old Cost clip starts remained. It uses this
+browser's `ultimate3-before-cost-lead-in-v1` backup and requires matching shifted
+boundaries plus an old handoff hold (or the entire stale action group). Only
+clips still matching that backup are shifted; already-shifted clips and custom
+cloud reveals are preserved. `ultimate3-before-cost-timing-recovery-v1` saves
+the pre-repair state, and `costTimingRecoveryVersion: 1` makes it one-time.
+Explicit imports opt out. Reload the editor to run this storage-only repair.
+
+Checks: `cost-timing-recovery.test.ts`, `cost-zip-authoring.test.ts`,
+`bash src/experiments/micro-18/cost-zip.browser.test.sh` (actual group drag,
+resize, reload, stale panel recovery, reverse poses and Settings JSON export),
+`cost-cloud-authoring.test.ts`, `current-cut.test.ts`, and
+`bash src/experiments/micro-18/cost-cloud.browser.test.sh` (from `poc`, with the
+existing localhost:5180 server). The browser regression uses an isolated
+installed-Chrome session, cold legacy Main/Cost stores, real pointer drag/resize,
+custom spring presets, reverse seeking and exact native cloud canvas parity.
+Follow-up validation: **253 tests**, typecheck and code-only production build
+passed. Both Cost browser suites passed, including recovery from the observed
+partial migration, all +1.5s local offsets, preserved presets, actual zip drag/
+resize, reverse three-rung poses versus export, and reload/JSON persistence.
+Audio source files and narration placements were not changed by this repair.
+
+The following sections describe earlier handoffs and historical defaults.
+
 ## Animation 19 picker entry: updated Flow comparison
 
 The default `?experiment=micro-18` narrated cut now uses Animation 23's shared
@@ -97,7 +169,7 @@ The Main timeline no longer exposes the replacement `slideIn` / `partialRecede` 
 
 The default editable voiceover cut now stitches **Animation 21 — Introducing flow-1 2** into the existing Cost → Flow → Issues shared world. Its native `beadsEntry` bar is **2.88–4.28s**, with one **Bead stagger seconds** dial (0.11s default); `graphSpread` is **5.41–6.95s**. Both axes still enter at 6.1s, and exit before the 8.64s engine descent. The graph has no intermediate camera pan; its displaced 240px is folded into engine descent, preserving the final engine framing. The Flow dot remains at x=1150/y=270, Sol stays gray, Y labels step by 5%, and X labels by 100 traces/$. Captions use the new “20x more traces per dollar” wording.
 
-In the current narrated source21/source22 cut, the five peers stagger first (Opus, Sonnet, Sol, Gemini, Luna). Flow's dot, `73.0`, and name stay hidden until narration phrase `n12` ("Surpassing GPT-6-Sol", currently 41.75s). Its upward entry uses the same bead travel duration/easing, starting no earlier than the resolved peer bar end. The cue is converted from global narration time to Flow-native time, so narration/chapter edits and reverse seeks stay consistent. The line and subsequent chart spread are unchanged; standalone/historical previews retain their original six-bead sequence.
+In the current narrated source21/source22 cut, the five peers stagger first (Opus, Sonnet, Sol, Gemini, Luna). Flow's dot, `74.1%`, and name stay hidden until narration phrase `n12` (currently 34.07s). The on-screen caption now says **“Matching GPT-6-Sol in intelligence…”**; the existing narration audio and phrase windows are unchanged. Opus 5 displays **84.8**, Sonnet 5 **77.3**. Flow's settled gap above Sol matches Gemini's gap above Luna (**36 graph pixels**), leaving clearance between the 32px-high labels. Its upward entry uses the same bead travel duration/easing, starting no earlier than the resolved peer bar end. The cue is converted from global narration time to Flow-native time, so narration/chapter edits and reverse seeks stay consistent. The line and subsequent chart spread are unchanged; standalone/historical previews retain their original six-bead sequence.
 
 - `flow.sourceVersion: 21` selects the shared Animation21 renderer/evaluator. `flow.timing21` holds its complete authored endpoints and curves. `flow.controls.beadStaggerSeconds` is copied in Settings JSON and honored by both preview and Remotion.
 - `flow.timing` remains the legacy source13 schedule for historical cuts and existing sound consumers. Original-cut defaults are unchanged. Explicit historical JSON imports are stamped `sourceVersion: 13`; they will not be silently upgraded on their next storage load.

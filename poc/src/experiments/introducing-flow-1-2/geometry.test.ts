@@ -6,7 +6,7 @@ import {introducingFlowState} from '../introducing-flow-1/geometry';
 import {sampleIntroducingFlow1} from '../introducing-flow-1/sample';
 import {Flow1WorldContent} from '../introducing-flow-1/Scene';
 import {GRAPH_MODELS} from './metrics';
-import {descF1Y, valueX, graphState, flow2WorldState, graphAxesState, AXES, AXIS_TICKS, AXIS_TICK_STEP, GRAPH, BEAD_START_Y} from './geometry';
+import {descF1Y, peerPointY, valueX, graphState, flow2WorldState, graphAxesState, AXES, AXIS_TICKS, AXIS_TICK_STEP, GRAPH, BEAD_START_Y, FLOW_ANCHOR_Y} from './geometry';
 import {createFlow2Sampler, flow2DurationFrames, sampleFlow2, liveFlow2, flow2TimelineConfig, type Flow2LiveTimeline} from './sample';
 import {FLOW_2_CLIP_KEYS, FLOW_2_TIMELINE, FLOW_2_TIMELINE_ID} from './timeline';
 import {FLOW_2_APPEARANCE, Flow2Graph, IntroducingFlow2Scene} from './Scene';
@@ -14,15 +14,15 @@ import {FLOW_2_VIDEO_DEFAULTS} from '../../video/IntroducingFlow2';
 
 const close = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 
-test('metrics freeze the current landing benchmark, not Animation 13’s obsolete figures', () => {
+test('metrics use the approved flow-1, Opus, Sonnet and Sol intelligence scores', () => {
   assert.deepEqual(GRAPH_MODELS.map(model => [model.name, model.descF1, model.tracesPerDollar]), [
-    ['flow-1', 73, 756], ['Claude Opus 5', 80.6, 7], ['Claude Sonnet 5', 76.9, 11],
-    ['GPT-6 Sol', 71.3, 37], ['GPT-6 Luna', 63.8, 632], ['Gemini 3.8 Flash', 65.3, 14],
+    ['flow-1', 74.1, 756], ['Claude Opus 5', 84.8, 7], ['Claude Sonnet 5', 77.3, 11],
+    ['GPT-6 Sol', 72.8, 37], ['GPT-6 Luna', 63.8, 632], ['Gemini 3.8 Flash', 65.3, 14],
   ]);
   close((valueX(632) - GRAPH.valueOriginX) / (valueX(756) - GRAPH.valueOriginX), 632 / 756);
 });
 
-test('first graph derives peer Y from F1 and pins flow-1 at the 4.5 grid line', () => {
+test('first graph derives peer Y from F1 with label clearance and the readable flow-1 anchor', () => {
   const state = graphState(sampleFlow2(5.2));
   assert.equal(state.ball.x, 280);
   assert.equal(GRAPH.peersX, 280);
@@ -30,11 +30,12 @@ test('first graph derives peer Y from F1 and pins flow-1 at the 4.5 grid line', 
   for (const point of state.points) {
     assert.equal(point.x, 280);
     assert.equal((point.x - GRAPH.gridOriginX) % GRAPH.pitch, 0);
-    assert.equal(point.y, descF1Y(point.descF1));
+    assert.equal(point.y, peerPointY(point.descF1));
+    assert.ok(point.y - 16 >= 16, 'peer labels clear the top of the graph');
   }
   assert.equal(state.points.length, GRAPH_MODELS.length - 1);
-  assert.equal(state.ball.y, 270);
-  assert.equal(state.ball.y / GRAPH.pitch, 4.5);
+  assert.equal(state.ball.y, FLOW_ANCHOR_Y);
+  close(state.ball.y, 256.8);
   const sorted = [...GRAPH_MODELS].sort((a, b) => a.descF1 - b.descF1);
   for (let i = 1; i < sorted.length; i++) assert.ok(descF1Y(sorted[i].descF1) <= descF1Y(sorted[i - 1].descF1));
 });
@@ -70,12 +71,12 @@ test('string slides in before the shared bead-entry sequence rises from below', 
   const settled = graphState(sampleFlow2(5.2));
   assert.equal(settled.ball.x, settled.string.x);
   settled.points.forEach(point => assert.equal(point.x, settled.string.x));
-  assert.deepEqual(settled.flowLabel, {x: 310, y: 254});
+  assert.deepEqual(settled.flowLabel, {x: 310, y: FLOW_ANCHOR_Y - 16});
   assert.equal(settled.ball.size, 20);
-  assert.equal(settled.ball.score, '73.0');
+  assert.equal(settled.ball.score, '74.1%');
   assert.equal(settled.string.crossbar, 0);
   const spread = graphState(sampleFlow2(8.3));
-  assert.deepEqual(spread.flowLabel, {x: 1019, y: 296});
+  assert.deepEqual(spread.flowLabel, {x: 1019, y: FLOW_ANCHOR_Y + 26});
   assert.equal(spread.ball.size, 60);
   assert.equal(spread.string.crossbar, 1);
   // One bar retimes the whole sequence, not six unrelated wall-clock delays.
@@ -93,7 +94,7 @@ test('flow-1 string, dot and label exit right during the engine descent, indepen
   assert.equal(end.string.x, end.ball.x);
   assert.ok(end.flowLabel.x > 1280);
   for (const state of [middle, end]) {
-    assert.equal(state.ball.y, 270);
+    assert.equal(state.ball.y, FLOW_ANCHOR_Y);
     assert.deepEqual(state.points, start.points);
     assert.equal(state.flowLabel.x - state.ball.x, -131);
   }
@@ -148,7 +149,7 @@ test('round axis scales use 5-percent Y steps and 100-trace X steps without movi
   close(GRAPH.ballEndX - valueX(756), 1.84);
   assert.ok(Math.abs(GRAPH.ballEndX - valueX(756)) <= 15);
   assert.equal(graphState(sampleFlow2(7.5)).ball.x, 1150);
-  assert.equal(graphState(sampleFlow2(7.5)).ball.y, 270);
+  assert.equal(graphState(sampleFlow2(7.5)).ball.y, FLOW_ANCHOR_Y);
   for (const axis of ['x', 'y'] as const) {
     AXIS_TICKS[axis].forEach((tick, index, ticks) => {
       if (index) assert.equal(tick.position - ticks[index - 1].position, axis === 'x' ? 136 : 120);

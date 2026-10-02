@@ -50,11 +50,32 @@ print credentials. If upload access is unavailable, report the blocker and
 provide the local render instead of claiming an upload. Open a PR with the
 implementation and briefly explain the sound-design choices.
 
+## Result v4a: v3 on the October 2 cut (PR #2466 `03a7fda`)
+
+- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v4a-voiceover.mp4
+- Picture and narration are unchanged from `03a7fda`: `handoff/voiceover-2026-10-02/default-settings.json`, which equals the live editor defaults. That is 2212 frames, 73.73 s, with the editable-v12 phrases. `v4/export-settings.json` is the same file plus `"subtitles": false`.
+- **Sound:** the v3 composition, re-rendered on the new cues, so every hit re-times itself. It is built as `cursor-paper-v3-oct2`. It is v3 with deeper ducks under n21–n23, because the new take is spoken 1.4–2.2 dB softer there.
+- **Bed:** `editable-v12-cursor-v3`, selected as `cursor-v3` in the soundtrack select, which is now the current default.
+- **Metrics:**
+  - Voice over bed: min 4.5 LU (n21), median 7.9.
+  - Mix: −16.3 LUFS.
+  - Sample peak: −1.25 dBFS. ffmpeg true peak: −1.1 dBTP.
+  - No clipped samples.
+  - Duration 73.733 s; 2212 video frames.
+
+Reproduce:
+
+```sh
+npx tsx scripts/build-ultimate3-cursor-bed.ts --style cursor-paper-v3-oct2 --out public/audio/voiceover/editable-v12-cursor-v3
+npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/v4/export-settings.json --out /tmp/v4a.wav --bed cursor-v3
+npx remotion render src/video/index.ts MicroAnimation18 /tmp/silent.mp4 --props='{"settings": <v4/export-settings.json>}' --muted
+```
+
 ## Result v3 (LAM-2317 second review): `cursor-paper-v3`, the live bed
 
 - **New mix:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v3-voiceover.mp4
 - **New bed only:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v3-music-only.mp4
-- v2 and v1 stay available as `?bed=cursor-v2` / `--bed cursor-v2` and `?bed=cursor` / `--bed cursor`.
+- v1–v3 were keyed to the earlier editable-v11 take; their beds stay in `editable-v11-cursor*` for reference, but no longer play in the editor, which is on the October 2 take.
 
 ### Feedback and diagnosis
 
@@ -119,6 +140,7 @@ The remaining peaks come from the voice take itself, which peaks at −1.55 dBFS
 Reproduce v3:
 
 ```sh
+git checkout e852d6fa -- scripts/build-ultimate3-cursor-bed.mjs   # the editable-v11 builder, replaced by build-ultimate3-cursor-bed.ts
 node scripts/build-ultimate3-cursor-bed.mjs   # editable-v11-cursor-v3, cursor-paper-v3 at -9.2 dB; refuses to overwrite
 npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/preview-settings.json --out /tmp/cursor-v3-vo.wav
 ```
@@ -317,4 +339,4 @@ ffmpeg -i /tmp/silent.mp4 -i /tmp/cursor-vo.wav -map 0:v -map 1:a -c:v copy -c:a
 
 For editable stems, run `pnpm ultimate3:score --style cursor-paper --settings handoff/cursor-sound-design/preview-settings.json --seed 107290 --stems --out <new>.wav`. It writes music, sfx, hall, room and delay; every cue is one line in `cursor/composition.ts`.
 
-In the editor, v2 is live. Append `?bed=cursor` for v1 or `?bed=piano` for the piano bed.
+

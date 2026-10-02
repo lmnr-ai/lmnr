@@ -7,7 +7,7 @@ import imported from '../../../handoff/voiceover-retime/retimed-settings.json';
 import {Flow2Graph} from '../introducing-flow-1-2/Scene';
 import {createFlow2Sampler} from '../introducing-flow-1-2/sample';
 import {FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
-import {graphState, flow2WorldState} from '../introducing-flow-1-2/geometry';
+import {graphState, flow2WorldState, FLOW_ANCHOR_Y} from '../introducing-flow-1-2/geometry';
 import {BEAD_ORDER, beadProgress} from '../introducing-flow-1-2/beads';
 import {ultimate3ScoreCues} from './score/cues';
 import {flowTimelineConfig, flowTimelineSettings, liveFlowPreview} from './authoring';
@@ -76,7 +76,7 @@ test('legacy source21 graph reuses shared rendering with its narration cue and n
   const early = sampleFlow(entryEnd + 5.2, s).playback21!;
   const spread = sampleFlow(entryEnd + 9.7, s).playback21!;
   assert.deepEqual(flow2WorldState(early).camera, flow2WorldState(spread).camera);
-  assert.equal(graphState(spread).ball.x, 1150); assert.equal(graphState(spread).ball.y, 270);
+  assert.equal(graphState(spread).ball.x, 1150); assert.equal(graphState(spread).ball.y, FLOW_ANCHOR_Y);
   const markup = render(at(9.7), legacyGraph);
   assert.match(markup, /while analyzing 20 times more traces per dollar/);
   assert.doesNotMatch(markup, /At 2% of the cost/);

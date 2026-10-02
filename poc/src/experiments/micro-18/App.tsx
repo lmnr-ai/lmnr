@@ -1,5 +1,5 @@
 import {installMicro22AuthoringCompatibility, micro22TimelineState, micro22PostludeState} from '../micro-22/authoring';
-import {sampleIssues} from './sample';
+import {sampleCost, sampleIssues} from './sample';
 import {issueEntryEnd, issuePostludeOffset} from './settings';
 import {createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type ComponentType} from 'react';
 import {DialRoot, DialStore, DialTimeline, useDialKit, useDialTimeline} from 'dialkit';
@@ -16,8 +16,9 @@ import {CHAPTER_IDS, CONCLUSION_STORAGE_MIGRATION_ID, FLOW_COVER_STORAGE_MIGRATI
 import {Ultimate3Scene} from './Scene';
 import {observeUltimate3TransportJump} from './transport-seeks';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
-import {ULTIMATE2_CLOUD_KEY, ultimate2CloudTimelineConfig, ultimate2CloudTimelineValues, settingsFromUltimate2CloudTimeline, voiceoverTimelineConfig, voiceoverTimelineValues, voiceoverTimelineSignature, settingsFromVoiceoverTimeline, CONCLUSION_TIMELINE_KEYS, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, flowTimelineConfig, flowTimelineSettings, settingsFromFlowTimeline, liveFlowPreview, issuesTimelineKeys, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
+import {COST_CLOUD_KEY, costCloudTimelineConfig, costCloudTimelineValues, settingsFromCostCloudTimeline, ULTIMATE2_CLOUD_KEY, ultimate2CloudTimelineConfig, ultimate2CloudTimelineValues, settingsFromUltimate2CloudTimeline, voiceoverTimelineConfig, voiceoverTimelineValues, voiceoverTimelineSignature, settingsFromVoiceoverTimeline, CONCLUSION_TIMELINE_KEYS, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, flowTimelineConfig, flowTimelineSettings, settingsFromFlowTimeline, liveFlowPreview, issuesTimelineKeys, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
 import {authoredStageSize} from './layout';
+import {COST_ZIP_KEY, costZipTimelineConfig, costZipTimelineValues, settingsFromCostZipTimeline} from './cost-zip-authoring';
 import {useStreamRunAudio} from '../micro-17/use-stream-run-audio';
 import {useUltimate3Music} from './use-ultimate3-music';
 import {useArabesqueAudio} from './use-arabesque-audio';
@@ -136,24 +137,38 @@ function MasterAppearance({settings, onSettings}: Pick<BridgeProps, 'settings'|'
 
 function MainTimeline({settings, globalTime, onTime, onPlaying, onSettings, onPreview, onSeek}: BridgeProps) {
   const IDS = useContext(PanelIdsContext);
+  installMicro20AuthoringCompatibility(DialStore, undefined, true, IDS.main, [`${COST_CLOUD_KEY}.transition`]);
   const schedule = chapterSchedule(settings);
-  const config = useMemo(() => ({duration: schedule.at(-1)!.end, ...Object.fromEntries(schedule.map(s => [s.id, timelineClip(s.start, s.duration)])), ...ultimate2CloudTimelineConfig(settings), ...voiceoverTimelineConfig(settings)}), [settings]);
+  const config = useMemo(() => ({duration: schedule.at(-1)!.end, ...Object.fromEntries(schedule.map(s => [s.id, timelineClip(s.start, s.duration)])), ...ultimate2CloudTimelineConfig(settings), ...costCloudTimelineConfig(settings), ...costZipTimelineConfig(settings), ...voiceoverTimelineConfig(settings)}), [settings]);
   // TODO(production): DialKit's clip.current values are the scrubbable authoring preview.
   // Replace them with equivalent real Motion animations using the tuned timeline
   // timings and transitions, then remove useDialTimeline and <DialTimeline />.
   const timeline = useDialTimeline('Ultimate 3 — Five chapters (fixed order, ripple)', config, {id: IDS.main, autoplay: false, loop: false, persist: true});
   useTransportHandoff(timeline, 0, schedule.at(-1)!.end, globalTime, onTime, onPlaying, IDS.main, onSeek);
-  const ready = useDialSync({[IDS.main]: {...Object.fromEntries(schedule.flatMap(s => [[`${s.id}.at`, s.start], [`${s.id}.duration`, s.duration]])), ...voiceoverTimelineValues(settings), ...ultimate2CloudTimelineValues(settings)}});
-  const cloudPreviewSignature = timelinePreviewSignature(timeline, [ULTIMATE2_CLOUD_KEY]);
-  useEffect(() => {const progress = timeline[ULTIMATE2_CLOUD_KEY].current?.progress;if (ready && progress !== undefined) onPreview?.({chapter: 'ultimate2CloudEnter', progress});}, [cloudPreviewSignature, ready]);
+  const ready = useDialSync({[IDS.main]: {...Object.fromEntries(schedule.flatMap(s => [[`${s.id}.at`, s.start], [`${s.id}.duration`, s.duration]])), ...voiceoverTimelineValues(settings), ...ultimate2CloudTimelineValues(settings), ...costCloudTimelineValues(settings), ...costZipTimelineValues(settings)}});
+  const cloudPreviewSignature = timelinePreviewSignature(timeline, [ULTIMATE2_CLOUD_KEY, COST_CLOUD_KEY]);
+  useEffect(() => {if (ready) onPreview?.({chapter: 'mainClouds', progress: timeline[ULTIMATE2_CLOUD_KEY].current.progress, costProgress: timeline[COST_CLOUD_KEY].current?.progress});}, [cloudPreviewSignature, ready]);
   const authoredSignature = JSON.stringify([CHAPTER_IDS.map(id => {const value=(timeline as any)[id]; return [value.at,value.duration];}),
     settings.voiceover ? voiceoverTimelineSignature(timeline) : null,
-    ['at', 'duration', 'transition', 'from', 'to'].map(key => (timeline[ULTIMATE2_CLOUD_KEY] as any)[key])]);
+    DialStore.getValue(IDS.main, `${COST_CLOUD_KEY}.duration`), DialStore.getValue(IDS.main, `${COST_CLOUD_KEY}.transition`),
+    DialStore.getValue(IDS.main, `${COST_ZIP_KEY}.duration`),
+    [ULTIMATE2_CLOUD_KEY, COST_CLOUD_KEY, COST_ZIP_KEY].map(clip => ['at', 'duration', 'transition', 'from', 'to'].map(key => (timeline as any)[clip][key]))]);
   useEffect(() => {
     if (!ready) return;
     const allocations = Object.fromEntries(CHAPTER_IDS.map(id => [id, (timeline as any)[id].duration]));
-    const next = settingsFromUltimate2CloudTimeline(timeline, settingsFromVoiceoverTimeline(timeline, normalizeSettings({...settings, allocations})));
-    const corrections: Record<string, any> = {[`${ULTIMATE2_CLOUD_KEY}.from.progress`]: 0, [`${ULTIMATE2_CLOUD_KEY}.to.progress`]: 1};
+    const chapters = settingsFromUltimate2CloudTimeline(timeline, settingsFromVoiceoverTimeline(timeline, normalizeSettings({...settings, allocations})));
+    // An untouched native alias ripples with a chapter resize; an explicitly moved bar is a global-time edit.
+    const cloud = timeline[COST_CLOUD_KEY];
+    const cloudAt = Math.abs(cloud.at - costCloudTimelineConfig(settings)[COST_CLOUD_KEY].at) < 1e-9
+      ? costCloudTimelineConfig(chapters)[COST_CLOUD_KEY].at : cloud.at;
+    const withCloud = settingsFromCostCloudTimeline({[COST_CLOUD_KEY]: {...cloud, at: cloudAt}}, chapters, DialStore.getValues(IDS.main));
+    const zip = timeline[COST_ZIP_KEY];
+    const zipAt = Math.abs(zip.at - costZipTimelineConfig(settings)[COST_ZIP_KEY].at) < 1e-9
+      ? costZipTimelineConfig(withCloud)[COST_ZIP_KEY].at : zip.at;
+    const next = settingsFromCostZipTimeline({[COST_ZIP_KEY]: {...zip, at: zipAt}}, withCloud, DialStore.getValues(IDS.main));
+    const corrections: Record<string, any> = {...costZipTimelineValues(next), [`${ULTIMATE2_CLOUD_KEY}.from.progress`]: 0, [`${ULTIMATE2_CLOUD_KEY}.to.progress`]: 1};
+    const costValues = costCloudTimelineValues(next);
+    for (const path of [`${COST_CLOUD_KEY}.at`, `${COST_CLOUD_KEY}.duration`] as const) corrections[path] = costValues[path];
     if (timeline[ULTIMATE2_CLOUD_KEY].duration !== next.ultimate2.timing.cloudEnter.duration) corrections[`${ULTIMATE2_CLOUD_KEY}.duration`] = next.ultimate2.timing.cloudEnter.duration;
     chapterSchedule(next).forEach(segment => {
       const current=(timeline as any)[segment.id];
@@ -194,8 +209,9 @@ function Detail17({settings, globalTime, onTime, onPlaying, onSettings, onPrevie
   return null;
 }
 
-function Detail16({settings, globalTime, onTime, onPlaying, onSettings, onSeek}: BridgeProps) {
+function Detail16({settings, globalTime, onTime, onPlaying, onSettings, onPreview, onSeek}: BridgeProps) {
   const IDS = useContext(PanelIdsContext);
+  installMicro20AuthoringCompatibility(DialStore, undefined, true, IDS.cost, ['cloudSweep.transition']);
   const start=chapterSchedule(settings)[1].start; const config=useMemo(()=>costTimelineConfig(settings),[settings]);
   // TODO(production): DialKit's clip.current values are the scrubbable authoring preview.
   // Replace them with equivalent real Motion animations using the tuned timeline
@@ -203,8 +219,15 @@ function Detail16({settings, globalTime, onTime, onPlaying, onSettings, onSeek}:
   const timeline=useDialTimeline('Ultimate 3 — 16 Cost (native seconds)',config as any,{id:IDS.cost,autoplay:false,loop:false,persist:true});
   const controls=useDialKit('Ultimate 3 · 16 speed and smoke',{travelSpeed:[settings.cost.controls.travelSpeed,0,1800,10],purpleSpinnerSpeed:[settings.cost.controls.purpleSpinnerSpeed,0,10,.1],cheapSpinnerSpeed:[settings.cost.controls.cheapSpinnerSpeed,0,20,.1],cheapSpinnerStrokeWidth:[settings.cost.controls.cheapSpinnerStrokeWidth,0,12,.25],smokeSize:[settings.cost.controls.smokeSize,0,2,.05],smokeMinimumScale:[settings.cost.controls.smokeMinimumScale,0,1,.05]},{id:IDS.costControls,persist:true});
   useTransportHandoff(timeline,start,settings.allocations.cost,globalTime,onTime,onPlaying,IDS.cost,onSeek);
-  const ready=useDialSync({[IDS.cost]:timingValues(settings.cost.timing),[IDS.costControls]:settings.cost.controls});
-  useEffect(()=>{if(!ready)return;const timing=extractTiming(timeline,KEYS16);const next=normalizeSettings({...settings,cost:{...settings.cost,timing}});if(!same(next,settings))onSettings(next);},[JSON.stringify(KEYS16.map(k=>{const c=(timeline as any)[k];return[c.at,c.duration,c.transition]})),ready]);
+  const ready=useDialSync({[IDS.cost]:{...timingValues(settings.cost.timing), 'cloudSweep.from.progress': settings.cost.timing.cloudSweep.from?.progress ?? 0, 'cloudSweep.to.progress': settings.cost.timing.cloudSweep.to?.progress ?? 1},[IDS.costControls]:settings.cost.controls});
+  const cloudPreviewSignature = timelinePreviewSignature(timeline, ['cloudSweep']);
+  useEffect(()=>{if(ready)onPreview?.({chapter:'costCloud',progress:timeline.cloudSweep.current?.progress});},[cloudPreviewSignature,ready]);
+  useEffect(()=>{if(!ready)return;const timing=extractTiming(timeline,KEYS16);
+    const base=normalizeSettings({...settings,cost:{...settings.cost,timing:{...timing,cloudSweep:settings.cost.timing.cloudSweep}}});
+    const next=settingsFromCostCloudTimeline({[COST_CLOUD_KEY]:{...timeline.cloudSweep,at:timeline.cloudSweep.at+start}},base,
+      {[`${COST_CLOUD_KEY}.duration`]:DialStore.getValue(IDS.cost,'cloudSweep.duration'),[`${COST_CLOUD_KEY}.transition`]:DialStore.getValue(IDS.cost,'cloudSweep.transition')});
+    if(timeline.cloudSweep.duration!==next.cost.timing.cloudSweep.duration)DialStore.updateValue(IDS.cost,'cloudSweep.duration',next.cost.timing.cloudSweep.duration);
+    if(!same(next,settings))onSettings(next);},[JSON.stringify([KEYS16.map(k=>{const c=(timeline as any)[k];return[c.at,c.duration,c.transition,c.from,c.to]}),DialStore.getValue(IDS.cost,'cloudSweep.duration'),DialStore.getValue(IDS.cost,'cloudSweep.transition')]),ready]);
   useEffect(()=>{if(!ready)return;const next=normalizeSettings({...settings,cost:{...settings.cost,controls}});if(!same(next,settings))onSettings(next);},[JSON.stringify(controls),ready]);
   return null;
 }
@@ -330,6 +353,6 @@ export const Micro18App=({edition=ORIGINAL_EDITION}: {edition?: Ultimate3Edition
   };
   useEffect(()=>{let dock:Element|null=null;const update=()=>{const rect=dock?.getBoundingClientRect();editor.current?.style.setProperty('--micro18-timeline-height',`${rect&&rect.height>0?innerHeight-rect.top+6:0}px`)};const resize=new ResizeObserver(update);const attach=()=>{const next=document.querySelector('.dialkit-timeline');if(next===dock)return;resize.disconnect();dock=next;if(dock)resize.observe(dock);update()};const mount=new MutationObserver(attach);mount.observe(document.body,{childList:true,subtree:true,attributes:true});attach();addEventListener('resize',update);return()=>{mount.disconnect();resize.disconnect();removeEventListener('resize',update)}},[]);
   useEffect(()=>{const host=stageHost.current!;const update=()=>{const size=authoredStageSize(host.clientWidth,host.clientHeight);const node=stage.current!;node.style.width=`${size.width}px`;node.style.height=`${size.height}px`;node.style.setProperty('--micro18-scale',String(size.scale));};const observer=new ResizeObserver(update);observer.observe(host);update();return()=>observer.disconnect()},[]);
-  let sample=sampleUltimate3(inspecting?requested:globalTime,settings);if(!inspecting&&view==='main'&&live?.chapter==='ultimate2CloudEnter'&&sample.ultimate2)sample={...sample,ultimate2:{...sample.ultimate2,progress:{...sample.ultimate2.progress,cloudEnter:live.progress}}};if(!inspecting&&view==='ultimate2'&&live?.chapter==='ultimate2'&&sample.chapter==='ultimate2')sample={...sample,ultimate2:live.playback};if(!inspecting&&view==='flow'&&live?.chapter==='flow'&&sample.chapter==='flow'&&Boolean(live.flow.playback21)===(settings.flow.sourceVersion===21))sample={...sample,flow:{...sample.flow,...live.flow}};if(!inspecting&&view==='issues'&&live?.chapter==='issues'&&live.sourceVersion===settings.issues.sourceVersion&&sample.chapter==='issues')sample={...sample,issues:live.issues};const Bridge=view==='main'?MainTimeline:view==='issues'&&settings.issues.sourceVersion===22?DetailIssues22:Details[view];
+  let sample=sampleUltimate3(inspecting?requested:globalTime,settings);if(!inspecting&&sample.chapter==='cost'&&((view==='main'&&live?.chapter==='mainClouds')||(view==='cost'&&live?.chapter==='costCloud')))sample={...sample,cost:sampleCost(sample.localTime,settings,live.chapter==='mainClouds'?live.costProgress:live.progress)};if(!inspecting&&view==='main'&&live?.chapter==='mainClouds'&&sample.ultimate2)sample={...sample,ultimate2:{...sample.ultimate2,progress:{...sample.ultimate2.progress,cloudEnter:live.progress}}};if(!inspecting&&view==='ultimate2'&&live?.chapter==='ultimate2'&&sample.chapter==='ultimate2')sample={...sample,ultimate2:live.playback};if(!inspecting&&view==='flow'&&live?.chapter==='flow'&&sample.chapter==='flow'&&Boolean(live.flow.playback21)===(settings.flow.sourceVersion===21))sample={...sample,flow:{...sample.flow,...live.flow}};if(!inspecting&&view==='issues'&&live?.chapter==='issues'&&live.sourceVersion===settings.issues.sourceVersion&&sample.chapter==='issues')sample={...sample,issues:live.issues};const Bridge=view==='main'?MainTimeline:view==='issues'&&settings.issues.sourceVersion===22?DetailIssues22:Details[view];
   return <PanelIdsContext.Provider value={edition.panelIds}><main data-edition={edition.experimentId} ref={editor} className="micro18-app" data-time={sample.time} data-inspecting={inspecting}><div ref={stageHost} className="micro18-stage-host"><div ref={stage} className="micro18-stage"><div className="micro18-authored"><Ultimate3Scene sample={sample} settings={settings}/></div></div></div><div className="micro18-toolbar"><nav className="micro18-nav" aria-label="Ultimate 3 timeline view"><button data-active={view==='main'} onClick={()=>setView('main')}>Main</button>{chapterSchedule(settings).map(s=><button key={s.id} data-active={view===s.id} onClick={()=>setView(s.id)} title="Switch timeline without changing the current global frame">{s.label}</button>)}</nav>{issueValidation && <output role="status" aria-label="Issues handoff validation">Issues handoff blocked: {issueValidation}</output>}<details className="micro18-settings"><summary>Settings JSON</summary><textarea aria-label="Ultimate 3 settings JSON" value={json} onChange={e=>setJson(e.currentTarget.value)}/><button onClick={()=>setJson(JSON.stringify(settings,null,2))}>Export</button><button onClick={()=>{try{setSettings((edition.normalizeSettings ?? normalizeSettings)(JSON.parse(json)))}catch{}}}>Apply</button></details>{edition.editableVoiceover && <details className="micro18-voiceover-legend"><summary>Narration · {VOICEOVER_PHRASES.length} editable clips (at / end trim)</summary><p>Bars share this playhead. Duration trims speech; it never changes its speed. Overlaps sum. Clips are capped at the frame-rounded export end. Source fades are fixed; transition/from/to controls are ignored and reset.</p><ol>{VOICEOVER_PHRASES.map(p => <li key={p.id}>{p.id}: {p.text}</li>)}</ol></details>}<AudioComponent settings={settings} globalTime={globalTime} playing={playing} inspecting={inspecting} seekGeneration={seekGeneration}/></div><ExperimentPicker current={edition.experimentId}/><MasterAppearance settings={settings} onSettings={setSettings}/>{!inspecting&&<Bridge key={view === 'flow' ? `${view}-${settings.flow.sourceVersion ?? 13}` : view === 'issues' ? `${view}-${settings.issues.sourceVersion}` : view} settings={settings} globalTime={globalTime} onTime={setGlobalTime} onPlaying={setPlaying} onSettings={setSettings} onPreview={setLive} onSeek={edition.editableVoiceover ? onSeek : undefined}/>}<DialRoot/><DialTimeline visible={!inspecting}/></main></PanelIdsContext.Provider>;
 };

@@ -27,8 +27,9 @@ function liveAt(global: number, s = settings) {
 test('visual replacement leaves every chapter, speech cue and engine beat at its original time', () => {
   assert.deepEqual(chapterSchedule(settings).map(({start, end}) => [start, end]), [[0,19.06],[19.06,28.43],[28.43,43.622],[43.622,62.93],[62.93,69.48]]);
   assert.equal(ultimate3DurationFrames(settings), 2085);
-  close(settings.voiceover!.phrases.n13.at, fromV9(43.73));
-  assert.equal(settings.voiceover!.phrases.n13.duration, 2.75);
+  // The October 2 take's longer n12 holds n13 0.3s later; this historical cut keeps its comparison beats.
+  close(settings.voiceover!.phrases.n13.at, fromV9(43.73) + .3);
+  close(settings.voiceover!.phrases.n13.duration, 2.705);
   for (const [key, global] of Object.entries({cameraToEngine:47.1,moduleActivation:47.66,engineSpinner:47.81,engineLines:47.81,coverDescent:48.23,coverTint:48.57,coverSpinner:48.62})) close(offset + settings.flow.timing21![key as keyof Flow21Timing].at, fromV9(global));
   close(offset + comparison.timing.comparisonExit.at, fromV9(43.44));
   close(offset + comparison.timing.comparison_gridShrink.at, fromV9(43.73));
@@ -56,7 +57,7 @@ test('retained live current values and edited mask timings match static export a
   live.comparison_blueDots.transition = {type:'easing', duration:.2, ease:[0,0,1,1]};
   const preview = liveFlowPreview(live, settings).comparison!;
   assert.equal(preview.sample.numberContainersVisible.gpt, false);
-  assert.equal(preview.sample.numbers.gpt, 9);
+  assert.equal(preview.sample.numbers.gpt, 10);
   assert.equal(preview.sample.dotDurations.blue, .2);
   for (const global of [40,43.44,43.73,44.5,45.9,46.8,47.1,49].map(fromV9)) {
     const timeline = liveAt(global);
@@ -154,5 +155,5 @@ test('custom from/to, spring and instant semantics survive settings/export', () 
   assert.deepEqual(edited.flow.comparison.timing.comparison_gptNumber.from,{progress:.2});
   const at = edited.flow.comparison.timing.comparison_flowNumber.at;
   assert.equal(sampleFlow(settings.flow.entrySlide.duration+at-.001,edited).comparison!.sample.numbers.flow,0);
-  assert.equal(sampleFlow(settings.flow.entrySlide.duration+at+.001,edited).comparison!.sample.numbers.flow,756);
+  assert.equal(sampleFlow(settings.flow.entrySlide.duration+at+.001,edited).comparison!.sample.numbers.flow,888);
 });

@@ -3,6 +3,23 @@
 Editor: `http://localhost:5180/?experiment=micro-23`.
 Still inspection: append `&time=8` (finite, nonnegative seconds). Inspection pauses the transport and hides authoring panels. No audio is created by this animation.
 
+## Current pricing: 888 vs 38
+
+User-approved displayed values for traces below 100k, using Flow-1 at 4k output:
+**888 Flow traces/$ versus 38 GPT traces/$**. The conservative **20x** headline,
+intelligence scores, approved narration, and all timeline timings stay unchanged.
+
+The field contains exactly **888 dots: 38 orange and 850 blue**: **20 full rows
+of 43, followed by 28 left-aligned dots**. There are no side extensions. The
+Flow number's right edge meets the last occupied cell at x=780, not the full
+field's right edge. All dots stay on 20px cell centers. Bounds are (220,150)
+through (1080,570), with labels above at y=110 and below at y=570. Ultimate3
+compensates its shared-world grid origin by whole cells; the odd-width full
+rows center at x=650, the nearest compatible grid-cell center.
+
+These are approved presentation values, not a claim of unrounded source precision.
+See `poc/handoff/pricing-888/README.md` for the calculation and user decision.
+
 ## Authoring
 
 One native DialKit transport, ten separately editable bars:
@@ -14,11 +31,11 @@ One native DialKit transport, ten separately editable bars:
 | Blue Dots | 1.48 | 1.04 | Independent row-major stagger, including its final tail |
 | Gpt Label | .51 | .2 | Introducing Flow-1's masked downward slide |
 | Flow Label | 2.47 | .24 | Independent masked downward slide |
-| Gpt Number | .5 | .21 | Downward card fold and simultaneous count to 37 |
-| Flow Number | 2.47 | .24 | Downward card fold and simultaneous count to 756 |
+| Gpt Number | .5 | .21 | Downward card fold and simultaneous count to 38 |
+| Flow Number | 2.47 | .24 | Downward card fold and simultaneous count to 888 |
 | Headline Reveal | .41 | .42 | Introducing Flow-1 masked downward fold for the central headline |
 | Headline Slide Out | 1.58 | .19 | Independent downward card exit during the blue-dot entrance |
-| Return to Grid | 3.2 | .76 | Zoom back to the opening cell size while moving the camera 30 rows downward |
+| Return to Grid | 3.2 | .76 | Zoom back to the opening cell size while moving the camera 32 rows downward |
 
 All ten supplied start/duration/from/to/easing settings are preserved exactly in `MICRO_23_TIMELINE`, which is spread into `useDialTimeline`. **Return to Grid** remains independently editable and settles at 3.96s. After the completed comparison holds for .49s, the camera zooms toward empty space below the content; everything exits above the viewport without fading. The endpoint restores the opening grid size and phase exactly (60px by default), then holds for 2s. Whole-row camera travel also preserves the opening phase with custom cell sizes. As with other independent bars, retime the return if you move earlier content later.
 
@@ -30,7 +47,7 @@ Reveal and slide-out each have their own timeline bar; moving either does not re
 
 Other appearance dials: starting/ending cell size, dot diameter, final hold, grid/orange/blue colors. The existing **Grid Color** dial now defaults to **`#1f1f1f` for the dense, zoomed-out grid**. Grid and matching frame strokes interpolate from the original `#333333` during shrink, then return to `#333333` during the final zoom-in. A one-time, panel-scoped migration updates retained old working defaults (`#333333` / `#292929`) so the actual dial and preview pick up the new color. Other controls, custom colors and saved presets remain untouched; no new dial is added. An explicitly selected saved preset retains its own color. Both numbers now use the headline's **fixed, overflow-hidden frame and shared 0.5px top/left border renderer**. The frame appears instantly at its number bar start; the dark number card folds down from above without horizontal motion or opacity fading. Count-up shares the same native eased progress. The obsolete Number Slide distance dial is removed; legacy `numberSlide` render props remain accepted but no longer change the artwork. The masked name-label reveals are unchanged. Timelines and appearance use separate Animation 23 persistence IDs. The existing version-pinned compatibility adapter preserves custom curves and preset modes for this panel's ten transition paths only.
 
-## Reference and follow-up alignment
+## Historical reference and initial follow-up alignment
 
 Figma file `VEbMxK1qMXzqjAVJaSQMPs`:
 - Opening `4859:18349`: background `#1a1a1a`, centered 60px `#333` grid.
@@ -44,7 +61,7 @@ User-requested differences from the initial reference:
 - Both lower containers start at **y=530**, directly against the field's bottom edge, not halfway through a row at y=540.
 - Upper number container starts at **x=880**, ending on the x=980 grid boundary.
 
-Reference detail: the Figma artwork contains **38 orange / 718 blue** markers, while its printed values are **37 / 756**. Those artwork colors and printed values are preserved independently; the numbers are not inferred from the number of markers of each color.
+Reference detail: the Figma artwork contains **38 orange / 718 blue** markers, while its printed values are **37 / 756**. That was the original reference. The current user-approved update above replaces it with 38 orange / 850 blue and printed values 38 / 888.
 
 ## Rendering and verification
 
@@ -52,7 +69,7 @@ Reference detail: the Figma artwork contains **38 orange / 718 blue** markers, w
 
 No wall-clock animation, CSS transitions or random ordering. Reverse/arbitrary seeks use only the selected time and settings. Grid, markers and label containers share a centered world scale if their tracks are deliberately overlapped.
 
-Parent browser verification, installed Chrome / isolated `agent-browser` session on the existing port 5180:
+Historical initial browser verification (before the 888/38 update), installed Chrome / isolated `agent-browser` session on port 5180:
 - Opening, shrink midpoint, orange-only, blue entrance, endpoint, and reverse seeks sampled successfully.
 - Actual 756 circles, correct endpoint captions, font loaded; no console errors.
 - Edited 8-second blue bar extended total duration; duration and custom orange easing survived reload.

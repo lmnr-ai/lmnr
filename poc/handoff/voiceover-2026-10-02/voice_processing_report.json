@@ -1,0 +1,71 @@
+{
+  "input": "original.m4a",
+  "input_sha256": "93b6b16363ec1bdc2c98e302d11fb2cc8edb62509b200256cf0c7b1ae4cc7d38",
+  "target": "loudnorm=I=-16:TP=-1.5:LRA=11",
+  "deesser_available": true,
+  "original_loudness": {
+    "input_i": "-29.35",
+    "input_tp": "-0.55",
+    "input_lra": "7.00",
+    "input_thresh": "-40.94",
+    "output_i": "-16.45",
+    "output_tp": "-1.50",
+    "output_lra": "5.80",
+    "output_thresh": "-27.73",
+    "normalization_type": "dynamic",
+    "target_offset": "0.45"
+  },
+  "versions": {
+    "voice_A_subtle": {
+      "filters": [
+        "highpass=f=80",
+        "equalizer=f=250:t=q:w=1.0:g=-2",
+        "equalizer=f=3500:t=q:w=1.0:g=2",
+        "highshelf=f=9000:g=2",
+        "deesser=i=0.3",
+        "acompressor=threshold=-20dB:ratio=2:attack=10:release=100:makeup=1"
+      ],
+      "pass1": {
+        "input_i": "-30.40",
+        "input_tp": "-6.01",
+        "input_lra": "6.20",
+        "input_thresh": "-41.78",
+        "output_i": "-16.58",
+        "output_tp": "-1.50",
+        "output_lra": "5.60",
+        "output_thresh": "-27.85",
+        "normalization_type": "dynamic",
+        "target_offset": "0.58"
+      },
+      "normalization": "loudnorm=I=-16:TP=-1.55:LRA=11:measured_I=-30.40:measured_TP=-6.01:measured_LRA=6.20:measured_thresh=-41.78:offset=0.5800:linear=true",
+      "verified_loudness": {
+        "input_i": "-15.96",
+        "input_tp": "-1.54",
+        "input_lra": "5.90",
+        "input_thresh": "-27.65",
+        "output_i": "-16.44",
+        "output_tp": "-1.50",
+        "output_lra": "5.40",
+        "output_thresh": "-27.67",
+        "normalization_type": "dynamic",
+        "target_offset": "0.44"
+      },
+      "format": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "pcm_s24le",
+            "sample_rate": "48000",
+            "channels": 2,
+            "bits_per_raw_sample": "24"
+          }
+        ],
+        "format": {
+          "duration": "73.898667"
+        }
+      },
+      "sha256": "d2c827895302132a5352f6261f278d43d0fc88648c68ac976cb3e8ab0ea607f5"
+    }
+  }
+}

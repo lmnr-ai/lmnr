@@ -3,17 +3,18 @@ import test from 'node:test';
 import brisk from '../../../handoff/voiceover-brisk-cadence/default-settings.json';
 import quicker from '../../../handoff/voiceover-quicker-trace/default-settings.json';
 import {normalizeSettings} from './settings';
-import {VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings} from './voiceover-cut';
+import {BRISK_CADENCE_PHRASES, VOICEOVER_DEFAULTS, readVoiceoverSettings, normalizeVoiceoverSettings} from './voiceover-cut';
 import {chapterSchedule, sampleUltimate3, ultimate3DurationFrames} from './sample';
 import {comparisonDefaults, withFlowComparison} from './flow-comparison';
-import {VOICEOVER_BED_URL, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT, voiceoverBedUrl} from './voiceover-phrases';
+import {VOICEOVER_BED_URL, VOICEOVER_PHRASES, VOICEOVER_SOURCE_ROOT} from './voiceover-phrases';
 import {voiceoverCaptionAt} from './VoiceoverCaptions';
 
-const upstream = normalizeSettings(brisk);
+// Upstream editable-v11 picture, narrated by the October 2 take's slots.
+const upstream = normalizeSettings({...brisk, voiceover: VOICEOVER_DEFAULTS.voiceover});
 const merged = VOICEOVER_DEFAULTS;
 const close = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 
-test('merged cut is exactly upstream editable-v11 plus the local comparison, not a v9 timing rollback', () => {
+test('merged cut is exactly upstream editable-v11 (on the October 2 take) plus the local comparison, not a v9 timing rollback', () => {
   const {comparison, ...flow} = merged.flow;
   assert.deepEqual({...merged, flow}, upstream);
   assert.ok(comparison);
@@ -21,11 +22,8 @@ test('merged cut is exactly upstream editable-v11 plus the local comparison, not
   assert.deepEqual(comparison, comparisonDefaults(normalizeSettings(quicker).flow.timing21!));
   assert.equal(ultimate3DurationFrames(merged), 2085);
   assert.deepEqual(chapterSchedule(merged).map(c => c.start), [0,19.06,28.43,43.622,62.93]);
-  assert.equal(VOICEOVER_SOURCE_ROOT, '/audio/voiceover/editable-v11/');
-  assert.equal(VOICEOVER_BED_URL, '/audio/voiceover/editable-v11-cursor-v3/bed.wav');
-  assert.equal(voiceoverBedUrl('cursor-v2'), '/audio/voiceover/editable-v11-cursor-v2/bed.wav');
-  assert.equal(voiceoverBedUrl('cursor'), '/audio/voiceover/editable-v11-cursor/bed.wav');
-  assert.equal(voiceoverBedUrl('piano'), '/audio/voiceover/editable-v11/bed.wav');
+  assert.equal(VOICEOVER_SOURCE_ROOT, '/audio/voiceover/editable-v12/');
+  assert.equal(VOICEOVER_BED_URL, '/audio/voiceover/editable-v12/bed.wav');
   assert.deepEqual(merged.voiceover!.phrases, Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id,p.placed])));
 });
 
@@ -52,11 +50,12 @@ test('pricing reveals on the retimed 20x phrase and arrives at the unchanged nat
   const returning = origin + c.timing.comparison_returnToGrid.at;
   const end = returning + c.timing.comparison_returnToGrid.duration;
   close(start, 37.3);
-  close(start, merged.voiceover!.phrases.n13.at);
+  // Authored on editable-v11's n13; the current cut moves both for the October 2 take (main-timing-defaults.test.ts).
+  close(start, BRISK_CADENCE_PHRASES.n13.at);
   close(returning, 40.07);
   close(end, 41.33);
   close(end, origin + merged.flow.timing21!.cameraToEngine.at + merged.flow.timing21!.cameraToEngine.duration);
-  assert.ok(returning >= merged.voiceover!.phrases.n13.at + merged.voiceover!.phrases.n13.duration);
+  assert.ok(returning >= BRISK_CADENCE_PHRASES.n13.at + BRISK_CADENCE_PHRASES.n13.duration);
 });
 
 test('v9 saved comparison upgrades cadence without resetting edited pricing clips or paper; imports stay literal', () => {

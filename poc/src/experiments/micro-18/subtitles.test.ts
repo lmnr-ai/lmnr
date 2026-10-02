@@ -212,4 +212,8 @@ test('the voiceover cut draws one verbatim script caption per line, following it
   const cheap = voiceoverCaptionWindows(moved.voiceover).find(w => w.text.startsWith('Cheap'))!;
   assert.equal(cheap.start, 20);
   assert.equal(renderToStaticMarkup(createElement(Ultimate3Scene, {settings: moved, sample: sampleUltimate3(19.8, moved)})).includes('data-voiceover-caption'), false);
+  // subtitles: false is a clean export: no caption, same picture otherwise.
+  const clean = normalizeSettings({...s, subtitles: false});
+  const mid = (windows[0].start + windows[0].end) / 2;
+  assert.equal(renderToStaticMarkup(createElement(Ultimate3Scene, {settings: clean, sample: sampleUltimate3(mid, clean)})).includes('data-voiceover-caption'), false);
 });

@@ -142,3 +142,9 @@ export const cursorPaperV3: ScoreStyle = {
   eq: cursorPaper.eq,
   master: glueCursorV2,
 };
+
+/** The October 2 take speaks n21–n23 1.4–2.2 dB softer, so v3 on the editable-v12 cut ducks those lines deeper. */
+const EXTRA_DUCK_DB_V3_OCT2 = EXTRA_DUCK_DB_V3.map((value, i) => value - ({20: 3.4, 21: .6, 22: 1.6}[i] ?? 0));
+
+export const cursorPaperV3Oct2: ScoreStyle = {...cursorPaperV3, id: 'cursor-paper-v3-oct2',
+  title: 'Cursor paper v3 on the October 2 take', ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB_V3_OCT2)};
