@@ -31,16 +31,27 @@ export type Ultimate3Settings = {
   version: 2 | 4;
   /** Master, screen-pinned paper layer. Absent in historical settings means off. */
   paperTexture?: boolean;
+  /** Narration captions over the voiceover cut. Absent means on; set false for a clean export. */
+  subtitles?: boolean;
+  /** Current-cut load migration completed, or explicit JSON import to preserve. */
+  currentCutVersion?: 1;
+  /** Active-edition boundary migration attempted, or a literal import. */
+  costLeadInVersion?: 1;
+  /** Checked for the interrupted lead-in migration; literal imports opt out. */
+  costTimingRecoveryVersion?: 1;
+  /** Moved onto the October 2 take's generated slots, or a literal import. */
+  voiceoverTakeVersion?: 2;
   voiceover?: VoiceoverSettings;
   /** Missing in legacy presets; normalized settings always include the computed v4 defaults. */
   clouds?: CloudSettings;
   allocations: Record<ChapterId, number>;
   pacing: {ultimate2HandoffHold: number; costTrimEnd: number; flowTrimEnd: number};
   ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10 | 12};
-  cost: {timing: Micro16Timing; controls: Micro16Controls};
+  cost: {timing: Micro16Timing & {cloudSweep: ClipTiming}; controls: Micro16Controls};
   flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; comparison?: FlowComparison | false; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
   issues: {sourceVersion: 20 | 22; timing22?: Micro22Timing; controls22?: Micro22Controls; migration22?: 1; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
-  conclusion: {placeholder: ClipTiming; logo: ClipTiming};
+  /** The optional url card follows the logo; absent, the cut ends on the logo. */
+  conclusion: {placeholder: ClipTiming; logo: ClipTiming; url?: ClipTiming};
 };
 const smooth = [.45, 0, .55, 1] as [number, number, number, number];
 const flowTiming = Object.fromEntries(FLOW_CLIP_KEYS.filter(k => k !== 'cloudReveal').map(key => {
@@ -196,7 +207,7 @@ export function chapterFloors(settings: Ultimate3Settings): Record<ChapterId, nu
     flow: settings.flow.entrySlide.at + settings.flow.entrySlide.duration + flowEndpoint(settings),
     issues: issueEntryEnd(settings) + issueEndpoint(settings),
     conclusion: Math.max(settings.conclusion.placeholder.at + settings.conclusion.placeholder.duration,
-      settings.conclusion.logo.at + settings.conclusion.logo.duration)};
+      settings.conclusion.logo.at + settings.conclusion.logo.duration, settings.conclusion.url ? clipEnd(settings.conclusion.url) : 0)};
 }
 export function normalizeSettings(input: unknown): Ultimate3Settings {
   const raw = input && typeof input === 'object' ? input as Partial<Ultimate3Settings> : {};
@@ -209,6 +220,11 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
   const normalized: Ultimate3Settings = {
     version: 4,
     ...(typeof raw.paperTexture === 'boolean' ? {paperTexture: raw.paperTexture} : {}),
+    ...(typeof raw.subtitles === 'boolean' ? {subtitles: raw.subtitles} : {}),
+    ...(raw.currentCutVersion === 1 ? {currentCutVersion: 1 as const} : {}),
+    ...(raw.costLeadInVersion === 1 ? {costLeadInVersion: 1 as const} : {}),
+    ...(raw.costTimingRecoveryVersion === 1 ? {costTimingRecoveryVersion: 1 as const} : {}),
+    ...(raw.voiceoverTakeVersion === 2 ? {voiceoverTakeVersion: 2 as const} : {}),
     allocations: {...ULTIMATE_3_DEFAULTS.allocations},
     pacing: {
       ultimate2HandoffHold: finite(pacingRaw?.ultimate2HandoffHold, .5, 0, 30),
@@ -217,7 +233,8 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
     },
     ultimate2: {timing: normalize17Timing({...MICRO17_TIMING, ...u2.timing}), controls: recordControls(u2.controls, MICRO17_CONTROLS),
       ...(u2.streamBlocksRemoved === 10 || u2.streamBlocksRemoved === 12 ? {streamBlocksRemoved: u2.streamBlocksRemoved} : {})},
-    cost: {timing: normalize16Timing(cost.timing), controls: normalize16Controls(cost.controls)},
+    cost: {timing: {...normalize16Timing(cost.timing),
+      cloudSweep: normalizeClip(cost.timing?.cloudSweep, normalize16Timing(cost.timing).cloudSweep)}, controls: normalize16Controls(cost.controls)},
     flow: {...(flow.sourceVersion === 21 ? {sourceVersion: 21 as const,
         timing21: Object.fromEntries(Object.entries(FLOW_21_TIMING).map(([key, fallback]) => {
           const authored = flow.timing21?.[key as keyof Flow21Timing];
@@ -235,13 +252,15 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
       timing: issues.sourceVersion === 22 ? normalizeMicro22IssueTiming(issues.timing) : normalizeIssueTiming(issues.timing), controls: normalizeMicro15Controls(issues.controls ?? MICRO_20_ISSUE_DEFAULTS),
       preludeTiming: normalizePreludeTiming(issues.preludeTiming), preludeControls: normalizeMicro20Controls(issues.preludeControls),
       issueStart: finite(issues.issueStart, ISSUE_START), ...(issues.legacySource15 ? {legacySource15: issues.legacySource15} : {})},
-    conclusion: {placeholder: {...clip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder), ...normalizeClip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder)}, logo: clip(conclusion.logo, ULTIMATE_3_DEFAULTS.conclusion.logo)},
+    conclusion: {placeholder: {...clip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder), ...normalizeClip(conclusion.placeholder, ULTIMATE_3_DEFAULTS.conclusion.placeholder)}, logo: clip(conclusion.logo, ULTIMATE_3_DEFAULTS.conclusion.logo),
+      ...(conclusion.url ? {url: clip(conclusion.url, {at: 0, duration: 4})} : {})},
   };
   if (normalized.flow.sourceVersion === 21 && flow.comparison !== undefined)
     normalized.flow.comparison = normalizeComparison(flow.comparison, normalized.flow.timing21!);
   // Conclusion stages are a contiguous two-card sequence: resizing/moving the
   // placeholder ripples the logo cut rather than leaving a stale visual boundary.
   normalized.conclusion.logo.at = normalized.conclusion.placeholder.at + normalized.conclusion.placeholder.duration;
+  if (normalized.conclusion.url) normalized.conclusion.url.at = normalized.conclusion.logo.at + normalized.conclusion.logo.duration;
   const floors = chapterFloors(normalized);
   const obsoleteGenerated: Partial<Record<ChapterId, number>> = {ultimate2: 22, cost: 17, flow: 14.5};
   normalized.allocations = Object.fromEntries(CHAPTER_IDS.map(id => {

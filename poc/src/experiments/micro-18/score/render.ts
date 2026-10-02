@@ -3,6 +3,8 @@ import {aria, ariaAcoustic} from './aria';
 import {ultimate3ScoreCues} from './cues';
 import {KEYBOARDS} from './keyboards';
 import {cityPop} from './city-pop';
+import {cursorPaper, cursorPaperV2, cursorPaperV3, cursorPaperV3Oct2, cursorPaperV4, cursorPaperV5} from './cursor';
+import {glide, glideArc, glideMinimal, glideMinimalLift, glideMinimalLinger} from './glide';
 import {lofiRhodes} from './lofi';
 import {minimalTechno} from './techno';
 import {nocturne, nocturneAcoustic, nocturneDigital, nocturneDuet} from './nocturne';
@@ -19,7 +21,7 @@ import {Mix, type PianoBank, type StringBanks} from './voices';
 import {normalizeEffectTuning, type EffectTuning} from './tuning';
 import type {Ultimate3Settings} from '../settings';
 
-export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock].map(style => [style.id, style]));
+export const SCORE_STYLES: Record<string, ScoreStyle> = Object.fromEntries([tactileGlass, nocturne, signal, aria, arabesque, nocturneAcoustic, ariaAcoustic, arabesqueAcoustic, arabesqueAcousticChill, nocturneDuet, nocturneDigital, phase, tintinnabuli, lofiRhodes, cityPop, minimalTechno, sunlitSynth, highlife, stompGlock, glide, glideMinimal, glideMinimalLift, glideMinimalLinger, glideArc, cursorPaper, cursorPaperV2, cursorPaperV3, cursorPaperV3Oct2, cursorPaperV4, cursorPaperV5].map(style => [style.id, style]));
 
 export type ScoreRenderOptions = {style?: string; keyboard?: string; strings?: StringBanks; seed?: number; targetLufs?: number; ceilingDb?: number; stems?: boolean; tuning?: EffectTuning; typing?: boolean};
 export type ScoreReport = {
@@ -58,6 +60,7 @@ export function renderUltimate3Score(settings: Ultimate3Settings, piano: PianoBa
   const echo = pingPong(mix.delay, delay.time, delay.feedback, delay.damping);
   const [hallReturn, roomReturn, echoReturn] = space.returns ?? [2.4, 2, 1.4];
   const master = sum(length, [[mix.music, tuning.mix.music], [mix.sfx, tuning.mix.sfx], [hall, hallReturn * tuning.mix.hall], [room, roomReturn * tuning.mix.room], [echo, echoReturn * tuning.mix.delay]]);
+  style.master?.(master, cues);
   masterEq(master, style.eq ?? {highpass: 26, lowShelf: [70, -2.5], highShelf: [7000, 3.5]});
 
   // Normalise, brickwall, then correct once for what the limiter shaved off.

@@ -1,6 +1,6 @@
 import {Micro22Scene, Micro22Subtitles} from '../micro-22/Scene';
-import {useId} from 'react';
-import {staticFile} from 'remotion';
+import {useEffect, useId, useState} from 'react';
+import {cancelRender, continueRender, delayRender, staticFile} from 'remotion';
 import {DitherClouds, type CloudState} from '../micro-09/DitherClouds';
 import {DitherPhoto, DitherPuffs} from '../micro-10/DitherPhoto';
 import {Micro17Scene} from '../micro-17/Scene';
@@ -21,13 +21,13 @@ import {flow2WorldState} from '../introducing-flow-1-2/geometry';
 import {Subtitles as Flow21Subtitles} from '../introducing-flow-1-2/Subtitles';
 import {Subtitles as IssueSubtitles} from '../micro-20/Subtitles';
 import {Micro20Scene} from '../micro-20/Scene';
-import type {Ultimate3Sample} from './sample';
+import type {ConclusionStage, Ultimate3Sample} from './sample';
 import {flowNarrationRevealAt, sampleFlow} from './sample';
 import {ConclusionSubtitles} from './Subtitles';
 import {VoiceoverCaptions} from './VoiceoverCaptions';
 import {PaperTexture} from './PaperTexture';
 import {costEndpoint, type Ultimate3Settings} from './settings';
-import {sampleMicro16} from '../micro-16/sample';
+import {sampleCost} from './sample';
 import {
   COST_NATIVE_TO_WORLD,
   FLOW_PLACEMENT,
@@ -40,7 +40,24 @@ import {
   projectScreenRect,
 } from './transitions';
 
-const Card = ({kind}: {kind: 'placeholder'|'logo'}) => <div className="micro18-card">
+// Export must wait for the General Sans glyphs, or the first url frames render in a fallback face.
+const useUrlFontReady = () => {
+  const [fontHandle] = useState(() => delayRender('Load the laminar.sh card font'));
+  useEffect(() => {
+    const font = new FontFace('General Sans', `url("${staticFile('micro-18/GeneralSans-Medium.woff2')}")`, {weight: '500'});
+    let active = true;
+    font.load().then(loaded => {
+      if (active) document.fonts.add(loaded);
+      continueRender(fontHandle);
+    }).catch(cancelRender);
+    return () => { active = false; document.fonts.delete(font); };
+  }, [fontHandle]);
+};
+const UrlCard = () => {
+  useUrlFontReady();
+  return <div className="micro18-card"><span className="micro18-url">laminar.sh</span></div>;
+};
+const Card = ({kind}: {kind: ConclusionStage}) => kind === 'url' ? <UrlCard/> : <div className="micro18-card">
   {kind === 'logo' ? <img className="micro18-logo" src={staticFile('micro-18/conclusion-logo.svg')}/> : <span>{'TODO: '}</span>}
 </div>;
 
@@ -50,7 +67,7 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
   useFlow1FontReady();
   const issues = sample.issues;
   const isFlow = sample.chapter === 'flow' && sample.flow;
-  const cost = issues ? sampleMicro16(costEndpoint(settings), settings.cost.controls, settings.cost.timing) : isFlow ? sample.flow!.outgoingCost : sample.cost!;
+  const cost = issues ? sampleCost(costEndpoint(settings), settings) : isFlow ? sample.flow!.outgoingCost : sample.cost!;
   const flow = issues ? sampleFlow(settings.allocations.flow, settings) : isFlow ? sample.flow! : sampleFlow(0, settings);
   const flowState = flow.playback21 ? flow2WorldState(flow.playback21) : introducingFlowState(flow.playback);
   const flowPlacement = flow.worldLayout?.placement ?? FLOW_PLACEMENT;
@@ -76,6 +93,10 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
   const phase = (n: number) => ((n % 60) + 60) % 60;
   // The insert shares the continuous world's grid origin, not standalone24's.
   const gridOffset = {x: phase(camera.x) - 40, y: phase(camera.y)};
+  // Center the pricing artwork in the viewport, not 40px left with the world's
+  // grid origin. Whole-cell compensation stays aligned and is locked to the
+  // benchmark camera throughout the continuous return (never its moving phase).
+  const comparisonContentOffsetX = showingComparison ? -Math.round((phase(endpointCamera(0).x) - 40) / 20) * 20 : 0;
   const cameraStyle = {
     transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`,
     '--micro18-camera-scale': camera.scale,
@@ -123,7 +144,7 @@ const SharedCostFlowIssuesWorld = ({sample, settings}: {sample: Ultimate3Sample;
     </div>
     {showingComparison && <div className="micro18-flow-comparison" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
       <Micro23Scene sample={comparison!.sample} gridStrokeWidth={comparison!.gridStrokeWidth} gridOffset={arrival ? undefined : gridOffset}
-        worldTransform={arrival?.worldTransform} transparent showGrid={false}/>
+        worldTransform={arrival?.worldTransform} contentOffsetX={comparisonContentOffsetX} transparent showGrid={false}/>
     </div>}
     {(isFlow || outgoingCloudsVisible) && <div className="micro18-flow-cloud-layer" data-cloud-attachment={issues ? 'outgoing-world' : flow.entryProgress < 1 ? 'opening-world' : 'screen'}
       style={{transform: `translate(${cloudTransform.x}px,${cloudTransform.y}px) scale(${cloudTransform.scale})`}}>
@@ -156,10 +177,10 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
       clouds = {...sample.cost.cloud, yOffset: 27 + 10 * sample.cost.progress.cloudSweep};
     }
   } else if (sample.chapter === 'conclusion') {
-    const stage = sample.conclusion === 'logo' ? 'logo' : 'placeholder';
+    const stage = sample.conclusion ?? 'placeholder';
     content = <>{stage === 'placeholder' && sample.conclusionSource22 ? <Micro22Scene sample={sample.conclusionSource22} showSubtitles={false}/> : stage === 'placeholder' && sample.conclusionSource
       ? <Micro20Scene sample={sample.conclusionSource} showSubtitles={false}/>
-      : <Card kind={stage}/>}{!settings.voiceover && <ConclusionSubtitles stage={stage}/>}</>;
+      : <Card kind={stage}/>}{!settings.voiceover && stage !== 'url' && <ConclusionSubtitles stage={stage}/>}</>;
   } else {
     content = <Card kind="placeholder"/>;
   }
@@ -167,7 +188,7 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
   return <div className="micro18-frame">
     {content}
     {clouds && <DitherClouds {...clouds}/>} 
-    {settings.voiceover && <VoiceoverCaptions time={sample.time} voiceover={settings.voiceover}/>}
+    {settings.voiceover && settings.subtitles !== false && <VoiceoverCaptions time={sample.time} voiceover={settings.voiceover}/>}
     {settings.paperTexture === true && <PaperTexture/>}
   </div>;
 };

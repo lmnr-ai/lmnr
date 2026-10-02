@@ -24,6 +24,21 @@ This writes the typing-free bed, an adjacent `.playback.wav` (exact split mix at
 Browser regression (existing editor only, isolated Chrome, session cleaned up):
 `node scripts/test-active-arabesque.cjs /tmp/active-arabesque-browser.json`.
 
+## Cursor voiceover beds (LAM-2317)
+
+`VOICEOVER_BEDS['cursor-v5']` (the current soundtrack) is `editable-v12-cursor-v5/bed.wav`: the `cursor-paper-v5` score at -9.2 dB. It is ducked against the October 2 phrases on the 74.5 s cut that ends on the `laminar.sh` card (`handoff/cursor-sound-design/v5/settings.json`). `cursor-v4` is the same score without the card, on `handoff/voiceover-2026-10-02/default-settings.json`. `cursor-v3` is the v3 score on the same cut (`cursor-paper-v3-oct2`). Pick it in the editor's **soundtrack** select, which swaps the only bed, so no second music owner plays. Typing is baked into the bed.
+
+Build a bed with `pnpm exec tsx scripts/build-ultimate3-cursor-bed.ts --style <cursor style> --out public/audio/voiceover/<new dir>`. It:
+
+- checks the phrase hashes against `editable-v12/manifest.json`;
+- dips the bed (never the voice) wherever bed + voice would pass -1.25 dBFS (`--true-peak` also checks 4× interpolated points);
+- accepts a cut longer than the phrase manifest (the extra tail has no voice), but not a shorter one;
+- refuses to overwrite.
+
+Keep `--ceiling-db` above the voice's own -1.54 dBFS peak. Below it, the dip has nothing left to take but the whole bed, and mutes it (a -1.7 test dipped 12 s). For inter-sample overs, use `--true-peak` instead of a lower ceiling.
+
+Export with `scripts/export-ultimate3-editable-vo.ts --bed cursor-v5`. Rebuild into a new directory after retiming picture or narration. The `editable-v11-cursor*` beds stay keyed to the earlier take.
+
 ## Legacy effects exporter (retained, not the active viewer)
 
 Run from `poc/` with explicit frozen scene props and a flat or DialKit-grouped mix JSON:
@@ -71,3 +86,34 @@ master each apply once, including active release tails. The manifest retains its
 legacy `typingTick` event-count key. The legacy music, error chime, camera/agent whoosh, ratchet, soundboard, saved mix,
 and Silk implementation remain intact. The active Arabesque route and its new
 score bed are described above; this legacy export command does not reproduce that bed.
+
+`export-ultimate3-editable-vo.ts` sums the voice and the bed with no limiter, which keeps it identical to the preview. So check the voice mix's peaks after changing a bed: a louder bed can push the voice past full scale even when the score alone is limited at -1.2 dBTP.
+
+## Alternate voiceover beds (`VOICEOVER_BEDS`)
+
+The editable route can play any bed listed in `voiceover-phrases.ts` `VOICEOVER_BEDS` (the preview's
+*Soundtrack* select, export `--bed <id>`). Each alternate bed lives in its own
+`public/audio/voiceover/<folder>/` with a `manifest.json` whose `phraseManifestSha256` must match
+the current phrase root (`VOICEOVER_SOURCE_ROOT`, now `editable-v12/manifest.json`). The export refuses a mismatch. Notes for the next bed:
+
+- There is no live compressor, so the ducking has to be baked in at build time, keyed on the placed phrases (see
+  `scripts/build-ultimate3-glide-bed.ts`). That makes the bed valid only for the cut it was built with: rebuild it after retiming.
+- Bed + voice is a plain sum, so score mastering can't guarantee the mix ceiling. The Glide builder
+  dips only the bed where `|voice + bed| > ceilingDb` (-1.6 dBFS by default, which lands at about -1.3 dBTP).
+  Count the safety dips, not only the worst one: at -1.6 the v1 bed spent 3.2 s more than 3 dB down, with holes reaching -68 dB.
+- The bed length is `ultimate3DurationFrames(settings) * 1600`, so a profile can carry its own cut.
+  `glide-minimal` is built on `handoff/turbopuffer-sound/minimal-settings.json`: a 6.75 s logo hold (2212 frames) and no paper texture.
+  Export and preview it with those settings. With the default settings its held ending would be cut off.
+- `bridge` holds the duck through pauses shorter than that many seconds, starting at `bridgeFrom`.
+  Bridging globally would also fill the silence before the reveal, which is part of the story.
+- The bed is trimmed to sit `underVoiceDb` under the voice's integrated level, so a louder ending lowers the whole film's bed.
+  `matchUntil` measures that only before the given time, so a variant that changes just the ending leaves the rest identical.
+- Music after the last word isn't ducked, so a groove that plays on after "with Laminar" sits about 3 dB higher in the bed there. Judge it in the mix, not the bed.
+- To measure intelligibility, derive a voice-only stem as `export(arabesque) − editable-v12/bed.wav`,
+  then compare the per-phrase voice/bed RMS inside each `voiceoverSchedule` span, both full-band and 500 Hz–4 kHz.
+- `build-ultimate3-glide-bed.ts --style` selects a per-style profile (the bed-under-voice level, duck depth, presence dip, release, gap bridging, score LUFS and level curve), recorded in the bed's manifest. Output goes to `editable-v12-<style>/`. Only `glide-minimal-linger` is built and listed for the October 2 take; the `editable-v11-*` Glide beds stay on disk, keyed to the earlier take.
+- A retake is a new phrase root: add it to `TAKES` in `build-ultimate3-issues4-vo.mjs`, write new placements, and move only the stored slots that still equal the previous root's generated ones (`migrateVoiceoverTake`). Check speech onsets in each trim (`a`), since a take can carry leading silence that the slot then hides.
+  The level curve is multiplied in *before* the bed-under-voice trim, so it redistributes level across sections rather than raising the whole bed.
+  Arabesque's baseline is a 3.9 / 1.5 dB median. Whisper `small.en` is the transcript check.
+- `Mix.sweep` filters only the music emitted *before* the call. Compose layers after it (the Glide groove) and
+  the sfx bus stay open.

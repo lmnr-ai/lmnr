@@ -1,7 +1,7 @@
 import {useFlow1FontReady} from '../introducing-flow-1/Scene';
 import type {VoiceoverSettings} from './settings';
 
-/** One caption per script line, verbatim; each spans the phrase clips it is spoken over. */
+/** Authored on-screen wording; each line retains its existing speech-clip window. */
 export const VOICEOVER_CAPTIONS = [
   {text: "This is the agent you've built", phrases: ['n01']},
   {text: 'Every time it runs, it leaves a trace.', phrases: ['n02']},
@@ -13,7 +13,7 @@ export const VOICEOVER_CAPTIONS = [
   {text: 'but the costs are unsustainable.', phrases: ['n09']},
   {text: 'Until now.', phrases: ['n10']},
   {text: 'Introducing Flow-1, our model specialized for trace analysis.', phrases: ['n11']},
-  {text: 'Surpassing GPT-6-Sol in intelligence, while analyzing 20 times more traces per dollar.', phrases: ['n12', 'n13']},
+  {text: 'Matching GPT-6-Sol in intelligence, while analyzing 20 times more traces per dollar.', phrases: ['n12', 'n13']},
   {text: 'Flow-1 powers Signals, our agent built to analyze traces at scale.', phrases: ['n14', 'n15']},
   {text: 'It finds deep issues, and reports them.', phrases: ['n16']},
   {text: 'Not just with labels,', phrases: ['n17']},

@@ -47,16 +47,24 @@ const strings: StringBanks = {
   pizz: piano.filter(note => note.midi >= 48).map(note => ({...note, dynamic: 'loud' as const})),
 };
 const hash = (audio: {l: Float32Array; r: Float32Array}) => createHash('sha256').update(audio.l).update(audio.r).digest('hex');
-for (const style of Object.keys(SCORE_STYLES)) {
+// `pnpm ultimate3:score:test glide glide-minimal` checks only those styles, each fully. With no styles listed every style
+// renders once, and only the first repeats its renders for the determinism and seed checks (renders dominate the runtime).
+const only = process.argv.slice(2).filter(arg => !arg.startsWith('-'));
+for (const style of only) assert.ok(SCORE_STYLES[style], `Unknown score style ${style}`);
+const styles = only.length ? only : Object.keys(SCORE_STYLES);
+for (const style of styles) {
   const full = (seed?: number) => renderUltimate3Score(ULTIMATE_3_DEFAULTS, piano, {style, seed, strings: SCORE_STYLES[style].strings ? strings : undefined});
   const render = (seed?: number) => full(seed).master;
   const {master: first, report} = full();
+  const repeat = only.length > 0 || style === styles[0];
   if (style.endsWith('-acoustic') || ['nocturne-duet', 'phase', 'tintinnabuli'].includes(style)) for (const voice of ['beep', 'tick', 'drain', 'bass']) assert.ok(!report.counts[voice], `${style}: no electronic ${voice}`);
   if (style === 'nocturne-duet') assert.ok(!report.counts.strings && report.counts.violin && report.counts.celli, 'the duet bows sampled strings only');
   if (style === 'phase' || style === 'tintinnabuli') assert.ok(!report.counts.strings && !report.counts.timpani && report.counts.violins && report.counts.pizz, `${style}: sampled strings, no synth section or drums`);
   if (style === 'nocturne-digital') for (const voice of ['timpani', 'violin', 'violins', 'celli', 'pizz']) assert.ok(!report.counts[voice], `${style}: no acoustic ${voice}`);
-  assert.equal(hash(first), hash(render()), `${style}: the score is a pure function of settings, samples and seed`);
-  assert.notEqual(hash(render(7)), hash(first), `${style}: the seed only varies noise and humanisation`);
+  if (repeat) {
+    assert.equal(hash(first), hash(render()), `${style}: the score is a pure function of settings, samples and seed`);
+    assert.notEqual(hash(render(7)), hash(first), `${style}: the seed only varies noise and humanisation`);
+  }
   assert.equal(first.length, Math.round(cues.duration * SR), `${style}: audio length matches the composition`);
   assert.ok(Math.abs(integratedLufs(first) + 14) < .3, `${style}: mastered to -14 LUFS`);
   assert.ok(toDb(truePeak(first)) <= -1, `${style}: true peak stays under -1 dBTP`);

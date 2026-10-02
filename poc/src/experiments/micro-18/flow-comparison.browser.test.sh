@@ -20,7 +20,7 @@ pose(){
 # Default comparison: inspect both renderer cuts, dense geometry and settled return.
 for time in 43.729999 43.730001 46.499999 46.500001 47.759999 47.760001 42 49.5 52; do pose "$time" "new-$time"; done
 pose 46 'dense'
-browser eval '(()=>{const scene=document.querySelector(".micro18-flow-comparison");if(!scene)throw Error("No comparison");if(scene.querySelectorAll("[data-dot]").length!==756)throw Error("Wrong trace count");const p=document.querySelector(".micro18-shared-scene > .micro23-grid pattern path");if(p.getAttribute("stroke")!=="#1f1f1f"||Number(p.getAttribute("stroke-width"))!==.5)throw Error("Dense grid mismatch");if(scene.querySelector("[data-number=flow] span").textContent!=="756")throw Error("Comparison not settled during phrase");return "PASS dense comparison"})()'
+browser eval '(()=>{const scene=document.querySelector(".micro18-flow-comparison");if(!scene)throw Error("No comparison");if(scene.querySelectorAll("[data-dot]").length!==888)throw Error("Wrong trace count");const p=document.querySelector(".micro18-shared-scene > .micro23-grid pattern path");if(p.getAttribute("stroke")!=="#1f1f1f"||Number(p.getAttribute("stroke-width"))!==.5)throw Error("Dense grid mismatch");if(scene.querySelector("[data-number=flow] span").textContent!=="888")throw Error("Comparison not settled during phrase");const dots=[...scene.querySelectorAll("[data-dot]")];if(dots.filter(d=>d.dataset.color==="orange").length!==38)throw Error("Wrong orange count");if(scene.querySelector("[data-number=gpt] span").textContent!=="38")throw Error("Wrong GPT figure");const rects=dots.map(d=>d.getBoundingClientRect());const center=(Math.min(...rects.map(r=>r.left))+Math.max(...rects.map(r=>r.right)))/2;if(Math.abs(center-650)>.01)throw Error(`Pricing field lost cell alignment: ${center}`);for(let row=0;row<21;row++){const rd=dots.filter(d=>Number(d.dataset.row)===row);if(rd.length!==(row===20?28:43))throw Error(`Wrong row count: ${row}`);}const last=dots.at(-1).getBoundingClientRect();const card=scene.querySelector("[data-number=flow]").getBoundingClientRect();if(Math.abs(card.right-(last.left+last.width/2+10))>.01)throw Error("Flow number must end at the final occupied cell");const top=Math.min(...rects.map(r=>r.top)),bottom=Math.max(...rects.map(r=>r.bottom));for(const selector of [".micro23-label-box",".micro23-number"]){for(const box of scene.querySelectorAll(selector)){const r=box.getBoundingClientRect();if(!(r.bottom<=top||r.top>=bottom))throw Error("Label overlaps dots");}}return "PASS 888/38, 43-column rows, 28-dot tail, aligned Flow number and clear labels"})()'
 # Explicit legacy JSON remains literal; compare untouched artwork before and after.
 browser eval '(async()=>{const {VOICEOVER_SETTINGS_ID:id,VOICEOVER_DEFAULTS}=await import("/src/experiments/micro-18/voiceover-cut.ts");const s=JSON.parse(localStorage.getItem(id))??structuredClone(VOICEOVER_DEFAULTS);s.flow.comparison=false;localStorage.setItem(id,JSON.stringify(s));return "legacy comparison disabled"})()'
 for time in 42 49.5 52; do pose "$time" "old-$time"; done
@@ -46,8 +46,8 @@ for l,r in pairs:
   changed=[i//3 for i in range(0,len(a),3) if a[i:i+3]!=b[i:i+3]]
   def dot_edge(i):
    x,y=i%1280+.5,i//1280+.5
-   cx=190+20*round((x-190)/20);cy=180+20*round((y-180)/20)
-   return 190<=cx<=1010 and 180<=cy<=520 and 2.5<=math.hypot(x-cx,y-cy)<=3.5
+   cx=230+20*round((x-230)/20);cy=160+20*round((y-160)/20)
+   return 230<=cx<=1070 and 160<=cy<=560 and 2.5<=math.hypot(x-cx,y-cy)<=3.5
   assert count<=12 and all(dot_edge(i) for i in changed) and max(abs(x-y) for x,y in zip(a,b))<=20,f'{l}/{r}: non-edge handoff change'
  else:
   assert count<=tolerance and max(abs(x-y) for x,y in zip(a,b))<=(1 if tolerance else 0),f'{l}/{r}: {count} pixels differ'
@@ -79,7 +79,7 @@ browser eval '(async()=>{
  DialStore.updateValues(panel.id,{"comparison_gptNumber.at":12,"comparison_flowNumber.from.progress":.25,"comparison_flowNumber.to.progress":.75});
  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
  if(getComputedStyle(document.querySelector("[data-number=gpt]")).visibility!=="hidden")throw Error("Native mask timing ignored");
- if(document.querySelector("[data-number=flow] span").textContent!=="189")throw Error("Native from endpoint ignored");
+ if(document.querySelector("[data-number=flow] span").textContent!=="222")throw Error("Native from endpoint ignored");
  const preset=DialStore.savePreset(panel.id,"Comparison proof");DialStore.clearActivePreset(panel.id);DialStore.updateValue(panel.id,"comparison_flowNumber.from.progress",.6);DialStore.loadPreset(panel.id,preset);
  if(DialStore.getValue(panel.id,"comparison_flowNumber.from.progress")!==.25)throw Error("New preset lost endpoint");
  return "PASS migrated preset, native bars, mask timing and from/to preset";

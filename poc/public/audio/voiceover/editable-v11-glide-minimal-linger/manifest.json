@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "scoreStyle": "glide-minimal-linger",
+  "seed": 2316,
+  "sampleRate": 48000,
+  "frames": 2212,
+  "samples": 3539200,
+  "bed": {
+    "file": "bed.wav",
+    "sha256": "58c00402e62804ecb6327805540bc55d647aae1d7b303ee248d39d3151e46143"
+  },
+  "settingsSha256": "9f78e82d6595f31c8a8fe310eda162636d4b3bb4640654fde6754acf1d05114a",
+  "phraseRoot": "/audio/voiceover/editable-v11/",
+  "phraseManifestSha256": "07d9c6816660636e18ac45de10c1f875351cd3d0e646b260d1adea7206040734",
+  "ducking": {
+    "keyedBy": "placed editable-v11 phrases",
+    "duckDb": 5,
+    "presenceDb": 6,
+    "presenceHz": 2200,
+    "lookahead": 0.04,
+    "attack": 0.06,
+    "release": 0.35,
+    "gateDb": -42,
+    "bridge": 1.3,
+    "bridgeFrom": 62.93,
+    "ceilingDb": -1.25,
+    "levelCurve": [
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "levels": {
+    "scoreTargetLufs": -20,
+    "voiceLufs": -15.96154392474751,
+    "scoreLufs": -22.703978200861588,
+    "bedUnderVoiceDb": 7.44,
+    "thockGain": 0.6605191575102268,
+    "scoreLimiterDb": 0,
+    "bedSafetyDb": -13.835439485306866,
+    "bedTruePeakDb": -5.510703570864843,
+    "mixLufs": -16.3898578426003,
+    "mixTruePeakDb": -1.250000299707098,
+    "speakingSeconds": 51.08000000000001
+  },
+  "note": "Voice-free keyboard-bearing bed, ducked under the placed narration at these settings. Moving a phrase far from its placement leaves the bed dip where it was; rebuild the bed for a new cut."
+}

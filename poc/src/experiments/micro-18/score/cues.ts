@@ -5,6 +5,8 @@ import {resolvePreludeSchedule} from '../../micro-20/timeline';
 import {normalizeMicro22Timing} from '../../micro-22/timeline';
 import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
 import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
+import {voiceoverSchedule} from '../voiceover-schedule';
+import type {ComparisonKey} from '../flow-comparison';
 import {ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow} from '../sound';
 
 export type Span = {at: number; duration: number};
@@ -96,6 +98,8 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
 
   return {
     duration, chapter,
+    /** The narration as placed (authored or default slots); styles may breathe the bed around it. */
+    voice: voiceoverSchedule(settings).filter(phrase => phrase.duration > 0).map(phrase => ({at: phrase.at, duration: phrase.duration})),
     ultimate2: {
       agentEnter: at(u2Start, u2.agentEnter),
       firstThinking: span(u2Start, u2.firstThinking),
@@ -138,6 +142,10 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       reveal: round(flowStart + Math.min(entry.at + entry.duration, 2 * BEAT)),
       native: flowNative,
       ...flowCues,
+      // The pricing comparison inserted into Flow 21; its clips are flow-native like the rest.
+      comparison: settings.flow.comparison
+        ? Object.fromEntries(Object.entries(settings.flow.comparison.timing).map(([key, clip]) => [key, span(flowNative, clip)])) as Record<ComparisonKey, Span>
+        : undefined,
     },
     issues: {
       postludeActive,
@@ -176,6 +184,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
     conclusion: {
       start: chapter.conclusion.start,
       logo: round(chapter.conclusion.start + settings.conclusion.logo.at),
+      url: settings.conclusion.url && round(chapter.conclusion.start + settings.conclusion.url.at),
       end: chapter.conclusion.end,
     },
   };

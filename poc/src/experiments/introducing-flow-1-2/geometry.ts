@@ -5,16 +5,23 @@ import {beadProgress, DEFAULT_BEAD_STAGGER_SECONDS} from './beads';
 
 /** Frames 4844:7684 / 4844:8056: all beads start on the x=280 grid-aligned string;
  * flow-1 ends at x=1150. Reference peer positions are illustrative;
- * Landing description F1 determines peer Y; flow-1 is art-directed to 4.5 grid cells.
+ * Landing description F1 determines peer Y; flow-1's Y is art-directed for
+ * readable labels, with the same gap to Sol as Gemini has to Luna.
  */
 export const GRAPH = {
   f1Ceiling: 85, f1TickStep: 5, peersX: 280, ballStartX: 280, ballEndX: 1150,
   valueOriginX: 120, valueTickStep: 100, valueTickPixels: 136,
-  pitch: 60, gridOriginX: 40, ballGridY: 4.5, stringExitDistance: 330,
+  pitch: 60, gridOriginX: 40, stringExitDistance: 330,
 };
 export const GRAPH_WORLD_ORIGIN = {x: -220 / .6, y: 720 / .6};
 const flow = GRAPH_MODELS.find(model => model.id === 'flow')!;
 export const descF1Y = (descF1: number) => (GRAPH.f1Ceiling - descF1) / GRAPH.f1TickStep * GRAPH.pitch * 2;
+// Keep the 32px-high label fully inside the graph, with 16px top clearance.
+// This affects Opus's 84.8% point only; its numeric score remains unchanged.
+export const peerPointY = (descF1: number) => Math.max(32, descF1Y(descF1));
+const peerY = (id: 'sol' | 'gemini' | 'luna') => peerPointY(GRAPH_MODELS.find(model => model.id === id)!.descF1);
+// Presentation spacing is intentionally independent of the displayed 74.1%.
+export const FLOW_ANCHOR_Y = peerY('sol') - Math.abs(peerY('luna') - peerY('gemini'));
 export const valueX = (tracesPerDollar: number) => GRAPH.valueOriginX + tracesPerDollar / GRAPH.valueTickStep * GRAPH.valueTickPixels;
 const mix = (a: number, b: number, progress: number) => a * (1 - progress) + b * progress;
 const labels = {opus: 'opus-5', sonnet: 'sonnet-5', sol: 'gpt-6 sol', gemini: 'gemini-3.8 flash', luna: 'gpt-6 luna'} as const;
@@ -52,16 +59,16 @@ export function graphState(playback: Flow2Playback, beadStaggerSeconds = DEFAULT
   // Keep the art-directed flow-1 anchor fixed: the new exact X is 1148.16,
   // only 1.84px from the retained 1150px position (within the 15px allowance).
   const ballX = mix(stringX, GRAPH.ballEndX, p.graphSpread) + GRAPH.stringExitDistance * p.stringExit;
-  const ballY = mix(BEAD_START_Y, GRAPH.ballGridY * GRAPH.pitch, beads.flow);
+  const ballY = mix(BEAD_START_Y, FLOW_ANCHOR_Y, beads.flow);
   return {
     string: {x: ballX, opacity: Math.min(1, Math.max(0, p.ballEntry)), crossbar: Math.min(1, Math.max(0, p.graphSpread))},
-    ball: {x: ballX, y: ballY, opacity: beads.flow > 0 ? 1 : 0, size: mix(20, 60, unit(p.graphSpread)), score: flow.descF1.toFixed(1)},
+    ball: {x: ballX, y: ballY, opacity: beads.flow > 0 ? 1 : 0, size: mix(20, 60, unit(p.graphSpread)), score: `${flow.descF1.toFixed(1)}%`},
     scoresOpacity: 1 - unit(p.graphSpread),
     flowLabel: {x: mix(ballX + 30, ballX - 131, p.flowLabel), y: mix(ballY - 16, ballY + 26, p.flowLabel)},
     points: GRAPH_MODELS.filter(model => model.id !== 'flow').map(model => ({...model,
       label: labels[model.id],
       x: mix(stringX, valueX(model.tracesPerDollar), p.graphSpread),
-      y: mix(BEAD_START_Y, descF1Y(model.descF1), beads[model.id]),
+      y: mix(BEAD_START_Y, peerPointY(model.descF1), beads[model.id]),
       opacity: beads[model.id] > 0 ? p.modelPoints : 0,
       labelFlip: model.id === 'luna' ? Math.min(1, Math.max(0, p.graphSpread)) : 0,
     })),

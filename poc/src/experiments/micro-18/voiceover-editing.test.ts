@@ -20,7 +20,7 @@ test('23 real timeline bars and first six in Ultimate 2 share phrase settings; i
   assert.deepEqual(Object.keys(voiceoverTimelineConfig(VOICEOVER_DEFAULTS, true).narration!), VOICEOVER_PHRASES.slice(0, 6).map(p => p.id));
   assert.equal(Object.keys(voiceoverTimelineValues(VOICEOVER_DEFAULTS)).length, 115);
   const edited = changed('n02', .37, .5);
-  assert.deepEqual(voiceoverSchedule(edited).slice(0, 2).map(p => p.at), [.37, .715]);
+  assert.deepEqual(voiceoverSchedule(edited).slice(0, 2).map(p => p.at), [.37, VOICEOVER_PHRASES[0].placed.at]);
   assert.equal(voiceoverSchedule(edited).find(p => p.id === 'n02')?.duration, .5);
   const timeline = {narration: {...full, n02: {...full.n02, at: 3, duration: .1,
     transition: {type: 'easing', duration: .1, ease: [.1, 0, .9, 1]}, from: {progress: .3}}}};
@@ -55,8 +55,8 @@ test('shared schedule/PCM uses true trims, overlaps, silence, fades and one line
   assert.equal(mixVoiceoverPcm(bed, {n01: source, n02: source}, settings, 0).l[4800], 0);
 });
 
-test('prepared assets are exactly the immutable 23 sample-exact trims of the approved A/subtle take and the Issue Clusters 4 score', () => {
-  const base = new URL('../../../public/audio/voiceover/editable-v11/', import.meta.url);
+test('prepared assets are exactly the immutable 23 sample-exact trims of the October 2 A/subtle take and the Issue Clusters 4 score', () => {
+  const base = new URL('../../../public/audio/voiceover/editable-v12/', import.meta.url);
   const read = (file: string) => readFileSync(new URL(file, base));
   const manifest = JSON.parse(read('manifest.json').toString());
   assert.equal(manifest.phrases.length, 23);
@@ -64,10 +64,11 @@ test('prepared assets are exactly the immutable 23 sample-exact trims of the app
   const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
   assert.equal(sha(read(manifest.bed.file)), manifest.bed.sha256);
   assert.equal(read(manifest.bed.file).readUInt32LE(24), 48000);
-  assert.equal(manifest.samples, 2085 * 1600);
-  assert.equal(`/audio/voiceover/editable-v11/${manifest.bed.file}`, VOICEOVER_BED_URL);
-  assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../voice_A_subtle.wav', base))));
-  assert.equal(manifest.sourceRecordingSha256, 'af92601ff5a34753d0c637b023280a8374fdc35ff6f7fecca7bf720f51d40640');
+  assert.equal(manifest.samples, 2212 * 1600);
+  assert.equal(`/audio/voiceover/editable-v12/${manifest.bed.file}`, VOICEOVER_BED_URL);
+  assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../voice_A_subtle-2026-10-02.wav', base))));
+  assert.equal(manifest.sourceRecordingSha256, sha(readFileSync(new URL('../../../../handoff/voiceover-2026-10-02/voice_A_subtle.wav', base))));
+  assert.equal(manifest.sourceRecordingSha256, 'd2c827895302132a5352f6261f278d43d0fc88648c68ac976cb3e8ab0ea607f5');
   for (const entry of manifest.phrases) {
     const phrase = VOICEOVER_PHRASES.find(p => p.id === entry.id)!;
     assert.equal(entry.text, phrase.text);

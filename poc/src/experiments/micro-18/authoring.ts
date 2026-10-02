@@ -4,7 +4,7 @@ import type {FlowPlayback} from '../introducing-flow-1/sample';
 import {FLOW_CLIP_KEYS, INTRODUCING_FLOW_1_TIMELINE, type FlowClipKey} from '../introducing-flow-1/timeline';
 import {FLOW_2_CLIP_KEYS, FLOW_2_TIMELINE} from '../introducing-flow-1-2/timeline';
 import {originalFlowPlayback, type Flow2Playback} from '../introducing-flow-1-2/sample';
-import {sampleFlow, sampleIssues} from './sample';
+import {chapterSchedule, sampleFlow, sampleIssues} from './sample';
 import {flowEndpoint, issueEntryEnd, issuePostludeOffset, normalizeSettings, FLOW_21_TIMING} from './settings';
 import {CLIP_KEYS as KEYS17, MICRO_17_TIMELINE} from '../micro-17/timeline';
 import {CLIP_KEYS as KEYS16, MICRO_16_TIMELINE} from '../micro-16/timeline';
@@ -54,10 +54,34 @@ export function settingsFromUltimate2CloudTimeline(timeline: any, settings: Ulti
   return normalizeSettings({...settings, ultimate2: {...settings.ultimate2, timing: {...settings.ultimate2.timing, cloudEnter}}});
 }
 
+/** Main uses global seconds; Cost detail uses local seconds, one native clip. */
+export const COST_CLOUD_KEY = 'cloudsSlideOut';
+export function costCloudTimelineConfig(settings: Ultimate3Settings) {
+  const clip = costTimelineConfig(settings).cloudSweep as ClipTiming;
+  return {[COST_CLOUD_KEY]: {...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1}, at: chapterSchedule(settings)[1].start + clip.at}};
+}
+export function costCloudTimelineValues(settings: Ultimate3Settings) {
+  const clip = costCloudTimelineConfig(settings)[COST_CLOUD_KEY];
+  return {[`${COST_CLOUD_KEY}.at`]: clip.at, [`${COST_CLOUD_KEY}.duration`]: clip.duration,
+    [`${COST_CLOUD_KEY}.from.progress`]: clip.from?.progress ?? 0,
+    [`${COST_CLOUD_KEY}.to.progress`]: clip.to?.progress ?? 1,
+    [`${COST_CLOUD_KEY}.transition`]: clip.transition};
+}
+export function settingsFromCostCloudTimeline(timeline: any, settings: Ultimate3Settings, flat: Record<string, unknown> = {}) {
+  const fallback = costCloudTimelineConfig(settings)[COST_CLOUD_KEY];
+  const clip = normalizeClip(micro22AuthoredClip(timeline[COST_CLOUD_KEY], COST_CLOUD_KEY, flat), fallback);
+  const localAt = Math.max(0, clip.at - chapterSchedule(settings)[1].start);
+  const previous = settings.cost.timing.cloudSweep;
+  const cloudSweep = {...clip, at: Math.abs(localAt - previous.at) < 1e-9 ? previous.at : localAt, duration: Math.max(.05, clip.duration)};
+  // Merely opening the alias must not materialize implicit source endpoints.
+  for (const field of ['from', 'to'] as const) if (previous[field] === undefined && JSON.stringify(cloudSweep[field]) === JSON.stringify(fallback[field])) delete cloudSweep[field];
+  return normalizeSettings({...settings, cost: {...settings.cost, timing: {...settings.cost.timing, cloudSweep}}});
+}
+
 export const costTimelineConfig = (settings: Ultimate3Settings) => ({
   duration: settings.allocations.cost,
   ...mergeTimelineTiming(MICRO_16_TIMELINE, settings.cost.timing, KEYS16),
-});
+}) as {duration: number} & Record<typeof KEYS16[number], ClipTiming>;
 
 export function timelinePreviewSignature(timeline: any, keys: readonly string[]) {
   return JSON.stringify([timeline.time, ...keys.map(key => {
@@ -207,18 +231,21 @@ export function settingsFromCloudTimeline(timeline: any, settings: Ultimate3Sett
 }
 
 export const CONCLUSION_TIMELINE_KEYS = ['placeholder', 'logo'] as const;
+type ConclusionKey = typeof CONCLUSION_TIMELINE_KEYS[number] | 'url';
+/** The url card is a bar only on cuts that have one. */
+export const conclusionTimelineKeys = (settings: Ultimate3Settings): ConclusionKey[] => settings.conclusion.url ? [...CONCLUSION_TIMELINE_KEYS, 'url'] : [...CONCLUSION_TIMELINE_KEYS];
 export function conclusionTimelineConfig(settings: Ultimate3Settings) {
-  const clips = Object.fromEntries(CONCLUSION_TIMELINE_KEYS.map(key => {
-    const clip = settings.conclusion[key];
+  const clips = Object.fromEntries(conclusionTimelineKeys(settings).map(key => {
+    const clip = settings.conclusion[key]!;
     return [key, {...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1},
       transition: clip.transition ?? {type: 'easing' as const, duration: clip.duration,
         ease: (key === 'placeholder' ? [.45, 0, .55, 1] : [0, 0, 1, 1]) as [number, number, number, number]}}];
-  })) as Record<typeof CONCLUSION_TIMELINE_KEYS[number], ClipTiming>;
+  })) as Record<ConclusionKey, ClipTiming>;
   return {duration: settings.allocations.conclusion, ...clips};
 }
 export function conclusionTimelineValues(settings: Ultimate3Settings) {
   const config = conclusionTimelineConfig(settings);
-  return Object.fromEntries(CONCLUSION_TIMELINE_KEYS.flatMap(key => {
+  return Object.fromEntries(conclusionTimelineKeys(settings).flatMap(key => {
     const clip = config[key];
     return [[`${key}.at`, clip.at], [`${key}.duration`, clip.duration],
       [`${key}.from.progress`, clip.from!.progress], [`${key}.to.progress`, clip.to!.progress],
@@ -227,12 +254,12 @@ export function conclusionTimelineValues(settings: Ultimate3Settings) {
 }
 export function settingsFromConclusionTimeline(timeline: any, settings: Ultimate3Settings) {
   const config = conclusionTimelineConfig(settings);
-  const conclusion = Object.fromEntries(CONCLUSION_TIMELINE_KEYS.map(key => {
+  const conclusion = Object.fromEntries(conclusionTimelineKeys(settings).map(key => {
     const authored = normalizeClip(timeline[key], config[key]);
     // Display defaults must not become persisted edits merely by opening the panel.
     // Keep absent curves absent on retiming so the sampler uses the new duration.
     for (const field of ['from', 'to', 'transition'] as const) {
-      if (settings.conclusion[key][field] === undefined
+      if (settings.conclusion[key]![field] === undefined
         && JSON.stringify(authored[field]) === JSON.stringify(config[key][field])) delete authored[field];
     }
     return [key, authored];
