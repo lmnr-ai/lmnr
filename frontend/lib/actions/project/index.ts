@@ -140,6 +140,10 @@ async function deleteProjectDataFromClickHouse(
     "default.notification_deliveries",
     "default.signal_events",
     "default.signal_event_clusters",
+    // Left by rebuild-signal-clusters.ts until dropped by hand; it copies from
+    // them into signal_event_clusters, so they are purged like it.
+    "default.signal_event_clusters_v2",
+    "default.old_unpartitioned_signal_event_clusters",
     "default.signal_runs",
     "default.signal_run_messages",
     // Dropped by backfill-signal-clusters.ts once it finishes; the filter below
