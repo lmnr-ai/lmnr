@@ -274,6 +274,24 @@ impl ClickhouseInsertable for CHSpan {
         )
     }
 
+    // Keyed on span identity, not content: a replayed batch is rebuilt from the
+    // same messages but its rows need not be byte-identical.
+    fn dedup_token(items: &[Self]) -> Option<String> {
+        let mut keys: Vec<_> = items
+            .iter()
+            .map(|s| (s.project_id, s.trace_id, s.span_id, s.start_time))
+            .collect();
+        keys.sort_unstable();
+        let mut hasher = blake3::Hasher::new();
+        for (project_id, trace_id, span_id, start_time) in keys {
+            hasher.update(project_id.as_bytes());
+            hasher.update(trace_id.as_bytes());
+            hasher.update(span_id.as_bytes());
+            hasher.update(&start_time.to_le_bytes());
+        }
+        Some(format!("spans-{}", hasher.finalize().to_hex()))
+    }
+
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Spans(items)
     }
@@ -389,4 +407,35 @@ pub async fn query_debug_cache_spans_page(
         .await?;
 
     Ok(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ch_span(trace_id: Uuid, span_id: Uuid) -> CHSpan {
+        let span = Span {
+            span_id,
+            trace_id,
+            ..Default::default()
+        };
+        CHSpan::from_db_span(&span, &SpanUsage::default(), Uuid::nil())
+    }
+
+    #[test]
+    fn dedup_token_ignores_order_and_content() {
+        let (t, a, b) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let first = vec![ch_span(t, a), ch_span(t, b)];
+        let mut replay = vec![ch_span(t, b), ch_span(t, a)];
+        replay[0].size_bytes = 42;
+        assert_eq!(CHSpan::dedup_token(&first), CHSpan::dedup_token(&replay));
+    }
+
+    #[test]
+    fn dedup_token_differs_for_different_span_sets() {
+        let (t, a, b) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let both = vec![ch_span(t, a), ch_span(t, b)];
+        let one = vec![ch_span(t, a)];
+        assert_ne!(CHSpan::dedup_token(&both), CHSpan::dedup_token(&one));
+    }
 }

@@ -91,6 +91,13 @@ pub trait ClickhouseInsertable: RowOwned + RowWrite + Clone + Sized + Send + Syn
         insert
     }
 
+    /// Deterministic `insert_deduplication_token` for a batch. Returning `Some`
+    /// makes a retried insert of the same batch a server-side no-op, which matters
+    /// because a client-side error (timeout, reset) does not mean CH did not commit.
+    fn dedup_token(_items: &[Self]) -> Option<String> {
+        None
+    }
+
     /// Convert items to DataPlaneBatch for data plane requests
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch;
 }

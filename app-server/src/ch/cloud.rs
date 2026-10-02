@@ -40,7 +40,12 @@ impl ClickhouseTrait for CloudClickhouse {
 
         let table_name = T::TABLE.as_str();
         let insert = self.client.insert::<T>(table_name).await?;
-        let insert = T::configure_insert(insert);
+        let mut insert = T::configure_insert(insert);
+        if let Some(token) = T::dedup_token(items) {
+            insert = insert
+                .with_setting("async_insert_deduplicate", "1")
+                .with_setting("insert_deduplication_token", token);
+        }
         // Bound the server-side response wait so a silent endpoint errors out
         // (→ transient → requeue) instead of wedging the consumer forever.
         let mut insert = insert.with_timeouts(None, *super::INSERT_END_TIMEOUT);
