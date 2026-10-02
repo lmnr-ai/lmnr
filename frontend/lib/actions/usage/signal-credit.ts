@@ -18,11 +18,9 @@ export interface SignalCreditState {
 
 export function calculateSignalCreditState({
   persistedRemainingMicroUsd,
-  pendingUncreditedCostMicroUsd,
   creditedCostThisPeriodMicroUsd,
 }: {
   persistedRemainingMicroUsd: number | null;
-  pendingUncreditedCostMicroUsd: number;
   creditedCostThisPeriodMicroUsd: number;
 }): SignalCreditState {
   if (persistedRemainingMicroUsd === null) {
@@ -31,19 +29,14 @@ export function calculateSignalCreditState({
 
   return {
     grantedMicroUsd: SIGNALS_SIGNUP_CREDIT_MICRO_USD,
-    remainingMicroUsd: Math.max(0, persistedRemainingMicroUsd - Math.max(0, pendingUncreditedCostMicroUsd)),
+    remainingMicroUsd: persistedRemainingMicroUsd,
     appliedThisPeriodMicroUsd: Math.max(0, creditedCostThisPeriodMicroUsd),
   };
 }
 
-/**
- * Read the meter job's durable credit balance. Pending unclassified runs are
- * deducted for display/enforcement until the job marks each whole run credited
- * or billable.
- */
+/** Read the durable balance updated as each Signals run completes. */
 export async function getSignalCreditState(
   workspaceId: string,
-  pendingUncreditedCostMicroUsd: number,
   creditedCostThisPeriodMicroUsd: number
 ): Promise<SignalCreditState> {
   const [workspace] = await db
@@ -58,7 +51,6 @@ export async function getSignalCreditState(
 
   return calculateSignalCreditState({
     persistedRemainingMicroUsd: workspace.remainingMicroUsd === null ? null : Number(workspace.remainingMicroUsd),
-    pendingUncreditedCostMicroUsd,
     creditedCostThisPeriodMicroUsd,
   });
 }

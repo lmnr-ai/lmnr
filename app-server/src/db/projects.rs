@@ -243,6 +243,43 @@ pub async fn get_signal_credit_remaining(
     Ok(remaining)
 }
 
+/// Consume a completed run's cost from its workspace's one-time credit.
+/// Returns true when credit remains after the deduction.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn apply_signal_credit(
+    pool: &PgPool,
+    project_id: Uuid,
+    cost_micro_usd: i64,
+) -> anyhow::Result<bool> {
+    if cost_micro_usd <= 0 {
+        return Ok(false);
+    }
+
+    let credit_applied = sqlx::query_scalar(
+        r#"
+        UPDATE workspaces
+        SET signal_credit_remaining_micro_usd = GREATEST(
+            signal_credit_remaining_micro_usd - $2,
+            0
+        )
+        WHERE id = (
+            SELECT workspace_id
+            FROM projects
+            WHERE id = $1
+        )
+          AND signal_credit_remaining_micro_usd > 0
+        RETURNING signal_credit_remaining_micro_usd > 0
+        "#,
+    )
+    .bind(project_id)
+    .bind(cost_micro_usd)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or(false);
+
+    Ok(credit_applied)
+}
+
 pub async fn get_projects_for_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,

@@ -184,12 +184,32 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     }
 
     let workspace_id = project_info.workspace_id;
-    let billing_start = if is_free {
-        project_info.reset_time
-    } else {
-        current_billing_period_start(project_info.reset_time)
-    };
+    if is_free {
+        let persisted_credit =
+            db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
+        let remaining_credit = persisted_credit.unwrap_or(0);
+        let credit_exhausted = remaining_credit == 0;
+        log::debug!(
+            "Workspace Signals credit check: {} micro-USD remaining",
+            remaining_credit,
+        );
+        if credit_exhausted {
+            check_notify_hard_limit(
+                db,
+                cache,
+                queue,
+                workspace_id,
+                project_info.reset_time,
+                UsageItem::SignalCredit,
+                SIGNALS_SIGNUP_CREDIT_MICRO_USD - remaining_credit,
+                persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
+            )
+            .await;
+        }
+        return Ok(credit_exhausted);
+    }
 
+    let billing_start = current_billing_period_start(project_info.reset_time);
     let WorkspaceSignalTokens {
         input_tokens,
         cache_read_tokens,
@@ -206,33 +226,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     let signal_cost =
         crate::utils::signal_token_cost_micro_usd(input_tokens, cache_read_tokens, output_tokens)
             as i64;
-
-    if is_free {
-        let persisted_credit =
-            db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
-        let remaining_credit = persisted_credit.unwrap_or(0);
-        let credit_exhausted = remaining_credit == 0 || signal_cost >= remaining_credit;
-        log::debug!(
-            "Workspace Signals credit check: {} micro-USD persisted, {} micro-USD pending",
-            remaining_credit,
-            signal_cost
-        );
-        if credit_exhausted {
-            check_notify_hard_limit(
-                db,
-                cache,
-                queue,
-                workspace_id,
-                project_info.reset_time,
-                UsageItem::SignalCredit,
-                signal_cost,
-                persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
-            )
-            .await;
-        }
-        return Ok(credit_exhausted);
-    }
-
     let effective_limit = effective_limit.expect("paid workspace limit checked above");
     log::debug!(
         "Workspace signal cost check: {}/{} micro-USD",
@@ -371,10 +364,9 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-/// Add `input_tokens`/`cache_read_tokens`/`output_tokens` of newly-billed
 /// Re-read uncredited Signals usage after a completed run and fire any
-/// soft-limit warnings the derived micro-USD cost crosses. The meter job can
-/// reclassify whole runs as credited, so this billing value is not cached.
+/// soft-limit warnings the derived micro-USD cost crosses. This billing value
+/// is derived from per-run credit decisions and is not cached.
 #[cfg(feature = "signals")]
 pub async fn check_workspace_signal_usage(
     db: Arc<DB>,

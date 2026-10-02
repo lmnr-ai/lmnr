@@ -114,16 +114,27 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
+  const formatUsd = (microUsd: number) =>
+    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  if (isFree) {
+    const credit = await getSignalCreditState(workspaceId, 0);
+    if (credit.remainingMicroUsd === 0) {
+      throw new Error(
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
+      );
+    }
+    return;
+  }
+
   // Paid tiers only need this preflight path when the owner configured a
-  // monthly safety cap. The meter job classifies credited runs asynchronously.
-  if (!isFree && customSignalCostLimit == null) {
+  // monthly safety cap.
+  if (customSignalCostLimit == null) {
     return;
   }
 
   const resetTimeDate = new Date(resetTime);
-  const signalUsageStart = isFree
-    ? resetTimeDate
-    : addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+  const signalUsageStart = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
   if (workspaceProjectIds.length === 0) {
     return;
   }
@@ -147,19 +158,6 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   const outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
 
   const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
-
-  const formatUsd = (microUsd: number) =>
-    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  if (isFree) {
-    const credit = await getSignalCreditState(workspaceId, totalSignalCost, 0);
-    if (credit.remainingMicroUsd === 0) {
-      throw new Error(
-        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
-      );
-    }
-    return;
-  }
 
   const effectiveLimit = customSignalCostLimit!;
   if (totalSignalCost >= effectiveLimit) {

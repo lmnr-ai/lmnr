@@ -87,7 +87,7 @@ pub async fn get_workspace_signal_tokens_by_project_ids(
     project_ids: Vec<Uuid>,
     billing_period_start: DateTime<Utc>,
 ) -> Result<WorkspaceSignalTokens> {
-    // The meter job marks whole runs covered by the one-time credit. Return only
+    // Completed runs are marked when covered by the one-time credit. Return only
     // uncredited raw tokens; callers derive their cost at the current rates.
     let query = "
     SELECT

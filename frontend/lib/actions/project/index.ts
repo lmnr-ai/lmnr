@@ -335,11 +335,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
   const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
-  const signalCredit = await getSignalCreditState(
-    project.workspaceId,
-    usageResult.uncreditedSignalCostMicroUsd,
-    usageResult.creditedSignalCostMicroUsd
-  );
+  const signalCredit = await getSignalCreditState(project.workspaceId, usageResult.creditedSignalCostMicroUsd);
 
   return {
     id: project.id,
