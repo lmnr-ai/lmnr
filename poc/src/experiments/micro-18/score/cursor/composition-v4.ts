@@ -26,7 +26,7 @@ const [THUMP_AB, THUMP_BB, THUMP_DB] = [44, 46, 49];
 /** The end of the last spoken word; the logo resolves after it. */
 export const wordEndOf = (cues: ScoreCues) => Math.max(cues.conclusion.logo + 1, ...cues.voice.map(phrase => phrase.at + phrase.duration));
 
-/** With `urlCard` (v5) the logo keys ring on through the laminar.sh card while the bed and bass step back. */
+/** With `urlCard` (v5) the logo keys ring on, unchanged, through the laminar.sh card. */
 export function composeCursorV4(mix: Mix, cues: ScoreCues, {urlCard = false} = {}) {
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, prelude = issues.prelude, end = cues.conclusion;
   const reveal = flow.reveal, toAnalysis = flow.cameraToAnalysis.at + flow.cameraToAnalysis.duration * .5;
@@ -60,7 +60,6 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues, {urlCard = false} = {
     // After "with Laminar", every G steps up to A♭: the home chord, then a slow darkening ring.
     {at: wordEnd, notes: [51, 56, 60, 63, 68, 72, 75, 80], fade: 1.8, glide: 1.2, cutoff: 1900, level: .8},
     {at: logo + 3, glide: 4, cutoff: 1000},
-    ...(url === undefined ? [] : [{at: url, glide: 3, cutoff: 700, level: .5}]),
   ];
   bed(mix, keys, PAD, CHORUS);
   bassLine(mix, [
@@ -76,7 +75,6 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues, {urlCard = false} = {
     {at: half, midi: Eb2, fade: .6, level: .95},
     {at: logo, midi: Ab2, fade: .3, level: .6},
     {at: wordEnd, midi: Ab2, fade: 1.5, level: .75},
-    ...(url === undefined ? [] : [{at: url, midi: Ab2, fade: 3, level: .4}]),
   ], BASS);
   shelveLows(mix, [u2.failure, u2.collapse.at + u2.collapse.duration * .8, cost.bashStop, reveal, flow.coverShut, prelude.bashStop, native, logo]);
 
@@ -192,14 +190,3 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues, {urlCard = false} = {
   thump(mix, logo, THUMP_AB, .6, LATE_THUMP, {click: .5});
 }
 
-/**
- * v5's afterword on the laminar.sh cut: an A♭ add9 re-strike under the logo's velocities and a faint A♭5 tick.
- * It runs after design, so every random draw of v4's compose and design is unchanged.
- */
-export function urlCardCursorV5(mix: Mix, cues: ScoreCues) {
-  const url = cues.conclusion.url;
-  if (url === undefined) return;
-  swellKey(mix, url, 75, .5, {...KEYS, pan: .12}, .25, cues.duration - url, 2.6);
-  swellKey(mix, url + .06, 82, .32, {...KEYS, pan: -.12}, .4, cues.duration - url - .06, 2.6);
-  pop(mix, url, 80, .2, {...HIT, pan: 0});
-}

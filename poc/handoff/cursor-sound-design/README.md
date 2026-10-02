@@ -52,7 +52,7 @@ implementation and briefly explain the sound-design choices.
 
 ## Result v5: `cursor-paper-v5`, the live bed — a `laminar.sh` card after the logo
 
-- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5-voiceover.mp4
+- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5-clean-voiceover.mp4
 - Built from v4b. Picture and narration are unchanged up to the logo. A centred `laminar.sh` card (JetBrains Mono, 40 px, on the conclusion's #1a1a1a) follows it as a new optional `conclusion.url` stage.
 - The bed is `editable-v12-cursor-v5`, selected as `cursor-v5`, which is now the current soundtrack. Settings: `v5/settings.json`, and `v5/export-settings.json` with `"subtitles": false`.
 
@@ -64,25 +64,26 @@ implementation and briefly explain the sound-design choices.
 
 ### What changed in the music
 
-1. The A♭4, E♭5 and A♭5 logo keys ring to the end of the film instead of 5.5 s. The C5 top note lasts until the end, too.
-2. **On the cut**, a soft A♭5 pop plays at velocity .2. E♭5 (.5) and B♭5 (.32) re-strike 60 ms later with a 2.6 s decay. That puts a fifth over the held tonic, so the chord lifts without resolving again.
-3. The bed glides to a 700 Hz cutoff at level .5 over 3 s, and the bass settles onto A♭2 at .4.
-4. **Arc:** v4's fall after the peak is replaced. It holds +1.5 dB from 0.3 s before the card until 1 s into it, then falls to −6 dB 0.6 s before the end and −20 dB at the end. The tail decays naturally (−51.6 dBFS over the last 50 ms) before the 0.35 s master fade.
-5. The body is the same as v4b up to the logo. The residual is ≤ −40 dB, apart from a −0.2 dB normalization shift, because the louder tail raises the integrated level.
+The review asked for no lift and no effect on the cut, just a clean, constant ending. So nothing new happens on the card:
+
+1. The A♭4, E♭5, A♭5 and C5 logo keys ring on into the card instead of stopping 5.5 s after the logo. The bed and bass keep the logo chord, with no change of their own on the cut.
+2. There is no pop and no re-strike. An earlier v5 had an A♭5 pop with E♭5/B♭5 re-strikes and stepped the bed and bass back on the cut; all of that is gone.
+3. **Arc:** v4's fall after the peak is replaced by a flat hold at +2 dB to 1.5 s before the end, then one fade to −20 dB. The last 50 ms sit at −57 dBFS before the 0.35 s master fade.
+4. Up to the logo, the body is the same as v4b, give or take the integrated normalization.
 
 ### Measurements
 
 | | v4b | v5 |
 |---|---|---|
 | Duration | 73.73 s | 75.50 s |
-| Bed momentary at 71 / 73 / 75 s | −22.2 / −30.8 / — | −19.0 / −22.6 / −30.2 |
-| Voice over bed per line | min 5.0, median 8.2 | min 5.2, median 8.4 |
-| Final MP4 | −16.4 LUFS, −1.2 dBTP | −16.5 LUFS, −1.2 dBTP |
+| Mix 0.25 s RMS at 69 / 71 / 73 / 74 s | −18.0 / −19.0 / −22.4 / −24.8 (old v4 tail) | −18.2 / −18.5 / −18.9 / −19.5 |
+| Largest 10 ms rise at the cut, 70.8–71.3 s | — | +2.0 dB (natural key fluctuation, no onset) |
+| Final MP4 | −16.4 LUFS, −1.2 dBTP | −16.5 LUFS, −1.2 dBTP, LRA 5.1 LU |
 
 Reproduce:
 
 ```sh
-npx tsx scripts/build-ultimate3-cursor-bed.ts --style cursor-paper-v5 --true-peak --out public/audio/voiceover/editable-v12-cursor-v5
+npx tsx scripts/build-ultimate3-cursor-bed.ts --style cursor-paper-v5 --true-peak --settings handoff/cursor-sound-design/v5/settings.json --out public/audio/voiceover/editable-v12-cursor-v5
 npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/v5/export-settings.json --out /tmp/v5.wav --bed cursor-v5
 ```
 

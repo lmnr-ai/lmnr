@@ -5,7 +5,7 @@ import type {Mix} from '../voices';
 import {AIR, KNOCK, TICK, composeCursor} from './composition';
 import {AIR as AIR2, KNOCK as KNOCK2, TICK as TICK2, composeCursorV2} from './composition-v2';
 import {composeCursorV3, designCursorV3} from './composition-v3';
-import {composeCursorV4, urlCardCursorV5, wordEndOf} from './composition-v4';
+import {composeCursorV4, wordEndOf} from './composition-v4';
 import {knock, mallet, paper} from './instruments';
 
 /** The reference bed sits ~6.5 dB under its narrator and swells ~2 dB in the gaps: slow dips, never pumping. */
@@ -165,8 +165,8 @@ const arcCursorV4 = (cues: ScoreCues, urlCard = false): [number, number][] => {
     [issues.prelude.explanation?.at ?? issues.prelude.zoomOut.at - 2.5, -1.5], [issues.native, .5], [issues.native + 1, -.5],
     [beforeEnd, -3], [end.start - .1, -5], [end.start, -1], [half, .5], [end.logo - .3, 1.5],
     [wordEnd, 1.5], [wordEnd + .73, 3], [wordEnd + 1.53, 2],
-    // v5 holds flat through the url cut, then takes an already-decaying ring to near silence.
-    ...(urlCard && end.url !== undefined ? [[end.url - .3, 1.5], [end.url + 1, 1.5], [cues.duration - .6, -6], [cues.duration, -20]] as [number, number][]
+    // v5 holds level through the url card, so nothing moves on the cut, and fades only over the last 1.5 s.
+    ...(urlCard && end.url !== undefined ? [[cues.duration - 1.5, 2], [cues.duration, -20]] as [number, number][]
       : [[cues.duration - .1, -17]] as [number, number][]),
   ];
   arc.forEach(([t], i) => { if (i && t < arc[i - 1][0]) throw new Error(`arcCursorV4 key ${i} at ${t} runs backwards`); });
@@ -190,8 +190,7 @@ export const cursorPaperV4: ScoreStyle = {
 /** v4 plus the "laminar.sh" card after the logo; needs settings with a `conclusion.url` stage. */
 export const cursorPaperV5: ScoreStyle = {...cursorPaperV4,
   id: 'cursor-paper-v5',
-  title: 'Cursor paper v5 (v4 with a quiet afterword under the laminar.sh card)',
+  title: 'Cursor paper v5 (v4 with the logo chord held through the laminar.sh card)',
   ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB_V4, cues => arcCursorV4(cues, true), {10: .15}),
   compose: (mix, cues) => composeCursorV4(mix, cues, {urlCard: true}),
-  design: (mix, cues) => { cursorPaperV4.design!(mix, cues); urlCardCursorV5(mix, cues); },
 };
