@@ -1,6 +1,7 @@
-import { subHours } from "date-fns";
+import { addMonths, subHours } from "date-fns";
 import { and, eq } from "drizzle-orm";
 
+import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { retentionCutoff } from "@/lib/billing/retention";
 import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 import {
@@ -127,7 +128,10 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   }
 
   const resetTimeDate = new Date(resetTime);
-  const signalUsagePeriod = resetTimeDate.getTime();
+  const signalUsageStart = isFree
+    ? resetTimeDate
+    : addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+  const signalUsagePeriod = signalUsageStart.getTime();
   const inputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
   const cacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
   const outputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
@@ -153,7 +157,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
       return;
     }
 
-    const resetTimeStr = resetTimeDate.toISOString().replace(/Z$/, "");
+    const resetTimeStr = signalUsageStart.toISOString().replace(/Z$/, "");
 
     const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
     FROM signal_runs FINAL
@@ -178,7 +182,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (isFree) {
-    const credit = await reconcileSignalCredit(workspaceId, resetTimeDate, totalSignalCost);
+    const credit = await reconcileSignalCredit(workspaceId, signalUsageStart, totalSignalCost);
     if (credit.remainingMicroUsd === 0) {
       throw new Error(
         `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`

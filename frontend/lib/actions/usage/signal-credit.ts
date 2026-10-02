@@ -16,6 +16,7 @@ export interface SignalCreditState {
   appliedThisPeriodMicroUsd: number;
   availableThisPeriodMicroUsd: number;
   appliedDeltaMicroUsd: number;
+  usageWindowMatched?: boolean;
 }
 
 export function calculateSignalCreditState({
@@ -72,11 +73,14 @@ export async function reconcileSignalCredit(
     const remainingMicroUsd = Number(workspace.remainingMicroUsd);
     const previouslyAppliedMicroUsd = Number(workspace.appliedMicroUsd);
     if (new Date(workspace.resetTime).getTime() !== usageResetTime.getTime()) {
-      return calculateSignalCreditState({
-        remainingMicroUsd,
-        previouslyAppliedMicroUsd,
-        currentPeriodCostMicroUsd: previouslyAppliedMicroUsd,
-      });
+      return {
+        ...calculateSignalCreditState({
+          remainingMicroUsd,
+          previouslyAppliedMicroUsd,
+          currentPeriodCostMicroUsd: previouslyAppliedMicroUsd,
+        }),
+        usageWindowMatched: false,
+      };
     }
 
     const state = calculateSignalCreditState({
