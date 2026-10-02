@@ -35,7 +35,7 @@ export default function TraceCollapsedBody({ trace }: TraceCollapsedBodyProps) {
   return (
     <div
       data-collapsed-body
-      className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-[rgba(232,232,232,0.1)] bg-muted/75 divide-y divide-[rgba(232,232,232,0.1)]"
+      className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-foreground-100/10 bg-muted/75 divide-y divide-foreground-100/10"
     >
       {spansError ? (
         <div className="px-3 py-2 text-xs text-destructive text-center">{spansError}</div>

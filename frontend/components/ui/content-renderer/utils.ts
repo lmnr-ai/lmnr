@@ -130,7 +130,7 @@ export const baseExtensions = [
     },
     ".cm-searchMatch-selected": {
       backgroundColor: "hsl(var(--primary))",
-      color: "hsl(var(--primary-foreground))",
+      color: "var(--color-primary-foreground)",
       fontWeight: "600",
     },
     ".cm-mustache-bracket": {
