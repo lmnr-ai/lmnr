@@ -8,13 +8,7 @@ import {
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
 import { preservePrivacyModeOnDowngrade } from "@/lib/actions/workspace/settings";
-import {
-  cache,
-  WORKSPACE_BYTES_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
-} from "@/lib/cache";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   subscriptionTiers,
@@ -95,13 +89,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       // - the workspace is on the free tier
       // - the update is not a cancellation
       // - the webhook event contains actual tier change
-      ...(currentTier === "free"
-        ? {
-            resetTime: sql`now()`,
-            signalCreditAppliedMicroUsd: 0,
-            signalCreditPeriodStart: sql`now()`,
-          }
-        : {}),
+      ...(currentTier === "free" ? { resetTime: sql`now()` } : {}),
     })
     .where(eq(workspaces.id, workspaceId))
     .returning({ tierId: workspaces.tierId });
@@ -183,16 +171,9 @@ export const getIdFromStripeObject = (stripeObject: string | { id: string } | nu
 // This function updates the cache used on the backend,
 // but since Stripe as a feature assumes production, we assume
 // shared Redis cache as well.
-const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boolean, hasSignalRuns: boolean) => {
+const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boolean, _hasSignalRuns: boolean) => {
   if (hasBytes) {
     await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  }
-  if (hasSignalRuns) {
-    await Promise.all([
-      cache.remove(`${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
-      cache.remove(`${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
-      cache.remove(`${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
-    ]);
   }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };
@@ -332,18 +313,6 @@ export const handleInvoiceFinalized = async (
   await db
     .update(workspaces)
     .set({
-      // Stripe may redeliver or deliver invoice webhooks out of order. Reset
-      // applied credit only when this event actually advances the usage period.
-      signalCreditAppliedMicroUsd: sql`CASE
-        WHEN ${workspaces.resetTime} < ${nextResetTime}
-          AND (${workspaces.signalCreditPeriodStart} IS NULL OR ${workspaces.signalCreditPeriodStart} < ${nextResetTime})
-        THEN 0
-        ELSE ${workspaces.signalCreditAppliedMicroUsd}
-      END`,
-      signalCreditPeriodStart: sql`CASE
-        WHEN ${workspaces.signalCreditPeriodStart} IS NULL THEN NULL
-        ELSE GREATEST(${workspaces.signalCreditPeriodStart}, ${nextResetTime})
-      END`,
       resetTime: sql`GREATEST(${workspaces.resetTime}, ${nextResetTime})`,
     })
     .where(eq(workspaces.id, workspaceId));

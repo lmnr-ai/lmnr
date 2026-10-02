@@ -6,7 +6,7 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { calculateBillableSignalCostMicroUsd, reconcileSignalCredit } from "@/lib/actions/usage/signal-credit";
+import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { normalizeTier } from "@/lib/billing/tiers";
@@ -213,7 +213,6 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const s = stripe();
 
   const usage = await getWorkspaceUsage(workspaceId);
-  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
 
   const newMegabytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes) / 1024 / 1024;
 
@@ -231,11 +230,10 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  // Reconcile the lifetime sign-up credit before rebasing the Stripe meter.
-  // Only credit applied in this billing period reduces its metered total.
+  // Credited runs are excluded from the Stripe meter baseline.
   const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
-    usage.totalSignalCostMicroUsd,
-    signalCredit.appliedThisPeriodMicroUsd,
+    usage.uncreditedSignalCostMicroUsd,
+    0,
     newTierConfig.includedSignalCostMicroUsd
   );
   const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);

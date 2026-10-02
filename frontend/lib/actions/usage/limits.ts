@@ -4,19 +4,13 @@ import { and, eq } from "drizzle-orm";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { retentionCutoff } from "@/lib/billing/retention";
 import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
-import {
-  cache,
-  PROJECT_CACHE_KEY,
-  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
-} from "@/lib/cache";
+import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-import { reconcileSignalCredit } from "./signal-credit";
+import { getSignalCreditState } from "./signal-credit";
 
 interface ProjectBillingInfo {
   id: string;
@@ -121,8 +115,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   const isFree = tierName.trim().toLowerCase() === "free";
 
   // Paid tiers only need this preflight path when the owner configured a
-  // monthly safety cap. Their one-time credit is reconciled after successful
-  // runs and before usage/Stripe calculations.
+  // monthly safety cap. The meter job classifies credited runs asynchronously.
   if (!isFree && customSignalCostLimit == null) {
     return;
   }
@@ -131,50 +124,27 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   const signalUsageStart = isFree
     ? resetTimeDate
     : addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-  const signalUsagePeriod = signalUsageStart.getTime();
-  const inputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
-  const cacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
-  const outputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
-
-  // Tokens are stored raw in three keys (input, cache-read, output priced at
-  // different rates); cost in micro-USD is derived here so a rate change
-  // re-prices the cache too. Fall back to ClickHouse if any key is missing.
-  let inputTokens: number | null = null;
-  let cacheReadTokens: number | null = null;
-  let outputTokens: number | null = null;
-  try {
-    [inputTokens, cacheReadTokens, outputTokens] = await Promise.all([
-      cache.get<number>(inputTokensCacheKey),
-      cache.get<number>(cacheReadTokensCacheKey),
-      cache.get<number>(outputTokensCacheKey),
-    ]);
-  } catch {
-    // cache read failed, fall through to ClickHouse
+  if (workspaceProjectIds.length === 0) {
+    return;
   }
 
-  if (inputTokens === null || cacheReadTokens === null || outputTokens === null) {
-    if (workspaceProjectIds.length === 0) {
-      return;
-    }
-
-    const resetTimeStr = signalUsageStart.toISOString().replace(/Z$/, "");
-
-    const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
+  const resetTimeStr = signalUsageStart.toISOString().replace(/Z$/, "");
+  const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
     FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
-    AND signal_runs.status = 1`;
+    AND signal_runs.status = 1
+    AND signal_runs.credit_applied = false`;
 
-    const result = await clickhouseClient.query({
-      query: signalRunsQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds: workspaceProjectIds, latestResetTime: resetTimeStr },
-    });
-    const rows = await result.json<{ inputTokens: number; cacheReadTokens: number; outputTokens: number }>();
-    inputTokens = rows.length > 0 ? Number(rows[0].inputTokens) : 0;
-    cacheReadTokens = rows.length > 0 ? Number(rows[0].cacheReadTokens) : 0;
-    outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
-  }
+  const result = await clickhouseClient.query({
+    query: signalRunsQuery,
+    format: "JSONEachRow",
+    query_params: { projectIds: workspaceProjectIds, latestResetTime: resetTimeStr },
+  });
+  const rows = await result.json<{ inputTokens: number; cacheReadTokens: number; outputTokens: number }>();
+  const inputTokens = rows.length > 0 ? Number(rows[0].inputTokens) : 0;
+  const cacheReadTokens = rows.length > 0 ? Number(rows[0].cacheReadTokens) : 0;
+  const outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
 
   const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
 
@@ -182,7 +152,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (isFree) {
-    const credit = await reconcileSignalCredit(workspaceId, signalUsageStart, totalSignalCost);
+    const credit = await getSignalCreditState(workspaceId, totalSignalCost, 0);
     if (credit.remainingMicroUsd === 0) {
       throw new Error(
         `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`

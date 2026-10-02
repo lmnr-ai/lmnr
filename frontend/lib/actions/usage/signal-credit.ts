@@ -4,9 +4,6 @@ import { SIGNALS_SIGNUP_CREDIT_MICRO_USD } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { workspaces } from "@/lib/db/migrations/schema";
 
-export const isSameSignalCreditPeriod = (periodStart: Date, usageResetTime: Date): boolean =>
-  periodStart.toISOString().slice(0, 10) === usageResetTime.toISOString().slice(0, 10);
-
 export const calculateBillableSignalCostMicroUsd = (
   grossCostMicroUsd: number,
   appliedCreditMicroUsd: number,
@@ -17,79 +14,51 @@ export interface SignalCreditState {
   grantedMicroUsd: number;
   remainingMicroUsd: number;
   appliedThisPeriodMicroUsd: number;
-  availableThisPeriodMicroUsd: number;
-  appliedDeltaMicroUsd: number;
 }
 
 export function calculateSignalCreditState({
-  remainingMicroUsd,
-  previouslyAppliedMicroUsd,
-  currentPeriodCostMicroUsd,
+  persistedRemainingMicroUsd,
+  pendingUncreditedCostMicroUsd,
+  creditedCostThisPeriodMicroUsd,
 }: {
-  remainingMicroUsd: number;
-  previouslyAppliedMicroUsd: number;
-  currentPeriodCostMicroUsd: number;
+  persistedRemainingMicroUsd: number | null;
+  pendingUncreditedCostMicroUsd: number;
+  creditedCostThisPeriodMicroUsd: number;
 }): SignalCreditState {
-  const appliedBeforeReconciliation = previouslyAppliedMicroUsd;
-  const availableThisPeriodMicroUsd = remainingMicroUsd + appliedBeforeReconciliation;
-  const appliedThisPeriodMicroUsd = Math.max(
-    appliedBeforeReconciliation,
-    Math.min(availableThisPeriodMicroUsd, Math.max(0, Math.round(currentPeriodCostMicroUsd)))
-  );
+  if (persistedRemainingMicroUsd === null) {
+    return { grantedMicroUsd: 0, remainingMicroUsd: 0, appliedThisPeriodMicroUsd: 0 };
+  }
 
   return {
-    grantedMicroUsd: availableThisPeriodMicroUsd > 0 ? SIGNALS_SIGNUP_CREDIT_MICRO_USD : 0,
-    remainingMicroUsd: availableThisPeriodMicroUsd - appliedThisPeriodMicroUsd,
-    appliedThisPeriodMicroUsd,
-    availableThisPeriodMicroUsd,
-    appliedDeltaMicroUsd: appliedThisPeriodMicroUsd - appliedBeforeReconciliation,
+    grantedMicroUsd: SIGNALS_SIGNUP_CREDIT_MICRO_USD,
+    remainingMicroUsd: Math.max(0, persistedRemainingMicroUsd - Math.max(0, pendingUncreditedCostMicroUsd)),
+    appliedThisPeriodMicroUsd: Math.max(0, creditedCostThisPeriodMicroUsd),
   };
 }
 
 /**
- * Reconcile a workspace's lifetime Signals credit against gross usage in the
- * current Signals usage window. The row lock makes frontend checks and
- * app-server usage updates converge without granting the credit twice.
+ * Read the meter job's durable credit balance. Pending unclassified runs are
+ * deducted for display/enforcement until the job marks each whole run credited
+ * or billable.
  */
-export async function reconcileSignalCredit(
+export async function getSignalCreditState(
   workspaceId: string,
-  usageResetTime: Date,
-  currentPeriodCostMicroUsd: number
+  pendingUncreditedCostMicroUsd: number,
+  creditedCostThisPeriodMicroUsd: number
 ): Promise<SignalCreditState> {
-  return db.transaction(async (tx) => {
-    const [workspace] = await tx
-      .select({
-        remainingMicroUsd: workspaces.signalCreditRemainingMicroUsd,
-        appliedMicroUsd: workspaces.signalCreditAppliedMicroUsd,
-        periodStart: workspaces.signalCreditPeriodStart,
-      })
-      .from(workspaces)
-      .where(eq(workspaces.id, workspaceId))
-      .limit(1)
-      .for("update");
+  const [workspace] = await db
+    .select({ remainingMicroUsd: workspaces.signalCreditRemainingMicroUsd })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
 
-    if (!workspace) {
-      throw new Error(`Workspace not found: ${workspaceId}`);
-    }
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
 
-    const eligibleForCredit = workspace.periodStart !== null;
-    const samePeriod =
-      workspace.periodStart !== null && isSameSignalCreditPeriod(new Date(workspace.periodStart), usageResetTime);
-    const state = calculateSignalCreditState({
-      remainingMicroUsd: Number(workspace.remainingMicroUsd),
-      previouslyAppliedMicroUsd: samePeriod ? Number(workspace.appliedMicroUsd) : 0,
-      currentPeriodCostMicroUsd,
-    });
-
-    await tx
-      .update(workspaces)
-      .set({
-        signalCreditRemainingMicroUsd: state.remainingMicroUsd,
-        signalCreditAppliedMicroUsd: state.appliedThisPeriodMicroUsd,
-        signalCreditPeriodStart: eligibleForCredit ? usageResetTime.toISOString() : null,
-      })
-      .where(eq(workspaces.id, workspaceId));
-
-    return state;
+  return calculateSignalCreditState({
+    persistedRemainingMicroUsd: workspace.remainingMicroUsd === null ? null : Number(workspace.remainingMicroUsd),
+    pendingUncreditedCostMicroUsd,
+    creditedCostThisPeriodMicroUsd,
   });
 }

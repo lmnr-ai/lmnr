@@ -5662,22 +5662,8 @@
           "name": "signal_credit_remaining_micro_usd",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": true,
-          "default": 5000000
-        },
-        "signal_credit_applied_micro_usd": {
-          "name": "signal_credit_applied_micro_usd",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "signal_credit_period_start": {
-          "name": "signal_credit_period_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
           "notNull": false,
-          "default": "now()"
+          "default": 5000000
         },
         "settings": {
           "name": "settings",
@@ -5709,15 +5695,7 @@
       "checkConstraints": {
         "workspaces_signal_credit_remaining_check": {
           "name": "workspaces_signal_credit_remaining_check",
-          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_remaining_micro_usd\" <= 5000000"
-        },
-        "workspaces_signal_credit_applied_check": {
-          "name": "workspaces_signal_credit_applied_check",
-          "value": "\"workspaces\".\"signal_credit_applied_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_applied_micro_usd\" <= 5000000"
-        },
-        "workspaces_signal_credit_total_check": {
-          "name": "workspaces_signal_credit_total_check",
-          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" + \"workspaces\".\"signal_credit_applied_micro_usd\" <= 5000000"
+          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" IS NULL OR (\"workspaces\".\"signal_credit_remaining_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_remaining_micro_usd\" <= 5000000)"
         }
       },
       "isRLSEnabled": false

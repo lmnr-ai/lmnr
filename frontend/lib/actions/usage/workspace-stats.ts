@@ -5,7 +5,7 @@ import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-import { calculateBillableSignalCostMicroUsd, reconcileSignalCredit } from "./signal-credit";
+import { calculateBillableSignalCostMicroUsd, getSignalCreditState } from "./signal-credit";
 import { type WorkspaceStats } from "./types";
 
 const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
@@ -40,7 +40,11 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   }
 
   const limits = limitsRows[0];
-  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, signalCostUsedThisMonth);
+  const signalCredit = await getSignalCreditState(
+    workspaceId,
+    usage.uncreditedSignalCostMicroUsd,
+    usage.creditedSignalCostMicroUsd
+  );
   const gbLimit = bytesToGB(Number(limits.bytesLimit));
 
   const gbOverLimit = Math.max(gbUsedThisMonth - gbLimit, 0);
@@ -50,8 +54,8 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   // already a dollar amount, so the overage cost is the overage itself in USD.
   const signalCostLimit = Number(limits.signalCostLimit);
   const signalCostOverLimit = calculateBillableSignalCostMicroUsd(
-    signalCostUsedThisMonth,
-    signalCredit.appliedThisPeriodMicroUsd,
+    usage.uncreditedSignalCostMicroUsd,
+    0,
     signalCostLimit
   );
   const signalCostOverLimitUsd = signalCostOverLimit / 1_000_000;

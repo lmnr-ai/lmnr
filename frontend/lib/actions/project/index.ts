@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { reconcileSignalCredit } from "@/lib/actions/usage/signal-credit";
+import { getSignalCreditState } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -335,10 +335,10 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
   const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
-  const signalCredit = await reconcileSignalCredit(
+  const signalCredit = await getSignalCreditState(
     project.workspaceId,
-    usageResult.signalResetTime,
-    signalCostUsedThisMonth
+    usageResult.uncreditedSignalCostMicroUsd,
+    usageResult.creditedSignalCostMicroUsd
   );
 
   return {

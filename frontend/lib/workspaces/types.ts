@@ -77,6 +77,8 @@ export interface WorkspaceInvitation {
 export interface WorkspaceUsage {
   totalBytesIngested: number;
   totalSignalCostMicroUsd: number;
+  creditedSignalCostMicroUsd: number;
+  uncreditedSignalCostMicroUsd: number;
   resetTime: Date;
   signalResetTime: Date;
 }

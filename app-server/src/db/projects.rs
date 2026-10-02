@@ -228,6 +228,21 @@ pub struct ProjectInfo {
     pub name: String,
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_signal_credit_remaining(
+    pool: &PgPool,
+    workspace_id: Uuid,
+) -> anyhow::Result<Option<i64>> {
+    let remaining = sqlx::query_scalar(
+        "SELECT signal_credit_remaining_micro_usd FROM workspaces WHERE id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(remaining)
+}
+
 pub async fn get_projects_for_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,

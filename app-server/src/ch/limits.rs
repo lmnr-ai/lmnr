@@ -7,6 +7,7 @@ use uuid::Uuid;
 /// Workspace signal token spend this billing period. Cache reads are a subset
 /// of input tokens, billed cheaper. Tokens are stored raw and priced into
 /// micro-USD at the call boundary, so a rate change re-prices history.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Row, Deserialize, Debug, Clone, Copy, Default)]
 pub struct WorkspaceSignalTokens {
     pub input_tokens: u64,
@@ -79,15 +80,15 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
     Ok(result.unwrap_or(0))
 }
 
-/// Returns the workspace's total signal token spend this billing period.
+/// Returns uncredited signal token spend in the requested usage window.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_workspace_signal_tokens_by_project_ids(
     clickhouse: Client,
     project_ids: Vec<Uuid>,
     billing_period_start: DateTime<Utc>,
 ) -> Result<WorkspaceSignalTokens> {
-    // Signals are billed by the token cost the agent spent. Tokens are stored
-    // raw per run and returned raw here; cost is derived at the call boundary
-    // at the current per-token rate so a future rate change re-prices history.
+    // The meter job marks whole runs covered by the one-time credit. Return only
+    // uncredited raw tokens; callers derive their cost at the current rates.
     let query = "
     SELECT
       SUM(input_tokens) as total_input_tokens,
@@ -97,6 +98,7 @@ pub async fn get_workspace_signal_tokens_by_project_ids(
     WHERE project_id IN { project_ids: Array(UUID) }
     AND signal_runs.updated_at >= { latest_reset_time: DateTime(6) }
     AND signal_runs.status = 1
+    AND signal_runs.credit_applied = false
     ";
 
     let result = clickhouse
