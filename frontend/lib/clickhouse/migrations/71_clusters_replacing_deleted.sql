@@ -41,5 +41,4 @@ CREATE TABLE IF NOT EXISTS signal_event_clusters_v2
 )
 ENGINE = ReplacingMergeTree(updated_at, is_deleted)
 PARTITION BY toStartOfMonth(updated_at)
-PRIMARY KEY (project_id, signal_id)
 ORDER BY (project_id, signal_id, id);
