@@ -4,6 +4,9 @@ import { SIGNALS_SIGNUP_CREDIT_MICRO_USD } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { workspaces } from "@/lib/db/migrations/schema";
 
+export const isSameSignalCreditPeriod = (periodStart: Date, usageResetTime: Date): boolean =>
+  periodStart.toISOString().slice(0, 10) === usageResetTime.toISOString().slice(0, 10);
+
 export const calculateBillableSignalCostMicroUsd = (
   grossCostMicroUsd: number,
   appliedCreditMicroUsd: number,
@@ -71,7 +74,7 @@ export async function reconcileSignalCredit(
 
     const eligibleForCredit = workspace.periodStart !== null;
     const samePeriod =
-      workspace.periodStart !== null && new Date(workspace.periodStart).getTime() === usageResetTime.getTime();
+      workspace.periodStart !== null && isSameSignalCreditPeriod(new Date(workspace.periodStart), usageResetTime);
     const state = calculateSignalCreditState({
       remainingMicroUsd: Number(workspace.remainingMicroUsd),
       previouslyAppliedMicroUsd: samePeriod ? Number(workspace.appliedMicroUsd) : 0,

@@ -33,8 +33,8 @@ pub async fn reconcile_signal_credit(
                 signal_credit_remaining_micro_usd AS remaining_micro_usd,
                 CASE
                     WHEN signal_credit_period_start IS NOT NULL
-                         AND date_trunc('milliseconds', signal_credit_period_start) =
-                             date_trunc('milliseconds', $2::timestamptz)
+                         AND date_trunc('day', signal_credit_period_start) =
+                             date_trunc('day', $2::timestamptz)
                     THEN signal_credit_applied_micro_usd
                     ELSE 0
                 END AS previously_applied_micro_usd

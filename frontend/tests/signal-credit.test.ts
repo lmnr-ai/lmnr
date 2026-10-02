@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateBillableSignalCostMicroUsd, calculateSignalCreditState } from "../lib/actions/usage/signal-credit";
+import {
+  calculateBillableSignalCostMicroUsd,
+  calculateSignalCreditState,
+  isSameSignalCreditPeriod,
+} from "../lib/actions/usage/signal-credit";
+
+test("matches credit periods by UTC billing date despite timestamp normalization", () => {
+  assert.equal(isSameSignalCreditPeriod(new Date("2026-10-02T14:00:00Z"), new Date("2026-10-02T00:00:00Z")), true);
+  assert.equal(isSameSignalCreditPeriod(new Date("2026-10-02T14:00:00Z"), new Date("2026-11-02T14:00:00Z")), false);
+});
 
 const CREDIT = 5_000_000;
 
