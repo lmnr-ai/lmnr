@@ -24,7 +24,7 @@ use crate::{
 
 /// Producer's verdict for a span's tool definitions. `content` is `Some` only
 /// on a storage miss; otherwise the hash alone rides the wire. `size_bytes`
-/// is the blob's raw JSON size either way, for `uncompressed_size_bytes`.
+/// is the blob's raw JSON size either way, for `original_size_bytes`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ToolDedup {
     pub hash: ContentHash,

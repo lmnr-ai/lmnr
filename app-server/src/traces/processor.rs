@@ -92,7 +92,7 @@ fn field_bytes(
     }
 }
 
-/// Raw JSON size of one field for `uncompressed_size_bytes`. The producer
+/// Raw JSON size of one field for `original_size_bytes`. The producer
 /// strips a dedup'd field off the span, so its verdict carries the size; that
 /// one is measured before PII redaction.
 fn raw_field_bytes(wire_dedup: Option<&MessageDedup>, raw: &Option<serde_json::Value>) -> usize {
@@ -295,13 +295,13 @@ pub async fn process_span_messages(
         &pii_modes,
     )
     .await;
-    let uncompressed_sizes = charge_span_sizes(&mut batch, &recordable_indices, &dedup);
+    let original_sizes = charge_span_sizes(&mut batch, &recordable_indices, &dedup);
     let ch_spans = build_ch_spans(
         &batch,
         &recordable_indices,
         &dedup,
         &pii_outcome,
-        &uncompressed_sizes,
+        &original_sizes,
     );
 
     let recordable_refs: Vec<&Span> = recordable_indices
@@ -659,7 +659,7 @@ async fn redact_pii(
 /// output, so the per-field charges here (`field_bytes` / `tool_bytes`) own
 /// 100% of their accounting.
 ///
-/// Returns each span's `uncompressed_size_bytes` (by `span_idx`): the same
+/// Returns each span's `original_size_bytes` (by `span_idx`): the same
 /// base plus raw input/output/tool JSON, as if nothing were dedup'd.
 fn charge_span_sizes(
     batch: &mut SpanBatch,
@@ -679,14 +679,14 @@ fn charge_span_sizes(
         tool_dedups,
         ..
     } = batch;
-    let mut uncompressed_sizes = Vec::with_capacity(spans.len());
+    let mut original_sizes = Vec::with_capacity(spans.len());
     for (span_idx, span) in spans.iter_mut().enumerate() {
         span.estimate_size_bytes_no_payload();
 
         let input_dedup = input_dedups.get(span_idx).and_then(|d| d.as_ref());
         let output_dedup = output_dedups.get(span_idx).and_then(|d| d.as_ref());
         let tool_dedup = tool_dedups.get(span_idx).and_then(|d| d.as_ref());
-        uncompressed_sizes.push(
+        original_sizes.push(
             span.size_bytes
                 + raw_field_bytes(input_dedup, &span.input)
                 + raw_field_bytes(output_dedup, &span.output)
@@ -699,7 +699,7 @@ fn charge_span_sizes(
             + tool_bytes(dedup_idx, tool_dedup, &dedup.tool_content_bytes);
         span.increment_size_bytes(added);
     }
-    uncompressed_sizes
+    original_sizes
 }
 
 fn build_ch_spans(
@@ -707,7 +707,7 @@ fn build_ch_spans(
     recordable_indices: &[usize],
     dedup: &DedupBatches,
     pii_outcome: &PiiOutcome,
-    uncompressed_sizes: &[usize],
+    original_sizes: &[usize],
 ) -> Vec<CHSpan> {
     recordable_indices
         .iter()
@@ -721,7 +721,7 @@ fn build_ch_spans(
                 dedup,
                 pii_outcome.verdict(dedup_idx),
             );
-            ch_span.uncompressed_size_bytes = uncompressed_sizes[span_idx] as u64;
+            ch_span.original_size_bytes = original_sizes[span_idx] as u64;
             ch_span
         })
         .collect()

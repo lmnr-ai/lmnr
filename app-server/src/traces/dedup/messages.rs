@@ -24,7 +24,7 @@ use crate::{
 /// for every position in either list; everything else rides as hashes only.
 /// `size_bytes` is the whole array's raw JSON size: the producer strips the
 /// field off the span, so this is all the consumer has for
-/// `uncompressed_size_bytes`.
+/// `original_size_bytes`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDedup {
     pub hashes: Vec<ContentHash>,
