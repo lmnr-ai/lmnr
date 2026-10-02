@@ -229,7 +229,7 @@ test('the current cut ends on a centered laminar.sh card in 52px General Sans af
   assert.match(markup, /<div class="micro18-card"><span class="micro18-url">laminar\.sh<\/span><\/div>/);
   assert.ok(!markup.includes('micro18-logo'));
   const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
-  assert.match(css, /\.micro18-url\{color:#fff;text-align:right;font-family:'General Sans';font-size:52px;font-style:normal;font-weight:500;line-height:normal;letter-spacing:1\.04px\}/);
+  assert.match(css, /\.micro18-url\{color:#fff;text-align:right;font-family:'General Sans';font-size:52px;font-style:normal;font-weight:500;line-height:normal;letter-spacing:0\}/);
   // Without a url stage the cut still ends on the logo.
   assert.equal(sampleUltimate3(1e9, ULTIMATE_3_DEFAULTS).conclusion, 'logo');
 });

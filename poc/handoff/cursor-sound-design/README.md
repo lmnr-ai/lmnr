@@ -52,8 +52,8 @@ implementation and briefly explain the sound-design choices.
 
 ## Result v5: `cursor-paper-v5`, the live bed — a `laminar.sh` card after the logo
 
-- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5c-voiceover.mp4
-- Built from v4b. Picture and narration are unchanged up to the logo. A centred `laminar.sh` card (General Sans Medium, 52 px, letter-spacing 1.04 px, white on the conclusion's #1a1a1a) follows it as a new optional `conclusion.url` stage.
+- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5d-voiceover.mp4
+- Built from v4b. Picture and narration are unchanged up to the logo. A centred `laminar.sh` card (General Sans Medium, 52 px, letter-spacing 0, white on the conclusion's #1a1a1a) follows it as a new optional `conclusion.url` stage.
 - The bed is `editable-v12-cursor-v5`, selected as `cursor-v5`, which is now the current soundtrack. Settings: `v5/settings.json`, and `v5/export-settings.json` with `"subtitles": false`.
 
 ### Timing (from the expert)
@@ -85,7 +85,12 @@ Reproduce:
 ```sh
 npx tsx scripts/build-ultimate3-cursor-bed.ts --style cursor-paper-v5 --true-peak --settings handoff/cursor-sound-design/v5/settings.json --out public/audio/voiceover/editable-v12-cursor-v5
 npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/v5/export-settings.json --out /tmp/v5.wav --bed cursor-v5
+node -e 'const fs=require("fs");fs.writeFileSync("/tmp/v5-props.json",JSON.stringify({settings:JSON.parse(fs.readFileSync("handoff/cursor-sound-design/v5/export-settings.json","utf8"))}))'
+npx remotion render src/video/index.ts MicroAnimation18 /tmp/v5-silent.mp4 --props=/tmp/v5-props.json --muted --browser-executable "$(find ~/.cache/puppeteer/chrome -type f -name chrome | head -1)"
+ffmpeg -i /tmp/v5-silent.mp4 -i /tmp/v5.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 320k -movflags +faststart /tmp/v5.mp4
 ```
+
+The picture-only change (the card's letter-spacing) does not touch the bed: re-run only the render and the mux.
 
 ## Result v4b: `cursor-paper-v4` — builds to the logo
 
