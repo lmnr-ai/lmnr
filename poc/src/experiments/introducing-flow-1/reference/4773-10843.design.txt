@@ -1,0 +1,450 @@
+const imgRectangle554 = "http://localhost:3845/assets/245257bb755e62097f62ab86c08faff4f0d0b5c7.png";
+
+export default function Frame() {
+  return (
+    <div className="bg-[#1a1a1a] content-stretch flex flex-col items-start justify-between px-[90px] py-[84px] relative size-full" data-node-id="4773:10843">
+      <div className="-translate-x-1/2 -translate-y-1/2 absolute flex items-center justify-center left-1/2 top-1/2" data-node-id="4773:10844">
+        <div className="-scale-y-100 flex-none">
+          <div className="grid-cols-[repeat(24,fit-content(100%))] grid-rows-[repeat(14,fit-content(100%))] inline-grid relative">
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10845" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10846" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10847" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10848" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10849" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10850" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10851" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10852" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10853" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10854" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10855" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10856" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10857" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10858" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10859" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10860" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10861" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10862" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10863" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10864" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10865" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10866" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10867" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10868" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10869" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10870" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10871" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10872" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10873" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10874" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10875" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10876" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10877" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10878" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10879" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10880" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10881" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10882" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10883" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10884" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10885" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10886" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10887" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10888" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10889" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10890" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10891" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10892" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10893" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10894" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10895" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10896" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10897" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10898" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10899" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10900" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10901" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10902" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10903" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10904" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10905" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10906" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10907" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10908" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10909" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10910" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10911" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10912" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10913" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10914" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10915" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10916" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10917" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10918" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10919" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10920" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10921" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10922" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10923" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10924" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10925" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10926" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10927" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10928" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10929" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10930" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10931" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10932" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10933" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10934" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10935" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10936" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10937" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10938" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10939" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10940" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10941" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10942" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10943" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10944" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10945" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10946" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10947" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10948" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10949" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10950" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10951" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10952" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10953" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10954" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10955" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10956" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10957" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10958" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10959" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10960" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10961" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10962" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10963" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10964" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10965" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10966" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10967" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10968" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10969" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10970" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10971" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10972" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10973" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10974" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10975" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10976" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10977" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10978" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10979" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10980" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10981" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10982" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10983" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10984" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10985" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10986" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10987" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10988" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10989" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10990" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10991" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10992" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10993" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10994" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10995" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10996" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10997" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10998" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:10999" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11000" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11001" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11002" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11003" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11004" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11005" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11006" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11007" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11008" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11009" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11010" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11011" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11012" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11013" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11014" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11015" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11016" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11017" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11018" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11019" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11020" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11021" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11022" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11023" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11024" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11025" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11026" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11027" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11028" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11029" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11030" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11031" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11032" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11033" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11034" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11035" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11036" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11037" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11038" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11039" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11040" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11041" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11042" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11043" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11044" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11045" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11046" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11047" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11048" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11049" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11050" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11051" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11052" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11053" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11054" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11055" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11056" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11057" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11058" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11059" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11060" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11061" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11062" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11063" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11064" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11065" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11066" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11067" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11068" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11069" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11070" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11071" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11072" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11073" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11074" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11075" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11076" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11077" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11078" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11079" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11080" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11081" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11082" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11083" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11084" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11085" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11086" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11087" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11088" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11089" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11090" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11091" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11092" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11093" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11094" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11095" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11096" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11097" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11098" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11099" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11100" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11101" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11102" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11103" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11104" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11105" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11106" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11107" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11108" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11109" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11110" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11111" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11112" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11113" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11114" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11115" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11116" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11117" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11118" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11119" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11120" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11121" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11122" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11123" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11124" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11125" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11126" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11127" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11128" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11129" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11130" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11131" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11132" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11133" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11134" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11135" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11136" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11137" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11138" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11139" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11140" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11141" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11142" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11143" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11144" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11145" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11146" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11147" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11148" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11149" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11150" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11151" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11152" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11153" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11154" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11155" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11156" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11157" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11158" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11159" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11160" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11161" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11162" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11163" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11164" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11165" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11166" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11167" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11168" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11169" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11170" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11171" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11172" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11173" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11174" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11175" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11176" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11177" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11178" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11179" />
+            <div className="border-[#333] border-b border-l border-solid relative shrink-0 size-[60px]" data-node-id="4773:11180" />
+          </div>
+        </div>
+      </div>
+      <div className="absolute bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-[180px] items-center justify-end left-[580px] pr-[24px] top-[480px] w-[600px]" data-node-id="4773:11181">
+        <div className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[0] relative shrink-0 text-[60px] text-right text-white whitespace-nowrap" data-node-id="4773:11182">
+          <p className="leading-[normal] mb-0">Traces analyzed</p>
+          <p className="leading-[normal]">per dollar</p>
+        </div>
+      </div>
+      <div className="absolute content-stretch flex flex-col items-start left-[100px] top-[60px] w-[1100px]" data-node-id="4773:11183">
+        <div className="content-stretch flex h-[60px] items-center relative shrink-0" data-node-id="4773:11184">
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-full items-center pl-[12px] relative shrink-0 w-[120px]" data-node-id="4773:11185">
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11186">
+              6
+            </p>
+          </div>
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex gap-[20px] h-full items-center pr-[12px] relative shrink-0" data-node-id="4773:11187">
+            <div className="bg-[#6b6b6b] h-[33px] relative shrink-0 w-[10px]" data-node-id="4773:11188" />
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11189">
+              Opus-5
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[60px] items-center relative shrink-0" data-node-id="4773:11190">
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-full items-center pl-[12px] relative shrink-0 w-[120px]" data-node-id="4773:11191">
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11192">
+              9
+            </p>
+          </div>
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex gap-[20px] h-full items-center pr-[12px] relative shrink-0" data-node-id="4773:11193">
+            <div className="bg-[#6b6b6b] h-[33px] relative shrink-0 w-[27px]" data-node-id="4773:11194" />
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11195">
+              Sonnet-5
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[60px] items-center relative shrink-0" data-node-id="4773:11196">
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-full items-center pl-[12px] relative shrink-0 w-[120px]" data-node-id="4773:11197">
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[28px] text-white whitespace-nowrap" data-node-id="4773:11198">
+              238
+            </p>
+          </div>
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex gap-[20px] h-full items-center pr-[12px] relative shrink-0" data-node-id="4773:11199">
+            <div className="h-[33px] relative shrink-0 w-[638px]" data-node-id="4773:11200">
+              <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgRectangle554} />
+            </div>
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[28px] text-white whitespace-nowrap" data-node-id="4773:11201">
+              Flow-1
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[60px] items-center relative shrink-0" data-node-id="4773:11202">
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-full items-center pl-[12px] relative shrink-0 w-[120px]" data-node-id="4773:11203">
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11204">
+              6
+            </p>
+          </div>
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex gap-[20px] h-full items-center pr-[12px] relative shrink-0" data-node-id="4773:11205">
+            <div className="bg-[#6b6b6b] h-[33px] relative shrink-0 w-[10px]" data-node-id="4773:11206" />
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11207">
+              GPT-5.6 Sol
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[60px] items-center relative shrink-0" data-node-id="4773:11208">
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-full items-center pl-[12px] relative shrink-0 w-[120px]" data-node-id="4773:11209">
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11210">
+              116
+            </p>
+          </div>
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex gap-[20px] h-full items-center pr-[12px] relative shrink-0" data-node-id="4773:11211">
+            <div className="bg-[#6b6b6b] h-[33px] relative shrink-0 w-[307px]" data-node-id="4773:11212" />
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11213">
+              GPT-5.6 Luna
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[60px] items-center relative shrink-0" data-node-id="4773:11214">
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex h-full items-center pl-[12px] relative shrink-0 w-[120px]" data-node-id="4773:11215">
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11216">
+              11
+            </p>
+          </div>
+          <div className="bg-[#1a1a1a] border-[#333] border-l border-solid border-t content-stretch flex gap-[20px] h-full items-center pr-[12px] relative shrink-0" data-node-id="4773:11217">
+            <div className="bg-[#6b6b6b] h-[33px] relative shrink-0 w-[40px]" data-node-id="4773:11218" />
+            <p className="[word-break:break-word] font-['JetBrains_Mono:Regular'] font-normal leading-[40px] relative shrink-0 text-[#808080] text-[28px] whitespace-nowrap" data-node-id="4773:11219">
+              Gemini-3.8 Flash
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+Image assets are stored on a localhost server. Clients can use these images directly in code as a way to view the image assets the same way they would other remote servers. Images and SVGs will be stored as constants, e.g. const image = 'http://localhost:3845/assets/10c13ac1a228a365cb98a0064b1d5afbc84887b2.png' These constants will be used in the code as the source for the image, e.g. <img src={image} /> This is true for both images and SVGs, so you can use the same approach for both types of assets.

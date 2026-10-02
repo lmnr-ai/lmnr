@@ -1,0 +1,5 @@
+.micro06-app{position:fixed;inset:0 0 256px;display:grid;place-items:center;overflow:hidden;background:#080808}
+.micro06-stage{position:relative;width:min(100%,calc((100vh - 256px)*16/9));aspect-ratio:16/9;overflow:hidden}
+.micro06-scene{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:hidden;background:#1a1a1a}
+.micro06-label{box-sizing:border-box;width:100%;height:120px;display:flex;align-items:center;white-space:nowrap;font:400 48px/63px SnailMono,monospace;color:#0e0f21}
+.micro06-label-vertical{width:240px;transform-origin:0 0;transform:translateX(120px) rotate(90deg)}

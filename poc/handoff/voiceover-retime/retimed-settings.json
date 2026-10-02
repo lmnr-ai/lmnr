@@ -1,0 +1,1569 @@
+{
+ "version": 2,
+ "allocations": {
+  "ultimate2": 18.697999999999997,
+  "cost": 13.7,
+  "flow": 12.5,
+  "issues": 14.633333333333333,
+  "conclusion": 6.25
+ },
+ "pacing": {
+  "ultimate2HandoffHold": 1.65,
+  "costTrimEnd": 13.7,
+  "flowTrimEnd": 11.3
+ },
+ "ultimate2": {
+  "timing": {
+   "agentEnter": {
+    "at": 0,
+    "duration": 0.31,
+    "transition": {
+     "type": "easing",
+     "duration": 0.31,
+     "ease": [
+      0.22,
+      1,
+      0.36,
+      1
+     ]
+    }
+   },
+   "firstThinking": {
+    "at": 0.23,
+    "duration": 0.7,
+    "transition": {
+     "type": "easing",
+     "duration": 0.7,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "streamRun": {
+    "at": 1.9,
+    "duration": 3.018,
+    "transition": {
+     "type": "easing",
+     "duration": 3.018,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "cameraCenterAgent": {
+    "at": 1.9,
+    "duration": 0.32,
+    "transition": {
+     "type": "easing",
+     "duration": 0.32,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "smokeEnter": {
+    "at": 1.9,
+    "duration": 0.26,
+    "transition": {
+     "type": "easing",
+     "duration": 0.26,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "continueStraight": {
+    "at": 4.918,
+    "duration": 0.65,
+    "transition": {
+     "type": "easing",
+     "duration": 0.65,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "upwardTurn": {
+    "at": 5.568,
+    "duration": 1.1,
+    "transition": {
+     "type": "easing",
+     "duration": 1.1,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "cameraBacktrack": {
+    "at": 6.718,
+    "duration": 1.6,
+    "transition": {
+     "type": "easing",
+     "duration": 1.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "redThinkingLift": {
+    "at": 7.218,
+    "duration": 0.3,
+    "transition": {
+     "type": "easing",
+     "duration": 0.3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "readLift": {
+    "at": 7.718,
+    "duration": 0.3,
+    "transition": {
+     "type": "easing",
+     "duration": 0.3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "thinkingLift": {
+    "at": 8.218,
+    "duration": 0.3,
+    "transition": {
+     "type": "easing",
+     "duration": 0.3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "highlight": {
+    "at": 8.918,
+    "duration": 1.1,
+    "transition": {
+     "type": "easing",
+     "duration": 1.1,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "warningEnter": {
+    "at": 9.168,
+    "duration": 0.24,
+    "transition": {
+     "type": "easing",
+     "duration": 0.24,
+     "ease": [
+      0.22,
+      1,
+      0.36,
+      1
+     ]
+    }
+   },
+   "warningFocus": {
+    "at": 9.868,
+    "duration": 0.55,
+    "transition": {
+     "type": "easing",
+     "duration": 0.55,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "finalZoom": {
+    "at": 11.418,
+    "duration": 3,
+    "transition": {
+     "type": "easing",
+     "duration": 3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "streamCollapse": {
+    "at": 13.218,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "loaderFade": {
+    "at": 13.218,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "dotDim": {
+    "at": 13.218,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "smallGridFade": {
+    "at": 13.218,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cloudEnter": {
+    "at": 15.648,
+    "duration": 1.4,
+    "transition": {
+     "type": "easing",
+     "duration": 1.4,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cloudHold": {
+    "at": 17.048,
+    "duration": 3.8,
+    "transition": {
+     "type": "easing",
+     "duration": 3.8,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleBuild": {
+    "at": 0.45,
+    "duration": 1.45,
+    "transition": {
+     "type": "easing",
+     "duration": 1.45,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleTrace": {
+    "at": 1.9,
+    "duration": 3.018,
+    "transition": {
+     "type": "easing",
+     "duration": 3.018,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleFailure": {
+    "at": 4.918,
+    "duration": 1.8,
+    "transition": {
+     "type": "easing",
+     "duration": 1.8,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleWhy": {
+    "at": 6.718,
+    "duration": 3.15,
+    "transition": {
+     "type": "easing",
+     "duration": 3.15,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleInsights": {
+    "at": 9.87,
+    "duration": 6.78,
+    "transition": {
+     "type": "easing",
+     "duration": 6.78,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleIfOnly": {
+    "at": 16.65,
+    "duration": 3.8,
+    "transition": {
+     "type": "easing",
+     "duration": 3.8,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   }
+  },
+  "controls": {
+   "streamerSpeed": 606.022,
+   "loaderSpeed": 1.9,
+   "cloudEntrySpread": 700,
+   "introCameraOffsetCells": 0.75,
+   "openingCloudBackXOffset": 150,
+   "openingCloudFrontXOffset": 129,
+   "warningXOffset": 180,
+   "warningYOffset": -180
+  }
+ },
+ "cost": {
+  "timing": {
+   "cloudSweep": {
+    "at": 0.45,
+    "duration": 3.26,
+    "transition": {
+     "type": "easing",
+     "duration": 3.26,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cheapLegOneRight": {
+    "at": 1.4,
+    "duration": 0.4,
+    "transition": {
+     "type": "easing",
+     "duration": 0.4,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "cheapLegTwoLeft": {
+    "at": 1.89,
+    "duration": 0.4,
+    "transition": {
+     "type": "easing",
+     "duration": 0.4,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "cheapLegThreeRight": {
+    "at": 2.39,
+    "duration": 0.4,
+    "transition": {
+     "type": "easing",
+     "duration": 0.4,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "thinkingDrop": {
+    "at": 2.95,
+    "duration": 0.55,
+    "transition": {
+     "type": "easing",
+     "duration": 0.55,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cameraDownToBash": {
+    "at": 4.51,
+    "duration": 1.58,
+    "transition": {
+     "type": "easing",
+     "duration": 1.58,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "purpleBashEntry": {
+    "at": 5.38,
+    "duration": 0.75,
+    "transition": {
+     "type": "easing",
+     "duration": 0.75,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "purpleBashStop": {
+    "at": 6.08,
+    "duration": 0.25,
+    "transition": {
+     "type": "easing",
+     "duration": 0.25,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "bashExpand": {
+    "at": 6.23,
+    "duration": 0.2,
+    "transition": {
+     "type": "easing",
+     "duration": 0.2,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "bashDescent": {
+    "at": 6.4,
+    "duration": 1.84,
+    "transition": {
+     "type": "easing",
+     "duration": 1.84,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "bashHighlight": {
+    "at": 7.9,
+    "duration": 0.7,
+    "transition": {
+     "type": "easing",
+     "duration": 0.7,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "bashWarning": {
+    "at": 8.23,
+    "duration": 0.24,
+    "transition": {
+     "type": "easing",
+     "duration": 0.24,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cameraDownToBudget": {
+    "at": 9,
+    "duration": 1.3,
+    "transition": {
+     "type": "easing",
+     "duration": 1.3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "purpleBudgetEntry": {
+    "at": 9.56,
+    "duration": 0.8,
+    "transition": {
+     "type": "easing",
+     "duration": 0.8,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "budgetAppear": {
+    "at": 9.88,
+    "duration": 0.3,
+    "transition": {
+     "type": "easing",
+     "duration": 0.3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "budgetRun": {
+    "at": 10.11,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "smokeEnter": {
+    "at": 9.85,
+    "duration": 0.4,
+    "transition": {
+     "type": "easing",
+     "duration": 0.4,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "budgetDepletion": {
+    "at": 11.07,
+    "duration": 2.6,
+    "transition": {
+     "type": "easing",
+     "duration": 2.6,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "smokeFade": {
+    "at": 11.08,
+    "duration": 2.6,
+    "transition": {
+     "type": "easing",
+     "duration": 2.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "smokeShrink": {
+    "at": 11.07,
+    "duration": 2.6,
+    "transition": {
+     "type": "easing",
+     "duration": 2.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "subtitleCheap": {
+    "at": 0.45,
+    "duration": 2.5,
+    "transition": {
+     "type": "easing",
+     "duration": 2.5,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleMissIssues": {
+    "at": 2.95,
+    "duration": 3.25,
+    "transition": {
+     "type": "easing",
+     "duration": 3.25,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitlePowerful": {
+    "at": 6.2,
+    "duration": 3.82,
+    "transition": {
+     "type": "easing",
+     "duration": 3.82,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleCost": {
+    "at": 10.02,
+    "duration": 6.98,
+    "transition": {
+     "type": "easing",
+     "duration": 6.98,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   }
+  },
+  "controls": {
+   "travelSpeed": 660,
+   "purpleSpinnerSpeed": 1.9,
+   "cheapSpinnerSpeed": 9,
+   "cheapSpinnerStrokeWidth": 1.5,
+   "smokeSize": 1,
+   "smokeMinimumScale": 0.25
+  }
+ },
+ "flow": {
+  "entrySlide": {
+   "at": 0,
+   "duration": 1.2,
+   "transition": {
+    "type": "easing",
+    "duration": 1.2,
+    "ease": [
+     0.45,
+     0,
+     0.55,
+     1
+    ]
+   }
+  },
+  "timing": {
+   "cloudExit": {
+    "at": 3.52,
+    "duration": 1.51,
+    "transition": {
+     "type": "easing",
+     "duration": 1.51,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cameraZoom": {
+    "at": 3.43,
+    "duration": 1,
+    "transition": {
+     "type": "easing",
+     "duration": 1,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cameraToBenchmark": {
+    "at": 3.45,
+    "duration": 1.2,
+    "transition": {
+     "type": "easing",
+     "duration": 1.2,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "dotsExit": {
+    "at": 3.27,
+    "duration": 0.9,
+    "transition": {
+     "type": "easing",
+     "duration": 0.9,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "benchmarkHeading": {
+    "at": 4.6,
+    "duration": 0.23,
+    "transition": {
+     "type": "easing",
+     "duration": 0.23,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "modelRows": {
+    "at": 4.81,
+    "duration": 0.25,
+    "transition": {
+     "type": "easing",
+     "duration": 0.25,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "percentageReveal": {
+    "at": 4.71,
+    "duration": 0.2,
+    "transition": {
+     "type": "easing",
+     "duration": 0.2,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "percentageCountUp": {
+    "at": 4.91,
+    "duration": 0.4,
+    "transition": {
+     "type": "easing",
+     "duration": 0.4,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "cameraToAnalysis": {
+    "at": 6.75,
+    "duration": 0.51,
+    "transition": {
+     "type": "easing",
+     "duration": 0.51,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "numberSwap": {
+    "at": 6.76,
+    "duration": 0.3,
+    "transition": {
+     "type": "easing",
+     "duration": 0.3,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "analysisCountUp": {
+    "at": 7.07,
+    "duration": 1.01,
+    "transition": {
+     "type": "easing",
+     "duration": 1.01,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "barsGrow": {
+    "at": 7.07,
+    "duration": 0.56,
+    "transition": {
+     "type": "easing",
+     "duration": 0.56,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "analysisHeading": {
+    "at": 7,
+    "duration": 0.45,
+    "transition": {
+     "type": "easing",
+     "duration": 0.45,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "cameraToEngine": {
+    "at": 9.29,
+    "duration": 0.66,
+    "transition": {
+     "type": "easing",
+     "duration": 0.66,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "moduleActivation": {
+    "at": 9.85,
+    "duration": 0.19,
+    "transition": {
+     "type": "easing",
+     "duration": 0.19,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "engineSpinner": {
+    "at": 10,
+    "duration": 0.8,
+    "transition": {
+     "type": "easing",
+     "duration": 0.8,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "engineLines": {
+    "at": 10,
+    "duration": 0.8,
+    "transition": {
+     "type": "easing",
+     "duration": 0.8,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "coverDescent": {
+    "at": 10.42,
+    "duration": 0.49,
+    "transition": {
+     "type": "easing",
+     "duration": 0.49,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "coverTint": {
+    "at": 10.76,
+    "duration": 0.45,
+    "transition": {
+     "type": "easing",
+     "duration": 0.45,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "coverSpinner": {
+    "at": 10.81,
+    "duration": 0.41,
+    "transition": {
+     "type": "easing",
+     "duration": 0.41,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    }
+   },
+   "subtitleIntroducing": {
+    "at": 0.45,
+    "duration": 4.15,
+    "transition": {
+     "type": "easing",
+     "duration": 4.15,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleIntelligence": {
+    "at": 4.6,
+    "duration": 2.25,
+    "transition": {
+     "type": "easing",
+     "duration": 2.25,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleCost": {
+    "at": 6.85,
+    "duration": 3.4,
+    "transition": {
+     "type": "easing",
+     "duration": 3.4,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   },
+   "subtitleSignals": {
+    "at": 10.25,
+    "duration": 4.66,
+    "transition": {
+     "type": "easing",
+     "duration": 4.66,
+     "ease": [
+      0,
+      0,
+      1,
+      1
+     ]
+    }
+   }
+  },
+  "controls": {
+   "cloudYOffset": 37,
+   "blueDotScale": 1.2,
+   "numberRowStagger": 0.05,
+   "coverMotion": "split",
+   "mutedGray": "#474747"
+  }
+ },
+ "issues": {
+  "sourceVersion": 20,
+  "leadIn": {
+   "at": 0,
+   "duration": 0.9,
+   "transition": {
+    "type": "easing",
+    "duration": 0.9,
+    "ease": [
+     0.45,
+     0,
+     0.55,
+     1
+    ]
+   },
+   "from": {
+    "progress": 0
+   },
+   "to": {
+    "progress": 1
+   }
+  },
+  "timing": {
+   "travelStart": {
+    "at": 0.5,
+    "duration": 0.35
+   },
+   "coverAppearance": {
+    "at": 1.43,
+    "duration": 0.38
+   },
+   "triangleScaleOut": {
+    "at": 1.07,
+    "duration": 0.59
+   },
+   "triangleScaleIn": {
+    "at": 1.44,
+    "duration": 0.68
+   },
+   "agentWindowEnter": {
+    "at": 3.61,
+    "duration": 0.47
+   },
+   "promptTyping": {
+    "at": 3.62,
+    "duration": 0.44
+   },
+   "issueTyping": {
+    "at": 3.99,
+    "duration": 0.27
+   },
+   "issuePadding": {
+    "at": 4,
+    "duration": 0.35
+   },
+   "issueBackground": {
+    "at": 3.99,
+    "duration": 0.2
+   },
+   "issueWarningIn": {
+    "at": 4.14,
+    "duration": 0.3
+   },
+   "messageSend": {
+    "at": 4.43,
+    "duration": 0.18
+   },
+   "cliCommandTyping": {
+    "at": 4.56,
+    "duration": 0.33
+   },
+   "sqlQueryTyping": {
+    "at": 4.81,
+    "duration": 0.23
+   },
+   "sqlPredicateTyping": {
+    "at": 4.98,
+    "duration": 0.27
+   },
+   "queryWarningIn": {
+    "at": 5.07,
+    "duration": 0.2
+   },
+   "agentWindowExit": {
+    "at": 5.97,
+    "duration": 0.38
+   },
+   "subtitleIssues": {
+    "at": 0,
+    "duration": 0.2,
+    "transition": {
+     "type": "spring",
+     "bounce": 0.2
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "subtitlePatterns": {
+    "at": 0.2,
+    "duration": 2.55,
+    "transition": {
+     "type": "spring",
+     "bounce": 0.2
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "subtitleReady": {
+    "at": 2.75,
+    "duration": 3.6,
+    "transition": {
+     "type": "spring",
+     "bounce": 0.2
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "appearance": {
+    "at": 0,
+    "duration": 0
+   }
+  },
+  "controls": {
+   "warningAppearanceDuration": 0,
+   "travelDuration": 2.3,
+   "timelineDuration": 6.4
+  },
+  "preludeTiming": {
+   "blueBashEntry": {
+    "at": 0.3,
+    "duration": 0.7,
+    "transition": {
+     "type": "easing",
+     "duration": 0.7,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "blueBashStop": {
+    "at": 1,
+    "duration": 0.25,
+    "transition": {
+     "type": "easing",
+     "duration": 0.25,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "bashExpand": {
+    "at": 1.3,
+    "duration": 0.2,
+    "transition": {
+     "type": "easing",
+     "duration": 0.2,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "bashDescent": {
+    "at": 1.45,
+    "duration": 1.05,
+    "transition": {
+     "type": "easing",
+     "duration": 1.05,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "bashHighlight": {
+    "at": 2.1,
+    "duration": 0.55,
+    "transition": {
+     "type": "easing",
+     "duration": 0.55,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisZoomOut": {
+    "at": 2.65,
+    "duration": 2,
+    "transition": {
+     "type": "easing",
+     "duration": 2,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisTraceCollapse": {
+    "at": 3.85,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisLocalGridFade": {
+    "at": 3.85,
+    "duration": 0.6,
+    "transition": {
+     "type": "easing",
+     "duration": 0.6,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisCircleGrow": {
+    "at": 4.85,
+    "duration": 1.9,
+    "transition": {
+     "type": "easing",
+     "duration": 1.9,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisCircleFade": {
+    "at": 6.75,
+    "duration": 0.35,
+    "transition": {
+     "type": "easing",
+     "duration": 0.35,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisAgentScaleOut": {
+    "at": 6.75,
+    "duration": 0.45,
+    "transition": {
+     "type": "easing",
+     "duration": 0.45,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "analysisLayout": {
+    "at": 7.2,
+    "duration": 0.1,
+    "transition": {
+     "type": "easing",
+     "duration": 0.1,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "subtitleFlow": {
+    "at": 0.3,
+    "duration": 2.35,
+    "transition": {
+     "type": "easing",
+     "duration": 2.35,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   },
+   "subtitleDetection": {
+    "at": 4.65,
+    "duration": 1.05,
+    "transition": {
+     "type": "easing",
+     "duration": 1.05,
+     "ease": [
+      0.45,
+      0,
+      0.55,
+      1
+     ]
+    },
+    "from": {
+     "progress": 0
+    },
+    "to": {
+     "progress": 1
+    }
+   }
+  },
+  "preludeControls": {
+   "spinnerEntrySpeed": 1.9,
+   "spinnerStopSpeed": 1.9,
+   "spinnerDescentSpeed": 1.9,
+   "spinnerZoomSpeed": 1.9,
+   "spinnerAnalysisSpeed": 1.9,
+   "radialCircleRadius": 900,
+   "radialSoftness": 0.2,
+   "timelineDuration": 1
+  },
+  "issueStart": 7.2
+ },
+ "conclusion": {
+  "placeholder": {
+   "at": 0,
+   "duration": 3.75,
+   "transition": {
+    "type": "easing",
+    "duration": 3,
+    "ease": [
+     0.45,
+     0,
+     0.55,
+     1
+    ]
+   }
+  },
+  "logo": {
+   "at": 3.75,
+   "duration": 2.5
+  }
+ }
+}

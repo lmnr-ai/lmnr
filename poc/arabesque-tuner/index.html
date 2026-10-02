@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arabesque Acoustic — Effect Tuner</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">ULTIMATE 3 / ARABESQUE ACOUSTIC</p>
+        <h1>sound effect tuner</h1>
+        <p class="intro">Listen to the complete mastered soundtrack, isolate one effect family, adjust it, then render the full mix again.</p>
+      </div>
+      <div class="header-actions">
+        <button id="resetAll">reset all</button>
+        <button id="exportSettings">download settings</button>
+        <button id="renderFull" class="primary">▶ render + play full track</button>
+      </div>
+    </header>
+
+    <section class="transport" aria-label="Audio transport">
+      <div>
+        <strong id="nowPlaying">Nothing rendered yet</strong>
+        <span id="status">Edits save automatically in this browser.</span>
+      </div>
+      <audio id="player" controls preload="metadata"></audio>
+    </section>
+
+    <section class="workflow" aria-label="Recommended workflow">
+      <span>01 play full mix</span><b>→</b><span>02 find a problem</span><b>→</b><span>03 tune + audition one effect</span><b>→</b><span>04 replay full mix</span>
+    </section>
+
+    <section class="mix-section">
+      <div class="section-heading">
+        <div><p class="eyebrow">GLOBAL BALANCE</p><h2>whole soundtrack</h2></div>
+        <button data-reset="mix">reset mix</button>
+      </div>
+      <div id="mixControls" class="controls mix-controls"></div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <div><p class="eyebrow">ISOLATED EFFECTS</p><h2>effect families</h2></div>
+        <p>Each audition uses the same offline DSP and piano samples as the final soundtrack.</p>
+      </div>
+      <div id="effectPanels" class="effect-grid"></div>
+    </section>
+  </main>
+  <template id="panelTemplate">
+    <article class="effect-panel">
+      <header class="panel-header">
+        <span class="panel-number"></span>
+        <div><h3></h3><p class="description"></p></div>
+      </header>
+      <p class="used-for"></p>
+      <div class="controls"></div>
+      <footer>
+        <button class="reset">reset</button>
+        <button class="audition primary">▶ play effect</button>
+      </footer>
+    </article>
+  </template>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

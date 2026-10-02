@@ -1,0 +1,63 @@
+@font-face{font-family:FlowMono;src:url('../../../public/micro-09/JetBrainsMono-Regular.woff2') format('woff2');font-display:block}
+.flow1-app{--flow1-preview-scale:min(calc(100vw / 1280px),calc((100vh - 256px) / 720px));position:fixed;inset:0 0 256px;display:grid;place-items:center;overflow:hidden;background:#080808}
+.flow1-stage{position:relative;width:min(100%,calc((100vh - 256px)*16/9));aspect-ratio:16/9;overflow:hidden;background:#1a1a1a}
+.flow1-scene{position:absolute;left:0;top:0;width:1280px;height:720px;overflow:hidden;background:#1a1a1a;color:#fff;font-family:FlowMono,'JetBrains Mono',monospace}
+.flow1-stage>.flow1-scene{transform:scale(var(--flow1-preview-scale));transform-origin:0 0}
+.flow1-world{position:absolute;left:0;top:0;width:2800px;height:5400px;transform-origin:0 0;will-change:transform}
+.flow1-grid{position:absolute;inset:-1000px;background-size:100px 100px}
+.flow1-dots{position:absolute;inset:0}
+.flow1-dot{position:absolute;width:12px;height:12px;border-radius:50%;background:#4e4e4e;will-change:transform}
+.flow1-dot[data-colored="true"]{background:linear-gradient(#a8caff,#75abff)}
+.flow1-title{position:absolute;left:426px;top:211px;width:648px;height:238px;font-size:180px;line-height:238px;text-align:center;white-space:nowrap}
+.flow1-mask{position:absolute;overflow:hidden}
+.flow1-slide{position:absolute;inset:0;background:#1a1a1a;will-change:transform}
+.flow1-benchmark{position:absolute;width:1833.333333px;height:1300px}
+.flow1-heading{width:900px;height:300px;font-size:100px}
+/* Stationary masks own the inset top/left grid edges. Sliding layers carry only
+   content and backing, so their motion can never move or double the outline. */
+.flow1-heading::after,.flow1-number-mask::after,.flow1-name-mask::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background-image:linear-gradient(#333 var(--flow1-border),transparent var(--flow1-border)),linear-gradient(90deg,#333 var(--flow1-border),transparent var(--flow1-border))}
+.flow1-heading .flow1-slide{display:flex;align-items:center;box-sizing:border-box}
+.flow1-heading span{display:block;flex:none;line-height:normal;white-space:pre}
+.flow1-heading-left{left:0;top:-400px}
+.flow1-heading-left .flow1-slide{justify-content:center;padding-left:40px}
+.flow1-heading-right{left:800px;top:700px;width:1000px;text-align:right}
+.flow1-heading-right .flow1-slide{justify-content:flex-end;padding-right:40px}
+.flow1-rows{position:absolute;left:0;top:0;width:1833.333333px;height:600px;display:flex;flex-direction:column;align-items:flex-start}
+.flow1-row{height:100px;flex:none;display:flex;align-items:center;font-size:46.666666667px;line-height:66.666666667px;color:#808080}
+.flow1-number-mask{position:relative;width:200px;height:100px;flex:none;overflow:hidden}
+.flow1-number{position:absolute;inset:0;display:flex;align-items:center;padding-left:21.666666667px;box-sizing:border-box;background-color:#1a1a1a;will-change:transform}
+.flow1-number-new{color:#808080}
+/* Intrinsic content determines mask width; reveal moves only the inner layer.
+   Bar growth may change the hug width, but seam slides never resize the mask. */
+.flow1-name-mask{position:relative;width:max-content;height:100px;flex:none}
+.flow1-name-mask .flow1-slide{position:relative;inset:auto;width:max-content;height:100%;display:flex;align-items:center}
+.flow1-row-content{width:max-content;height:100%;display:flex;align-items:center;padding:0 20px 0 1.666666667px;box-sizing:border-box;white-space:nowrap}
+.flow1-row-content>span{flex:none}
+.flow1-bar{display:block;height:55px;background:#6b6b6b;background-size:100% 100%}
+.flow1-row:nth-child(3){color:#fff}
+.flow1-row:nth-child(3) .flow1-number-new{color:#fff}
+.flow1-engine{position:absolute;width:800px;height:800px}
+.flow1-ring{position:absolute;inset:0;border-radius:50%;background:#1a1a1a;border:var(--flow1-border) solid var(--flow1-muted-gray);box-sizing:border-box;will-change:transform}
+.flow1-assembly{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:563.333333px;height:561.666667px;display:grid;grid-template:398.333333px 160px / 400px 160px;gap:3.333333px}
+.flow1-module{grid-area:1/1/2/2;height:398.333333px;background-color:var(--flow1-muted-gray);display:grid;place-items:center;font-size:66.666666667px;color:#1a1a1a}
+.flow1-connector{position:relative;grid-area:2/1/3/2;width:400px;height:160px;background:#1a1a1a}
+.flow1-connector img,.flow1-connector span{position:absolute;max-width:none;display:block}
+/* Figma: band export 240×96; centered fine-stroke export 196×98,
+   including its 1px stroke overflow. Both use the Figma horizontal flip. */
+.flow1-connector-band{inset:0;width:400px;height:160px;transform:scaleX(-1);background:var(--flow1-muted-gray);mask-repeat:no-repeat;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;-webkit-mask-size:100% 100%}
+.flow1-connector-stroke{left:50%;top:50%;width:326.666667px;height:163.333333px;transform:translate(-50%,-50%) scaleX(-1)}
+.flow1-spinner{position:relative;grid-area:1/2/2/3;width:160px;height:160px;overflow:hidden}
+.flow1-spinner-disc{position:absolute;inset:0;border-radius:50%;background:var(--flow1-muted-gray);transform-origin:center}
+.flow1-spinner-disc::before{content:"";position:absolute;inset:25%;border:3.333333px solid #1f1f1f;border-radius:50%;box-sizing:border-box}
+.flow1-spinner-disc::after{content:"";position:absolute;left:50%;top:0;width:3.333333px;height:39.166667px;background:#1a1a1a;transform:translateX(-50%)}
+.flow1-lines{position:absolute;left:403.333333px;top:163.333333px;width:160px;height:398.333333px;overflow:hidden;background:var(--flow1-muted-gray)}
+.flow1-lines img{position:absolute;max-width:none;display:block}
+.flow1-cover{position:absolute;will-change:left,top,width,height}
+.flow1-cover-face{position:absolute;left:0;top:0;border-radius:50%;background-color:var(--flow1-muted-gray);box-sizing:border-box}
+.flow1-cover-door{position:absolute;overflow:hidden;will-change:left,top,width,height}
+.flow1-cover-door-left{border-radius:9999px 0 0 9999px}
+.flow1-cover-door-right{border-radius:0 9999px 9999px 0}
+.flow1-cover-loader{position:absolute;inset:10.75%;width:78.5%;height:78.5%;transform-origin:center;will-change:transform,opacity}
+.flow1-scene>.micro09-clouds{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.flow1-subtitle-layer{position:absolute;z-index:10;inset:0;pointer-events:none}
+.flow1-subtitle{position:absolute;left:50%;bottom:32px;box-sizing:border-box;max-width:calc(100% - 64px);transform:translateX(-50%);padding:8px 16px;background:#000;color:#fff;font:400 24px/normal FlowMono,monospace;text-align:center;white-space:normal;transition:none}

@@ -1,0 +1,46 @@
+{
+  "study": "01-felt-circuit",
+  "model": "google/gemini-3.6-flash",
+  "endpoint": "https://ai-gateway.vercel.sh/v1/chat/completions",
+  "startedAt": "2026-09-24T16:50:47.713Z",
+  "requestLimit": 1,
+  "retries": 0,
+  "maxOutputTokens": 1400,
+  "audio": {
+    "bytes": 3072044,
+    "sha256": "75e631f27fac2ea260205b011f233afe96b8fe8a1496ded7d8ae39895edfb521",
+    "fullFile": true,
+    "durationSeconds": 16
+  },
+  "requestSha256": "943d8fecfd631ce7e5db9fe76b241df216cfc6fb5cfaf88090ac4be40236e120",
+  "status": "accepted_requires_review",
+  "perceptualCoverageVerified": false,
+  "httpStatus": 200,
+  "responseModel": "google/gemini-3.6-flash",
+  "usage": {
+    "prompt_tokens": 694,
+    "completion_tokens": 829,
+    "total_tokens": 1523,
+    "cost": 0.00362925,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": null,
+      "upstream_inference_prompt_cost": 0,
+      "upstream_inference_completions_cost": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "image_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "market_cost": 0.00362925,
+    "gateway_cost": 0.00362925
+  },
+  "finishReason": "stop",
+  "completedAt": "2026-09-24T16:50:56.044Z"
+}

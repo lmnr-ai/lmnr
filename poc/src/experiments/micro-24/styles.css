@@ -1,0 +1,43 @@
+.flow3-app{position:fixed;inset:0 0 var(--flow3-dock,262px);display:grid;grid-template-rows:48px minmax(0,1fr);background:#080808;overflow:hidden}
+.flow3-toolbar{display:flex;align-items:center;gap:12px;padding:0 20px}
+.flow3-toolbar .experiment-picker{position:static}
+.flow3-toolbar button{padding:5px 9px;border:1px solid #343434;border-radius:6px;background:#171717;color:#a6a6a6;font:11px ui-monospace,monospace;cursor:pointer}
+.flow3-stage-host{min-width:0;min-height:0;display:grid;place-items:center}
+.flow3-stage{position:relative;overflow:hidden;background:#1a1a1a}
+.flow3-stage>.flow3-scene{transform:scale(var(--flow3-scale));transform-origin:0 0}
+/* The graph's local coordinates are the Figma 1280×720 frame. The enclosing
+   continuous world is at .6 scale when settled; this converts local px to world. */
+.flow3-graph{position:absolute;width:1280px;height:720px;transform:scale(1.6666666666666667);transform-origin:0 0}
+.flow3-ball{position:absolute;width:0;height:0;pointer-events:none}
+.flow3-bead{position:absolute;width:20px;height:20px;border-radius:50%;background:#808080}
+.flow3-bead i{display:block;width:100%;height:100%;border-radius:50%;background:linear-gradient(#a8caff,#75abff)}
+.flow3-string{position:absolute;top:-720px;width:1px;height:2160px;background:#808080;transform:translateX(-.5px);pointer-events:none}
+.flow3-crossbar{position:absolute;width:2698px;height:1px;background:#808080;transform:translate(-50%,-.5px);pointer-events:none}
+.flow3-ball i{position:absolute;left:-30px;top:-30px;width:60px;height:60px;border-radius:50%;background:linear-gradient(#a8caff,#75abff)}
+.flow3-model{position:absolute;font:400 24px/32px FlowMono,monospace;white-space:nowrap}
+.flow3-model i{position:absolute;left:-10px;top:-10px;width:20px;height:20px;border-radius:50%;background:currentColor}
+.flow3-model span{position:absolute;left:30px;top:-16px}
+.flow3-heading{position:absolute;overflow:hidden;font:400 60px/normal FlowMono,monospace;color:#fff;text-align:right}
+.flow3-heading::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#333 1px,transparent 1px),linear-gradient(90deg,#333 1px,transparent 1px)}
+.flow3-heading-intelligence{left:640px;top:60px;width:540px;height:180px}
+.flow3-heading-value{left:400px;top:60px;width:720px;height:180px}
+.flow3-heading-slide,.flow3-heading .flow1-slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 24px;background:#1a1a1a}
+.flow3-heading span{flex:none;white-space:nowrap}
+.flow3-flow-label,.flow3-flow-score{position:absolute;font:400 24px/32px FlowMono,monospace;color:#fff;white-space:nowrap}
+.flow3-flow-score{transform:translateX(-100%)}
+.flow3-axis{position:absolute;box-sizing:border-box;background:#1a1a1a;color:#808080;font:400 20px/26px FlowMono,monospace;white-space:nowrap;pointer-events:none}
+.flow3-axis-y{top:0;width:136px;height:720px;z-index:2}
+.flow3-axis-y>.flow3-axis-title{position:absolute;left:56px;top:300px;transform:translate(-50%,-50%) rotate(-90deg)}
+.flow3-axis-x{left:0;width:100%;height:120px;z-index:1;border-top:1px solid #333}
+/* Lay out the axis independently of subtitles, as requested. */
+.flow3-axis-x>.flow3-axis-title{position:absolute;left:calc(50% + 8px);top:40px;transform:translateX(-50%)}
+.flow3-axis-tick{position:absolute;font:400 16px/22px FlowMono,monospace}
+.flow3-axis-tick-x{top:12px;transform:translateX(-50%)}
+.flow3-axis-tick-y{right:10px;transform:translateY(-50%)}
+.flow3-axis-tick::after{content:"";position:absolute;background:#808080}
+.flow3-axis-tick-x::after{left:50%;top:-12px;width:1px;height:5px}
+.flow3-axis-tick-y::after{right:-10px;top:50%;width:5px;height:1px}
+.flow3-micro23{position:absolute;inset:0;z-index:3;overflow:hidden}
+/* Opaque only to the matching scene base: this prevents a second world-grid
+   being composited beneath the .5px insert; it is not a black cut overlay. */
+.flow3-micro23 .micro23-scene{background:#1a1a1a}

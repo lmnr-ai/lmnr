@@ -1,0 +1,107 @@
+.empty-animation {
+  position: fixed;
+  inset: 0 0 256px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #080808;
+}
+
+.micro02-stage {
+  position: relative;
+  width: min(100%, calc((100vh - 256px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+
+.micro02-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #171717;
+  container-type: size;
+}
+
+.micro02-band {
+  position: absolute;
+  top: 36.5278%;
+  left: 0;
+  width: 100%;
+  height: 33.8889%;
+  overflow: hidden;
+}
+
+.micro02-landscape {
+  position: absolute;
+  /* Offset the unrotated image so its rotated bounding box lands at Figma's
+     exact group origin (-463.99px, -344px). */
+  left: -35.4463%;
+  top: -242.4184%;
+  width: 176.25%;
+  max-width: none;
+  height: 616.3934%;
+  object-fit: cover;
+  transform: rotate(.79deg);
+}
+
+.micro02-shadow {
+  position: absolute;
+  left: -6.7188%;
+  top: -35.2459%;
+  width: 59.2969%;
+  height: 161.4754%;
+  background: linear-gradient(to left, transparent, rgb(0 0 0 / .72));
+}
+
+.micro02-orange,.micro02-white {position:absolute}
+.micro02-orange-main {
+  left: 41.954%; top: 43.0328%; width: 68.0469%; height: 9.8361%;
+  background: linear-gradient(113.079deg, rgb(208 117 78 / 0) .43184%, #f3956d 10.29%, #fea8a8 58.252%);
+}
+.micro02-orange-thin {
+  left: 56.6426%; top: 52.8689%; width: 68.0469%; height: 4.918%;
+  background: linear-gradient(130.438deg, rgb(208 117 78 / 0) .43184%, #f1885a 10.29%, #fd9191 58.252%);
+}
+.micro02-white {left:27.267%;width:72.7344%;height:9.0164%;background:linear-gradient(to right,transparent,rgb(179 179 179 / .32))}
+.micro02-white-top {top:27.0492%}.micro02-white-bottom {top:63.9344%}
+
+.micro02-corner {position:absolute;width:77.2656%;height:93.5417%;max-width:none;overflow:visible}
+.micro02-corner-top {left:35.625%;top:-64.0278%}
+.micro02-corner-bottom {left:-10.3906%;top:79.1667%;transform:rotate(180deg)}
+
+.micro02-grid {
+  position:absolute;
+  width:33.5156%;
+  height:59.5833%;
+  background-image:linear-gradient(to right,rgb(255 255 255 / .12) 2px,transparent 2px),linear-gradient(to bottom,transparent calc(100% - 2px),rgb(255 255 255 / .12) calc(100% - 2px));
+  background-size:12.5% 12.5%;
+}
+.micro02-grid-top-left {left:-7.5%;top:-25%}
+.micro02-grid-bottom-right {left:74.2188%;top:70.4167%}
+
+.micro02-prompt {
+  position:absolute;
+  left:54.7656%;top:-6.3889%;width:30%;height:29.8611%;
+  margin:0;overflow:hidden;color:#464649;
+  font:300 1.09375cqw/1.875cqw "JetBrains Mono",ui-monospace,monospace;
+  overflow-wrap:anywhere;
+}
+
+.micro02-portrait-frame {position:absolute;left:4.0625%;top:19.7222%;width:15.3906%;height:27.3611%;overflow:hidden;background:hsl(0 0% 22%)}
+.micro02-portrait {display:block;width:100%;height:100%;object-fit:cover;object-position:bottom;transform-origin:center}
+.micro02-portrait-cover {position:absolute;inset:0;background:hsl(0 0% 22%);pointer-events:none}
+
+.micro02-dots {position:absolute;left:11.4063%;top:57.0833%;width:17.8125%;height:31.6667%;display:grid;grid-template-columns:repeat(6,8px);grid-template-rows:repeat(6,8px);justify-content:space-between;align-content:space-between}
+.micro02-dots i {display:block;width:8px;height:8px;background:#d9d9d9}
+
+.micro02-stats {position:absolute;left:58.4375%;top:67.3611%;width:30.390625%;height:5%;display:flex;align-items:center;gap:12px;padding:0 18px;box-sizing:border-box;overflow:hidden;background:#2d2d2f;color:#b5b5b5}
+.micro02-stat {display:flex;align-items:center;gap:12px;white-space:nowrap;flex:0 0 auto}
+.micro02-stat img {width:24px;height:24px}
+.micro02-stat span {font:400 28px/normal Menlo,monospace}
+
+@media (max-aspect-ratio: 16/9) {
+  .micro02-dots {grid-template-columns:repeat(6,.625cqw);grid-template-rows:repeat(6,.625cqw)}
+  .micro02-dots i {width:.625cqw;height:.625cqw}
+  .micro02-stats {gap:.9375cqw;padding-inline:1.40625cqw}
+  .micro02-stat {gap:.9375cqw}.micro02-stat img{width:1.875cqw;height:1.875cqw}.micro02-stat span{font-size:2.1875cqw}
+}

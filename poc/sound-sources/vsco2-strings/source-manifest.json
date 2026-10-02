@@ -1,0 +1,812 @@
+{
+  "instrument": "VS Chamber Orchestra: Community Edition (strings subset)",
+  "authors": "Sam Gossner, Simon Dalzell; sample cutting by Elan Hickler",
+  "license": "CC0 1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "repository": "https://github.com/sgossner/VSCO-2-CE",
+  "commit": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+  "derivation": "ffmpeg -i <source> -t <seconds> -af \"afade=t=out:st=<seconds-0.4>:d=0.4\" -ac 1 -ar 48000 -c:a libmp3lame -q:a 6 <name>.mp3 (sustains: first 6 s; pizzicato: first 2 s)",
+  "files": [
+    {
+      "name": "violin/A3-loud.mp3",
+      "instrument": "violin",
+      "midi": 57,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A3_f.wav",
+      "bytes": 38397,
+      "sha256": "f1b3a6e098eb26d2e2d06bb6ed366349105f2e4417e8bb43e17a0904163defc7"
+    },
+    {
+      "name": "violin/A3-soft.mp3",
+      "instrument": "violin",
+      "midi": 57,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A3_p.wav",
+      "bytes": 31581,
+      "sha256": "57fc403e110b64e1b02dce427177cc4a7132528d5f2fc0f56a28160f4e4e79c6"
+    },
+    {
+      "name": "violin/A4-loud.mp3",
+      "instrument": "violin",
+      "midi": 69,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A4_f.wav",
+      "bytes": 43725,
+      "sha256": "80be02d8d109d6b300351dc05e51b7be43ad187c9326ba86cf687641f5a717a7"
+    },
+    {
+      "name": "violin/A4-soft.mp3",
+      "instrument": "violin",
+      "midi": 69,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A4_p.wav",
+      "bytes": 37365,
+      "sha256": "b6e7b1f5c3b4b3a8231d9169150b794987918e815245fddbe89bec321cab4301"
+    },
+    {
+      "name": "violin/A5-loud.mp3",
+      "instrument": "violin",
+      "midi": 81,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A5_f.wav",
+      "bytes": 47109,
+      "sha256": "483ec65efd9559b049e1450fa2be5592efe39d47c70975950ae8aedde066d686"
+    },
+    {
+      "name": "violin/A5-soft.mp3",
+      "instrument": "violin",
+      "midi": 81,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A5_p.wav",
+      "bytes": 38061,
+      "sha256": "341ce3f281c5899171bc9fd740be855c4ccc42cd3e52b6e334149be85f70f597"
+    },
+    {
+      "name": "violin/A6-loud.mp3",
+      "instrument": "violin",
+      "midi": 93,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A6_f.wav",
+      "bytes": 49749,
+      "sha256": "17e9c2f1f94f59a1ea2733edc1d55fa257657bb5d63fa59668c66469a3d9f5c8"
+    },
+    {
+      "name": "violin/A6-soft.mp3",
+      "instrument": "violin",
+      "midi": 93,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A6_p.wav",
+      "bytes": 36525,
+      "sha256": "07c03277dfa006edf952bf1f1e12f881b2fce8e694051d5fa66281ab3729ed47"
+    },
+    {
+      "name": "violin/C4-loud.mp3",
+      "instrument": "violin",
+      "midi": 60,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C4_f.wav",
+      "bytes": 39837,
+      "sha256": "c0f64d7809520525eda06f9d5d876778c66c9eccd312589c59842e892a174292"
+    },
+    {
+      "name": "violin/C4-soft.mp3",
+      "instrument": "violin",
+      "midi": 60,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C4_p.wav",
+      "bytes": 34269,
+      "sha256": "551076cd1bc4733a1fb9bbc6eb341009bb52d520f3433186db7b5c5549029625"
+    },
+    {
+      "name": "violin/C5-loud.mp3",
+      "instrument": "violin",
+      "midi": 72,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C5_f.wav",
+      "bytes": 43845,
+      "sha256": "9ba5886910e3882d70c47d8359cbd949df39ed0236a64185552ecd81ebede459"
+    },
+    {
+      "name": "violin/C5-soft.mp3",
+      "instrument": "violin",
+      "midi": 72,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C5_p.wav",
+      "bytes": 40173,
+      "sha256": "54194ce9669679c9d6023f155e731fb991c4c497091e94c5887758f2cd1c865d"
+    },
+    {
+      "name": "violin/C6-loud.mp3",
+      "instrument": "violin",
+      "midi": 84,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C6_f.wav",
+      "bytes": 45237,
+      "sha256": "d1f2cb174d7917aa66420f5e3ae2c4395092749eda41fa72656e73384f82ac32"
+    },
+    {
+      "name": "violin/C6-soft.mp3",
+      "instrument": "violin",
+      "midi": 84,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C6_p.wav",
+      "bytes": 36165,
+      "sha256": "b03a1179d4037aa835013be3682faad0f08bc924be944863291eadaa6dece9a1"
+    },
+    {
+      "name": "violin/C7-loud.mp3",
+      "instrument": "violin",
+      "midi": 96,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C7_f.wav",
+      "bytes": 51381,
+      "sha256": "f06ad63bcfff83d6b8d81ced91f062e7964c7d555a6e429c1dedc9e193aca033"
+    },
+    {
+      "name": "violin/C7-soft.mp3",
+      "instrument": "violin",
+      "midi": 96,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C7_p.wav",
+      "bytes": 33261,
+      "sha256": "58a6a2fafce2768beb23176a05b8abcaf66c89e1d5c1c64bb04d1a2b885ae77a"
+    },
+    {
+      "name": "violin/E4-loud.mp3",
+      "instrument": "violin",
+      "midi": 64,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E4_f.wav",
+      "bytes": 39957,
+      "sha256": "9633ddf6850aa6cab501f89eb9f2eb72cf097ff595d06055d201ecf2abc25aed"
+    },
+    {
+      "name": "violin/E4-soft.mp3",
+      "instrument": "violin",
+      "midi": 64,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E4_p.wav",
+      "bytes": 34101,
+      "sha256": "9c111c8f909411be0eb578c84c660a29887c37f3d4aa21eae3796d28d8e5fa6c"
+    },
+    {
+      "name": "violin/E5-loud.mp3",
+      "instrument": "violin",
+      "midi": 76,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E5_f.wav",
+      "bytes": 44877,
+      "sha256": "e4dd1660a43d0fb2f56a7f1f305c7b6225c9d49ec3d201395ebd3229ad8570ba"
+    },
+    {
+      "name": "violin/E5-soft.mp3",
+      "instrument": "violin",
+      "midi": 76,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E5_p.wav",
+      "bytes": 37629,
+      "sha256": "bbdb48d77064bdd9b1b013ff71c7f483091abc096e0f5372d044101f667eb10b"
+    },
+    {
+      "name": "violin/E6-loud.mp3",
+      "instrument": "violin",
+      "midi": 88,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E6_f.wav",
+      "bytes": 45357,
+      "sha256": "0aec495239e28651dfd9afb702b280db635075431a079b77ddff2893b2f0530b"
+    },
+    {
+      "name": "violin/E6-soft.mp3",
+      "instrument": "violin",
+      "midi": 88,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E6_p.wav",
+      "bytes": 35277,
+      "sha256": "a5483dd22e89dda3970379acefe2d172a90eb39c3386570c23a9b50a55b7c35b"
+    },
+    {
+      "name": "violin/G3-loud.mp3",
+      "instrument": "violin",
+      "midi": 55,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G3_f.wav",
+      "bytes": 36165,
+      "sha256": "0f187633978e13eb02e1d949bd043a980f433848b5c3573fd799cc0f5e8c864a"
+    },
+    {
+      "name": "violin/G3-soft.mp3",
+      "instrument": "violin",
+      "midi": 55,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G3_p.wav",
+      "bytes": 32445,
+      "sha256": "7da60aa548869f0930e4c775d89e643358adff0a0df12e892fdbc37072cc7ebb"
+    },
+    {
+      "name": "violin/G4-loud.mp3",
+      "instrument": "violin",
+      "midi": 67,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G4_f.wav",
+      "bytes": 41709,
+      "sha256": "6c9dc76c97afe48ddd2187bb6f00d6b4d1742bdc1e9afd89fd5cda10d68969dd"
+    },
+    {
+      "name": "violin/G4-soft.mp3",
+      "instrument": "violin",
+      "midi": 67,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G4_p.wav",
+      "bytes": 34125,
+      "sha256": "263eb25833aa5a851bd3486ccf72ad7412dcf7a84cf09efaa3f9b515cf403013"
+    },
+    {
+      "name": "violin/G5-loud.mp3",
+      "instrument": "violin",
+      "midi": 79,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G5_f.wav",
+      "bytes": 48813,
+      "sha256": "b0b75584868f87b08e598683d1b2dc84165cae5076d6ce7e0b9c5c0218b2c03a"
+    },
+    {
+      "name": "violin/G5-soft.mp3",
+      "instrument": "violin",
+      "midi": 79,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G5_p.wav",
+      "bytes": 40101,
+      "sha256": "3a3fa4f64863d5548815f815deeb914d1110ca6b767564b786d601220128a81f"
+    },
+    {
+      "name": "violin/G6-loud.mp3",
+      "instrument": "violin",
+      "midi": 91,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G6_f.wav",
+      "bytes": 45309,
+      "sha256": "c74f0dc1046076aaab1278d94ae28dca047a12d7aa230962018a3fb429cb37cd"
+    },
+    {
+      "name": "violin/G6-soft.mp3",
+      "instrument": "violin",
+      "midi": 91,
+      "dynamic": "soft",
+      "source": "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G6_p.wav",
+      "bytes": 30813,
+      "sha256": "1704b5bfdd4f073847f1771812ed747c32fec70b9b470cc7b1e5a9e0a5f53a8a"
+    },
+    {
+      "name": "violins/A2-soft.mp3",
+      "instrument": "violins",
+      "midi": 45,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_A2_v1.wav",
+      "bytes": 32277,
+      "sha256": "1e50f5bc6f00d0279519df819469928f2252593d069bf3959831f967218beeb9"
+    },
+    {
+      "name": "violins/A2-loud.mp3",
+      "instrument": "violins",
+      "midi": 45,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_A2_v2.wav",
+      "bytes": 35973,
+      "sha256": "32978f6e2d8f9a995240872ea1d75ea44e4c29c79180b7da7e9e5b8ec2c26f3e"
+    },
+    {
+      "name": "violins/A3-soft.mp3",
+      "instrument": "violins",
+      "midi": 57,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_A3_v1.wav",
+      "bytes": 36141,
+      "sha256": "320bab4522139ca8140d4e0c037c6c7aa578d8c7cc56816b2b7780a231806ff4"
+    },
+    {
+      "name": "violins/A3-loud.mp3",
+      "instrument": "violins",
+      "midi": 57,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_A3_v2.wav",
+      "bytes": 39333,
+      "sha256": "ac049a063145b7610cf79968d76a436a1c1b464210bd9cdb8587f5ee60768102"
+    },
+    {
+      "name": "violins/B2-soft.mp3",
+      "instrument": "violins",
+      "midi": 47,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_B2_v1.wav",
+      "bytes": 30429,
+      "sha256": "89c365db7be9c41919f1a93fe883bde77b7619aed44d2cba45e3300b1e4a72fd"
+    },
+    {
+      "name": "violins/B2-loud.mp3",
+      "instrument": "violins",
+      "midi": 47,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_B2_v2.wav",
+      "bytes": 35229,
+      "sha256": "e318f11c6124eb4a65a1458eb33723bfe5c433d9ee84836cfb0f34194eb478ce"
+    },
+    {
+      "name": "violins/B4-soft.mp3",
+      "instrument": "violins",
+      "midi": 71,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_B4_v1.wav",
+      "bytes": 38085,
+      "sha256": "4bdcf3a06c23bca46b71c4dd0b429e2cb41e87d1f6cce46d96e44606e535fa02"
+    },
+    {
+      "name": "violins/B4-loud.mp3",
+      "instrument": "violins",
+      "midi": 71,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_B4_v2.wav",
+      "bytes": 43653,
+      "sha256": "73f0a2fd9c8ad60c7a645221d58a026612b27e3f438d968f2289060b48ab4371"
+    },
+    {
+      "name": "violins/C4-soft.mp3",
+      "instrument": "violins",
+      "midi": 60,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_C4_v1.wav",
+      "bytes": 38517,
+      "sha256": "617a007d41a182bb2be19217d2f9049d6eed29df5132ddacfb6c3b17dd4e7a5b"
+    },
+    {
+      "name": "violins/C4-loud.mp3",
+      "instrument": "violins",
+      "midi": 60,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_C4_v2.wav",
+      "bytes": 42165,
+      "sha256": "8e72b819c04dd3561c70cd662a7b40036a9d3441cc90035f3e77a50de68f98c6"
+    },
+    {
+      "name": "violins/D3-soft.mp3",
+      "instrument": "violins",
+      "midi": 50,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_D3_v1.wav",
+      "bytes": 33549,
+      "sha256": "bf2cb4f22ee5f7c637ffb0d76d9ab0848d127741e944bbd4e450cc5d6745aff2"
+    },
+    {
+      "name": "violins/D3-loud.mp3",
+      "instrument": "violins",
+      "midi": 50,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_D3_v2.wav",
+      "bytes": 35877,
+      "sha256": "77e1c0c8743f5f88f28870c54a1f28797e303387915ce24d54acdae883755792"
+    },
+    {
+      "name": "violins/D5-soft.mp3",
+      "instrument": "violins",
+      "midi": 74,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_D5_v1.wav",
+      "bytes": 45837,
+      "sha256": "9832d0b4ede95c1195fd90d0901df6caa50a1b08ad093dd6ef4561e7481793b5"
+    },
+    {
+      "name": "violins/D5-loud.mp3",
+      "instrument": "violins",
+      "midi": 74,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_D5_v2.wav",
+      "bytes": 55149,
+      "sha256": "7c7a95393fb8f94d9be5252e4d29bc72b5e694919505d24c28c28d8b19023f6a"
+    },
+    {
+      "name": "violins/E4-soft.mp3",
+      "instrument": "violins",
+      "midi": 64,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_E4_v1.wav",
+      "bytes": 38109,
+      "sha256": "5eca57db90f4a998e50cc7eb28f4be5766dc07f986fc91dfe487cda91abbee23"
+    },
+    {
+      "name": "violins/E4-loud.mp3",
+      "instrument": "violins",
+      "midi": 64,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_E4_v2.wav",
+      "bytes": 42285,
+      "sha256": "4a886d70fed7e765c10330698cfd6d373b6a24a4a776893955cdffd9c3c611e2"
+    },
+    {
+      "name": "violins/G2-soft.mp3",
+      "instrument": "violins",
+      "midi": 43,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_G2_v1.wav",
+      "bytes": 30093,
+      "sha256": "d182c02372bdd9c866425df352d73480670ba3d4de37fa677125ac1c9c54aa58"
+    },
+    {
+      "name": "violins/G2-loud.mp3",
+      "instrument": "violins",
+      "midi": 43,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_G2_v2.wav",
+      "bytes": 33309,
+      "sha256": "103528221c68dff121606e6186b889507bc2d8a53f4c5c25300f6c994eb9544c"
+    },
+    {
+      "name": "violins/G4-soft.mp3",
+      "instrument": "violins",
+      "midi": 67,
+      "dynamic": "soft",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_G4_v1.wav",
+      "bytes": 39213,
+      "sha256": "762dbc934bb8d4240e9da82dfcdbb3eba438a5cbed3fe9fcaede57d26a7990c3"
+    },
+    {
+      "name": "violins/G4-loud.mp3",
+      "instrument": "violins",
+      "midi": 67,
+      "dynamic": "loud",
+      "source": "Strings/Violin Section/susVib/VlnEns_susVib_G4_v2.wav",
+      "bytes": 47709,
+      "sha256": "3b4f80142dc106ef13c6accab95a7f534d407fdec85d7e7ae501e804dccc9edf"
+    },
+    {
+      "name": "celli/A2-soft.mp3",
+      "instrument": "celli",
+      "midi": 45,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_A2_v1_1.wav",
+      "bytes": 30381,
+      "sha256": "04889a97e4ace43291469a41f36e649882b06f1cad13485df80d24ff51a2a294"
+    },
+    {
+      "name": "celli/A2-loud.mp3",
+      "instrument": "celli",
+      "midi": 45,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_A2_v3_1.wav",
+      "bytes": 40173,
+      "sha256": "f54c60c7d4215a51b8c65dfacc0dfbc5d93a87a196e0e742250ad5ac0a52287e"
+    },
+    {
+      "name": "celli/B1-soft.mp3",
+      "instrument": "celli",
+      "midi": 35,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_B1_v1_1.wav",
+      "bytes": 28869,
+      "sha256": "56ad1957c8ec264440ee6b3738fce81b2ae0cd16449362ab9edafa546c6b1398"
+    },
+    {
+      "name": "celli/B1-loud.mp3",
+      "instrument": "celli",
+      "midi": 35,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_B1_v3_1.wav",
+      "bytes": 41013,
+      "sha256": "fbf7973731272f647af375a3672e2533aa9052520d46e42b35a61576d01c0659"
+    },
+    {
+      "name": "celli/B3-soft.mp3",
+      "instrument": "celli",
+      "midi": 59,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_B3_v1_1.wav",
+      "bytes": 35685,
+      "sha256": "abef005b2cb8414adbc2b83f9008f45f7c5df7b0047623e09cf00ef58c4b03d0"
+    },
+    {
+      "name": "celli/B3-loud.mp3",
+      "instrument": "celli",
+      "midi": 59,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_B3_v3_1.wav",
+      "bytes": 43629,
+      "sha256": "b40ed7007be9337967570a1be7af1cd0f03c98353de7b6adcb68113f2c2abac4"
+    },
+    {
+      "name": "celli/C1-soft.mp3",
+      "instrument": "celli",
+      "midi": 24,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_C1_v1_1.wav",
+      "bytes": 30405,
+      "sha256": "064d4f7410d0260fdb988bbb713171b76ffd652faadfb72e2cb1ed5dcc43bb99"
+    },
+    {
+      "name": "celli/C1-loud.mp3",
+      "instrument": "celli",
+      "midi": 24,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_C1_v3_1.wav",
+      "bytes": 40629,
+      "sha256": "c936ef2da20b237e8e8915a1b2306fac051298dbdfb772d426e7cd66bb743e9c"
+    },
+    {
+      "name": "celli/C3-soft.mp3",
+      "instrument": "celli",
+      "midi": 48,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_C3_v1_1.wav",
+      "bytes": 33309,
+      "sha256": "3fa348d301f2f0e7970808b5131ea8a045d104fba76930f423e079da568c40fc"
+    },
+    {
+      "name": "celli/C3-loud.mp3",
+      "instrument": "celli",
+      "midi": 48,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_C3_v3_1.wav",
+      "bytes": 44613,
+      "sha256": "aba97177e4b78004ec00527a347a8b1874c66a2e79b2361a39f6d8785de34b6a"
+    },
+    {
+      "name": "celli/D2-soft.mp3",
+      "instrument": "celli",
+      "midi": 38,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_D2_v1_1.wav",
+      "bytes": 29757,
+      "sha256": "278200ff81db8d54d36846a75daa5e55ba3e867c20381ba6031a4916722a6294"
+    },
+    {
+      "name": "celli/D2-loud.mp3",
+      "instrument": "celli",
+      "midi": 38,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_D2_v3_1.wav",
+      "bytes": 40653,
+      "sha256": "e4edb2ef0a34083371ff6b8f6eca8010e98a39c4a7774c1d423966d5b48dc164"
+    },
+    {
+      "name": "celli/D4-soft.mp3",
+      "instrument": "celli",
+      "midi": 62,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_D4_v1_1.wav",
+      "bytes": 38013,
+      "sha256": "ffc88fbbc6eb8257bfa1f5ddcca88be3181557168f000cbc3c9ab61b4dfdb84e"
+    },
+    {
+      "name": "celli/D4-loud.mp3",
+      "instrument": "celli",
+      "midi": 62,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_D4_v3_1.wav",
+      "bytes": 46461,
+      "sha256": "8c3157d9f0a7c2b95b112eadc2c946a36f80fa89687a0934d19a340b3bbad78e"
+    },
+    {
+      "name": "celli/E1-soft.mp3",
+      "instrument": "celli",
+      "midi": 28,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_E1_v1_1.wav",
+      "bytes": 28365,
+      "sha256": "54d82ed9a4079cf4f02c8a525c2d2da228a5d672e40709ec12bfebe99b073b41"
+    },
+    {
+      "name": "celli/E1-loud.mp3",
+      "instrument": "celli",
+      "midi": 28,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_E1_v3_1.wav",
+      "bytes": 40893,
+      "sha256": "7a20a402e5db99ab479a8268e067c0a82fab29c77ee3f2a685e5e6c1137007d0"
+    },
+    {
+      "name": "celli/E3-soft.mp3",
+      "instrument": "celli",
+      "midi": 52,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_E3_v1_1.wav",
+      "bytes": 34293,
+      "sha256": "e183fa0763154319cfc3d697afcff08e74054af44326527f21704f92ef929659"
+    },
+    {
+      "name": "celli/E3-loud.mp3",
+      "instrument": "celli",
+      "midi": 52,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_E3_v3_1.wav",
+      "bytes": 45381,
+      "sha256": "4763f006bad68f18e5f2741b2c0993d2384a7aead27872592bc8516c968ec3a6"
+    },
+    {
+      "name": "celli/F2-soft.mp3",
+      "instrument": "celli",
+      "midi": 41,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_F2_v1_1.wav",
+      "bytes": 29949,
+      "sha256": "0bcd7efc3d57b06f9d14580fe9c71336ad60ce400850c591d7de6d91c9f96ad2"
+    },
+    {
+      "name": "celli/F2-loud.mp3",
+      "instrument": "celli",
+      "midi": 41,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_F2_v3_1.wav",
+      "bytes": 40677,
+      "sha256": "5554566826fd70df80689fcd01bcff78da22337c80b598b4f7cc62772f6238e3"
+    },
+    {
+      "name": "celli/F4-soft.mp3",
+      "instrument": "celli",
+      "midi": 65,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_F4_v1_1.wav",
+      "bytes": 38277,
+      "sha256": "88bc0045aed9a4a84652dc959f04248b1b18a410509b8176f563cc98a1dd6023"
+    },
+    {
+      "name": "celli/F4-loud.mp3",
+      "instrument": "celli",
+      "midi": 65,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_F4_v3_1.wav",
+      "bytes": 45213,
+      "sha256": "fea8f0317b69cae6114980fb9b7c1ce2903756439af0fdd785f1d70df2fa13e4"
+    },
+    {
+      "name": "celli/G1-soft.mp3",
+      "instrument": "celli",
+      "midi": 31,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_G1_v1_1.wav",
+      "bytes": 30213,
+      "sha256": "cac0da7426c51137ad58b5c2e295ea35a484992f75d586d3a6d7e0194069a37a"
+    },
+    {
+      "name": "celli/G1-loud.mp3",
+      "instrument": "celli",
+      "midi": 31,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_G1_v3_1.wav",
+      "bytes": 40365,
+      "sha256": "9ddbcb720d5fa59aa734632533935980a14bcdee08a1368d05656a135baa706e"
+    },
+    {
+      "name": "celli/G3-soft.mp3",
+      "instrument": "celli",
+      "midi": 55,
+      "dynamic": "soft",
+      "source": "Strings/Cello Section/susvib/susvib_G3_v1_1.wav",
+      "bytes": 37437,
+      "sha256": "069b98adcabca080617f1e7d5cb355b8ba260f682e2af827aa95107f432a2000"
+    },
+    {
+      "name": "celli/G3-loud.mp3",
+      "instrument": "celli",
+      "midi": 55,
+      "dynamic": "loud",
+      "source": "Strings/Cello Section/susvib/susvib_G3_v3_1.wav",
+      "bytes": 44781,
+      "sha256": "8b88fb86e1de201cdd3fdb07c483c59db2333ed7eb9a86eb73adfc57530b7288"
+    },
+    {
+      "name": "pizz/A3-loud.mp3",
+      "instrument": "pizz",
+      "midi": 57,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_A3_f_RR1.wav",
+      "bytes": 9045,
+      "sha256": "09f6b25b891a368b30e95b4237e819cc9d48a239dfd41285b8cd616b452a4df0"
+    },
+    {
+      "name": "pizz/A4-loud.mp3",
+      "instrument": "pizz",
+      "midi": 69,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_A4_f_RR1.wav",
+      "bytes": 9237,
+      "sha256": "f3b76f5fb1fc98c384935f90263cd0cab9b4290c3c934e90cc921c5ac02abd16"
+    },
+    {
+      "name": "pizz/A5-loud.mp3",
+      "instrument": "pizz",
+      "midi": 81,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_A5_f_RR1.wav",
+      "bytes": 8901,
+      "sha256": "7864d2ee868735a1e50b8fd2376a0a6f02b6e6bb3d6ed4787787e660aa5e1108"
+    },
+    {
+      "name": "pizz/A6-loud.mp3",
+      "instrument": "pizz",
+      "midi": 93,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_A6_f_RR1.wav",
+      "bytes": 4941,
+      "sha256": "ec5346becd97f319cc836fbed76fbeff32512a1c5b0b732a23def858b3edbd52"
+    },
+    {
+      "name": "pizz/C4-loud.mp3",
+      "instrument": "pizz",
+      "midi": 60,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_C4_f_RR1.wav",
+      "bytes": 7125,
+      "sha256": "d5526df03e36f33b385724424272793d4f13a5df2eb1aa135ea407edc5c94990"
+    },
+    {
+      "name": "pizz/C5-loud.mp3",
+      "instrument": "pizz",
+      "midi": 72,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_C5_f_RR1.wav",
+      "bytes": 8469,
+      "sha256": "38af5887f3ca7acb8cb0699c520371af3050e3888056f3f9dc12171b886b1cf0"
+    },
+    {
+      "name": "pizz/C7-loud.mp3",
+      "instrument": "pizz",
+      "midi": 96,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_C7_f.wav",
+      "bytes": 5469,
+      "sha256": "2d3ca2627fef202289d82f89a978154a821280aca253fb9d85be2aee2c2b437e"
+    },
+    {
+      "name": "pizz/E4-loud.mp3",
+      "instrument": "pizz",
+      "midi": 64,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_E4_f_RR1.wav",
+      "bytes": 8853,
+      "sha256": "d1b21fdddd1aa77e6c3dfd40edfddff1bd7fd79faa152a7e538a833d26f9218d"
+    },
+    {
+      "name": "pizz/E5-loud.mp3",
+      "instrument": "pizz",
+      "midi": 76,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_E5_f_RR1.wav",
+      "bytes": 9789,
+      "sha256": "f18bc4d5bc6368b9de3d815ab2b1ac2c59fe53038905a7c5e749e4b2e1b07f41"
+    },
+    {
+      "name": "pizz/E6-loud.mp3",
+      "instrument": "pizz",
+      "midi": 88,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_E6_f_RR1.wav",
+      "bytes": 6141,
+      "sha256": "79ec015b2183189200b05b725f9921d9d973f5fef3924185125cad4d620abfb8"
+    },
+    {
+      "name": "pizz/G3-loud.mp3",
+      "instrument": "pizz",
+      "midi": 55,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_G3_f_RR1.wav",
+      "bytes": 8997,
+      "sha256": "fcc69b7b011c87f81bb991a85d7989838e384249e03e97bdabef5b40b452469d"
+    },
+    {
+      "name": "pizz/G4-loud.mp3",
+      "instrument": "pizz",
+      "midi": 67,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_G4_f_RR1.wav",
+      "bytes": 6501,
+      "sha256": "a331b5d3d8ea57a225688e87fe337dfce9de81d3bd14a03e8c6d75686ac850dc"
+    },
+    {
+      "name": "pizz/G5-loud.mp3",
+      "instrument": "pizz",
+      "midi": 79,
+      "dynamic": "loud",
+      "source": "Strings/Solo Violin/Pizz/LLVln_Pizz_G5_f_RR1.wav",
+      "bytes": 6165,
+      "sha256": "018dcb8e15342a044749eb9f5897a2aecc54a8a486e86595b1330087d70a675a"
+    }
+  ]
+}

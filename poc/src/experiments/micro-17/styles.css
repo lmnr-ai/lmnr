@@ -1,0 +1,22 @@
+.micro17-app{position:fixed;inset:0 0 var(--micro17-timeline-height,418px);display:grid;place-items:center;overflow:hidden;background:#080808}
+.micro17-stage{position:relative;width:min(100%,calc((100vh - var(--micro17-timeline-height,418px))*16/9));aspect-ratio:16/9;overflow:hidden}
+.micro17-composition{position:absolute;inset:0;overflow:hidden;background:#1a1a1a;isolation:isolate}
+.micro17-label{font:400 48px Micro17Mono,monospace;fill:#0e0f21}
+.micro17-paper{box-sizing:border-box;height:260px;padding:4px 12px;background:transparent;color:#969696;font:400 24px/normal Micro17Mono,monospace;overflow-wrap:normal}
+.micro17-paper-line{position:relative;white-space:pre}
+.micro17-highlight{position:absolute;box-sizing:border-box;display:block;color:#0e0f21;background:#f47069;white-space:pre}
+.micro17-warning{position:absolute;left:12px;bottom:12px;color:#f5b369;background:#1a1a1a;padding:8px;font:12px monospace;z-index:5}
+.micro17-world-layers{position:absolute;inset:0;isolation:isolate}
+.micro17-world{position:absolute;inset:0;display:block;width:100%;height:100%;overflow:hidden;pointer-events:none}
+/* Explicit SVG stacking contexts contain imported canvas z-index:1/2. */
+.micro17-world-layers>.micro17-grid{z-index:0}
+.micro17-world-layers>.micro17-opening-back{z-index:1}
+.micro17-world-layers>.micro17-smoke{z-index:2}
+.micro17-world-layers>.micro17-trace{z-index:3}
+.micro17-world-layers>.micro17-opening-front{z-index:4}
+.micro17-world-layers>.micro17-warning-marker{z-index:5}
+.micro17-cover{position:absolute;inset:0;z-index:6;isolation:isolate}
+.micro17-cover>.micro09-clouds{z-index:0}
+.micro17-subtitle-layer{position:absolute;z-index:7;inset:0;pointer-events:none}
+.micro17-subtitle{position:absolute;left:50%;bottom:32px;box-sizing:border-box;max-width:calc(100% - 64px);transform:translateX(-50%);padding:8px 16px;background:#000;color:#fff;font:400 24px/normal Micro17Mono,monospace;text-align:center;white-space:normal;transition:none}
+.micro17-vertical-label{box-sizing:border-box;width:120px;height:120px;display:flex;align-items:center;padding-left:32px;white-space:nowrap;font:400 48px/63px Micro17Mono,monospace;color:#0e0f21;transform:translateX(120px) rotate(90deg);transform-origin:top left}

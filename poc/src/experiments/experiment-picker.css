@@ -1,0 +1,15 @@
+.experiment-picker {
+  position: fixed;
+  z-index: 20;
+  top: 18px;
+  left: 20px;
+  padding: 5px 26px 5px 8px;
+  border: 1px solid #343434;
+  border-radius: 6px;
+  background: #171717;
+  color: var(--lmnr-foreground-300, #a6a6a6);
+  font: 11px ui-monospace, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}

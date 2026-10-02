@@ -1,0 +1,71 @@
+/* Brand tokens copied from ../lmnr/frontend/app/globals.css. */
+:root {
+  --lmnr-surface-00: oklch(0.1344 0 0);
+  --lmnr-surface-100: oklch(0.1822 0 0);
+  --lmnr-surface-250: oklch(0.248 0 0);
+  --lmnr-foreground-100: oklch(0.9249 0 0);
+  --lmnr-foreground-300: oklch(0.696 0 0);
+  --lmnr-primary-400: oklch(0.6559 0.1262 43.33);
+  --lmnr-tool: hsl(42 93% 46%);
+  --lmnr-llm: hsl(262 83% 58%);
+  --lmnr-llm-foreground: hsl(272 100% 74%);
+  --lmnr-subagent: hsl(187 94% 43%);
+}
+
+.micro-scene {
+  position: fixed;
+  inset: 0 0 256px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #080808;
+  color: var(--lmnr-foreground-100);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.micro-scene-render {
+  inset: 0;
+}
+
+.micro-mask {
+  width: min(100%, calc((100vh - 256px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #0f0f0f;
+  box-shadow: 0 24px 90px #000;
+  -webkit-mask-image:
+    linear-gradient(to right, rgb(0 0 0 / var(--mask-edge-alpha)), #000 var(--mask-width), #000 calc(100% - var(--mask-width)), rgb(0 0 0 / var(--mask-edge-alpha))),
+    linear-gradient(to bottom, rgb(0 0 0 / var(--mask-edge-alpha)), #000 var(--mask-width), #000 calc(100% - var(--mask-width)), rgb(0 0 0 / var(--mask-edge-alpha)));
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, rgb(0 0 0 / var(--mask-edge-alpha)), #000 var(--mask-width), #000 calc(100% - var(--mask-width)), rgb(0 0 0 / var(--mask-edge-alpha))),
+    linear-gradient(to bottom, rgb(0 0 0 / var(--mask-edge-alpha)), #000 var(--mask-width), #000 calc(100% - var(--mask-width)), rgb(0 0 0 / var(--mask-edge-alpha)));
+  mask-composite: intersect;
+}
+
+.micro-scene-render .micro-mask {
+  width: 100%;
+  height: 100%;
+}
+
+.micro-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform-origin: 50% 50%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.micro-hud {
+  position: absolute;
+  top: 18px;
+  left: 232px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--lmnr-foreground-300);
+  font: 11px ui-monospace, monospace;
+}
+

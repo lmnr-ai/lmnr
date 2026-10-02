@@ -1,0 +1,33 @@
+{
+  "transferred_files_verified": 31,
+  "source_and_media_paths_verified": 747,
+  "existing_tracked_files_checked": 3524,
+  "unrelated_file_preserved": "signals-status-column.png",
+  "unexpected_modifications": [],
+  "changed_preexisting_files": [
+    "poc/HANDOFF.md",
+    "poc/src/experiments/introducing-flow-1-2/Scene.tsx",
+    "poc/src/experiments/introducing-flow-1-2/beads.ts",
+    "poc/src/experiments/introducing-flow-1-2/geometry.ts",
+    "poc/src/experiments/introducing-flow-1/Scene.tsx",
+    "poc/src/experiments/introducing-flow-1/geometry.ts",
+    "poc/src/experiments/micro-18/App.tsx",
+    "poc/src/experiments/micro-18/README.md",
+    "poc/src/experiments/micro-18/Scene.tsx",
+    "poc/src/experiments/micro-18/authoring.ts",
+    "poc/src/experiments/micro-18/cloud-rollback.test.ts",
+    "poc/src/experiments/micro-18/flow21.test.ts",
+    "poc/src/experiments/micro-18/issues4.test.ts",
+    "poc/src/experiments/micro-18/opening-pacing.test.ts",
+    "poc/src/experiments/micro-18/sample.ts",
+    "poc/src/experiments/micro-18/transitions.ts",
+    "poc/src/experiments/micro-18/voiceover-cut.test.ts",
+    "poc/src/experiments/micro-18/voiceover-cut.ts",
+    "poc/src/experiments/micro-20/Scene.tsx",
+    "poc/src/experiments/micro-22/README.md",
+    "poc/src/experiments/micro-22/Scene.tsx",
+    "poc/src/experiments/micro-22/postlude.test.ts",
+    "poc/src/experiments/micro-22/report.test.ts",
+    "poc/src/experiments/micro-22/sample.ts"
+  ]
+}

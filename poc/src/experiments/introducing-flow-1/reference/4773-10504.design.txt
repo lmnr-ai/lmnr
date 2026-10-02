@@ -1,0 +1,512 @@
+const imgFrame1533 = "http://localhost:3845/assets/7f164b039963926e9ef083478f124757f269d096.png";
+const imgImage219 = "http://localhost:3845/assets/57bc4b5ae75a689363e611945ffcdfca9c5fe53a.png";
+
+export default function Frame() {
+  return (
+    <div className="bg-[#1a1a1a] relative size-full" data-node-id="4773:10504">
+      <div className="-translate-x-1/2 -translate-y-1/2 absolute grid-cols-[repeat(15,fit-content(100%))] grid-rows-[repeat(9,fit-content(100%))] inline-grid left-1/2 top-1/2" data-node-id="4773:10505">
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10506">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10507" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10508">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10509" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10510">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10511" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10512">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10513" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10514">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10515" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10516">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10517" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10518">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10519" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10520">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10521" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10522">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10523" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10524">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10525" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10526">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10527" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10528">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10529" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10530">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10531" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10532">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10533" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10534">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10535" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10536">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10537" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10538">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10539" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10540">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10541" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10542">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10809">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10546">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10547" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10548">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10549" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10550">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10811">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10554">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10555" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10556">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10557" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10558">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10559" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10560">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10561" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10562">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10563" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10564">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10565" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10566">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10567" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10568">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10569" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10570">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10571" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10572">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10823">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10576">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10577" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10578">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10579" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10580">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10581" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10582">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10583" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10584">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10585" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10586">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10587" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10588">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10589" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10590">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10813">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10594">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10595" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10596">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10597" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10598">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10599" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10600">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10601" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10602">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10603" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10604">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10605" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10606">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10607" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10608">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10609" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10610">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10821">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10614">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10819">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10618">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10619" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10620">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10621" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10622">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10817">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10626">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10627" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10628">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10629" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10630">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10815">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10634">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10635" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10636">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10835">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10640">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10641" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10642">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10643" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10644">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10645" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10646">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10647" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10648">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10649" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10650">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10651" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10652">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10653" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10654">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10655" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10656">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10657" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10658">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10659" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10660">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10661" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10662">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10663" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10664">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10665" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10666">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10667" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10668">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10669" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10670">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10671" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10672">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10673" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10674">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10675" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10676">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10677" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10678">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10679" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10680">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10681" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10682">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10683" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10684">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10685" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10686">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10825">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10690">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10691" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10692">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10693" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10694">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10695" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10696">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10833">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10700">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10701" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10702">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10703" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10704">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10705" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10706">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10707" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10708">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10709" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10710">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10711" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10712">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10827">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10716">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10717" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10718">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10719" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10720">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10721" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10722">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10723" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10724">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10725" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10726">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10727" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10728">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10831">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10732">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10733" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10734">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10735" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10736">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10837">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10740">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10741" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10742">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10743" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10744">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10745" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10746">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10747" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10748">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10749" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10750">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10751" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10752">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10753" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10754">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10755" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10756">
+          <div className="relative rounded-[500px] shrink-0 size-[24px]" data-node-id="4773:10829">
+            <div aria-hidden className="absolute inset-0 pointer-events-none rounded-[500px]">
+              <div className="absolute bg-[#4e4e4e] inset-0 rounded-[500px]" />
+              <img alt="" className="absolute max-w-none object-cover rounded-[500px] size-full" src={imgFrame1533} />
+            </div>
+          </div>
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10760">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10761" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10762">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10763" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10764">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10765" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10766">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10767" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10768">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10769" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10770">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10771" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10772">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10773" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10774">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10775" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10776">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10777" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10778">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10779" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10780">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10781" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10782">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10783" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10784">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10785" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10786">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10787" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10788">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10789" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10790">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10791" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10792">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10793" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10794">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10795" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10796">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10797" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10798">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10799" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10800">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10801" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10802">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10803" />
+        </div>
+        <div className="border-[#333] border-b border-l border-solid content-stretch flex items-center justify-center relative shrink-0 size-[100px]" data-node-id="4773:10804">
+          <div className="bg-[#4e4e4e] relative rounded-[500px] shrink-0 size-[12px]" data-node-id="4773:10805" />
+        </div>
+      </div>
+      <p className="-translate-x-1/2 [word-break:break-word] absolute font-['JetBrains_Mono:Regular'] font-normal leading-[normal] left-1/2 text-[180px] text-center text-white top-[calc(50%-139px)] whitespace-nowrap" data-node-id="4773:10839">
+        Flow-1
+      </p>
+      <div className="absolute h-[842px] left-[-642px] top-[143px] w-[1499px]" data-node-id="4773:10840" data-name="image 219">
+        <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgImage219} />
+      </div>
+      <div className="absolute h-[842px] left-[553.21px] top-[146.7px] w-[1499px]" data-node-id="4773:10841" data-name="image 220">
+        <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgImage219} />
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+Image assets are stored on a localhost server. Clients can use these images directly in code as a way to view the image assets the same way they would other remote servers. Images and SVGs will be stored as constants, e.g. const image = 'http://localhost:3845/assets/10c13ac1a228a365cb98a0064b1d5afbc84887b2.png' These constants will be used in the code as the source for the image, e.g. <img src={image} /> This is true for both images and SVGs, so you can use the same approach for both types of assets.

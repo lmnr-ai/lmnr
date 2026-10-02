@@ -1,0 +1,22 @@
+{
+  "fileKey": "VEbMxK1qMXzqjAVJaSQMPs",
+  "frameNodeId": "4740:28387",
+  "layerNodeId": "4859:7955",
+  "layerName": "image 233",
+  "figmaAsset": "9ee83f7d792f98a174c25c9bbc9bdcadb9649c8c.png",
+  "localFile": "paper-texture.png",
+  "sha256": "09423b2aa2737ab9af94f331a5dbe5535e02b91bf1db12143e4d8949160b4683",
+  "imagePixels": {"width": 691, "height": 1024},
+  "artboard": {"width": 1280, "height": 720},
+  "unrotatedSize": {"width": 891, "height": 1320},
+  "placement": {"left": 1300, "top": -32},
+  "rotationClockwiseDegrees": 90,
+  "transformOrigin": "0 0",
+  "rotatedBounds": {"x": -20, "y": -32, "width": 1320, "height": 891},
+  "blendMode": "multiply",
+  "opacity": 1,
+  "objectFit": "cover",
+  "objectPosition": "50% 50%",
+  "extraFilters": "none",
+  "evidence": "Figma desktop get_design_context for frame and layer, plus get_metadata for layer. Downloaded the supplied image without modification."
+}

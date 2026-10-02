@@ -1,0 +1,25 @@
+{
+  "baseline": "/tmp/ultimate3-twinkle-i6jOl8",
+  "checked": 2413,
+  "changed": [
+    "poc/src/experiments/micro-09/sparkle.ts",
+    "poc/src/experiments/micro-18/App.tsx",
+    "poc/src/experiments/micro-18/README.md",
+    "poc/src/experiments/micro-18/Scene.tsx",
+    "poc/src/experiments/micro-18/authoring.test.ts",
+    "poc/src/experiments/micro-18/authoring.ts",
+    "poc/src/experiments/micro-18/issues3.test.ts",
+    "poc/src/experiments/micro-18/sample.ts",
+    "poc/src/experiments/micro-18/settings.ts",
+    "poc/src/experiments/micro-18/subtitles.test.ts",
+    "poc/src/experiments/micro-20/README.md",
+    "poc/src/experiments/micro-20/Scene.tsx",
+    "poc/src/experiments/micro-20/WorldGrid.tsx",
+    "poc/src/experiments/micro-20/sample.test.ts",
+    "poc/src/experiments/micro-20/sample.ts",
+    "poc/src/experiments/micro-20/styles.css",
+    "poc/src/experiments/micro-20/timeline.ts",
+    "poc/src/experiments/micro-20/tuned-defaults.test.ts"
+  ],
+  "missing": []
+}

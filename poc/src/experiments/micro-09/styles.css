@@ -1,0 +1,7 @@
+.micro09-app{position:fixed;inset:0 0 256px;display:grid;place-items:center;overflow:hidden;background:#080808}
+.micro09-stage{position:relative;width:min(100%,calc((100vh - 256px)*16/9));aspect-ratio:16/9;overflow:hidden}
+.micro09-composition{position:absolute;inset:0;overflow:hidden;background:#1a1a1a;isolation:isolate}
+.micro09-grid,.micro09-clouds{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:hidden}
+.micro09-grid{z-index:0}
+.micro09-title{position:absolute;z-index:1;inset:0;display:grid;place-items:center;color:#fff;font-family:"Micro09SignalsMono",monospace;font-size:180px;font-weight:400;line-height:normal;white-space:nowrap;pointer-events:none}
+.micro09-clouds{z-index:2;pointer-events:none}

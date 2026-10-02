@@ -1,0 +1,6 @@
+{
+  "whoosh": {
+    "softness": 1,
+    "volume": 1.5
+  }
+}

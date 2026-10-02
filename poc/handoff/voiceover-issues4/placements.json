@@ -1,0 +1,140 @@
+[
+  {
+    "text": "This is the agent you've built.",
+    "a": 12.85,
+    "b": 14.75,
+    "at": 0.69
+  },
+  {
+    "text": "Every time it runs, it leaves a trace.",
+    "a": 15.08,
+    "b": 17.5,
+    "at": 3.44
+  },
+  {
+    "text": "When your agent fails,",
+    "a": 17.89,
+    "b": 18.965,
+    "at": 8.37
+  },
+  {
+    "text": "the trace can tell you why.",
+    "a": 18.965,
+    "b": 20.45,
+    "at": 10.51
+  },
+  {
+    "text": "The insights you need to make your agents efficient, fast, and reliable are hidden across thousands of traces.",
+    "a": 20.77,
+    "b": 27.1,
+    "at": 13.5
+  },
+  {
+    "text": "If only someone could read them all.",
+    "a": 27.24,
+    "b": 29.25,
+    "at": 20.28
+  },
+  {
+    "text": "Cheap LLMs fail to find crucial issues.",
+    "a": 29.4,
+    "b": 32.2,
+    "at": 23.9
+  },
+  {
+    "text": "Powerful LLMs can find deep issues,",
+    "a": 32.3,
+    "b": 34.77,
+    "at": 28.528
+  },
+  {
+    "text": "but the costs are unsustainable.",
+    "a": 34.77,
+    "b": 36.8,
+    "at": 32.348
+  },
+  {
+    "text": "Until now.",
+    "a": 36.96,
+    "b": 38.4,
+    "at": 35.628
+  },
+  {
+    "text": "Introducing Flow-1, our model specialized for trace analysis,",
+    "a": 38.8,
+    "b": 43.15,
+    "at": 37.35
+  },
+  {
+    "text": "surpassing GPT-6 Sol in intelligence,",
+    "a": 43.25,
+    "b": 46.45,
+    "at": 41.75
+  },
+  {
+    "text": "while analyzing 20 times more traces per dollar.",
+    "a": 46.65,
+    "b": 49.8,
+    "at": 44.95
+  },
+  {
+    "text": "Flow-1 powers Signals,",
+    "a": 50.1,
+    "b": 51.95,
+    "at": 48.15
+  },
+  {
+    "text": "our agent built to analyze traces at scale.",
+    "a": 52.1,
+    "b": 54.9,
+    "at": 50.15
+  },
+  {
+    "text": "It finds deep issues and reports them.",
+    "a": 55.35,
+    "b": 57.75,
+    "at": 52.95
+  },
+  {
+    "text": "Not just with labels,",
+    "a": 57.9,
+    "b": 59.36,
+    "at": 55.45
+  },
+  {
+    "text": "but with any structure you define",
+    "a": 59.36,
+    "b": 61.1,
+    "at": 57.6
+  },
+  {
+    "text": "across every trace.",
+    "a": 61.1,
+    "b": 62.8,
+    "at": 60.65
+  },
+  {
+    "text": "It clusters issues into high-level patterns",
+    "a": 62.9,
+    "b": 65.3,
+    "at": 63.35
+  },
+  {
+    "text": "ready for you or your coding agent.",
+    "a": 65.3,
+    "b": 67.75,
+    "at": 65.9
+  },
+  {
+    "text": "Unlock the insights hiding in millions of agent traces",
+    "a": 68.1,
+    "b": 71.3,
+    "at": 69.66
+  },
+  {
+    "text": "with Laminar.",
+    "a": 71.3,
+    "b": 72.7,
+    "at": 73.37
+  }
+]

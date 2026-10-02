@@ -1,0 +1,59 @@
+# Ultimate 3 — Silk sound-design edition
+
+Authoring route: `?experiment=ultimate-3-silk`. Remotion composition: `Ultimate3Silk`. The original renderer is reused through a backward-compatible edition/audio-child seam, not copied. Original scenes, music engine and concurrent legacy offline export remain separate. Full-film listening/taste acceptance remains with the parent.
+
+## Shared API / integration contract
+
+- `buildSilkPlan(settings)` (`plan.ts`): normalizes current `Ultimate3Settings`, compiles exact source motion clocks at 120Hz **plus all authored/resolved boundaries**, and builds the chapter-aware cue plan. Canonical identity includes normalized settings, recipe/music renderer, the actual current Sangers event plan, pinned PCM hashes, 48kHz and 30fps. No default soundtrack is used under edited settings.
+- `verifyPianoAssets(read)` / `loadSilkPianoAssets()` verify prepared PCM hashes before decoding. Node/browser both consume the same `public/ultimate-3-silk/piano/*.f32` bytes. No browser MP3 decoder divergence.
+- `renderSilkPCM(plan, assets)` returns six aligned stereo Float32 stems: agent, material, air, sparkle, typing, music. `renderSilkPCMAsync` yields between voice/event jobs and supports AbortSignal, but a single rotor job is still synchronous. **Use `SilkBuildClient` in the editor**, which runs both plan and PCM compilation in a dedicated Vite worker, terminates stale jobs on retiming/cancel, rejects stale completions, transfers buffers and retains only one settings build. Call `dispose()` on unmount.
+- `mixSilkPCM(stems, mix)` returns an exact deterministic premix. `normalizeSilkMix` bounds finite gains to 0–2; `mixIdentity` is separate from settings identity. `encodeSilkWav` writes canonical 48kHz stereo float WAV bytes and refuses clipped/nonfinite PCM. Gains are not secretly limited or normalized. `headroom.ts` caches bus peaks once per immutable generation; live transport, downmix/download and export share the conservative `master * sum(busGain * busPeak) < 1 - 1e-6` policy. This bound is NOT an exact mixed peak and can reject safe non-overlapping/cancelling mixes. Invalid requests remain persisted, but sources are stopped before unsafe gains or buffers are installed; the UI flags the error and recovers on safe correction.
+- `assertSilkExportIdentity(manifest, plan, mixIdentity(mix))` must run before export Audio mounts. The settings/mix-specific CLI manifest includes PCM/WAV hashes, frame/semantic endpoints, cue summary and exact optional music plan.
+- New keys `SILK_SETTINGS_STORAGE_ID`, `SILK_MIX_STORAGE_ID` and `SILK_PANEL_IDS` isolate JSON, Main/detail timelines and all appearance panels. No original migrations/mix are loaded by this edition. Default master=1, music=0; material/air/typing trims=-3/-7/-10dB. Default label: **SFX-only (music off)**.
+
+Editor integration must stop/disconnect old playback **immediately** when settings change, call build in the worker, and start the returned current identity at the **latest** playhead only if still playing. Use generation tokens at transport level too: caching/build cancellation alone does not protect a delayed AudioContext unlock. Stop/recreate buffer sources for pause/seek, preserving offset tails without replaying earlier cues; close context, terminate worker and revoke download URLs on disposal. No legacy audio hook tree may mount. Playback updates compare against the original wall-clock/source anchor: >75ms errors resync immediately; three same-direction >25ms errors resync a small seek without absorbing it into each tick. Tested ±18ms jitter does not churn sources, and the real dock's playing+40ms seek replaces sources once. `AudioPanel.tsx` and `transport.ts` implement this wiring. Gains update GainNodes, not full mixes or buffers. AudioBuffers are copied only once per settings build, lazily on playback; one prepared download URL is revoked on settings/mix edits or unmount. `mergeSilkAuthoring` applies changed fields from same-commit detail publications without overwriting concurrent sibling edits. The optional merger is enabled only for Silk; original App defaults remain unchanged.
+
+## Source semantics and economy
+
+U2 carries actual unwrapped loader turns independently of translation, real camera pan, opacity/scale/cloud masking; Cost uses authored cheap-agent angular windows, resolved Bash movement-window union (including gaps), and the original Gauss-Legendre budget clock. Flow engine and cover loops continue beyond their bars until native trim; cover duration is a period, including zero's source denominator 1e-6. Engine pan uses actual CSS spinner position; engine gain fades under closing cover and cover-half visibility is camera-relative. Occlusion uses a gentle coverage approximation, not pixel-perfect raster masking. No native frozen hold sustains a rotor. Noise is confined to brief physical cues.
+
+The harmonic recipe retains D2 partials, shallow 10/revolution pressure, color/phase motion, 95Hz highpass/1450Hz lowpass and intimate reflections. Actual angular phase is **never** replaced by a nominal 1.9rps loop. Very fast phase reduces modulation depth rather than adding aliased harshness. Translation-derived carrier deviation is bounded and phase-integrated to avoid impulses at instantaneous authored position steps. Fixed -5.14dB Refined audition calibration; no film/cue loudness normalization. Stops use short in-window source/mask ramps; reflected tails cannot leak into stationary intervals.
+
+Default plan has **four** principal flourishes (launch, insight, Flow, Issues), no answering glints or logo notes. Four short grouped piano gestures replace dense legacy dots/rows/numbers. Issues assembly seat uses actual per-cluster readiness; writing intervals are merged, send-gated and visibility-clipped, with 130ms spacing (<=8 per sliding second), tails within burst bounds. Placeholder is SFX-silent. Logo receives only a restrained warm landing. All tails end inside the semantic film; frame padding is zero.
+
+## Optional music: approved differences
+
+`ultimate3SangersMusicPlan` remains the sole score/event source. `music-pcm.ts` ports the original oscillator piano, pad, string and bell frequencies, envelopes, pans and chapter multipliers, including the optional context's fixed .18 level. Independent music gain defaults **zero**; music=1 means that conservative .18 context, not legacy master6.98. No replacement score, sampled-piano substitution or compressor imitation. This edition is explicitly **uncompressed**, and triangle/filter-phase output differs from WebAudio. The final music stem uses canonical 24-bit sample steps in its float32 container: testing found a one-sample, one-float-ULP (~4.66e-10) Node/Chrome math difference before this precision boundary; both default and retimed all-stem/WAV hashes now match exactly in installed Chrome and Node. Both new editor and export MUST use this same PCM interpretation, not mount the old engine. Parent approved the architecture, not listening acceptance. Original finale overhang is bounded by an 80ms short-film-safe fade at the actual normalized semantic endpoint (not the rounded container end).
+
+## Resource limit
+
+Before control-lattice or PCM allocation: <=120 semantic seconds AND <=384MiB estimated aggregate package PCM. Estimate uses actual sample rate/frame rounding and **26 mono Float32 channel buffers**: 12 stems +4 returned mixes +8 rotor/filter/reflection scratch +2 float WAV channels, plus 44-byte header. Default 2,593,600 samples estimates **269,734,444 bytes (~257.24MiB)**; retained stems alone ~118.73MiB. At 48kHz the byte ceiling is reached before the time limit (~80.6s). Invalid/unsafe/nonfinite frame/sample calculations fail. Settings are never clamped or overwritten; longer films require a future streaming renderer. This excludes browser AudioBuffer copies/UI memory: release old stems/sources and avoid unbounded retained downloads. Synchronous full default render is ~3.3s on this machine; never call it on the editor main thread.
+
+## Reproduction (from `poc`)
+
+```sh
+# Optional re-prepare only when intentionally regenerating authoritative PCM;
+# the checked-in prepared hashes define identity for both runtimes.
+node scripts/prepare-ultimate3-silk-assets.mjs
+pnpm exec tsx scripts/render-ultimate3-silk.ts
+pnpm exec tsx scripts/render-ultimate3-silk.ts --settings path/settings.json --mix path/mix.json --out path/settings-specific-output
+pnpm exec tsx --test src/experiments/ultimate-3-silk/*.test.ts
+pnpm typecheck
+bash scripts/test-ultimate3-silk-browser.sh
+# Also accepts a settings-specific CLI output directory (including outside public/).
+bash scripts/test-ultimate3-silk-browser.sh path/settings-specific-output
+bash scripts/test-ultimate3-silk-ui.sh
+# After producing the two approved video artifacts:
+node scripts/verify-ultimate3-silk-video.mjs
+node --test scripts/test-ultimate3-silk-video.mjs
+```
+
+Default output `public/ultimate-3-silk/default/`: raw unity-bus stems, trimmed `sfx-only.wav`, `music-enabled-reference.wav` (music=1), `settings.json`, `mix.json`, `cue-manifest.json`, `manifest.json`. Default `currentMix` points to `sfx-only.wav`; nonzero CLI music also writes `current-mix.wav`. Stems are pre-mix, **not independently normalized**. ffmpeg `loudnorm` in the CLI is measurement only; `input_*` fields describe the saved files. No gain from its suggested output is applied. Manifests record the current original `ultimate3-music.ts` source SHA-256; the CLI rejects a concurrent source change during its render. Keep `public/ultimate-3-silk/CREDITS.md` with exported sample-containing mixes/films.
+
+## Current-settings export and checked integration
+
+See [`public/ultimate-3-silk/EXPORT.md`](../../../public/ultimate-3-silk/EXPORT.md) for exact project-JSON → CLI → Remotion steps. Edited CLI builds require an explicit output directory; public builds also write `remotion-props.json`. `validateSilkExport` checks normalized settings/recipe/score/mix identity, WAV SHA-256, format and duration before audio mounts. Missing/stale/default audio fails under retiming. No synthesis runs in Remotion render workers.
+
+Installed-Chrome muted UI checks cover real playback/seek/pause, stale worker completion using the latest playhead, gain-only updates, exact enabled-music download hash, link invalidation, simultaneous authoring edits and panel-switch persistence. No legacy oscillator/context is mounted before enable, and only one new context is used. The parent-approved narrow lazy import of the Micro15 entry prevents its module-scope migration on Silk startup; seeded legacy data stays unchanged, while visiting the original route still performs its existing migration and renders its existing styles.
+
+Approved outputs: `out/ultimate3-silk/default-sfx-only.mp4` (1621 video frames) and `retimed-music-enabled-excerpt.mp4` (frames900–1199,10s from global30s). **The previous claim of harmless42.667ms priming was incorrect:** the direct Remotion mux had real residual presentation delay. The supported `scripts/mux-ultimate3-silk.ts` final step now copies picture unchanged and encodes the validated canonical WAV at the correct global offset. Negative first AAC PTS/explicit1024 skip samples compensate encoder priming. Ordinary presentation decode measures lag0; acceptance does not manually shift samples and permits at most1sample of residual decoder rounding. AAC is still lossy, not PCM byte identity. Verification includes packet metadata, zero-lag correlation/error, exact duration/frame checks, unchanged picture-packet hashes and a delayed-audio negative fixture. Receipts/validation JSON record exact input and movie hashes. New UI checks use a unique browser session and verify installed Chrome's executable/version/profile via `chrome://version`; previous reused-daemon provenance was insufficient. Independent recheck and actual listening acceptance remain pending.
