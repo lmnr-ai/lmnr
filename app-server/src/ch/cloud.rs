@@ -43,7 +43,7 @@ impl ClickhouseTrait for CloudClickhouse {
         let mut insert = T::configure_insert(insert);
         if let Some(token) = T::dedup_token(items) {
             insert = insert
-                .with_setting("async_insert_deduplicate", "1")
+                .with_setting("deduplicate_insert", "enable")
                 .with_setting("insert_deduplication_token", token);
         }
         // Bound the server-side response wait so a silent endpoint errors out
