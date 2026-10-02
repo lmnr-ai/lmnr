@@ -26,13 +26,15 @@ const [THUMP_AB, THUMP_BB, THUMP_DB] = [44, 46, 49];
 /** The end of the last spoken word; the logo resolves after it. */
 export const wordEndOf = (cues: ScoreCues) => Math.max(cues.conclusion.logo + 1, ...cues.voice.map(phrase => phrase.at + phrase.duration));
 
-export function composeCursorV4(mix: Mix, cues: ScoreCues) {
+/** With `urlCard` (v5) the logo keys ring on through the laminar.sh card while the bed and bass step back. */
+export function composeCursorV4(mix: Mix, cues: ScoreCues, {urlCard = false} = {}) {
   const u2 = cues.ultimate2, cost = cues.cost, flow = cues.flow, issues = cues.issues, prelude = issues.prelude, end = cues.conclusion;
   const reveal = flow.reveal, toAnalysis = flow.cameraToAnalysis.at + flow.cameraToAnalysis.duration * .5;
   const engine = flow.cameraToEngine.at + flow.cameraToEngine.duration * .6;
   const native = issues.native, logo = end.logo, half = end.start + (logo - end.start) * .5;
   const silence = cost.depletion.at + cost.depletion.duration - .2, afterCollapse = u2.collapse.at + u2.collapse.duration;
   const wordEnd = wordEndOf(cues), drops = [...flow.numberDrops].sort((a, b) => a - b);
+  const url = urlCard ? end.url : undefined;
 
   // ── The undercurrent. No sustained low end before the reveal, and cutoffs that open only in the conclusion.
   const keys: BedKey[] = [
@@ -58,6 +60,7 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues) {
     // After "with Laminar", every G steps up to A♭: the home chord, then a slow darkening ring.
     {at: wordEnd, notes: [51, 56, 60, 63, 68, 72, 75, 80], fade: 1.8, glide: 1.2, cutoff: 1900, level: .8},
     {at: logo + 3, glide: 4, cutoff: 1000},
+    ...(url === undefined ? [] : [{at: url, glide: 3, cutoff: 700, level: .5}]),
   ];
   bed(mix, keys, PAD, CHORUS);
   bassLine(mix, [
@@ -73,6 +76,7 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues) {
     {at: half, midi: Eb2, fade: .6, level: .95},
     {at: logo, midi: Ab2, fade: .3, level: .6},
     {at: wordEnd, midi: Ab2, fade: 1.5, level: .75},
+    ...(url === undefined ? [] : [{at: url, midi: Ab2, fade: 3, level: .4}]),
   ], BASS);
   shelveLows(mix, [u2.failure, u2.collapse.at + u2.collapse.duration * .8, cost.bashStop, reveal, flow.coverShut, prelude.bashStop, native, logo]);
 
@@ -115,10 +119,11 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues) {
   swellKey(mix, end.start + .1, 77, .7, {...KEYS, pan: .1}, .4, 2.6, 1.2);
   swellKey(mix, half, 79, .75, {...KEYS, pan: -.1}, .4, 2.4, 1.2);
   // The logo rings for ~5 s instead of ~1.5: A♭4, E♭5 and A♭5, then C5 once the last word ends.
-  swellKey(mix, logo, Ab4, 1, {...KEYS, pan: -.15}, .3, 5.5, 2.2);
-  swellKey(mix, logo + .04, Eb5, .92, {...KEYS, pan: .15}, .3, 5.5, 2.2);
-  swellKey(mix, logo + .08, 80, .6, {...KEYS, pan: 0}, .5, 5.5, 2.2);
-  swellKey(mix, wordEnd + .05, C5, .6, {...KEYS, pan: .05}, .5, 5.5, 2.5);
+  const ring = url === undefined ? 5.5 : cues.duration - logo;
+  swellKey(mix, logo, Ab4, 1, {...KEYS, pan: -.15}, .3, ring, 2.2);
+  swellKey(mix, logo + .04, Eb5, .92, {...KEYS, pan: .15}, .3, ring, 2.2);
+  swellKey(mix, logo + .08, 80, .6, {...KEYS, pan: 0}, .5, ring, 2.2);
+  swellKey(mix, wordEnd + .05, C5, .6, {...KEYS, pan: .05}, .5, url === undefined ? 5.5 : cues.duration - wordEnd - .05, 2.5);
 
   // ── Act 1. Pops for the agent; its runs are a soft pop pulse on chord tones that stops dead at the failure.
   pop(mix, u2.agentEnter + .02, Ab4, .7, {...HIT, pan: -.1});
@@ -185,4 +190,16 @@ export function composeCursorV4(mix: Mix, cues: ScoreCues) {
   // ── Logo. The high cluster swells in reverse into the bloom; one soft thump, no stab under "with Laminar".
   tapePad(mix, logo - 1.6, logo, [70, 75, 79, 82], {...PAD, hall: .35}, {attack: 1.6, release: .05, cutoff: [500, 2000], level: .35, curve: 2.4, breath: 0});
   thump(mix, logo, THUMP_AB, .6, LATE_THUMP, {click: .5});
+}
+
+/**
+ * v5's afterword on the laminar.sh cut: an A♭ add9 re-strike under the logo's velocities and a faint A♭5 tick.
+ * It runs after design, so every random draw of v4's compose and design is unchanged.
+ */
+export function urlCardCursorV5(mix: Mix, cues: ScoreCues) {
+  const url = cues.conclusion.url;
+  if (url === undefined) return;
+  swellKey(mix, url, 75, .5, {...KEYS, pan: .12}, .25, cues.duration - url, 2.6);
+  swellKey(mix, url + .06, 82, .32, {...KEYS, pan: -.12}, .4, cues.duration - url - .06, 2.6);
+  pop(mix, url, 80, .2, {...HIT, pan: 0});
 }

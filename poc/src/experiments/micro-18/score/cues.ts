@@ -184,6 +184,7 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
     conclusion: {
       start: chapter.conclusion.start,
       logo: round(chapter.conclusion.start + settings.conclusion.logo.at),
+      url: settings.conclusion.url && round(chapter.conclusion.start + settings.conclusion.url.at),
       end: chapter.conclusion.end,
     },
   };

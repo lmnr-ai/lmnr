@@ -5,7 +5,7 @@ import {COST_ZIP_KEY, settingsFromCostZipTimeline} from './cost-zip-authoring';
 import {BRISK_CADENCE_PHRASES, normalizeVoiceoverSettings, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 
-export const CURRENT_SOUNDTRACK = 'cursor-v4' as const;
+export const CURRENT_SOUNDTRACK = 'cursor-v5' as const;
 export const CURRENT_MIX_ID = 'ultimate3-voiceover-sound-v4';
 export const CURRENT_CUT_BACKUP = 'ultimate3-before-current-cut-v1';
 const MIX_MIGRATION = 'ultimate3-current-mix-v1';
@@ -52,7 +52,11 @@ const COMPARISON_DELAY = .3, RETURN_DELAY = .25;
 const v11Comparison = V11_CURRENT_DEFAULTS.flow.comparison || undefined;
 const delayed = (clip: ClipTiming, delay: number, shrink = 0): ClipTiming => ({...clip, at: clip.at + delay, duration: clip.duration - shrink,
   ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration: clip.duration - shrink}} : {})});
-export const CURRENT_VOICEOVER_DEFAULTS = normalizeSettings({...V11_CURRENT_DEFAULTS, voiceoverTakeVersion: 2,
+// The logo holds 3 s past "With Laminar", then cuts to the laminar.sh card, which holds 4.53 s to a 75.5 s end.
+const withUrlCard = (settings: Ultimate3Settings): Ultimate3Settings => normalizeSettings({...settings,
+  allocations: {...settings.allocations, conclusion: 12.57},
+  conclusion: {...settings.conclusion, logo: {...settings.conclusion.logo, duration: 3.99}, url: {at: 8.04, duration: 4.53}}});
+export const CURRENT_VOICEOVER_DEFAULTS = withUrlCard({...V11_CURRENT_DEFAULTS, voiceoverTakeVersion: 2,
   voiceover: VOICEOVER_DEFAULTS.voiceover,
   flow: {...V11_CURRENT_DEFAULTS.flow, ...(v11Comparison ? {comparison: {...v11Comparison, timing: Object.fromEntries(Object.entries(v11Comparison.timing).map(([key, clip]) =>
     [key, key === 'comparison_returnToGrid' ? delayed(clip, RETURN_DELAY, RETURN_DELAY) : delayed(clip, COMPARISON_DELAY)])) as typeof v11Comparison.timing}} : {})},
@@ -113,8 +117,15 @@ function recoverCostTiming(settings: Ultimate3Settings, storage: Pick<Storage, '
   }});
 }
 
+/** Storage only: a stored cut still on the generated pre-url ending gains the url card; edited endings stay literal. */
+export function migrateUrlCard(settings: Ultimate3Settings): Ultimate3Settings {
+  const generated = !settings.conclusion.url && same(settings.conclusion, V11_CURRENT_DEFAULTS.conclusion)
+    && close(settings.allocations.conclusion, V11_CURRENT_DEFAULTS.allocations.conclusion);
+  return generated ? withUrlCard(settings) : settings;
+}
+
 export function readCurrentVoiceoverSettings(storage: Pick<Storage, 'getItem'>) {
-  return migrateVoiceoverTake(recoverCostTiming(readCurrentSettingsBeforeRecovery(storage), storage));
+  return migrateUrlCard(migrateVoiceoverTake(recoverCostTiming(readCurrentSettingsBeforeRecovery(storage), storage)));
 }
 
 /** Only the active edition opts into this profile. Historical defaults stay frozen. */

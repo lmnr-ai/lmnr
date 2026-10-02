@@ -16,7 +16,7 @@ import {CHAPTER_IDS, CONCLUSION_STORAGE_MIGRATION_ID, FLOW_COVER_STORAGE_MIGRATI
 import {Ultimate3Scene} from './Scene';
 import {observeUltimate3TransportJump} from './transport-seeks';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
-import {COST_CLOUD_KEY, costCloudTimelineConfig, costCloudTimelineValues, settingsFromCostCloudTimeline, ULTIMATE2_CLOUD_KEY, ultimate2CloudTimelineConfig, ultimate2CloudTimelineValues, settingsFromUltimate2CloudTimeline, voiceoverTimelineConfig, voiceoverTimelineValues, voiceoverTimelineSignature, settingsFromVoiceoverTimeline, CONCLUSION_TIMELINE_KEYS, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, flowTimelineConfig, flowTimelineSettings, settingsFromFlowTimeline, liveFlowPreview, issuesTimelineKeys, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
+import {COST_CLOUD_KEY, costCloudTimelineConfig, costCloudTimelineValues, settingsFromCostCloudTimeline, ULTIMATE2_CLOUD_KEY, ultimate2CloudTimelineConfig, ultimate2CloudTimelineValues, settingsFromUltimate2CloudTimeline, voiceoverTimelineConfig, voiceoverTimelineValues, voiceoverTimelineSignature, settingsFromVoiceoverTimeline, conclusionTimelineKeys, conclusionTimelineConfig, conclusionTimelineValues, settingsFromConclusionTimeline, costTimelineConfig, flowTimelineConfig, flowTimelineSettings, settingsFromFlowTimeline, liveFlowPreview, issuesTimelineKeys, ISSUES_TIMELINE_KEYS, issuesTimelineConfig, issuesTimelineValues, settingsFromIssuesTimeline, timelinePreviewSignature, ultimate2TimelineConfig} from './authoring';
 import {authoredStageSize} from './layout';
 import {COST_ZIP_KEY, costZipTimelineConfig, costZipTimelineValues, settingsFromCostZipTimeline} from './cost-zip-authoring';
 import {useStreamRunAudio} from '../micro-17/use-stream-run-audio';
@@ -320,8 +320,8 @@ function DetailConclusion({settings,globalTime,onTime,onPlaying,onSettings,onSee
   const timeline=useDialTimeline('Ultimate 3 — Conclusion (native seconds)',config as any,{id:IDS.conclusion,autoplay:false,loop:false,persist:true});
   useTransportHandoff(timeline,start,settings.allocations.conclusion,globalTime,onTime,onPlaying,IDS.conclusion,onSeek);
   const ready=useDialSync({[IDS.conclusion]:conclusionTimelineValues(settings)});
-  const signature=timelinePreviewSignature(timeline,CONCLUSION_TIMELINE_KEYS);
-  useEffect(()=>{if(!ready)return;const next=settingsFromConclusionTimeline(timeline,settings);if(Math.abs(timeline.logo.at-next.conclusion.logo.at)>.0001)DialStore.updateValues(IDS.conclusion,{'logo.at':next.conclusion.logo.at});if(!same(next,settings))onSettings(next);},[signature,ready]);
+  const signature=timelinePreviewSignature(timeline,conclusionTimelineKeys(settings));
+  useEffect(()=>{if(!ready)return;const next=settingsFromConclusionTimeline(timeline,settings);if(Math.abs(timeline.logo.at-next.conclusion.logo.at)>.0001)DialStore.updateValues(IDS.conclusion,{'logo.at':next.conclusion.logo.at});const url=next.conclusion.url;if(url&&timeline.url&&Math.abs(timeline.url.at-url.at)>.0001)DialStore.updateValues(IDS.conclusion,{'url.at':url.at});if(!same(next,settings))onSettings(next);},[signature,ready]);
   return null;
 }
 

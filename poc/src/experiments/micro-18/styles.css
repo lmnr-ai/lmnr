@@ -34,6 +34,7 @@
 .micro18-shared-scene>.flow1-subtitle-layer{position:absolute;inset:0;z-index:11;pointer-events:none}
 .micro18-card{display:grid;place-items:center;background:#1a1a1a;color:#fff;font:32px/1.3 monospace}
 .micro18-logo{display:block;width:252.92657470703125px;height:43.907466888427734px}
+.micro18-url{font:400 40px/normal FlowMono,'JetBrains Mono',monospace;color:#fff}
 .micro18-conclusion-subtitle-layer{position:absolute;inset:0;z-index:11;pointer-events:none}
 .micro18-conclusion-subtitle{position:absolute;left:50%;bottom:32px;box-sizing:border-box;max-width:calc(100% - 64px);transform:translateX(-50%);padding:8px 16px;background:#000;color:#fff;font:400 24px/normal FlowMono,monospace;text-align:center;white-space:normal;transition:none}
 /* Authoring controls occupy their own grid row; the measured stage host is

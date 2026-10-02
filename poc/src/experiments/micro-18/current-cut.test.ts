@@ -7,17 +7,17 @@ import {ultimate3DurationFrames} from './sample';
 
 const saved = (value: unknown) => ({getItem: (key: string) => key === VOICEOVER_SETTINGS_ID ? JSON.stringify(value) : null});
 
-test('the actual current-cut loader supplies 3px spinners and the linger ending to a fresh browser', () => {
+test('the actual current-cut loader supplies 3px spinners and the laminar.sh ending to a fresh browser', () => {
   const settings = readCurrentVoiceoverSettings({getItem: () => null});
   assert.equal(settings.cost.controls.cheapSpinnerStrokeWidth, 3);
   assert.equal(settings.paperTexture, false);
-  assert.equal(ultimate3DurationFrames(settings), 2212);
+  assert.equal(ultimate3DurationFrames(settings), 2265);
 });
 
 test('an existing browser upgrades the obsolete generated spinner without needing a JSON import', () => {
   const settings = readCurrentVoiceoverSettings(saved(VOICEOVER_DEFAULTS));
   assert.equal(settings.cost.controls.cheapSpinnerStrokeWidth, 3);
-  assert.equal(ultimate3DurationFrames(settings), 2212);
+  assert.equal(ultimate3DurationFrames(settings), 2265);
   assert.deepEqual(settings.voiceover, VOICEOVER_DEFAULTS.voiceover);
 });
 

@@ -37,7 +37,8 @@ const phraseRoot = join(root, 'public', VOICEOVER_SOURCE_ROOT);
 const phraseManifestBytes = readFileSync(join(phraseRoot, 'manifest.json'));
 const phraseManifest = JSON.parse(phraseManifestBytes.toString());
 const length = ultimate3DurationFrames(settings) * 1600;
-if (phraseManifest.samples !== length) throw new Error('The phrases were placed on a different cut length');
+// A cut may extend past the phrases' (the laminar.sh card follows the last word), never end before them.
+if (length < phraseManifest.samples) throw new Error('The phrases were placed on a longer cut');
 const sources = Object.fromEntries(VOICEOVER_PHRASES.map(phrase => {
   const record = phraseManifest.phrases.find((entry: {id: string}) => entry.id === phrase.id);
   const bytes = readFileSync(join(phraseRoot, record.file));

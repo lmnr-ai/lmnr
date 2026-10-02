@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "scoreStyle": "cursor-paper-v5",
+  "seed": 107290,
+  "sampleRate": 48000,
+  "frames": 2265,
+  "samples": 3624000,
+  "bed": {
+    "file": "bed.wav",
+    "sha256": "8267c1534c4b9ef5929c90e47902aa22b8eaceede35a0d462694348c1ed86505"
+  },
+  "bedDb": -9.2,
+  "truePeakSafety": true,
+  "settingsSha256": "1944fe5cdbe68f05809efff9390149122042fd6302fd559d0067d16c3c770c0a",
+  "phraseRoot": "/audio/voiceover/editable-v12/",
+  "phraseManifestSha256": "2e98fc020dda872e33c6ea7f9f2662501b56efb0f77e809d68c09d3308b9cbaf",
+  "levels": {
+    "scoreLufs": -13.995694634550302,
+    "bedLufs": -23.355440223351046,
+    "voiceLufs": -15.930909729303048,
+    "ceilingDb": -1.25,
+    "bedSafetyDb": -12.71528000039658,
+    "bedSafetySecondsOver1Db": 4.518375,
+    "mixLufs": -16.4396453538053,
+    "mixTruePeakDb": -1.250000299707098
+  },
+  "note": "Voice-free bed (score, foley and typing) at -9.2 dB, ducked against the placed /audio/voiceover/editable-v12/ phrases at these settings; rebuild it for a new cut."
+}

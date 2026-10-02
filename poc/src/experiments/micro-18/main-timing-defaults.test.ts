@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import requested from './main-timing-request.fixture.json';
-import {COST_LEAD_IN_DEFAULTS, CURRENT_VOICEOVER_DEFAULTS, V11_CURRENT_DEFAULTS, VOICEOVER_TAKE_BACKUP, loadCurrentVoiceoverSettings, migrateVoiceoverTake, normalizeCurrentVoiceoverSettings} from './current-cut';
+import {COST_LEAD_IN_DEFAULTS, CURRENT_VOICEOVER_DEFAULTS, V11_CURRENT_DEFAULTS, VOICEOVER_TAKE_BACKUP, loadCurrentVoiceoverSettings, migrateUrlCard, migrateVoiceoverTake, normalizeCurrentVoiceoverSettings} from './current-cut';
 import {costCloudTimelineConfig, ultimate2CloudTimelineConfig, voiceoverTimelineConfig} from './authoring';
 import {COST_ZIP_LEGS, costZipTimelineConfig} from './cost-zip-authoring';
 import {chapterSchedule} from './sample';
@@ -10,8 +10,9 @@ import {VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 import type {ClipTiming} from './settings';
 const near = (a: number, b: number, label: string) => assert.ok(Math.abs(a - b) < 1e-9, `${label}: ${a} != ${b}`);
-// The request predates the October 2 take; its narration bars are now that take's slots.
+// The request predates the October 2 take and the laminar.sh card; its narration bars are now that take's slots.
 const expected: Record<string, {at: number; duration: number; ease?: number[]}> = {...requested,
+  conclusion: {...requested.conclusion, duration: 12.57},
   ...Object.fromEntries(VOICEOVER_PHRASES.map(phrase => [`narration.${phrase.id}`, phrase.placed]))};
 const store = (value?: unknown) => {
   const data = new Map(value ? [[VOICEOVER_SETTINGS_ID, JSON.stringify(value)]] : []);
@@ -40,7 +41,7 @@ test('fresh Main defaults match all 31 supplied clips, easing durations and 0→
     assert.deepEqual(clip.from, {progress: 0}, key);
     assert.deepEqual(clip.to, {progress: 1}, key);
   }
-  assert.equal(Math.ceil(chapters.at(-1)!.end * 30), 2212);
+  assert.equal(Math.ceil(chapters.at(-1)!.end * 30), 2265);
 });
 
 test('only cloud exit and the three zip legs change; speech and other animations are untouched', () => {
@@ -50,10 +51,13 @@ test('only cloud exit and the three zip legs change; speech and other animations
 });
 
 test('the October 2 take moves only its phrase slots and the comparison clips; the grid return keeps its endpoint', () => {
-  const {voiceoverTakeVersion, voiceover, flow: {comparison, ...flow}, ...rest} = CURRENT_VOICEOVER_DEFAULTS;
-  const {voiceover: before, flow: {comparison: previous, ...previousFlow}, ...previousRest} = V11_CURRENT_DEFAULTS;
+  const {voiceoverTakeVersion, voiceover, flow: {comparison, ...flow}, conclusion, allocations, ...rest} = CURRENT_VOICEOVER_DEFAULTS;
+  const {voiceover: before, flow: {comparison: previous, ...previousFlow}, conclusion: previousConclusion, allocations: previousAllocations, ...previousRest} = V11_CURRENT_DEFAULTS;
   assert.equal(voiceoverTakeVersion, 2);
   assert.deepEqual({...rest, flow}, {...previousRest, flow: previousFlow});
+  // The ending only gains the url card: the logo holds 3.99 s, then laminar.sh holds 4.53 s.
+  assert.deepEqual({...allocations, conclusion: 0}, {...previousAllocations, conclusion: 0});
+  assert.deepEqual(conclusion, {...previousConclusion, logo: {...previousConclusion.logo, duration: 3.99}, url: {at: 8.04, duration: 4.53, transition: undefined}});
   assert.deepEqual(voiceover!.phrases, Object.fromEntries(VOICEOVER_PHRASES.map(phrase => [phrase.id, phrase.placed])));
   assert.notDeepEqual(voiceover, before);
   if (!comparison || !previous) throw Error('comparison');
@@ -92,7 +96,7 @@ test('stored editable-v11 slots and comparison clips move once; edits and import
 });
 
 test('new defaults do not overwrite existing saved timings or literal imports', () => {
-  assert.deepEqual(loadCurrentVoiceoverSettings(store(COST_LEAD_IN_DEFAULTS)), migrateVoiceoverTake(COST_LEAD_IN_DEFAULTS));
+  assert.deepEqual(loadCurrentVoiceoverSettings(store(COST_LEAD_IN_DEFAULTS)), migrateUrlCard(migrateVoiceoverTake(COST_LEAD_IN_DEFAULTS)));
   const custom = structuredClone(CURRENT_VOICEOVER_DEFAULTS);
   custom.cost.timing.cloudSweep.at = .77;
   custom.cost.timing.cheapLegOneRight.at = 1.23;

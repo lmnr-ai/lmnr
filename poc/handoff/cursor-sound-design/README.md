@@ -50,10 +50,46 @@ print credentials. If upload access is unavailable, report the blocker and
 provide the local render instead of claiming an upload. Open a PR with the
 implementation and briefly explain the sound-design choices.
 
-## Result v4b: `cursor-paper-v4`, the live bed — builds to the logo
+## Result v5: `cursor-paper-v5`, the live bed — a `laminar.sh` card after the logo
+
+- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5-voiceover.mp4
+- Built from v4b. Picture and narration are unchanged up to the logo. A centred `laminar.sh` card (JetBrains Mono, 40 px, on the conclusion's #1a1a1a) follows it as a new optional `conclusion.url` stage.
+- The bed is `editable-v12-cursor-v5`, selected as `cursor-v5`, which is now the current soundtrack. Settings: `v5/settings.json`, and `v5/export-settings.json` with `"subtitles": false`.
+
+### Timing (from the expert)
+
+- "With Laminar" ends at 67.97 s. The logo holds 3 s past the word, so the card cuts in at **70.97 s** (conclusion local 8.04). The logo gets 3.99 s.
+- The card holds 4.53 s, enough to read it and let the chord decay. The film ends at **75.5 s / 2265 frames**, 1.77 s longer than v4b's 73.73 s. The conclusion allocation is 12.57 s.
+- Stored editor settings that still hold the generated v4 ending migrate once (`migrateUrlCard`). Authored endings are left alone.
+
+### What changed in the music
+
+1. The A♭4, E♭5 and A♭5 logo keys ring to the end of the film instead of 5.5 s. The C5 top note lasts until the end, too.
+2. **On the cut**, a soft A♭5 pop plays at velocity .2. E♭5 (.5) and B♭5 (.32) re-strike 60 ms later with a 2.6 s decay. That puts a fifth over the held tonic, so the chord lifts without resolving again.
+3. The bed glides to a 700 Hz cutoff at level .5 over 3 s, and the bass settles onto A♭2 at .4.
+4. **Arc:** v4's fall after the peak is replaced. It holds +1.5 dB from 0.3 s before the card until 1 s into it, then falls to −6 dB 0.6 s before the end and −20 dB at the end. The tail decays naturally (−51.6 dBFS over the last 50 ms) before the 0.35 s master fade.
+5. The body is the same as v4b up to the logo. The residual is ≤ −40 dB, apart from a −0.2 dB normalization shift, because the louder tail raises the integrated level.
+
+### Measurements
+
+| | v4b | v5 |
+|---|---|---|
+| Duration | 73.73 s | 75.50 s |
+| Bed momentary at 71 / 73 / 75 s | −22.2 / −30.8 / — | −19.0 / −22.6 / −30.2 |
+| Voice over bed per line | min 5.0, median 8.2 | min 5.2, median 8.4 |
+| Final MP4 | −16.4 LUFS, −1.2 dBTP | −16.5 LUFS, −1.2 dBTP |
+
+Reproduce:
+
+```sh
+npx tsx scripts/build-ultimate3-cursor-bed.ts --style cursor-paper-v5 --true-peak --out public/audio/voiceover/editable-v12-cursor-v5
+npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/v5/export-settings.json --out /tmp/v5.wav --bed cursor-v5
+```
+
+## Result v4b: `cursor-paper-v4` — builds to the logo
 
 - **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v4b-voiceover.mp4
-- Same picture, narration and settings as v4a. The bed is `editable-v12-cursor-v4`, selected as `cursor-v4`, which is now the current soundtrack.
+- Same picture, narration and settings as v4a. The bed is `editable-v12-cursor-v4`, selected as `cursor-v4`. It was the current soundtrack until v5.
 
 ### Feedback and the expert's diagnosis
 

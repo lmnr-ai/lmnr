@@ -105,6 +105,13 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
+### `cursor-paper-v5` — v4 with a `laminar.sh` ending (LAM-2317)
+
+This is v4 on a cut extended to 75.5 s, where `conclusion.url` adds a `laminar.sh` card 3 s after "With Laminar".
+- `composeCursorV4(…, {urlCard: true})` lets the logo keys ring to the end of the film. It also moves the bed and bass handoff onto the card.
+- `urlCardCursorV5` re-strikes E♭5 and B♭5, with a soft A♭5 pop on the cut. It runs after the design pass, because `swellKey` draws from `mix.random()`; running it earlier would shift every draw that follows. That keeps the body identical to v4.
+- The arc holds +1.5 dB through the card and then fades to −20 dB at the end.
+
 ### `cursor-paper-v4` — v3, staged to build like the reference (LAM-2317, October 2 cut)
 
 `cursor/composition-v4.ts` reuses v3's instruments, `repeats` and `shelveLows`, and `arcCursorV4` replaces the arc:

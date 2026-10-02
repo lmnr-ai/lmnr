@@ -14,7 +14,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const value = (flag: string) => {const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1];};
 const settingsFile = value('--settings'), out = value('--out');
-if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav> [--bed arabesque|glide|glide-minimal|glide-minimal-lift|glide-minimal-linger|glide-arc|cursor-v3|cursor-v4]');
+if (!settingsFile || !out || !out.endsWith('.wav')) throw new Error('Use --settings <settings.json> --out <new.wav> [--bed arabesque|glide|glide-minimal|glide-minimal-lift|glide-minimal-linger|glide-arc|cursor-v3|cursor-v4|cursor-v5]');
 const bedId = (value('--bed') ?? 'arabesque') as VoiceoverBedId;
 if (!Object.hasOwn(VOICEOVER_BEDS, bedId)) throw new Error(`Unknown bed "${bedId}". Available: ${Object.keys(VOICEOVER_BEDS).join(', ')}`);
 const output = resolve(out), manifestPath = output.replace(/\.wav$/, '.json');

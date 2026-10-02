@@ -231,18 +231,21 @@ export function settingsFromCloudTimeline(timeline: any, settings: Ultimate3Sett
 }
 
 export const CONCLUSION_TIMELINE_KEYS = ['placeholder', 'logo'] as const;
+type ConclusionKey = typeof CONCLUSION_TIMELINE_KEYS[number] | 'url';
+/** The url card is a bar only on cuts that have one. */
+export const conclusionTimelineKeys = (settings: Ultimate3Settings): ConclusionKey[] => settings.conclusion.url ? [...CONCLUSION_TIMELINE_KEYS, 'url'] : [...CONCLUSION_TIMELINE_KEYS];
 export function conclusionTimelineConfig(settings: Ultimate3Settings) {
-  const clips = Object.fromEntries(CONCLUSION_TIMELINE_KEYS.map(key => {
-    const clip = settings.conclusion[key];
+  const clips = Object.fromEntries(conclusionTimelineKeys(settings).map(key => {
+    const clip = settings.conclusion[key]!;
     return [key, {...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1},
       transition: clip.transition ?? {type: 'easing' as const, duration: clip.duration,
         ease: (key === 'placeholder' ? [.45, 0, .55, 1] : [0, 0, 1, 1]) as [number, number, number, number]}}];
-  })) as Record<typeof CONCLUSION_TIMELINE_KEYS[number], ClipTiming>;
+  })) as Record<ConclusionKey, ClipTiming>;
   return {duration: settings.allocations.conclusion, ...clips};
 }
 export function conclusionTimelineValues(settings: Ultimate3Settings) {
   const config = conclusionTimelineConfig(settings);
-  return Object.fromEntries(CONCLUSION_TIMELINE_KEYS.flatMap(key => {
+  return Object.fromEntries(conclusionTimelineKeys(settings).flatMap(key => {
     const clip = config[key];
     return [[`${key}.at`, clip.at], [`${key}.duration`, clip.duration],
       [`${key}.from.progress`, clip.from!.progress], [`${key}.to.progress`, clip.to!.progress],
@@ -251,12 +254,12 @@ export function conclusionTimelineValues(settings: Ultimate3Settings) {
 }
 export function settingsFromConclusionTimeline(timeline: any, settings: Ultimate3Settings) {
   const config = conclusionTimelineConfig(settings);
-  const conclusion = Object.fromEntries(CONCLUSION_TIMELINE_KEYS.map(key => {
+  const conclusion = Object.fromEntries(conclusionTimelineKeys(settings).map(key => {
     const authored = normalizeClip(timeline[key], config[key]);
     // Display defaults must not become persisted edits merely by opening the panel.
     // Keep absent curves absent on retiming so the sampler uses the new duration.
     for (const field of ['from', 'to', 'transition'] as const) {
-      if (settings.conclusion[key][field] === undefined
+      if (settings.conclusion[key]![field] === undefined
         && JSON.stringify(authored[field]) === JSON.stringify(config[key][field])) delete authored[field];
     }
     return [key, authored];

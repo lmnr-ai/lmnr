@@ -217,3 +217,19 @@ test('the voiceover cut draws one verbatim script caption per line, following it
   const mid = (windows[0].start + windows[0].end) / 2;
   assert.equal(renderToStaticMarkup(createElement(Ultimate3Scene, {settings: clean, sample: sampleUltimate3(mid, clean)})).includes('data-voiceover-caption'), false);
 });
+
+test('the current cut ends on a centered laminar.sh card in 40px JetBrains Mono after the logo', async () => {
+  const {CURRENT_VOICEOVER_DEFAULTS: s} = await import('./current-cut');
+  const start = chapterSchedule(s)[4].start, url = s.conclusion.url!;
+  assert.equal(url.at, s.conclusion.logo.at + s.conclusion.logo.duration);
+  assert.equal(sampleUltimate3(start + url.at - .01, s).conclusion, 'logo');
+  assert.equal(sampleUltimate3(start + url.at, s).conclusion, 'url');
+  assert.equal(sampleUltimate3(1e9, s).conclusion, 'url');
+  const markup = renderToStaticMarkup(createElement(Ultimate3Scene, {settings: s, sample: sampleUltimate3(start + url.at + 1, s)}));
+  assert.match(markup, /<div class="micro18-card"><span class="micro18-url">laminar\.sh<\/span><\/div>/);
+  assert.ok(!markup.includes('micro18-logo'));
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.micro18-url\{font:400 40px\/normal FlowMono,'JetBrains Mono',monospace;color:#fff\}/);
+  // Without a url stage the cut still ends on the logo.
+  assert.equal(sampleUltimate3(1e9, ULTIMATE_3_DEFAULTS).conclusion, 'logo');
+});

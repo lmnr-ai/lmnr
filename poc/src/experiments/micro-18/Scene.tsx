@@ -21,7 +21,7 @@ import {flow2WorldState} from '../introducing-flow-1-2/geometry';
 import {Subtitles as Flow21Subtitles} from '../introducing-flow-1-2/Subtitles';
 import {Subtitles as IssueSubtitles} from '../micro-20/Subtitles';
 import {Micro20Scene} from '../micro-20/Scene';
-import type {Ultimate3Sample} from './sample';
+import type {ConclusionStage, Ultimate3Sample} from './sample';
 import {flowNarrationRevealAt, sampleFlow} from './sample';
 import {ConclusionSubtitles} from './Subtitles';
 import {VoiceoverCaptions} from './VoiceoverCaptions';
@@ -40,7 +40,11 @@ import {
   projectScreenRect,
 } from './transitions';
 
-const Card = ({kind}: {kind: 'placeholder'|'logo'}) => <div className="micro18-card">
+const UrlCard = () => {
+  useFlow1FontReady();
+  return <div className="micro18-card"><span className="micro18-url">laminar.sh</span></div>;
+};
+const Card = ({kind}: {kind: ConclusionStage}) => kind === 'url' ? <UrlCard/> : <div className="micro18-card">
   {kind === 'logo' ? <img className="micro18-logo" src={staticFile('micro-18/conclusion-logo.svg')}/> : <span>{'TODO: '}</span>}
 </div>;
 
@@ -160,10 +164,10 @@ export const Ultimate3Scene = ({sample, settings}: {sample: Ultimate3Sample; set
       clouds = {...sample.cost.cloud, yOffset: 27 + 10 * sample.cost.progress.cloudSweep};
     }
   } else if (sample.chapter === 'conclusion') {
-    const stage = sample.conclusion === 'logo' ? 'logo' : 'placeholder';
+    const stage = sample.conclusion ?? 'placeholder';
     content = <>{stage === 'placeholder' && sample.conclusionSource22 ? <Micro22Scene sample={sample.conclusionSource22} showSubtitles={false}/> : stage === 'placeholder' && sample.conclusionSource
       ? <Micro20Scene sample={sample.conclusionSource} showSubtitles={false}/>
-      : <Card kind={stage}/>}{!settings.voiceover && <ConclusionSubtitles stage={stage}/>}</>;
+      : <Card kind={stage}/>}{!settings.voiceover && stage !== 'url' && <ConclusionSubtitles stage={stage}/>}</>;
   } else {
     content = <Card kind="placeholder"/>;
   }

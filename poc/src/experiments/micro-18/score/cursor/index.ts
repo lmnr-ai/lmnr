@@ -5,7 +5,7 @@ import type {Mix} from '../voices';
 import {AIR, KNOCK, TICK, composeCursor} from './composition';
 import {AIR as AIR2, KNOCK as KNOCK2, TICK as TICK2, composeCursorV2} from './composition-v2';
 import {composeCursorV3, designCursorV3} from './composition-v3';
-import {composeCursorV4, wordEndOf} from './composition-v4';
+import {composeCursorV4, urlCardCursorV5, wordEndOf} from './composition-v4';
 import {knock, mallet, paper} from './instruments';
 
 /** The reference bed sits ~6.5 dB under its narrator and swells ~2 dB in the gaps: slow dips, never pumping. */
@@ -154,7 +154,7 @@ export const cursorPaperV3Oct2: ScoreStyle = {...cursorPaperV3, id: 'cursor-pape
  * v4's arc builds like the reference: a quiet plateau through Act 1 and Cost, a step up at the reveal, a capped Issues
  * that dips before the conclusion, and the peak on the logo after the last word, ringing out at about -4 dB/s.
  */
-const arcCursorV4 = (cues: ScoreCues): [number, number][] => {
+const arcCursorV4 = (cues: ScoreCues, urlCard = false): [number, number][] => {
   const cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion, reveal = flow.reveal;
   const silence = cost.depletion.at + cost.depletion.duration - .2, wordEnd = wordEndOf(cues);
   const n21 = cues.voice[20], beforeEnd = n21 ? n21.at + n21.duration : end.start - 1.6, half = end.start + (end.logo - end.start) * .5;
@@ -164,7 +164,10 @@ const arcCursorV4 = (cues: ScoreCues): [number, number][] => {
     [flow.cameraToAnalysis.at, 0], [flow.coverShut, .5], [cues.chapter.issues.start, -1.5],
     [issues.prelude.explanation?.at ?? issues.prelude.zoomOut.at - 2.5, -1.5], [issues.native, .5], [issues.native + 1, -.5],
     [beforeEnd, -3], [end.start - .1, -5], [end.start, -1], [half, .5], [end.logo - .3, 1.5],
-    [wordEnd, 1.5], [wordEnd + .73, 3], [wordEnd + 1.53, 2], [cues.duration - .1, -17],
+    [wordEnd, 1.5], [wordEnd + .73, 3], [wordEnd + 1.53, 2],
+    // v5 holds flat through the url cut, then takes an already-decaying ring to near silence.
+    ...(urlCard && end.url !== undefined ? [[end.url - .3, 1.5], [end.url + 1, 1.5], [cues.duration - .6, -6], [cues.duration, -20]] as [number, number][]
+      : [[cues.duration - .1, -17]] as [number, number][]),
   ];
   arc.forEach(([t], i) => { if (i && t < arc[i - 1][0]) throw new Error(`arcCursorV4 key ${i} at ${t} runs backwards`); });
   return arc;
@@ -182,4 +185,13 @@ export const cursorPaperV4: ScoreStyle = {
   space: cursorPaperV2.space,
   eq: cursorPaper.eq,
   master: glueCursorV2,
+};
+
+/** v4 plus the "laminar.sh" card after the logo; needs settings with a `conclusion.url` stage. */
+export const cursorPaperV5: ScoreStyle = {...cursorPaperV4,
+  id: 'cursor-paper-v5',
+  title: 'Cursor paper v5 (v4 with a quiet afterword under the laminar.sh card)',
+  ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB_V4, cues => arcCursorV4(cues, true), {10: .15}),
+  compose: (mix, cues) => composeCursorV4(mix, cues, {urlCard: true}),
+  design: (mix, cues) => { cursorPaperV4.design!(mix, cues); urlCardCursorV5(mix, cues); },
 };

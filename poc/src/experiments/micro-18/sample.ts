@@ -75,7 +75,8 @@ export function sampleCost(localTime: number, settings: Ultimate3Settings, liveC
     ?? evaluateClip({...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1}}, time);
   return {...base, progress: {...base.progress, cloudSweep: cloudProgress}, cloud: {...base.cloud, progress: cloudProgress, translateY: 900 * cloudProgress}};
 }
-export type Ultimate3Sample = {time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: 'placeholder'|'logo'; conclusionSource22?: Micro22Sample; conclusionSource?: ReturnType<typeof sampleMicro20>};
+export type ConclusionStage = 'placeholder'|'logo'|'url';
+export type Ultimate3Sample = {time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: ConclusionStage; conclusionSource22?: Micro22Sample; conclusionSource?: ReturnType<typeof sampleMicro20>};
 export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimate3Sample {
   const settings = normalizeSettings(input); const located = locateChapter(time, settings); const base = {time: located.time, chapter: located.segment.id, localTime: located.localTime, schedule: located.schedule};
   if (located.segment.id === 'ultimate2') return {...base, ultimate2: sampleMicro17(Math.min(located.localTime, ultimate2Endpoint(settings)), settings.ultimate2.timing)};
@@ -84,6 +85,8 @@ export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimat
   if (located.segment.id === 'issues') {
     return {...base, issues: sampleIssues(located.localTime, settings)};
   }
+  const url = settings.conclusion.url;
+  if (url && located.localTime >= url.at) return {...base, conclusion: 'url'};
   if (located.localTime >= settings.conclusion.logo.at) return {...base, conclusion: 'logo'};
   if (settings.issues.sourceVersion === 22) {
     const card = settings.conclusion.placeholder, ease = card.transition?.type === 'easing' ? card.transition.duration : undefined;
