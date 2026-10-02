@@ -46,6 +46,14 @@ fn test_default_tables_registered() {
     assert!(!reg.is_table_allowed("traces_v0"));
     assert!(!reg.is_table_allowed("spans_v0"));
     assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
+    assert!(reg.is_table_allowed("signals"));
+    assert!(reg.is_table_allowed("evaluations"));
+    assert!(reg.is_table_allowed("datasets"));
+    // The PostgreSQL engine mirrors the whole schema — never allowlist it.
+    assert!(!reg.is_table_allowed("pg"));
+    assert!(!reg.is_table_allowed("users"));
+    assert!(!reg.is_table_allowed("workspaces"));
+    assert!(!reg.is_table_allowed("projects"));
 }
 
 #[test]
@@ -128,6 +136,39 @@ fn test_validate_trace_outputs_select() {
         ),
         "got: {result}"
     );
+}
+
+#[test]
+fn test_validate_postgres_entity_tables() {
+    let result = validate_ok("SELECT id, name, version FROM signals");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM signals_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+        ),
+        "got: {result}"
+    );
+
+    let result = validate_ok(
+        "SELECT s.name, e.payload FROM signal_events e JOIN signals s ON s.id = e.signal_id",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("JOIN signals_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+        ),
+        "got: {result}"
+    );
+
+    let err = validate("SELECT * FROM users").expect_err("pg-mirrored tables stay rejected");
+    assert!(err.contains("not allowed"), "got: {err}");
+}
+
+#[test]
+fn test_schema_advertised_pg_entity_columns_are_allowlisted() {
+    validate_ok("SELECT signals.name, signals.version FROM signals");
+    validate_ok("SELECT evaluations.name, evaluations.group_id FROM evaluations");
+    validate_ok("SELECT datasets.name FROM datasets");
 }
 
 /// Columns the shared schema advertises must also be allowlisted here, or a

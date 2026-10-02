@@ -568,6 +568,59 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "signals",
+        description: "Signal definitions stored in Postgres. Join to signal_events / signal_runs / traces.signal_events on signals.id = signal_id for the definition name and version.",
+        columns: &[
+            col("id", "UUID", "Unique id of the signal"),
+            col("name", "String", "Signal name, unique per project"),
+            col("prompt", "String", "Signal definition prompt"),
+            col(
+                "structured_output_schema",
+                "String",
+                "JSON schema the signal's output conforms to",
+            ),
+            col("metadata", "String", "Signal metadata, as a JSON object"),
+            col(
+                "llm_model",
+                "Nullable(String)",
+                "Model the signal runs on; NULL when it uses the deployment default",
+            ),
+            col("created_at", "DateTime64(6)", "When the signal was created"),
+            col("version", "Int32", "Current definition version"),
+        ],
+    },
+    Table {
+        name: "evaluations",
+        description: "Evaluation run definitions stored in Postgres. Join to evaluation_datapoints on evaluations.id = evaluation_id for the run name and group.",
+        columns: &[
+            col("id", "UUID", "Unique id of the evaluation"),
+            col("name", "String", "Evaluation name"),
+            col(
+                "group_id",
+                "String",
+                "Group identifier of the evaluation run",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the evaluation was created",
+            ),
+        ],
+    },
+    Table {
+        name: "datasets",
+        description: "Dataset definitions stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id for the dataset name.",
+        columns: &[
+            col("id", "UUID", "Unique id of the dataset"),
+            col("name", "String", "Dataset name"),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the dataset was created",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -649,6 +702,9 @@ mod tests {
             "clusters",
             "signal_runs",
             "logs",
+            "signals",
+            "evaluations",
+            "datasets",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

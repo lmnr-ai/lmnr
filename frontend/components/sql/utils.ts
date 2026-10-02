@@ -387,6 +387,46 @@ export const tableSchemas: Record<string, TableSchema> = {
       },
     ],
   },
+  signals: {
+    description:
+      "Signal definitions stored in Postgres. Join to signal_events, signal_runs, or traces.signal_events on signals.id = signal_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "name", type: "String", description: "Signal name, unique per project" },
+      { name: "prompt", type: "String", description: "Signal definition prompt" },
+      {
+        name: "structured_output_schema",
+        type: "String",
+        description: "JSON schema the signal's output conforms to",
+      },
+      { name: "metadata", type: "String", description: "Signal metadata, as a JSON object" },
+      {
+        name: "llm_model",
+        type: "Nullable(String)",
+        description: "Model the signal runs on; NULL when it uses the deployment default",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the signal was created" },
+      { name: "version", type: "Int32", description: "Current definition version" },
+    ],
+  },
+  evaluations: {
+    description:
+      "Evaluation run definitions stored in Postgres. Join to evaluation_datapoints on evaluations.id = evaluation_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "name", type: "String", description: "Evaluation name" },
+      { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation was created" },
+    ],
+  },
+  datasets: {
+    description: "Dataset definitions stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "name", type: "String", description: "Dataset name" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset was created" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [
