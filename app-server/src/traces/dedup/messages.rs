@@ -49,8 +49,7 @@ pub async fn build_message_dedup(
     if !span.is_llm_span() {
         return None;
     }
-    let value = value?;
-    let items = match value {
+    let items = match value? {
         Value::Array(items) if !items.is_empty() => items,
         _ => return None,
     };
@@ -96,7 +95,7 @@ pub async fn build_message_dedup(
         trace_new_indices,
         storage_miss_indices,
         contents,
-        size_bytes: estimate_json_size(value),
+        size_bytes: items.iter().map(estimate_json_size).sum(),
     })
 }
 
