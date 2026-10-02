@@ -4,13 +4,28 @@ use std::result::Result;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
+use tokio::time::Instant;
 
 use super::{CacheError, CacheTrait, LockClaim};
+use moka::ops::compute::{CompResult, Op};
 
 const DEFAULT_CACHE_SIZE: u64 = 100;
+
+#[derive(Clone)]
+struct CacheValue {
+    bytes: Vec<u8>,
+    expires_at: Option<Instant>,
+}
+
+impl CacheValue {
+    fn is_expired_at(&self, now: Instant) -> bool {
+        self.expires_at.is_some_and(|expires_at| expires_at <= now)
+    }
+}
+
 pub struct InMemoryCache {
-    cache: moka::future::Cache<String, Vec<u8>>,
-    locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
+    cache: moka::future::Cache<String, CacheValue>,
+    locks: Arc<RwLock<HashMap<String, Instant>>>,
     sorted_sets: Arc<RwLock<HashMap<String, HashSet<String>>>>,
 }
 
@@ -24,40 +39,103 @@ impl InMemoryCache {
     }
 }
 
+fn schedule_expiration(
+    cache: moka::future::Cache<String, CacheValue>,
+    key: String,
+    expires_at: Instant,
+) {
+    tokio::spawn(async move {
+        tokio::time::sleep_until(expires_at).await;
+        remove_if_expired(&cache, &key).await;
+    });
+}
+
+async fn remove_if_expired(cache: &moka::future::Cache<String, CacheValue>, key: &str) {
+    cache
+        .entry_by_ref(key)
+        .and_compute_with(|maybe_entry| {
+            let op = match maybe_entry {
+                Some(entry) if entry.value().is_expired_at(Instant::now()) => Op::Remove,
+                _ => Op::Nop,
+            };
+            std::future::ready(op)
+        })
+        .await;
+}
+
+fn schedule_new_expiration(
+    cache: &moka::future::Cache<String, CacheValue>,
+    key: &str,
+    result: CompResult<String, CacheValue>,
+) {
+    if let CompResult::Inserted(entry) | CompResult::ReplacedWith(entry) = result
+        && let Some(expires_at) = entry.into_value().expires_at
+    {
+        schedule_expiration(cache.clone(), key.to_string(), expires_at);
+    }
+}
+
 impl CacheTrait for InMemoryCache {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where
         T: for<'de> Deserialize<'de>,
     {
-        let Some(bytes) = self.cache.get(key).await else {
+        let Some(value) = self.cache.get(key).await else {
             return Ok(None);
         };
+        if value.is_expired_at(Instant::now()) {
+            return Ok(None);
+        }
 
-        let value = serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?;
-        Ok(Some(value))
+        let decoded = serde_json::from_slice(&value.bytes).map_err(CacheError::SerDeError)?;
+        Ok(Some(decoded))
     }
 
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
         T: Serialize + Send,
     {
-        let bytes = serde_json::to_vec(&value).map_err(|e| CacheError::SerDeError(e))?;
-        self.cache.insert(String::from(key), bytes).await;
+        let bytes = serde_json::to_vec(&value).map_err(CacheError::SerDeError)?;
+        self.cache
+            .entry_by_ref(key)
+            .and_compute_with(move |_| {
+                std::future::ready(Op::Put(CacheValue {
+                    bytes,
+                    expires_at: None,
+                }))
+            })
+            .await;
         Ok(())
     }
 
     async fn remove(&self, key: &str) -> Result<(), CacheError> {
-        self.cache.remove(key).await;
+        self.cache
+            .entry_by_ref(key)
+            .and_compute_with(|_| std::future::ready(Op::Remove))
+            .await;
         Ok(())
     }
 
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
-        let key = String::from(key);
-        let cache = self.cache.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(seconds)).await;
-            cache.invalidate(&key).await;
-        });
+        let ttl = Duration::from_secs(seconds);
+        let result = self
+            .cache
+            .entry_by_ref(key)
+            .and_compute_with(move |maybe_entry| {
+                let now = Instant::now();
+                let op = match maybe_entry {
+                    Some(entry) if !entry.value().is_expired_at(now) => {
+                        let mut value = entry.into_value();
+                        value.expires_at = Some(now + ttl);
+                        Op::Put(value)
+                    }
+                    Some(_) => Op::Remove,
+                    None => Op::Nop,
+                };
+                std::future::ready(op)
+            })
+            .await;
+        schedule_new_expiration(&self.cache, key, result);
         Ok(())
     }
 
@@ -65,8 +143,20 @@ impl CacheTrait for InMemoryCache {
     where
         T: Serialize + Send,
     {
-        self.insert(key, value).await?;
-        self.set_ttl(key, seconds).await?;
+        let bytes = serde_json::to_vec(&value).map_err(CacheError::SerDeError)?;
+        let ttl = Duration::from_secs(seconds);
+        let result = self
+            .cache
+            .entry_by_ref(key)
+            .and_compute_with(move |_| {
+                let value = CacheValue {
+                    bytes,
+                    expires_at: Some(Instant::now() + ttl),
+                };
+                std::future::ready(Op::Put(value))
+            })
+            .await;
+        schedule_new_expiration(&self.cache, key, result);
         Ok(())
     }
 
@@ -87,18 +177,34 @@ impl CacheTrait for InMemoryCache {
     }
 
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
-        // Note: This is not truly atomic for in-memory cache, but should be fine for dev/testing.
-        // Production should use Redis where increment is atomic.
-        // Like Redis INCRBY, this creates the key with value=0 if it doesn't exist
-        let current_value: i64 = match self.cache.get(key).await {
-            Some(bytes) => serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?,
-            None => 0,
-        };
+        let result = self
+            .cache
+            .entry_by_ref(key)
+            .and_try_compute_with(|maybe_entry| async move {
+                let now = Instant::now();
+                let (current_value, expires_at) = match maybe_entry {
+                    Some(entry) if !entry.value().is_expired_at(now) => {
+                        let value = entry.into_value();
+                        (
+                            serde_json::from_slice(&value.bytes).map_err(CacheError::SerDeError)?,
+                            value.expires_at,
+                        )
+                    }
+                    Some(_) | None => (0, None),
+                };
 
-        let new_value = current_value + amount;
-        let new_bytes = serde_json::to_vec(&new_value).map_err(|e| CacheError::SerDeError(e))?;
+                // Like Redis INCRBY, an absent or expired key starts at zero.
+                let new_value = current_value + amount;
+                let bytes = serde_json::to_vec(&new_value).map_err(CacheError::SerDeError)?;
+                Ok::<_, CacheError>(Op::Put(CacheValue { bytes, expires_at }))
+            })
+            .await?;
 
-        self.cache.insert(String::from(key), new_bytes).await;
+        let entry = result
+            .into_entry()
+            .expect("increment always inserts or replaces a value");
+        let new_value =
+            serde_json::from_slice(&entry.into_value().bytes).map_err(CacheError::SerDeError)?;
         Ok(new_value)
     }
 
@@ -125,28 +231,38 @@ impl CacheTrait for InMemoryCache {
         owner: &str,
         ttl_seconds: u64,
     ) -> Result<LockClaim, CacheError> {
-        let bytes = serde_json::to_vec(owner).map_err(|e| CacheError::SerDeError(e))?;
-
-        // moka runs at most one initializer per key, so exactly one of N
-        // concurrent callers sees a fresh entry — the analogue of Redis SET NX.
-        // Deliberately the main cache, not `locks`: `get` must be able to read
-        // the owner back.
-        let entry = self
+        let bytes = serde_json::to_vec(owner).map_err(CacheError::SerDeError)?;
+        let ttl = Duration::from_secs(ttl_seconds);
+        let result = self
             .cache
-            .entry(String::from(key))
-            .or_insert_with(async move { bytes })
+            .entry_by_ref(key)
+            .and_compute_with(move |maybe_entry| {
+                let now = Instant::now();
+                let op = match maybe_entry {
+                    Some(entry) if !entry.value().is_expired_at(now) => Op::Nop,
+                    Some(_) | None => Op::Put(CacheValue {
+                        bytes,
+                        expires_at: Some(now + ttl),
+                    }),
+                };
+                std::future::ready(op)
+            })
             .await;
 
-        if entry.is_fresh() {
-            self.set_ttl(key, ttl_seconds).await?;
-            return Ok(LockClaim::Acquired);
+        match result {
+            CompResult::Inserted(entry) | CompResult::ReplacedWith(entry) => {
+                if let Some(expires_at) = entry.into_value().expires_at {
+                    schedule_expiration(self.cache.clone(), key.to_string(), expires_at);
+                }
+                Ok(LockClaim::Acquired)
+            }
+            CompResult::Unchanged(entry) => Ok(LockClaim::Held(
+                serde_json::from_slice(&entry.into_value().bytes).ok(),
+            )),
+            CompResult::StillNone(_) | CompResult::Removed(_) => {
+                unreachable!("lock claim only inserts or leaves a live value unchanged")
+            }
         }
-
-        // A stale entry already carries the holder's value, so the owner comes
-        // back without a second lookup.
-        Ok(LockClaim::Held(
-            serde_json::from_slice(&entry.into_value()).ok(),
-        ))
     }
 
     async fn renew_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
@@ -186,7 +302,11 @@ impl CacheTrait for InMemoryCache {
 
     async fn exists(&self, key: &str) -> Result<bool, CacheError> {
         // Check both regular cache and sorted sets
-        let in_cache = self.cache.get(key).await.is_some();
+        let in_cache = self
+            .cache
+            .get(key)
+            .await
+            .is_some_and(|value| !value.is_expired_at(Instant::now()));
         let in_sorted_sets = self.sorted_sets.read().await.contains_key(key);
         Ok(in_cache || in_sorted_sets)
     }
@@ -337,5 +457,250 @@ mod tests {
                 .unwrap(),
             LockClaim::Held(None)
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stale_expiration_cannot_remove_refreshed_replaced_or_reinserted_values() {
+        let cache = InMemoryCache::new(None);
+
+        cache
+            .insert_with_ttl("refreshed", "value", 10)
+            .await
+            .unwrap();
+        let refreshed_deadline = cache
+            .cache
+            .get("refreshed")
+            .await
+            .unwrap()
+            .expires_at
+            .unwrap();
+
+        cache.insert_with_ttl("plain", "old", 10).await.unwrap();
+        let plain_deadline = cache.cache.get("plain").await.unwrap().expires_at.unwrap();
+
+        cache
+            .insert_with_ttl("reinserted", "old", 10)
+            .await
+            .unwrap();
+        let reinserted_deadline = cache
+            .cache
+            .get("reinserted")
+            .await
+            .unwrap()
+            .expires_at
+            .unwrap();
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        cache.set_ttl("refreshed", 10).await.unwrap();
+        cache.insert("plain", "new").await.unwrap();
+        cache.remove("reinserted").await.unwrap();
+        cache
+            .insert_with_ttl("reinserted", "new", 10)
+            .await
+            .unwrap();
+
+        // Simulate the original timers after their deadlines. Each timer must
+        // re-check the value currently stored for its key under the key lock.
+        tokio::time::advance(Duration::from_secs(5)).await;
+        for (key, old_deadline) in [
+            ("refreshed", refreshed_deadline),
+            ("plain", plain_deadline),
+            ("reinserted", reinserted_deadline),
+        ] {
+            assert!(old_deadline <= Instant::now());
+            remove_if_expired(&cache.cache, key).await;
+        }
+
+        assert_eq!(
+            cache.get::<String>("refreshed").await.unwrap(),
+            Some("value".into())
+        );
+        assert_eq!(
+            cache.get::<String>("plain").await.unwrap(),
+            Some("new".into())
+        );
+        assert_eq!(
+            cache.get::<String>("reinserted").await.unwrap(),
+            Some("new".into())
+        );
+        assert!(cache.exists("refreshed").await.unwrap());
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        remove_if_expired(&cache.cache, "refreshed").await;
+        remove_if_expired(&cache.cache, "reinserted").await;
+        assert_eq!(cache.get::<String>("refreshed").await.unwrap(), None);
+        assert_eq!(cache.get::<String>("reinserted").await.unwrap(), None);
+        assert_eq!(
+            cache.get::<String>("plain").await.unwrap(),
+            Some("new".into())
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn scheduled_expiration_respects_refreshes_and_ttl_replacements() {
+        let cache = Arc::new(InMemoryCache::new(None));
+        cache
+            .insert_with_ttl("refreshed", "same value", 10)
+            .await
+            .unwrap();
+        cache
+            .insert_with_ttl("replaced", "old value", 10)
+            .await
+            .unwrap();
+        cache
+            .insert_with_ttl("concurrent", "concurrent value", 10)
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        cache.set_ttl("refreshed", 10).await.unwrap();
+        cache
+            .insert_with_ttl("replaced", "new value", 10)
+            .await
+            .unwrap();
+
+        // Refresh from another task shortly before the original deadline while
+        // this test waits through it, so the scheduled original timer runs too.
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let concurrent_cache = Arc::clone(&cache);
+        let refresh_task = tokio::spawn(async move {
+            let _ = started_tx.send(());
+            tokio::time::sleep(Duration::from_secs(4)).await;
+            concurrent_cache.set_ttl("concurrent", 10).await.unwrap();
+        });
+        started_rx.await.unwrap();
+
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        refresh_task.await.unwrap();
+        // Let detached expiration jobs due at the original deadline finish
+        // before observing state through the public cache interface.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+
+        assert_eq!(
+            cache.get::<String>("refreshed").await.unwrap(),
+            Some("same value".into())
+        );
+        assert_eq!(
+            cache.get::<String>("replaced").await.unwrap(),
+            Some("new value".into())
+        );
+        assert_eq!(
+            cache.get::<String>("concurrent").await.unwrap(),
+            Some("concurrent value".into())
+        );
+
+        // The two t=5 refreshes expire at t=15; the concurrent t=9 refresh at
+        // t=19. The old timer must not extend or shorten those deadlines.
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        assert_eq!(cache.get::<String>("refreshed").await.unwrap(), None);
+        assert_eq!(cache.get::<String>("replaced").await.unwrap(), None);
+        // `get` hides expired values even before the cleanup task removes them,
+        // so also verify that scheduled cleanup physically evicted the entry.
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while cache.cache.get("replaced").await.is_some() {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .expect("scheduled expiration should physically evict the replaced value");
+        assert_eq!(
+            cache.get::<String>("concurrent").await.unwrap(),
+            Some("concurrent value".into())
+        );
+
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        assert_eq!(cache.get::<String>("concurrent").await.unwrap(), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_and_exists_hide_expired_values_before_cleanup_runs() {
+        let cache = InMemoryCache::new(None);
+        cache
+            .cache
+            .insert(
+                "expired".to_string(),
+                CacheValue {
+                    bytes: serde_json::to_vec("value").unwrap(),
+                    expires_at: Some(Instant::now()),
+                },
+            )
+            .await;
+
+        assert_eq!(cache.get::<String>("expired").await.unwrap(), None);
+        assert!(!cache.exists("expired").await.unwrap());
+        assert!(cache.cache.get("expired").await.is_some());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn increment_preserves_a_live_ttl_and_does_not_inherit_an_expired_ttl() {
+        let cache = InMemoryCache::new(None);
+
+        cache.insert_with_ttl("live", 5_i64, 10).await.unwrap();
+        let live_deadline = cache.cache.get("live").await.unwrap().expires_at;
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert_eq!(cache.increment("live", 2).await.unwrap(), 7);
+        assert_eq!(
+            cache.cache.get("live").await.unwrap().expires_at,
+            live_deadline
+        );
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        remove_if_expired(&cache.cache, "live").await;
+        assert_eq!(cache.get::<i64>("live").await.unwrap(), None);
+        assert!(!cache.exists("live").await.unwrap());
+
+        cache.insert_with_ttl("expired", 5_i64, 5).await.unwrap();
+        let expired_deadline = cache
+            .cache
+            .get("expired")
+            .await
+            .unwrap()
+            .expires_at
+            .unwrap();
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert_eq!(cache.increment("expired", 2).await.unwrap(), 2);
+        assert_eq!(cache.cache.get("expired").await.unwrap().expires_at, None);
+
+        // The original timer must not remove the new, non-expiring counter.
+        remove_if_expired(&cache.cache, "expired").await;
+        assert_eq!(cache.get::<i64>("expired").await.unwrap(), Some(2));
+        assert!(expired_deadline <= Instant::now());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_expired_owner_lock_can_be_reacquired_without_a_stale_timer_removing_it() {
+        let cache = InMemoryCache::new(None);
+
+        assert_eq!(
+            cache
+                .try_acquire_lock_with_owner("lock", "owner-a", 5)
+                .await
+                .unwrap(),
+            LockClaim::Acquired
+        );
+        let old_deadline = cache.cache.get("lock").await.unwrap().expires_at.unwrap();
+
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert_eq!(
+            cache
+                .try_acquire_lock_with_owner("lock", "owner-b", 20)
+                .await
+                .unwrap(),
+            LockClaim::Acquired
+        );
+        remove_if_expired(&cache.cache, "lock").await;
+
+        assert_eq!(
+            cache.get::<String>("lock").await.unwrap(),
+            Some("owner-b".into())
+        );
+        assert_eq!(
+            cache
+                .try_acquire_lock_with_owner("lock", "owner-c", 20)
+                .await
+                .unwrap(),
+            LockClaim::Held(Some("owner-b".into()))
+        );
+        assert!(old_deadline <= Instant::now());
     }
 }
