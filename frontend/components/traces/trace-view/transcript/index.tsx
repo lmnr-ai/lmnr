@@ -172,6 +172,8 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
         const span = spanMap.get(entry.firstLlmSpanId);
         if (span?.pending) continue;
         ids.push(entry.firstLlmSpanId);
+        // Declared name wins, no need to generate one from the system prompt.
+        if (entry.declaredName) continue;
         const hash = span?.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
         if (hash) {
           hashes[entry.firstLlmSpanId] = hash;

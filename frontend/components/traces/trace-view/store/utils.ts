@@ -1,4 +1,9 @@
-import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./types";
+import {
+  type TraceViewListSpan,
+  type TraceViewSpan,
+  type TranscriptListEntry,
+  type TranscriptListGroup,
+} from "./types";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;
@@ -596,6 +601,45 @@ const buildSpanToAnchorMap = (allSpans: TraceViewSpan[], grouping: SubagentLlmGr
   return result;
 };
 
+const GEN_AI_AGENT_NAME = "gen_ai.agent.name";
+
+const readDeclaredAgentName = (span: TraceViewSpan | undefined): string | undefined => {
+  const raw = span?.attributes?.[GEN_AI_AGENT_NAME];
+  if (typeof raw !== "string") return undefined;
+  const name = raw.trim();
+  return name.length > 0 ? name : undefined;
+};
+
+/** Nearest non-empty `gen_ai.agent.name` walking `ids_path` leaf-to-root. */
+const declaredAgentNameForSpan = (
+  start: TraceViewSpan,
+  spanMap: Map<string, TraceViewSpan>,
+  mainAgentAncestors: Set<string>
+): string | null => {
+  const idsPathRaw = start.attributes?.["lmnr.span.ids_path"];
+  const idsPath =
+    Array.isArray(idsPathRaw) && idsPathRaw.length > 0
+      ? idsPathRaw.filter((id) => id !== NULL_SPAN_ID)
+      : [start.spanId];
+
+  for (let i = idsPath.length - 1; i >= 0; i--) {
+    // Ancestors shared with the main agent name the main agent, not this subagent.
+    if (mainAgentAncestors.has(idsPath[i])) return null;
+    const name = readDeclaredAgentName(spanMap.get(idsPath[i]));
+    if (name) return name;
+  }
+  return null;
+};
+
+export const transcriptGroupTitle = (
+  group: TranscriptListGroup,
+  agentNames: Record<string, string | null | undefined>
+): string => {
+  if (group.declaredName) return group.declaredName;
+  const generated = group.firstLlmSpanId ? agentNames[group.firstLlmSpanId] : undefined;
+  return generated || group.name;
+};
+
 /**
  * Builds the flat list of transcript entries. Non-main LLM/CACHED spans anchor
  * subagent group blocks; non-LLM spans bundle in or stay standalone per
@@ -646,10 +690,12 @@ export const buildTranscriptListEntries = (
     let outputTokens = 0;
     let cacheReadInputTokens = 0;
     let totalCost = 0;
+    const declaredSeen = new Set<string | null>();
     for (const s of groupSpans) {
       if (s.spanType === "LLM" || s.spanType === "CACHED") {
         firstLlm ??= s;
         lastLlm = s;
+        declaredSeen.add(declaredAgentNameForSpan(s, spanMap, grouping.mainAgentAncestors));
       }
       inputTokens += s.inputTokens;
       outputTokens += s.outputTokens;
@@ -674,6 +720,7 @@ export const buildTranscriptListEntries = (
       type: "group",
       groupId,
       name: anchorSpan?.name ?? groupSpans[0].name,
+      declaredName: declaredSeen.size === 1 ? [...declaredSeen][0] : null,
       path: anchorSpan?.path ?? "",
       firstSpan: lightSpans[0],
       firstLlmSpanId: firstLlm.spanId,
