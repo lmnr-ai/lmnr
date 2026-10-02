@@ -12,7 +12,7 @@
 .micro16-scene>.micro09-clouds{z-index:5}
 .micro16-subtitle-layer{position:absolute;z-index:6;inset:0;pointer-events:none}
 .micro16-subtitle{position:absolute;left:50%;bottom:32px;box-sizing:border-box;max-width:calc(100% - 64px);transform:translateX(-50%);padding:8px 16px;background:#000;color:#fff;font:400 24px/normal Micro16Mono,monospace;text-align:center;white-space:normal;transition:none}
-.micro16-label{font:400 48px Micro16Mono,monospace;fill:#0e0f21;letter-spacing:0}
+.micro16-label{font:400 48px Micro16Mono,monospace;fill:#000;letter-spacing:0}
 .micro16-paper{padding:4px 12px;color:#969696;font:400 24px/30px Micro16Mono,monospace;white-space:pre;font-synthesis:none}
 .micro16-paper-line{position:relative;white-space:pre}
 .micro16-highlight{position:absolute;left:0;top:0;color:#0e0f21;background:#f47069;white-space:pre;line-height:30px}

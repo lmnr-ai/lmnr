@@ -39,4 +39,5 @@ The take is now cut into the preview and export as **`editable-v12`** (`public/a
 - Mix: -16.3 LUFS and -1.09 dBTP, with the bed at -22.7 LUFS. "with Laminar" clears the bed by 8.8 dB (6.3 before). n21 and n23 were spoken 1.4–2.2 dB softer in this take, so they sit closer to the bed. No phrase gain was applied.
 - The subtitle still reads "Matching GPT-6-Sol in intelligence…", but the narration says "in trace analysis intelligence".
 - The other Glide beds stay on disk in `editable-v11-*` with the earlier take. They are off the soundtrack menu because their ducking is keyed to the old phrases.
-- Video: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-minimal-linger-oct2-voiceover.mp4
+- Gray trace labels and icons are pure black (they mixed black with navy `#0e0f21`): `.micro16-label`, `.micro20-label`, and the tool/Bash-connector SVGs in `public/micro-16/`.
+- Video: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-minimal-linger-oct2-black-labels.mp4

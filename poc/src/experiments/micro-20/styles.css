@@ -4,7 +4,7 @@
 .micro20-composition {position:absolute;inset:0;overflow:hidden;background:#1a1a1a;isolation:isolate}
 .micro20-composition * {box-sizing:border-box}
 .micro20-world {position:absolute;inset:0;width:100%;height:100%;display:block}
-.micro20-label {font:400 48px Micro20Mono,monospace;fill:#0e0f21;letter-spacing:0}
+.micro20-label {font:400 48px Micro20Mono,monospace;fill:#000;letter-spacing:0}
 .micro20-paper {padding:4px 12px;color:#969696;font:400 24px/30px Micro20Mono,monospace;white-space:pre;font-synthesis:none}
 .micro20-paper-line {position:relative;white-space:pre}
 .micro20-highlight {position:absolute;left:0;top:0;color:#0e0f21;background:#f47069;white-space:pre;line-height:30px}
