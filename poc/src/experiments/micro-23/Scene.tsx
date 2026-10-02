@@ -26,9 +26,10 @@ export function Micro23Grid({sample, controls = MICRO_23_DEFAULTS, gridStrokeWid
   </svg>;
 }
 
-export function Micro23Scene({sample, controls = MICRO_23_DEFAULTS, gridStrokeWidth = .5, gridOffset, worldTransform, showGrid = true, transparent = false}: GridProps & {worldTransform?: string; showGrid?: boolean; transparent?: boolean}) {
+export function Micro23Scene({sample, controls = MICRO_23_DEFAULTS, gridStrokeWidth = .5, gridOffset, worldTransform, contentOffsetX = 0, showGrid = true, transparent = false}: GridProps & {worldTransform?: string; contentOffsetX?: number; showGrid?: boolean; transparent?: boolean}) {
   useFlow1FontReady();
   const p = sample.progress;
+  const transform = worldTransform ?? (gridOffset ? `translate(${gridOffset.x}px,${sample.gridY - 350 + gridOffset.y}px) scale(${sample.worldScale})` : `translateY(${sample.gridY - 350}px) scale(${sample.worldScale})`);
   const gridColor = zoomGridColor(controls.gridColor, p.gridShrink * (1 - p.returnToGrid));
   const boxStyle = (box: {x: number; y: number; width: number; height: number}) => ({left: box.x, top: box.y, width: box.width, height: box.height});
   const labelBorder = <svg className="micro23-label-border" viewBox="0 0 180 40" aria-hidden="true">
@@ -36,7 +37,7 @@ export function Micro23Scene({sample, controls = MICRO_23_DEFAULTS, gridStrokeWi
   </svg>;
   return <div className="micro23-scene" aria-label="Animation 23 - Traces per dollar" data-time={sample.time} data-cell-size={sample.cellSize} style={transparent ? {background: 'transparent'} : undefined}>
     {showGrid && <Micro23Grid sample={sample} controls={controls} gridStrokeWidth={gridStrokeWidth} gridOffset={gridOffset}/>}
-    <div className="micro23-world" style={{transform: worldTransform ?? (gridOffset ? `translate(${gridOffset.x}px,${sample.gridY - 350 + gridOffset.y}px) scale(${sample.worldScale})` : `translateY(${sample.gridY - 350}px) scale(${sample.worldScale})`), ...(worldTransform ? {transformOrigin: '0 0'} : {})}}>
+    <div className="micro23-world" style={{transform: `${transform} translateX(${contentOffsetX}px)`, ...(worldTransform ? {transformOrigin: '0 0'} : {})}}>
       <div className="micro23-fold-frame micro23-headline" style={{...boxStyle(HEADLINE_BOUNDS), visibility: sample.headlineContainerVisible ? 'visible' : 'hidden'}}>
         {/* Separate masks keep early/overlapping exit edits from revealing unentered text. */}
         <div className="micro23-headline-exit" style={{transform: `translateY(${sample.headlineSlideOutProgress * 100}%)`}}>

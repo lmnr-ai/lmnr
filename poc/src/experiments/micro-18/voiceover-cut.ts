@@ -9,6 +9,7 @@ import soakPlacements from '../../../handoff/voiceover-soak/placements.json';
 import subtlePlacements from '../../../handoff/voiceover-subtle-a/placements.json';
 import quickerTracePlacements from '../../../handoff/voiceover-quicker-trace/placements.json';
 import tighterCadencePlacements from '../../../handoff/voiceover-tighter-cadence/placements.json';
+import briskCadencePlacements from '../../../handoff/voiceover-brisk-cadence/placements.json';
 import {BLOCK_TEMPLATE} from '../micro-12/geometry';
 import {withFlowComparison} from './flow-comparison';
 
@@ -25,6 +26,8 @@ const phrasesOf = (placements: {a: number; b: number; at: number}[]) =>
 // Every phrase of the approved A/subtle take sits at its authored slot; the 10-04 take's (soak) slots stay recognizable.
 const takePhrases = Object.fromEntries(VOICEOVER_PHRASES.map(p => [p.id, p.placed]));
 const soakPhrases = phrasesOf(soakPlacements);
+/** editable-v11's generated slots, before the October 2 retake. */
+export const BRISK_CADENCE_PHRASES = phrasesOf(briskCadencePlacements);
 const original = normalizeSettings({...importedSettings, voiceover: {version: 1, phrases: soakPhrases}});
 const retimeClip = (clip: ClipTiming, at: number, duration = clip.duration): ClipTiming => ({
   ...clip, at, duration, ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration}} : {}),
@@ -207,7 +210,7 @@ export const VOICEOVER_DEFAULTS = withFlowComparison(normalizeSettings({...V10_D
 const GENERATED = [PREVIOUS_DEFAULTS, V6_DEFAULTS, V8_DEFAULTS, V9_DEFAULTS, V10_DEFAULTS];
 // Raw, since normalizing clamps the 10-04 take's durations to the shorter A/subtle trims; v7 is this cut on the 10-04 take.
 const GENERATED_PHRASES: Record<string, {at: number; duration: number}>[] = [PREVIOUS_PHRASES, phrasesOf(captionPlacements), soakPhrases, phrasesOf(subtlePlacements), phrasesOf(quickerTracePlacements),
-  phrasesOf(tighterCadencePlacements)];
+  phrasesOf(tighterCadencePlacements), BRISK_CADENCE_PHRASES];
 export function normalizeVoiceoverSettings(input: unknown) {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const settings = normalizeSettings({...raw, voiceover: raw.voiceover ?? VOICEOVER_DEFAULTS.voiceover});
@@ -216,6 +219,11 @@ export function normalizeVoiceoverSettings(input: unknown) {
 }
 
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** Also matches a generated slot that normalizing has since capped to the current take's shorter trim. */
+const generatedPhrase = (id: string, clip: unknown) => GENERATED_PHRASES.some(phrases => {
+  const slot = phrases[id], phrase = VOICEOVER_PHRASES.find(p => p.id === id);
+  return equal(clip, slot) || (!!slot && !!phrase && equal(clip, {at: slot.at, duration: Math.min(slot.duration, phrase.b - phrase.a)}));
+});
 const upgrade = <T extends object>(stored: T, pick: (d: typeof VOICEOVER_DEFAULTS) => T | undefined, target = VOICEOVER_DEFAULTS): T => Object.fromEntries(Object.entries(stored).map(([key, value]) =>
   [key, GENERATED.some(d => equal(value, pick(d)?.[key as keyof T])) ? pick(target)![key as keyof T] : value])) as T;
 /** Storage only: replace recognized generated fields individually; JSON imports stay literal. */
@@ -259,7 +267,7 @@ export function migrateStoredVoiceoverOpening(input: unknown): unknown {
   const flow = retimed && raw.flow?.timing21 ? {...raw.flow, timing21: upgrade(raw.flow.timing21, d => d.flow.timing21)} : raw.flow;
   const issues = retimed && raw.issues?.timing22 ? {...raw.issues, timing22: upgrade(raw.issues.timing22, d => d.issues.timing22)} : raw.issues;
   const matched = retimed && raw.voiceover?.phrases ? {...raw.voiceover, phrases: Object.fromEntries(Object.entries(raw.voiceover.phrases).map(([id, clip]) =>
-    [id, GENERATED_PHRASES.some(phrases => equal(clip, phrases[id])) ? opening.voiceover!.phrases[id] : clip]))} : raw.voiceover;
+    [id, generatedPhrase(id, clip) ? opening.voiceover!.phrases[id] : clip]))} : raw.voiceover;
   // Normalizing fills missing phrases at the current slots; a kept older opening needs its own.
   const voiceover = generatedSpeed ? matched : {version: 1 as const, ...matched, phrases: {...opening.voiceover!.phrases, ...matched?.phrases}};
   const conclusion = retimed && raw.conclusion ? upgrade(raw.conclusion, d => d.conclusion) : raw.conclusion;

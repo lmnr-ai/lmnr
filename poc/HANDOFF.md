@@ -1,6 +1,40 @@
 # Signals launch video — agent handoff
 
-## Latest handoff: v11 cadence + new pricing animation + audio reference
+## Latest handoff: October 2 narration + current Ultimate 3
+
+Start with **[handoff/voiceover-2026-10-02/README.md](handoff/voiceover-2026-10-02/README.md)**.
+It contains the new original recording, approved A/subtle processed WAV and M4A,
+processing provenance, and the latest serialized animation/mix settings.
+The editable source now includes the approved Main timings, native Cost controls,
+updated intelligence scores (74.1 / 84.8 / 77.3 / 72.8), readable spacing,
+“Matching GPT-6-Sol…” subtitle, and 888-vs-38 pricing.
+The recording is now cut in as `editable-v12` (n12 at 33.91, n13 and the comparison +0.3 s,
+same 2212 frames) under a rebuilt Glide · minimal (linger) bed; editable-v11 audio is preserved.
+
+## Previous base snapshot: Glide · minimal (linger), matched yellow spinner
+
+Use **[handoff/glide-linger-current/README.md](handoff/glide-linger-current/README.md)**
+and its `settings.json`, with soundtrack **`glide-minimal-linger`**. The user has
+selected this version: 2212 frames, paper off, extended musical ending, and the
+yellow agent's black spinner matched to the white agent's 3px stroke.
+This is now the shared current-edition default, with a guarded one-time upgrade
+for existing browser settings. Older defaults and snapshots remain historical.
+Pricing now shows **888 vs 38 traces/$** in a centered, exact-count dot field;
+**20x** copy, intelligence scores and narration are unchanged. See
+[handoff/pricing-888/README.md](handoff/pricing-888/README.md).
+
+## Imported soundtrack handoff (LAM-2316)
+
+Start with **[handoff/turbopuffer-sound/README.md](handoff/turbopuffer-sound/README.md)**.
+It adds an auditionable TurboPuffer-inspired soundtrack for the same editable-v11
+narration and picture: a *Soundtrack* select in the preview and `--bed glide` in the export.
+Arabesque stays the default until a new one is chosen.
+A follow-up, **Glide 2 · continuous arc** (`--bed glide-arc`), reworks it after a sound-design review. It uses one grid and one arc, and the rhythm starts at the Flow-1 reveal. See the same README.
+**Glide · minimal** (`--bed glide-minimal`) is v1 with an ending that answers "with Laminar" and then rests on the logo. It needs `handoff/turbopuffer-sound/minimal-settings.json`, which has a longer logo hold and no paper texture.
+**Glide · minimal (lift)** (`--bed glide-minimal-lift`, same settings) lands the payoff on the logo under "with Laminar" instead of after it.
+**Glide · minimal (linger)** (`--bed glide-minimal-linger`, same settings) is the latest. The groove plays on through the logo to the last bar, and every whoosh and air sound is a soft breeze instead of grainy hiss.
+
+## Previous handoff: v11 cadence + new pricing animation + audio reference
 
 Start with **[handoff/pricing-timing-audio/README.md](handoff/pricing-timing-audio/README.md)**.
 It combines the latest upstream editable-v11 timing with the local traces-per-dollar

@@ -9,6 +9,7 @@ pnpm ultimate3:score --video out/u3-silent.mp4 --mp4 out/ultimate3.mp4   # + mux
 pnpm ultimate3:score --settings settings.json --stems  # authored settings; also write music/sfx/hall/room/delay stems
 pnpm ultimate3:score --style nocturne-acoustic --keyboard spring  # type on another modelled keyboard (default thock)
 pnpm ultimate3:score:test
+pnpm -s ultimate3:score:test glide glide-minimal       # only these styles (about 2 min instead of 10+)
 ```
 
 Rendering takes 15–40 seconds. The output is a deterministic function of settings, the samples and the seed (`score.test.ts` asserts identical hashes across runs), and it is mastered to -14 LUFS integrated with true peak ≤ -1 dBTP.
@@ -103,6 +104,26 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 - `stomp-glock`: C major indie-folk. Stomps, double handclaps and tambourine (`stomp/instruments.ts`), sampled pizz chugging in eighths (`strings: true`), a dry piano pulse, and a glockenspiel carrying every tune.
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
+
+### `glide` — ambient synth after the TurboPuffer reference, G major
+
+No piano. Wide detuned pads, a sub drone and muffled thumps carry the story, and one timeline filter (`Mix.sweep`) opens and slams shut with the picture. An 89 BPM grid (the logo lands on beat 6 of the conclusion) drives a felt thump pulse under Cost, then a boom-bap payoff that drops out on the logo. All detail sits at or above 4.7 kHz, or at or below 1 kHz. It is built as a voice-ducked editable-v11 bed by `scripts/build-ultimate3-glide-bed.ts`, and `ducks` is empty because the build script ducks against the real narration. See `handoff/turbopuffer-sound/README.md`.
+
+### `glide-minimal` — Glide v1 with a resolved ending
+
+This is `composeGlide`/`designGlide` with `minimal = true`, and it renders `glide` itself unchanged. The pads and keys under the voice are lighter and drier, and the kit is softer. Nothing new starts on the logo. Instead the answer lands on conclusion beat 8, just after "with Laminar": kick, G bass, Gmaj9 keys, pad and glints. Echoes follow on beats 10 and 12, and a sweep closes the music to 700 Hz by beat 15.5. The bed is built on `handoff/turbopuffer-sound/minimal-settings.json`, whose ending is 16 beats long.
+
+### `glide-minimal-lift` — the minimal candidate with the payoff on the logo
+
+`composeGlide`/`designGlide` with `ending = 'lift'`. Up to the conclusion it's glide-minimal. The groove turns V → I onto the logo, the kit stops on one hit with a bright air crash and a sub swell, and an open, high G rings out under "with Laminar". After the word, a smaller keys bloom answers. The lift branch keeps the same count and order of seeded calls as glide-minimal (the same kit loop, four pads), which is what keeps everything before it identical.
+
+### `glide-minimal-linger` — the groove plays the film out, with soft air
+
+`ending = 'linger'`. The conclusion groove keeps going through the logo, with kick and hats only under "with Laminar". It returns in full after the words and thins over the last bar to end on the film's last bar line (`composeLinger`). Every noise move in the film uses the soft palette in `glide/instruments.ts`: `breeze` (pink, low-Q, no band-pass) in place of `whoosh`/`marker`, `feather` in place of `air`, `blip` in place of `tick`, and `shimmer({soft})`. Those helpers are new, so the other styles' renders are unchanged.
+
+### `glide-arc` — Glide 2, one continuous arc
+
+The same palette, written as one piece on a single 89.5 BPM grid (`glide/arc.ts`, `arcGrid`), with the Flow-1 reveal on bar 0 and the logo on bar 14. The problem is an ostinato that stops at the failure and a pulse that tape-stops at the depletion. After "Until now", a motor starts on the reveal and gains a layer every few bars: the kit lands with Signals, there's a breakdown over the zoom-out, and the groove drops for the payoff. Pads are phase-coherent (`haze({coherent})`) and pumped from the reveal, and everything under 150 Hz is mono. Tonal layers go through two slow `Mix.sweep` curves, and the kit is emitted afterwards, so it stays unfiltered. Foley is snapped to the 16th grid. `arcLevels` is the bed's level curve against the voice, in dB with linear interpolation, applied by the bed builder (`--style glide-arc`), which also ducks more gently.
 
 ## Foley
 

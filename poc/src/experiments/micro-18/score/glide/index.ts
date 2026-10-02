@@ -1,0 +1,58 @@
+import type {ScoreStyle} from '../style';
+import {composeArc, designArc} from './arc';
+import {composeGlide, designGlide} from './composition';
+
+/** TurboPuffer-inspired glide: synth swells under one story-driven filter, groove held for the payoff. */
+export const glide: ScoreStyle = {
+  id: 'glide',
+  title: 'Glide (TurboPuffer reference)',
+  // The voice ducking is baked from the narration itself when the bed is built (build-ultimate3-glide-bed.ts).
+  ducks: () => {},
+  compose: composeGlide,
+  design: designGlide,
+  space: {
+    hall: {rt60: 3.6, predelay: .035, damping: 6000, size: 1.5, lowCut: 260},
+    room: {rt60: .45, predelay: .005, damping: 5000, size: .5, lowCut: 120},
+    delay: {time: 60 / 88.9 * .75, feedback: .32, damping: 3600},
+    returns: [2.2, 1.4, 1],
+  },
+  eq: {highpass: 28, lowShelf: [90, 1], highShelf: [8000, 1.5]},
+};
+
+/** The minimal candidate: v1 with less mid-range under the voice and an ending that answers "with Laminar" and rests. */
+export const glideMinimal: ScoreStyle = {
+  ...glide,
+  id: 'glide-minimal',
+  title: 'Glide · minimal',
+  compose: (mix, cues) => composeGlide(mix, cues, true),
+  design: (mix, cues) => designGlide(mix, cues, true),
+};
+
+/** The minimal candidate with a "lift" ending: the payoff lands on the logo, under "with Laminar", and rings out open. */
+export const glideMinimalLift: ScoreStyle = {
+  ...glideMinimal,
+  id: 'glide-minimal-lift',
+  title: 'Glide · minimal (lift)',
+  compose: (mix, cues) => composeGlide(mix, cues, true, 'lift'),
+  design: (mix, cues) => designGlide(mix, cues, true, 'lift'),
+};
+
+/** Glide 2: the same palette as one continuous arc on an 89.5 BPM grid (reveal = bar 0, logo = bar 14). */
+export const glideArc: ScoreStyle = {
+  ...glide,
+  id: 'glide-arc',
+  title: 'Glide 2 · continuous arc',
+  compose: composeArc,
+  design: designArc,
+  space: {...glide.space, delay: {time: .6705 * .75, feedback: .3, damping: 3600}},
+};
+
+/** The minimal candidate with a "linger" ending: the payoff groove plays on through the logo and thins out over the last bar, and every
+ * whoosh, air and click in the film becomes a soft breeze, feather or blip (pink noise, no band-pass, no noise clicks). */
+export const glideMinimalLinger: ScoreStyle = {
+  ...glideMinimal,
+  id: 'glide-minimal-linger',
+  title: 'Glide · minimal (linger)',
+  compose: (mix, cues) => composeGlide(mix, cues, true, 'linger'),
+  design: (mix, cues) => designGlide(mix, cues, true, 'linger'),
+};

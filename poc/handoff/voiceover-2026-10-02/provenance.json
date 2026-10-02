@@ -1,0 +1,24 @@
+{
+  "branch": "feat/LAM-2316-turbopuffer-sound-design",
+  "pulled_commit": "5ce52252371062f97711006b033b0a70ae6b6b03",
+  "animation_source_commit": "b2786e6c20b3c72f45c6f6d4649fe230dadb4571",
+  "animation_includes_uncommitted_edits": true,
+  "files": {
+    "original.m4a": {
+      "sha256": "93b6b16363ec1bdc2c98e302d11fb2cc8edb62509b200256cf0c7b1ae4cc7d38",
+      "bytes": 1023652
+    },
+    "voice_A_subtle.wav": {
+      "sha256": "d2c827895302132a5352f6261f278d43d0fc88648c68ac976cb3e8ab0ea607f5",
+      "bytes": 21282918
+    },
+    "voice_A_subtle.m4a": {
+      "sha256": "39a717d731f922296f6002a986dbc373116511e3963472e71b64d6a2422ca358",
+      "bytes": 2313323
+    },
+    "process_voice.py": {
+      "sha256": "df3769b97517717b4900a861f0cb50459794b4a8c9be05a8d9483b5b9a7d14a2",
+      "bytes": 7313
+    }
+  }
+}

@@ -5,6 +5,7 @@ import {resolvePreludeSchedule} from '../../micro-20/timeline';
 import {normalizeMicro22Timing} from '../../micro-22/timeline';
 import {issueEntryEnd, issuePostludeOffset, normalizeSettings, type ChapterId, type ClipTiming, type Ultimate3Settings} from '../settings';
 import {ultimate3TypingWindows, ultimate3TypingTickEvents} from '../typing-audio';
+import type {ComparisonKey} from '../flow-comparison';
 import {ultimate3CheapAgentWhooshWindows, ultimate3CloudWhooshWindows, ultimate3FlowNumberDropTimes, ultimate3FlowRatchetWindow} from '../sound';
 
 export type Span = {at: number; duration: number};
@@ -138,6 +139,10 @@ export function ultimate3ScoreCues(input: Ultimate3Settings) {
       reveal: round(flowStart + Math.min(entry.at + entry.duration, 2 * BEAT)),
       native: flowNative,
       ...flowCues,
+      // The pricing comparison inserted into Flow 21; its clips are flow-native like the rest.
+      comparison: settings.flow.comparison
+        ? Object.fromEntries(Object.entries(settings.flow.comparison.timing).map(([key, clip]) => [key, span(flowNative, clip)])) as Record<ComparisonKey, Span>
+        : undefined,
     },
     issues: {
       postludeActive,

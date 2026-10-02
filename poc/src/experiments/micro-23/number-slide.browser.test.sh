@@ -20,7 +20,7 @@ browser eval '(async () => {
   sdk.DialStore.updateValues(id, {"gridShrink.from.progress": 1, "gridShrink.to.progress": 1, "returnToGrid.at": 100});
   await frame();
   await document.fonts.ready;
-  for (const [model, target] of [["gpt", 37], ["flow", 756]]) {
+  for (const [model, target] of [["gpt", 38], ["flow", 888]]) {
     const key = `${model}Number`;
     // Timeline metadata contains paths, not resolved timing values.
     const clip = {at: sdk.DialStore.getValue(id, `${key}.at`), duration: sdk.DialStore.getValue(id, `${key}.duration`)};

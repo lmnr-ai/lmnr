@@ -35,7 +35,7 @@ for time in 1 4.5 5.4 5.769 5.77 6.8 8.5 9.7 10.05 11 15.25; do
       const path=insert.querySelector("pattern path"), dense=time===6.8||time===8.5;
       if(path.getAttribute("stroke")!==(dense?"#1f1f1f":"#333333")) throw Error("Wrong insert grid color");
       if(Number(path.getAttribute("stroke-width"))!==(dense?.5:1)) throw Error("Wrong insert grid width");
-      if(insert.querySelectorAll("[data-dot]").length!==756) throw Error("Missing traces");
+      if(insert.querySelectorAll("[data-dot]").length!==888) throw Error("Missing traces");
       if(time===9.7) for(const el of insert.querySelectorAll(".micro23-headline,.micro23-label-box,.micro23-number,.micro23-dots circle")) if(el.getBoundingClientRect().bottom>=0) throw Error("Return is not empty");
     }
     return "PASS pose "+time;
@@ -68,7 +68,7 @@ browser eval '(async()=>{
   await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
   if(getComputedStyle(document.querySelector(".micro23-headline")).visibility!=="hidden") throw Error("Retimed title mask visible too early");
   if(getComputedStyle(document.querySelector("[data-number=gpt]")).visibility!=="hidden") throw Error("Retimed number mask visible too early");
-  if(document.querySelector("[data-number=flow] span").textContent!=="189") throw Error("Native from value not sampled");
+  if(document.querySelector("[data-number=flow] span").textContent!=="222") throw Error("Native from value not sampled");
   return "PASS native timing and from/to editing";
 })()'
 browser open "$url?experiment=micro-24"
