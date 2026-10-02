@@ -40,6 +40,9 @@ import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 //
 // With the consumers at 0 the delta and the post-swap delta2 find nothing; they
 // exist for the self-hosted path, where the old app-server may still be writing.
+// Project and signal purges also delete from signal_event_clusters_v2 and
+// signal_event_clusters_old, so neither the swap nor delta2 can bring back a
+// purged cluster.
 
 const LOG = "[signal-clusters-rebuild]";
 const LOCK_KEY = "signal_clusters_rebuild_lock";
@@ -174,6 +177,16 @@ const tombstoneDeleted = async (projectId: string): Promise<number> =>
     { projectId }
   );
 
+// Null when the lease was lost mid-walk.
+const tombstoneAllDeleted = async (lostLease: () => boolean): Promise<number | null> => {
+  let n = 0;
+  for (const projectId of await projectIds(NEXT)) {
+    if (lostLease()) return null;
+    n += await tombstoneDeleted(projectId);
+  }
+  return n;
+};
+
 const readStatus = async (): Promise<RebuildStatus | null> => {
   try {
     return await cache.get<RebuildStatus>(STATUS_KEY);
@@ -292,16 +305,19 @@ const runRebuild = async (status: RebuildStatus | null, lostLease: () => boolean
       if (lostLease()) return { state: "surrendered" };
       changed += await copyChanged(LIVE, NEXT, projectId, sinceParam(copyStartedAt));
     }
-    let tombstoned = 0;
-    for (const projectId of await projectIds(NEXT)) {
-      if (lostLease()) return { state: "surrendered" };
-      tombstoned += await tombstoneDeleted(projectId);
-    }
+    const tombstoned = await tombstoneAllDeleted(lostLease);
+    if (tombstoned === null) return { state: "surrendered" };
     console.log(`${LOG} delta: re-copied ${changed} changed clusters, tombstoned ${tombstoned} deleted ones`);
     const stop = await persist("delta");
     if (stop) return stop;
   }
 
+  // Again right before the swap: a DELETE that landed after the delta pass is
+  // still live on NEXT. After the swap, writers resolve the live name and hit
+  // the new table, so this pass leaves only its own duration uncovered.
+  const lateTombstoned = await tombstoneAllDeleted(lostLease);
+  if (lateTombstoned === null) return { state: "surrendered" };
+  if (lateTombstoned > 0) console.log(`${LOG} tombstoned ${lateTombstoned} clusters deleted since the delta`);
   if (lostLease()) return { state: "surrendered" };
   await ch().command({ query: `EXCHANGE TABLES ${LIVE} AND ${NEXT}` });
   console.log(`${LOG} swapped; restart the app-server to start clustering on the new table`);

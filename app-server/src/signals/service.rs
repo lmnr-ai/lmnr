@@ -674,20 +674,43 @@ pub async fn delete_signal(
     Ok(SignalResponse::new(deleted, None, profile_name))
 }
 
+/// Copies of `signal_event_clusters` that `rebuild-signal-clusters.ts` leaves
+/// behind until they are dropped by hand. The rebuild copies from them into the
+/// live table, so a purge that skipped them could see the clusters come back.
+const CLUSTER_SHADOW_TABLES: [&str; 2] = ["signal_event_clusters_v2", "signal_event_clusters_old"];
+
 /// `signal_events` first: `backfill-signal-clusters.ts` reaches `events_to_clusters`
 /// only by joining it, so a crash mid-purge cannot resurrect this signal's clusters.
+/// Cluster shadows go before the live table for the same reason.
 async fn purge_signal_from_clickhouse(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     signal_id: Uuid,
 ) {
-    let statements = [
-        "DELETE FROM signal_events WHERE project_id = ? AND signal_id = ?",
-        "DELETE FROM signal_event_summaries WHERE project_id = ? AND signal_id = ?",
-        "DELETE FROM signal_event_clusters WHERE project_id = ? AND signal_id = ?",
-    ];
+    let shadows = clickhouse
+        .query("SELECT name FROM system.tables WHERE database = currentDatabase() AND has(?, name)")
+        .bind(CLUSTER_SHADOW_TABLES)
+        .fetch_all::<String>()
+        .await
+        .unwrap_or_else(|e| {
+            log::error!("failed to list cluster shadow tables for signal {signal_id}: {e:?}");
+            Vec::new()
+        });
 
-    for statement in statements {
+    let mut statements = vec![
+        "DELETE FROM signal_events WHERE project_id = ? AND signal_id = ?".to_string(),
+        "DELETE FROM signal_event_summaries WHERE project_id = ? AND signal_id = ?".to_string(),
+    ];
+    statements.extend(
+        shadows
+            .iter()
+            .map(|table| format!("DELETE FROM {table} WHERE project_id = ? AND signal_id = ?")),
+    );
+    statements.push(
+        "DELETE FROM signal_event_clusters WHERE project_id = ? AND signal_id = ?".to_string(),
+    );
+
+    for statement in &statements {
         if let Err(e) = clickhouse
             .query(statement)
             .bind(project_id)
