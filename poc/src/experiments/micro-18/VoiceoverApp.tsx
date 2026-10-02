@@ -5,7 +5,8 @@ import {installMicro20AuthoringCompatibility} from '../micro-20/authoring';
 import {Micro18App, ULTIMATE3_PANEL_IDS, type Ultimate3AudioProps, type Ultimate3Edition, type Ultimate3PanelIds} from './App';
 import {VoiceoverEngine} from './voiceover-engine';
 import {VOICEOVER_BEDS, type VoiceoverBedId} from './voiceover-phrases';
-import {readVoiceoverSettings, normalizeVoiceoverSettings, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {CURRENT_MIX_ID, CURRENT_SOUNDTRACK, loadCurrentVoiceoverSettings, normalizeCurrentVoiceoverSettings} from './current-cut';
 
 const SOUNDTRACKS = Object.entries(VOICEOVER_BEDS).map(([value, bed]) => ({value, label: bed.label}));
 
@@ -15,9 +16,9 @@ export const VOICEOVER_PANEL_IDS = Object.fromEntries(Object.keys(ULTIMATE3_PANE
 function VoiceoverAudio({settings, globalTime, playing, inspecting, seekGeneration}: Ultimate3AudioProps) {
   const mix = useDialKit('Ultimate 3 · Voiceover mix', {
     masterVolume: [6.98, 0, 10, .01],
-    // A/B the soundtrack under the same narration; the approved bed stays the default.
-    soundtrack: {type: 'select', options: SOUNDTRACKS, default: 'arabesque'},
-  }, {id: 'ultimate3-voiceover-sound-v4', persist: true});
+    // The current cut is shared across browsers; older beds remain auditionable.
+    soundtrack: {type: 'select', options: SOUNDTRACKS, default: CURRENT_SOUNDTRACK},
+  }, {id: CURRENT_MIX_ID, persist: true});
   const engine = useRef<VoiceoverEngine | null>(null);
   engine.current ??= new VoiceoverEngine();
   const active = playing && !inspecting;
@@ -42,10 +43,10 @@ function VoiceoverAudio({settings, globalTime, playing, inspecting, seekGenerati
 
 const edition: Ultimate3Edition = {
   experimentId: 'micro-18', settingsStorageId: VOICEOVER_SETTINGS_ID, panelIds: VOICEOVER_PANEL_IDS,
-  editableVoiceover: true, normalizeSettings: normalizeVoiceoverSettings,
+  editableVoiceover: true, normalizeSettings: normalizeCurrentVoiceoverSettings,
   readSettings: () => {
     installMicro20AuthoringCompatibility(DialStore, undefined, true, VOICEOVER_PANEL_IDS.issues);
-    return readVoiceoverSettings(localStorage);
+    return loadCurrentVoiceoverSettings(localStorage);
   },
   Audio: VoiceoverAudio,
 };

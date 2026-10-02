@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {graphState} from '../introducing-flow-1-2/geometry';
+import {graphState, FLOW_ANCHOR_Y} from '../introducing-flow-1-2/geometry';
 import {BEAD_ORDER, beadProgress} from '../introducing-flow-1-2/beads';
 import {ultimate3ScoreCues} from './score/cues';
 import {Ultimate3Scene} from './Scene';
@@ -16,7 +16,7 @@ const playback = (globalTime: number) => sampleFlow(globalTime - flowStart, s).p
 const cue = () => flowNarrationRevealAt(s);
 const graph = (time: number) => graphState(playback(time), s.flow.controls.beadStaggerSeconds, cue());
 
-test('five peers enter first; flow-1, 73.0 and its dot stay hidden until n12', () => {
+test('five peers enter first; flow-1, 74.1% and its dot stay hidden until n12', () => {
   const at = s.voiceover!.phrases.n12.at;
   for (const time of [32.52, 33.12, 33.72, at - .001, at]) assert.equal(graph(time).ball.opacity, 0);
   const before = graph(at - .001);
@@ -26,8 +26,8 @@ test('five peers enter first; flow-1, 73.0 and its dot stay hidden until n12', (
   for (const id of ['opus', 'sonnet', 'sol', 'gemini', 'luna'] as const) assert.equal(beads[id], 1);
   assert.equal(graph(at + .1).ball.opacity, 1);
   assert.ok(graph(at + .1).ball.y > graph(at + .5).ball.y);
-  assert.equal(graph(at + .85 + 1e-8).ball.y, 270);
-  assert.equal(graph(at + .85 + 1e-8).ball.score, '73.0');
+  assert.equal(graph(at + .85 + 1e-8).ball.y, FLOW_ANCHOR_Y);
+  assert.equal(graph(at + .85 + 1e-8).ball.score, '74.1%');
 });
 
 test('peer stagger has no empty Flow slot and late group edits still put Flow last', () => {

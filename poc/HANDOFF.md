@@ -1,6 +1,28 @@
 # Signals launch video — agent handoff
 
-## Latest handoff: alternate "Glide" soundtrack (LAM-2316)
+## Latest handoff: October 2 narration + current Ultimate 3
+
+Start with **[handoff/voiceover-2026-10-02/README.md](handoff/voiceover-2026-10-02/README.md)**.
+It contains the new original recording, approved A/subtle processed WAV and M4A,
+processing provenance, and the latest serialized animation/mix settings.
+The editable source now includes the approved Main timings, native Cost controls,
+updated intelligence scores (74.1 / 84.8 / 77.3 / 72.8), readable spacing,
+“Matching GPT-6-Sol…” subtitle, and 888-vs-38 pricing.
+The new recording is supplied separately for alignment; existing phrase audio is preserved.
+
+## Previous base snapshot: Glide · minimal (linger), matched yellow spinner
+
+Use **[handoff/glide-linger-current/README.md](handoff/glide-linger-current/README.md)**
+and its `settings.json`, with soundtrack **`glide-minimal-linger`**. The user has
+selected this version: 2212 frames, paper off, extended musical ending, and the
+yellow agent's black spinner matched to the white agent's 3px stroke.
+This is now the shared current-edition default, with a guarded one-time upgrade
+for existing browser settings. Older defaults and snapshots remain historical.
+Pricing now shows **888 vs 38 traces/$** in a centered, exact-count dot field;
+**20x** copy, intelligence scores and narration are unchanged. See
+[handoff/pricing-888/README.md](handoff/pricing-888/README.md).
+
+## Imported soundtrack handoff (LAM-2316)
 
 Start with **[handoff/turbopuffer-sound/README.md](handoff/turbopuffer-sound/README.md)**.
 It adds an auditionable TurboPuffer-inspired soundtrack for the same editable-v11

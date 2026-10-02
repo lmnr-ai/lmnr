@@ -56,7 +56,7 @@ test('retained live current values and edited mask timings match static export a
   live.comparison_blueDots.transition = {type:'easing', duration:.2, ease:[0,0,1,1]};
   const preview = liveFlowPreview(live, settings).comparison!;
   assert.equal(preview.sample.numberContainersVisible.gpt, false);
-  assert.equal(preview.sample.numbers.gpt, 9);
+  assert.equal(preview.sample.numbers.gpt, 10);
   assert.equal(preview.sample.dotDurations.blue, .2);
   for (const global of [40,43.44,43.73,44.5,45.9,46.8,47.1,49].map(fromV9)) {
     const timeline = liveAt(global);
@@ -154,5 +154,5 @@ test('custom from/to, spring and instant semantics survive settings/export', () 
   assert.deepEqual(edited.flow.comparison.timing.comparison_gptNumber.from,{progress:.2});
   const at = edited.flow.comparison.timing.comparison_flowNumber.at;
   assert.equal(sampleFlow(settings.flow.entrySlide.duration+at-.001,edited).comparison!.sample.numbers.flow,0);
-  assert.equal(sampleFlow(settings.flow.entrySlide.duration+at+.001,edited).comparison!.sample.numbers.flow,756);
+  assert.equal(sampleFlow(settings.flow.entrySlide.duration+at+.001,edited).comparison!.sample.numbers.flow,888);
 });

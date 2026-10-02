@@ -1,29 +1,34 @@
 import {computeClipState, computeStaticTimeline, parseTimelineConfig} from 'dialkit/timeline';
 import {MICRO_23_KEYS, MICRO_23_TIMELINE, normalizeMicro23Controls, type Micro23Key, type Micro23Props} from './timeline';
 
-export const FIELD = {x: 220, y: 170, columns: 42, rows: 18, cell: 20, orangeDots: 38} as const;
-export const TOTAL_DOTS = FIELD.columns * FIELD.rows;
-// Pan 30 whole rows below the composition: the final grid phase matches the opening.
-// Even at the minimum 20px opening cell size, all content ends above the viewport.
-export const RETURN_GRID_DISTANCE = FIELD.cell * 30;
+// User-approved presentation values for traces <100k, Flow-1 at 4k output.
+// Keep the conservative 20x headline and approved narration unchanged.
+export const PRICING = {gpt: 38, flow: 888} as const;
+export const FIELD = {x: 220, y: 150, columns: 43, rows: 21, cell: 20, orangeDots: PRICING.gpt} as const;
+export const TOTAL_DOTS = PRICING.flow;
+export const LAST_ROW_DOTS = TOTAL_DOTS % FIELD.columns || FIELD.columns;
+// Whole-cell travel preserves the opening grid phase. The taller field needs
+// 32 rows to clear its lower cards even at the minimum 20px opening cell size.
+export const RETURN_GRID_DISTANCE = FIELD.cell * 32;
 export const HEADLINE_BOUNDS = {x: 340, y: 290, width: 600, height: 140} as const;
 /** All rectangles span whole cells, including the lower row at the field's edge. */
 export const LABEL_BOUNDS = {
-  gpt: {x: 220, y: 130, width: 180, height: 40},
-  flow: {x: 220, y: 530, width: 180, height: 40},
+  gpt: {x: FIELD.x, y: FIELD.y - 40, width: 180, height: 40},
+  flow: {x: FIELD.x, y: FIELD.y + FIELD.rows * FIELD.cell, width: 180, height: 40},
 };
 export const NUMBER_BOUNDS = {
-  gpt: {x: 880, y: 130, width: 100, height: 40},
-  flow: {x: 740, y: 530, width: 320, height: 40},
+  gpt: {x: FIELD.x + PRICING.gpt * FIELD.cell - 100, y: LABEL_BOUNDS.gpt.y, width: 100, height: 40},
+  flow: {x: FIELD.x + LAST_ROW_DOTS * FIELD.cell - 320, y: LABEL_BOUNDS.flow.y, width: 320, height: 40},
 };
-// The reference contains 38 orange markers, despite its caption reading 37.
-// Preserve its actual artwork and captions independently; blue occupies the rest.
+// Twenty full rows of 43, then 28 left-aligned dots: no side extensions.
+// Keep cell alignment; an odd column count centers on the nearest grid cell.
+// Orange is a subset of Flow's total, not additional dots.
 export const DOTS = Array.from({length: TOTAL_DOTS}, (_, index) => ({
   index, row: Math.floor(index / FIELD.columns), column: index % FIELD.columns,
-  color: index < FIELD.orangeDots ? 'orange' as const : 'blue' as const,
-  order: index < FIELD.orangeDots ? index : index - FIELD.orangeDots,
   x: FIELD.x + (index % FIELD.columns + .5) * FIELD.cell,
   y: FIELD.y + (Math.floor(index / FIELD.columns) + .5) * FIELD.cell,
+  color: index < FIELD.orangeDots ? 'orange' as const : 'blue' as const,
+  order: index < FIELD.orangeDots ? index : index - FIELD.orangeDots,
 }));
 export const clamp01 = (value: number) => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
@@ -76,7 +81,7 @@ export function sampleMicro23Progress(time: number, progress: Record<Micro23Key,
     dots: DOTS.map(dot => ({...dot, progress: staggerProgress(p[dot.color === 'orange' ? 'orangeDots' : 'blueDots'], dot.order,
       dot.color === 'orange' ? FIELD.orangeDots : TOTAL_DOTS - FIELD.orangeDots, controls.dotDuration, durations[dot.color === 'orange' ? 'orangeDots' : 'blueDots'])})),
     dotDurations: {orange: Math.min(controls.dotDuration, durations.orangeDots), blue: Math.min(controls.dotDuration, durations.blueDots)},
-    numbers: {gpt: Math.round(37 * p.gptNumber), flow: Math.round(756 * p.flowNumber)},
+    numbers: {gpt: Math.round(PRICING.gpt * p.gptNumber), flow: Math.round(PRICING.flow * p.flowNumber)},
   };
 }
 export const micro23DurationFrames = (props: Micro23Props = {}) => createMicro23Sampler(props).durationInFrames;

@@ -4,16 +4,16 @@ import {computeClipState} from 'dialkit/timeline';
 import {createMicro23Sampler, DOTS, FIELD, HEADLINE_BOUNDS, LABEL_BOUNDS, NUMBER_BOUNDS, inspectionTime, micro23DurationFrames, sampleMicro23Progress, staggerProgress, TOTAL_DOTS} from './sample';
 import {MICRO_23_KEYS, MICRO_23_TIMELINE, normalizeMicro23Controls} from './timeline';
 
-test('Figma geometry, captions and 20px grid endpoint are preserved', () => {
-  assert.equal(TOTAL_DOTS, 756);
+test('approved pricing, centered geometry and 20px grid endpoint are preserved', () => {
+  assert.equal(TOTAL_DOTS, 888);
   assert.equal(DOTS.filter(dot => dot.color === 'orange').length, 38);
-  assert.deepEqual([DOTS[0].x, DOTS[0].y, DOTS.at(-1)!.x, DOTS.at(-1)!.y], [230, 180, 1050, 520]);
+  assert.deepEqual([DOTS[0].x, DOTS[0].y, DOTS.at(-1)!.x, DOTS.at(-1)!.y], [230, 160, 770, 560]);
   const sampler = createMicro23Sampler(), first = sampler.sample(0), last = sampler.sample(3);
   assert.equal(first.cellSize, 60); assert.equal(first.gridY, 360);
   assert.ok(first.dots.every(dot => dot.progress === 0));
   assert.equal(last.cellSize, 20); assert.equal(last.gridY, 350);
   assert.ok(last.dots.every(dot => dot.progress === 1));
-  assert.deepEqual(last.numbers, {gpt: 37, flow: 756});
+  assert.deepEqual(last.numbers, {gpt: 38, flow: 888});
   assert.equal(micro23DurationFrames(), 180);
   assert.equal(micro23DurationFrames({controls: {hold: 0}}), 120);
 });
@@ -23,7 +23,7 @@ test('return zoom goes below all content and exactly restores the opening grid p
     const sampler = createMicro23Sampler({controls: {startCellSize}});
     const first = sampler.sample(0), end = sampler.sample(3.96);
     assert.equal(end.cellSize, first.cellSize);
-    assert.ok(Math.abs((end.gridY - first.gridY) / end.cellSize + 30) < 1e-9);
+    assert.ok(Math.abs((end.gridY - first.gridY) / end.cellSize + 32) < 1e-9);
     const contentBottom = Math.max(...Object.values(NUMBER_BOUNDS).map(box => box.y + box.height));
     assert.ok(end.gridY + (contentBottom - 350) * end.worldScale < 0);
     assert.ok(end.dots.every(dot => dot.progress === 1)); // moved offscreen, not faded away
@@ -172,7 +172,7 @@ test('each label and number is independent; number fold/count share native ease-
     const atQuarter = sampler.sample(clip.at + clip.duration / 4);
     assert.ok(atQuarter.progress[key] > .25);
     const model = key === 'gptNumber' ? 'gpt' : 'flow';
-    const target = model === 'gpt' ? 37 : 756;
+    const target = model === 'gpt' ? 38 : 888;
     assert.equal(atQuarter.numbers[model], Math.round(target * atQuarter.progress[key]));
     assert.equal(sampler.sample(clip.at - .001).numberContainersVisible[model], false);
     assert.equal(sampler.sample(clip.at).numberContainersVisible[model], true);

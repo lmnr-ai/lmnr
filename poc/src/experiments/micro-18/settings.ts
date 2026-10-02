@@ -31,13 +31,19 @@ export type Ultimate3Settings = {
   version: 2 | 4;
   /** Master, screen-pinned paper layer. Absent in historical settings means off. */
   paperTexture?: boolean;
+  /** Current-cut load migration completed, or explicit JSON import to preserve. */
+  currentCutVersion?: 1;
+  /** Active-edition boundary migration attempted, or a literal import. */
+  costLeadInVersion?: 1;
+  /** Checked for the interrupted lead-in migration; literal imports opt out. */
+  costTimingRecoveryVersion?: 1;
   voiceover?: VoiceoverSettings;
   /** Missing in legacy presets; normalized settings always include the computed v4 defaults. */
   clouds?: CloudSettings;
   allocations: Record<ChapterId, number>;
   pacing: {ultimate2HandoffHold: number; costTrimEnd: number; flowTrimEnd: number};
   ultimate2: {timing: Micro17Timing; controls: Micro17Controls; streamBlocksRemoved?: 10 | 12};
-  cost: {timing: Micro16Timing; controls: Micro16Controls};
+  cost: {timing: Micro16Timing & {cloudSweep: ClipTiming}; controls: Micro16Controls};
   flow: {sourceVersion?: 13 | 21; timing21?: Flow21Timing; comparison?: FlowComparison | false; entrySlide: ClipTiming; timing: FlowTiming; controls: FlowControls};
   issues: {sourceVersion: 20 | 22; timing22?: Micro22Timing; controls22?: Micro22Controls; migration22?: 1; leadIn: ClipTiming; timing: IssueTiming; controls: Micro15Controls; preludeTiming: PreludeTiming; preludeControls: Micro20Controls; issueStart: number; legacySource15?: unknown};
   conclusion: {placeholder: ClipTiming; logo: ClipTiming};
@@ -209,6 +215,9 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
   const normalized: Ultimate3Settings = {
     version: 4,
     ...(typeof raw.paperTexture === 'boolean' ? {paperTexture: raw.paperTexture} : {}),
+    ...(raw.currentCutVersion === 1 ? {currentCutVersion: 1 as const} : {}),
+    ...(raw.costLeadInVersion === 1 ? {costLeadInVersion: 1 as const} : {}),
+    ...(raw.costTimingRecoveryVersion === 1 ? {costTimingRecoveryVersion: 1 as const} : {}),
     allocations: {...ULTIMATE_3_DEFAULTS.allocations},
     pacing: {
       ultimate2HandoffHold: finite(pacingRaw?.ultimate2HandoffHold, .5, 0, 30),
@@ -217,7 +226,8 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
     },
     ultimate2: {timing: normalize17Timing({...MICRO17_TIMING, ...u2.timing}), controls: recordControls(u2.controls, MICRO17_CONTROLS),
       ...(u2.streamBlocksRemoved === 10 || u2.streamBlocksRemoved === 12 ? {streamBlocksRemoved: u2.streamBlocksRemoved} : {})},
-    cost: {timing: normalize16Timing(cost.timing), controls: normalize16Controls(cost.controls)},
+    cost: {timing: {...normalize16Timing(cost.timing),
+      cloudSweep: normalizeClip(cost.timing?.cloudSweep, normalize16Timing(cost.timing).cloudSweep)}, controls: normalize16Controls(cost.controls)},
     flow: {...(flow.sourceVersion === 21 ? {sourceVersion: 21 as const,
         timing21: Object.fromEntries(Object.entries(FLOW_21_TIMING).map(([key, fallback]) => {
           const authored = flow.timing21?.[key as keyof Flow21Timing];

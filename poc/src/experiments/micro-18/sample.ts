@@ -64,12 +64,23 @@ export function sampleFlow(localChapterTime: number, settings: Ultimate3Settings
   const flowProgress = Object.fromEntries(FLOW_CLIP_KEYS.map(key => [key, key === 'cloudReveal' ? 1 : progress(nativeTime, settings.flow.timing[key])])) as FlowPlayback['progress'];
   return {entryProgress: progress(localChapterTime, entry), nativeTime, playback: {time: nativeTime, timing, progress: flowProgress}};
 }
+/** Cost owns its native cloud exit; standalone16 remains unchanged. Raw progress
+ * intentionally retains authored endpoints and spring overshoot like clip.current. */
+export function sampleCost(localTime: number, settings: Ultimate3Settings, liveCloudProgress?: number): Micro16State {
+  const time = Math.min(localTime, costEndpoint(settings));
+  const base = sampleMicro16(time, settings.cost.controls, settings.cost.timing);
+  const clip = settings.cost.timing.cloudSweep;
+  // An extended allocation holds the native trim; clip.current itself keeps running.
+  const cloudProgress = (localTime < costEndpoint(settings) ? liveCloudProgress : undefined)
+    ?? evaluateClip({...clip, from: clip.from ?? {progress: 0}, to: clip.to ?? {progress: 1}}, time);
+  return {...base, progress: {...base.progress, cloudSweep: cloudProgress}, cloud: {...base.cloud, progress: cloudProgress, translateY: 900 * cloudProgress}};
+}
 export type Ultimate3Sample = {time: number; chapter: ChapterId; localTime: number; schedule: ChapterSegment[]; ultimate2?: Micro17Playback; cost?: Micro16State; flow?: ReturnType<typeof sampleFlow> & {outgoingCost: Micro16State}; issues?: ReturnType<typeof sampleIssues>; conclusion?: 'placeholder'|'logo'; conclusionSource22?: Micro22Sample; conclusionSource?: ReturnType<typeof sampleMicro20>};
 export function sampleUltimate3(time: number, input: Ultimate3Settings): Ultimate3Sample {
   const settings = normalizeSettings(input); const located = locateChapter(time, settings); const base = {time: located.time, chapter: located.segment.id, localTime: located.localTime, schedule: located.schedule};
   if (located.segment.id === 'ultimate2') return {...base, ultimate2: sampleMicro17(Math.min(located.localTime, ultimate2Endpoint(settings)), settings.ultimate2.timing)};
-  if (located.segment.id === 'cost') return {...base, cost: sampleMicro16(Math.min(located.localTime, costEndpoint(settings)), settings.cost.controls, settings.cost.timing)};
-  if (located.segment.id === 'flow') return {...base, flow: {...sampleFlow(located.localTime, settings), outgoingCost: sampleMicro16(costEndpoint(settings), settings.cost.controls, settings.cost.timing)}};
+  if (located.segment.id === 'cost') return {...base, cost: sampleCost(located.localTime, settings)};
+  if (located.segment.id === 'flow') return {...base, flow: {...sampleFlow(located.localTime, settings), outgoingCost: sampleCost(costEndpoint(settings), settings)}};
   if (located.segment.id === 'issues') {
     return {...base, issues: sampleIssues(located.localTime, settings)};
   }

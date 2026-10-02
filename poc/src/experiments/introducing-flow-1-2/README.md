@@ -36,23 +36,24 @@ The string and gradient circle use CSS primitives matching the supplied SVG (`#8
 
 ## Data and deliberate visual exceptions
 
-Frozen source: `../lmnr-02/frontend/components/landing/sections/flow-one/benchmark-data.ts:8–17`.
-Source SHA256: `065d89088ffd927ed7171eaefe1e74cc6430dc17a7a51034b2575e84b4a06414`.
+Original source: `../lmnr-02/frontend/components/landing/sections/flow-one/benchmark-data.ts:8–17`.
+The current labels include user-approved updates to flow-1 **74.1%**, Opus 5 **84.8**, Sonnet 5 **77.3**, and GPT-6 Sol **72.8**; the original source hash below predates those overrides.
+Original source SHA256: `065d89088ffd927ed7171eaefe1e74cc6430dc17a7a51034b2575e84b4a06414`.
 
 These are full-benchmark **description F1 percentages** and **measured traces per dollar for rendered traces under 16K tokens**. `metrics.ts` keeps exports independent of another local worktree.
 
 | Model | Description F1 | Traces/$ |
 |---|---:|---:|
-| flow-1 | 73 | 756 |
-| Claude Opus 5 | 80.6 | 7 |
-| Claude Sonnet 5 | 76.9 | 11 |
-| GPT-6 Sol | 71.3 | 37 |
+| flow-1 | 74.1 | 756 |
+| Claude Opus 5 | 84.8 | 7 |
+| Claude Sonnet 5 | 77.3 | 11 |
+| GPT-6 Sol | 72.8 | 37 |
 | GPT-6 Luna | 63.8 | 632 |
 | Gemini 3.8 Flash | 65.3 | 14 |
 
-- Peer F1 values use a fixed 85% at y=0 / 60% at y=600 scale, moving their centers to 105.6–508.8px and giving the Y ticks clean 5-percentage-point intervals. This retains the requested real statistics rather than copying illustrative peer locations from Figma.
-- **flow-1 deliberately settles at Y=270px (4.5 × 60px grid cells)**, as requested, not its measured F1 position.
-- All first-slide bead centers sit on x=280, aligned to the grid: `(280 − 40) / 60 = 4`. This shifts the updated Figma row 10px right. flow-1's fixed first/spread anchors and Y=270 remain unchanged while peers follow the new scales.
+- Peer F1 values use a fixed 85% at y=0 / 60% at y=600 scale, with clean 5-percentage-point Y ticks. A **32px minimum point Y** keeps the top label inside the frame: Opus displays **84.8** at Y=32 rather than its unclamped Y=4.8. Other peers retain their metric-derived positions. This is a presentation exception, not a change to the score.
+- **flow-1 deliberately settles at Y=256.8px**, giving it the same **36px** gap above GPT-6 Sol as Gemini has above GPT-6 Luna. This is a readability adjustment, independent of the displayed **74.1%**; 32px-high label boxes retain 4px clearance.
+- All first-slide bead centers sit on x=280, aligned to the grid: `(280 − 40) / 60 = 4`. This shifts the updated Figma row 10px right. The first/spread X anchors are unchanged.
 - Final X maps 0 traces/$ to x=120 and each additional 100 traces/$ to another 136px. The exact position for 756 is x=1148.16, but **flow-1 stays pinned at x=1150**, a deliberate 1.84px discrepancy within the approved ±15px tolerance. Peers use the exact mapping and remain clear of the left axis panel (ending at x=100). Luna therefore moves far right; its label stays inside the artboard by flipping left.
 - **20x** is approximately flow-1 versus GPT-6 Sol: `756 / 37 ≈ 20.43`, not a comparison against every model.
 
