@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import profile from '../../../handoff/glide-linger-current/settings.json';
 import {normalizeSettings} from './settings';
-import {COST_LEAD_IN_BACKUP, COST_TIMING_RECOVERY_BACKUP, COST_LEAD_IN_DEFAULTS as CURRENT_VOICEOVER_DEFAULTS, loadCurrentVoiceoverSettings, normalizeCurrentVoiceoverSettings} from './current-cut';
+import {COST_LEAD_IN_BACKUP, COST_TIMING_RECOVERY_BACKUP, COST_LEAD_IN_DEFAULTS as CURRENT_VOICEOVER_DEFAULTS, loadCurrentVoiceoverSettings, migrateVoiceoverTake, normalizeCurrentVoiceoverSettings} from './current-cut';
 import {VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {sampleUltimate3} from './sample';
 import {voiceoverSchedule} from './voiceover-schedule';
@@ -22,7 +22,8 @@ test('recover the observed partial hot-reload migration: shifted boundary with s
     assert.ok(Math.abs(actual.cost.timing[key].at - before.cost.timing[key].at - 1.5) < 1e-9,
       `${key}: each Cost animation must move +1.5 local seconds`);
   }
-  assert.deepEqual(voiceoverSchedule(actual), voiceoverSchedule(before));
+  // These are editable-v11 settings, so their generated slots also move onto the October 2 take.
+  assert.deepEqual(voiceoverSchedule(actual), voiceoverSchedule(migrateVoiceoverTake(before)));
   for (const time of [19.65, 20.2, 20.7, 21.5, 22, 23, 25, 27]) {
     const old = sampleUltimate3(time, before).cost!;
     const next = sampleUltimate3(time, actual).cost!;
@@ -53,7 +54,7 @@ test('literal imports, later edits and a single intentionally earlier bar are no
   const imported = normalizeCurrentVoiceoverSettings(partial);
   assert.deepEqual(loadCurrentVoiceoverSettings(store(imported)), imported);
   const laterEdit = {...CURRENT_VOICEOVER_DEFAULTS, cost: before.cost};
-  assert.deepEqual(loadCurrentVoiceoverSettings(store(laterEdit)), laterEdit);
+  assert.deepEqual(loadCurrentVoiceoverSettings(store(laterEdit)), migrateVoiceoverTake(laterEdit));
   const oneEarlier = {...CURRENT_VOICEOVER_DEFAULTS, costTimingRecoveryVersion: undefined,
     cost: {...CURRENT_VOICEOVER_DEFAULTS.cost, timing: {...CURRENT_VOICEOVER_DEFAULTS.cost.timing, cheapLegOneRight: before.cost.timing.cheapLegOneRight}}};
   assert.deepEqual(loadCurrentVoiceoverSettings(store(oneEarlier)).cost.timing, oneEarlier.cost.timing);

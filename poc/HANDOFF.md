@@ -8,7 +8,8 @@ processing provenance, and the latest serialized animation/mix settings.
 The editable source now includes the approved Main timings, native Cost controls,
 updated intelligence scores (74.1 / 84.8 / 77.3 / 72.8), readable spacing,
 “Matching GPT-6-Sol…” subtitle, and 888-vs-38 pricing.
-The new recording is supplied separately for alignment; existing phrase audio is preserved.
+The recording is now cut in as `editable-v12` (n12 at 33.91, n13 and the comparison +0.3 s,
+same 2212 frames) under a rebuilt Glide · minimal (linger) bed; editable-v11 audio is preserved.
 
 ## Previous base snapshot: Glide · minimal (linger), matched yellow spinner
 

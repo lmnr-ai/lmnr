@@ -12,7 +12,7 @@ const [edition = 'editable-v5', handoff = 'voiceover-issues4', take = 'Signals-l
 // The raw 10-04 take is cleaned once; the approved A/subtle WAV is already mastered, so it is trimmed as is.
 // Its trims gate 1 dB under the 10-04 trims, so the bed drops 1 dB to keep the balance.
 const TAKES = {'Signals-launch-09-29-10-04.m4a': {chain: 'highpass=f=75,acompressor=threshold=0.0631:ratio=2.5:attack=10:release=100,loudnorm=I=-15.7:TP=-2:LRA=11,aresample=48000', bed: -5.5},
-  'voice_A_subtle.wav': {chain: 'anull', bed: -6.5}};
+  'voice_A_subtle.wav': {chain: 'anull', bed: -6.5}, 'voice_A_subtle-2026-10-02.wav': {chain: 'anull', bed: -6.5}};
 if (!(take in TAKES)) throw new Error(`Unknown take: ${take}`);
 const {chain, bed: bedDb} = TAKES[take];
 const dest = join(root, 'public/audio/voiceover', edition);

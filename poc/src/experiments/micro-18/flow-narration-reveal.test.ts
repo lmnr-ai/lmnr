@@ -46,7 +46,7 @@ test('peer stagger has no empty Flow slot and late group edits still put Flow la
 });
 
 test('scene hides all three flow markers, not the line, before the spoken cue', () => {
-  const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(34.06, s), settings: s}));
+  const html = renderToStaticMarkup(createElement(Ultimate3Scene, {sample: sampleUltimate3(s.voiceover!.phrases.n12.at - .01, s), settings: s}));
   for (const name of ['flow2-ball', 'flow2-flow-score', 'flow2-flow-label']) {
     assert.match(html, new RegExp(`class="${name}"[^>]*style="[^"]*opacity:0`));
   }

@@ -2,7 +2,8 @@ import profile from '../../../handoff/glide-linger-current/settings.json';
 import {normalizeSettings, type ClipTiming, type Ultimate3Settings} from './settings';
 import {withFlowComparison} from './flow-comparison';
 import {COST_ZIP_KEY, settingsFromCostZipTimeline} from './cost-zip-authoring';
-import {normalizeVoiceoverSettings, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {BRISK_CADENCE_PHRASES, normalizeVoiceoverSettings, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
+import {VOICEOVER_PHRASES} from './voiceover-phrases';
 
 export const CURRENT_SOUNDTRACK = 'glide-minimal-linger' as const;
 export const CURRENT_MIX_ID = 'ultimate3-voiceover-sound-v4';
@@ -10,10 +11,12 @@ export const CURRENT_CUT_BACKUP = 'ultimate3-before-current-cut-v1';
 const MIX_MIGRATION = 'ultimate3-current-mix-v1';
 const MIX_BACKUP = 'ultimate3-before-current-mix-v1';
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const close = (a: number, b: number) => Math.abs(a - b) < 1e-8;
 
 /** Imports are literal, including an intentionally selected old spinner or ending. */
 export const normalizeCurrentVoiceoverSettings = (input: unknown) => ({
   ...normalizeVoiceoverSettings(input), currentCutVersion: 1 as const, costLeadInVersion: 1 as const, costTimingRecoveryVersion: 1 as const,
+  voiceoverTakeVersion: 2 as const,
 });
 export const COST_LEAD_IN_BACKUP = 'ultimate3-before-cost-lead-in-v1';
 /** Storage-only translation: keep native action clocks at their previous global beats.
@@ -36,14 +39,43 @@ export const COST_LEAD_IN_DEFAULTS = {...migrateCostLeadIn({...normalizeVoiceove
 // Approved Main timeline: zip 18.76–20.96 globally. Persist the three native
 // chapter-local legs, so Main, Cost detail and export share the same timing.
 const tunedZipDefaults = settingsFromCostZipTimeline({[COST_ZIP_KEY]: {at: 18.76, duration: 2.1999999999999997}}, COST_LEAD_IN_DEFAULTS);
-export const CURRENT_VOICEOVER_DEFAULTS = normalizeSettings({...tunedZipDefaults,
+/** The current picture as it was on editable-v11's slots. */
+export const V11_CURRENT_DEFAULTS = normalizeSettings({...tunedZipDefaults,
   cost: {...tunedZipDefaults.cost, timing: {...tunedZipDefaults.cost.timing,
     cloudSweep: {at: .05, duration: 2.41, from: {progress: 0}, to: {progress: 1},
       transition: {type: 'easing', duration: 2.41, ease: [.45, 0, .55, 1]}},
   }},
 });
+// The October 2 take's longer "Matching… intelligence," starts 0.16s sooner (as the five peers land) and still
+// pushes n13 0.3s, so the comparison follows n13; the grid return waits for n13's end and still arrives at the engine.
+const COMPARISON_DELAY = .3, RETURN_DELAY = .25;
+const v11Comparison = V11_CURRENT_DEFAULTS.flow.comparison || undefined;
+const delayed = (clip: ClipTiming, delay: number, shrink = 0): ClipTiming => ({...clip, at: clip.at + delay, duration: clip.duration - shrink,
+  ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration: clip.duration - shrink}} : {})});
+export const CURRENT_VOICEOVER_DEFAULTS = normalizeSettings({...V11_CURRENT_DEFAULTS, voiceoverTakeVersion: 2,
+  voiceover: VOICEOVER_DEFAULTS.voiceover,
+  flow: {...V11_CURRENT_DEFAULTS.flow, ...(v11Comparison ? {comparison: {...v11Comparison, timing: Object.fromEntries(Object.entries(v11Comparison.timing).map(([key, clip]) =>
+    [key, key === 'comparison_returnToGrid' ? delayed(clip, RETURN_DELAY, RETURN_DELAY) : delayed(clip, COMPARISON_DELAY)])) as typeof v11Comparison.timing}} : {})},
+});
+export const VOICEOVER_TAKE_BACKUP = 'ultimate3-before-voiceover-take-v2';
+/** Storage only: move editable-v11's generated phrase slots and comparison clips to the October 2 take's.
+ * A slot matches even after normalizing capped it to the new trim; edited slots and clips stay literal. */
+export function migrateVoiceoverTake(settings: Ultimate3Settings): Ultimate3Settings {
+  if (settings.voiceoverTakeVersion === 2) return settings;
+  const stamped = {...settings, voiceoverTakeVersion: 2 as const};
+  const phrases = settings.voiceover && Object.fromEntries(Object.entries(settings.voiceover.phrases).map(([id, clip]) => {
+    const old = BRISK_CADENCE_PHRASES[id], phrase = VOICEOVER_PHRASES.find(p => p.id === id);
+    const generated = old && phrase && close(clip.at, old.at)
+      && (close(clip.duration, old.duration) || close(clip.duration, Math.min(old.duration, phrase.b - phrase.a)));
+    return [id, generated ? CURRENT_VOICEOVER_DEFAULTS.voiceover!.phrases[id] : clip];
+  }));
+  const comparison = settings.flow.comparison, target = CURRENT_VOICEOVER_DEFAULTS.flow.comparison;
+  const timing = comparison && v11Comparison && target && Object.fromEntries(Object.entries(comparison.timing).map(([key, clip]) =>
+    [key, same(clip, v11Comparison.timing[key as keyof typeof v11Comparison.timing]) ? target.timing[key as keyof typeof target.timing] : clip])) as typeof v11Comparison.timing;
+  return normalizeSettings({...stamped, ...(phrases ? {voiceover: {...settings.voiceover!, phrases}} : {}),
+    ...(comparison && timing ? {flow: {...settings.flow, comparison: {...comparison, timing}}} : {})});
+}
 export const COST_TIMING_RECOVERY_BACKUP = 'ultimate3-before-cost-timing-recovery-v1';
-const close = (a: number, b: number) => Math.abs(a - b) < 1e-8;
 
 /** Recover only the observed interrupted migration, using this browser's own
  * pre-transfer settings. Never translate already shifted clips or later edits. */
@@ -82,7 +114,7 @@ function recoverCostTiming(settings: Ultimate3Settings, storage: Pick<Storage, '
 }
 
 export function readCurrentVoiceoverSettings(storage: Pick<Storage, 'getItem'>) {
-  return recoverCostTiming(readCurrentSettingsBeforeRecovery(storage), storage);
+  return migrateVoiceoverTake(recoverCostTiming(readCurrentSettingsBeforeRecovery(storage), storage));
 }
 
 /** Only the active edition opts into this profile. Historical defaults stay frozen. */
@@ -111,6 +143,7 @@ export function loadCurrentVoiceoverSettings(storage: Pick<Storage, 'getItem' | 
   const settings = readCurrentVoiceoverSettings(storage);
   try {
     const before = storage.getItem(VOICEOVER_SETTINGS_ID);
+    if (before && !storage.getItem(VOICEOVER_TAKE_BACKUP)) storage.setItem(VOICEOVER_TAKE_BACKUP, before);
     if (before && !storage.getItem(COST_TIMING_RECOVERY_BACKUP)) storage.setItem(COST_TIMING_RECOVERY_BACKUP, before);
     if (before && !storage.getItem(COST_LEAD_IN_BACKUP)) storage.setItem(COST_LEAD_IN_BACKUP, before);
     if (before && !storage.getItem(CURRENT_CUT_BACKUP)) storage.setItem(CURRENT_CUT_BACKUP, before);

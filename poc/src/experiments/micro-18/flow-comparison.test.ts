@@ -27,8 +27,9 @@ function liveAt(global: number, s = settings) {
 test('visual replacement leaves every chapter, speech cue and engine beat at its original time', () => {
   assert.deepEqual(chapterSchedule(settings).map(({start, end}) => [start, end]), [[0,19.06],[19.06,28.43],[28.43,43.622],[43.622,62.93],[62.93,69.48]]);
   assert.equal(ultimate3DurationFrames(settings), 2085);
-  close(settings.voiceover!.phrases.n13.at, fromV9(43.73));
-  assert.equal(settings.voiceover!.phrases.n13.duration, 2.75);
+  // The October 2 take's longer n12 holds n13 0.3s later; this historical cut keeps its comparison beats.
+  close(settings.voiceover!.phrases.n13.at, fromV9(43.73) + .3);
+  close(settings.voiceover!.phrases.n13.duration, 2.705);
   for (const [key, global] of Object.entries({cameraToEngine:47.1,moduleActivation:47.66,engineSpinner:47.81,engineLines:47.81,coverDescent:48.23,coverTint:48.57,coverSpinner:48.62})) close(offset + settings.flow.timing21![key as keyof Flow21Timing].at, fromV9(global));
   close(offset + comparison.timing.comparisonExit.at, fromV9(43.44));
   close(offset + comparison.timing.comparison_gridShrink.at, fromV9(43.73));

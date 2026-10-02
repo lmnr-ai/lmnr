@@ -37,6 +37,8 @@ export type Ultimate3Settings = {
   costLeadInVersion?: 1;
   /** Checked for the interrupted lead-in migration; literal imports opt out. */
   costTimingRecoveryVersion?: 1;
+  /** Moved onto the October 2 take's generated slots, or a literal import. */
+  voiceoverTakeVersion?: 2;
   voiceover?: VoiceoverSettings;
   /** Missing in legacy presets; normalized settings always include the computed v4 defaults. */
   clouds?: CloudSettings;
@@ -218,6 +220,7 @@ export function normalizeSettings(input: unknown): Ultimate3Settings {
     ...(raw.currentCutVersion === 1 ? {currentCutVersion: 1 as const} : {}),
     ...(raw.costLeadInVersion === 1 ? {costLeadInVersion: 1 as const} : {}),
     ...(raw.costTimingRecoveryVersion === 1 ? {costTimingRecoveryVersion: 1 as const} : {}),
+    ...(raw.voiceoverTakeVersion === 2 ? {voiceoverTakeVersion: 2 as const} : {}),
     allocations: {...ULTIMATE_3_DEFAULTS.allocations},
     pacing: {
       ultimate2HandoffHold: finite(pacingRaw?.ultimate2HandoffHold, .5, 0, 30),

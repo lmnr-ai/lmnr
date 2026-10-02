@@ -58,7 +58,7 @@ test('main cloud alias is the same native Cost clip; early reveal, endpoints, sp
   near(config[COST_CLOUD_KEY].at, before.allocations.ultimate2 + before.cost.timing.cloudSweep.at);
   const edited = settingsFromCostCloudTimeline({[COST_CLOUD_KEY]: {...config[COST_CLOUD_KEY], at: 17.7, duration: .8, from: {progress: .2}, to: {progress: .9}, transition: {type: 'spring', stiffness: 140, damping: 18, mass: 1}}}, after);
   const reloaded = normalizeCurrentVoiceoverSettings(JSON.parse(JSON.stringify(edited)));
-  assert.deepEqual(reloaded, edited);
+  assert.deepEqual(reloaded, {...edited, voiceoverTakeVersion: 2});
   near(costTimelineConfig(edited).cloudSweep.at, .14);
   const sample = (t: number) => sampleUltimate3(t, edited).cost!.cloud.progress;
   const early = sample(18.3); assert.ok(early > .7, `early progress ${early}`);

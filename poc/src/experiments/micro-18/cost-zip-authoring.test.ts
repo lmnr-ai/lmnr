@@ -21,7 +21,7 @@ test('moving the zip shifts all three legs equally and no other action, chapter 
   }
   assert.deepEqual(chapterSchedule(next), chapterSchedule(settings));
   assert.deepEqual(voiceoverSchedule(next), voiceoverSchedule(settings));
-  assert.deepEqual(normalizeCurrentVoiceoverSettings(JSON.parse(JSON.stringify(next))), next);
+  assert.deepEqual(normalizeCurrentVoiceoverSettings(JSON.parse(JSON.stringify(next))), {...next, voiceoverTakeVersion: 2});
   for (const time of [2.24, 2.72, 3.2]) {
     const a = sampleCost(time, settings), b = sampleCost(time + .5, next);
     a.cheapAgents.forEach((agent, i) => near(agent.x, b.cheapAgents[i].x));

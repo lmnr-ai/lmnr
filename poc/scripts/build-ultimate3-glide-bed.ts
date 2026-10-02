@@ -1,6 +1,6 @@
-// Build the Glide (TurboPuffer-reference) bed for the approved editable-v11 narration; never replaces a bed.
+// Build the Glide (TurboPuffer-reference) bed for the approved editable-v12 narration; never replaces a bed.
 //   pnpm exec tsx scripts/build-ultimate3-glide-bed.ts [--style glide|glide-minimal|glide-minimal-lift|glide-minimal-linger|glide-arc] [--settings <the profile's settings JSON>]
-//     [--seed 2316] [--out public/audio/voiceover/editable-v11-<style>]
+//     [--seed 2316] [--out public/audio/voiceover/editable-v12-<style>]
 // The voice ducking is baked here, keyed by the placed narration itself, so the browser preview (bed +
 // phrases at unity) and the export (mixVoiceoverPcm) are the same sum with no live compressor.
 import {createHash} from 'node:crypto';
@@ -50,14 +50,15 @@ const PROFILES: Record<string, Profile> = {
   // so everything before it matches glide-minimal's bed to within -84 dBFS.
   'glide-minimal-lift': {underVoiceDb: 7.44, matchUntil: cues => cues.conclusion.start, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3,
     bridgeFrom: cues => cues.conclusion.start, targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
+  // Rebuilt on the current picture with the October 2 take (editable-v11-glide-minimal-linger keeps the earlier one).
   'glide-minimal-linger': {underVoiceDb: 7.44, matchUntil: cues => cues.conclusion.start, duckDb: 5, presenceDb: 6, release: .35, bridge: 1.3,
-    bridgeFrom: cues => cues.conclusion.start, targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/turbopuffer-sound/minimal-settings.json'},
+    bridgeFrom: cues => cues.conclusion.start, targetLufs: -20, ceilingDb: -1.25, settings: 'handoff/voiceover-2026-10-02/default-settings.json'},
   'glide-arc': {underVoiceDb: 8, duckDb: 3, presenceDb: 4, release: .9, bridge: 1, targetLufs: -20, ceilingDb: -1.6, levels: arcLevels, settings: PREVIEW},
 };
 if (!Object.hasOwn(PROFILES, style)) throw new Error(`Unknown --style ${style}; expected ${Object.keys(PROFILES).join(' | ')}`);
 const profile = PROFILES[style];
 const settingsPath = resolve(option('settings') ?? join(root, profile.settings));
-const dest = resolve(option('out') ?? join(root, `public/audio/voiceover/editable-v11-${style}`));
+const dest = resolve(option('out') ?? join(root, `public/audio/voiceover/editable-v12-${style}`));
 for (const file of ['bed.wav', 'manifest.json']) if (existsSync(join(dest, file))) throw new Error(`Refusing to overwrite ${join(dest, file)}`);
 
 /** Integrated bed level relative to the narration's (the reference sits ~7 dB under its voice). */
@@ -67,13 +68,13 @@ const DUCK_DB = profile.duckDb, PRESENCE_DB = profile.presenceDb;
 const LOOKAHEAD = .04, ATTACK = .06, RELEASE = profile.release, GATE_DB = -42;
 /** Sample-peak ceiling for bed + voice; 4x-oversampled true peak lands ≤ -1 dBTP. */
 const CEILING_DB = profile.ceilingDb;
-/** The v11 bed's keyboard level: live thock trim × master 6.98, then that bed's -6.5 dB trim. */
+/** The v11/v12 Arabesque beds' keyboard level: live thock trim × master 6.98, then that bed's -6.5 dB trim. */
 const THOCK_GAIN = ARABESQUE_THOCK_TRIM * 6.98 * db(-6.5);
 
 const settingsBytes = readFileSync(settingsPath);
 const settings = normalizeVoiceoverSettings(JSON.parse(settingsBytes.toString()));
 
-// Phrases: the approved editable-v11 sources, hash-checked, at the settings' placements.
+// Phrases: the approved editable-v12 sources, hash-checked, at the settings' placements.
 const phraseRoot = join(root, 'public', VOICEOVER_SOURCE_ROOT);
 const phraseManifestBytes = readFileSync(join(phraseRoot, 'manifest.json'));
 const phraseManifest = JSON.parse(phraseManifestBytes.toString());
@@ -168,7 +169,7 @@ const manifest = {
   version: 1, scoreStyle: style, seed, sampleRate: 48000, frames: length / 1600, samples: length,
   bed: {file: 'bed.wav', sha256: hash(bedBytes)},
   settingsSha256: hash(settingsBytes), phraseRoot: VOICEOVER_SOURCE_ROOT, phraseManifestSha256: hash(phraseManifestBytes),
-  ducking: {keyedBy: 'placed editable-v11 phrases', duckDb: DUCK_DB, presenceDb: PRESENCE_DB, presenceHz: 2200, lookahead: LOOKAHEAD, attack: ATTACK, release: RELEASE, gateDb: GATE_DB, bridge: profile.bridge, bridgeFrom: bridgeFrom / 48_000, ceilingDb: CEILING_DB, levelCurve: knots},
+  ducking: {keyedBy: 'placed editable-v12 phrases', duckDb: DUCK_DB, presenceDb: PRESENCE_DB, presenceHz: 2200, lookahead: LOOKAHEAD, attack: ATTACK, release: RELEASE, gateDb: GATE_DB, bridge: profile.bridge, bridgeFrom: bridgeFrom / 48_000, ceilingDb: CEILING_DB, levelCurve: knots},
   levels: {
     scoreTargetLufs: profile.targetLufs, voiceLufs, scoreLufs, bedUnderVoiceDb: BED_UNDER_VOICE_DB, thockGain: THOCK_GAIN, scoreLimiterDb: report.limiterDb, bedSafetyDb: safetyDb,
     bedTruePeakDb: toDb(truePeak(stereo(decoded))), mixLufs: integratedLufs(mixed), mixTruePeakDb: toDb(truePeak(mixed)), speakingSeconds: speaking,

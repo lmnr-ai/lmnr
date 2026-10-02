@@ -26,6 +26,17 @@ The actual animation source is updated in `poc/src/experiments/`, not merely inc
 - Pricing: **888 vs 38** traces per dollar, retaining the **20×** headline and the left-aligned 28-dot final row.
 - `clip.current`, DialKit timelines, springs/curves, reverse seeking, and the exact production handoff comment remain intact.
 
-### Integration boundary
+### Integration: editable-v12
 
-The new recording is delivered alongside the latest editable animation for subsequent narration alignment. It has **not** been substituted blindly into the existing per-phrase `editable-v11` schedule, stretched to the picture, or mixed into the existing soundtrack. The existing preview narration, historical audio, saved edits, and prior cuts remain intact. No new flattened MP4 is claimed by this handoff.
+The take is now cut into the preview and export as **`editable-v12`** (`public/audio/voiceover/voice_A_subtle-2026-10-02.wav`, `chain: 'anull'`, bed -6.5 dB: it measures -15.9 LUFS against the old take's -16.0).
+
+- `placements.json` holds the 23 trims (`a`/`b` in the take, silences cut) and timeline slots. Every phrase keeps its editable-v11 speech onset except two:
+  - **n12** "Matching GPT-6 Sol in trace analysis intelligence," starts at **33.91**, where the peers' bead bar ends; Flow's dot can't land earlier. "Matching" leads it by 72 ms, as before.
+  - **n13** moves **+0.3 s** to 37.60, and the Flow comparison clips move with it. `comparison.returnToGrid` starts 0.25 s later and is 0.25 s shorter, so the grid return still ends at 41.33 after n13 finishes. The frame count is unchanged at **2212**.
+- n23's trim starts at 70.95. The take's first 0.44 s there was silence, so "with Laminar" lands on the old 67.185 onset.
+- `default-settings.json` serializes `CURRENT_VOICEOVER_DEFAULTS` (the picture in `preview-settings.json` plus these slots). Saved browser settings move once (`voiceoverTakeVersion: 2`, with a backup in `ultimate3-before-voiceover-take-v2`). Only phrases still on their editable-v11 slots and an untouched comparison move; edits and imports stay literal.
+- **Glide · minimal (linger)** is rebuilt as `editable-v12-glide-minimal-linger/`. Music cues differ only in Flow (34.76–41.33): the last bead drop moves to 34.76, the comparison cues move +0.3, and the return to 40.32.
+- Mix: -16.3 LUFS and -1.09 dBTP, with the bed at -22.7 LUFS. "with Laminar" clears the bed by 8.8 dB (6.3 before). n21 and n23 were spoken 1.4–2.2 dB softer in this take, so they sit closer to the bed. No phrase gain was applied.
+- The subtitle still reads "Matching GPT-6-Sol in intelligence…", but the narration says "in trace analysis intelligence".
+- The other Glide beds stay on disk in `editable-v11-*` with the earlier take. They are off the soundtrack menu because their ducking is keyed to the old phrases.
+- Video: https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2316/ultimate3-glide-minimal-linger-oct2-voiceover.mp4
