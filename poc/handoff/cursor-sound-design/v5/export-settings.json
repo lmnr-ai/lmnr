@@ -10,7 +10,7 @@
     "cost": 10.87,
     "flow": 15.192,
     "issues": 19.308,
-    "conclusion": 12.57
+    "conclusion": 11.57
   },
   "pacing": {
     "ultimate2HandoffHold": 0.1499999999999999,
@@ -3146,10 +3146,10 @@
     },
     "logo": {
       "at": 4.05,
-      "duration": 3.99
+      "duration": 2.99
     },
     "url": {
-      "at": 8.04,
+      "at": 7.04,
       "duration": 4.53
     }
   },

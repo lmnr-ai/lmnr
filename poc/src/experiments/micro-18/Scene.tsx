@@ -1,6 +1,6 @@
 import {Micro22Scene, Micro22Subtitles} from '../micro-22/Scene';
-import {useId} from 'react';
-import {staticFile} from 'remotion';
+import {useEffect, useId, useState} from 'react';
+import {cancelRender, continueRender, delayRender, staticFile} from 'remotion';
 import {DitherClouds, type CloudState} from '../micro-09/DitherClouds';
 import {DitherPhoto, DitherPuffs} from '../micro-10/DitherPhoto';
 import {Micro17Scene} from '../micro-17/Scene';
@@ -40,8 +40,21 @@ import {
   projectScreenRect,
 } from './transitions';
 
+// Export must wait for the General Sans glyphs, or the first url frames render in a fallback face.
+const useUrlFontReady = () => {
+  const [fontHandle] = useState(() => delayRender('Load the laminar.sh card font'));
+  useEffect(() => {
+    const font = new FontFace('General Sans', `url("${staticFile('micro-18/GeneralSans-Medium.woff2')}")`, {weight: '500'});
+    let active = true;
+    font.load().then(loaded => {
+      if (active) document.fonts.add(loaded);
+      continueRender(fontHandle);
+    }).catch(cancelRender);
+    return () => { active = false; document.fonts.delete(font); };
+  }, [fontHandle]);
+};
 const UrlCard = () => {
-  useFlow1FontReady();
+  useUrlFontReady();
   return <div className="micro18-card"><span className="micro18-url">laminar.sh</span></div>;
 };
 const Card = ({kind}: {kind: ConclusionStage}) => kind === 'url' ? <UrlCard/> : <div className="micro18-card">

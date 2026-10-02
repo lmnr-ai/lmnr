@@ -52,15 +52,15 @@ implementation and briefly explain the sound-design choices.
 
 ## Result v5: `cursor-paper-v5`, the live bed — a `laminar.sh` card after the logo
 
-- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5-clean-voiceover.mp4
-- Built from v4b. Picture and narration are unchanged up to the logo. A centred `laminar.sh` card (JetBrains Mono, 40 px, on the conclusion's #1a1a1a) follows it as a new optional `conclusion.url` stage.
+- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v5c-voiceover.mp4
+- Built from v4b. Picture and narration are unchanged up to the logo. A centred `laminar.sh` card (General Sans Medium, 52 px, letter-spacing 1.04 px, white on the conclusion's #1a1a1a) follows it as a new optional `conclusion.url` stage.
 - The bed is `editable-v12-cursor-v5`, selected as `cursor-v5`, which is now the current soundtrack. Settings: `v5/settings.json`, and `v5/export-settings.json` with `"subtitles": false`.
 
 ### Timing (from the expert)
 
-- "With Laminar" ends at 67.97 s. The logo holds 3 s past the word, so the card cuts in at **70.97 s** (conclusion local 8.04). The logo gets 3.99 s.
-- The card holds 4.53 s, enough to read it and let the chord decay. The film ends at **75.5 s / 2265 frames**, 1.77 s longer than v4b's 73.73 s. The conclusion allocation is 12.57 s.
-- Stored editor settings that still hold the generated v4 ending migrate once (`migrateUrlCard`). Authored endings are left alone.
+- "With Laminar" ends at 67.97 s. The logo holds 2 s past the word, so the card cuts in at **69.97 s** (conclusion local 7.04). The logo gets 2.99 s.
+- The card holds 4.53 s, enough to read it and let the chord decay. The film ends at **74.5 s / 2235 frames**, 0.77 s longer than v4b's 73.73 s. The conclusion allocation is 11.57 s.
+- Stored editor settings that still hold the generated v4 ending, or the first v5 ending's 3 s logo hold, migrate once (`migrateUrlCard`). Authored endings are left alone.
 
 ### What changed in the music
 
@@ -75,9 +75,9 @@ The review asked for no lift and no effect on the cut, just a clean, constant en
 
 | | v4b | v5 |
 |---|---|---|
-| Duration | 73.73 s | 75.50 s |
-| Mix 0.25 s RMS at 69 / 71 / 73 / 74 s | −18.0 / −19.0 / −22.4 / −24.8 (old v4 tail) | −18.2 / −18.5 / −18.9 / −19.5 |
-| Largest 10 ms rise at the cut, 70.8–71.3 s | — | +2.0 dB (natural key fluctuation, no onset) |
+| Duration | 73.73 s | 74.50 s |
+| Mix 0.25 s RMS at 69 / 71 / 73 / 74 s | −18.0 / −19.0 / −22.4 / −24.8 (old v4 tail) | −17.7 / −18.5 / −19.0 / −29.1 (final fade) |
+| Largest 10 ms rise at the cut, 69.8–70.3 s | — | +1.8 dB (natural key fluctuation, no onset) |
 | Final MP4 | −16.4 LUFS, −1.2 dBTP | −16.5 LUFS, −1.2 dBTP, LRA 5.1 LU |
 
 Reproduce:

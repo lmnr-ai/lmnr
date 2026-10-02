@@ -26,7 +26,7 @@ Browser regression (existing editor only, isolated Chrome, session cleaned up):
 
 ## Cursor voiceover beds (LAM-2317)
 
-`VOICEOVER_BEDS['cursor-v5']` (the current soundtrack) is `editable-v12-cursor-v5/bed.wav`: the `cursor-paper-v5` score at -9.2 dB. It is ducked against the October 2 phrases on the 75.5 s cut that ends on the `laminar.sh` card (`handoff/cursor-sound-design/v5/settings.json`). `cursor-v4` is the same score without the card, on `handoff/voiceover-2026-10-02/default-settings.json`. `cursor-v3` is the v3 score on the same cut (`cursor-paper-v3-oct2`). Pick it in the editor's **soundtrack** select, which swaps the only bed, so no second music owner plays. Typing is baked into the bed.
+`VOICEOVER_BEDS['cursor-v5']` (the current soundtrack) is `editable-v12-cursor-v5/bed.wav`: the `cursor-paper-v5` score at -9.2 dB. It is ducked against the October 2 phrases on the 74.5 s cut that ends on the `laminar.sh` card (`handoff/cursor-sound-design/v5/settings.json`). `cursor-v4` is the same score without the card, on `handoff/voiceover-2026-10-02/default-settings.json`. `cursor-v3` is the v3 score on the same cut (`cursor-paper-v3-oct2`). Pick it in the editor's **soundtrack** select, which swaps the only bed, so no second music owner plays. Typing is baked into the bed.
 
 Build a bed with `pnpm exec tsx scripts/build-ultimate3-cursor-bed.ts --style <cursor style> --out public/audio/voiceover/<new dir>`. It:
 

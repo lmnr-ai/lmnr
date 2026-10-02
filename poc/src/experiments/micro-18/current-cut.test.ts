@@ -11,13 +11,13 @@ test('the actual current-cut loader supplies 3px spinners and the laminar.sh end
   const settings = readCurrentVoiceoverSettings({getItem: () => null});
   assert.equal(settings.cost.controls.cheapSpinnerStrokeWidth, 3);
   assert.equal(settings.paperTexture, false);
-  assert.equal(ultimate3DurationFrames(settings), 2265);
+  assert.equal(ultimate3DurationFrames(settings), 2235);
 });
 
 test('an existing browser upgrades the obsolete generated spinner without needing a JSON import', () => {
   const settings = readCurrentVoiceoverSettings(saved(VOICEOVER_DEFAULTS));
   assert.equal(settings.cost.controls.cheapSpinnerStrokeWidth, 3);
-  assert.equal(ultimate3DurationFrames(settings), 2265);
+  assert.equal(ultimate3DurationFrames(settings), 2235);
   assert.deepEqual(settings.voiceover, VOICEOVER_DEFAULTS.voiceover);
 });
 

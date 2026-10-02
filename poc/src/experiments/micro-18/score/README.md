@@ -107,7 +107,7 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 ### `cursor-paper-v5` — v4 with a `laminar.sh` ending (LAM-2317)
 
-v4 on a cut extended to 75.5 s, where `conclusion.url` adds a `laminar.sh` card 3 s after "With Laminar". `composeCursorV4(…, {urlCard: true})` lets the logo keys ring to the end of the film, and nothing new plays on the cut. The arc holds flat from the peak to 1.5 s before the end, then fades once to −20 dB. Build it with `--settings handoff/cursor-sound-design/v5/settings.json`: the builder's default settings are the pre-card cut.
+v4 on a cut extended to 74.5 s, where `conclusion.url` adds a `laminar.sh` card 2 s after "With Laminar". `composeCursorV4(…, {urlCard: true})` lets the logo keys ring to the end of the film, and nothing new plays on the cut. The arc holds flat from the peak to 1.5 s before the end, then fades once to −20 dB. Build it with `--settings handoff/cursor-sound-design/v5/settings.json`: the builder's default settings are the pre-card cut.
 
 ### `cursor-paper-v4` — v3, staged to build like the reference (LAM-2317, October 2 cut)
 

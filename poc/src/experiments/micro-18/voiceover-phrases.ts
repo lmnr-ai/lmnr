@@ -20,7 +20,7 @@ export const VOICEOVER_BEDS = {
   // same settings. editable-v11-cursor{,-v2,-v3} keep the beds keyed to the earlier take.
   'cursor-v3': {label: 'Cursor · v3 (LAM-2317)', url: '/audio/voiceover/editable-v12-cursor-v3/bed.wav'},
   'cursor-v4': {label: 'Cursor · v4, builds to the logo (LAM-2317)', url: '/audio/voiceover/editable-v12-cursor-v4/bed.wav'},
-  // v5 is keyed to the laminar.sh ending (handoff/cursor-sound-design/v5/settings.json), 75.5 s; on the 73.7 s cut it runs long.
+  // v5 is keyed to the laminar.sh ending (handoff/cursor-sound-design/v5/settings.json), 74.5 s; on the 73.7 s cut it runs long.
   'cursor-v5': {label: 'Cursor · v5, laminar.sh ending (LAM-2317)', url: '/audio/voiceover/editable-v12-cursor-v5/bed.wav'},
 } as const;
 export type VoiceoverBedId = keyof typeof VOICEOVER_BEDS;

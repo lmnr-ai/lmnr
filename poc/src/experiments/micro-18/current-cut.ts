@@ -54,10 +54,13 @@ const COMPARISON_DELAY = .3, RETURN_DELAY = .25;
 const v11Comparison = V11_CURRENT_DEFAULTS.flow.comparison || undefined;
 const delayed = (clip: ClipTiming, delay: number, shrink = 0): ClipTiming => ({...clip, at: clip.at + delay, duration: clip.duration - shrink,
   ...(clip.transition?.type === 'easing' ? {transition: {...clip.transition, duration: clip.duration - shrink}} : {})});
-// The logo holds 3 s past "With Laminar", then cuts to the laminar.sh card, which holds 4.53 s to a 75.5 s end.
-const withUrlCard = (settings: Ultimate3Settings): Ultimate3Settings => normalizeSettings({...settings,
-  allocations: {...settings.allocations, conclusion: 12.57},
-  conclusion: {...settings.conclusion, logo: {...settings.conclusion.logo, duration: 3.99}, url: {at: 8.04, duration: 4.53}}});
+// The logo holds 2 s past "With Laminar", then cuts to the laminar.sh card, which holds 4.53 s to a 74.5 s end.
+const URL_ENDING = {conclusion: 11.57, logo: 2.99, url: 7.04};
+// The first url ending held the logo 3 s; a stored copy of it is still generated, so it migrates too.
+const FIRST_URL_ENDING = {conclusion: 12.57, logo: 3.99, url: 8.04};
+const withUrlCard = (settings: Ultimate3Settings, ending = URL_ENDING): Ultimate3Settings => normalizeSettings({...settings,
+  allocations: {...settings.allocations, conclusion: ending.conclusion},
+  conclusion: {...settings.conclusion, logo: {...settings.conclusion.logo, duration: ending.logo}, url: {at: ending.url, duration: 4.53}}});
 export const CURRENT_VOICEOVER_DEFAULTS = withUrlCard({...V11_CURRENT_DEFAULTS, voiceoverTakeVersion: 2,
   voiceover: VOICEOVER_DEFAULTS.voiceover,
   flow: {...V11_CURRENT_DEFAULTS.flow, ...(v11Comparison ? {comparison: {...v11Comparison, timing: Object.fromEntries(Object.entries(v11Comparison.timing).map(([key, clip]) =>
@@ -119,11 +122,15 @@ function recoverCostTiming(settings: Ultimate3Settings, storage: Pick<Storage, '
   }});
 }
 
-/** Storage only: a stored cut still on the generated pre-url ending gains the url card; edited endings stay literal. */
+const FIRST_URL_DEFAULTS = withUrlCard(V11_CURRENT_DEFAULTS, FIRST_URL_ENDING);
+/** Storage only: a stored cut still on a generated earlier ending (pre-url, or the first 3 s logo hold) gets the
+ * current url card; edited endings stay literal. */
 export function migrateUrlCard(settings: Ultimate3Settings): Ultimate3Settings {
-  const generated = !settings.conclusion.url && same(settings.conclusion, V11_CURRENT_DEFAULTS.conclusion)
+  const preUrl = !settings.conclusion.url && same(settings.conclusion, V11_CURRENT_DEFAULTS.conclusion)
     && close(settings.allocations.conclusion, V11_CURRENT_DEFAULTS.allocations.conclusion);
-  return generated ? withUrlCard(settings) : settings;
+  const firstUrl = same(settings.conclusion, FIRST_URL_DEFAULTS.conclusion)
+    && close(settings.allocations.conclusion, FIRST_URL_DEFAULTS.allocations.conclusion);
+  return preUrl || firstUrl ? withUrlCard(settings) : settings;
 }
 
 export function readCurrentVoiceoverSettings(storage: Pick<Storage, 'getItem'>) {
