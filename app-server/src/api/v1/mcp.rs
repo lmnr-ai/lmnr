@@ -5,7 +5,10 @@ use bytes::Bytes;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::*,
+    model::{
+        CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions, Implementation,
+        ServerCapabilities, ServerInfo,
+    },
     schemars,
     service::{RequestContext, serve_directly},
     tool, tool_handler, tool_router,
@@ -200,10 +203,12 @@ impl LaminarMcpServer {
         )
         .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
+            Ok(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::to_string_pretty(&result).unwrap_or_default(),
             )])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(e.to_string())])),
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(
+                e.to_string(),
+            )])),
         }
     }
 
@@ -237,8 +242,8 @@ impl LaminarMcpServer {
             .get_trace_context_for_mcp(project_id, params.trace_id)
             .await
         {
-            Ok(trace_str) => Ok(CallToolResult::success(vec![Content::text(trace_str)])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Ok(trace_str) => Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)])),
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to retrieve trace: {}",
                 e
             ))])),
@@ -262,11 +267,11 @@ impl LaminarMcpServer {
             .await
         {
             Ok((answer, conversation_id)) => {
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{answer}\n\n---\nconversationId: {conversation_id}\n(Pass this `conversationId` to the next `ask_agent` call to continue this conversation.)"
                 ))]))
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Agent failed: {}",
                 e
             ))])),
@@ -570,6 +575,7 @@ pub async fn method_not_allowed() -> HttpResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::Tool;
 
     /// Look up a tool's definition from the fully-built (description-injected) router.
     fn tool(name: &str) -> Tool {
