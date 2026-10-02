@@ -1,14 +1,16 @@
-import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { createContext, type PropsWithChildren, useContext, useEffect, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { type ChartConfig, type ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
 import {
+  canSelectForXAxis as utilCanSelectForXAxis,
   canSelectForYAxis as utilCanSelectForYAxis,
   type ColumnInfo,
   type DataRow,
   getAvailableBreakdownColumns as utilGetAvailableBreakdownColumns,
   isValidChartConfiguration as utilIsValidChartConfiguration,
+  reconcileChartConfig,
   transformDataToColumns,
 } from "@/components/chart-builder/utils";
 
@@ -28,12 +30,14 @@ type ChartBuilderActions = {
   setYColumn: (columnName?: string) => void;
   setBreakdownColumn: (columnName?: string) => void;
   setShowTotal: (total: boolean) => void;
+  syncSource: (data: DataRow[], query: string) => void;
 
   getSelectedXColumn: () => ColumnInfo | undefined;
   getSelectedYColumn: () => ColumnInfo | undefined;
   getSelectedBreakdownColumn: () => ColumnInfo | undefined;
   getAvailableBreakdownColumns: () => ColumnInfo[];
 
+  canSelectForXAxis: (columnName: string) => boolean;
   canSelectForYAxis: (columnName: string) => boolean;
   isValidChartConfiguration: () => boolean;
 };
@@ -56,11 +60,12 @@ export interface ChartBuilderProps {
 }
 
 const createChartBuilderStore = (props: ChartBuilderProps) => {
+  const initialColumns = transformDataToColumns(props?.data || []);
   const chartState: ChartBuilderState = {
     query: props.query,
     name: undefined,
-    chartConfig: defaultConfig,
-    columns: transformDataToColumns(props?.data || []),
+    chartConfig: reconcileChartConfig(defaultConfig, initialColumns),
+    columns: initialColumns,
     data: props?.data || [],
   };
 
@@ -80,9 +85,17 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
       })),
 
     setChartType: (type) =>
-      set((state: ChartBuilderState) => ({
-        chartConfig: { ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined } as ChartConfig,
-      })),
+      set((state: ChartBuilderState) => {
+        // Horizontal bars swap what each axis means, so crossing that boundary re-derives the axes
+        // instead of keeping selections that would now plot a category as a value.
+        const swapsAxes =
+          (type === ChartType.HorizontalBarChart) !== (state.chartConfig.type === ChartType.HorizontalBarChart);
+        const next = swapsAxes
+          ? ({ ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined } as ChartConfig)
+          : ({ ...state.chartConfig, type } as ChartConfig);
+
+        return { chartConfig: reconcileChartConfig(next, state.columns) };
+      }),
 
     setXColumn: (columnName) =>
       set((state: ChartBuilderState) => ({
@@ -104,6 +117,20 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
         chartConfig: { ...state.chartConfig, total },
       })),
 
+    syncSource: (data, query) => {
+      const state = get();
+      if (state.data === data && state.query === query) return;
+
+      const columns = state.data === data ? state.columns : transformDataToColumns(data);
+
+      set({
+        data,
+        query,
+        columns,
+        chartConfig: state.columns === columns ? state.chartConfig : reconcileChartConfig(state.chartConfig, columns),
+      });
+    },
+
     getSelectedXColumn: () => {
       const { chartConfig, columns } = get();
       return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
@@ -122,6 +149,13 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
     getAvailableBreakdownColumns: () => {
       const { chartConfig, columns } = get();
       return utilGetAvailableBreakdownColumns(chartConfig, columns);
+    },
+
+    canSelectForXAxis: (columnName: string) => {
+      const { chartConfig, columns } = get();
+      const column = columns.find((col) => col.name === columnName);
+      if (!column) return false;
+      return utilCanSelectForXAxis(column, chartConfig.type);
     },
 
     canSelectForYAxis: (columnName: string) => {
@@ -144,6 +178,15 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
         partialize: (state) => ({
           chartConfig: state.chartConfig,
         }),
+        // A stored config outlives the query that produced it, so it is reconciled against the
+        // current columns as it is rehydrated rather than one paint later.
+        merge: (persisted, current) => {
+          const stored = (persisted as Partial<ChartBuilderState> | undefined)?.chartConfig;
+          return {
+            ...current,
+            chartConfig: reconcileChartConfig(stored ?? current.chartConfig, current.columns),
+          };
+        },
       })
     );
   }
@@ -163,6 +206,13 @@ export const useChartBuilderStoreContext = <T,>(selector: (store: ChartBuilderSt
 
 export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChildren<ChartBuilderProps>) => {
   const [storeState] = useState(() => createChartBuilderStore(props));
+  const { data, query } = props;
+
+  // The store is created once, but a re-run query hands down new rows (and new columns) — without
+  // this the chart keeps rendering the shape of the first result set it ever saw.
+  useEffect(() => {
+    storeState.getState().syncSource(data, query);
+  }, [storeState, data, query]);
 
   return <ChartBuilderStoreContext.Provider value={storeState}>{children}</ChartBuilderStoreContext.Provider>;
 };

@@ -19,9 +19,9 @@ const SQLTemplates = () => {
   }, []);
 
   return (
-    <div className="flex flex-1 divide-x gap-x-4 px-4 pb-4">
+    <div className="flex min-h-0 flex-1 gap-3 px-4 pb-4">
       <Sidebar isLoading={isLoading} templates={data} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 overflow-hidden">
         <SQLEditorPanel />
       </div>
     </div>
