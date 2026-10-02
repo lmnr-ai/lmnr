@@ -5,7 +5,7 @@ import {COST_ZIP_KEY, settingsFromCostZipTimeline} from './cost-zip-authoring';
 import {BRISK_CADENCE_PHRASES, normalizeVoiceoverSettings, readVoiceoverSettings, VOICEOVER_DEFAULTS, VOICEOVER_SETTINGS_ID} from './voiceover-cut';
 import {VOICEOVER_PHRASES} from './voiceover-phrases';
 
-export const CURRENT_SOUNDTRACK = 'cursor-v3' as const;
+export const CURRENT_SOUNDTRACK = 'cursor-v4' as const;
 export const CURRENT_MIX_ID = 'ultimate3-voiceover-sound-v4';
 export const CURRENT_CUT_BACKUP = 'ultimate3-before-current-cut-v1';
 const MIX_MIGRATION = 'ultimate3-current-mix-v1';

@@ -105,6 +105,18 @@ Same skeleton as the steady-bed genres, with more energy: a groove from the firs
 
 `designAcoustic` takes `'piano' | 'pizz' | Player`, plus an optional `(cues) => Playing` for pitch shift and time quantize. `loopBars` counts bars back from an anchor (the drop or the logo), so the bar before it is always the loop's cadence.
 
+### `cursor-paper-v4` — v3, staged to build like the reference (LAM-2317, October 2 cut)
+
+`cursor/composition-v4.ts` reuses v3's instruments, `repeats` and `shelveLows`, and `arcCursorV4` replaces the arc:
+
+- a quiet plateau with no sustained bass through Act 1 and Cost;
+- a V → I step at the Flow-1 reveal, where the bass enters;
+- a capped Issues;
+- a conclusion that brightens through IV–V–I to a peak after the last word;
+- a tonic that rings out over the logo hold (`swellKey`'s `decay`).
+
+`cursor-paper-v3-oct2` is v3 with deeper ducks for the October 2 take. Both are built by `scripts/build-ultimate3-cursor-bed.ts`; see `handoff/cursor-sound-design/README.md`.
+
 ### `cursor-paper-v3` — swelled keys and tonal foley over v2's bed (LAM-2317 second review)
 
 `cursor/composition-v3.ts` keeps v2's continuous bed, arc, ducks and glue. The changes come from forensics on the reference's music stem:

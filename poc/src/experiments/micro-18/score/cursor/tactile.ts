@@ -14,13 +14,13 @@ const rise = (t: number, attack: number) => t >= attack ? 1 : .5 - .5 * Math.cos
 
 /**
  * Swelled key: a near-sine (2nd harmonic -14 dB, 3rd -21 dB, 4th -30 dB) with a +12-cent chorus copy at -6 dB that
- * swells in over `swell` (the reference's median is 255 ms), then decays at about -15 dB/s.
+ * swells in over `swell` (the reference's median is 255 ms), then decays at about -15 dB/s (τ `decay`, 0.55 s).
  */
-export function swellKey(mix: Mix, time: number, midi: number, velocity: number, route: Route, swell = .25, length = 1.6) {
+export function swellKey(mix: Mix, time: number, midi: number, velocity: number, route: Route, swell = .25, length = 1.6, decay = .55) {
   const out = buffer(length), hz = mtof(midi), main = [0, 1, 2, 3].map(() => new Sine(mix.random())), chorus = new Sine(mix.random());
   const fade = samples(.25);
   for (let i = 0; i < out.length; i++) {
-    const t = i / 48_000, envelope = rise(t, swell) * (t < swell ? 1 : Math.exp(-(t - swell) / .55));
+    const t = i / 48_000, envelope = rise(t, swell) * (t < swell ? 1 : Math.exp(-(t - swell) / decay));
     const value = main[0].next(hz) + .2 * main[1].next(2 * hz) + .09 * main[2].next(3 * hz) + .03 * main[3].next(4 * hz) + .5 * chorus.next(hz * 2 ** (12 / 1200));
     out[i] = value * envelope * velocity * .06 * Math.min(1, (out.length - i) / fade);
   }

@@ -26,15 +26,17 @@ Browser regression (existing editor only, isolated Chrome, session cleaned up):
 
 ## Cursor voiceover beds (LAM-2317)
 
-`VOICEOVER_BEDS['cursor-v3']` is `editable-v12-cursor-v3/bed.wav`: the `cursor-paper-v3-oct2` score at -9.2 dB, ducked against the October 2 phrases at `handoff/voiceover-2026-10-02/default-settings.json`. Pick it in the editor's **soundtrack** select, which swaps the only bed, so no second music owner plays. Typing is baked into the bed.
+`VOICEOVER_BEDS['cursor-v4']` (the current soundtrack) is `editable-v12-cursor-v4/bed.wav`: the `cursor-paper-v4` score at -9.2 dB. It is ducked against the October 2 phrases at `handoff/voiceover-2026-10-02/default-settings.json`. `cursor-v3` is the v3 score on the same cut (`cursor-paper-v3-oct2`). Pick it in the editor's **soundtrack** select, which swaps the only bed, so no second music owner plays. Typing is baked into the bed.
 
 Build a bed with `pnpm exec tsx scripts/build-ultimate3-cursor-bed.ts --style <cursor style> --out public/audio/voiceover/<new dir>`. It:
 
 - checks the phrase hashes against `editable-v12/manifest.json`;
-- dips the bed (never the voice) wherever bed + voice would pass -1.25 dBFS;
+- dips the bed (never the voice) wherever bed + voice would pass -1.25 dBFS (`--true-peak` also checks 4× interpolated points);
 - refuses to overwrite.
 
-Export with `scripts/export-ultimate3-editable-vo.ts --bed cursor-v3`. Rebuild into a new directory after retiming picture or narration. The `editable-v11-cursor*` beds stay keyed to the earlier take.
+Keep `--ceiling-db` above the voice's own -1.54 dBFS peak. Below it, the dip has nothing left to take but the whole bed, and mutes it (a -1.7 test dipped 12 s). For inter-sample overs, use `--true-peak` instead of a lower ceiling.
+
+Export with `scripts/export-ultimate3-editable-vo.ts --bed cursor-v4`. Rebuild into a new directory after retiming picture or narration. The `editable-v11-cursor*` beds stay keyed to the earlier take.
 
 ## Legacy effects exporter (retained, not the active viewer)
 

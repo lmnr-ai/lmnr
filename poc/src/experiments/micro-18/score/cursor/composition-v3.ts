@@ -18,13 +18,13 @@ import {breath, click, dots, droplet, pop, swellKey, thump, tick} from './tactil
  * - Camera moves ride the music. Only five soft, grain-free breaths remain of v2's 13 paper slides.
  */
 
-const PAD: Route = {bus: 'music', hall: .3, room: .05};
-const BASS: Route = {bus: 'music', room: .02};
-const KEYS: Route = {bus: 'music', hall: .25, room: .05};
+export const PAD: Route = {bus: 'music', hall: .3, room: .05};
+export const BASS: Route = {bus: 'music', room: .02};
+export const KEYS: Route = {bus: 'music', hall: .25, room: .05};
 /** Hits are dry: no echo, a whisper of room. */
 export const HIT: Route = {bus: 'sfx', room: .06, hall: .03};
 // Thumps from the bash on play 5 dB hotter: the bed is fuller there, and the reference's stay 28–50 dB proud.
-const LATE_THUMP: Route = {...HIT, pan: 0, gain: 1.78};
+export const LATE_THUMP: Route = {...HIT, pan: 0, gain: 1.78};
 export const AIR: Route = {bus: 'sfx', room: .05, hall: .12};
 
 const ivMinor = [56, 59, 61, 63];
@@ -39,7 +39,7 @@ const [THUMP_AB, THUMP_BB, THUMP_DB] = [44, 46, 49];
  * A 120 Hz low shelf on everything emitted so far (bed and bass): -4 dB, dipping to -8 dB for 150 ms
  * under each thump so the thumps own the low end, as the reference's do.
  */
-function shelveLows(mix: Mix, thumps: readonly number[]) {
+export function shelveLows(mix: Mix, thumps: readonly number[]) {
   const shelf = new Float32Array(mix.length).fill(db(-4));
   for (const time of thumps) for (let n = Math.max(0, Math.round((time - .005) * 48_000)), end = Math.min(mix.length, Math.round((time + .25) * 48_000)); n < end; n++) {
     const t = n / 48_000 - time, depth = t < 0 ? 1 - (t + .005) / .005 : t < .15 ? 0 : (t - .15) / .1;
@@ -52,9 +52,9 @@ function shelveLows(mix: Mix, thumps: readonly number[]) {
 }
 
 /** A phrase of repeating keys: voice i plays `voices[i]` (a note, or a sequence it cycles) every `period` ±15 %, offset `stagger`. */
-type Repeats = {from: number; to: number; voices: readonly (number | readonly number[])[]; period?: number; stagger?: number; level?: number; swell?: number};
+export type Repeats = {from: number; to: number; voices: readonly (number | readonly number[])[]; period?: number; stagger?: number; level?: number; swell?: number};
 
-function repeats(mix: Mix, phrases: readonly Repeats[]) {
+export function repeats(mix: Mix, phrases: readonly Repeats[]) {
   for (const phrase of phrases) {
     const period = phrase.period ?? .84, stagger = phrase.stagger ?? .28, pans = phrase.voices.length === 1 ? [0] : [-.3, .3, 0, -.15];
     phrase.voices.forEach((voice, v) => {

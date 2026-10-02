@@ -50,12 +50,77 @@ print credentials. If upload access is unavailable, report the blocker and
 provide the local render instead of claiming an upload. Open a PR with the
 implementation and briefly explain the sound-design choices.
 
+## Result v4b: `cursor-paper-v4`, the live bed — builds to the logo
+
+- **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v4b-voiceover.mp4
+- Same picture, narration and settings as v4a. The bed is `editable-v12-cursor-v4`, selected as `cursor-v4`, which is now the current soundtrack.
+
+### Feedback and the expert's diagnosis
+
+The feedback asked for more emphasis on "Introducing Flow-1", more satisfaction on "Unlock the insights…", a logo note that lingers, and for the emotion to build like the source. The expert measured both beds and the reference's music stem. Their verdict: the feeling is right, but the causes are mostly different ones.
+
+- **The reveal.** "Until now" held only A♭ and E♭, and the reveal landed on A♭: home to home, so there was nothing to resolve. The n11 duck also began 85 ms before the reveal, which cut the bloom to about 0.27 s.
+- **The conclusion.** The music deflated on the line. The IV chord came in darker (cutoff 1500 → 900 Hz), and the V chord was louder than the home chord at the logo. The n23 duck (−10.9 dB) and a weak tonic voicing (three G's) made the arrival float.
+- **The last note.** It was the arc that stifled it (−8 dB/s from 67.8 s), not the end fade. The 0.55 s key decay and a 700 Hz glide added to it. Only about 0.8 s of the hold was audible.
+- **The build.** From 29 s to 66 s every section sat within 1.6 LU of the others, and the bed got darker over the film.
+  - The reference instead holds a low plateau without bass. At 50 % the bass enters and the level steps up 3–4 LU. It dips at 75 %, then opens its top end to a peak at 92 %.
+  - Ours peaked at the clusters (76 %).
+
+### What changed (`cursor/composition-v4.ts` and `arcCursorV4`)
+
+1. **A new arc.**
+   - Act 1 and Cost sit 1.5–2.5 dB lower. "Until now" ramps into a +2.5 dB step at the reveal.
+   - Issues is capped at −1.5 dB, with a dip before the conclusion.
+   - The peak comes after "with Laminar". From there the arc falls about −4 dB/s to −17 dB, not −45.
+2. **Layers enter in steps.**
+   - Act 1 starts on two key voices; the third arrives with the insights.
+   - There is no sustained bass until the reveal: Cost's A♭2 is dropped.
+3. **The reveal resolves V → I.**
+   - "Until now" holds B♭/D♭ over an E♭3 pulse and a quiet E♭2.
+   - A reverse swell leads into the reveal. The A♭ chord adds C5, so the D♭5 resolves down to C5.
+   - Long C5 and A♭4 keys ring over the reveal. The pulse runs through the number drops.
+   - The n11 duck attacks in 0.15 s instead of 0.35 s, and is 0.8 dB shallower.
+4. **The conclusion brightens.**
+   - Cutoffs rise from 1600 to 2000 Hz.
+   - A high shimmer pad comes in, and an F5 → G5 → A♭5 top line climbs into the logo.
+   - The bass gets fuller, and the repeating key cell plays slightly lower.
+5. **The logo resolves after the last word, then rings.**
+   - Every G steps up to A♭, giving a home chord with C5 on top.
+   - The A♭4, E♭5 and A♭5 keys are 5.5 s long, with a 2.2 s decay instead of 0.55 s.
+   - The bed darkens slowly from logo + 3 s.
+6. **Ducks:** n21 and n23 go deeper (n23 extra −8.5 dB) under the new layers.
+7. **Builder:** `--true-peak` holds the bed-only safety dip at 4× interpolated points. The brighter bed was overshooting −1 dBTP between samples.
+
+### Measurements
+
+| | v4a | v4b |
+|---|---|---|
+| Short-term peak | 56.0 s (76 %) | 69.5 s (94 %) |
+| Short-term spread, p10–p90 | 4.4 LU | 6.1 LU |
+| Act 1 / Cost vs integrated | −2.8 / −0.8 | −4.6 / −2.2 |
+| Reveal 29.45–29.9 vs 30.5–32 | +0.0 LU | +1.9 LU |
+| 1.2–5 kHz, 63–69 s vs 44–56 s | +2.5 dB | +8.1 dB |
+| Bed momentary at 69 / 71 / 73 s | −26.9 / −43.0 / −56.9 | −17.9 / −22.2 / −30.8 |
+| Voice over bed per line | min 4.5, median 7.9 | min 5.0, median 8.2 |
+| Mix | −16.3 LUFS, −1.1 dBTP | −16.4 LUFS, −1.2 dBTP |
+
+Two of the expert's targets are short:
+- **The reveal step is +1.9 LU**, against a target of ≥ 3.
+- **The dip before "Unlock the insights" did not come through.** The window just before it measures level with the line, against a target of ≥ 2.5 LU below. The music does dip there, but the Issues agent-window foley, which follows the picture, fills the gap.
+
+Reproduce:
+
+```sh
+npx tsx scripts/build-ultimate3-cursor-bed.ts --style cursor-paper-v4 --true-peak --out public/audio/voiceover/editable-v12-cursor-v4
+npx tsx scripts/export-ultimate3-editable-vo.ts --settings handoff/cursor-sound-design/v4/export-settings.json --out /tmp/v4b.wav --bed cursor-v4
+```
+
 ## Result v4a: v3 on the October 2 cut (PR #2466 `03a7fda`)
 
 - **Mix, subtitles off:** https://svwyososwvsgouxwfdlc.supabase.co/storage/v1/object/public/lmnr-coding-agent/lam-2317/ultimate3-cursor-v4a-voiceover.mp4
 - Picture and narration are unchanged from `03a7fda`: `handoff/voiceover-2026-10-02/default-settings.json`, which equals the live editor defaults. That is 2212 frames, 73.73 s, with the editable-v12 phrases. `v4/export-settings.json` is the same file plus `"subtitles": false`.
 - **Sound:** the v3 composition, re-rendered on the new cues, so every hit re-times itself. It is built as `cursor-paper-v3-oct2`. It is v3 with deeper ducks under n21–n23, because the new take is spoken 1.4–2.2 dB softer there.
-- **Bed:** `editable-v12-cursor-v3`, selected as `cursor-v3` in the soundtrack select, which is now the current default.
+- **Bed:** `editable-v12-cursor-v3`, selected as `cursor-v3` in the soundtrack select.
 - **Metrics:**
   - Voice over bed: min 4.5 LU (n21), median 7.9.
   - Mix: −16.3 LUFS.

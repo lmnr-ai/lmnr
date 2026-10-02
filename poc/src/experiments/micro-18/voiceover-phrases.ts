@@ -19,6 +19,7 @@ export const VOICEOVER_BEDS = {
   // LAM-2317 Cursor-reference scores (scripts/build-ultimate3-cursor-bed.ts), ducked against the October 2 phrases on the
   // same settings. editable-v11-cursor{,-v2,-v3} keep the beds keyed to the earlier take.
   'cursor-v3': {label: 'Cursor · v3 (LAM-2317)', url: '/audio/voiceover/editable-v12-cursor-v3/bed.wav'},
+  'cursor-v4': {label: 'Cursor · v4, builds to the logo (LAM-2317)', url: '/audio/voiceover/editable-v12-cursor-v4/bed.wav'},
 } as const;
 export type VoiceoverBedId = keyof typeof VOICEOVER_BEDS;
 

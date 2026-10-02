@@ -5,6 +5,7 @@ import type {Mix} from '../voices';
 import {AIR, KNOCK, TICK, composeCursor} from './composition';
 import {AIR as AIR2, KNOCK as KNOCK2, TICK as TICK2, composeCursorV2} from './composition-v2';
 import {composeCursorV3, designCursorV3} from './composition-v3';
+import {composeCursorV4, wordEndOf} from './composition-v4';
 import {knock, mallet, paper} from './instruments';
 
 /** The reference bed sits ~6.5 dB under its narrator and swells ~2 dB in the gaps: slow dips, never pumping. */
@@ -71,9 +72,9 @@ const arcCursorV2 = (cues: ScoreCues): [number, number][] => {
   ];
 };
 
-const ducksArc = (mix: Mix, cues: ScoreCues, extra: readonly number[]) => {
-  cues.voice.forEach((phrase, i) => mix.duck(phrase.at, .66 * db(extra[i] ?? 0), .35, phrase.duration, .8));
-  const arc = arcCursorV2(cues);
+const ducksArc = (mix: Mix, cues: ScoreCues, extra: readonly number[], arcOf = arcCursorV2, attacks: Partial<Record<number, number>> = {}) => {
+  cues.voice.forEach((phrase, i) => mix.duck(phrase.at, .66 * db(extra[i] ?? 0), attacks[i] ?? .35, phrase.duration, .8));
+  const arc = arcOf(cues);
   for (let n = 0, k = 0; n < mix.length; n++) {
     const t = n / 48_000;
     while (k + 1 < arc.length && arc[k + 1][0] <= t) k++;
@@ -148,3 +149,37 @@ const EXTRA_DUCK_DB_V3_OCT2 = EXTRA_DUCK_DB_V3.map((value, i) => value - ({20: 3
 
 export const cursorPaperV3Oct2: ScoreStyle = {...cursorPaperV3, id: 'cursor-paper-v3-oct2',
   title: 'Cursor paper v3 on the October 2 take', ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB_V3_OCT2)};
+
+/**
+ * v4's arc builds like the reference: a quiet plateau through Act 1 and Cost, a step up at the reveal, a capped Issues
+ * that dips before the conclusion, and the peak on the logo after the last word, ringing out at about -4 dB/s.
+ */
+const arcCursorV4 = (cues: ScoreCues): [number, number][] => {
+  const cost = cues.cost, flow = cues.flow, issues = cues.issues, end = cues.conclusion, reveal = flow.reveal;
+  const silence = cost.depletion.at + cost.depletion.duration - .2, wordEnd = wordEndOf(cues);
+  const n21 = cues.voice[20], beforeEnd = n21 ? n21.at + n21.duration : end.start - 1.6, half = end.start + (end.logo - end.start) * .5;
+  const arc: [number, number][] = [
+    [0, -6], [cues.chapter.cost.start - .5, -5.5], [cues.chapter.cost.start, -5], [cost.depletion.at, -2.5], [silence, -2.5],
+    [silence + .3, -11], [reveal - 1.2, -11], [reveal - .08, -7], [reveal, 2.5], [reveal + .9, 1],
+    [flow.cameraToAnalysis.at, 0], [flow.coverShut, .5], [cues.chapter.issues.start, -1.5],
+    [issues.prelude.explanation?.at ?? issues.prelude.zoomOut.at - 2.5, -1.5], [issues.native, .5], [issues.native + 1, -.5],
+    [beforeEnd, -3], [end.start - .1, -5], [end.start, -1], [half, .5], [end.logo - .3, 1.5],
+    [wordEnd, 1.5], [wordEnd + .73, 3], [wordEnd + 1.53, 2], [cues.duration - .1, -17],
+  ];
+  arc.forEach(([t], i) => { if (i && t < arc[i - 1][0]) throw new Error(`arcCursorV4 key ${i} at ${t} runs backwards`); });
+  return arc;
+};
+
+/** v4 ducks n11 later and shallower so the reveal's bloom lands; n21 and n23 go deeper under the conclusion's new layers. */
+const EXTRA_DUCK_DB_V4 = EXTRA_DUCK_DB_V3_OCT2.map((value, i) => ({10: -1.8, 20: value - .5, 22: -8.5}[i] ?? value));
+
+export const cursorPaperV4: ScoreStyle = {
+  id: 'cursor-paper-v4',
+  title: 'Cursor paper v4 (builds to the logo: V → I reveal, brightening IV–V–I, a ringing tonic)',
+  ducks: (mix, cues) => ducksArc(mix, cues, EXTRA_DUCK_DB_V4, arcCursorV4, {10: .15}),
+  compose: composeCursorV4,
+  design: (mix, cues) => { designCursorV3(mix, cues); tuckFoley(mix, cues); },
+  space: cursorPaperV2.space,
+  eq: cursorPaper.eq,
+  master: glueCursorV2,
+};
