@@ -40,7 +40,7 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   }
 
   const limits = limitsRows[0];
-  const signalCredit = await reconcileSignalCredit(workspaceId, usage.resetTime, signalCostUsedThisMonth);
+  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, signalCostUsedThisMonth);
   const gbLimit = bytesToGB(Number(limits.bytesLimit));
 
   const gbOverLimit = Math.max(gbUsedThisMonth - gbLimit, 0);

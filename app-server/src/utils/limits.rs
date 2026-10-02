@@ -184,7 +184,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     }
 
     let workspace_id = project_info.workspace_id;
-    let billing_start = current_billing_period_start(project_info.reset_time);
+    let billing_start = project_info.reset_time;
 
     let (input_tokens, cache_read_tokens, output_tokens) = get_workspace_signal_tokens_cached(
         &clickhouse,
@@ -206,7 +206,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         let credit = db::signal_credits::reconcile_signal_credit(
             &db.pool,
             workspace_id,
-            billing_start,
+            project_info.reset_time,
             signal_cost,
         )
         .await?;
@@ -520,7 +520,7 @@ pub async fn update_workspace_signal_tokens(
     };
 
     let workspace_id = project_info.workspace_id;
-    let billing_start = current_billing_period_start(project_info.reset_time);
+    let billing_start = project_info.reset_time;
     let (input_key, cache_read_key, output_key) =
         workspace_signal_token_cache_keys(workspace_id, billing_start);
 
@@ -654,7 +654,7 @@ pub async fn update_workspace_signal_tokens(
     let credit = db::signal_credits::reconcile_signal_credit(
         &db.pool,
         workspace_id,
-        billing_start,
+        project_info.reset_time,
         current_cost,
     )
     .await?;

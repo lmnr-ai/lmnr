@@ -232,7 +232,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
 
   // Reconcile the lifetime sign-up credit before rebasing the Stripe meter.
   // Only credit applied in this billing period reduces its metered total.
-  const signalCredit = await reconcileSignalCredit(workspaceId, usage.resetTime, usage.totalSignalCostMicroUsd);
+  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
   const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
     usage.totalSignalCostMicroUsd,
     signalCredit.appliedThisPeriodMicroUsd,

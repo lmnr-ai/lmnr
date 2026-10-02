@@ -12,12 +12,12 @@ pub struct SignalCreditState {
 }
 
 /// Reconcile the workspace's lifetime Signals credit against gross usage in
-/// the current billing period. The row lock serializes frontend checks and
-/// app-server updates so concurrent runs cannot spend the credit twice.
+/// the current Signals usage window. The row lock serializes frontend checks
+/// and app-server updates so concurrent runs cannot spend the credit twice.
 pub async fn reconcile_signal_credit(
     pool: &PgPool,
     workspace_id: Uuid,
-    period_start: DateTime<Utc>,
+    usage_reset_time: DateTime<Utc>,
     current_period_cost_micro_usd: i64,
 ) -> Result<SignalCreditState> {
     let current_period_cost_micro_usd = current_period_cost_micro_usd.max(0);
@@ -27,17 +27,14 @@ pub async fn reconcile_signal_credit(
             SELECT
                 id,
                 CASE
-                    WHEN signal_credit_period_start IS NULL THEN 0
-                    ELSE $4
+                    WHEN signal_credit_remaining_micro_usd + signal_credit_applied_micro_usd > 0
+                    THEN $4
+                    ELSE 0
                 END AS granted_micro_usd,
                 signal_credit_remaining_micro_usd AS remaining_micro_usd,
-                CASE
-                    WHEN signal_credit_period_start IS NOT NULL
-                         AND date_trunc('milliseconds', signal_credit_period_start) =
-                             date_trunc('milliseconds', $2::timestamptz)
-                    THEN signal_credit_applied_micro_usd
-                    ELSE 0
-                END AS previously_applied_micro_usd
+                signal_credit_applied_micro_usd AS previously_applied_micro_usd,
+                date_trunc('milliseconds', reset_time) =
+                    date_trunc('milliseconds', $2::timestamptz) AS same_usage_window
             FROM workspaces
             WHERE id = $1
             FOR UPDATE
@@ -46,13 +43,16 @@ pub async fn reconcile_signal_credit(
                 id,
                 granted_micro_usd,
                 remaining_micro_usd + previously_applied_micro_usd AS available_this_period_micro_usd,
-                GREATEST(
-                    previously_applied_micro_usd,
-                    LEAST(
-                        remaining_micro_usd + previously_applied_micro_usd,
-                        GREATEST($3, 0)
+                CASE
+                    WHEN same_usage_window THEN GREATEST(
+                        previously_applied_micro_usd,
+                        LEAST(
+                            remaining_micro_usd + previously_applied_micro_usd,
+                            GREATEST($3, 0)
+                        )
                     )
-                ) AS applied_this_period_micro_usd,
+                    ELSE previously_applied_micro_usd
+                END AS applied_this_period_micro_usd,
                 previously_applied_micro_usd
             FROM current_state
         )
@@ -60,11 +60,7 @@ pub async fn reconcile_signal_credit(
         SET
             signal_credit_remaining_micro_usd =
                 reconciled.available_this_period_micro_usd - reconciled.applied_this_period_micro_usd,
-            signal_credit_applied_micro_usd = reconciled.applied_this_period_micro_usd,
-            signal_credit_period_start = CASE
-                WHEN reconciled.granted_micro_usd = 0 THEN NULL
-                ELSE date_trunc('milliseconds', $2::timestamptz)
-            END
+            signal_credit_applied_micro_usd = reconciled.applied_this_period_micro_usd
         FROM reconciled
         WHERE workspaces.id = reconciled.id
         RETURNING
@@ -73,7 +69,7 @@ pub async fn reconcile_signal_credit(
         "#,
     )
     .bind(workspace_id)
-    .bind(period_start)
+    .bind(usage_reset_time)
     .bind(current_period_cost_micro_usd)
     .bind(SIGNALS_SIGNUP_CREDIT_MICRO_USD)
     .fetch_optional(pool)

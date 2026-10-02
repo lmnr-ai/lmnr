@@ -5672,13 +5672,6 @@
           "notNull": true,
           "default": 0
         },
-        "signal_credit_period_start": {
-          "name": "signal_credit_period_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
         "settings": {
           "name": "settings",
           "type": "jsonb",

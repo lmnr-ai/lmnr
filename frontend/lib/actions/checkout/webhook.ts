@@ -95,7 +95,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       // - the workspace is on the free tier
       // - the update is not a cancellation
       // - the webhook event contains actual tier change
-      ...(currentTier === "free" ? { resetTime: sql`now()` } : {}),
+      ...(currentTier === "free" ? { resetTime: sql`now()`, signalCreditAppliedMicroUsd: 0 } : {}),
     })
     .where(eq(workspaces.id, workspaceId))
     .returning({ tierId: workspaces.tierId });
@@ -322,9 +322,18 @@ export const handleInvoiceFinalized = async (
         ...(hasSignalRuns ? { signalCost: 0 } : {}),
       },
     });
+  const nextResetTime = sql`date_trunc('day', ${resetDate})`;
   await db
     .update(workspaces)
-    .set({ resetTime: sql`date_trunc('day', ${resetDate})` })
+    .set({
+      // Stripe may redeliver or deliver invoice webhooks out of order. Reset
+      // applied credit only when this event actually advances the usage period.
+      signalCreditAppliedMicroUsd: sql`CASE
+        WHEN ${workspaces.resetTime} < ${nextResetTime} THEN 0
+        ELSE ${workspaces.signalCreditAppliedMicroUsd}
+      END`,
+      resetTime: sql`GREATEST(${workspaces.resetTime}, ${nextResetTime})`,
+    })
     .where(eq(workspaces.id, workspaceId));
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };

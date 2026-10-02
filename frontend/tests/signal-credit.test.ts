@@ -8,10 +8,8 @@ const CREDIT = 5_000_000;
 test("applies a new workspace credit without exceeding current-period usage", () => {
   assert.deepEqual(
     calculateSignalCreditState({
-      grantedMicroUsd: CREDIT,
       remainingMicroUsd: CREDIT,
       previouslyAppliedMicroUsd: 0,
-      samePeriod: true,
       currentPeriodCostMicroUsd: 1_250_000,
     }),
     {
@@ -24,13 +22,11 @@ test("applies a new workspace credit without exceeding current-period usage", ()
   );
 });
 
-test("carries unused credit into the next billing period without replenishing it", () => {
+test("uses the externally reset applied amount in a new billing period", () => {
   assert.deepEqual(
     calculateSignalCreditState({
-      grantedMicroUsd: CREDIT,
       remainingMicroUsd: 3_750_000,
-      previouslyAppliedMicroUsd: 1_250_000,
-      samePeriod: false,
+      previouslyAppliedMicroUsd: 0,
       currentPeriodCostMicroUsd: 500_000,
     }),
     {
@@ -43,13 +39,28 @@ test("carries unused credit into the next billing period without replenishing it
   );
 });
 
+test("continues applying Free credit against lifetime cumulative usage", () => {
+  assert.deepEqual(
+    calculateSignalCreditState({
+      remainingMicroUsd: 3_000_000,
+      previouslyAppliedMicroUsd: 2_000_000,
+      currentPeriodCostMicroUsd: 3_000_000,
+    }),
+    {
+      grantedMicroUsd: CREDIT,
+      remainingMicroUsd: 2_000_000,
+      appliedThisPeriodMicroUsd: 3_000_000,
+      availableThisPeriodMicroUsd: CREDIT,
+      appliedDeltaMicroUsd: 1_000_000,
+    }
+  );
+});
+
 test("does not restore spent credit when reported usage temporarily decreases", () => {
   assert.deepEqual(
     calculateSignalCreditState({
-      grantedMicroUsd: CREDIT,
       remainingMicroUsd: 3_000_000,
       previouslyAppliedMicroUsd: 2_000_000,
-      samePeriod: true,
       currentPeriodCostMicroUsd: 0,
     }),
     {
@@ -65,10 +76,8 @@ test("does not restore spent credit when reported usage temporarily decreases", 
 test("does not grant credit to pre-deployment workspaces", () => {
   assert.deepEqual(
     calculateSignalCreditState({
-      grantedMicroUsd: 0,
       remainingMicroUsd: 0,
       previouslyAppliedMicroUsd: 0,
-      samePeriod: false,
       currentPeriodCostMicroUsd: 500_000,
     }),
     {
@@ -89,10 +98,8 @@ test("subtracts only credit applied in the current period from billable usage", 
 test("caps the lifetime credit and reports only newly applied credit", () => {
   assert.deepEqual(
     calculateSignalCreditState({
-      grantedMicroUsd: CREDIT,
       remainingMicroUsd: 2_000_000,
       previouslyAppliedMicroUsd: 3_000_000,
-      samePeriod: true,
       currentPeriodCostMicroUsd: 8_000_000,
     }),
     {

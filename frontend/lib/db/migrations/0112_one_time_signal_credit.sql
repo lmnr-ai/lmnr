@@ -1,11 +1,8 @@
--- Existing workspaces receive no retroactive credit. A NULL period start marks
--- them as ineligible; new workspaces receive the remaining-credit default and
--- a period marker without needing a separate granted-credit column.
+-- Existing workspaces receive no retroactive credit. Change the remaining-credit
+-- default only after PostgreSQL has materialized zero for the existing rows.
 ALTER TABLE "workspaces" ADD COLUMN "signal_credit_remaining_micro_usd" bigint DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "workspaces" ALTER COLUMN "signal_credit_remaining_micro_usd" SET DEFAULT 5000000;--> statement-breakpoint
 ALTER TABLE "workspaces" ADD COLUMN "signal_credit_applied_micro_usd" bigint DEFAULT 0 NOT NULL;--> statement-breakpoint
-ALTER TABLE "workspaces" ADD COLUMN "signal_credit_period_start" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "workspaces" ALTER COLUMN "signal_credit_period_start" SET DEFAULT now();--> statement-breakpoint
 ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_signal_credit_remaining_check" CHECK ("workspaces"."signal_credit_remaining_micro_usd" >= 0 AND "workspaces"."signal_credit_remaining_micro_usd" <= 5000000);--> statement-breakpoint
 ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_signal_credit_applied_check" CHECK ("workspaces"."signal_credit_applied_micro_usd" >= 0 AND "workspaces"."signal_credit_applied_micro_usd" <= 5000000);--> statement-breakpoint
 ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_signal_credit_total_check" CHECK ("workspaces"."signal_credit_remaining_micro_usd" + "workspaces"."signal_credit_applied_micro_usd" <= 5000000);--> statement-breakpoint

@@ -32,6 +32,8 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
   const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
+  const signalResetTimeStr = resetTimeDate.toISOString().replace(/Z$/, "");
+  const signalUsagePeriod = resetTimeDate.getTime();
 
   // --- Bytes: cache → ClickHouse fallback ---
   let totalBytesIngested = null;
@@ -50,9 +52,9 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   let signalInputTokens: number | null = null;
   let signalCacheReadTokens: number | null = null;
   let signalOutputTokens: number | null = null;
-  const signalInputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  const signalCacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  const signalOutputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
+  const signalInputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
+  const signalCacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
+  const signalOutputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}:${signalUsagePeriod}`;
   try {
     [signalInputTokens, signalCacheReadTokens, signalOutputTokens] = await Promise.all([
       cache.get<number>(signalInputTokensCacheKey),
@@ -70,7 +72,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
 
   // If both came from cache, return early
   if (totalBytesIngested !== null && totalSignalCostMicroUsd !== null) {
-    return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime };
+    return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime, signalResetTime: resetTimeDate };
   }
 
   // Need ClickHouse — fetch project IDs once
@@ -84,6 +86,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
       totalBytesIngested: totalBytesIngested ?? 0,
       totalSignalCostMicroUsd: totalSignalCostMicroUsd ?? 0,
       resetTime: latestResetTime,
+      signalResetTime: resetTimeDate,
     };
   }
 
@@ -125,7 +128,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     const signalRunsResult = await clickhouseClient.query({
       query: signalRunsQuery,
       format: "JSONEachRow",
-      query_params: { projectIds, latestResetTime: latestResetTimeStr },
+      query_params: { projectIds, latestResetTime: signalResetTimeStr },
     });
     const signalRunsRows = await signalRunsResult.json<{
       inputTokens: number;
@@ -142,5 +145,5 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
         : 0;
   }
 
-  return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime };
+  return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime, signalResetTime: resetTimeDate };
 };

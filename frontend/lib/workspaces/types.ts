@@ -78,4 +78,5 @@ export interface WorkspaceUsage {
   totalBytesIngested: number;
   totalSignalCostMicroUsd: number;
   resetTime: Date;
+  signalResetTime: Date;
 }

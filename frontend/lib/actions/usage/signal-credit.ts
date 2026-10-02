@@ -19,19 +19,15 @@ export interface SignalCreditState {
 }
 
 export function calculateSignalCreditState({
-  grantedMicroUsd,
   remainingMicroUsd,
   previouslyAppliedMicroUsd,
-  samePeriod,
   currentPeriodCostMicroUsd,
 }: {
-  grantedMicroUsd: number;
   remainingMicroUsd: number;
   previouslyAppliedMicroUsd: number;
-  samePeriod: boolean;
   currentPeriodCostMicroUsd: number;
 }): SignalCreditState {
-  const appliedBeforeReconciliation = samePeriod ? previouslyAppliedMicroUsd : 0;
+  const appliedBeforeReconciliation = previouslyAppliedMicroUsd;
   const availableThisPeriodMicroUsd = remainingMicroUsd + appliedBeforeReconciliation;
   const appliedThisPeriodMicroUsd = Math.max(
     appliedBeforeReconciliation,
@@ -39,7 +35,7 @@ export function calculateSignalCreditState({
   );
 
   return {
-    grantedMicroUsd,
+    grantedMicroUsd: availableThisPeriodMicroUsd > 0 ? SIGNALS_SIGNUP_CREDIT_MICRO_USD : 0,
     remainingMicroUsd: availableThisPeriodMicroUsd - appliedThisPeriodMicroUsd,
     appliedThisPeriodMicroUsd,
     availableThisPeriodMicroUsd,
@@ -49,12 +45,12 @@ export function calculateSignalCreditState({
 
 /**
  * Reconcile a workspace's lifetime Signals credit against gross usage in the
- * current billing period. The row lock makes frontend checks and app-server
- * usage updates converge without granting the credit twice.
+ * current Signals usage window. The row lock makes frontend checks and
+ * app-server usage updates converge without granting the credit twice.
  */
 export async function reconcileSignalCredit(
   workspaceId: string,
-  periodStart: Date,
+  usageResetTime: Date,
   currentPeriodCostMicroUsd: number
 ): Promise<SignalCreditState> {
   return db.transaction(async (tx) => {
@@ -62,7 +58,7 @@ export async function reconcileSignalCredit(
       .select({
         remainingMicroUsd: workspaces.signalCreditRemainingMicroUsd,
         appliedMicroUsd: workspaces.signalCreditAppliedMicroUsd,
-        periodStart: workspaces.signalCreditPeriodStart,
+        resetTime: workspaces.resetTime,
       })
       .from(workspaces)
       .where(eq(workspaces.id, workspaceId))
@@ -73,16 +69,19 @@ export async function reconcileSignalCredit(
       throw new Error(`Workspace not found: ${workspaceId}`);
     }
 
-    // JavaScript dates have millisecond precision. Rust reconciliation applies
-    // the same truncation in SQL so both writers agree on the billing period.
-    const canonicalPeriodStart = periodStart.toISOString();
-    const eligibleForCredit = workspace.periodStart !== null;
+    const remainingMicroUsd = Number(workspace.remainingMicroUsd);
+    const previouslyAppliedMicroUsd = Number(workspace.appliedMicroUsd);
+    if (new Date(workspace.resetTime).getTime() !== usageResetTime.getTime()) {
+      return calculateSignalCreditState({
+        remainingMicroUsd,
+        previouslyAppliedMicroUsd,
+        currentPeriodCostMicroUsd: previouslyAppliedMicroUsd,
+      });
+    }
+
     const state = calculateSignalCreditState({
-      grantedMicroUsd: eligibleForCredit ? SIGNALS_SIGNUP_CREDIT_MICRO_USD : 0,
-      remainingMicroUsd: Number(workspace.remainingMicroUsd),
-      previouslyAppliedMicroUsd: Number(workspace.appliedMicroUsd),
-      samePeriod:
-        workspace.periodStart !== null && new Date(workspace.periodStart).toISOString() === canonicalPeriodStart,
+      remainingMicroUsd,
+      previouslyAppliedMicroUsd,
       currentPeriodCostMicroUsd,
     });
 
@@ -91,7 +90,6 @@ export async function reconcileSignalCredit(
       .set({
         signalCreditRemainingMicroUsd: state.remainingMicroUsd,
         signalCreditAppliedMicroUsd: state.appliedThisPeriodMicroUsd,
-        signalCreditPeriodStart: eligibleForCredit ? canonicalPeriodStart : null,
       })
       .where(eq(workspaces.id, workspaceId));
 
