@@ -713,16 +713,15 @@ fn build_ch_spans(
         .iter()
         .enumerate()
         .map(|(dedup_idx, &span_idx)| {
-            let mut ch_span = build_ch_span(
+            build_ch_span(
                 &batch.spans[span_idx],
                 &batch.usages[span_idx],
                 batch.tool_dedups[span_idx].as_ref(),
                 dedup_idx,
                 dedup,
                 pii_outcome.verdict(dedup_idx),
-            );
-            ch_span.original_size_bytes = original_sizes[span_idx] as u64;
-            ch_span
+                original_sizes[span_idx],
+            )
         })
         .collect()
 }
@@ -736,8 +735,10 @@ fn build_ch_span(
     dedup_idx: usize,
     dedup: &DedupBatches,
     verdict: &SpanVerdict,
+    original_size_bytes: usize,
 ) -> CHSpan {
     let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+    ch_span.original_size_bytes = original_size_bytes as u64;
 
     // `dual` mode: the canonical text replaces the row's own serialization so
     // the masks index the stored bytes.
