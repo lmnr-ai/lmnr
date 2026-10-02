@@ -212,15 +212,8 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newTierConfig = TIER_CONFIG[newTier];
   const s = stripe();
 
-  let usage = await getWorkspaceUsage(workspaceId);
-  let signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
-  if (signalCredit.usageWindowMatched === false) {
-    usage = await getWorkspaceUsage(workspaceId);
-    signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
-    if (signalCredit.usageWindowMatched === false) {
-      throw new Error("Signals usage period changed while switching tiers; please retry");
-    }
-  }
+  const usage = await getWorkspaceUsage(workspaceId);
+  const signalCredit = await reconcileSignalCredit(workspaceId, usage.signalResetTime, usage.totalSignalCostMicroUsd);
 
   const newMegabytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes) / 1024 / 1024;
 

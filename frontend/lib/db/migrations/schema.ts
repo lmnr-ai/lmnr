@@ -545,6 +545,7 @@ export const workspaces = pgTable(
       .default(5_000_000)
       .notNull(),
     signalCreditAppliedMicroUsd: bigint("signal_credit_applied_micro_usd", { mode: "number" }).default(0).notNull(),
+    signalCreditPeriodStart: timestamp("signal_credit_period_start", { withTimezone: true, mode: "string" }).defaultNow(),
     settings: jsonb().default({}).notNull(),
   },
   (table) => [

@@ -12,13 +12,14 @@ import {
 } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projects, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { type WorkspaceUsage } from "@/lib/workspaces/types";
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
   const workspaceRows = await db
-    .select({ resetTime: workspaces.resetTime })
+    .select({ resetTime: workspaces.resetTime, tierName: subscriptionTiers.name })
     .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
 
@@ -31,7 +32,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
   const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
-  const signalResetTime = resetTimeDate;
+  const signalResetTime = workspace.tierName.trim().toLowerCase() === "free" ? resetTimeDate : latestResetTime;
   const signalResetTimeStr = signalResetTime.toISOString().replace(/Z$/, "");
   const signalUsagePeriod = signalResetTime.getTime();
 

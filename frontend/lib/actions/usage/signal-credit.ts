@@ -16,7 +16,6 @@ export interface SignalCreditState {
   appliedThisPeriodMicroUsd: number;
   availableThisPeriodMicroUsd: number;
   appliedDeltaMicroUsd: number;
-  usageWindowMatched?: boolean;
 }
 
 export function calculateSignalCreditState({
@@ -59,7 +58,7 @@ export async function reconcileSignalCredit(
       .select({
         remainingMicroUsd: workspaces.signalCreditRemainingMicroUsd,
         appliedMicroUsd: workspaces.signalCreditAppliedMicroUsd,
-        resetTime: workspaces.resetTime,
+        periodStart: workspaces.signalCreditPeriodStart,
       })
       .from(workspaces)
       .where(eq(workspaces.id, workspaceId))
@@ -70,22 +69,12 @@ export async function reconcileSignalCredit(
       throw new Error(`Workspace not found: ${workspaceId}`);
     }
 
-    const remainingMicroUsd = Number(workspace.remainingMicroUsd);
-    const previouslyAppliedMicroUsd = Number(workspace.appliedMicroUsd);
-    if (new Date(workspace.resetTime).getTime() !== usageResetTime.getTime()) {
-      return {
-        ...calculateSignalCreditState({
-          remainingMicroUsd,
-          previouslyAppliedMicroUsd,
-          currentPeriodCostMicroUsd: previouslyAppliedMicroUsd,
-        }),
-        usageWindowMatched: false,
-      };
-    }
-
+    const eligibleForCredit = workspace.periodStart !== null;
+    const samePeriod =
+      workspace.periodStart !== null && new Date(workspace.periodStart).getTime() === usageResetTime.getTime();
     const state = calculateSignalCreditState({
-      remainingMicroUsd,
-      previouslyAppliedMicroUsd,
+      remainingMicroUsd: Number(workspace.remainingMicroUsd),
+      previouslyAppliedMicroUsd: samePeriod ? Number(workspace.appliedMicroUsd) : 0,
       currentPeriodCostMicroUsd,
     });
 
@@ -94,6 +83,7 @@ export async function reconcileSignalCredit(
       .set({
         signalCreditRemainingMicroUsd: state.remainingMicroUsd,
         signalCreditAppliedMicroUsd: state.appliedThisPeriodMicroUsd,
+        signalCreditPeriodStart: eligibleForCredit ? usageResetTime.toISOString() : null,
       })
       .where(eq(workspaces.id, workspaceId));
 

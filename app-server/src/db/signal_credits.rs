@@ -27,14 +27,17 @@ pub async fn reconcile_signal_credit(
             SELECT
                 id,
                 CASE
-                    WHEN signal_credit_remaining_micro_usd + signal_credit_applied_micro_usd > 0
-                    THEN $4
-                    ELSE 0
+                    WHEN signal_credit_period_start IS NULL THEN 0
+                    ELSE $4
                 END AS granted_micro_usd,
                 signal_credit_remaining_micro_usd AS remaining_micro_usd,
-                signal_credit_applied_micro_usd AS previously_applied_micro_usd,
-                date_trunc('milliseconds', reset_time) =
-                    date_trunc('milliseconds', $2::timestamptz) AS same_usage_window
+                CASE
+                    WHEN signal_credit_period_start IS NOT NULL
+                         AND date_trunc('milliseconds', signal_credit_period_start) =
+                             date_trunc('milliseconds', $2::timestamptz)
+                    THEN signal_credit_applied_micro_usd
+                    ELSE 0
+                END AS previously_applied_micro_usd
             FROM workspaces
             WHERE id = $1
             FOR UPDATE
@@ -43,16 +46,13 @@ pub async fn reconcile_signal_credit(
                 id,
                 granted_micro_usd,
                 remaining_micro_usd + previously_applied_micro_usd AS available_this_period_micro_usd,
-                CASE
-                    WHEN same_usage_window THEN GREATEST(
-                        previously_applied_micro_usd,
-                        LEAST(
-                            remaining_micro_usd + previously_applied_micro_usd,
-                            GREATEST($3, 0)
-                        )
+                GREATEST(
+                    previously_applied_micro_usd,
+                    LEAST(
+                        remaining_micro_usd + previously_applied_micro_usd,
+                        GREATEST($3, 0)
                     )
-                    ELSE previously_applied_micro_usd
-                END AS applied_this_period_micro_usd,
+                ) AS applied_this_period_micro_usd,
                 previously_applied_micro_usd
             FROM current_state
         )
@@ -60,7 +60,11 @@ pub async fn reconcile_signal_credit(
         SET
             signal_credit_remaining_micro_usd =
                 reconciled.available_this_period_micro_usd - reconciled.applied_this_period_micro_usd,
-            signal_credit_applied_micro_usd = reconciled.applied_this_period_micro_usd
+            signal_credit_applied_micro_usd = reconciled.applied_this_period_micro_usd,
+            signal_credit_period_start = CASE
+                WHEN reconciled.granted_micro_usd = 0 THEN NULL
+                ELSE date_trunc('milliseconds', $2::timestamptz)
+            END
         FROM reconciled
         WHERE workspaces.id = reconciled.id
         RETURNING
