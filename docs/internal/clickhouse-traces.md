@@ -36,6 +36,7 @@
 - `size_bytes` is the billed, post-dedup size (hashes + newly-stored content); `original_size_bytes` (CH migration 70) is the same base with input/output/tool definitions at raw JSON size. Both are computed in `charge_span_sizes` (`traces/processor.rs`). For tiny messages original can be SMALLER than billed (a 32B hash outweighs the message), so never assert `original >= billed`.
 - The producer strips every dedup'd `input`/`output` off the span before publishing (`traces/producer.rs`) and moves tool definitions out of `raw_attributes`, so the consumer cannot measure them: the raw sizes ride the wire as `MessageDedup.size_bytes` / `ToolDedup.size_bytes` (`#[serde(default)]`, measured pre-PII-redaction).
 - `spans.created_at` is `DEFAULT now64(9)` and is NOT a `CHSpan` field — inserts list columns by name, so ClickHouse fills it. Rows in parts older than migration 70 read back the query time, not their ingest time. Neither column is in `spans_v0`/`spans_v1` (same as `size_bytes`).
+- **Every new `CHSpan` field breaks the signals build here, not in OSS.** About 11 struct literals under `src/signals/private/` (`SpansViewRow::into_ch_span`, `InMemorySpan::into_ch_span`, compression/filter tests) list every field, and `lmnr`'s default-feature `cargo check` never compiles them. Zero-fill the field there: signals reads spans through its own row structs and never writes `CHSpan` back. Verify with `cargo check --features signals --tests`.
 
 ## `traces_agg` AggregatingMergeTree
 
