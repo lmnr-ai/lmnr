@@ -150,7 +150,6 @@ impl Harness {
             reset_time: at(0),
             workspace_project_ids: vec![project_id],
             bytes_limit: i64::MAX,
-            signal_cost_included_micro_usd: 0,
             custom_bytes_limit: None,
             signal_cost_hard_limit_micro_usd: None,
             settings: ProjectSettings {
@@ -754,6 +753,8 @@ async fn pipeline_end_to_end() {
     let s1 = f1.span_row(id(S1));
     assert_eq!(s1["input"], json!({ "task": "fix the tests" }).to_string());
     assert_eq!(s1["output"], "\"done\"");
+    // Nothing dedup'd: original and billed size agree.
+    assert_eq!(s1["original_size_bytes"], s1["size_bytes"]);
     assert_eq!(s1["user_id"], "u-1");
     assert_eq!(
         serde_json::from_str::<Value>(s1["trace_metadata"].as_str().unwrap()).unwrap(),
@@ -1029,6 +1030,16 @@ async fn pipeline_end_to_end() {
     assert!(
         s3_size > 0 && s3_size < s2_size + 2 * 1024,
         "{s3_size} vs {s2_size}"
+    );
+    // Original ignores dedup: S3 re-sends S2's history plus one message
+    // and the same tools, so it outgrows S2 even though they are billed as
+    // hashes. Tiny fixture messages are smaller than their 32B hashes, so it
+    // is not compared against the billed size.
+    let s3_original = s3["original_size_bytes"].as_u64().unwrap();
+    let s2_original = s2["original_size_bytes"].as_u64().unwrap();
+    assert!(
+        s3_original > s2_original,
+        "{s3_original} vs S2 {s2_original}"
     );
     assert!(h.mark_exists(&trace_new_key(&m3.span, &d3.hashes[3])).await);
     assert!(h.mark_exists(&storage_key(&m3.span, &d3.hashes[3])).await);

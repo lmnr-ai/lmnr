@@ -682,6 +682,17 @@
   margin-block-start: var(--typeset-flow);
   margin-block-end: 0;
 }
+/* The scroll wrapper owns the flow margin. */
+.blog-article .typeset-scroll > table {
+  margin-block-start: 0;
+}
+/* Below md the column is too narrow to wrap cells legibly: keep natural width and scroll. */
+@media (width < 48rem) {
+  .blog-article .typeset-scroll > table {
+    width: max-content;
+    min-width: 100%;
+  }
+}
 .blog-article thead {
   text-align: left;
 }

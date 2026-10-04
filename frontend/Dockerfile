@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* pnpm-workspace.yaml* ./
-RUN npm i -g pnpm@latest-11
+# Keep in sync with .github/workflows/fe-build-check.yml.
+RUN npm i -g pnpm@12.8.1
 RUN pnpm i --frozen-lockfile
 
 

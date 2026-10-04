@@ -2,20 +2,36 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { memo, useEffect } from "react";
-import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
+import { useEffect, useMemo } from "react";
+import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
-import { ChartContainer } from "@/components/ui/chart";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { normalizeTier, signalCacheReadRate, signalInputRate, signalOutputRate, TIERS } from "@/lib/billing/tiers";
+import { type UsageBreakdown, type WorkspaceStats } from "@/lib/actions/usage/types";
+import { TIERS } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
+import { swrFetcher } from "@/lib/utils";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 import LimitsSettings from "./limits";
+import UsageMeterCard from "./meter";
+import PlanOverview from "./plan-overview";
+import { dataStatRows, signalStatRows } from "./usage-stats";
+import {
+  buildUsageModel,
+  DATA_COLOR,
+  formatDay,
+  formatGB,
+  formatGBTick,
+  formatUsd,
+  formatUsdTick,
+  GB_IN_BYTES,
+  SIGNALS_COLOR,
+} from "./utils";
 import WarningsSettings from "./warnings";
+
+const NO_DAYS: UsageBreakdown["days"] = [];
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats | null;
@@ -23,162 +39,72 @@ interface WorkspaceUsageProps {
   isOwner: boolean;
 }
 
-interface TierHint {
-  data: string;
-  dataGB: number;
-  // Included signal budget, displayed as a dollar amount (e.g. "$7.50").
-  signalBudget: string;
-  // Included signal budget in micro-USD (1e-6 USD) — matches the units stored
-  // in subscription_tiers.signal_cost_included_micro_usd and the usage cache.
-  signalBudgetMicroUsd: number;
-  isOverageAllowed: boolean;
-  overageDataPrice: number;
-  teamMembers: string;
-}
-
-const TIER_USAGE_HINTS: Record<string, TierHint> = {
-  free: {
-    data: "1 GB",
-    dataGB: 1,
-    signalBudget: "$2.50",
-    signalBudgetMicroUsd: 2_500_000,
-    isOverageAllowed: false,
-    overageDataPrice: 0,
-    teamMembers: "1",
-  },
-  hobby: {
-    data: "3 GB",
-    dataGB: 3,
-    signalBudget: "$7.50",
-    signalBudgetMicroUsd: 7_500_000,
-    isOverageAllowed: true,
-    overageDataPrice: 2,
-    teamMembers: "Unlimited",
-  },
-  pro: {
-    data: "10 GB",
-    dataGB: 10,
-    signalBudget: "$25",
-    signalBudgetMicroUsd: 25_000_000,
-    isOverageAllowed: true,
-    overageDataPrice: 1.5,
-    teamMembers: "Unlimited",
-  },
-};
-
-const DEFAULT_USAGE_DESCRIPTION = "Your workspace data and signal usage.";
-
-// Keyed by the internal tier key ("hobby"), while DB rows may carry either the
-// old "Hobby" or the new "Starter" display name.
-const getTierUsageHint = (tierName: string): TierHint | null => {
-  const key = tierName.toLowerCase().trim();
-  return TIER_USAGE_HINTS[key === "starter" ? "hobby" : key] ?? null;
-};
-
-const getUsageDescription = (tierName?: string): string => {
-  if (!tierName) return DEFAULT_USAGE_DESCRIPTION;
-  const tierHintInfo = getTierUsageHint(tierName);
-  if (!tierHintInfo) return DEFAULT_USAGE_DESCRIPTION;
-  const tier = normalizeTier(tierName);
-  const tierHint = `${TIERS[tier].name} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalBudget} of included Signals usage per month.`;
-  const tierHintOverages =
-    "If you exceed these limits, " +
-    (tierHintInfo.isOverageAllowed
-      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${signalInputRate()} / 1M input tokens, $${signalCacheReadRate()} / 1M cached input tokens, and $${signalOutputRate()} / 1M output tokens for additional Signals usage.`
-      : "you won't be able to send any more data during current billing cycle.");
-  return `${tierHint} ${tierHintOverages}`;
-};
-
 export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
   useEffect(() => {
     track("usage", "page_viewed");
   }, []);
   const featureFlags = useFeatureFlags();
-  const tierHint = getTierUsageHint(workspace.tierName);
-  const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
-  const gbLimit = workspaceStats?.gbLimit ?? 0;
-  const signalCostUsed = workspaceStats?.signalCostUsedThisMonth ?? 0;
-  const signalCostLimit = workspaceStats?.signalCostLimit ?? 0;
+  const { data: breakdown, error } = useSWR<UsageBreakdown>(
+    `/api/workspaces/${workspace.id}/usage-breakdown`,
+    swrFetcher
+  );
 
-  const isUnlimited = !isFinite(gbLimit);
-  const hasLimits = gbLimit > 0 && signalCostLimit > 0;
+  const model = useMemo(() => buildUsageModel(workspaceStats, breakdown), [workspaceStats, breakdown]);
+  const { tier, cycle, bill } = model;
+  const isPaid = tier === "hobby" || tier === "pro";
+  const daysLeft = Math.ceil(cycle.remainingDays);
 
-  const formatter = new Intl.NumberFormat("en-US", {
-    style: "percent",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+  // On error, render empty charts rather than an endless skeleton.
+  const days = breakdown?.days ?? (error ? NO_DAYS : undefined);
+  const dataDays = useMemo(() => days?.map((d) => ({ date: d.date, value: d.bytes / GB_IN_BYTES })), [days]);
+  const signalDays = useMemo(
+    () => days?.map((d) => ({ date: d.date, value: d.signalCostMicroUsd / 1_000_000 })),
+    [days]
+  );
 
-  const formatGB = (gb: number) => {
-    if (!isFinite(gb)) return "Unlimited";
-    if (gb === 0) return "0 GB";
-    if (gb < 0.01) return `${(gb * 1024).toFixed(2)} MB`;
-    return `${gb.toFixed(2)} GB`;
-  };
-
-  const safePercent = (used: number, limit: number) => {
-    if (limit <= 0) return 0;
-    return used / limit;
-  };
-
-  // Signal usage/limit values are micro-USD (1e-6 USD); render as dollars.
-  const formatSignalCost = (microUsd: number) => {
-    if (!isFinite(microUsd)) return "Unlimited";
-    return `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  const usageDescription = getUsageDescription(workspaceStats?.tierName);
+  const cycleRange = `${formatDay(cycle.start)} – ${formatDay(cycle.end)} · resets in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
+  const cycleLabel = `Billing cycle ${cycleRange}`;
 
   return (
     <>
       <SettingsSectionHeader title="Usage" description="Monitor your workspace usage" />
 
-      <SettingsSection>
-        <SettingsSectionHeader size="sm" title="Usage summary" description={usageDescription} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="border rounded-md p-6 bg-secondary">
-            <div className="flex justify-between items-center">
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Data usage</span>
-                <span className="text-sm text-secondary-foreground">
-                  {formatGB(gbUsedThisMonth)}
-                  {!isUnlimited && hasLimits && ` / ${formatGB(gbLimit)}`}
-                </span>
-                {!isUnlimited && hasLimits && (
-                  <span className="text-xs text-muted-foreground">
-                    {formatter.format(safePercent(gbUsedThisMonth, gbLimit))} of limit used
-                  </span>
-                )}
-              </div>
-              {!isUnlimited && hasLimits && (
-                <UsageProgressDisc color="hsl(var(--chart-1))" value={gbUsedThisMonth} maxValue={gbLimit} />
-              )}
-            </div>
-          </div>
+      {isPaid && bill && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
 
-          <div className="border rounded-md p-6 bg-secondary">
-            <div className="flex justify-between items-center">
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Signals usage</span>
-                <span className="text-sm text-secondary-foreground">
-                  {formatSignalCost(signalCostUsed)}
-                  {!isUnlimited && hasLimits && ` / ${formatSignalCost(signalCostLimit)}`}
-                </span>
-                {!isUnlimited && hasLimits && (
-                  <span className="text-xs text-muted-foreground">
-                    {formatter.format(safePercent(signalCostUsed, signalCostLimit))} of limit used
-                  </span>
-                )}
-              </div>
-              {!isUnlimited && hasLimits && (
-                <UsageProgressDisc color="hsl(var(--chart-2))" value={signalCostUsed} maxValue={signalCostLimit} />
-              )}
-            </div>
-          </div>
+      <SettingsSection>
+        {!(isPaid && bill) && (
+          <p className="text-sm text-muted-foreground">
+            {tier === "free"
+              ? `${cycleLabel}. The Free plan is never billed — data stops once the included amount is used up, and Signals once the one-time credit is.`
+              : cycleLabel}
+          </p>
+        )}
+        {error && <p className="text-sm text-destructive">Failed to load daily usage.</p>}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <UsageMeterCard
+            title="Data ingestion"
+            meter={model.data}
+            days={dataDays}
+            cycle={cycle}
+            color={DATA_COLOR}
+            format={formatGB}
+            formatTick={formatGBTick}
+            stats={dataStatRows(dataDays, formatGB)}
+          />
+          <UsageMeterCard
+            title="Signals usage"
+            meter={model.signals}
+            days={signalDays}
+            cycle={cycle}
+            color={SIGNALS_COLOR}
+            format={formatUsd}
+            formatTick={formatUsdTick}
+            stats={signalStatRows(breakdown, !!error)}
+          />
         </div>
       </SettingsSection>
 
-      {featureFlags[Feature.SUBSCRIPTION] && (
+      {featureFlags[Feature.SUBSCRIPTION] && !isPaid && (
         <SettingsSection>
           <SettingsSectionHeader size="sm" title="Billing" description="Need to upgrade or manage your subscription?" />
           <Link
@@ -193,40 +119,13 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
 
       {isOwner && workspace.tierName !== WorkspaceTier.FREE && <WarningsSettings workspaceId={workspace.id} />}
 
-      {isOwner && workspace.tierName !== WorkspaceTier.FREE && tierHint && (
+      {isOwner && workspace.tierName !== WorkspaceTier.FREE && tier && (
         <LimitsSettings
           workspaceId={workspace.id}
-          tierIncludedDataGB={tierHint.dataGB}
-          tierIncludedSignalCostMicroUsd={tierHint.signalBudgetMicroUsd}
+          tierIncludedDataGB={model.data.included ?? TIERS[tier].includedBytesGB}
+          tierIncludedSignalCostMicroUsd={(model.signals.included ?? 0) * 1_000_000}
         />
       )}
     </>
   );
 }
-
-interface UsageProgressDiscProps {
-  value: number;
-  maxValue: number;
-  color: string;
-}
-
-// The chart always sweeps a full circle and the value is encoded by the angle axis domain:
-// recharts v3 fits the polar viewbox to the sweep, so a partial startAngle/endAngle would
-// resize and re-centre the disc instead of filling part of it.
-const UsageProgressDisc = memo(({ maxValue, value, color }: UsageProgressDiscProps) => (
-  <ChartContainer config={{}} className="aspect-square h-16 w-16">
-    <RadialBarChart
-      data={[{ fill: color, usage: Math.min(value, maxValue) }]}
-      startAngle={90}
-      endAngle={-270}
-      innerRadius="75%"
-      outerRadius="100%"
-      margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-    >
-      <PolarAngleAxis type="number" domain={[0, maxValue]} tick={false} tickLine={false} axisLine={false} />
-      <RadialBar dataKey="usage" background cornerRadius={10} />
-    </RadialBarChart>
-  </ChartContainer>
-));
-
-UsageProgressDisc.displayName = "UsageProgressDisc";

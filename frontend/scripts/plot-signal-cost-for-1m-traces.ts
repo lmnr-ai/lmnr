@@ -3,14 +3,14 @@ import { writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { estimateSignalCostUsd, signalTokenEstimate } from "../components/landing/pricing/signal-cost-estimate";
+import { estimateSignalCostUsd, signalCostPerTraceUsd } from "../components/landing/pricing/signal-cost-estimate";
 import { formatTokens, TOKENS_PER_RUN_STEPS } from "../components/landing/pricing/volume-inputs/steps";
 
 const ANALYZED_TRACES = 1_000_000;
 
 const rows = TOKENS_PER_RUN_STEPS.map((traceTokens) => ({
   traceTokens,
-  ...signalTokenEstimate(traceTokens),
+  costPerTraceUsd: signalCostPerTraceUsd(traceTokens),
   totalCostUsd: estimateSignalCostUsd(ANALYZED_TRACES, traceTokens, 100),
 }));
 
@@ -20,8 +20,8 @@ const svgPath = join(downloads, "signal-cost-for-1m-traces.svg");
 const pngPath = join(downloads, "signal-cost-for-1m-traces.png");
 
 const csv = [
-  "trace_tokens,signal_input_tokens_per_trace,signal_cached_input_tokens_per_trace,signal_output_tokens_per_trace,total_cost_for_1m_traces_usd",
-  ...rows.map((row) => [row.traceTokens, row.input, row.cacheRead, row.output, row.totalCostUsd.toFixed(8)].join(",")),
+  "trace_tokens,signal_cost_per_trace_usd,total_cost_for_1m_traces_usd",
+  ...rows.map((row) => [row.traceTokens, row.costPerTraceUsd, row.totalCostUsd.toFixed(8)].join(",")),
 ].join("\n");
 writeFileSync(csvPath, `${csv}\n`);
 
@@ -41,7 +41,7 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect width="100%" height="100%" fill="#111214"/>
   <text x="${margin.left}" y="36" fill="#f4f4f5" font-family="Arial, sans-serif" font-size="24" font-weight="700">Signals cost to analyze 1,000,000 traces</text>
-  <text x="${margin.left}" y="58" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="14">Flow-1 measured medians · 100% coverage · $0.05 input / $0.01 cached input / $0.35 output per 1M tokens</text>
+  <text x="${margin.left}" y="58" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="14">Flow-1 4K-output measured median cost per trace · 100% coverage</text>
   ${yTicks
     .map(
       (tick) => `
@@ -70,9 +70,7 @@ execFileSync("magick", [svgPath, pngPath]);
 console.table(
   rows.map((row) => ({
     "Trace tokens": formatTokens(row.traceTokens),
-    "Signal input": row.input,
-    "Cached input": row.cacheRead,
-    "Signal output": row.output,
+    "Cost / trace": `$${row.costPerTraceUsd.toFixed(4)}`,
     "Cost / 1M traces": `$${row.totalCostUsd.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
   }))
 );

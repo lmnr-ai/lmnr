@@ -21,7 +21,7 @@ use crate::env::private::signals;
 /// in integers: it's the unit compared against tier allowances, cached, and
 /// reported to Stripe (divided back to dollars only at the meter boundary).
 /// At the default rates one fresh input token costs 0.05 µ$, one cached-read
-/// token 0.01 µ$, and one output token 0.35 µ$.
+/// token 0.01 µ$, and one output token 0.30 µ$.
 #[cfg(feature = "signals")]
 pub fn signal_token_cost_micro_usd(
     input_tokens: u64,

@@ -22,7 +22,8 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 11
+          # Exact pin: a floating patch release (11.28.3) once broke the standalone build.
+          version: 12.8.1
 
       # Step 3: Set up Node.js
       - name: Set up Node.js

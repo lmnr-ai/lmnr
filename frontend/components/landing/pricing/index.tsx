@@ -4,7 +4,7 @@ import { usePostHog } from "posthog-js/react";
 
 import Footer from "@/components/landing/footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { formatSignalsCount, signalCacheReadRate, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
+import { formatSignalTokenRate, signalCacheReadRate, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, subSection } from "../class-names";
@@ -32,12 +32,12 @@ export default function Pricing() {
       question: "How is Signals usage priced?",
       answer: (
         <>
-          Signals are billed by the tokens the agent spends to read a trace and generate a structured event: $
-          {signalInputRate()} per 1M input tokens, ${signalCacheReadRate()} per 1M cached input tokens, and $
-          {signalOutputRate()} per 1M output tokens. Each plan includes a dollar amount of Signals usage (
-          {formatSignalsCount("free")} Free, {formatSignalsCount("hobby")} Starter, {formatSignalsCount("pro")} Pro);
-          usage past that is billed at the applicable per-token rates. You pay for what a Signal reads and writes, not
-          for the spans your agent emits. Read more in the{" "}
+          Signals are billed by the tokens the agent spends to read a trace and generate a structured event:{" "}
+          {formatSignalTokenRate(signalInputRate())} per 1M input tokens, {formatSignalTokenRate(signalCacheReadRate())}{" "}
+          per 1M cached input tokens, and {formatSignalTokenRate(signalOutputRate())} per 1M output tokens. Every new
+          workspace receives a one-time $5 credit that carries forward until used; usage past that is billed at the
+          applicable per-token rates. You pay for what a Signal reads and writes, not for the spans your agent emits.
+          Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"
             target="_blank"
@@ -66,7 +66,7 @@ export default function Pricing() {
       id: "overage",
       question: "What happens if I exceed my plan's included usage?",
       answer:
-        "Paid tiers keep working past their included allowance and bill overage at the per-GB data rate and the per-token Signals rates listed on each plan. The Free tier has no overage; once you hit its data cap or spend your included Signals budget, you'll need to upgrade to keep going. Enterprise has custom limits and rates negotiated per contract.",
+        "Paid tiers keep working past their included data and bill overage at the per-GB data rate and the per-token Signals rates listed on each plan. Every new workspace receives a one-time $5 Signals credit that carries forward until used. The Free tier has no overage; once you hit its data cap or spend the credit, you'll need to upgrade to keep going. Enterprise has custom limits and rates negotiated per contract.",
     },
   ];
 

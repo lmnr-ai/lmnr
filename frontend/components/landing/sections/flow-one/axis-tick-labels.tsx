@@ -8,7 +8,7 @@ import {
 } from "./chart-geometry";
 
 const X_TICKS = [0, 200, 400, 600, 800];
-const Y_TICKS = [65, 70, 75, 80];
+const Y_TICKS = [65, 70, 75, 80, 85];
 
 const AxisTickLabels = () => (
   <div aria-hidden className="font-sans-landing pointer-events-none absolute inset-0 text-[#7c7e85]">
@@ -26,7 +26,7 @@ const AxisTickLabels = () => (
             top: `calc(100% - var(--chart-bottom-row) + ${scaledWidth(5)})`,
           }}
         >
-          {tick}
+          {tick.toLocaleString()}
         </span>
       ))}
     </div>
