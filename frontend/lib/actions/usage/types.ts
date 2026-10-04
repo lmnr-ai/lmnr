@@ -22,3 +22,17 @@ export type WorkspaceStats = {
 export type StorageStats = {
   storageMib?: number; // total storage used in MiB
 };
+
+// Signal cost is priced server-side so operator rate overrides apply.
+export type UsageDay = {
+  date: string; // YYYY-MM-DD (UTC)
+  bytes: number;
+  signalCostMicroUsd: number;
+  signalRuns: number;
+};
+
+export type UsageBreakdown = {
+  cycleStart: string;
+  days: UsageDay[];
+  signalRuns: number;
+};

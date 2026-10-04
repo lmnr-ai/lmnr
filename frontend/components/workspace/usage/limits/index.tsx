@@ -44,7 +44,7 @@ export default function LimitsSettings({
         title="Hard limits"
         description="When a limit is reached, new data ingestion or signal usage will be rejected until the next billing cycle."
       />
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <LimitRow
           workspaceId={workspaceId}
           limitType="bytes"
@@ -63,7 +63,11 @@ export default function LimitsSettings({
           label="Signals usage"
           currentValue={signalCostLimit?.limitValue ?? null}
           unit="USD"
-          includedLabel={`$${(tierIncludedSignalCostMicroUsd / 1_000_000).toLocaleString("en-US")}`}
+          includedLabel={
+            tierIncludedSignalCostMicroUsd > 0
+              ? `$${(tierIncludedSignalCostMicroUsd / 1_000_000).toLocaleString("en-US")}`
+              : undefined
+          }
           includedRawValue={tierIncludedSignalCostMicroUsd}
           toDisplayValue={(raw) => Math.round((raw / 1_000_000) * 100) / 100}
           toRawValue={(display) => Math.round(display * 1_000_000)}
