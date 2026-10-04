@@ -1,4 +1,4 @@
-import { generateText, type LanguageModel, Output } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/feature-model";
@@ -27,10 +27,9 @@ const OutputSchema = z.object({
   name: z.string(),
 });
 
-// `model` is injectable for `scripts/eval-company-name.ts`; production resolves the feature route.
-export async function guessCompanyName(domain: string, model?: LanguageModel): Promise<string | null> {
+export async function guessCompanyName(domain: string): Promise<string | null> {
   const { output } = await generateText({
-    model: model ?? (await getLanguageModel(LlmFeature.ONBOARDING_COMPANY_NAME)),
+    model: await getLanguageModel(LlmFeature.ONBOARDING_COMPANY_NAME),
     system: SYSTEM_PROMPT,
     prompt: `Domain: ${domain}`,
     output: Output.object({ schema: OutputSchema }),
