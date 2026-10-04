@@ -3,13 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
-import {
-  cache,
-  WORKSPACE_BYTES_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
-} from "@/lib/cache";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
@@ -32,6 +26,8 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
   const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
+  const signalResetTime = workspace.tierName.trim().toLowerCase() === "free" ? resetTimeDate : latestResetTime;
+  const signalResetTimeStr = signalResetTime.toISOString().replace(/Z$/, "");
 
   // --- Bytes: cache → ClickHouse fallback ---
   let totalBytesIngested = null;
@@ -43,37 +39,10 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     console.error("Error reading bytes usage from cache:", error);
   }
 
-  // --- Signal cost: cache → ClickHouse fallback ---
-  // Tokens are cached raw in three keys (input, cache-read, output priced at
-  // different rates); cost in micro-USD is derived here so a rate change
-  // re-prices the cache too. `totalSignalCostMicroUsd` is that derived cost.
-  let signalInputTokens: number | null = null;
-  let signalCacheReadTokens: number | null = null;
-  let signalOutputTokens: number | null = null;
-  const signalInputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  const signalCacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  const signalOutputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  try {
-    [signalInputTokens, signalCacheReadTokens, signalOutputTokens] = await Promise.all([
-      cache.get<number>(signalInputTokensCacheKey),
-      cache.get<number>(signalCacheReadTokensCacheKey),
-      cache.get<number>(signalOutputTokensCacheKey),
-    ]);
-  } catch (error) {
-    console.error("Error reading signal runs usage from cache:", error);
-  }
+  // Signal credit classification changes asynchronously in the meter job, so
+  // Signals usage is read from ClickHouse rather than a long-lived cache.
 
-  let totalSignalCostMicroUsd =
-    signalInputTokens !== null && signalCacheReadTokens !== null && signalOutputTokens !== null
-      ? signalTokenCostMicroUsd(signalInputTokens, signalCacheReadTokens, signalOutputTokens)
-      : null;
-
-  // If both came from cache, return early
-  if (totalBytesIngested !== null && totalSignalCostMicroUsd !== null) {
-    return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime };
-  }
-
-  // Need ClickHouse — fetch project IDs once
+  // Fetch project IDs once for ClickHouse usage queries.
   const projectRows = await db.query.projects.findMany({
     where: eq(projects.workspaceId, workspaceId),
     columns: { id: true },
@@ -82,8 +51,11 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   if (projectRows.length === 0) {
     return {
       totalBytesIngested: totalBytesIngested ?? 0,
-      totalSignalCostMicroUsd: totalSignalCostMicroUsd ?? 0,
+      totalSignalCostMicroUsd: 0,
+      creditedSignalCostMicroUsd: 0,
+      uncreditedSignalCostMicroUsd: 0,
       resetTime: latestResetTime,
+      signalResetTime,
     };
   }
 
@@ -115,32 +87,53 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     totalBytesIngested = bytesRows.length > 0 ? Number(bytesRows[0].total_bytes_ingested) : 0;
   }
 
-  if (totalSignalCostMicroUsd === null) {
-    const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
+  const signalRunsQuery = `SELECT
+      SUM(input_tokens) as inputTokens,
+      SUM(cache_read_tokens) as cacheReadTokens,
+      SUM(output_tokens) as outputTokens,
+      SUMIf(input_tokens, credit_applied) as creditedInputTokens,
+      SUMIf(cache_read_tokens, credit_applied) as creditedCacheReadTokens,
+      SUMIf(output_tokens, credit_applied) as creditedOutputTokens
     FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
     AND signal_runs.status = 1`;
 
-    const signalRunsResult = await clickhouseClient.query({
-      query: signalRunsQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds, latestResetTime: latestResetTimeStr },
-    });
-    const signalRunsRows = await signalRunsResult.json<{
-      inputTokens: number;
-      cacheReadTokens: number;
-      outputTokens: number;
-    }>();
-    totalSignalCostMicroUsd =
-      signalRunsRows.length > 0
-        ? signalTokenCostMicroUsd(
-            Number(signalRunsRows[0].inputTokens),
-            Number(signalRunsRows[0].cacheReadTokens),
-            Number(signalRunsRows[0].outputTokens)
-          )
-        : 0;
-  }
+  const signalRunsResult = await clickhouseClient.query({
+    query: signalRunsQuery,
+    format: "JSONEachRow",
+    query_params: { projectIds, latestResetTime: signalResetTimeStr },
+  });
+  const signalRunsRows = await signalRunsResult.json<{
+    inputTokens: number;
+    cacheReadTokens: number;
+    outputTokens: number;
+    creditedInputTokens: number;
+    creditedCacheReadTokens: number;
+    creditedOutputTokens: number;
+  }>();
+  const signalRuns = signalRunsRows[0];
+  const totalSignalCostMicroUsd = signalRuns
+    ? signalTokenCostMicroUsd(
+        Number(signalRuns.inputTokens),
+        Number(signalRuns.cacheReadTokens),
+        Number(signalRuns.outputTokens)
+      )
+    : 0;
+  const creditedSignalCostMicroUsd = signalRuns
+    ? signalTokenCostMicroUsd(
+        Number(signalRuns.creditedInputTokens),
+        Number(signalRuns.creditedCacheReadTokens),
+        Number(signalRuns.creditedOutputTokens)
+      )
+    : 0;
 
-  return { totalBytesIngested, totalSignalCostMicroUsd, resetTime: latestResetTime };
+  return {
+    totalBytesIngested,
+    totalSignalCostMicroUsd,
+    creditedSignalCostMicroUsd,
+    uncreditedSignalCostMicroUsd: Math.max(0, totalSignalCostMicroUsd - creditedSignalCostMicroUsd),
+    resetTime: latestResetTime,
+    signalResetTime,
+  };
 };

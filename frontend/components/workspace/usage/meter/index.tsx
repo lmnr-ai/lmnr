@@ -24,7 +24,7 @@ interface UsageMeterCardProps {
 
 export default function UsageMeterCard(props: UsageMeterCardProps) {
   const { title, meter, days, cycle, color, format, formatTick, stats } = props;
-  const { used, included } = meter;
+  const { used, included, credit } = meter;
   const series = useMemo(() => (days ? buildDailySeries(days, cycle) : null), [days, cycle]);
 
   return (
@@ -35,6 +35,11 @@ export default function UsageMeterCard(props: UsageMeterCardProps) {
           <span className="text-xl font-semibold tabular-nums">{format(used)}</span>
           {included != null && (
             <span className="text-xs text-muted-foreground">first {trimZeros(format(included))} included</span>
+          )}
+          {credit && (
+            <span className="text-xs text-muted-foreground">
+              {format(credit.remaining)} of {trimZeros(format(credit.granted))} one-time credit left
+            </span>
           )}
         </div>
       </div>

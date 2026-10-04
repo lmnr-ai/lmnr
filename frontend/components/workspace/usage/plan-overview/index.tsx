@@ -31,6 +31,9 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
   const { data, signals } = model;
   const allowance = (used: string, included: number | null, fmt: (n: number) => string) =>
     included == null ? `${used} used` : `${used} of ${trimZeros(fmt(included))} included`;
+  const signalCredit = signals.credit
+    ? ` · ${formatUsd(signals.credit.remaining)} of ${trimZeros(formatUsd(signals.credit.granted))} one-time credit left`
+    : "";
 
   return (
     <SettingsSection>
@@ -68,7 +71,8 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
             label="Signals usage"
             detail={
               <>
-                {allowance(formatUsd(signals.used), signals.included, formatUsd)} · then billed{" "}
+                {allowance(formatUsd(signals.used), signals.included, formatUsd)}
+                {signalCredit} · then billed{" "}
                 <Link
                   href="/pricing"
                   target="_blank"

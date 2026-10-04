@@ -16,14 +16,21 @@ use serde_json::Value;
 use super::{
     ContentHash, SharedContentBatch, content_hash, is_seen, span_group_id, storage_seen_key,
 };
-use crate::{cache::Cache, db::spans::Span, utils::sanitize_string};
+use crate::{
+    cache::Cache,
+    db::spans::Span,
+    utils::{estimate_json_size, sanitize_string},
+};
 
 /// Producer's verdict for a span's tool definitions. `content` is `Some` only
-/// on a storage miss; otherwise the hash alone rides the wire.
+/// on a storage miss; otherwise the hash alone rides the wire. `size_bytes`
+/// is the blob's raw JSON size either way, for `original_size_bytes`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ToolDedup {
     pub hash: ContentHash,
     pub content: Option<String>,
+    #[serde(default)]
+    pub size_bytes: usize,
 }
 
 /// Pull tool definitions out of `raw_attributes` as one JSON array, trying the
@@ -129,7 +136,11 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
     } else {
         Some(sanitize_string(&tools.to_string()))
     };
-    Some(ToolDedup { hash, content })
+    Some(ToolDedup {
+        hash,
+        content,
+        size_bytes: estimate_json_size(&tools),
+    })
 }
 
 /// Consumer-side: add the span's tool blob to the shared batch when the
@@ -293,6 +304,7 @@ mod tests {
         let dedup = ToolDedup {
             hash: [7u8; 32],
             content: Some("[{}]".to_string()),
+            size_bytes: 4,
         };
         let mut shared = SharedContentBatch::default();
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 4);

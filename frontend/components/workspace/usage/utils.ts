@@ -46,9 +46,15 @@ export const knownTier = (tierName?: string): Tier | null => {
   return ["free", "hobby", "starter", "pro"].includes(key) ? normalizeTier(key) : null;
 };
 
+export interface SignalCredit {
+  granted: number;
+  remaining: number;
+}
+
 export interface MeterModel {
   used: number;
   included: number | null;
+  credit?: SignalCredit | null;
 }
 
 export interface UsageModel {
@@ -68,13 +74,18 @@ export const buildUsageModel = (stats: WorkspaceStats | null, breakdown: UsageBr
   const gbUsed = stats?.gbUsedThisMonth ?? 0;
   const gbIncluded = stats?.gbLimit != null && isFinite(stats.gbLimit) ? stats.gbLimit : null;
   const signalUsed = (stats?.signalCostUsedThisMonth ?? 0) / 1_000_000;
-  const signalIncluded = stats?.signalCostLimit != null ? stats.signalCostLimit / 1_000_000 : null;
+  // Self-serve tiers carry a zero recurring Signals allowance; only the one-time credit offsets cost.
+  const signalIncluded = stats?.signalCostLimit ? stats.signalCostLimit / 1_000_000 : null;
+  const creditGranted = stats?.signalCreditGrantedMicroUsd ?? 0;
+  const signalCredit =
+    creditGranted > 0
+      ? { granted: creditGranted / 1_000_000, remaining: (stats?.signalCreditRemainingMicroUsd ?? 0) / 1_000_000 }
+      : null;
 
   const bill = estimateBill(tier, {
     gbUsed,
     includedGB: gbIncluded ?? (tier ? TIERS[tier].includedBytesGB : 0),
-    signalCostMicroUsd: signalUsed * 1_000_000,
-    includedSignalCostMicroUsd: stats?.signalCostLimit ?? 0,
+    billableSignalCostMicroUsd: stats?.signalCostOverLimit ?? 0,
   });
 
   return {
@@ -88,6 +99,7 @@ export const buildUsageModel = (stats: WorkspaceStats | null, breakdown: UsageBr
     signals: {
       used: signalUsed,
       included: signalIncluded,
+      credit: signalCredit,
     },
   };
 };

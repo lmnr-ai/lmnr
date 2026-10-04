@@ -4,17 +4,13 @@ import { and, eq } from "drizzle-orm";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { retentionCutoff } from "@/lib/billing/retention";
 import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
-import {
-  cache,
-  PROJECT_CACHE_KEY,
-  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
-} from "@/lib/cache";
+import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+import { getSignalCreditState } from "./signal-credit";
 
 interface ProjectBillingInfo {
   id: string;
@@ -24,14 +20,12 @@ interface ProjectBillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   bytesLimit: number;
-  signalCostIncludedMicroUsd: number;
   signalCostHardLimitMicroUsd?: number | null;
 }
 
 interface BillingInfo {
   workspaceId: string;
   tierName: string;
-  signalCostIncludedMicroUsd: number;
   resetTime: string;
   workspaceProjectIds: string[];
   signalCostHardLimitMicroUsd: number | null;
@@ -45,7 +39,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       return {
         workspaceId: cached.workspaceId,
         tierName: cached.tierName,
-        signalCostIncludedMicroUsd: Number(cached.signalCostIncludedMicroUsd),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
         signalCostHardLimitMicroUsd:
@@ -59,7 +52,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   const tierRows = await db
     .select({
       workspaceId: workspaces.id,
-      signalCostIncludedMicroUsd: subscriptionTiers.signalCostIncludedMicroUsd,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
     })
@@ -92,7 +84,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   return {
     workspaceId: row.workspaceId,
     tierName: row.tierName,
-    signalCostIncludedMicroUsd: Number(row.signalCostIncludedMicroUsd),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
     signalCostHardLimitMicroUsd: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
@@ -117,83 +108,61 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   const {
     workspaceId,
     tierName,
-    signalCostIncludedMicroUsd,
     resetTime,
     workspaceProjectIds,
     signalCostHardLimitMicroUsd: customSignalCostLimit,
   } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
-  let effectiveLimit: number;
-  if (isFree) {
-    effectiveLimit = signalCostIncludedMicroUsd;
-  } else {
-    // For paid tiers, use the custom signal cost limit if set
-    if (customSignalCostLimit == null) {
-      return; // No custom limit for paid tier, no enforcement
-    }
-    effectiveLimit = customSignalCostLimit;
-  }
+  const formatUsd = (microUsd: number) =>
+    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  // For free tier, signalCostIncludedMicroUsd=0 means "no limit configured on this tier"
-  // For custom limits (paid tiers), 0 means "block everything" so we don't skip
-  if (isFree && effectiveLimit === 0) {
+  if (isFree) {
+    const credit = await getSignalCreditState(workspaceId, 0);
+    if (credit.remainingMicroUsd === 0) {
+      throw new Error(
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
+      );
+    }
     return;
   }
 
-  const inputTokensCacheKey = `${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  const cacheReadTokensCacheKey = `${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-  const outputTokensCacheKey = `${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`;
-
-  // Tokens are stored raw in three keys (input, cache-read, output priced at
-  // different rates); cost in micro-USD is derived here so a rate change
-  // re-prices the cache too. Fall back to ClickHouse if any key is missing.
-  let inputTokens: number | null = null;
-  let cacheReadTokens: number | null = null;
-  let outputTokens: number | null = null;
-  try {
-    [inputTokens, cacheReadTokens, outputTokens] = await Promise.all([
-      cache.get<number>(inputTokensCacheKey),
-      cache.get<number>(cacheReadTokensCacheKey),
-      cache.get<number>(outputTokensCacheKey),
-    ]);
-  } catch {
-    // cache read failed, fall through to ClickHouse
+  // Paid tiers only need this preflight path when the owner configured a
+  // monthly safety cap.
+  if (customSignalCostLimit == null) {
+    return;
   }
 
-  if (inputTokens === null || cacheReadTokens === null || outputTokens === null) {
-    if (workspaceProjectIds.length === 0) {
-      return;
-    }
+  const resetTimeDate = new Date(resetTime);
+  const signalUsageStart = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+  if (workspaceProjectIds.length === 0) {
+    return;
+  }
 
-    const resetTimeDate = new Date(resetTime);
-    const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-    const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
-
-    const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
+  const resetTimeStr = signalUsageStart.toISOString().replace(/Z$/, "");
+  const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
     FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
-    AND signal_runs.status = 1`;
+    AND signal_runs.status = 1
+    AND signal_runs.credit_applied = false`;
 
-    const result = await clickhouseClient.query({
-      query: signalRunsQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds: workspaceProjectIds, latestResetTime: latestResetTimeStr },
-    });
-    const rows = await result.json<{ inputTokens: number; cacheReadTokens: number; outputTokens: number }>();
-    inputTokens = rows.length > 0 ? Number(rows[0].inputTokens) : 0;
-    cacheReadTokens = rows.length > 0 ? Number(rows[0].cacheReadTokens) : 0;
-    outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
-  }
+  const result = await clickhouseClient.query({
+    query: signalRunsQuery,
+    format: "JSONEachRow",
+    query_params: { projectIds: workspaceProjectIds, latestResetTime: resetTimeStr },
+  });
+  const rows = await result.json<{ inputTokens: number; cacheReadTokens: number; outputTokens: number }>();
+  const inputTokens = rows.length > 0 ? Number(rows[0].inputTokens) : 0;
+  const cacheReadTokens = rows.length > 0 ? Number(rows[0].cacheReadTokens) : 0;
+  const outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
 
   const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
 
+  const effectiveLimit = customSignalCostLimit!;
   if (totalSignalCost >= effectiveLimit) {
-    const formatUsd = (microUsd: number) =>
-      `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     throw new Error(
-      `Signal cost limit exceeded. Your workspace has used ${formatUsd(totalSignalCost)} of the ${formatUsd(effectiveLimit)} signal budget allowed this billing period.${isFree ? " Please upgrade your plan." : ""}`
+      `Signal cost limit exceeded. Your workspace has used ${formatUsd(totalSignalCost)} of the ${formatUsd(effectiveLimit)} signal budget allowed this billing period.`
     );
   }
 }

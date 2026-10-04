@@ -75,7 +75,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
         {!(isPaid && bill) && (
           <p className="text-sm text-muted-foreground">
             {tier === "free"
-              ? `${cycleLabel}. The Free plan is never billed — usage stops once the included amount is used up.`
+              ? `${cycleLabel}. The Free plan is never billed — data stops once the included amount is used up, and Signals once the one-time credit is.`
               : cycleLabel}
           </p>
         )}
@@ -123,7 +123,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
         <LimitsSettings
           workspaceId={workspace.id}
           tierIncludedDataGB={model.data.included ?? TIERS[tier].includedBytesGB}
-          tierIncludedSignalCostMicroUsd={(model.signals.included ?? TIERS[tier].includedSignalCostUsd) * 1_000_000}
+          tierIncludedSignalCostMicroUsd={(model.signals.included ?? 0) * 1_000_000}
         />
       )}
     </>

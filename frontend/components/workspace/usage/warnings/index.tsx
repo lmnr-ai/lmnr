@@ -43,7 +43,7 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
       <SettingsSectionHeader
         size="sm"
         title="Email warnings"
-        description="Get an email when total usage this billing cycle reaches a threshold. Thresholds count from zero, so one set at your included amount fires as soon as it's used up."
+        description="Get an email when total usage this billing cycle reaches a threshold. Thresholds count from zero, and the one-time Signals credit doesn't shift them."
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SurfaceCard title="Data ingestion">

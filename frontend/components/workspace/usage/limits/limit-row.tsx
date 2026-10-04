@@ -15,7 +15,7 @@ interface LimitRowProps {
   label: string;
   currentValue: number | null;
   unit: string;
-  includedLabel: string;
+  includedLabel?: string;
   includedRawValue: number;
   toDisplayValue: (raw: number) => number;
   toRawValue: (display: number) => number;
@@ -134,7 +134,7 @@ export default function LimitRow({
   };
 
   return (
-    <SurfaceCard title={label} note={`Included: ${includedLabel}`}>
+    <SurfaceCard title={label} note={includedLabel && `Included: ${includedLabel}`}>
       <div className="flex items-center gap-2">
         <label className="flex flex-1 items-center min-w-0 h-9 rounded-md border border-input bg-surface-up overflow-hidden cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
           <span className="flex items-center self-stretch px-2.5 text-xs font-medium text-muted-foreground bg-surface-up-2 border-r select-none shrink-0">
