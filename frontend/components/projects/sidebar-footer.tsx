@@ -1,12 +1,11 @@
 "use client";
 
-import { Book, X } from "lucide-react";
+import { Book } from "lucide-react";
 import Link from "next/link";
 
 import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
 import VersionBadge from "@/components/common/version-badge.tsx";
-import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -17,37 +16,15 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
-import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
 const SidebarFooterComponent = () => {
   const { open, openMobile } = useSidebar();
-  const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
-
   const features = useFeatureFlags();
   const logo = open || openMobile ? laminarWordmark : laminarIcon;
 
   return (
     <SidebarFooter className="px-0">
-      {features.LAMINAR_CLOUD && (
-        <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
-          <SidebarGroupContent>
-            <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
-              <div className="flex justify-between items-start">
-                <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-                <button
-                  aria-label="Close"
-                  onClick={() => setShowStarCard(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
