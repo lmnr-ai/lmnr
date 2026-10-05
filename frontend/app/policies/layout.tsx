@@ -1,5 +1,6 @@
 import { type PropsWithChildren } from "react";
 
+import AnnouncementBanner from "@/components/landing/announcement-banner";
 import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import Footer from "@/components/landing/footer";
 import LandingHeader from "@/components/landing/header";
@@ -16,6 +17,7 @@ export default async function PoliciesLayout({ children }: PropsWithChildren) {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-150">
+      <AnnouncementBanner />
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding
