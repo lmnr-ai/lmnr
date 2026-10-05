@@ -84,6 +84,8 @@ export default function TestDialog({
               <TraceViewSidePanel
                 key={previewTraceId}
                 traceId={previewTraceId}
+                // The modal doesn't own the page URL; the signal page reads `?spanId` for its own trace view.
+                syncSpanToUrl={false}
                 onClose={() => setPreviewTraceId(null)}
               />
             )}

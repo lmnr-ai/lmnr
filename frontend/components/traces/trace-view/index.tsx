@@ -22,6 +22,7 @@ interface TraceViewProps {
   onClose?: () => void;
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
+  syncSpanToUrl?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
 }

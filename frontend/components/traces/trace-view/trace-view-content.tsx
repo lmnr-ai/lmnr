@@ -17,6 +17,8 @@ import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
 import { type TraceViewPanels } from "./trace-view-panels";
 
+const NO_URL_PARAMS = new URLSearchParams();
+
 export interface TraceViewContentProps {
   traceId: string;
   spanId?: string;
@@ -24,6 +26,9 @@ export interface TraceViewContentProps {
   // Omit to hide the close button entirely (e.g. an always-open panel).
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
+  // False for embedded previews that don't own the page URL (e.g. the signal test modal):
+  // span selection then neither reads nor writes `?spanId`.
+  syncSpanToUrl?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -34,9 +39,11 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
+  syncSpanToUrl = true,
   sidePanelRef,
 }: TraceViewContentProps) {
-  const searchParams = useSearchParams();
+  const pageSearchParams = useSearchParams();
+  const searchParams = syncSpanToUrl ? pageSearchParams : NO_URL_PARAMS;
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
@@ -136,13 +143,13 @@ export default function TraceViewContent({
       setSelectedSpan(span);
 
       const currentSpanId = searchParams.get("spanId");
-      if (currentSpanId !== span.spanId) {
+      if (syncSpanToUrl && currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
         params.set("spanId", span.spanId);
         router.replace(`${pathName}?${params.toString()}`);
       }
     },
-    [setSelectedSpan, searchParams, router, pathName]
+    [setSelectedSpan, searchParams, router, pathName, syncSpanToUrl]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -229,11 +236,13 @@ export default function TraceViewContent({
   );
 
   const handleClose = useCallback(() => {
-    const params = new URLSearchParams(searchParams);
-    params.delete("spanId");
-    router.push(`${pathName}?${params.toString()}`);
+    if (syncSpanToUrl) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("spanId");
+      router.push(`${pathName}?${params.toString()}`);
+    }
     onClose?.();
-  }, [onClose, pathName, router, searchParams]);
+  }, [onClose, pathName, router, searchParams, syncSpanToUrl]);
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
