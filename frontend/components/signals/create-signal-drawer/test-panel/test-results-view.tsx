@@ -36,12 +36,10 @@ function StatusLine({ icon, label, className }: { icon: ReactNode; label: string
 
 function RunStats({ stats }: { stats: SignalTestResult["stats"] }) {
   const parts = [
-    stats.model,
     `${(stats.durationMs / 1000).toFixed(1)}s`,
-    `${stats.stepsTaken} ${stats.stepsTaken === 1 ? "step" : "steps"}`,
     `${stats.totalTokens.toLocaleString()} tokens`,
     ...(stats.totalCostUsd > 0 ? [`$${stats.totalCostUsd.toFixed(4)}`] : []),
-  ].filter(Boolean);
+  ];
   return <div className="text-xs text-muted-foreground">{parts.join(" · ")}</div>;
 }
 

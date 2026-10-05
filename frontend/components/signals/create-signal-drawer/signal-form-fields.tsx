@@ -163,13 +163,14 @@ export default function SignalFormFields({
       <SchemaFieldsBuilder />
       <TriggersSection />
       <SamplingSection />
-      <TestSection />
 
       {variant === "panel" && !showTemplates && (
-        <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
-          <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-          Save
-        </Button>
+        <TestSection>
+          <Button className="w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
+            <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
+            Save
+          </Button>
+        </TestSection>
       )}
     </div>
   );

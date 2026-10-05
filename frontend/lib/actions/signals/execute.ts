@@ -14,9 +14,7 @@ const ExecuteSignalSchema = z.object({
 
 // Subset of the app-server `TestSignalRunResult` (`signals::private::test_signal`) the UI renders.
 const SignalTestStatsSchema = z.object({
-  stepsTaken: z.number(),
   durationMs: z.number(),
-  model: z.string(),
   totalTokens: z.number(),
   totalCostUsd: z.number(),
 });
