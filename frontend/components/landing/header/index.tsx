@@ -109,10 +109,10 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           </div>
         </div>
       </header>
-      {/* Mobile Menu Overlay - starts below header */}
+      {/* Mobile Menu Overlay - starts below the announcement banner and header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[60px] z-40 bg-surface-150 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[100px] z-40 bg-surface-150 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >

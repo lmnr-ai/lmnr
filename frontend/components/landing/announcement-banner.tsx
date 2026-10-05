@@ -6,6 +6,8 @@ import BlinkingDotGrid from "./blinking-dot-grid";
 const VIDEO_HREF = "/blog/flow-1";
 
 export default function AnnouncementBanner() {
+  // When removing this banner, restore the mobile menu offset in
+  // landing/header/index.tsx from top-[100px] to top-[60px].
   return (
     <aside
       aria-label="Product announcement"
