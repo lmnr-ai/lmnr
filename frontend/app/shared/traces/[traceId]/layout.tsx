@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { type PropsWithChildren } from "react";
 
+import AnnouncementBanner from "@/components/landing/announcement-banner";
 import LandingHeader from "@/components/landing/header";
 import { getServerSession } from "@/lib/auth-session";
 
@@ -25,6 +26,7 @@ export default async function SharedTraceLayout({
   return (
     // fixed: on mobile Safari the root min-h-screen column scrolls, pulling the header away from the menu overlay.
     <div className="fixed inset-0 flex flex-col overflow-hidden">
+      <AnnouncementBanner />
       <div className="flex-none border-b">
         <LandingHeader hasSession={session !== null} className="w-full px-4 py-4 md:px-6" />
       </div>

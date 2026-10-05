@@ -6,12 +6,12 @@ import BlinkingDotGrid from "./blinking-dot-grid";
 const VIDEO_HREF = "https://x.com/skull8888888888/status/2107138967644541129?s=20";
 
 export default function AnnouncementBanner() {
-  // When removing this banner, restore the mobile menu offset in
-  // landing/header/index.tsx from top-[100px] to top-[60px].
+  // LandingHeader's mobile overlay assumes this 40px banner is mounted above it.
+  // When removing the banner, restore its top-[100px] offset to top-[60px].
   return (
     <aside
       aria-label="Product announcement"
-      className="relative flex h-10 w-full items-center justify-center overflow-hidden rounded-sm bg-surface-300 px-4 font-sans-landing"
+      className="relative flex h-10 w-full shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-300 px-4 font-sans-landing"
     >
       <div
         aria-hidden
