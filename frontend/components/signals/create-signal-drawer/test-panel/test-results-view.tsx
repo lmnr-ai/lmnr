@@ -8,7 +8,7 @@ import { useParams } from "next/navigation";
 import { type ReactNode } from "react";
 
 import { type SchemaField } from "@/components/signals/utils";
-import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
 import { theme } from "@/components/ui/content-renderer/utils";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
@@ -128,13 +128,6 @@ export default function TestResultsView({
               {SEVERITY_LABELS[result.finding.severity as keyof typeof SEVERITY_LABELS] ?? "Info"}
             </Badge>
           </div>
-          {result.finding.summaries.length > 0 && (
-            <ul className="list-disc pl-5 space-y-1 text-sm text-secondary-foreground">
-              {result.finding.summaries.map((summary, i) => (
-                <li key={i}>{renderSpanReferences(summary, spanRefCallbacks) ?? summary}</li>
-              ))}
-            </ul>
-          )}
           <Attributes
             attributes={result.finding.attributes ?? {}}
             schemaFields={schemaFields}

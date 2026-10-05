@@ -86,6 +86,8 @@ export default function TestDialog({
                 traceId={previewTraceId}
                 // The modal doesn't own the page URL; the signal page reads `?spanId` for its own trace view.
                 syncSpanToUrl={false}
+                // Trace-level transcript/tree is enough to pick a trace; a third level is hard to back out of.
+                spanPanelEnabled={false}
                 onClose={() => setPreviewTraceId(null)}
               />
             )}

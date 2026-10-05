@@ -29,6 +29,8 @@ export interface TraceViewContentProps {
   // False for embedded previews that don't own the page URL (e.g. the signal test modal):
   // span selection then neither reads nor writes `?spanId`.
   syncSpanToUrl?: boolean;
+  // False keeps the view at trace level: selecting a span never opens the span panel.
+  spanPanelEnabled?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -40,6 +42,7 @@ export default function TraceViewContent({
   propsTrace,
   isAlwaysSelectSpan,
   syncSpanToUrl = true,
+  spanPanelEnabled = true,
   sidePanelRef,
 }: TraceViewContentProps) {
   const pageSearchParams = useSearchParams();
@@ -351,7 +354,7 @@ export default function TraceViewContent({
   const panels: TraceViewPanels = {
     tracePanel,
     spanPanel,
-    showSpan: spanPanelOpen,
+    showSpan: spanPanelEnabled && spanPanelOpen,
   };
 
   return isNil(sidePanelRef) ? (
