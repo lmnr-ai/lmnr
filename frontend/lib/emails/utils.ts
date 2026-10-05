@@ -6,7 +6,7 @@ import { Resend } from "resend";
 import PaymentFailedEmail from "./payment-failed-email";
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
-import WelcomeEmail from "./welcome-email";
+import WelcomeEmail, { WELCOME_BANNER_CID } from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
 
 const RESEND = new Resend(process.env.RESEND_API_KEY ?? "_RESEND_API_KEY_PLACEHOLDER");
@@ -26,6 +26,12 @@ const laminarLogoAttachment = async () => ({
   contentId: LAMINAR_LOGO_CID,
 });
 
+const welcomeBannerAttachment = async () => ({
+  content: await readFile(path.join(process.cwd(), "public", "welcome-banner-background.png")),
+  filename: "welcome-banner-background.png",
+  contentId: WELCOME_BANNER_CID,
+});
+
 interface InvoiceEmailArgs {
   email: string;
   workspaceId: string;
@@ -34,7 +40,7 @@ interface InvoiceEmailArgs {
 }
 
 export async function sendWelcomeEmail(email: string) {
-  const from = "Robert from Laminar <robert@lmnr.ai>";
+  const from = "Robert from Laminar <welcome@lmnr.ai>";
   const subject = "Welcome to Laminar!";
 
   const { data, error } = await RESEND.emails.send({
@@ -42,6 +48,7 @@ export async function sendWelcomeEmail(email: string) {
     to: [email],
     subject,
     react: WelcomeEmail(),
+    attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
   if (error) console.log(error);
@@ -90,7 +97,7 @@ export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
-  const from = "Robert from Laminar <robert@lmnr.ai>";
+  const from = "Robert from Laminar <welcome@lmnr.ai>";
   const subject = `You are invited to join ${workspaceName} on Laminar`;
 
   const { data, error } = await RESEND.emails.send({
@@ -98,7 +105,7 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     to: [email],
     subject,
     react: WorkspaceInviteEmail({ workspaceName, inviteLink }),
-    attachments: [await laminarLogoAttachment()],
+    attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
   if (error) console.log(error);
