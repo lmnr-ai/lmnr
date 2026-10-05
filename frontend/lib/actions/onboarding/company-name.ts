@@ -5,7 +5,8 @@ import { getLanguageModel } from "@/lib/ai/feature-model";
 import { LlmFeature } from "@/lib/ai/features";
 import { cache, ONBOARDING_COMPANY_NAME_CACHE_KEY } from "@/lib/cache";
 
-const LLM_TIMEOUT_MS = 8000;
+// Onboarding blocks on this lookup, so it gets one short attempt and then gives up.
+const LLM_TIMEOUT_MS = 2000;
 // Brand names rarely change; a week lets teammates signing up later skip the call.
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -35,7 +36,7 @@ export async function guessCompanyName(domain: string): Promise<string | null> {
     output: Output.object({ schema: OutputSchema }),
     maxRetries: 0,
     temperature: 0,
-    abortSignal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    timeout: LLM_TIMEOUT_MS,
   });
   return output.known ? output.name.trim().slice(0, 60) || null : null;
 }
