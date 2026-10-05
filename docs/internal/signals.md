@@ -35,7 +35,14 @@
 - **Response** is `TestSignalRunResult`: flattened `result` tag (`event` with `finding {attributes, summaries, severity}` / `noEvent` / `failed` with `error`) plus `stats`, `config`, `regexMisses`. A 500 is a PLAIN-TEXT body ("Signal test failed: …"); 400/404/503 are JSON `{error}` — parse both.
 - **Span refs come back RAW.** Stored events have `<span id='abc123' name='…' />` rewritten to markdown links by `replace_span_tags_with_links` (`response_processor.rs`); the test result skips that, and `Markdown` silently drops the XML tags (renders "( ; )"). The test panel renders strings through `renderSpanReferences` and resolves the 6-hex suffix against the trace's spans (`test-panel/use-test-span-refs.ts`).
 - **Deliberately ungated and unmetered:** no usage-limit check on either hop and no cost recorded — a single run is negligible (product call, LAM-2308). With `SIGNAL_LLM_PROFILES` on (self-hosted) the button requires a profile + model, since such a signal can't be saved without one; otherwise the run would silently use env credentials.
-- **Placement:** a single **Test** button sits right before Create/Save; everything else (trace picker, Run, result) lives in the modal so the drawer stays as it was. `TestDialog` is always rendered (Radix unmounts only the content), so the picked trace and last result survive close/reopen; the picker's date range does not. The button's disabled tooltip covers prompt/schema/profile; the trace requirement is on the modal's Run button.
+- **Placement:** a single **Test** button sits right before Create/Save; everything else (trace picker, Run, result) lives in the modal so the drawer stays as it was. `TestDialog` is always rendered (Radix unmounts only the content), so the picked trace and last result survive close/reopen; the picker's date range does not. The button's disabled tooltip covers prompt/schema/profile; the trace requirement is on the modal's Run button, which also re-checks the button's `blockedReason` (the panel's `initialValues` sync can reset the form while the modal is open). The selected trace is shown only by the highlighted picker row.
+- **Parity with production:** the test drives the same `StepEngine` (prompts, compression, tools, schema validation, route resolution). It differs in four ways:
+  - It skips the pre-run gates (trigger, filters, sampling, settle), so it runs on the trace as it is now.
+  - It rejects summaries that contain span refs (`reject_summary_span_refs: true`).
+  - It has no LLM deadline and redrives in-process.
+  - It does none of the `handle_create_event` work (link rewriting, the "No spans found" check, dedup).
+
+  It still warms the shared keep-rule and prompt-summary caches.
 - **Local repro:** `lmnr-private` app-server with `--features signals` and a working LLM key. OpenAI gpt-5.6 models need `LLM_PROVIDER=openai_responses` — plain `openai` (chat completions) rejects tools + `reasoning_effort`.
 
 ## Signal Triggers
