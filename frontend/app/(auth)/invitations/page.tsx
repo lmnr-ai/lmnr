@@ -1,19 +1,24 @@
 import { differenceInMinutes } from "date-fns";
 import { and, eq } from "drizzle-orm";
 import jwt, { type JwtPayload } from "jsonwebtoken";
+import { type Metadata } from "next";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { secondaryAction } from "@/components/invitations/class-names";
 import InvitationActions from "@/components/invitations/invitation-actions";
+import InvitationShell from "@/components/invitations/invitation-shell";
 import WrongAccountActions from "@/components/invitations/wrong-account-actions";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
 import { getNewestProjectId } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+
+export const metadata: Metadata = {
+  title: "Workspace invitation - Laminar",
+};
 
 const INVITATION_EXPIRY_MINUTES = 10080; // 7 days
 
@@ -137,54 +142,53 @@ export default async function InvitationsPage(props: {
     return handleInvitation("decline", decoded.id, decoded.workspaceId);
   }
 
+  if (isExpired) {
+    return (
+      <InvitationShell
+        workspaceName={workspace.name}
+        title="Invitation expired"
+        description="This invitation is no longer valid. Ask a workspace admin to send a new one."
+        email={user.email}
+      >
+        <div className="flex w-full">
+          <Link href="/projects" className={secondaryAction}>
+            Go to home
+          </Link>
+        </div>
+      </InvitationShell>
+    );
+  }
+
+  if (isWrongAccount) {
+    return (
+      <InvitationShell
+        workspaceName={workspace.name}
+        title="Wrong account"
+        description="This invitation was sent to a different email address."
+        email={user.email}
+      >
+        <WrongAccountActions workspaceId={decoded.workspaceId} invitationUrl={invitationUrl} />
+      </InvitationShell>
+    );
+  }
+
   return (
-    <div className="flex-1 flex items-center justify-center bg-background p-6">
-      {isExpired ? (
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Invitation expired</CardTitle>
-            <CardDescription>
-              This invitation is no longer valid. Ask a workspace admin to send a new one.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline" className="w-full mt-2">
-              <Link href="/projects">Go to home</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : isWrongAccount ? (
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <span className="text-xs text-muted-foreground/80">Signed in as {user.email}</span>
-            <CardTitle>Wrong account</CardTitle>
-            <CardDescription className="mt-1">
-              This invitation was sent to a different email address. Sign out and sign back in with the invited account
-              to accept it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WrongAccountActions workspaceId={decoded.workspaceId} invitationUrl={invitationUrl} />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <span className="text-xs text-muted-foreground/80">Signed in as {user.email}</span>
-            <CardTitle>Join {workspace.name}</CardTitle>
-            <CardDescription className="mt-1">
-              You&apos;ve been invited to collaborate on this workspace on Laminar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <InvitationActions
-              workspaceId={decoded.workspaceId}
-              acceptInvitation={acceptInvitation}
-              declineInvitation={declineInvitation}
-            />
-          </CardContent>
-        </Card>
-      )}
-    </div>
+    <InvitationShell
+      workspaceName={workspace.name}
+      title={`Join ${workspace.name} on Laminar`}
+      description={
+        <>
+          You&apos;ve been invited to join <span className="text-white">{workspace.name}</span> on Laminar. Accept to
+          start collaborating with the team.
+        </>
+      }
+      email={user.email}
+    >
+      <InvitationActions
+        workspaceId={decoded.workspaceId}
+        acceptInvitation={acceptInvitation}
+        declineInvitation={declineInvitation}
+      />
+    </InvitationShell>
   );
 }
