@@ -19,7 +19,16 @@ import TraceChip from "./trace-chip";
  * Stays mounted while closed so the selected trace and last result survive reopening;
  * Radix only unmounts the content.
  */
-export default function TestDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export default function TestDialog({
+  open,
+  onOpenChange,
+  blockedReason,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  // Re-checked here because the form can be reset while the modal is open (panel `initialValues` sync).
+  blockedReason: string | null;
+}) {
   const { projectId } = useParams();
   const { watch, getValues } = useFormContext<ManageSignalForm>();
   const [selectedTrace, setSelectedTrace] = useState<TraceRow | null>(null);
@@ -70,12 +79,13 @@ export default function TestDialog({ open, onOpenChange }: { open: boolean; onOp
               ) : (
                 <span className="text-xs text-muted-foreground">No trace selected</span>
               )}
+              {blockedReason && <span className="text-xs text-destructive shrink-0">{blockedReason}</span>}
               <Button
                 type="button"
                 size="md"
                 className="ml-auto gap-2 shrink-0"
                 onClick={execute}
-                disabled={!selectedTrace || isExecuting}
+                disabled={Boolean(blockedReason) || !selectedTrace || isExecuting}
               >
                 {isExecuting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayIcon className="w-3.5 h-3.5" />}
                 {isExecuting ? "Running..." : "Run test"}

@@ -59,7 +59,7 @@ export default function TestButton() {
       ) : (
         button
       )}
-      <TestDialog open={open} onOpenChange={setOpen} />
+      <TestDialog open={open} onOpenChange={setOpen} blockedReason={disabledReason} />
     </>
   );
 }
