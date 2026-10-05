@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import BlinkingDotGrid from "./blinking-dot-grid";
 
-const VIDEO_HREF = "/blog/flow-1";
+const VIDEO_HREF = "https://x.com/skull8888888888/status/2107138967644541129?s=20";
 
 export default function AnnouncementBanner() {
   // When removing this banner, restore the mobile menu offset in
@@ -56,7 +56,12 @@ export default function AnnouncementBanner() {
               the cost
             </span>
           </p>
-          <Link href={VIDEO_HREF} className="relative font-medium text-white underline underline-offset-2">
+          <Link
+            href={VIDEO_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative font-medium text-white underline underline-offset-2"
+          >
             Watch the video
           </Link>
         </div>
