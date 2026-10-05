@@ -32,15 +32,8 @@ pub const V2_ENABLED: BoolEnv = BoolEnv::new("SP_VERSIONING_ENABLED", false);
 /// on it. Requires `V2_ENABLED` to have any effect.
 pub const SIGNALS_ENABLED: BoolEnv = BoolEnv::new("SP_VERSIONING_SIGNALS_ENABLED", false);
 
-/// Keys user-task extraction regexes by prompt VERSION rather than the legacy
-/// agent-hash + tag-fingerprint pair. Requires `V2_ENABLED`. Flipping it
-/// orphans every existing regex cache entry (the key shape changes), so each
-/// cohort pays one warm-up cycle of LLM fallbacks — roll out per project.
-pub const INPUT_EXTRACTION_ENABLED: BoolEnv =
-    BoolEnv::new("SP_VERSIONING_INPUT_EXTRACTION_ENABLED", false);
-
-/// Distinct user-message samples accumulated per (version, has_history) cohort
-/// before the multi-sample user-task regex agent runs.
+/// Distinct user-message samples accumulated per (user-template version,
+/// has_history) cohort before the multi-sample user-task regex agent runs.
 pub const INPUT_SAMPLES: NumEnv<usize> = NumEnv::new("SP_VERSIONING_INPUT_SAMPLES", 5);
 
 /// TTL on a cohort's accumulated user-message samples. Kept after the agent

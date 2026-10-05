@@ -106,7 +106,7 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const CreateSignalSchema = z
   .object({
     projectId: z.guid(),
-    name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
+    name: z.string().trim().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
     prompt: z.string(),
     structuredOutput: z.record(z.string(), z.unknown()),
     sampleRate: z.number().int().min(1).max(95).nullable().optional(),
@@ -124,7 +124,7 @@ const UpdateSignalSchema = z
   .object({
     projectId: z.guid(),
     id: z.guid(),
-    name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
+    name: z.string().trim().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
     prompt: z.string(),
     structuredOutput: z.record(z.string(), z.unknown()),
     sampleRate: z.number().int().min(1).max(95).nullable().optional(),
@@ -300,8 +300,6 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
     return { created: 0, deleted: 0 };
   }
 
-  const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
-
   const deletedSignals = await db.transaction(async (tx) => {
     // Sequential, not Promise.all: drizzle serialises statements on a single
     // connection, and we want a deterministic abort point on failure.
@@ -326,20 +324,17 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
           sourceId: signal.id,
           metadata: {
             severities: [SEVERITY_LEVEL.CRITICAL],
-            skipSimilar: clusteringEnabled,
+            skipSimilar: true,
           },
         },
-      ];
-
-      if (clusteringEnabled) {
-        alertsToInsert.push({
+        {
           projectId,
           name: `${template.name} cluster alert`,
           type: "NEW_CLUSTER",
           sourceId: signal.id,
           metadata: {},
-        });
-      }
+        },
+      ];
 
       const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
 
@@ -602,6 +597,22 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 const llmProfileError = (path: string, message: string) =>
   new z.ZodError([{ code: "custom", path: [path], message, input: undefined }]);
 
+// drizzle wraps the postgres.js error, which names the violated constraint on `cause`.
+const rethrowDuplicateName = (error: unknown, name: string): never => {
+  const cause = error instanceof Error ? (error.cause as { constraint_name?: string } | undefined) : undefined;
+  if (cause?.constraint_name === "signals_project_id_name_key") {
+    throw new z.ZodError([
+      {
+        code: "custom",
+        path: ["name"],
+        message: `A signal named "${name}" already exists in this project`,
+        input: name,
+      },
+    ]);
+  }
+  throw error;
+};
+
 /**
  * Confirms a pinned route belongs to the project's workspace and lists the model
  * (the composite FK is the backstop). Undefined means there is no route to write,
@@ -673,7 +684,8 @@ export async function createSignal(
         metadata,
         ...llmRoute,
       })
-      .returning();
+      .returning()
+      .catch((error: unknown) => rethrowDuplicateName(error, name));
 
     const seededTriggers: TriggerInput[] =
       triggers && triggers.length > 0
@@ -710,8 +722,6 @@ export async function createSignal(
       })
     );
 
-    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
-
     const alertsToInsert: (typeof alerts.$inferInsert)[] = [
       {
         projectId,
@@ -720,22 +730,17 @@ export async function createSignal(
         sourceId: signal.id,
         metadata: {
           severities: [SEVERITY_LEVEL.CRITICAL],
-          // skipSimilar depends on the clustering service; default to false when
-          // clustering is disabled so the backend doesn't silently drop notifications.
-          skipSimilar: clusteringEnabled,
+          skipSimilar: true,
         },
       },
-    ];
-
-    if (clusteringEnabled) {
-      alertsToInsert.push({
+      {
         projectId,
         name: `${name} cluster alert`,
         type: "NEW_CLUSTER",
         sourceId: signal.id,
         metadata: {},
-      });
-    }
+      },
+    ];
 
     const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
 
@@ -821,7 +826,8 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
         ...(newVersion === null ? {} : { version: newVersion }),
       })
       .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-      .returning();
+      .returning()
+      .catch((error: unknown) => rethrowDuplicateName(error, name));
 
     return { ...updated, triggers: syncedTriggers };
   });

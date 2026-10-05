@@ -6,9 +6,11 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTagsList from "@/components/tags/span-tags-list";
 import ErrorCard from "@/components/traces/error-card";
 import SpanActionsDropdown from "@/components/traces/span-actions-dropdown";
+import SpanCopyIdDropdown from "@/components/traces/span-copy-id-dropdown";
 import { Button } from "@/components/ui/button";
 import { type Span } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
@@ -20,9 +22,17 @@ interface SpanControlsProps {
   span: Span;
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
+  /** Public shared page: no projectId in the route, so project-scoped actions and tags are dropped. */
+  isShared?: boolean;
 }
 
-export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({
+  children,
+  span,
+  onClose,
+  isAlwaysSelectSpan,
+  isShared = false,
+}: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
 
   const errorEventAttributes = useMemo(
@@ -39,14 +49,19 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
         <div className="flex flex-none items-center gap-2 overflow-hidden">
           <SpanTypeIcon spanType={span.spanType} />
           <div className="min-w-0 overflow-hidden">
-            <SpanActionsDropdown projectId={projectId as string} span={span} />
+            {isShared ? (
+              <SpanCopyIdDropdown span={span} />
+            ) : (
+              <SpanActionsDropdown projectId={projectId as string} span={span} />
+            )}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {!isAlwaysSelectSpan && onClose && (
+            {onClose && (
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="flex-shrink-0 hover:bg-surface-up"
+                // Always-select layouts only stack below STACK_THRESHOLD; that's the only time closing makes sense.
+                className={cn("flex-shrink-0 hover:bg-surface-up", isAlwaysSelectSpan && "@min-[760px]:hidden")}
                 onClick={onClose}
                 aria-label="Close span panel"
               >
@@ -68,7 +83,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             />
           </div>
           <StructuredOutputSchema schema={schema} />
-          <SpanTagsList traceId={span.traceId} spanId={span.spanId} />
+          {!isShared && <SpanTagsList traceId={span.traceId} spanId={span.spanId} />}
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}

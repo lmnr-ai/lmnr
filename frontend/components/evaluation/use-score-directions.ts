@@ -72,7 +72,7 @@ export function useScoreDirections(projectId: string, scoreNames: string[]): Use
 
   // Update the synchronous ref AND the shared project cache together. Splice the
   // new overrides into the live project settings (preserving other keys); the
-  // functional updater reads the LATEST cache so a concurrent removePii toggle
+  // functional updater reads the LATEST cache so a concurrent piiMode change
   // isn't lost. revalidate:false — the project cache has no fetcher.
   const setBoth = useCallback(
     (updater: (cur: Record<string, boolean>) => Record<string, boolean>) => {

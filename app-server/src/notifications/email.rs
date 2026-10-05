@@ -34,6 +34,7 @@ const PAGE: &str = "#f4f4f4";
 const TEXT: &str = "#252525";
 const MUTED: &str = "#92949c";
 const ROW: &str = "#f7f7f7";
+const STACKED_DATA_ROW_MIN_CHARS: usize = 60;
 
 fn email_document(title: &str, width: u16, body: &str) -> String {
     format!(
@@ -108,8 +109,42 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
     )
 }
 
+fn data_row(label: &str, value: &str, stacked: bool) -> String {
+    if stacked {
+        format!(
+            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td align="left" style="padding:7px 10px 2px;font-size:14px;color:{};text-align:left">{}</td></tr><tr><td align="left" style="padding:2px 10px 7px;font-size:14px;color:{};text-align:left">{}</td></tr></table>"#,
+            ROW,
+            MUTED,
+            html_escape(label),
+            TEXT,
+            value
+        )
+    } else {
+        format!(
+            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td style="padding:7px 10px;font-size:14px;color:{}">{}</td><td align="right" style="padding:7px 10px;font-size:14px;color:{};text-align:right">{}</td></tr></table>"#,
+            ROW,
+            MUTED,
+            html_escape(label),
+            TEXT,
+            value
+        )
+    }
+}
+
 fn data_rows(rows: &[(String, String)]) -> String {
-    rows.iter().map(|(label, value)| format!(r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td style="padding:7px 10px;font-size:14px;color:{}">{}</td><td align="right" style="padding:7px 10px;font-size:14px;color:{}">{}</td></tr></table>"#, ROW, MUTED, html_escape(label), TEXT, value)).collect()
+    rows.iter()
+        .map(|(label, value)| data_row(label, value, false))
+        .collect()
+}
+
+fn should_stack_event_field(value: &str) -> bool {
+    value.contains('\n') || value.chars().count() >= STACKED_DATA_ROW_MIN_CHARS
+}
+
+fn event_data_rows(rows: &[(String, String, bool)]) -> String {
+    rows.iter()
+        .map(|(label, value, stacked)| data_row(label, value, *stacked))
+        .collect()
 }
 
 /// Format an email for a batch of notifications.
@@ -217,6 +252,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             usage_label,
             formatted_limit,
             usage_item,
+            one_time_credit_exhausted,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
             subject: format!(
@@ -229,6 +265,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 usage_item,
                 formatted_limit,
                 usage_label,
+                *one_time_credit_exhausted,
             ),
         },
     }
@@ -261,7 +298,11 @@ fn render_alert_email(
     _alert_name: &str,
     _event_id: Option<&Uuid>,
 ) -> String {
-    let mut rows = vec![("Severity".to_string(), severity_label(severity).to_string())];
+    let mut rows = vec![(
+        "Severity".to_string(),
+        severity_label(severity).to_string(),
+        false,
+    )];
     if let Some(object) = attributes.as_object() {
         rows.extend(object.iter().filter_map(|(key, value)| {
             let value = match value {
@@ -269,12 +310,14 @@ fn render_alert_email(
                 serde_json::Value::String(value) => value.clone(),
                 _ => serde_json::to_string_pretty(value).unwrap_or_default(),
             };
+            let stacked = should_stack_event_field(&value);
             Some((
                 key.clone(),
                 md_links_to_html_escaped(
                     &inject_utm_into_links(&value, "email", "signal_alert", "event_description"),
                     PRIMARY_300,
                 ),
+                stacked,
             ))
         }));
     }
@@ -298,7 +341,7 @@ fn render_alert_email(
         r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}</div>"#,
         breadcrumb(&[project_name, event_name], &signal_link),
         TEXT,
-        data_rows(&rows)
+        event_data_rows(&rows)
     );
     let body = format!(
         "{}{}{}",
@@ -502,10 +545,11 @@ fn render_usage_hard_limit_email(
     usage_item: &str,
     formatted_limit: &str,
     usage_label: &str,
+    one_time_credit_exhausted: bool,
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
-        "signal_cost" => ("Signal runs", "signals cost"),
+        "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
     };
     let link = with_utm(
@@ -518,10 +562,15 @@ fn render_usage_hard_limit_email(
         "usage_hard_limit",
         "manage_limits",
     );
-    let copy = format!(
-        "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
-        meter
-    );
+    let copy = if one_time_credit_exhausted {
+        "Your workspace has used its one-time Signals credit. Upgrade to continue running Signals."
+            .to_string()
+    } else {
+        format!(
+            "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
+            meter
+        )
+    };
     let rows = vec![
         ("Hard limit".to_string(), html_escape(formatted_limit)),
         ("Usage".to_string(), html_escape(usage_label)),
@@ -998,13 +1047,36 @@ mod tests {
             "Free",
             false,
         );
-        let hard_limit_html =
-            render_usage_hard_limit_email("Workspace", Uuid::nil(), "bytes", "3 GiB", "3 GiB");
+        let hard_limit_html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "bytes",
+            "3 GiB",
+            "3 GiB",
+            false,
+        );
 
         assert!(warning_html.contains(EMAIL_PRIMARY_50));
         assert!(warning_html.contains("View usage"));
         assert!(hard_limit_html.contains(EMAIL_PRIMARY_50));
         assert!(hard_limit_html.contains("Manage limit"));
+    }
+
+    #[test]
+    fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
+        let html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "signal_credit",
+            "$5.00",
+            "$5.00",
+            true,
+        );
+
+        assert!(html.contains("Signal runs has paused"));
+        assert!(html.contains("used its one-time Signals credit"));
+        assert!(html.contains("Upgrade to continue"));
+        assert!(!html.contains("billing cycle resets"));
     }
 
     #[test]

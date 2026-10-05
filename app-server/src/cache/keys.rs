@@ -39,22 +39,14 @@ pub const SIGNAL_TRACE_EXCLUSIVE_LOCK_CACHE_KEY: &str = "signal_trace_exclusive_
 /// heuristic: too long merely costs a cache miss, too short a needless wait.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
+/// JSON map `{project_id: runs}` of signal runs waiting for the agent per
+/// project, read through from `signal_runs` with a short TTL. Drives fair-share
+/// demotion on `signals_realtime_queue` (`signals/private/fairness.rs`).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_PROJECT_BACKLOG_CACHE_KEY: &str = "signal_project_backlog";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-// Raw accumulated token counts per workspace; cost in micro-USD is derived at
-// read time so a rate change re-prices the hot cache. Input, cache-read, and
-// output are kept in separate keys because each is priced at a different rate.
-// Must stay in sync with the frontend constants in `frontend/lib/cache.ts`.
-pub const WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY: &str =
-    "workspace_signal_runs_usage_input_tokens";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY: &str =
-    "workspace_signal_runs_usage_cache_read_tokens";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY: &str =
-    "workspace_signal_runs_usage_output_tokens";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
@@ -90,16 +82,20 @@ pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v3";
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
 pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
-/// `(project, agent_hash, version_hash, has_history) → String` — the user-task
-/// extraction regex keyed by prompt VERSION (`Feature::VersionedInputExtraction`).
-/// Deliberately a different prefix from `USER_TASK_REGEX_CACHE_KEY` so the two
-/// keyings never read each other's entries.
-pub const USER_TASK_VERSION_REGEX_CACHE_KEY: &str = "user_task_version_regex";
-/// `(project, agent_hash, version_hash, has_history) → SampleAccumulator` — the
-/// distinct user-message samples feeding the multi-sample regex agent.
-pub const USER_TASK_SAMPLES_CACHE_KEY: &str = "user_task_samples";
+/// `(project, agent_hash, template_version, has_history) → String` — the
+/// user-task extraction regex keyed by USER-TEMPLATE version. Deliberately a
+/// different prefix from `USER_TASK_REGEX_CACHE_KEY` so the two keyings never
+/// read each other's entries.
+pub const USER_TASK_TEMPLATE_REGEX_CACHE_KEY: &str = "user_task_template_regex";
+/// `(project, agent_hash, template_version, has_history) → SampleAccumulator` —
+/// the distinct user-message samples feeding the multi-sample regex agent.
+pub const USER_TASK_TEMPLATE_SAMPLES_CACHE_KEY: &str = "user_task_template_samples";
+/// `(project, hash of the signposted text) → String` — a direct extraction's
+/// result, so identical texts arriving in a burst pay one LLM call.
+pub const USER_TASK_DIRECT_RESULT_CACHE_KEY: &str = "user_task_direct_result";
 /// Per-cohort lock serializing the user-task regex agent's run.
-pub const USER_TASK_REGEX_AGENT_LOCK_CACHE_KEY: &str = "user_task_regex_agent_lock";
+pub const USER_TASK_TEMPLATE_REGEX_AGENT_LOCK_CACHE_KEY: &str =
+    "user_task_template_regex_agent_lock";
 pub const USER_TASK_LOCK_CACHE_KEY: &str = "user_task_lock";
 /// Stripped path (ancestor names, own segment removed) of the current
 /// user-task input winner span — every LLM span on this same stripped path
@@ -123,6 +119,10 @@ pub const INGESTION_RATE_LIMIT_PERIOD_CACHE_KEY: &str = "ingestion_project_rate_
 pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
 
 pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
+/// `member_role:{workspace_id}:{user_id}` → `members_of_workspaces.member_role`.
+/// Positive entries only; the frontend removes the key on role change and
+/// membership removal (`frontend/lib/actions/workspace`).
+pub const MEMBER_ROLE_CACHE_KEY: &str = "member_role";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
 pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
@@ -206,6 +206,18 @@ pub const SYSTEM_PROMPT_VERSION_MEMO_CACHE_KEY: &str = "system_prompt_version_me
 
 /// Per-agent mint lock (`sp_versioning::versions::mint_lock_cache_key`).
 pub const SYSTEM_PROMPT_VERSION_LOCK_CACHE_KEY: &str = "system_prompt_version_lock";
+
+// User-template version tracking (`VersionKind::UserTemplate`): the same key
+// families as the system-prompt ones above, keyed by `(project_id, agent_hash)`
+// — the window is per agent — except the memo, which is keyed by the last-turn
+// user text's content hash. See `traces/sp_versioning/kind.rs`.
+pub const USER_TEMPLATE_VERSIONS_CACHE_KEY: &str = "user_template_versions";
+pub const USER_TEMPLATE_VERSION_LINES_CACHE_KEY: &str = "user_template_version_lines";
+pub const USER_TEMPLATE_WINDOW_CACHE_KEY: &str = "user_template_window";
+pub const USER_TEMPLATE_WINDOW_LINES_CACHE_KEY: &str = "user_template_window_lines";
+pub const USER_TEMPLATE_PROBE_CACHE_KEY: &str = "user_template_probe";
+pub const USER_TEMPLATE_VERSION_MEMO_CACHE_KEY: &str = "user_template_version_memo";
+pub const USER_TEMPLATE_VERSION_LOCK_CACHE_KEY: &str = "user_template_version_lock";
 
 /// Per-version lock serializing the SP-regex extraction worker's agent run
 /// (`static_sp_extraction::worker::run_lock_cache_key`).

@@ -6,22 +6,26 @@ import PageViewTracker from "@/components/common/page-view-tracker";
 import SharedEvaluation from "@/components/shared/evaluation/shared-evaluation";
 import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { getSharedEvaluation } from "@/lib/actions/shared/evaluation";
+import { SHARED_ACTOR } from "@/lib/actions/sql";
 import { ogImage } from "@/lib/metadata";
 
 const getCachedSharedEvaluation = cache((evaluationId: string) => getSharedEvaluation({ evaluationId }));
+
+const NOINDEX: Metadata["robots"] = { index: false, follow: false };
 
 export const generateMetadata = async (props: { params: Promise<{ evaluationId: string }> }): Promise<Metadata> => {
   const { evaluationId } = await props.params;
   try {
     const shared = await getCachedSharedEvaluation(evaluationId);
     if (!shared) {
-      return { title: "Shared Evaluation" };
+      return { title: "Shared Evaluation", robots: NOINDEX };
     }
     const title = `${shared.evaluation.name} - Shared Evaluation`;
     const description = `View the shared evaluation "${shared.evaluation.name}" on Laminar.`;
     return {
       title,
       description,
+      robots: NOINDEX,
       openGraph: {
         title,
         description,
@@ -37,7 +41,7 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
       },
     };
   } catch {
-    return { title: "Shared Evaluation" };
+    return { title: "Shared Evaluation", robots: NOINDEX };
   }
 };
 
@@ -50,7 +54,10 @@ export default async function SharedEvaluationPage(props: { params: Promise<{ ev
     return notFound();
   }
 
-  const scoreNames = await getEvaluationScoreNames({ projectId: shared.projectId, evaluationId });
+  const scoreNames = await getEvaluationScoreNames(
+    { projectId: shared.projectId, evaluationId },
+    { actor: SHARED_ACTOR }
+  );
 
   return (
     <>

@@ -3,7 +3,8 @@
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
 //! generation. The caller writes LOGICAL table names; the query engine rewrites them to
-//! project-scoped `_v0(...)` views and injects `project_id`.
+//! project-scoped view functions and injects `project_id` (plus the access
+//! policy for `spans` / `traces`).
 
 #[derive(serde::Serialize)]
 pub struct Column {

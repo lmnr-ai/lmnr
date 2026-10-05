@@ -8,7 +8,8 @@ import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-sect
 import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
 import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
 import { type DateRange } from "@/components/ui/date-range-filter/utils";
-import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
 // How much of the cluster colour a bar keeps. The palette is built for flat

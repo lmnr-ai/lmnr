@@ -3,7 +3,7 @@
 //! On the first LLM call of a replay, the SDK asks app-server whether a recorded
 //! response exists for a given input hash. The cache is keyed by
 //! `(project_id, replay_trace_id, cache_until)` and warmed lazily from the
-//! original trace's LLM/CACHED spans (read through `spans_v0`, which
+//! original trace's LLM/CACHED spans (read through `spans_v1`, which
 //! reconstructs dedup'd input). Scoping by the `cache_until` window lets the
 //! same trace be replayed at different cache points within or across sessions:
 //! a wider/narrower window is a distinct namespace that warms cold instead of

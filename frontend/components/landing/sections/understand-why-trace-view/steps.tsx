@@ -70,7 +70,7 @@ export const STEPS: Record<StepNumber, Step> = {
   2: {
     label: "02.",
     title: "Discover failures\nwithout defining them",
-    body: "Laminar Signals analyze every agent run to surface failure modes you didn't anticipate.",
+    body: "Laminar Signals analyze every agent run to surface failure modes you didn't anticipate, powered by our custom model optimized for intelligence and cost.",
     learnMore: { label: "Learn more about Signals", href: DOCS_SIGNALS },
   },
   // FLAG(copy): written to bridge into the "Has this failure occurred before?"

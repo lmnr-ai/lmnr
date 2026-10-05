@@ -14,7 +14,8 @@ import {
   type ClusterVisualizationSnapshot,
   getClusterVisualizationRangeKey,
 } from "@/lib/actions/cluster-visualization-types";
-import { type ClusterStatsDataPoint, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";

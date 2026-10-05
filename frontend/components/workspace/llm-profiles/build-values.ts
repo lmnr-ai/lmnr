@@ -1,4 +1,9 @@
-import { isAzureProvider, type LlmProfile, type LlmProfileConfig } from "@/lib/actions/llm-profiles/schema";
+import {
+  isAzureProvider,
+  isCustomProvider,
+  type LlmProfile,
+  type LlmProfileConfig,
+} from "@/lib/actions/llm-profiles/schema";
 
 import { type LlmProfileFormValues, type LlmProfileRequestBody, toProvider } from "./types";
 
@@ -7,6 +12,7 @@ export const EMPTY_VALUES: LlmProfileFormValues = {
   uiProvider: "openai",
   openaiShape: "openai_completions",
   azureShape: "azure_chat_completions",
+  customShape: "custom",
   azureEndpoint: "resourceId",
   bedrockAuth: "aws_keys",
   region: "us-east-1",
@@ -50,7 +56,9 @@ export function buildDefaultValues(profile?: LlmProfile | null): LlmProfileFormV
       values.apiVersion = profile.config.apiVersion ?? "";
       break;
     case "custom":
+    case "custom_responses":
       values.uiProvider = "custom";
+      values.customShape = profile.provider;
       values.baseUrl = profile.config.baseUrl;
       values.headers = profile.config.headerNames.map((name) => ({ name, value: "" }));
       break;
@@ -87,7 +95,7 @@ function buildConfig(values: LlmProfileFormValues): LlmProfileConfig {
       },
     };
   }
-  if (provider === "custom") {
+  if (isCustomProvider(provider)) {
     return {
       provider,
       config: {

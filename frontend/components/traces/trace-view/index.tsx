@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceAgentContext } from "@/components/agent";
@@ -10,6 +10,7 @@ import TraceViewStoreProvider, {
 import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
+import { STACK_THRESHOLD } from "./fill-width-layout";
 import TraceViewContent from "./trace-view-content";
 import { usePanelResize } from "./use-panel-resize";
 
@@ -45,6 +46,18 @@ export function TraceViewSidePanel({
   ...props
 }: Omit<TraceViewProps, "isFillWidth"> & { className?: string; children?: React.ReactNode }) {
   const sidePanelRef = useRef<HTMLDivElement>(null);
+  // Below STACK_THRESHOLD the drawer covers the page and stacks like the mobile trace view.
+  const [narrow, setNarrow] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = sidePanelRef.current?.parentElement;
+    if (!el) return;
+    const measure = () => setNarrow(el.clientWidth < STACK_THRESHOLD);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     // The side panel wraps its content in an ElevatedSurface but does NOT raise the level for
@@ -53,7 +66,11 @@ export function TraceViewSidePanel({
     <ElevatedSurface
       ref={sidePanelRef}
       offset={0}
-      className={cn("absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] border-l z-50 flex", className)}
+      className={cn(
+        "absolute inset-y-0 right-0 z-50 flex",
+        narrow ? "left-0" : "max-w-[calc(100%-80px)] border-l",
+        className
+      )}
     >
       <TraceViewStoreProvider
         key={props.traceId}
@@ -64,13 +81,13 @@ export function TraceViewSidePanel({
       >
         <div className="relative w-full h-full flex flex-col">
           <TraceAgentContext traceId={props.traceId} />
-          <SidePanelLeftResizeHandle />
+          {!narrow && <SidePanelLeftResizeHandle />}
           {/* w-0 min-w-full keeps children (e.g. the eval runs chart, which pins its own
                   measured pixel width via recharts) from driving the right-anchored side panel's
                   intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
                   opens between the span view and the screen edge. */}
           {children && <div className="w-0 min-w-full">{children}</div>}
-          <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
+          <TraceViewContent {...props} sidePanelRef={narrow ? undefined : sidePanelRef} />
         </div>
       </TraceViewStoreProvider>
     </ElevatedSurface>
@@ -85,21 +102,12 @@ export function TraceViewSidePanel({
  * so the resize math matches what's rendered.
  */
 function SidePanelLeftResizeHandle() {
-  const { resizePanel, spanPanelOpen, isAlwaysSelectSpan, isTraceLoading, hasTrace, spansLength } = useTraceViewStore(
-    (s) => ({
-      resizePanel: s.resizePanel,
-      spanPanelOpen: s.spanPanelOpen,
-      isAlwaysSelectSpan: s.isAlwaysSelectSpan,
-      isTraceLoading: s.isTraceLoading,
-      hasTrace: !!s.trace,
-      spansLength: s.spans.length,
-    }),
+  const { resizePanel, spanPanelOpen } = useTraceViewStore(
+    (s) => ({ resizePanel: s.resizePanel, spanPanelOpen: s.spanPanelOpen }),
     shallow
   );
 
-  const isLoading = isTraceLoading && !hasTrace;
-  const showSpan = spanPanelOpen || (isAlwaysSelectSpan && !isLoading && spansLength > 0);
-  const visible = useMemo(() => ({ span: showSpan }), [showSpan]);
+  const visible = useMemo(() => ({ span: spanPanelOpen }), [spanPanelOpen]);
 
   const drag = useCallback(
     (panel: ResizablePanel, delta: number) => resizePanel(panel, delta, visible),

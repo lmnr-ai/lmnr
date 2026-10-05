@@ -29,7 +29,7 @@ export function SessionsTableControls({
 }: SessionsTableControlsProps) {
   return (
     <>
-      <div className="flex flex-1 w-full h-full gap-2">
+      <div className="flex w-full flex-wrap gap-2">
         <DataTableFilter columns={filters} filters={activeFilters} onFiltersChange={onFiltersChange} />
         <ColumnsMenu
           columnLabels={columns.map((column) => ({

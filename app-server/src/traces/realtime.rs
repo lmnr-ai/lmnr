@@ -158,6 +158,8 @@ pub async fn send_trace_updates<T: Serialize>(
 /// Push the extracted `agent_input` (raw stored value) once available, since
 /// the stat delta can't carry it. Routes to every channel the trace belongs to
 /// (project / evaluation / debugger). Shape matches `agent_input as agentInput`.
+/// Callers must not send it for `dual` projects: pubsub cannot know who is
+/// subscribed, and there the value is masked per reader (`docs/internal/rbac.md`).
 pub async fn send_agent_input_update(
     pubsub: &PubSub,
     cache: &Cache,
@@ -182,7 +184,12 @@ pub async fn send_agent_input_update(
 
 /// Push a resolved note / eval block to a debugger session (traces have their
 /// own path). `block` mirrors the frontend `SessionBlock` shape.
-pub async fn send_block_update(pubsub: &PubSub, project_id: &Uuid, session_id: &Uuid, block: Value) {
+pub async fn send_block_update(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    session_id: &Uuid,
+    block: Value,
+) {
     let message = SseMessage {
         event_type: "block_update".to_string(),
         data: serde_json::json!({ "sessionId": session_id, "block": block }),

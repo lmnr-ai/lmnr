@@ -13,7 +13,6 @@ mod probe;
 pub mod service;
 mod store;
 
-#[cfg_attr(not(feature = "signals"), allow(unused_imports))]
 pub use probe::probe;
 pub use store::LlmProfileStore;
 
@@ -36,7 +35,10 @@ pub enum LlmProfileProvider {
     AzureChatCompletions,
     AzureResponses,
     AzureAnthropic,
+    /// OpenAI-compatible gateway over Chat Completions.
     Custom,
+    /// OpenAI-compatible gateway over the Responses API.
+    CustomResponses,
 }
 
 impl LlmProfileProvider {
@@ -54,7 +56,13 @@ impl LlmProfileProvider {
             Self::AzureResponses => "azure_responses",
             Self::AzureAnthropic => "azure_anthropic",
             Self::Custom => "custom",
+            Self::CustomResponses => "custom_responses",
         }
+    }
+
+    /// A user-supplied base URL plus optional custom headers, whichever API shape it speaks.
+    pub fn is_custom_gateway(self) -> bool {
+        matches!(self, Self::Custom | Self::CustomResponses)
     }
 
     /// Provider name reported on spans and used for cost keying: the `model_costs`
@@ -62,7 +70,10 @@ impl LlmProfileProvider {
     /// in `LlmClient::resolve_model_provider`.
     pub fn reported_name(self) -> &'static str {
         match self {
-            Self::OpenaiCompletions | Self::OpenaiResponses | Self::Custom => "openai",
+            Self::OpenaiCompletions
+            | Self::OpenaiResponses
+            | Self::Custom
+            | Self::CustomResponses => "openai",
             Self::Anthropic => "anthropic",
             Self::Gemini => "gemini",
             Self::Groq => "groq",
@@ -179,6 +190,10 @@ mod tests {
             ),
             (
                 "custom",
+                r#"{"baseUrl":"https://gw.example.com/v1","headerNames":["X-Tenant"],"auth":{"type":"api_key"}}"#,
+            ),
+            (
+                "custom_responses",
                 r#"{"baseUrl":"https://gw.example.com/v1","headerNames":["X-Tenant"],"auth":{"type":"api_key"}}"#,
             ),
         ];

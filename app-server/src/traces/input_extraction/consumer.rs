@@ -2,13 +2,18 @@
 //!
 //! Handles regex-cache misses enqueued by the producer hook. Resolution ladder:
 //!
-//!   1. resolve the prompt's version — the producer's inline verdict, else the
-//!      memo, else the `system_prompt_versions` row for the winning span;
+//!   1. resolve the user template's version — the producer's inline verdict,
+//!      else the memo, else the `user_template_versions` row for the winning
+//!      span;
 //!   2. a cached regex for that version → apply it;
 //!   3. no regex yet → record the user text as a cohort sample (triggering the
-//!      multi-sample agent once the cohort fills) and extract directly with one
-//!      LLM call;
-//!   4. no version at all → extract directly, nothing cached.
+//!      multi-sample agent once the cohort fills), then use a sibling version's
+//!      regex if one extracts (`inherit.rs`, never cached), else extract
+//!      directly with one LLM call;
+//!   4. no version at all → extract directly.
+//!
+//! A direct extraction first checks the short-lived result cache for the exact
+//! same text (`extract.rs`).
 //!
 //! Spans with no system message never get a version and keep the legacy
 //! agent-hash + tag-fingerprint keying with its single-sample regex generation.
@@ -20,13 +25,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::accumulator::{cohort_cache_key, record_sample};
-use super::extract::extract_user_task_directly;
+use super::extract::{cache_direct_result, cached_direct_result, extract_user_task_directly};
+use super::inherit::inherit_sibling_regex;
 use super::lock::{UserTaskLockState, lock_cache_key, write_lock_merged};
 use super::metadata::extraction_outcome_value;
 use super::queue::InputExtractionMessage;
 use super::regex::{
-    ApplyRegexResult, RegexTarget, Resolution, generate_and_apply_regex, is_passthrough_regex,
-    record_resolution, regex_target, try_apply_cached_regex,
+    ApplyRegexResult, RegexTarget, Resolution, apply_known_regex, generate_and_apply_regex,
+    is_passthrough_regex, record_resolution, regex_target,
 };
 use super::regex_agent::request_user_task_regex;
 use super::self_tracing::{self, RunKind, SpanBuilder, SpanContextCarrier, SpanScope};
@@ -36,7 +42,7 @@ use crate::{
     llm::LlmClient,
     mq::{MessageQueue, stream::StreamPublisher},
     traces::metadata::publish_trace_input_update,
-    traces::sp_versioning::versions,
+    traces::sp_versioning::{VersionKind, versions},
     worker::{HandlerError, MessageHandler},
 };
 
@@ -66,38 +72,18 @@ impl MessageHandler for InputExtractionHandler {
         // Another worker may have populated the cache since this message was
         // enqueued, on any keying — a hit is pure regex application and emits no
         // self-tracing.
-        let cached = match &target {
-            RegexTarget::Keyed { key, .. } => {
-                try_apply_cached_regex(
-                    &self.cache,
-                    key,
-                    &message.signposted_text,
-                    message.project_id,
-                    message.trace_id,
-                )
-                .await
-            }
-            RegexTarget::Unversioned => None,
-        };
+        let known = apply_known_regex(
+            &self.cache,
+            &target,
+            &message.signposted_text,
+            message.project_id,
+            message.trace_id,
+            message.has_history,
+        )
+        .await;
 
-        let result = match cached {
+        let result = match known {
             Some(result) => {
-                // Recorded only for the versioned pipeline: the legacy keying
-                // serves prompts that can never have a version, so counting its
-                // hits would inflate the denominator of the fallback-rate metric.
-                if let RegexTarget::Keyed {
-                    version: Some(version),
-                    ..
-                } = &target
-                {
-                    record_resolution(
-                        Resolution::Cached,
-                        message.project_id,
-                        message.trace_id,
-                        Some(version),
-                        message.has_history,
-                    );
-                }
                 // Superseded check runs AFTER a cache hit: applying a cached
                 // regex costs nothing worth reordering for.
                 if self.superseded(&message).await {
@@ -147,24 +133,33 @@ impl MessageHandler for InputExtractionHandler {
 }
 
 impl InputExtractionHandler {
-    /// The prompt's version: the producer's inline verdict when it had one, else
-    /// the memo (filled by the classifier, which consumes a message published one
-    /// line before this one — so it has usually landed by now), else the
-    /// `system_prompt_versions` row for the winning span, which covers memo
-    /// expiry.
+    /// The user template's version: the producer's inline verdict when it had
+    /// one, else the memo (filled by the classifier, which consumes a message
+    /// published just before this one — so it has usually landed by now), else
+    /// the `user_template_versions` row for the winning span, which covers memo
+    /// expiry. Spans with no system prompt are never versioned.
     async fn resolve_version(&self, message: &InputExtractionMessage) -> Option<String> {
         if let Some(version) = &message.version_hash {
             return Some(version.clone());
         }
-        let full_prompt_hash = message.full_prompt_hash.as_deref()?;
-        if let Some(version) =
-            versions::memo_get(&self.cache, message.project_id, full_prompt_hash).await
+        let agent_hash = message.prompt_hash.as_deref()?;
+        let kind = VersionKind::UserTemplate;
+        let content_hash = &message.winner_state.as_ref()?.content_hash;
+        if let Some(version) = versions::memo_get(
+            &self.cache,
+            kind,
+            message.project_id,
+            &kind.partition(agent_hash, message.has_history),
+            content_hash,
+        )
+        .await
         {
             return Some(version);
         }
         let span_id = message.span_id?;
         crate::ch::system_prompt_versions::fetch_span_version(
             &self.clickhouse,
+            kind,
             message.project_id,
             message.trace_id,
             span_id,
@@ -211,8 +206,8 @@ impl InputExtractionHandler {
         target: &RegexTarget,
         version_hash: Option<&str>,
     ) -> Option<ApplyRegexResult> {
-        // A cohort exists only when the prompt HAS a version — that is what the
-        // regex is keyed on, so it is also what samples accumulate under.
+        // A cohort exists only when the template HAS a version — that is what
+        // the regex is keyed on, so it is also what samples accumulate under.
         let cohort = match (target, message.prompt_hash.as_deref(), version_hash) {
             (
                 RegexTarget::Keyed {
@@ -226,16 +221,43 @@ impl InputExtractionHandler {
 
         if let Some((agent_hash, version)) = cohort {
             // Cohort-level, so it is recorded even for a candidate this trace
-            // will drop as superseded: the sample is valid for the cohort either
-            // way and needs no LLM call to produce.
+            // will drop as superseded or resolve by inheritance: the sample is
+            // valid for the cohort either way and needs no LLM call to produce.
             self.record_cohort_sample(message, agent_hash, version)
                 .await;
+            // A re-minted template usually still fits its predecessor's regex;
+            // using it spares this trace an LLM call until the cohort's own
+            // regex lands.
+            if let Some(result) = inherit_sibling_regex(
+                &self.cache,
+                message.project_id,
+                agent_hash,
+                version,
+                message.has_history,
+                &message.signposted_text,
+            )
+            .await
+            {
+                record_resolution(
+                    Resolution::Inherited,
+                    message.project_id,
+                    message.trace_id,
+                    Some(version),
+                    message.has_history,
+                );
+                return if self.superseded(message).await {
+                    None
+                } else {
+                    Some(result)
+                };
+            }
         }
 
         // The legacy path generates and CACHES a regex keyed by user-message
         // shape, so its work outlives this candidate and the supersession check
-        // stays after it. A direct extraction caches nothing, so a superseded
-        // candidate's call is pure waste — check first.
+        // stays after it. A direct extraction's result outlives it only for the
+        // few minutes of the result cache, so a superseded candidate's call is
+        // waste — check first.
         let legacy_generation = matches!(target, RegexTarget::Keyed { version: None, .. });
         if !legacy_generation && self.superseded(message).await {
             return None;
@@ -251,6 +273,19 @@ impl InputExtractionHandler {
             } else {
                 Some(result)
             };
+        }
+
+        if let Some(result) =
+            cached_direct_result(&self.cache, message.project_id, &message.signposted_text).await
+        {
+            record_resolution(
+                Resolution::DirectCached,
+                message.project_id,
+                message.trace_id,
+                version_hash,
+                message.has_history,
+            );
+            return Some(result);
         }
 
         record_resolution(
@@ -282,7 +317,14 @@ impl InputExtractionHandler {
             extract_user_task_directly(&self.llm_client, &message.signposted_text, &scope).await;
         match &result {
             Some(result) => {
-                self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")))
+                self_tracing::set_output(&root, &serde_json::json!(format!("{result:?}")));
+                cache_direct_result(
+                    &self.cache,
+                    message.project_id,
+                    &message.signposted_text,
+                    result,
+                )
+                .await;
             }
             None => self_tracing::set_metadata_bool(&root, "llm_failed", true),
         }

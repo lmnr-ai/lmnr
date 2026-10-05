@@ -11,7 +11,13 @@ import {
   type Visible,
 } from "@/components/traces/trace-view/panel-layout";
 
-import { type BaseTraceViewStore, createBaseTraceViewSlice, TraceViewContext, type TraceViewTrace } from "./base";
+import {
+  type BaseTraceViewStore,
+  createBaseTraceViewSlice,
+  TraceViewContext,
+  type TraceViewSpan,
+  type TraceViewTrace,
+} from "./base";
 
 export {
   MAX_ZOOM,
@@ -45,6 +51,7 @@ type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreA
 
 const createTraceViewStore = (options?: {
   initialTrace?: TraceViewTrace;
+  initialSpans?: TraceViewSpan[];
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
@@ -55,6 +62,7 @@ const createTraceViewStore = (options?: {
       (set, get) => {
         const baseSlice = createBaseTraceViewSlice<TraceViewStore>(set, get, {
           initialTrace: options?.initialTrace,
+          initialSpans: options?.initialSpans,
           isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
           initialSignalId: options?.initialSignalId,
           initialSearch: options?.initialSearch,
@@ -157,12 +165,14 @@ const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined
 const TraceViewStoreProvider = ({
   children,
   initialTrace,
+  initialSpans,
   storeKey,
   isAlwaysSelectSpan,
   initialSignalId,
   initialSearch,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
+  initialSpans?: TraceViewSpan[];
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
@@ -171,6 +181,7 @@ const TraceViewStoreProvider = ({
   const [storeState] = useState(() =>
     createTraceViewStore({
       initialTrace,
+      initialSpans,
       storeKey,
       isAlwaysSelectSpan,
       initialSignalId,

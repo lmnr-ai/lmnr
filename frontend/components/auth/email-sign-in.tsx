@@ -69,7 +69,7 @@ export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted", c
         size="sm"
         disabled={!email || !validateEmailAddress(email)}
         onClick={handleSignIn}
-        className="w-full"
+        className="w-full h-9 py-0 md:py-0 text-sm"
       >
         Sign in
       </LandingButton>

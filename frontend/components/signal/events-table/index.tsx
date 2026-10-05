@@ -13,7 +13,7 @@ import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 
 import { buildEventsColumns } from "./columns";
 

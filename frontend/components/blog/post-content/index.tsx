@@ -158,19 +158,40 @@ export default async function PostContent({ data, content, backHref, slug, route
             />
           );
         },
-        // Keeps the brand-colored rule; typeset owns the indent.
-        blockquote: (props) => <blockquote className="border-primary" {...props} />,
+        blockquote: (props) => <blockquote className="border-foreground-500" {...props} />,
         // `not-typeset` on the embedded components below: each already owns its
         // own look (syntax highlighting, lightbox chrome, embed frame), and
         // opting out keeps typeset from restyling their internals. The
         // trade-off is that they also lose typeset's flow margin, so each keeps
         // the spacing class it already had.
-        pre: (props) => <PreHighlighter className="not-typeset pl-4 py-4" {...props} />,
+        // Read the fence here, on the server, where its `<code>` child is still a real element;
+        // see `PreHighlighter` for why the client component can't.
+        pre: ({ children }) => {
+          if (!React.isValidElement<{ className?: string; children?: React.ReactNode }>(children)) return null;
+          const { className, children: code } = children.props;
+          const language = className
+            ?.split(" ")
+            .find((c) => c.startsWith("language-"))
+            ?.split("-")[1];
+          return (
+            <PreHighlighter
+              className="not-typeset pl-4 py-4"
+              code={typeof code === "string" ? code : String(code ?? "")}
+              language={language}
+            />
+          );
+        },
         code: (props) => (
           <span className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5" {...props} />
         ),
         strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
         img: (props) => <BlogImage {...props} />,
+        // Wide tables scroll inside this wrapper instead of squeezing on mobile.
+        table: (props) => (
+          <div className="typeset-scroll">
+            <table {...props} />
+          </div>
+        ),
         // Tables: styled via CSS descendant selectors on `.blog-article` in
         // globals.css instead of MDX component overrides. Strapi emits raw
         // HTML `<table>` markup that doesn't route through the components

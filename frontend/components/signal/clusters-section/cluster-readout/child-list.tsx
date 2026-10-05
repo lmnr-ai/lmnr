@@ -8,7 +8,7 @@
 
 import { type CSSProperties } from "react";
 
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 

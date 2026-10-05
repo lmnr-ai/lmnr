@@ -7,13 +7,15 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+import SurfaceCard from "../surface-card";
+
 interface LimitRowProps {
   workspaceId: string;
   limitType: "bytes" | "signal_cost";
   label: string;
   currentValue: number | null;
   unit: string;
-  includedLabel: string;
+  includedLabel?: string;
   includedRawValue: number;
   toDisplayValue: (raw: number) => number;
   toRawValue: (display: number) => number;
@@ -132,14 +134,10 @@ export default function LimitRow({
   };
 
   return (
-    <div className="flex flex-col rounded-md border flex-1 p-3 gap-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground shrink-0">Included: {includedLabel}</span>
-      </div>
+    <SurfaceCard title={label} note={includedLabel && `Included: ${includedLabel}`}>
       <div className="flex items-center gap-2">
-        <label className="flex flex-1 items-center min-w-0 h-9 rounded-md border border-input bg-background overflow-hidden cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
-          <span className="flex items-center self-stretch px-2.5 text-xs font-medium text-muted-foreground bg-muted/40 border-r select-none shrink-0">
+        <label className="flex flex-1 items-center min-w-0 h-9 rounded-md border border-input bg-surface-up overflow-hidden cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+          <span className="flex items-center self-stretch px-2.5 text-xs font-medium text-muted-foreground bg-surface-up-2 border-r select-none shrink-0">
             {unit}
           </span>
           <input
@@ -181,6 +179,6 @@ export default function LimitRow({
           </span>
         </div>
       )}
-    </div>
+    </SurfaceCard>
   );
 }

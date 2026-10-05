@@ -1,7 +1,7 @@
 //! Per-cohort sample accumulator feeding the multi-sample user-task regex agent.
 //!
-//! A cohort is `(project, agent_hash, version_hash, has_history)` — the same key
-//! the regex itself is cached under. The extraction worker appends the user text
+//! A cohort is `(project, agent_hash, template_version, has_history)` — the same
+//! key the regex itself is cached under. The extraction worker appends the user text
 //! it was about to extract directly, so the samples cost nothing beyond the
 //! fallback that was happening anyway, and they are exactly the texts the regex
 //! will be applied to (winner spans, not every span carrying the prompt).
@@ -15,7 +15,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::keys::USER_TASK_SAMPLES_CACHE_KEY;
+use crate::cache::keys::USER_TASK_TEMPLATE_SAMPLES_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 
 /// Per-sample cap. `signposted_text` is capped at 200k chars, so five uncapped
@@ -42,11 +42,13 @@ pub struct SampleAccumulator {
 pub fn cohort_cache_key(
     project_id: Uuid,
     agent_hash: &str,
-    version_hash: &str,
+    template_version: &str,
     has_history: bool,
 ) -> String {
     let history = if has_history { "h" } else { "n" };
-    format!("{USER_TASK_SAMPLES_CACHE_KEY}:{project_id}:{agent_hash}:{version_hash}:{history}")
+    format!(
+        "{USER_TASK_TEMPLATE_SAMPLES_CACHE_KEY}:{project_id}:{agent_hash}:{template_version}:{history}"
+    )
 }
 
 /// Head+tail truncation on char boundaries.

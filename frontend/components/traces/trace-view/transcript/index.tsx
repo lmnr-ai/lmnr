@@ -417,6 +417,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     );
   }
 
+  // No rows until the scroller is measured (SSR); placeholders stay inside the ref'd scroller.
+  const unmeasured = items.length === 0 && flatRows.length > 0;
+
   return (
     <div
       ref={scrollRef}
@@ -428,59 +431,66 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
         overflowAnchor: "none",
       }}
     >
-      <div
-        style={{
-          height: virtualizer.getTotalSize(),
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {items.map((virtualRow) => {
-          const row = flatRows[virtualRow.index];
-          if (!row) return null;
-          const nextRow = flatRows[virtualRow.index + 1];
-          const isGroupChild = row.type === "group-span" || row.type === "group-input";
-          const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
-          const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
-          const needsSpacing = needsLlmTopSpacing(virtualRow.index);
-          const activeSticky = isActiveSticky(virtualRow.index);
+      {unmeasured ? (
+        <div className="flex flex-col gap-2 w-full px-3 py-2">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-60 w-full" />
+        </div>
+      ) : (
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {items.map((virtualRow) => {
+            const row = flatRows[virtualRow.index];
+            if (!row) return null;
+            const nextRow = flatRows[virtualRow.index + 1];
+            const isGroupChild = row.type === "group-span" || row.type === "group-input";
+            const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
+            const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
+            const needsSpacing = needsLlmTopSpacing(virtualRow.index);
+            const activeSticky = isActiveSticky(virtualRow.index);
 
-          const positionStyle: CSSProperties = activeSticky
-            ? { position: "sticky", top: 0, background: "var(--color-surface)" }
-            : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
+            const positionStyle: CSSProperties = activeSticky
+              ? { position: "sticky", top: 0, background: "var(--color-surface)" }
+              : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
-          if (row.type === "group") {
-            positionStyle.zIndex = activeSticky ? 10 : 1;
-          }
+            if (row.type === "group") {
+              positionStyle.zIndex = activeSticky ? 10 : 1;
+            }
 
-          return (
-            <div
-              key={virtualRow.key}
-              data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
-              style={{ ...positionStyle, left: 0, width: "100%" }}
-              className={cn({
-                "pt-1": row.type === "group",
-                "pt-4": needsSpacing,
-                "pb-1": isCollapsedGroup || isLastGroupChild,
-              })}
-            >
-              <TranscriptRow
-                row={row}
-                previews={previews}
-                inputPreviews={inputPreviews}
-                agentNames={agentNames}
-                userInput={userInput}
-                traceStartTime={trace?.startTime}
-                selectedSpanId={selectedSpanId}
-                expandedGroupIds={transcriptExpandedGroups}
-                onSpanSelect={handleSpanSelect}
-                onToggleGroup={handleToggleGroup}
-              />
-            </div>
-          );
-        })}
-      </div>
+            return (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                style={{ ...positionStyle, left: 0, width: "100%" }}
+                className={cn({
+                  "pt-1": row.type === "group",
+                  "pt-4": needsSpacing,
+                  "pb-1": isCollapsedGroup || isLastGroupChild,
+                })}
+              >
+                <TranscriptRow
+                  row={row}
+                  previews={previews}
+                  inputPreviews={inputPreviews}
+                  agentNames={agentNames}
+                  userInput={userInput}
+                  traceStartTime={trace?.startTime}
+                  selectedSpanId={selectedSpanId}
+                  expandedGroupIds={transcriptExpandedGroups}
+                  onSpanSelect={handleSpanSelect}
+                  onToggleGroup={handleToggleGroup}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

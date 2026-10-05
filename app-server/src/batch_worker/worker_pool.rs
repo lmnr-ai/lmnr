@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
+
 use crate::mq::MessageQueue;
 use crate::worker::QueueConfig;
 
@@ -9,11 +11,19 @@ use super::worker::BatchQueueWorker;
 
 pub struct BatchWorkerPool {
     queue: Arc<MessageQueue>,
+    shutdown: CancellationToken,
+    tasks: TaskTracker,
 }
 
 impl BatchWorkerPool {
-    pub fn new(queue: Arc<MessageQueue>) -> Self {
-        Self { queue }
+    /// Workers stop on `shutdown`; `tasks` is what `main` waits on so the process
+    /// doesn't exit while one is still finishing a flush + ack.
+    pub fn new(queue: Arc<MessageQueue>, shutdown: CancellationToken, tasks: TaskTracker) -> Self {
+        Self {
+            queue,
+            shutdown,
+            tasks,
+        }
     }
 
     /// Spawn N workers of a type
@@ -29,8 +39,13 @@ impl BatchWorkerPool {
     {
         for i in 0..count {
             let handler = handler_factory();
-            let mut worker =
-                BatchQueueWorker::new(worker_type, handler, self.queue.clone(), config.clone());
+            let mut worker = BatchQueueWorker::new(
+                worker_type,
+                handler,
+                self.queue.clone(),
+                config.clone(),
+                self.shutdown.clone(),
+            );
 
             let worker_id = worker.id();
 
@@ -41,8 +56,7 @@ impl BatchWorkerPool {
                 i
             );
 
-            // Spawn and forget - it runs forever
-            tokio::spawn(async move {
+            self.tasks.spawn(async move {
                 worker.process().await;
             });
         }

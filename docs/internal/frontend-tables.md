@@ -40,6 +40,10 @@
 - Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
 - Time-series chart utils are ALSO duplicated in two places that must stay in sync: `frontend/components/charts/time-series-chart/utils.ts` (the shared `TimeSeriesChart` used by traces/signal-clusters/alerts) and `frontend/components/traces/traces-chart/utils.ts` (a legacy copy whose `chart.tsx` is currently unmounted but still type-checked). `isValidZoomRange`/`normalizeTimeRange`/`calculateOptimalInterval` exist in both. Drag-zoom minimum range is 5 minutes (`isValidZoomRange` `minMinutes` default); `calculateOptimalInterval` clamps sub-minute buckets to `1 minute` (a 0-value interval would make ClickHouse `toInterval(0, 'minute')` bucket everything together).
 
+## Dashboard Refresh
+
+- The dashboard header's Refresh button bumps `refreshKey` in `components/dashboards/dashboard-refresh-context.tsx`; each `Chart` includes it in its fetch effect deps, so only per-chart `/sql` requests re-run. The chart list (`/dashboard-charts` SWR in `grid-layout.tsx`) is deliberately NOT revalidated and the page is not reloaded, so scroll position is kept. Grid cells have fixed heights, so the per-chart skeleton during refetch doesn't shift the layout.
+
 ## Dashboard Charts API
 
 - `app/api/projects/[projectId]/dashboard-charts/route.ts` exposes `GET` (list), `POST` (create), and `PATCH` (bulk layout update). There is NO `PUT`. Creating a chart from the chart-builder/sql-editor must use `POST`, not `PUT` (which would silently 405 and never reach `createChart`).

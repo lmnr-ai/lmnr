@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { PureTraceView } from "@/components/shared/traces/trace-view";
 import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -84,13 +85,17 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
     );
   }
 
-  return <PureTraceView trace={trace} spans={spans} onClose={onClose} />;
+  return (
+    <TraceViewStoreProvider
+      storeKey="shared-eval-trace-view"
+      initialTrace={trace}
+      initialSpans={enrichSpansWithPending(spans)}
+    >
+      <PureTraceView trace={trace} spans={spans} onClose={onClose} />
+    </TraceViewStoreProvider>
+  );
 }
 
 export default function SharedEvalTraceView(props: SharedEvalTraceViewProps) {
-  return (
-    <TraceViewStoreProvider storeKey="shared-eval-trace-view">
-      <SharedEvalTraceViewContent {...props} />
-    </TraceViewStoreProvider>
-  );
+  return <SharedEvalTraceViewContent {...props} />;
 }
