@@ -5,6 +5,7 @@ import ColumnSelect from "@/components/chart-builder/column-select";
 import { CHART_TYPE_OPTIONS } from "@/components/chart-builder/constants";
 import ExportChartDialog from "@/components/chart-builder/export-chart-dialog";
 import { ChartType } from "@/components/chart-builder/types";
+import { supportsBreakdown } from "@/components/chart-builder/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +42,7 @@ const ChartControls = () => {
 
   const isHorizontal = chartConfig.type === ChartType.HorizontalBarChart;
   const breakdownColumns = getAvailableBreakdownColumns();
-  const showBreakdown = chartConfig.type === ChartType.LineChart && breakdownColumns.length > 0;
+  const showBreakdown = supportsBreakdown(chartConfig.type) && breakdownColumns.length > 0;
 
   return (
     <div className="flex w-56 shrink-0 flex-col border-r">

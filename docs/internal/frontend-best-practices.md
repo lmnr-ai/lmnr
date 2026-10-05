@@ -17,6 +17,10 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 `TimeSeriesChart` (and every chart built on it) uses a categorical `<XAxis dataKey="timestamp">`, so a `<ReferenceLine x={…}>` renders **only** when `x` is byte-identical to one of the bucket labels in `data`. An arbitrary instant (an annotation's `created_at`) silently renders nothing. Snap it first — find the last bucket whose start is `<= at`, drop anything past the last bucket's end, and merge labels that land in the same bucket into one line. That is what `TimeSeriesChartProps.markers` / `snappedMarkers` does; reuse it rather than passing raw timestamps. A lone bucket has no measurable width — treat it as unbounded to the right so a marker later in that window still snaps. Clickable labels (`TimeSeriesMarker.href`) must `stopPropagation` on mouseDown/pointerDown so the chart's drag-zoom does not start; last marker's href wins when several snap to one bar.
 
+### Chart-builder config: every field a control can't show must be cleared centrally
+
+`ChartConfig` is shared by all chart types but the controls only expose a subset per type — a breakdown picker exists for line charts only (`supportsBreakdown`). Any field whose picker is hidden for the selected type has to be dropped in `reconcileChartConfig` (`components/chart-builder/utils.ts`), not in the setter that happened to change the type: `ChartRendererCore` pivots on `config.breakdown` for every axis chart, so a breakdown surviving a line→bar switch renders a stacked series the user can't see or undo. Reconcile runs on type change, on new result columns, and on persisted-config rehydration, so fixing it there also cleans configs stored by an older build. Derive the control's visibility from the same predicate the reconcile uses.
+
 ### `data-icon` is decorative — Button does NOT space its own icons
 
 No CSS rule matches `[data-icon]` and `buttonVariants` has no `gap`, so an icon+label `<Button>` needs `className="gap-2"` (or a margin on the icon) at the call site. Only the `icon={…}` prop form spaces itself. Sizes: `sm` `h-[22px]`, `default` `h-7`, `md` `h-8`, `lg` `h-10`.

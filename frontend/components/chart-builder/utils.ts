@@ -41,6 +41,12 @@ export const canSelectForYAxis = (column: ColumnInfo, chartType: ChartType | und
 export const canSelectForXAxis = (column: ColumnInfo, chartType: ChartType | undefined): boolean =>
   chartType === ChartType.HorizontalBarChart ? column.type === "number" : true;
 
+/**
+ * Only line charts expose a breakdown picker, so no other type may carry one — a breakdown the
+ * controls can't show is a series split the user cannot undo.
+ */
+export const supportsBreakdown = (chartType: ChartType | undefined): boolean => chartType === ChartType.LineChart;
+
 // Column names that read as a time bucket (`t`, `ts`, `day`, `start_time`, `hour_bucket`, …). Only
 // used to prefer one dimension over another when picking default axes; a miss falls back to the
 // first non-numeric column.
@@ -90,7 +96,9 @@ export const reconcileChartConfig = (config: ChartConfig, columns: ColumnInfo[])
   const x = xColumn && canSelectForXAxis(xColumn, type) ? config.x : defaults.x;
   const y = yColumn && canSelectForYAxis(yColumn, type) ? config.y : defaults.y;
   const breakdown =
-    column(config.breakdown) && config.breakdown !== x && config.breakdown !== y ? config.breakdown : undefined;
+    supportsBreakdown(type) && column(config.breakdown) && config.breakdown !== x && config.breakdown !== y
+      ? config.breakdown
+      : undefined;
 
   return { ...config, type, x, y, breakdown };
 };
