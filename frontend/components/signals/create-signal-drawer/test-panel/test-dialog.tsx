@@ -62,9 +62,7 @@ export default function TestDialog({
         <div className="flex items-start justify-between gap-4 px-4 pt-4 pb-2">
           <DialogHeader>
             <DialogTitle>Test signal</DialogTitle>
-            <DialogDescription>
-              Pick a trace and run the current definition against it. Nothing is saved.
-            </DialogDescription>
+            <DialogDescription>Pick a trace to test this signal on. Nothing is saved.</DialogDescription>
           </DialogHeader>
           <DialogClose asChild>
             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 -mr-1 shrink-0" aria-label="Close">
