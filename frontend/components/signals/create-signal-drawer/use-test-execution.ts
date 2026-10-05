@@ -21,9 +21,16 @@ export default function useTestExecution({
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<SignalTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // The trace the shown result belongs to; the picker can move on while it is displayed.
-  const [testedTrace, setTestedTrace] = useState<TraceRow | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Drops the in-flight run and its output, e.g. when another trace gets selected.
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsExecuting(false);
+    setResult(null);
+    setError(null);
+  }, []);
 
   const execute = useCallback(async () => {
     const prompt = getValues("prompt");
@@ -41,7 +48,6 @@ export default function useTestExecution({
     setIsExecuting(true);
     setResult(null);
     setError(null);
-    setTestedTrace(selectedTrace);
 
     try {
       const executeRes = await fetch(`/api/projects/${projectId}/signals/execute`, {
@@ -81,5 +87,5 @@ export default function useTestExecution({
     }
   }, [getValues, projectId, selectedTrace, onComplete]);
 
-  return { isExecuting, result, error, testedTrace, execute };
+  return { isExecuting, result, error, execute, reset };
 }

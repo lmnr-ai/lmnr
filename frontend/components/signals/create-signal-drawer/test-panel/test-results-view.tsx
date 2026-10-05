@@ -143,10 +143,7 @@ export default function TestResultsView({
         </>
       )}
       {result.result === "noEvent" && (
-        <div>
-          <StatusLine icon={<CircleSlash className="size-4 text-muted-foreground" />} label="No event identified" />
-          <p className="mt-1 text-xs text-muted-foreground">The signal did not match this trace.</p>
-        </div>
+        <StatusLine icon={<CircleSlash className="size-4 text-muted-foreground" />} label="No event identified" />
       )}
       {result.result === "failed" && (
         <div>
