@@ -27,7 +27,7 @@ export default function WelcomeEmail() {
           </table>
           <Section className="welcome-card" style={card}>
             <Text style={intro}>
-              I{"'"}m Robert, CEO of Laminar. Stoked to have you join our community!
+              Hey there, it{"'"}s Robert from Laminar. Excited for you to try it out!
               <br />
               <br />
               Laminar is an open-source observability platform purpose-built for AI agents.
@@ -43,7 +43,7 @@ export default function WelcomeEmail() {
                     <Link style={link} href="https://laminar.sh/docs/tracing/introduction" target="_blank">
                       Trace your agents
                     </Link>
-                    {" — capture every LLM call and tool invocation. Get started now with a "}
+                    {" — capture every LLM call and tool invocation. Set up tracing for your agent with a "}
                     <Link style={link} href={GET_STARTED_URL} target="_blank">
                       single prompt
                     </Link>

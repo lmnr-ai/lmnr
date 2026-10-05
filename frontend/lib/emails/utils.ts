@@ -40,7 +40,7 @@ interface InvoiceEmailArgs {
 }
 
 export async function sendWelcomeEmail(email: string) {
-  const from = "Robert from Laminar <welcome@lmnr.ai>";
+  const from = "Robert from Laminar <robert@mail.lmnr.ai>";
   const subject = "Welcome to Laminar!";
 
   const { data, error } = await RESEND.emails.send({
@@ -97,7 +97,7 @@ export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
-  const from = "Robert from Laminar <welcome@lmnr.ai>";
+  const from = "Robert from Laminar <robert@mail.lmnr.ai>";
   const subject = `You are invited to join ${workspaceName} on Laminar`;
 
   const { data, error } = await RESEND.emails.send({
