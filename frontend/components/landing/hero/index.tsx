@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+import AnnouncementBanner from "../announcement-banner";
 import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
 import CopySetupButton from "./copy-setup-button";
@@ -21,6 +22,7 @@ interface Props {
 // CTA row sits below at gap-32. Logo strip is a 4-col grid below.
 const Hero = ({ className, hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full z-10", className)}>
+    <AnnouncementBanner />
     <Header hasSession={hasSession} className={cn("w-full pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)} isIncludePadding />
 
     <div className="flex w-full shrink-0 flex-col items-center justify-start gap-[80px] px-3 pt-[100px] pb-2 sm:px-6 lg:px-0">
