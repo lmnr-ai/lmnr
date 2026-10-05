@@ -19,7 +19,7 @@ import LlmProfileSection from "./llm-profile-section";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
-import TestSection from "./test-section";
+import TestButton from "./test-button";
 import TriggersSection from "./triggers-section";
 import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 
@@ -165,12 +165,13 @@ export default function SignalFormFields({
       <SamplingSection />
 
       {variant === "panel" && !showTemplates && (
-        <TestSection>
+        <div className="flex items-center justify-end gap-2">
+          <TestButton />
           <Button className="w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
             <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
             Save
           </Button>
-        </TestSection>
+        </div>
       )}
     </div>
   );

@@ -81,13 +81,5 @@ export default function useTestExecution({
     }
   }, [getValues, projectId, selectedTrace, onComplete]);
 
-  const clear = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setIsExecuting(false);
-    setResult(null);
-    setError(null);
-  }, []);
-
-  return { isExecuting, result, error, testedTrace, execute, clear };
+  return { isExecuting, result, error, testedTrace, execute };
 }
