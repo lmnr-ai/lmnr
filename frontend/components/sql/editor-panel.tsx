@@ -3,8 +3,9 @@
 import ChartBuilder from "components/chart-builder";
 import { AlertCircle, ChartArea, FileJson2, Loader2, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useDefaultLayout } from "react-resizable-panels";
 
 import { isParameterUnset } from "@/components/sql/parameters";
 import ParametersBar from "@/components/sql/parameters-bar";
@@ -13,11 +14,13 @@ import ResultsTable from "@/components/sql/results-table";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import TemplateEditor from "@/components/sql/template-editor";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
+
+const emptySubscribe = () => () => {};
 
 export default function EditorPanel() {
   const { projectId } = useParams();
@@ -32,7 +35,7 @@ export default function EditorPanel() {
   const [error, setError] = useState<string | null>(null);
   // Set by a placeholder click, or by a run blocked on a missing value; opens that chip's input.
   const [focusedParameter, setFocusedParameter] = useState<string | null>(null);
-  // Set only when the editor opened it, so Escape drops the caret back where the click landed.
+  // Set only when the editor opened it, so closing drops the caret back where the click landed.
   const returnEditorFocusRef = useRef<(() => void) | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
@@ -46,6 +49,18 @@ export default function EditorPanel() {
       onChange: state.setParameterValue,
       flushQuerySave: state.flushQuerySave,
     }));
+
+  // One split for every query: the editor/results ratio is a workspace preference, not per query.
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "sql-editor-layout",
+    storage: browserLayoutStorage,
+  });
+  // The group reads `defaultLayout` once, on mount, and the server has no stored layout to render with.
+  const isClient = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   const hasResults = results !== null && results.length > 0;
 
@@ -223,10 +238,19 @@ export default function EditorPanel() {
     </div>
   );
 
+  if (!isClient) {
+    return <ElevatedSurface className="h-full w-full rounded-xl border" />;
+  }
+
   return (
     <ElevatedSurface className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border">
-      <ResizablePanelGroup id="sql-editor-panels" orientation="vertical">
-        <ResizablePanel className="flex min-h-0 flex-col" defaultSize={40} minSize={20}>
+      <ResizablePanelGroup
+        id="sql-editor-panels"
+        orientation="vertical"
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}
+      >
+        <ResizablePanel id="sql-editor-query" className="flex min-h-0 min-w-0 flex-col" defaultSize={40} minSize={20}>
           <TemplateEditor
             onRevealParameter={revealParameter}
             actions={
@@ -242,7 +266,7 @@ export default function EditorPanel() {
           />
         </ResizablePanel>
         <ResizableHandle className="z-30" withHandle />
-        <ResizablePanel className="flex min-h-0 flex-col" defaultSize={60} minSize={20}>
+        <ResizablePanel id="sql-editor-results" className="flex min-h-0 min-w-0 flex-col" defaultSize={60} minSize={20}>
           <Tabs className="flex h-full min-h-0 flex-col gap-0" defaultValue="table">
             {/* Not flex-wrap: line breaking uses unshrunk sizes, so it would bump the whole chip group
                 to a second line instead of letting it narrow and wrap its own chips. */}

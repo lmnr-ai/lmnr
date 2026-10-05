@@ -976,38 +976,12 @@ const signatureHelpStyles = {
   },
 };
 
-// A pill so `{start_time:DateTime64}` reads as a knob, amber when nothing has filled it in. The
-// pointer cursor is the only clickability hint, so the extension must stay scoped to editors that
-// have a value input to open.
-const parameterStyles = {
-  ".cm-content .cm-sql-parameter": {
-    color: "hsl(var(--primary))",
-    background: "hsl(var(--primary) / 0.12)",
-    borderRadius: "3px",
-    padding: "1px 0",
-    boxShadow: "0 0 0 1px hsl(var(--primary) / 0.25)",
-    cursor: "pointer",
-  },
-  ".cm-content .cm-sql-parameter:hover": {
-    background: "hsl(var(--primary) / 0.2)",
-    boxShadow: "0 0 0 1px hsl(var(--primary) / 0.45)",
-  },
-  ".cm-content .cm-sql-parameter-unset": {
-    color: "#E2B341",
-    background: "#E2B34120",
-    boxShadow: "0 0 0 1px #E2B34166",
-    textDecoration: "underline wavy #E2B34199",
-    textUnderlineOffset: "3px",
-  },
-};
-
 // Combined editor theme
 export const editorTheme = EditorView.theme({
   ...editorBaseStyles,
   ...syntaxHighlightStyles,
   ...autocompleteStyles,
   ...signatureHelpStyles,
-  ...parameterStyles,
 });
 
 // CodeMirror extension bundle for the SQL editor, optionally scoped by `config`.

@@ -6,6 +6,14 @@ import * as ResizablePrimitive from "react-resizable-panels";
 
 import { cn } from "@/lib/utils";
 
+// `useDefaultLayout` defaults to the `localStorage` global, which is not there during SSR.
+const browserLayoutStorage: ResizablePrimitive.LayoutStorage = {
+  getItem: (key) => (typeof window === "undefined" ? null : localStorage.getItem(key)),
+  setItem: (key, value) => {
+    if (typeof window !== "undefined") localStorage.setItem(key, value);
+  },
+};
+
 function ResizablePanelGroup({ className, ...props }: React.ComponentProps<typeof ResizablePrimitive.Group>) {
   return (
     <ResizablePrimitive.Group
@@ -73,4 +81,4 @@ function ResizableHandle({
   );
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup };
+export { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup };

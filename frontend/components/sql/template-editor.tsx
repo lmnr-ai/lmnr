@@ -2,8 +2,9 @@
 
 import { Plus, SquareTerminal } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 
+import { parameterHighlight, type RevealParameter } from "@/components/sql/parameter-highlight";
 import SaveStatusIndicator from "@/components/sql/save-status-indicator";
 import SQLEditor from "@/components/sql/sql-editor";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
@@ -14,24 +15,23 @@ import { ElevatedSurface } from "@/components/ui/surface";
 interface TemplateEditorProps {
   /** Run / export controls, rendered in the editor header next to the query name. */
   actions?: ReactNode;
-  /** Opens a parameter's value input from a placeholder in the query. */
-  onRevealParameter?: (name: string, returnFocus: () => void) => void;
+  /** Opens a parameter's value input from a placeholder in the query. Must be referentially stable. */
+  onRevealParameter: RevealParameter;
 }
 
 const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => {
   const { projectId } = useParams();
   const createTemplate = useCreateTemplate();
 
-  const { template, saveStatus, setQuery, flushQuerySave, parameters, parameterConflicts } = useSqlEditorStore(
-    (state) => ({
-      template: state.currentTemplate,
-      saveStatus: state.saveStatus,
-      setQuery: state.setQuery,
-      flushQuerySave: state.flushQuerySave,
-      parameters: state.parameters,
-      parameterConflicts: state.parameterConflicts,
-    })
-  );
+  const { template, saveStatus, setQuery, flushQuerySave } = useSqlEditorStore((state) => ({
+    template: state.currentTemplate,
+    saveStatus: state.saveStatus,
+    setQuery: state.setQuery,
+    flushQuerySave: state.flushQuerySave,
+  }));
+
+  // A new array identity reconfigures every CodeMirror extension, so this must not change per render.
+  const editorExtensions = useMemo(() => parameterHighlight(onRevealParameter), [onRevealParameter]);
 
   const handleQueryChange = useCallback((query: string) => setQuery(projectId as string, query), [projectId, setQuery]);
 
@@ -73,9 +73,7 @@ const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => 
             autoFocus
             projectId={projectId as string}
             aiButtonVariant="full"
-            parameters={parameters}
-            parameterConflicts={parameterConflicts}
-            onRevealParameter={onRevealParameter}
+            extraExtensions={editorExtensions}
           />
         </div>
       ) : (

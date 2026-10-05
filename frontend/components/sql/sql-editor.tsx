@@ -1,14 +1,11 @@
 "use client";
 
 import { type Extension } from "@codemirror/state";
-import { type EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { motion } from "framer-motion";
 import { Loader2, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
-import { parameterHints, setParameterHints } from "@/components/sql/parameter-hints";
-import { type SQLParameter } from "@/components/sql/parameters";
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,15 +28,6 @@ export interface SQLEditorProps {
   aiButtonVariant?: "icon" | "full";
   /** Extra CodeMirror extensions appended per-usage (e.g. scroll margins). */
   extraExtensions?: Extension[];
-  /**
-   * Bound `{name:Type}` placeholders, which turn on the parameter decorations. Omit where there is no
-   * parameter surface, or every placeholder reads as unset and clicking one does nothing.
-   */
-  parameters?: SQLParameter[];
-  /** Names declared under more than one type. */
-  parameterConflicts?: Record<string, string[]>;
-  /** Called on a placeholder click; `returnFocus` restores the caret when the input closes. */
-  onRevealParameter?: (name: string, returnFocus: () => void) => void;
 }
 
 export default function SQLEditor({
@@ -55,30 +43,16 @@ export default function SQLEditor({
   projectId,
   aiButtonVariant = "icon",
   extraExtensions,
-  parameters,
-  parameterConflicts,
-  onRevealParameter,
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [view, setView] = useState<EditorView | null>(null);
-
-  const showParameterHints = parameters !== undefined;
 
   const extensions = useMemo(
-    () => [...createExtensions(schema), ...(showParameterHints ? [parameterHints] : []), ...(extraExtensions ?? [])],
-    [schema, extraExtensions, showParameterHints]
+    () => [...createExtensions(schema), ...(extraExtensions ?? [])],
+    [schema, extraExtensions]
   );
-
-  // A transaction, not a new extension array — reconfiguring per keystroke would rebuild autocomplete too.
-  useEffect(() => {
-    if (!view || !parameters) return;
-    view.dispatch({
-      effects: setParameterHints.of({ parameters, conflicts: parameterConflicts ?? {}, onReveal: onRevealParameter }),
-    });
-  }, [view, parameters, parameterConflicts, onRevealParameter]);
 
   const handleAiGenerate = useCallback(async () => {
     const prompt = aiPrompt.trim();
@@ -142,7 +116,6 @@ export default function SQLEditor({
         autoFocus={autoFocus}
         value={value}
         onChange={onChange}
-        onCreateEditor={setView}
       />
 
       {projectId && editable && (
