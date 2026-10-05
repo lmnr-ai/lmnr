@@ -57,7 +57,7 @@ export default function TestSection() {
   const prompt = watch("prompt");
   const hasValidFields = schemaFields?.some((f) => f.name.trim());
 
-  const { isExecuting, testOutput, execute, clear } = useTestExecution({
+  const { isExecuting, result, error, testedTrace, execute, clear } = useTestExecution({
     getValues,
     projectId: String(projectId),
     selectedTrace,
@@ -139,7 +139,7 @@ export default function TestSection() {
         </Button>
       </div>
 
-      {(isExecuting || testOutput) && (
+      {(isExecuting || result || error) && (
         <div className="mt-2 rounded-md border overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b bg-secondary/30">
             <span className="text-xs font-medium text-secondary-foreground">Test result</span>
@@ -156,7 +156,13 @@ export default function TestSection() {
             </Button>
           </div>
           <div className="flex flex-col max-h-96 overflow-hidden">
-            <TestResultsView output={testOutput} isExecuting={isExecuting} schemaFields={schemaFields ?? []} />
+            <TestResultsView
+              result={result}
+              trace={testedTrace}
+              error={error}
+              isExecuting={isExecuting}
+              schemaFields={schemaFields ?? []}
+            />
           </div>
         </div>
       )}

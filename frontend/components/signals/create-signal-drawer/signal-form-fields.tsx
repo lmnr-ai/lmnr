@@ -19,6 +19,7 @@ import LlmProfileSection from "./llm-profile-section";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
+import TestSection from "./test-section";
 import TriggersSection from "./triggers-section";
 import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 
@@ -162,8 +163,7 @@ export default function SignalFormFields({
       <SchemaFieldsBuilder />
       <TriggersSection />
       <SamplingSection />
-      {/*  Temporarily hide test section */}
-      {/*<TestSection />*/}
+      <TestSection />
 
       {variant === "panel" && !showTemplates && (
         <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>

@@ -29,6 +29,14 @@
 - **The "Failure Detector" built-in is defined in TWO files that must stay in sync**: `frontend/lib/db/default-signals.ts` (`DEFAULT_SIGNAL`, seeded on workspace/project creation via `lib/actions/workspaces/index.ts` and `instrumentation.ts` — both go through `createSignal` so the seed gets its trigger row, v1 and alerts in one transaction) and `frontend/components/signals/prompts.ts` (the create-drawer template picker). Nothing enforces the sync — both carry a sync comment; edit both or the seeded signal and the template silently diverge. The seed stores `structuredOutputSchema` as an object, the template as a `JSON.stringify`'d string.
 - **Template schemas are frontend data only** — no code reads individual schema properties. Consumers either spread the whole object (`...DEFAULT_SIGNAL`) or hand the parsed schema to `jsonSchemaToSchemaFields` (`components/signals/utils.ts`), so adding/removing a property needs no migration and no backend change. Existing projects keep their stored prompt/schema; only new seeds and fresh template applications pick up an edit.
 
+## Signal test button (create/edit drawer, LAM-2308)
+
+- **Flow:** `test-section.tsx` → Next `POST /api/projects/{id}/signals/execute` (gated by `checkSignalRunsLimit`, like backfill jobs) → `lib/actions/signals/execute.ts` → app-server `POST /api/v1/projects/{id}/signal-test`. That endpoint exists only in `lmnr-private` (`signals/private/routes.rs::test_signal`, `--features signals`); on OSS builds the button gets a 404. The action always sends the INLINE definition (`signalPrompt` + `structuredOutputSchema`, never `signalId`) so unsaved form edits are what gets tested. The UI is shared byte-for-byte between both repos, so edit it in `lmnr`.
+- **Response** is `TestSignalRunResult`: flattened `result` tag (`event` with `finding {attributes, summaries, severity}` / `noEvent` / `failed` with `error`) plus `stats`, `config`, `regexMisses`. A 500 is a PLAIN-TEXT body ("Signal test failed: …"); 400/404/503 are JSON `{error}` — parse both.
+- **Span refs come back RAW.** Stored events have `<span id='abc123' name='…' />` rewritten to markdown links by `replace_span_tags_with_links` (`response_processor.rs`); the test result skips that, and `Markdown` silently drops the XML tags (renders "( ; )"). The test panel renders strings through `renderSpanReferences` and resolves the 6-hex suffix against the trace's spans (`test-panel/use-test-span-refs.ts`).
+- **Not metered:** the backend skips the usage check and does not record test-run LLM cost; the Next-route limit check is the only gate.
+- **Local repro:** `lmnr-private` app-server with `--features signals` and a working LLM key. OpenAI gpt-5.6 models need `LLM_PROVIDER=openai_responses` — plain `openai` (chat completions) rejects tools + `reasoning_effort`.
+
 ## Signal Triggers
 
 - Trigger/filter evaluation is **enterprise-only** (`lmnr-private` `signals/private/evaluate.rs`).
