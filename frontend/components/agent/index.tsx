@@ -41,7 +41,7 @@ export function TraceAgentContext(_props: { traceId: string }) {
   return null;
 }
 
-export function AgentHeaderToggle() {
+export function AgentBottomBar() {
   return null;
 }
 
