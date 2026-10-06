@@ -144,6 +144,26 @@ export function ModelCostDialog({
     controlledOnOpenChange?.(next);
   };
 
+  // Seed the fields from the prefill on every close→open transition, keyed off
+  // `open` rather than `onOpenChange`. Radix only calls `onOpenChange` for its
+  // own interactions (trigger, Esc, outside click), NOT when a controlled
+  // `open` prop flips — so a caller that opens us programmatically would
+  // otherwise show whatever the fields held at mount. That matters for the
+  // trace-view cost shields, whose `UnpricedModelWarning` instances are reused
+  // across spans by the virtualized tree/transcript rows: the prefill changes
+  // under a still-mounted dialog, and a stale prefill would save a price for
+  // the wrong model.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setProvider(initialProvider ?? "");
+      setModel(initialModel ?? "");
+      setCostValues(mode === "edit" && initialCosts ? toPerMillion(initialCosts) : emptyFields());
+      setValidationError(undefined);
+    }
+  }
+
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -172,14 +192,6 @@ export function ModelCostDialog({
       setIsSaving(false);
     }
     if (!ok) return;
-    if (mode === "add") {
-      // Re-seed from the prefill (matches the onOpenChange close branch) so a
-      // controlled reopen — which skips onOpenChange — keeps the model field.
-      setProvider(initialProvider ?? "");
-      setModel(initialModel ?? "");
-      setCostValues(emptyFields());
-    }
-    setValidationError(undefined);
     setOpen(false);
   };
 
@@ -189,25 +201,7 @@ export function ModelCostDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => {
-        setOpen(isOpen);
-        if (isOpen) {
-          setProvider(initialProvider ?? "");
-          setModel(initialModel ?? "");
-          setCostValues(mode === "edit" && initialCosts ? toPerMillion(initialCosts) : emptyFields());
-          setValidationError(undefined);
-        } else {
-          if (mode === "add") {
-            setProvider(initialProvider ?? "");
-            setModel(initialModel ?? "");
-            setCostValues(emptyFields());
-          }
-          setValidationError(undefined);
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col">
         <DialogHeader>
