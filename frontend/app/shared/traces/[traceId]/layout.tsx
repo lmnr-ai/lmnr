@@ -28,7 +28,7 @@ export default async function SharedTraceLayout({
     <div className="fixed inset-0 flex flex-col overflow-hidden">
       <AnnouncementBanner />
       <div className="flex-none border-b">
-        <LandingHeader hasSession={session !== null} className="w-full px-4 py-4 md:px-6" />
+        <LandingHeader hasSession={session !== null} isShowMobileNav className="w-full px-4 py-4 md:px-6" />
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>
     </div>
