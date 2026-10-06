@@ -252,6 +252,9 @@ impl LaminarMcpServer {
         }
     }
 
+    /// Ask the Laminar agent a natural-language question about this project's traces, e.g. why a
+    /// run failed or which spans were slowest. Pass the returned `conversationId` to continue the
+    /// same conversation. Prefer query_laminar_sql for exact counts and aggregates.
     #[tool(name = "ask_agent")]
     async fn ask_agent(
         &self,
@@ -441,10 +444,9 @@ impl LaminarMcpServer {
         _project_id: Uuid,
         _trace_id: Uuid,
     ) -> anyhow::Result<String> {
-        Ok(
-            "get_trace_context is unavailable in this build (signals feature disabled)."
-                .to_string(),
-        )
+        // An Err, not an Ok: callers map it to `isError: true`, so an MCP client does not read
+        // the stub's text as a successful (empty) trace.
+        anyhow::bail!("get_trace_context is unavailable in this build (signals feature disabled).")
     }
 
     async fn run_agent_for_mcp(
@@ -453,10 +455,7 @@ impl LaminarMcpServer {
         _prompt: String,
         _conversation_id: Option<String>,
     ) -> anyhow::Result<(String, String)> {
-        Ok((
-            "ask_agent is unavailable in this build (signals feature disabled).".to_string(),
-            String::new(),
-        ))
+        anyhow::bail!("ask_agent is unavailable in this build (signals feature disabled).")
     }
 }
 
