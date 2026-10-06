@@ -25,13 +25,13 @@ export const metadata: Metadata = {
 export default async function LandingPage() {
   const session = await getServerSession();
 
-  if (!isFeatureEnabled(Feature.LANDING)) {
-    if (!session) {
-      redirect("/sign-in");
-    } else {
-      redirect("/projects");
-    }
-  }
+  // if (!isFeatureEnabled(Feature.LANDING)) {
+  //   if (!session) {
+  //     redirect("/sign-in");
+  //   } else {
+  //     redirect("/projects");
+  //   }
+  // }
 
   if (session) {
     redirect("/projects");
