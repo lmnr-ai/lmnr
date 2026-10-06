@@ -7,6 +7,13 @@ const HOUR_MS = 60 * 60 * 1000;
 
 export const DATA_COLOR = "hsl(var(--chart-1))";
 export const SIGNALS_COLOR = "hsl(var(--chart-2))";
+export const COMPRESSED_OPACITY = 0.3;
+export const COMPRESSED_LABEL = "Compressed";
+const COMPRESSION_BLOG_URL = "https://laminar.sh/blog/laminar-20x-agent-trace-compression";
+export const COMPRESSION_NOTE = {
+  text: "Agents resend their message history on every LLM call. Laminar stores it only once.",
+  href: COMPRESSION_BLOG_URL,
+};
 
 export const formatGB = (gb: number) => {
   if (!isFinite(gb)) return "Unlimited";
@@ -57,10 +64,16 @@ export interface MeterModel {
   credit?: SignalCredit | null;
 }
 
+export interface Compression {
+  gb: number;
+  fraction: number;
+}
+
 export interface UsageModel {
   tier: Tier | null;
   cycle: BillingCycle;
   data: MeterModel; // GB
+  compression: Compression | null;
   signals: MeterModel; // USD
   bill: BillEstimate | null;
 }
@@ -88,10 +101,17 @@ export const buildUsageModel = (stats: WorkspaceStats | null, breakdown: UsageBr
     billableSignalCostMicroUsd: stats?.signalCostOverLimit ?? 0,
   });
 
+  let compression: Compression | null = null;
+  if (breakdown) {
+    const compressedGB = breakdown.days.reduce((sum, d) => sum + d.compressedBytes, 0) / GB_IN_BYTES;
+    compression = { gb: compressedGB, fraction: compressedGB > 0 ? compressedGB / (gbUsed + compressedGB) : 0 };
+  }
+
   return {
     tier,
     cycle,
     bill,
+    compression,
     data: {
       used: gbUsed,
       included: gbIncluded,

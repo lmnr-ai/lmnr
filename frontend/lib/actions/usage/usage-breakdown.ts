@@ -22,6 +22,11 @@ interface BytesRow {
   bytes: string | number;
 }
 
+interface CompressedRow {
+  date: string;
+  compressedBytes: string | number;
+}
+
 interface SignalRow {
   date: string;
   runs: string | number;
@@ -55,22 +60,32 @@ export async function getUsageBreakdown(input: z.infer<typeof GetUsageBreakdownS
   });
   const projectIds = projectRows.map((p) => p.id);
 
-  const [bytesRows, signalRows] =
+  const [bytesRows, signalRows, compressedRows] =
     projectIds.length === 0
-      ? [[], []]
-      : await Promise.all([queryDailyBytes(projectIds, cycleStartStr), queryDailySignals(projectIds, cycleStartStr)]);
+      ? [[], [], []]
+      : await Promise.all([
+          queryDailyBytes(projectIds, cycleStartStr),
+          queryDailySignals(projectIds, cycleStartStr),
+          queryDailyCompressedBytes(projectIds, cycleStartStr),
+        ]);
 
   const byDate = new Map<string, UsageDay>();
   const today = new Date().toISOString().slice(0, 10);
   for (let t = Date.parse(`${cycleStart.toISOString().slice(0, 10)}T00:00:00Z`); ; t += DAY_MS) {
     const date = new Date(t).toISOString().slice(0, 10);
-    byDate.set(date, { date, bytes: 0, signalCostMicroUsd: 0, signalRuns: 0 });
+    byDate.set(date, { date, bytes: 0, compressedBytes: 0, signalCostMicroUsd: 0, signalRuns: 0 });
     if (date >= today) break;
   }
 
   for (const row of bytesRows) {
     const day = byDate.get(row.date);
     if (day) day.bytes += Number(row.bytes);
+  }
+
+  for (const row of compressedRows) {
+    const day = byDate.get(row.date);
+    // Tiny messages can net negative: a 32B hash outweighs the message it replaces.
+    if (day) day.compressedBytes = Math.max(Number(row.compressedBytes), 0);
   }
 
   let signalRuns = 0;
@@ -114,6 +129,29 @@ async function queryDailyBytes(projectIds: string[], cycleStart: string): Promis
     query_params: { projectIds, cycleStart },
   });
   return result.json<BytesRow>();
+}
+
+// Separate from `queryDailyBytes`: `original_size_bytes` is not in the `spans_no_io_by_start_time`
+// projection. Supplementary, so a failure must not take the charts down.
+async function queryDailyCompressedBytes(projectIds: string[], cycleStart: string): Promise<CompressedRow[]> {
+  try {
+    const result = await clickhouseClient.query({
+      query: `SELECT
+        toString(toDate(start_time, 'UTC')) AS date,
+        SUM(toInt64(original_size_bytes) - toInt64(size_bytes)) AS compressedBytes
+      FROM spans
+      WHERE project_id IN { projectIds: Array(UUID) }
+      AND start_time >= { cycleStart: DateTime(3, "UTC") }
+      AND original_size_bytes > 0 -- rows written before the column existed read back 0
+      GROUP BY date`,
+      format: "JSONEachRow",
+      query_params: { projectIds, cycleStart },
+    });
+    return await result.json<CompressedRow>();
+  } catch (error) {
+    console.error("Error reading compressed bytes from ClickHouse:", error);
+    return [];
+  }
 }
 
 async function queryDailySignals(projectIds: string[], cycleStart: string): Promise<SignalRow[]> {

@@ -51,15 +51,19 @@ export interface DailyPoint {
   date: string;
   value: number | null;
   total: number | null;
+  compressed?: number | null;
 }
 
 // Padded to cycle end so the x-axis always spans the whole cycle.
-export const buildDailySeries = (days: { date: string; value: number }[], cycle: BillingCycle): DailyPoint[] => {
+export const buildDailySeries = (
+  days: { date: string; value: number; compressed?: number }[],
+  cycle: BillingCycle
+): DailyPoint[] => {
   const points: DailyPoint[] = [];
   let running = 0;
   for (const d of days) {
     running += d.value;
-    points.push({ date: d.date, value: d.value, total: running });
+    points.push({ date: d.date, value: d.value, total: running, compressed: d.compressed });
   }
 
   const lastDate = days.length > 0 ? Date.parse(`${days[days.length - 1].date}T00:00:00Z`) : cycle.start.getTime();
