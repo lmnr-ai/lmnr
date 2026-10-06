@@ -7,7 +7,9 @@ import { users } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { parseUserPreferences } from "@/lib/user-preferences";
 
+import { normalizeStrapiUploadUrls } from "./normalize";
 import { type Announcement, isSupportedAnnouncementLink } from "./types";
+
 const STRAPI_URL = process.env.STRAPI_URL ?? (process.env.NODE_ENV === "production" ? null : "http://localhost:1337");
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
 
@@ -35,13 +37,6 @@ const StrapiAnnouncementSchema = z.object({
 const StrapiAnnouncementResponseSchema = z.object({
   data: z.array(StrapiAnnouncementSchema),
 });
-
-// Strapi stores absolute upload URLs pointing at the CMS host, which is not
-// necessarily browser-reachable; the `/uploads/` proxy in `proxy.ts` is. Applied
-// to markdown bodies too, so inline images are rewritten as well. The host class
-// must exclude whitespace, not just `/` — a bare `[^/]+` spans newlines and eats
-// everything between an unrelated link and the next `/uploads/`.
-const normalizeUploadUrls = (text: string) => text.replaceAll(/https?:\/\/[^/\s]+\/uploads\//g, "/uploads/");
 
 /**
  * `null` means Strapi was unreachable or returned an unusable payload. Callers
@@ -77,9 +72,9 @@ const fetchAnnouncements = async (): Promise<Announcement[] | null> => {
       id: announcement.documentId,
       title: announcement.title,
       description: announcement.description,
-      card_image_src: announcement.card_image ? normalizeUploadUrls(announcement.card_image) : undefined,
-      details_image_src: announcement.details_image ? normalizeUploadUrls(announcement.details_image) : undefined,
-      long_description: announcement.content ? normalizeUploadUrls(announcement.content) : undefined,
+      card_image_src: announcement.card_image ? normalizeStrapiUploadUrls(announcement.card_image) : undefined,
+      details_image_src: announcement.details_image ? normalizeStrapiUploadUrls(announcement.details_image) : undefined,
+      long_description: announcement.content ? normalizeStrapiUploadUrls(announcement.content) : undefined,
       cta_text: announcement.cta_text ?? undefined,
       cta_link: announcement.cta_link ?? undefined,
       created_at: announcement.createdAt,

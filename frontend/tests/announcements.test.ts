@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { normalizeStrapiUploadUrls } from "@/lib/announcements/normalize";
 import {
   type Announcement,
   getAnnouncementCtaHref,
@@ -40,6 +41,18 @@ describe("getVisibleAnnouncements", () => {
       announcements.map(({ id }) => id),
       ["older", "newer", "expired"]
     );
+  });
+});
+
+describe("normalizeStrapiUploadUrls", () => {
+  it("proxies absolute Strapi images embedded in Markdown", () => {
+    const markdown = "Before\n\n![Screenshot](https://cms.example.com/uploads/screenshot.png)\n\nAfter";
+    assert.equal(normalizeStrapiUploadUrls(markdown), "Before\n\n![Screenshot](/uploads/screenshot.png)\n\nAfter");
+  });
+
+  it("does not consume Markdown between unrelated links and uploads", () => {
+    const markdown = "[Docs](https://example.com/docs)\n\nHeading\n\n![Image](/uploads/image.png)";
+    assert.equal(normalizeStrapiUploadUrls(markdown), markdown);
   });
 });
 
