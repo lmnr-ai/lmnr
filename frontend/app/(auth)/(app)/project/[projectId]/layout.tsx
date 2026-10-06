@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { type ReactNode } from "react";
 
 import LaminarAgent, { RouteAgentContext } from "@/components/agent";
+import AnnouncementDetailsDialog from "@/components/announcements/details-dialog";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
@@ -53,6 +54,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       <SessionSyncProvider>
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
+          {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
+          {announcementsEnabled && <AnnouncementDetailsDialog />}
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar

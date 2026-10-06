@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { useAnnouncementsStore } from "@/components/announcements/store";
 import { normalizeStrapiUploadUrls } from "@/lib/announcements/normalize";
 import {
   type Announcement,
@@ -53,6 +54,34 @@ describe("normalizeStrapiUploadUrls", () => {
   it("does not consume Markdown between unrelated links and uploads", () => {
     const markdown = "[Docs](https://example.com/docs)\n\nHeading\n\n![Image](/uploads/image.png)";
     assert.equal(normalizeStrapiUploadUrls(markdown), markdown);
+  });
+});
+
+describe("session dismissals", () => {
+  const now = new Date("2026-04-15T12:00:00.000Z");
+  const announcements = [announcement("one", "2026-04-10T00:00:00.000Z", "2026-05-01T00:00:00.000Z")];
+  // The sidebar card unmounts on collapse, so a remount re-derives visibility
+  // from the store plus the server list it was rendered with — which is still
+  // the pre-dismissal payload until the next full layout render.
+  const visibleAfterRemount = (serverDismissedIds: string[]) =>
+    getVisibleAnnouncements(
+      announcements,
+      new Set([...serverDismissedIds, ...useAnnouncementsStore.getState().dismissedIds]),
+      now
+    ).map(({ id }) => id);
+
+  it("keeps a dismissed card hidden across a remount with a stale server list", () => {
+    useAnnouncementsStore.getState().dismiss("one");
+    assert.deepStrictEqual(visibleAfterRemount([]), []);
+  });
+
+  it("brings the card back when persistence fails", () => {
+    useAnnouncementsStore.getState().undoDismiss("one");
+    assert.deepStrictEqual(visibleAfterRemount([]), ["one"]);
+  });
+
+  it("still honours ids the server reports as dismissed", () => {
+    assert.deepStrictEqual(visibleAfterRemount(["one"]), []);
   });
 });
 

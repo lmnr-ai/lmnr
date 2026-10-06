@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  type Announcement,
   getAnnouncementCtaHref,
   isInternalAnnouncementLink,
   isSupportedAnnouncementLink,
@@ -17,21 +16,22 @@ import {
 import { cn } from "@/lib/utils";
 
 import AnnouncementMarkdown from "./announcement-markdown";
+import { useAnnouncementsStore } from "./store";
 
-interface AnnouncementDetailsDialogProps {
-  announcement: Announcement | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-const AnnouncementDetailsDialog = ({ announcement, open, onOpenChange }: AnnouncementDetailsDialogProps) => {
+// Mounted by the project layout rather than by the sidebar card: the card's
+// subtree unmounts when the sidebar collapses, which would tear down an open
+// dialog with it.
+const AnnouncementDetailsDialog = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const announcement = useAnnouncementsStore((state) => state.detailsAnnouncement);
+  const setDetailsAnnouncement = useAnnouncementsStore((state) => state.setDetailsAnnouncement);
+  const close = () => setDetailsAnnouncement(null);
   const ctaLink = announcement?.cta_link;
   const hasCta = Boolean(announcement?.cta_text && ctaLink && isSupportedAnnouncementLink(ctaLink));
   const ctaHref = ctaLink ? getAnnouncementCtaHref(ctaLink, projectId) : undefined;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={announcement !== null} onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-[640px] gap-0 overflow-hidden p-0">
         {announcement && (
           <>
@@ -72,11 +72,11 @@ const AnnouncementDetailsDialog = ({ announcement, open, onOpenChange }: Announc
                 className="absolute bottom-7 left-1/2 z-10 h-10 -translate-x-1/2 rounded-full border-0 bg-primary-400 px-[26px] text-sm font-normal text-white hover:bg-primary-500"
               >
                 {isInternalAnnouncementLink(ctaLink) ? (
-                  <Link href={ctaHref} onClick={() => onOpenChange(false)}>
+                  <Link href={ctaHref} onClick={close}>
                     {announcement.cta_text}
                   </Link>
                 ) : (
-                  <a href={ctaHref} target="_blank" rel="noreferrer" onClick={() => onOpenChange(false)}>
+                  <a href={ctaHref} target="_blank" rel="noreferrer" onClick={close}>
                     {announcement.cta_text}
                   </a>
                 )}
