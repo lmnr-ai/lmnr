@@ -1,5 +1,6 @@
 "use client";
 
+import { sumBy } from "lodash";
 import { useMemo } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +28,7 @@ interface UsageMeterCardProps {
 export default function UsageMeterCard(props: UsageMeterCardProps) {
   const { title, meter, days, cycle, color, format, formatTick, stats } = props;
   const { used, included, credit } = meter;
-  const hasCompressed = !!days?.some((d) => (d.compressed ?? 0) > 0);
+  const hasCompressed = sumBy(days, "compressed") > 0;
   const series = useMemo(() => (days ? buildDailySeries(days, cycle) : null), [days, cycle]);
 
   return (

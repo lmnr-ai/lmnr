@@ -1,3 +1,5 @@
+import { sumBy } from "lodash";
+
 import { type UsageBreakdown, type WorkspaceStats } from "@/lib/actions/usage/types";
 import { normalizeTier, type Tier, TIERS } from "@/lib/billing/tiers";
 import { type BillEstimate, billingCycle, type BillingCycle, estimateBill } from "@/lib/billing/usage-estimate";
@@ -103,7 +105,7 @@ export const buildUsageModel = (stats: WorkspaceStats | null, breakdown: UsageBr
 
   let compression: Compression | null = null;
   if (breakdown) {
-    const compressedGB = breakdown.days.reduce((sum, d) => sum + d.compressedBytes, 0) / GB_IN_BYTES;
+    const compressedGB = sumBy(breakdown.days, "compressedBytes") / GB_IN_BYTES;
     compression = { gb: compressedGB, fraction: compressedGB > 0 ? compressedGB / (gbUsed + compressedGB) : 0 };
   }
 
