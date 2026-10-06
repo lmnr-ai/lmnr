@@ -30,7 +30,7 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
   if (!current) return null;
 
   return (
-    <div className="flex w-full flex-col items-center justify-end gap-[6px] px-[4px] py-[10px]">
+    <div className="flex w-full flex-col items-center justify-end gap-[6px] px-[4px]">
       <div className="relative h-[157px] w-full overflow-hidden rounded-[8px]">
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div

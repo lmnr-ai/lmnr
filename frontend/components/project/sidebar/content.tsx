@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 
+import Announcements from "@/components/announcements";
 import OpenSourceCard from "@/components/project/sidebar/open-source-card.tsx";
 import UsageCard from "@/components/project/sidebar/usage-card.tsx";
 import { getSidebarMenus } from "@/components/project/utils.ts";
@@ -18,9 +19,16 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ProjectDetails } from "@/lib/actions/project";
+import { type Announcement } from "@/lib/announcements/types";
 import { Feature } from "@/lib/features/features";
 
-const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
+interface ProjectSidebarContentProps {
+  announcements: Announcement[];
+  details: ProjectDetails;
+  dismissedAnnouncementIds: string[];
+}
+
+const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementIds }: ProjectSidebarContentProps) => {
   const pathname = usePathname();
   const featureFlags = useFeatureFlags();
   const options = useMemo(
@@ -56,8 +64,11 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
         ((featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier) || featureFlags[Feature.LAMINAR_CLOUD]) && (
           <SidebarGroup className="mt-auto p-1">
             <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
+              <SidebarMenu className="gap-2">
                 {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
+                {announcements.length > 0 && (
+                  <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
+                )}
                 {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && <UsageCard usageDetails={details} />}
               </SidebarMenu>
             </SidebarGroupContent>

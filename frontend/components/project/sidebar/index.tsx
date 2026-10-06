@@ -2,7 +2,6 @@
 
 import React from "react";
 
-import Announcements from "@/components/announcements";
 import ProjectSidebarHeader from "@/components/project/sidebar/header.tsx";
 import SidebarFooter from "@/components/projects/sidebar-footer.tsx";
 import { Sidebar } from "@/components/ui/sidebar";
@@ -21,14 +20,12 @@ export default function ProjectSidebar({ dismissedAnnouncementIds, details, anno
   return (
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
-      <ProjectSidebarContent details={details} />
-      <SidebarFooter
-        announcements={
-          announcements.length > 0 ? (
-            <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
-          ) : undefined
-        }
+      <ProjectSidebarContent
+        announcements={announcements}
+        details={details}
+        dismissedAnnouncementIds={dismissedAnnouncementIds}
       />
+      <SidebarFooter />
     </Sidebar>
   );
 }

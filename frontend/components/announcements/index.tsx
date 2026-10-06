@@ -78,13 +78,13 @@ const Announcements = ({ announcements, initialDismissedIds }: AnnouncementsProp
     <>
       <AnimatePresence initial={false} custom={visibleAnnouncements.length === 0 ? "dismissed" : "hidden"}>
         {sidebarOpen && visibleAnnouncements.length > 0 && (
-          <motion.div key="announcements" variants={wrapperVariants} exit="exit" className="overflow-hidden">
+          <motion.li key="announcements" variants={wrapperVariants} exit="exit" className="relative overflow-hidden">
             <FigmaCarousel
               announcements={visibleAnnouncements}
               onDismiss={dismiss}
               onOpenDetails={setDetailsAnnouncementId}
             />
-          </motion.div>
+          </motion.li>
         )}
       </AnimatePresence>
       <AnnouncementDetailsDialog

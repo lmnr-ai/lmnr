@@ -2,7 +2,6 @@
 
 import { Book } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode } from "react";
 
 import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
@@ -19,14 +18,13 @@ import {
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const SidebarFooterComponent = ({ announcements }: { announcements?: ReactNode }) => {
+const SidebarFooterComponent = () => {
   const { open, openMobile } = useSidebar();
   const features = useFeatureFlags();
   const logo = open || openMobile ? laminarWordmark : laminarIcon;
 
   return (
     <SidebarFooter className="px-0">
-      {announcements}
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
