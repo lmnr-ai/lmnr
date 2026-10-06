@@ -161,6 +161,7 @@ function SpanItemInner({ span, output, onSpanSelect, isSelected, inGroup = false
                 outputTokens={span.outputTokens}
                 cost={span.totalCost}
                 cacheReadInputTokens={span.cacheReadInputTokens}
+                model={isLLMType ? span.model : undefined}
               />
             )}
           </div>
