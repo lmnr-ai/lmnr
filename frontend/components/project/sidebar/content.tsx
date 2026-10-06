@@ -21,6 +21,7 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 import { type Announcement } from "@/lib/announcements/types";
 import { Feature } from "@/lib/features/features";
+import { cn } from "@/lib/utils";
 
 interface ProjectSidebarContentProps {
   announcements: Announcement[];
@@ -60,20 +61,19 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {(open || openMobile) &&
-        ((featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier) || featureFlags[Feature.LAMINAR_CLOUD]) && (
-          <SidebarGroup className="mt-auto p-1">
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-2">
-                {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
-                {announcements.length > 0 && (
-                  <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
-                )}
-                {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && <UsageCard usageDetails={details} />}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+      {((featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier) || featureFlags[Feature.LAMINAR_CLOUD]) && (
+        <SidebarGroup className={cn("mt-auto p-1", !(open || openMobile) && "hidden")}>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-2">
+              {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
+              {announcements.length > 0 && (
+                <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
+              )}
+              {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && <UsageCard usageDetails={details} />}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
     </SidebarContent>
   );
 };
