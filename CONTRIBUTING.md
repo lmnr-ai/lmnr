@@ -48,6 +48,23 @@ or for testing the changes after developing on your own and before opening a PR.
 - 💻 – service needs to be run manually (see below).
 - ❌ – service not present.
 
+### CLI authentication
+
+App-server uses `NEXT_INTERNAL_URL` to fetch the frontend's `/api/auth/jwks`
+and verify CLI access tokens. The self-hosted Compose stacks configure this to
+`http://frontend:5667`, or `http://frontend:3000` for local-build. These are
+container ports, so changing `FRONTEND_HOST_PORT` does not change the internal URL.
+Keep the frontend's authentication and public URLs set to its browser-facing address.
+
+When running both app-server and frontend on the host, set
+`NEXT_INTERNAL_URL=http://localhost:3000` in app-server's environment (the repo-root
+`.env` file). With `docker-compose-local-dev.yml`, app-server runs in a container
+while the frontend runs on the host: use a Compose override to set app-server's
+`NEXT_INTERNAL_URL` to a host address reachable from that container. The hostname
+and routing depend on your Docker platform; `localhost` inside the container does
+not reach the host frontend. The frontend must listen on an interface the container
+can reach.
+
 
 ## Running Laminar locally for development
 
