@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
 
-import { Button } from "@/components/ui/button";
 import { track } from "@/lib/posthog";
+
+import { primaryAction, secondaryAction } from "./class-names";
 
 interface InvitationActionsProps {
   workspaceId: string;
@@ -16,32 +18,35 @@ export default function InvitationActions({
   acceptInvitation,
   declineInvitation,
 }: InvitationActionsProps) {
+  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<"accept" | "decline" | null>(null);
+
   useEffect(() => {
     track("invitations", "page_viewed", { workspaceId });
   }, [workspaceId]);
 
-  const handleAccept = async () => {
+  const handleAccept = () => {
     track("invitations", "accepted", { workspaceId });
-    await acceptInvitation();
+    setPendingAction("accept");
+    startTransition(acceptInvitation);
   };
 
-  const handleDecline = async () => {
+  const handleDecline = () => {
     track("invitations", "declined", { workspaceId });
-    await declineInvitation();
+    setPendingAction("decline");
+    startTransition(declineInvitation);
   };
 
   return (
-    <div className="flex gap-2 w-full pt-2">
-      <form action={handleDecline} className="flex-1">
-        <Button type="submit" variant="outline" className="w-full">
-          Decline
-        </Button>
-      </form>
-      <form action={handleAccept} className="flex-1">
-        <Button type="submit" className="w-full">
-          Accept
-        </Button>
-      </form>
+    <div className="flex w-full gap-3">
+      <button type="button" className={secondaryAction} onClick={handleDecline} disabled={isPending}>
+        {isPending && pendingAction === "decline" && <Loader2 className="size-3.5 animate-spin" />}
+        Decline
+      </button>
+      <button type="button" className={primaryAction} onClick={handleAccept} disabled={isPending}>
+        {isPending && pendingAction === "accept" && <Loader2 className="size-3.5 animate-spin" />}
+        Accept invitation
+      </button>
     </div>
   );
 }
