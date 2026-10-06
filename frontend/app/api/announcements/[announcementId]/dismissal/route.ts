@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dismissAnnouncement, getAnnouncements } from "@/lib/announcements/server";
+import { dismissAnnouncement, isUnknownAnnouncement } from "@/lib/announcements/server";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -22,8 +22,10 @@ export async function PUT(_request: Request, { params }: { params: Promise<{ ann
     if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { announcementId } = ParamsSchema.parse(await params);
-    const announcements = await getAnnouncements();
-    if (!announcements.some((announcement) => announcement.id === announcementId)) {
+    // Only reject ids Strapi positively says it does not have — a CMS outage
+    // would otherwise make an already-rendered card impossible to dismiss. The
+    // id shape is validated above and the stored list is capped server-side.
+    if (await isUnknownAnnouncement(announcementId)) {
       return Response.json({ error: "Announcement not found" }, { status: 404 });
     }
 

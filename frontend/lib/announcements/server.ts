@@ -36,9 +36,18 @@ const StrapiAnnouncementResponseSchema = z.object({
   data: z.array(StrapiAnnouncementSchema),
 });
 
-const normalizeUploadUrl = (url: string) => url.replace(/^https?:\/\/[^/\s]+\/uploads\//, "/uploads/");
+// Strapi stores absolute upload URLs pointing at the CMS host, which is not
+// necessarily browser-reachable; the `/uploads/` proxy in `proxy.ts` is. Applied
+// to markdown bodies too, so inline images are rewritten as well. The host class
+// must exclude whitespace, not just `/` — a bare `[^/]+` spans newlines and eats
+// everything between an unrelated link and the next `/uploads/`.
+const normalizeUploadUrls = (text: string) => text.replaceAll(/https?:\/\/[^/\s]+\/uploads\//g, "/uploads/");
 
-export const getAnnouncements = async (): Promise<Announcement[]> => {
+/**
+ * `null` means Strapi was unreachable or returned an unusable payload. Callers
+ * must not read that as "no announcements exist".
+ */
+const fetchAnnouncements = async (): Promise<Announcement[] | null> => {
   if (!isFeatureEnabled(Feature.LAMINAR_CLOUD) || !STRAPI_URL) return [];
 
   const params = new URLSearchParams({
@@ -55,22 +64,22 @@ export const getAnnouncements = async (): Promise<Announcement[]> => {
 
     if (!response.ok) {
       console.error(`Strapi announcement API error: ${response.status} ${response.statusText}`);
-      return [];
+      return null;
     }
 
     const parsed = StrapiAnnouncementResponseSchema.safeParse(await response.json());
     if (!parsed.success) {
       console.error("Invalid Strapi announcement response", parsed.error.flatten());
-      return [];
+      return null;
     }
 
     return parsed.data.data.map((announcement) => ({
       id: announcement.documentId,
       title: announcement.title,
       description: announcement.description,
-      card_image_src: announcement.card_image ? normalizeUploadUrl(announcement.card_image) : undefined,
-      details_image_src: announcement.details_image ? normalizeUploadUrl(announcement.details_image) : undefined,
-      long_description: announcement.content ?? undefined,
+      card_image_src: announcement.card_image ? normalizeUploadUrls(announcement.card_image) : undefined,
+      details_image_src: announcement.details_image ? normalizeUploadUrls(announcement.details_image) : undefined,
+      long_description: announcement.content ? normalizeUploadUrls(announcement.content) : undefined,
       cta_text: announcement.cta_text ?? undefined,
       cta_link: announcement.cta_link ?? undefined,
       created_at: announcement.createdAt,
@@ -78,8 +87,19 @@ export const getAnnouncements = async (): Promise<Announcement[]> => {
     }));
   } catch (error) {
     console.error("Failed to fetch announcements from Strapi", error);
-    return [];
+    return null;
   }
+};
+
+export const getAnnouncements = async (): Promise<Announcement[]> => (await fetchAnnouncements()) ?? [];
+
+/**
+ * Whether `announcementId` is known to be absent from the catalog. A Strapi
+ * outage returns `false`, so a card the user already sees stays dismissable.
+ */
+export const isUnknownAnnouncement = async (announcementId: string): Promise<boolean> => {
+  const announcements = await fetchAnnouncements();
+  return announcements !== null && !announcements.some((announcement) => announcement.id === announcementId);
 };
 
 export const getDismissedAnnouncementIds = async (userId: string): Promise<string[]> => {
