@@ -59,6 +59,24 @@ For production environment, we recommend using our [managed platform](https://la
 
 #### Upgrading existing self-hosted installations
 
+##### RabbitMQ queue data
+
+The full, local-build, and local-dev-full Compose stacks store RabbitMQ data in
+the `rabbitmq-data` named volume and use a stable `rabbitmq` hostname. Keep the
+same Compose project name and retain its volumes across restarts.
+
+For an existing installation, the new named volume starts empty; it does not
+import the previous anonymous volume. Before switching, stop producers and let
+consumers finish processing all ready and unacknowledged messages, or arrange
+an operator-managed migration. Record the broker's node name and image version
+before recreating its container. For a disk migration, pin that image version
+and preserve the original node identity, following
+[RabbitMQ's backup and restore guidance](https://www.rabbitmq.com/docs/backup).
+Copying data under the new hostname alone is not a safe migration. Retain the
+old volume until the migration is verified.
+
+##### ClickHouse system logs
+
 The ClickHouse configuration disables internal telemetry logs that are not useful
 for a single-node installation and retains query and error logs for three days.
 After pulling this change, recreate the ClickHouse container to apply the
