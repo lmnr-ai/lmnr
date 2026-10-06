@@ -513,6 +513,7 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     emailVerified: boolean("email_verified").default(false).notNull(),
+    preferences: jsonb().default({}).notNull(),
   },
   (table) => [
     unique("users_email_key").on(table.email),

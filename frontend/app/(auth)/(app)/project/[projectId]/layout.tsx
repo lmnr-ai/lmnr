@@ -14,6 +14,7 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
+import { getDismissedAnnouncementIds, getAnnouncements } from "@/lib/announcements/server";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -26,9 +27,14 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
 
   const projectId = params.projectId;
   const session = await requireProjectAccess(projectId);
-  const projectDetails = await getProjectDetails(projectId);
+  const announcementsEnabled = isFeatureEnabled(Feature.LAMINAR_CLOUD);
+  const [projectDetails, announcements, dismissedAnnouncementIds] = await Promise.all([
+    getProjectDetails(projectId),
+    announcementsEnabled ? getAnnouncements() : [],
+    announcementsEnabled ? getDismissedAnnouncementIds(session.user.id) : [],
+  ]);
 
-  const user = session?.user;
+  const user = session.user;
   const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
   const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
   const showBanner =
@@ -49,7 +55,11 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
-              <ProjectSidebar details={projectDetails} />
+              <ProjectSidebar
+                dismissedAnnouncementIds={dismissedAnnouncementIds}
+                details={projectDetails}
+                announcements={announcements}
+              />
               <SidebarInset className="relative flex flex-row h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
                 {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
                     space left of the agent column, rather than under it. */}

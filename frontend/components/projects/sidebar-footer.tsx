@@ -2,6 +2,7 @@
 
 import { Book } from "lucide-react";
 import Link from "next/link";
+import { type ReactNode } from "react";
 
 import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
@@ -18,7 +19,7 @@ import {
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const SidebarFooterComponent = () => {
+const SidebarFooterComponent = ({ announcements }: { announcements?: ReactNode }) => {
   const { open, openMobile } = useSidebar();
   const features = useFeatureFlags();
   const logo = open || openMobile ? laminarWordmark : laminarIcon;
@@ -36,7 +37,14 @@ const SidebarFooterComponent = () => {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem className="mt-4 mx-0 px-2">
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      {announcements}
+      <SidebarGroup className="pt-0">
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem className="mx-0 px-2">
               <Link passHref href="/projects" className="flex items-center">
                 {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
                 <span
