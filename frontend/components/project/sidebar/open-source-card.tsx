@@ -7,9 +7,9 @@ import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 
 export default function OpenSourceCard() {
-  const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
+  const [showStarCard, setShowStarCard, isHydrated] = useLocalStorage("showStarCard", true);
 
-  if (!showStarCard) return null;
+  if (!isHydrated || !showStarCard) return null;
 
   return (
     <SidebarMenuItem>
