@@ -22,15 +22,15 @@ export async function PUT(_request: Request, { params }: { params: Promise<{ ann
     if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { announcementId } = ParamsSchema.parse(await params);
-    // Only reject ids Strapi positively says it does not have — a CMS outage
-    // would otherwise make an already-rendered card impossible to dismiss. The
-    // id shape is validated above and the stored list is capped server-side.
+    // A positively missing id is a successful no-op: the stale card stays hidden
+    // in this UI session without storing junk in preferences. Strapi outages fail
+    // open so a previously rendered real announcement can still be persisted.
     if (await isUnknownAnnouncement(announcementId)) {
-      return Response.json({ error: "Announcement not found" }, { status: 404 });
+      return Response.json({ ok: true, persisted: false });
     }
 
     await dismissAnnouncement(session.user.id, announcementId);
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, persisted: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ error: z.prettifyError(error) }, { status: 400 });
