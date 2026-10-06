@@ -17,26 +17,31 @@ import { BASE_PATH } from "@/lib/utils";
 
 const InviteUserSchema = z.object({
   workspaceId: z.guid(),
-  // Better Auth stores all user emails lowercased, so normalize invitations the
-  // same way — otherwise a mixed-case invite never matches the user on sign-up.
+  // Better Auth lowercases every user email on both write and lookup, so invitations
+  // must store the same casing or they never match the user on sign-up (LAM-1745).
   email: z.string().transform((e) => e.trim().toLowerCase()),
 });
 
-const createSelfHostedInvitation = async (workspaceId: string, email: string) => {
-  // If the user already exists and is a member, throw an error. Match
-  // case-insensitively: Better Auth lowercases emails, but legacy users.email
-  // rows may predate normalization (email is already lowercased by the schema).
-  const [existingUser] = await db
+// `email` arrives already lowercased from InviteUserSchema; `lower()` on the column
+// is for legacy rows written before Better Auth normalized emails on write.
+const findUserIdByEmail = async (email: string) => {
+  const [user] = await db
     .select({ id: users.id })
     .from(users)
     .where(sql`lower(${users.email}) = ${email}`)
     .limit(1);
 
-  if (existingUser) {
+  return user?.id;
+};
+
+const createSelfHostedInvitation = async (workspaceId: string, email: string) => {
+  const existingUserId = await findUserIdByEmail(email);
+
+  if (existingUserId) {
     const [existingMembership] = await db
       .select({ id: membersOfWorkspaces.id })
       .from(membersOfWorkspaces)
-      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUser.id)))
+      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUserId)))
       .limit(1);
 
     if (existingMembership) {
@@ -45,7 +50,7 @@ const createSelfHostedInvitation = async (workspaceId: string, email: string) =>
 
     // User exists but is not a member — add them directly
     await db.insert(membersOfWorkspaces).values({
-      userId: existingUser.id,
+      userId: existingUserId,
       workspaceId,
       memberRole: "member",
     });
@@ -57,8 +62,6 @@ const createSelfHostedInvitation = async (workspaceId: string, email: string) =>
   const [existingInvitation] = await db
     .select({ id: workspaceInvitations.id })
     .from(workspaceInvitations)
-    // Match case-insensitively so a legacy mixed-case row for the same address
-    // still blocks a duplicate invite (email is already lowercased by the schema).
     .where(and(sql`lower(${workspaceInvitations.email}) = ${email}`, eq(workspaceInvitations.workspaceId, workspaceId)))
     .limit(1);
 
@@ -105,12 +108,12 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
   }
 
   // Don't invite someone who's already a member (the self-hosted branch already guards this).
-  const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-  if (existingUser) {
+  const existingUserId = await findUserIdByEmail(email);
+  if (existingUserId) {
     const [existingMembership] = await db
       .select({ id: membersOfWorkspaces.id })
       .from(membersOfWorkspaces)
-      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUser.id)))
+      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUserId)))
       .limit(1);
     if (existingMembership) {
       throw new Error("This user is already a member of this workspace.");
