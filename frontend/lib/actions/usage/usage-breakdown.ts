@@ -20,6 +20,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 interface BytesRow {
   date: string;
   bytes: string | number;
+  compressedBytes: string | number;
 }
 
 interface SignalRow {
@@ -64,13 +65,16 @@ export async function getUsageBreakdown(input: z.infer<typeof GetUsageBreakdownS
   const today = new Date().toISOString().slice(0, 10);
   for (let t = Date.parse(`${cycleStart.toISOString().slice(0, 10)}T00:00:00Z`); ; t += DAY_MS) {
     const date = new Date(t).toISOString().slice(0, 10);
-    byDate.set(date, { date, bytes: 0, signalCostMicroUsd: 0, signalRuns: 0 });
+    byDate.set(date, { date, bytes: 0, compressedBytes: 0, signalCostMicroUsd: 0, signalRuns: 0 });
     if (date >= today) break;
   }
 
   for (const row of bytesRows) {
     const day = byDate.get(row.date);
-    if (day) day.bytes += Number(row.bytes);
+    if (!day) continue;
+    day.bytes += Number(row.bytes);
+    // Tiny messages can net negative: a 32B hash outweighs the message it replaces.
+    day.compressedBytes += Math.max(Number(row.compressedBytes), 0);
   }
 
   let signalRuns = 0;
@@ -96,14 +100,18 @@ export async function getUsageBreakdown(input: z.infer<typeof GetUsageBreakdownS
 
 async function queryDailyBytes(projectIds: string[], cycleStart: string): Promise<BytesRow[]> {
   const result = await clickhouseClient.query({
-    query: `SELECT date, SUM(bytes) AS bytes FROM (
-      SELECT toString(toDate(start_time, 'UTC')) AS date, SUM(size_bytes) AS bytes
+    query: `SELECT date, SUM(bytes) AS bytes, SUM(compressedBytes) AS compressedBytes FROM (
+      SELECT
+        toString(toDate(start_time, 'UTC')) AS date,
+        SUM(size_bytes) AS bytes,
+        -- rows written before original_size_bytes existed read back 0
+        SUMIf(toInt64(original_size_bytes) - toInt64(size_bytes), original_size_bytes > 0) AS compressedBytes
       FROM spans
       WHERE project_id IN { projectIds: Array(UUID) }
       AND start_time >= { cycleStart: DateTime(3, "UTC") }
       GROUP BY date
       UNION ALL
-      SELECT toString(toDate(timestamp, 'UTC')) AS date, SUM(size_bytes) AS bytes
+      SELECT toString(toDate(timestamp, 'UTC')) AS date, SUM(size_bytes) AS bytes, toInt64(0) AS compressedBytes
       FROM browser_session_events
       WHERE project_id IN { projectIds: Array(UUID) }
       AND timestamp >= { cycleStart: DateTime(3, "UTC") }

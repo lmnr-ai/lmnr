@@ -56,7 +56,11 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
 
   // On error, render empty charts rather than an endless skeleton.
   const days = breakdown?.days ?? (error ? NO_DAYS : undefined);
-  const dataDays = useMemo(() => days?.map((d) => ({ date: d.date, value: d.bytes / GB_IN_BYTES })), [days]);
+  const dataDays = useMemo(
+    () =>
+      days?.map((d) => ({ date: d.date, value: d.bytes / GB_IN_BYTES, compressed: d.compressedBytes / GB_IN_BYTES })),
+    [days]
+  );
   const signalDays = useMemo(
     () => days?.map((d) => ({ date: d.date, value: d.signalCostMicroUsd / 1_000_000 })),
     [days]
@@ -89,7 +93,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
             color={DATA_COLOR}
             format={formatGB}
             formatTick={formatGBTick}
-            stats={dataStatRows(dataDays, formatGB)}
+            stats={dataStatRows(dataDays, formatGB, model.compression)}
           />
           <UsageMeterCard
             title="Signals usage"
