@@ -1,10 +1,15 @@
 import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
-import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
+import {
+  type TraceViewSpan,
+  type TraceViewTrace,
+  useTraceViewStore,
+  useTraceViewStoreApi,
+} from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -24,6 +29,8 @@ export interface TraceViewContentProps {
   // Omit to hide the close button entirely (e.g. an always-open panel).
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
+  // Wide side-panel drawer only: reopen span details on the next trace if the user left them open.
+  rememberSpanPanel?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -34,6 +41,7 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
+  rememberSpanPanel,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -43,6 +51,14 @@ export default function TraceViewContent({
 
   // Panel visibility states
   const spanPanelOpen = useTraceViewStore((state) => state.spanPanelOpen);
+  const setKeepSpanPanelOpen = useTraceViewStore((state) => state.setKeepSpanPanelOpen);
+  const traceViewStore = useTraceViewStoreApi();
+  // The side panel measures its width (and so `rememberSpanPanel`) after the first render, while
+  // the span fetch starts on mount; read the latest value when the spans arrive.
+  const rememberSpanPanelRef = useRef(rememberSpanPanel);
+  useEffect(() => {
+    rememberSpanPanelRef.current = rememberSpanPanel;
+  }, [rememberSpanPanel]);
 
   // Data states
   const {
@@ -195,9 +211,12 @@ export default function TraceViewContent({
         if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams);
           setSelectedSpan(selectedSpan);
-        } else if (isAlwaysSelectSpan && spans.length > 0) {
-          // Auto-select first span only in the dedicated trace page (always-select mode).
-          // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
+        } else if (
+          (isAlwaysSelectSpan || (rememberSpanPanelRef.current && traceViewStore.getState().keepSpanPanelOpen)) &&
+          spans.length > 0
+        ) {
+          // Auto-select the first span in the dedicated trace page (always-select mode). In the wide
+          // drawer only when the user left span details open last time instead of closing them.
           setSelectedSpan(spans[0]);
         } else {
           setSelectedSpan(undefined);
@@ -223,6 +242,7 @@ export default function TraceViewContent({
       setBrowserSession,
       setSelectedSpan,
       isAlwaysSelectSpan,
+      traceViewStore,
       spanId,
       searchParams,
     ]
@@ -237,12 +257,18 @@ export default function TraceViewContent({
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
+    if (rememberSpanPanel) setKeepSpanPanelOpen(false);
     if (searchParams.get("spanId")) {
       const params = new URLSearchParams(searchParams);
       params.delete("spanId");
       router.replace(`${pathName}?${params.toString()}`);
     }
-  }, [setSelectedSpan, searchParams, router, pathName]);
+  }, [setSelectedSpan, setKeepSpanPanelOpen, rememberSpanPanel, searchParams, router, pathName]);
+
+  // Any way of opening span details (tree, timeline, signals, custom view) counts as "left open".
+  useEffect(() => {
+    if (rememberSpanPanel && spanPanelOpen) setKeepSpanPanelOpen(true);
+  }, [rememberSpanPanel, spanPanelOpen, setKeepSpanPanelOpen]);
 
   const isLoading = isTraceLoading && !trace;
 

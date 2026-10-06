@@ -87,7 +87,11 @@ export function TraceViewSidePanel({
                   intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
                   opens between the span view and the screen edge. */}
           {children && <div className="w-0 min-w-full">{children}</div>}
-          <TraceViewContent {...props} sidePanelRef={narrow ? undefined : sidePanelRef} />
+          <TraceViewContent
+            {...props}
+            sidePanelRef={narrow ? undefined : sidePanelRef}
+            rememberSpanPanel={!narrow && !props.isAlwaysSelectSpan}
+          />
         </div>
       </TraceViewStoreProvider>
     </ElevatedSurface>
