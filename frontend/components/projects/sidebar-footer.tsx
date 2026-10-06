@@ -26,6 +26,7 @@ const SidebarFooterComponent = ({ announcements }: { announcements?: ReactNode }
 
   return (
     <SidebarFooter className="px-0">
+      {announcements}
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
@@ -40,7 +41,6 @@ const SidebarFooterComponent = ({ announcements }: { announcements?: ReactNode }
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      {announcements}
       <SidebarGroup className="pt-0">
         <SidebarGroupContent>
           <SidebarMenu>

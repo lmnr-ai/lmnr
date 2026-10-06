@@ -20,11 +20,16 @@ const wrapperVariants: Variants = {
   exit: (reason: "dismissed" | "hidden") =>
     reason === "dismissed"
       ? {
+          height: 0,
           opacity: 0,
           y: 120,
-          transition: { type: "spring", visualDuration: 0.35, bounce: 0.15 },
+          transition: {
+            height: { duration: 0.35, ease: "easeInOut" },
+            opacity: { duration: 0.2 },
+            y: { type: "spring", visualDuration: 0.35, bounce: 0.15 },
+          },
         }
-      : { opacity: 0, transition: { duration: 0 } },
+      : { height: 0, opacity: 0, transition: { duration: 0 } },
 };
 
 const Announcements = ({ announcements, initialDismissedIds }: AnnouncementsProps) => {
@@ -73,7 +78,7 @@ const Announcements = ({ announcements, initialDismissedIds }: AnnouncementsProp
     <>
       <AnimatePresence initial={false} custom={visibleAnnouncements.length === 0 ? "dismissed" : "hidden"}>
         {sidebarOpen && visibleAnnouncements.length > 0 && (
-          <motion.div key="announcements" variants={wrapperVariants} exit="exit">
+          <motion.div key="announcements" variants={wrapperVariants} exit="exit" className="overflow-hidden">
             <FigmaCarousel
               announcements={visibleAnnouncements}
               onDismiss={dismiss}
