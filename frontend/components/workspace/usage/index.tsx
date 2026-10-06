@@ -2,7 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -14,7 +14,6 @@ import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
-import DedupPreviewSwitcher, { applyDedupPreview, type DedupPreviewCase } from "./dedup-preview";
 import LimitsSettings from "./limits";
 import UsageMeterCard from "./meter";
 import PlanOverview from "./plan-overview";
@@ -40,21 +39,14 @@ interface WorkspaceUsageProps {
   isOwner: boolean;
 }
 
-export default function WorkspaceUsage({ workspaceStats: liveStats, workspace, isOwner }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
   useEffect(() => {
     track("usage", "page_viewed");
   }, []);
   const featureFlags = useFeatureFlags();
-  const { data: liveBreakdown, error } = useSWR<UsageBreakdown>(
+  const { data: breakdown, error } = useSWR<UsageBreakdown>(
     `/api/workspaces/${workspace.id}/usage-breakdown`,
     swrFetcher
-  );
-
-  // TEMPORARY: hardcoded dedup-savings scenarios; remove with ./dedup-preview before merging.
-  const [preview, setPreview] = useState<DedupPreviewCase>("under");
-  const { stats: workspaceStats, breakdown } = useMemo(
-    () => applyDedupPreview(preview, liveStats, liveBreakdown),
-    [preview, liveStats, liveBreakdown]
   );
 
   const model = useMemo(() => buildUsageModel(workspaceStats, breakdown), [workspaceStats, breakdown]);
@@ -80,7 +72,6 @@ export default function WorkspaceUsage({ workspaceStats: liveStats, workspace, i
   return (
     <>
       <SettingsSectionHeader title="Usage" description="Monitor your workspace usage" />
-      <DedupPreviewSwitcher value={preview} onChange={setPreview} />
 
       {isPaid && bill && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
 
