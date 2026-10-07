@@ -1,15 +1,16 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { Resend } from "resend";
+import { projectHasTraces } from "@/lib/actions/project/has-traces";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+import { sendUserOnboardedEvent } from "./automations";
+import { RESEND } from "./client";
 import PaymentFailedEmail from "./payment-failed-email";
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
 import WelcomeEmail, { WELCOME_BANNER_CID } from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
-
-const RESEND = new Resend(process.env.RESEND_API_KEY ?? "_RESEND_API_KEY_PLACEHOLDER");
 
 // Hardcoded to the production top-level domain because all Laminar transactional
 // emails are sent from *@lmnr.ai / *@mail.lmnr.ai; linking to a different TLD
@@ -39,7 +40,9 @@ interface InvoiceEmailArgs {
   date: string;
 }
 
-export async function sendWelcomeEmail(email: string) {
+// `projectId` is the project the user was onboarded into; the follow-up automation
+// (USER_ONBOARDED_EVENT) nudges them until that project receives its first trace.
+export async function sendWelcomeEmail(email: string, projectId: string) {
   const from = "Robert from Laminar <robert@mail.lmnr.ai>";
   const subject = "Welcome to Laminar!";
 
@@ -51,7 +54,19 @@ export async function sendWelcomeEmail(email: string) {
     attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
-  if (error) console.log(error);
+  if (error) {
+    console.log(error);
+    return;
+  }
+
+  // Checked here because onboarding can finish after traces arrived but before anyone
+  // opened the traces page, so the PROJECT_HAS_TRACES_EVENT would come too late.
+  if (isFeatureEnabled(Feature.EMAIL_AUTOMATIONS)) {
+    // A failed lookup reports false: if traces do exist, the later PROJECT_HAS_TRACES_EVENT
+    // still ends the sequence, whereas true would end it for good.
+    const hasTraces = (await projectHasTraces(projectId)) === true;
+    await sendUserOnboardedEvent({ email, projectId, hasTraces });
+  }
 }
 
 export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
