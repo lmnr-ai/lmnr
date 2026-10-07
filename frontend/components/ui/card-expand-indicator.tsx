@@ -30,9 +30,9 @@ export function CardExpandIndicator({ expanded, relativeTime, siblingBodyHover, 
       <span
         className={cn(
           "flex items-center justify-center whitespace-nowrap rounded-full py-0.5 pl-1 pr-1 text-xs font-medium leading-[17px]",
-          "border-[rgba(232,232,232,0.1)] group-hover:gap-1 group-hover:border group-hover:bg-[rgba(232,232,232,0.05)] group-hover:pl-2.5",
+          "border-foreground-100/10 group-hover:gap-1 group-hover:border group-hover:bg-foreground-100/5 group-hover:pl-2.5",
           siblingBodyHover &&
-            "sibling-body-hover:gap-1 sibling-body-hover:border sibling-body-hover:bg-[rgba(232,232,232,0.05)] sibling-body-hover:pl-2.5"
+            "sibling-body-hover:gap-1 sibling-body-hover:border sibling-body-hover:bg-foreground-100/5 sibling-body-hover:pl-2.5"
         )}
       >
         <span

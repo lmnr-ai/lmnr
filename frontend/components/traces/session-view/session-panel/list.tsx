@@ -471,7 +471,7 @@ export default function SessionList() {
           const activeSticky = isActiveSticky(virtualRow.index);
 
           const positionStyle: React.CSSProperties = activeSticky
-            ? { position: "sticky", top: 0, background: "hsl(var(--background))" }
+            ? { position: "sticky", top: 0, background: "var(--color-background)" }
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
           if (row.type === "trace-header") {

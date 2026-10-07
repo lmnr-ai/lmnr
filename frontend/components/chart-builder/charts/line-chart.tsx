@@ -78,7 +78,7 @@ const LineChart = ({
             axisLine={false}
             tickMargin={8}
             dataKey={x}
-            style={{ fill: "hsl(var(--muted-foreground))" }}
+            style={{ fill: "var(--color-muted-foreground)" }}
             tickFormatter={xAxisFormatter}
           />
           <YAxis
@@ -87,7 +87,7 @@ const LineChart = ({
             tickCount={5}
             domain={["auto", totalMax]}
             width="auto"
-            style={{ fill: "hsl(var(--muted-foreground))" }}
+            style={{ fill: "var(--color-muted-foreground)" }}
             tickFormatter={yAxisFormatter}
           />
           <ChartTooltip
