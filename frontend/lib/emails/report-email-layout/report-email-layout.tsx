@@ -81,7 +81,7 @@ const identity: CSSProperties = {
   color: "#c3c4c8",
   fontSize: "14px",
   fontWeight: 400,
-  letterSpacing: "-0.32px",
+  letterSpacing: 0,
   lineHeight: "15px",
   transform: "translateY(2px)",
   whiteSpace: "nowrap",
@@ -92,6 +92,6 @@ const titleStyle: CSSProperties = {
   color: "#ffffff",
   fontSize: "28px",
   fontWeight: 400,
-  letterSpacing: "-0.56px",
+  letterSpacing: 0,
   lineHeight: "34px",
 };
