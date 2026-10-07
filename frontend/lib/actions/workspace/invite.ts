@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -41,6 +42,16 @@ const createSelfHostedInvitation = async (workspaceId: string, email: string) =>
       workspaceId,
       memberRole: "member",
     });
+
+    // This branch joins the member without ever creating a workspace_invitations
+    // row, so processPendingInvitations can never backfill the subscription —
+    // it has to happen here. Best-effort: the membership is already committed,
+    // so a notification hiccup must not surface as a failed invite.
+    try {
+      await subscribeMemberToWorkspaceNotifications(workspaceId, email);
+    } catch (e) {
+      console.error("Failed to subscribe member to workspace notifications:", e);
+    }
 
     return { success: true, message: "User added to workspace successfully" };
   }
