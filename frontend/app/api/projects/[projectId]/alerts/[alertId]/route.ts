@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { updateAlert } from "@/lib/actions/alerts";
+import { AlertEmailTargetError, patchAlert } from "@/lib/actions/alerts";
 import { getServerSession } from "@/lib/auth-session";
 
 export async function PATCH(request: NextRequest, props: { params: Promise<{ projectId: string; alertId: string }> }) {
@@ -11,16 +11,14 @@ export async function PATCH(request: NextRequest, props: { params: Promise<{ pro
     const session = await getServerSession();
     const userEmail = session?.user?.email ?? undefined;
     const body = await request.json();
-    if (userEmail) {
-      const emailTargets = (body.targets ?? []).filter((t: { type: string; email?: string }) => t.type === "EMAIL");
-      if (emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {
-        return NextResponse.json({ error: "Cannot set alert email targets for other users." }, { status: 403 });
-      }
-    }
-    const result = await updateAlert({ ...body, projectId, alertId, userEmail });
+
+    const result = await patchAlert({ projectId, alertId, userEmail, body });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
+    if (error instanceof AlertEmailTargetError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }

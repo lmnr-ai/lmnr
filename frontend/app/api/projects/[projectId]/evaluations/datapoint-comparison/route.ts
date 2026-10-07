@@ -3,22 +3,18 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { getEvaluationDatapointComparison, GetEvaluationDatapointComparisonSchema } from "@/lib/actions/evaluation";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+// POST (not GET): the run-id list is unbounded (a group can have hundreds of
+// runs), so it rides the body rather than a query string that would blow the
+// URL-length limit and force a client-side cap.
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
-  const sp = req.nextUrl.searchParams;
 
-  const evaluationIds = sp
-    .get("evaluationIds")
-    ?.split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const indexRaw = sp.get("index");
-  const indexNum = indexRaw != null ? Number(indexRaw) : NaN;
+  const body = (await req.json().catch(() => null)) as { evaluationIds?: unknown; index?: unknown } | null;
 
   const parseResult = GetEvaluationDatapointComparisonSchema.safeParse({
     projectId,
-    evaluationIds,
-    index: indexNum,
+    evaluationIds: body?.evaluationIds,
+    index: body?.index,
   });
 
   if (!parseResult.success) {

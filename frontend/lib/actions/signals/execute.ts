@@ -9,6 +9,9 @@ const ExecuteSignalSchema = z.object({
     prompt: z.string().min(1, { error: "Prompt is required" }),
     structured_output_schema: z.record(z.string(), z.unknown()),
   }),
+  // StepConfig route fields; both or neither. Absent = the server's env LLM.
+  llmProfileId: z.guid().optional(),
+  model: z.string().trim().min(1).optional(),
 });
 
 const SignalResponseSchema = z.object({
@@ -18,12 +21,12 @@ const SignalResponseSchema = z.object({
 });
 
 export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>) => {
-  const { projectId, traceId, signal } = ExecuteSignalSchema.parse(input);
+  const { projectId, traceId, signal, llmProfileId, model } = ExecuteSignalSchema.parse(input);
 
   const response = await fetcherJSON(`/projects/${projectId}/signals/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ traceId, signal }),
+    body: JSON.stringify({ traceId, signal, llmProfileId, model }),
   });
 
   const signalResponse = SignalResponseSchema.parse(response);

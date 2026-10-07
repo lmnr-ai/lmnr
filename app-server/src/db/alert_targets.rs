@@ -17,6 +17,9 @@ pub struct AlertMetadata {
     pub severities: Option<Vec<u8>>,
     #[serde(default)]
     pub skip_similar: Option<bool>,
+    /// Only persisted when true; absence means enabled (active).
+    #[serde(default)]
+    pub disabled: Option<bool>,
 }
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -24,6 +27,11 @@ impl AlertMetadata {
     pub fn skip_similar(&self) -> bool {
         // False by default to not break historical alerts
         self.skip_similar.unwrap_or(false)
+    }
+
+    /// Enabled by default when the `disabled` key is absent (historical alerts).
+    pub fn disabled(&self) -> bool {
+        self.disabled.unwrap_or(false)
     }
 }
 

@@ -182,7 +182,7 @@ export class CacheManager {
     if (this.useRedis) {
       const client = await this.getRedisClient();
       try {
-        return await client.zrange(key, start, stop);
+        return await client.zrange(key, start, String(stop));
       } catch (e) {
         console.error("Error getting zrange from cache", e);
         return [];
@@ -235,26 +235,40 @@ export const cache = new CacheManager();
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 // Must stay in sync with `PROJECT_CACHE_KEY` in `app-server/src/cache/keys.rs`
 // — the frontend invalidates entries the Rust app-server fills, so a drift
-// would orphan Postgres writes from cache reads.
+// would orphan Postgres writes from cache reads. The cached struct dropped its
+// old `signalStepsLimit` keys for the LAM-1757 cost fields without a serde
+// default, so any stale pre-rename entry fails to deserialize on the Rust side
+// and is repopulated from a fresh DB query — no key bump needed.
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-export const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
-export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
 export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
 export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";
+// Must stay in sync with `HARD_LIMIT_NOTIFIED_CACHE_KEY` in `app-server/src/cache/keys.rs`
+export const HARD_LIMIT_NOTIFIED_CACHE_KEY = "hard_limit_notified";
+export const ONBOARDING_COMPANY_NAME_CACHE_KEY = "onboarding_company_name";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;
 
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
 
+// Must stay in sync with `MEMBER_ROLE_CACHE_KEY` in `app-server/src/cache/keys.rs`.
+// The app-server caches a member's role to derive its read policy; remove the
+// key whenever the role changes or the membership ends.
+export const MEMBER_ROLE_CACHE_KEY = (workspaceId: string, userId: string) => `member_role:${workspaceId}:${userId}`;
+
 export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
   `autocomplete:${resource}:${projectId}:${field}`;
 
 export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprint: string): string =>
   `span_rendering_key:${projectId}:${schemaFingerprint}`;
+
+// App-wide (NOT project-scoped) LLM-inferred eval-score direction. The key is
+// the normalized score name; the value is a boolean isHigherBetter.
+export const SCORE_DIRECTION_CACHE_KEY = (normalizedScoreName: string): string =>
+  `score_direction:${normalizedScoreName}`;

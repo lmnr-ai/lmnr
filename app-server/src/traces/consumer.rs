@@ -14,7 +14,7 @@ use crate::{
     cache::Cache,
     ch::cloud::CloudClickhouse,
     db::DB,
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::PiiRedactorClient,
     pubsub::PubSub,
     worker::HandlerError,
@@ -32,6 +32,8 @@ pub struct SpanHandler {
     pub ch: CloudClickhouse,
     pub pubsub: Arc<PubSub>,
     pub pii_redactor: Option<PiiRedactorClient>,
+    pub indexer_stream_publisher: Option<Arc<StreamPublisher>>,
+    pub quickwit_indexing_enabled: bool,
     pub config: BatchingConfig,
 }
 
@@ -128,6 +130,8 @@ impl SpanHandler {
             self.ch.clone(),
             self.pii_redactor.clone(),
             None,
+            self.indexer_stream_publisher.clone(),
+            self.quickwit_indexing_enabled,
         )
         .await
     }

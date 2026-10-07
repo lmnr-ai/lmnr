@@ -1,11 +1,13 @@
-import { type CellContext } from "@tanstack/react-table";
-import { ArrowRight } from "lucide-react";
+import { type CellContext, type Table } from "@tanstack/react-table";
+import { ArrowRight, Check } from "lucide-react";
+import { type ReactNode } from "react";
 
+import HeatmapValue from "@/components/evaluation/heatmap-value";
 import {
   calculatePercentageChange,
-  createHeatmapStyle,
   type DisplayValue,
   formatScoreValue,
+  getHeatmapColor,
   isValidScore,
   type ScoreValue,
   shouldShowHeatmap,
@@ -13,92 +15,99 @@ import {
 import { type ScoreRange } from "@/lib/colors";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-import { ChangeIndicator, shouldShowComparisonIndicator } from "./comparison-cell";
+import { shouldShowComparisonIndicator } from "./comparison-cell";
 
-const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
+const ScoreDisplay = ({
+  range,
+  value,
+  isHigherBetter,
+}: {
+  range: ScoreRange;
+  value: ScoreValue;
+  isHigherBetter: boolean;
+}) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500">-</span>;
   }
 
-  const style = createHeatmapStyle(value, range);
-  const formattedValue = formatScoreValue(value);
-
-  if (style.background === "transparent") {
-    return (
-      <span className="text-current" title={value.toString()}>
-        {formattedValue}
-      </span>
-    );
-  }
-
   return (
-    <div
-      className="px-1 py-0.5 min-w-5 rounded text-center transition-all duration-200 whitespace-nowrap text-xs"
-      style={style}
-      title={value.toString()}
-    >
-      {formattedValue}
-    </div>
+    <HeatmapValue
+      value={value}
+      range={range}
+      isHigherBetter={isHigherBetter}
+      text={
+        <span className="text-current" title={value.toString()}>
+          {formatScoreValue(value)}
+        </span>
+      }
+    />
   );
 };
 
-const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
+const HeatmapScoreCell = ({
+  value,
+  range,
+  isHigherBetter,
+}: {
+  value: ScoreValue;
+  range: ScoreRange;
+  isHigherBetter: boolean;
+}) => <ScoreDisplay range={range} value={value} isHigherBetter={isHigherBetter} />;
 
 // -- Comparison sub-components (absorbed from comparison-score-cell.tsx) --
 
-const ComparisonScoreValue = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => {
-  if (!isValidScore(value)) {
-    return <span className="text-gray-500 text-center block text-xs">-</span>;
-  }
-
-  return ScoreDisplay(range, value);
-};
-
+// One color block for the RELATIVE change (original - compared), not two blocks
+// of absolute values: the question in comparison mode is "did this row get
+// better or worse", so the delta is colored on a symmetric scale centered at
+// zero (span taken from the score's absolute range). No delta or zero span =
+// no block.
 const HeatmapComparisonCell = ({
   original,
   comparison,
   originalValue,
   comparisonValue,
   range,
+  isHigherBetter,
 }: {
   original: DisplayValue;
   comparison: DisplayValue;
   originalValue?: number;
   comparisonValue?: number;
   range: ScoreRange;
+  isHigherBetter: boolean;
 }) => {
   const showComparison = shouldShowComparisonIndicator(originalValue, comparisonValue);
-  const showHeatmap = shouldShowHeatmap(range);
+  const span = range.max - range.min;
+  // Zero delta gets NO block (not the gradient midpoint) so actual movement pops.
+  // For lower-is-better scores the delta gradient inverts (a decrease is green).
+  const deltaColor =
+    shouldShowHeatmap(range) &&
+    isValidScore(originalValue) &&
+    isValidScore(comparisonValue) &&
+    originalValue !== comparisonValue
+      ? getHeatmapColor(originalValue - comparisonValue, { min: -span, max: span }, isHigherBetter)
+      : null;
 
-  if (!showHeatmap) {
-    return (
-      <div className="flex items-center space-x-2">
-        <span className="text-current">{comparison ?? "-"}</span>
-        <ArrowRight className="font-bold min-w-3 text-gray-400" size={12} />
-        <span className="text-current">{original ?? "-"}</span>
-        {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
-          <span className="text-secondary-foreground">
-            {originalValue >= comparisonValue ? "\u25B2" : "\u25BC"} (
-            {calculatePercentageChange(originalValue, comparisonValue)}
-            %)
-          </span>
-        )}
-      </div>
-    );
-  }
+  const content = (
+    <div className="flex items-center space-x-2 min-w-0">
+      <span className="text-current">{comparison ?? "-"}</span>
+      <ArrowRight className="font-bold min-w-3 text-gray-400" size={12} />
+      <span className="text-current">{original ?? "-"}</span>
+      {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
+        <span className="text-secondary-foreground">
+          {originalValue >= comparisonValue ? "▲" : "▼"} ({calculatePercentageChange(originalValue, comparisonValue)}
+          %)
+        </span>
+      )}
+    </div>
+  );
+
+  if (!deltaColor) return content;
 
   return (
-    <div className="flex items-center space-x-1 w-full min-w-0">
-      <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={comparisonValue} range={range} />
-      </div>
-      <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
-      <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={originalValue} range={range} />
-      </div>
-      {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
-        <ChangeIndicator originalValue={originalValue} comparisonValue={comparisonValue} />
-      )}
+    <div className="flex h-full items-stretch gap-2 min-w-0">
+      <span className="w-1 shrink-0 self-stretch rounded-sm" style={{ background: deltaColor }} />
+      <span className="flex items-center min-w-0">{content}</span>
     </div>
   );
 };
@@ -117,7 +126,7 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
       </div>
       {showComparison && isValidScore(original) && isValidScore(comparison) && (
         <span className="text-secondary-foreground">
-          {original >= comparison ? "\u25B2" : "\u25BC"} ({calculatePercentageChange(original, comparison)}%)
+          {original >= comparison ? "▲" : "▼"} ({calculatePercentageChange(original, comparison)}%)
         </span>
       )}
     </div>
@@ -128,9 +137,15 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
 
 export const createScoreColumnCell = (scoreName: string) => {
   const ScoreColumnCell = ({ row, table }: CellContext<EvalRow, unknown>) => {
-    const { isComparison = false, heatmapEnabled = false, scoreRanges = {} } = table.options.meta?.evalCellMeta ?? {};
+    const {
+      isComparison = false,
+      heatmapEnabled = false,
+      scoreRanges = {},
+      scoreDirections = {},
+    } = table.options.meta?.evalCellMeta ?? {};
     const value = row.original[`score:${scoreName}`] as number | undefined;
     const range = scoreRanges[scoreName];
+    const isHigherBetter = scoreDirections[scoreName] ?? true;
 
     if (isComparison) {
       const comparison = row.original[`compared:score:${scoreName}`] as number | undefined;
@@ -143,6 +158,7 @@ export const createScoreColumnCell = (scoreName: string) => {
             originalValue={value}
             comparisonValue={comparison}
             range={range}
+            isHigherBetter={isHigherBetter}
           />
         );
       }
@@ -151,12 +167,36 @@ export const createScoreColumnCell = (scoreName: string) => {
     }
 
     if (heatmapEnabled && range) {
-      return <HeatmapScoreCell value={value} range={range} />;
+      return <HeatmapScoreCell value={value} range={range} isHigherBetter={isHigherBetter} />;
     }
 
-    return value ?? "-";
+    return isValidScore(value) ? formatScoreValue(value) : "-";
   };
 
   ScoreColumnCell.displayName = `ScoreColumnCell_${scoreName}`;
   return ScoreColumnCell;
 };
+
+// -- Header dropdown "Higher is better" toggle --
+
+export type ScoreDirectionMenuItem = { label: string; icon?: ReactNode; isActive?: boolean; onClick: () => void };
+
+// Shared "Higher is better" header-dropdown item, used by both eval tables.
+export function higherBetterMenuItem(isHigherBetter: boolean, onClick: () => void): ScoreDirectionMenuItem {
+  return {
+    label: "Higher is better",
+    isActive: isHigherBetter,
+    icon: isHigherBetter ? <Check className="size-3.5 text-primary-foreground" /> : <span className="size-3.5" />,
+    onClick,
+  };
+}
+
+// Built as a `customDropdownItems` factory on the score column so the toggle
+// reads live state off the table meta (no column-def rebuild on every flip).
+// Returns [] when no toggle handler is wired (e.g. shared/public evals).
+export function scoreDirectionDropdownItems(scoreName: string, table: unknown): ScoreDirectionMenuItem[] {
+  const meta = (table as Table<EvalRow>).options.meta?.evalCellMeta;
+  const onToggle = meta?.onToggleScoreDirection;
+  if (!onToggle) return [];
+  return [higherBetterMenuItem(meta?.scoreDirections?.[scoreName] ?? true, () => onToggle(scoreName))];
+}

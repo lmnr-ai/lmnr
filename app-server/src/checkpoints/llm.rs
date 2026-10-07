@@ -12,7 +12,10 @@ use uuid::Uuid;
 
 use crate::{
     instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage},
-    llm::{LlmClient, ProviderContent, ProviderRequest, ProviderResponse, ProviderResult},
+    llm::{
+        LlmClient, ModelProvider, ProviderContent, ProviderRequest, ProviderResponse,
+        ProviderResult,
+    },
     traces::span_attributes::CHECKPOINT_INTERNAL_SPAN,
 };
 
@@ -41,6 +44,12 @@ impl CheckpointRoot {
             origin_span_id,
             span: OnceLock::new(),
         }
+    }
+
+    /// The customer project whose span produced this checkpoint; the LLM
+    /// feature routes resolve against its workspace.
+    pub fn origin_project_id(&self) -> Uuid {
+        self.origin_project_id
     }
 
     fn span(&self) -> Option<&tracing::Span> {
@@ -78,7 +87,7 @@ where
         return llm_client.generate_content(request).await;
     };
 
-    let (model, provider) = llm_client.resolve_model_provider(request);
+    let ModelProvider { model, provider } = llm_client.resolve_model_provider(request).await;
     let span = {
         let _enter = root.span().map(|s| s.enter());
         InternalSpan::wrap(make_span(), SpanType::LLM)
@@ -116,7 +125,13 @@ fn content_text(content: &ProviderContent) -> String {
     content
         .parts
         .as_ref()
-        .map(|parts| parts.iter().filter_map(|p| p.text.clone()).collect::<Vec<_>>().join(""))
+        .map(|parts| {
+            parts
+                .iter()
+                .filter_map(|p| p.text.clone())
+                .collect::<Vec<_>>()
+                .join("")
+        })
         .unwrap_or_default()
 }
 

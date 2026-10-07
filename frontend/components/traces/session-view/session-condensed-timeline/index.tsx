@@ -294,6 +294,11 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
                 condensedSpan={condensedSpan}
                 selectedSpan={selectedSpanForThisTrace}
                 isIncludedInGroupSelection={isIncludedInGroupSelection}
+                isMuted={
+                  !isCostHeatmapVisible &&
+                  selectedSpanForThisTrace != null &&
+                  selectedSpanForThisTrace.spanId !== condensedSpan.span.spanId
+                }
                 maxSpanCost={maxSpanCost}
                 isCostHeatmapVisible={isCostHeatmapVisible}
                 onClick={handleSpanClick}

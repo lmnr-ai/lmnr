@@ -19,13 +19,11 @@ export default function RegularTimelineToggle() {
   return (
     <Button
       onClick={() => setSessionTimelineEnabled(!sessionTimelineEnabled)}
-      variant="outline"
-      className={cn(
-        "h-6 text-xs px-1.5",
-        sessionTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-      )}
+      variant={sessionTimelineEnabled ? "outlinePrimary" : "outline"}
+      size="sm"
+      className={cn(!sessionTimelineEnabled && "hover:bg-secondary")}
     >
-      <GanttChart size={14} className="mr-1" />
+      <GanttChart data-icon="inline-start" size={14} className="mr-1" />
       Timeline
     </Button>
   );

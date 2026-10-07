@@ -18,8 +18,8 @@ export interface PricingCardProps {
   ctaHref: string;
 }
 
-// One tier column. Surface-550 panel by default; Pro switches to the orange
-// fill via `isAccent`. Price is the dominant element; the tier name reads as
+// One tier column. Surface-550 panel by default; the recommended tier switches
+// to the orange fill via `isAccent`. Price is the dominant element; the tier name reads as
 // a smaller label above. CTA sits at the bottom of the card.
 export default function PricingCard({
   className,
@@ -40,7 +40,7 @@ export default function PricingCard({
     <div
       className={cn(
         "flex flex-col gap-6 rounded h-full p-5",
-        isAccent ? "bg-primary-400" : "bg-surface-500",
+        isAccent ? "bg-primary-400" : "bg-surface-250",
         className
       )}
     >
@@ -70,7 +70,10 @@ export default function PricingCard({
         <LandingButton
           variant={isAccent ? "solid" : "outline"}
           size="sm"
-          className={cn("w-full", isAccent && "bg-white text-primary-400 border border-white/40 hover:bg-white/90")}
+          className={cn(
+            "h-10 w-full md:h-auto",
+            isAccent && "bg-white text-primary-400 border border-white/40 hover:bg-white/90"
+          )}
         >
           {ctaLabel}
         </LandingButton>

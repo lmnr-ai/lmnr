@@ -5,7 +5,11 @@ import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type
 const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
 
-const normalizeUploadUrls = (text: string): string => text.replaceAll(/https?:\/\/[^/]+\/uploads\//g, "/uploads/");
+// The host class must exclude whitespace, not just `/`. A bare `[^/]+` spans
+// newlines, so the match runs from any absolute URL to the next `/uploads/` and
+// deletes everything between — one unrelated link before a relative image ate a
+// heading and a paragraph.
+const normalizeUploadUrls = (text: string): string => text.replaceAll(/https?:\/\/[^/\s]+\/uploads\//g, "/uploads/");
 
 const strapiHeaders = (): HeadersInit => {
   const headers: HeadersInit = {};
@@ -13,6 +17,27 @@ const strapiHeaders = (): HeadersInit => {
     headers["Authorization"] = `Bearer ${STRAPI_API_TOKEN}`;
   }
   return headers;
+};
+
+const fetchStrapiPosts = async (params: URLSearchParams): Promise<StrapiPost[]> => {
+  // Strapi v5 serves published entries by default; `status=draft` returns the
+  // draft version of every document, so unpublished posts are previewable
+  // outside production. Drafts also change while you edit them, so skip the
+  // cache — otherwise a refresh shows the last-fetched copy for a minute.
+  if (process.env.NODE_ENV !== "production") params.set("status", "draft");
+
+  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+    headers: strapiHeaders(),
+    ...(process.env.NODE_ENV !== "production" ? { cache: "no-store" as const } : { next: { revalidate: 60 } }),
+  });
+
+  if (!res.ok) {
+    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    return [];
+  }
+
+  const json: StrapiListResponse = await res.json();
+  return json.data;
 };
 
 const mapStrapiPost = (post: StrapiPost): BlogListItem => {
@@ -42,35 +67,15 @@ export const getBlogPosts = async ({
   if (sortByDate) params.set("sort", "date:desc");
   if (category) params.set("filters[category][$eq]", category);
 
-  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
-    headers: strapiHeaders(),
-    next: { revalidate: 60 },
-  });
-
-  if (!res.ok) {
-    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
-    return [];
-  }
-
-  const json: StrapiListResponse = await res.json();
-  return json.data.map(mapStrapiPost);
+  const posts = await fetchStrapiPosts(params);
+  return posts.map(mapStrapiPost);
 };
 
 export const getBlogPost = async (slug: string): Promise<MatterAndContent | null> => {
   const params = new URLSearchParams({ "filters[slug][$eq]": slug });
 
-  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
-    headers: strapiHeaders(),
-    next: { revalidate: 60 },
-  });
-
-  if (!res.ok) {
-    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
-    return null;
-  }
-
-  const json: StrapiListResponse = await res.json();
-  const post = json.data[0];
+  const posts = await fetchStrapiPosts(params);
+  const post = posts[0];
   if (!post) return null;
 
   const mapped = mapStrapiPost(post);

@@ -9,17 +9,18 @@ import { getDefaultSchemaFields, jsonSchemaToSchemaFields } from "@/components/s
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { track } from "@/lib/posthog";
 import { cn, tryParseJson } from "@/lib/utils";
 
-import { type ManageSignalContentVariant } from "./manage-signal-content";
+import LlmProfileSection from "./llm-profile-section";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
-import { type ManageSignalForm } from "./types";
+import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 
 export default function SignalFormFields({
   variant,
@@ -60,15 +61,48 @@ export default function SignalFormFields({
   }, [setValue]);
 
   return (
-    <div
-      className={cn(
-        "grid gap-8 py-4",
-        {
-          "pb-16": !showTemplates,
-        },
-        className
+    <div className={cn("grid gap-8 py-4 pb-16", className)}>
+      {Boolean(getValues("id")) && (
+        <Controller
+          name="disabled"
+          control={control}
+          render={({ field }) => {
+            const isActive = !(field.value ?? false);
+            return (
+              <div
+                className={cn(
+                  "flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
+                  isActive ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
+                )}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={cn(
+                      "inline-flex size-2.5 shrink-0 rounded-full",
+                      isActive ? "bg-primary" : "bg-muted-foreground/40"
+                    )}
+                  />
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <Label htmlFor="signal-enabled" className="text-sm font-medium cursor-pointer">
+                      {isActive ? "Active" : "Inactive"}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {isActive
+                        ? "This signal is evaluating incoming traces."
+                        : "Paused — new traces aren't evaluated. Existing events and clusters are kept."}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="signal-enabled"
+                  checked={isActive}
+                  onCheckedChange={(checked) => field.onChange(!checked)}
+                />
+              </div>
+            );
+          }}
+        />
       )}
-    >
       <div className="grid gap-1.5">
         <Label htmlFor="name" className="text-sm font-medium">
           Name
@@ -78,19 +112,13 @@ export default function SignalFormFields({
           name="name"
           control={control}
           render={({ field }) => (
-            <Input
-              disabled={Boolean(getValues("id"))}
-              id="name"
-              placeholder="Signal name"
-              autoFocus
-              size="sm"
-              {...field}
-            />
+            <Input id="name" placeholder="Signal name" autoFocus={!getValues("id")} size="sm" {...field} />
           )}
         />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}
+      <LlmProfileSection />
       <div className="grid gap-1.5">
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1.5">
@@ -101,7 +129,7 @@ export default function SignalFormFields({
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-60">
+              <TooltipContent side="right" className="max-w-44">
                 <p>Describe what you&apos;re looking for in the trace.</p>
               </TooltipContent>
             </Tooltip>

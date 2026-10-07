@@ -2,19 +2,20 @@
 import { debounce, isEmpty } from "lodash";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
 
+import { LlmProfilesProvider } from "@/components/playground/llm-profiles-context";
 import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import PlaygroundPanel from "@/components/playground/playground-panel";
-import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
+import { getDefaultThinkingModelProviderOptions, type LlmRoute } from "@/components/playground/utils";
 import TraceView from "@/components/traces/trace-view";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Message, type Playground as PlaygroundType, type PlaygroundForm } from "@/lib/playground/types";
 import { transformFromLegacy } from "@/lib/playground/utils.ts";
-import { type ProviderApiKey } from "@/lib/settings/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Header from "../ui/header";
@@ -25,6 +26,12 @@ const defaultMessages: Message[] = [
     content: [{ type: "text", text: "" }],
   },
 ];
+
+// Empty when the row has no route (pre-profile playground, or its profile/model was deleted).
+const storedRoute = (playground: PlaygroundType): LlmRoute =>
+  playground.llmProfileId && playground.llmModel
+    ? { llmProfileId: playground.llmProfileId, llmModel: playground.llmModel }
+    : { llmProfileId: "", llmModel: "" };
 
 export default function Playground({ playground }: { playground: PlaygroundType }) {
   const { replace } = useRouter();
@@ -39,7 +46,8 @@ export default function Playground({ playground }: { playground: PlaygroundType 
 
   const methods = useForm<PlaygroundForm>({
     defaultValues: {
-      model: "openai:gpt-4o-mini",
+      llmProfileId: "",
+      llmModel: "",
       messages: defaultMessages,
       maxTokens: 1024,
       temperature: 1,
@@ -50,39 +58,22 @@ export default function Playground({ playground }: { playground: PlaygroundType 
 
   const { reset, watch } = methods;
   const { reset: resetOutput } = usePlaygroundOutput();
-  const { data: apiKeys, isLoading: isApiKeysLoading } = useSWR<ProviderApiKey[]>(
-    `/api/projects/${params?.projectId}/provider-api-keys`,
+  const { data: profiles, isLoading: isProfilesLoading } = useSWR<LlmProfileOption[]>(
+    `/api/projects/${params?.projectId}/llm-profiles`,
     swrFetcher
   );
-
-  const handleResetForm = async () => {
-    if (playground) {
-      reset({
-        model: playground.modelId as PlaygroundForm["model"],
-        messages: isEmpty(playground.promptMessages) ? defaultMessages : transformFromLegacy(playground.promptMessages),
-        maxTokens: playground.maxTokens ?? undefined,
-        temperature: playground.temperature ?? undefined,
-        providerOptions:
-          !isEmpty(playground.providerOptions) && playground.providerOptions
-            ? playground.providerOptions
-            : getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
-        tools: JSON.stringify(playground.tools),
-        toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
-        structuredOutput: playground.outputSchema ?? undefined,
-      });
-    }
-    resetOutput();
-  };
 
   const updatePlaygroundData = useCallback(
     async (form: PlaygroundForm, id: string, projectId?: string) => {
       try {
         setIsUpdating(true);
+        const hasRoute = !!form.llmProfileId && !!form.llmModel;
         await fetch(`/api/projects/${projectId}/playgrounds/${id}`, {
           method: "POST",
           body: JSON.stringify({
             promptMessages: form.messages,
-            modelId: form.model,
+            llmProfileId: hasRoute ? form.llmProfileId : null,
+            llmModel: hasRoute ? form.llmModel : null,
             tools: form.tools,
             toolChoice: form.toolChoice,
             maxTokens: form.maxTokens,
@@ -102,9 +93,30 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     [toast]
   );
 
+  // Default provider options depend on the route's profile, so the form is filled once profiles
+  // first arrive; SWR revalidations must not reset edits made since.
+  const initialized = useRef(false);
   useEffect(() => {
-    handleResetForm();
-  }, []);
+    if (!profiles || initialized.current) return;
+    initialized.current = true;
+    const route = storedRoute(playground);
+    const provider = profiles.find((p) => p.id === route.llmProfileId)?.provider;
+    reset({
+      ...route,
+      messages: isEmpty(playground.promptMessages) ? defaultMessages : transformFromLegacy(playground.promptMessages),
+      maxTokens: playground.maxTokens ?? undefined,
+      temperature: playground.temperature ?? undefined,
+      providerOptions:
+        !isEmpty(playground.providerOptions) && playground.providerOptions
+          ? playground.providerOptions
+          : getDefaultThinkingModelProviderOptions(provider, route.llmModel),
+      tools: JSON.stringify(playground.tools),
+      toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
+      structuredOutput: playground.outputSchema ?? undefined,
+    });
+    resetOutput();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles]);
 
   useEffect(() => {
     if (params.playgroundId === "create" && searchParams.get("spanId")) {
@@ -138,7 +150,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
       <Header path={`playgrounds/${playground.name}`}>
         {isUpdating && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
       </Header>
-      {isApiKeysLoading ? (
+      {isProfilesLoading ? (
         <div className="flex flex-col gap-4 py-4 px-4">
           <Skeleton className="w-64 h-8" />
           <div className="grid grid-cols-2 gap-4">
@@ -148,9 +160,11 @@ export default function Playground({ playground }: { playground: PlaygroundType 
           <Skeleton className="w-16 h-7" />
         </div>
       ) : (
-        <FormProvider {...methods}>
-          <PlaygroundPanel id={playground.id} apiKeys={apiKeys ?? []} onTraceSelect={setTraceId} />
-        </FormProvider>
+        <LlmProfilesProvider profiles={profiles ?? []}>
+          <FormProvider {...methods}>
+            <PlaygroundPanel id={playground.id} onTraceSelect={setTraceId} />
+          </FormProvider>
+        </LlmProfilesProvider>
       )}
       {isSidePanelOpen && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">

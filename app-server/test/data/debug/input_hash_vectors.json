@@ -103,6 +103,52 @@
         }
       ],
       "expected_hash": "5af900befc8e4c75b51fca6e43d0eb11ef8ab5f6677966b87ab72f55010e1df7"
+    },
+    {
+      "name": "verbatim-ai-sdk-language-model-prompt",
+      "input": [
+        {
+          "content": "You are a helpful assistant.",
+          "role": "system"
+        },
+        {
+          "content": [
+            {
+              "text": "What is in this image?",
+              "type": "text"
+            },
+            {
+              "mediaType": "image/png",
+              "data": "https://example.com/pic.png",
+              "type": "file"
+            }
+          ],
+          "role": "user"
+        },
+        {
+          "content": [
+            {
+              "providerOptions": {
+                "anthropic": {
+                  "signature": "sig"
+                }
+              },
+              "text": "Let me look.",
+              "type": "reasoning"
+            },
+            {
+              "toolName": "describe_image",
+              "input": {
+                "detail": "high"
+              },
+              "toolCallId": "call_1",
+              "type": "tool-call"
+            }
+          ],
+          "role": "assistant"
+        }
+      ],
+      "expected_hash": "7749b03aeba2fd3500bdabde7d88bdb6fe1270d96947b4b87e63e8e31650609a"
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { scaleUtc } from "d3-scale";
-import { differenceInHours } from "date-fns";
+import { differenceInMinutes } from "date-fns";
 
 import { type ChartConfig } from "@/components/ui/chart.tsx";
 
@@ -67,7 +67,7 @@ export function calculateOptimalInterval(startDate: Date, endDate: Date, targetB
   const intervalMinutes = intervalMs / (1000 * 60);
 
   if (intervalMinutes < 60) {
-    return { value: Math.round(intervalMinutes), unit: "minute" };
+    return { value: Math.max(1, Math.round(intervalMinutes)), unit: "minute" };
   } else if (intervalMinutes < 60 * 24) {
     const hours = intervalMinutes / 60;
     return { value: Math.round(hours), unit: "hour" };
@@ -86,10 +86,10 @@ export const normalizeTimeRange = (left: string, right: string) => {
     : { start: left, end: right, startTime: leftTime, endTime: rightTime };
 };
 
-export const isValidZoomRange = (left: string | undefined, right: string | undefined, minHours: number = 1) => {
+export const isValidZoomRange = (left: string | undefined, right: string | undefined, minMinutes: number = 5) => {
   if (!left || !right || left === right) return false;
 
   const normalized = normalizeTimeRange(left, right);
-  const diffHours = differenceInHours(normalized.endTime, normalized.startTime);
-  return diffHours >= minHours;
+  const diffMinutes = differenceInMinutes(normalized.endTime, normalized.startTime);
+  return diffMinutes >= minMinutes;
 };

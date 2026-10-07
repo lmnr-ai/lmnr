@@ -2,33 +2,61 @@
 //!
 //! Most of these have no single static default (the base URL default depends on
 //! the provider; credentials are required), so they're exposed as bare names
-//! and the read logic stays in `llm/`. `SIGNALS_ALWAYS_USE_REALTIME` is a
-//! boolean toggle with a `false` default.
+//! and the read logic stays in `llm/`.
 
 use super::{BoolEnv, NumEnv};
 
-/// `openai` | `gemini` | `bedrock` | `mock`. The single provider switch.
+/// `openai` | `openai_responses` | `gemini` | `bedrock` | `azure_chat_completions` |
+/// `azure_responses` | `azure_anthropic` | `mock`. The single provider switch.
 pub const PROVIDER: &str = "LLM_PROVIDER";
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const PARSING_PROVIDER: &str = "SIGNALS_PARSING_LLM_PROVIDER";
-/// Shared single-provider API key (openai / gemini).
+/// Workspace whose LLM profiles back the global (workspace-less) rows of
+/// `llm_feature_routes`. Setting it tells the feature flags that LLM-backed
+/// features have somewhere to run even with no `LLM_PROVIDER`.
+pub const SYSTEM_WORKSPACE_ID: &str = "LLM_SYSTEM_WORKSPACE_ID";
+/// Shared single-provider API key (openai / gemini / azure_*).
 pub const API_KEY: &str = "LLM_API_KEY";
 /// Optional OpenAI-compatible base URL override (provider-specific default).
 pub const BASE_URL: &str = "LLM_BASE_URL";
 /// Optional JSON map of default headers sent on every LLM request.
 pub const DEFAULT_HEADERS_JSON: &str = "LLM_DEFAULT_HEADERS_JSON";
 
-/// Per-size model id overrides (provider-specific hardcoded defaults).
+/// Azure AI Foundry resource name — the `<name>` in
+/// `https://<name>.services.ai.azure.com`. One host serves every API shape, so all
+/// three `azure_*` providers read this; either it or [`AZURE_BASE_URL`] is required.
+pub const AZURE_RESOURCE_ID: &str = "AZURE_RESOURCE_ID";
+/// Full Azure endpoint, for private endpoints / gateways that don't follow the
+/// `<resource>.services.ai.azure.com` pattern. Takes precedence over the resource id.
+pub const AZURE_BASE_URL: &str = "AZURE_BASE_URL";
+/// Optional `api-version` query param for the OpenAI-shaped routes. The v1 route is
+/// GA and needs none, but some resources still require an explicit version (e.g.
+/// `preview`) for it.
+pub const AZURE_API_VERSION: &str = "AZURE_API_VERSION";
+
+/// Per-size model id overrides (provider-specific hardcoded defaults) for the
+/// `LLM_PROVIDER` fallback; each `LlmFeature` maps to one size.
 pub const MODEL_SMALL: &str = "LLM_MODEL_SMALL";
 pub const MODEL_MEDIUM: &str = "LLM_MODEL_MEDIUM";
 pub const MODEL_LARGE: &str = "LLM_MODEL_LARGE";
-
-/// Force the realtime signal path even when the provider supports batch.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const ALWAYS_USE_REALTIME: BoolEnv = BoolEnv::new("SIGNALS_ALWAYS_USE_REALTIME", false);
 
 /// Per-request HTTP timeout (seconds) applied only to flex-tier Gemini requests.
 /// Flex responses can take minutes, so this is far higher than the shared client
 /// timeout. Lives here (not under signals) because the gemini client applies it
 /// whenever a request carries the flex service tier, regardless of feature flags.
 pub const FLEX_LLM_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("SIGNALS_FLEX_LLM_TIMEOUT_SECS", 900);
+
+/// Shared per-request HTTP timeout (seconds) for all LLM providers — the reqwest
+/// clients (openai/gemini) apply it as the request timeout, and the bedrock AWS
+/// SDK client as its per-attempt operation timeout. Large-input agent calls (e.g.
+/// system-extraction over 100k+ token example families) can run past the old 120s
+/// default, so it's raised and made configurable. Gemini flex-tier requests
+/// override this per-request with `FLEX_LLM_TIMEOUT_SECS`.
+pub const HTTP_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("LLM_HTTP_TIMEOUT_SECS", 300);
+
+pub const OPENAI_ALLOW_REASONING_WITH_TOOLS: BoolEnv =
+    BoolEnv::new("OPENAI_ALLOW_REASONING_WITH_TOOLS", false);
+
+/// Replays captured assistant reasoning for interleaved-thinking
+/// OpenAI-compatible models. Disable for providers that reject
+/// `reasoning_content` in input messages.
+pub const OPENAI_REPLAY_REASONING_CONTENT: BoolEnv =
+    BoolEnv::new("OPENAI_REPLAY_REASONING_CONTENT", true);

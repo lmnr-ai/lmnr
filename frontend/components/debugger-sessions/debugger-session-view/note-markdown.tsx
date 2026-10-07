@@ -16,8 +16,6 @@ type Components = NonNullable<ComponentProps<typeof Response>["components"]>;
  */
 const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
   // Heading scale: h1 20px / h2 18px / h3+ 16px, stepping down to the 14px body.
-  // `scroll-mt-4` keeps outline-anchored scrolls clear of the viewport edge
-  // (anchor ids are stamped post-render by RunComment).
   h1: "mt-3 mb-1 text-xl font-semibold text-foreground scroll-mt-4",
   h2: "mt-3 mb-1 text-lg font-semibold text-foreground scroll-mt-4",
   h3: "mt-2 mb-1 text-base font-semibold text-foreground scroll-mt-4",
@@ -84,24 +82,17 @@ export const noteProseClassName = "text-sm text-secondary-foreground";
 // Span references in notes use an XML tag the agent writes:
 //   <span id='<spanId>' name='<label>' />
 //   <span id='<spanId>' name='<label>' reference_text='<quote>' />
-// `id` is the span UUID (from SQL). It's the ONLY way to produce a chip — plain
-// markdown links render as ordinary anchors. We rewrite each tag to a marked
-// markdown link (the proven Streamdown `a`-override chip path); RunComment's `a`
-// renderer turns links carrying `lmnrSpanChip=1` into chips and leaves the rest
-// as anchors. Query values are URL-encoded so the link survives markdown syntax.
-// Attributes accept single OR double quotes (backreference-matched), and the
-// lazy values backtrack past internal quotes of the same kind when the tag
-// still closes (`name='Bob's tool'` parses; the previous `[^']*` couldn't).
-// Agents writing quote-heavy text can switch that attribute's delimiters.
+// Rewritten to a marked markdown link (the Streamdown `a`-override chip path);
+// NoteContent's `a` renderer turns links carrying `lmnrSpanChip=1` into chips.
+// The trace is resolved session-wide at render time, so no traceId is embedded.
 const SPAN_TAG_RE =
   /<span\s+id=(['"])([^'"]+)\1\s+name=(['"])([\s\S]*?)\3(?:\s+reference_text=(['"])([\s\S]*?)\5)?\s*\/>/g;
 
-export function spanTagsToLinks(note: string, traceId: string): string {
+export function spanTagsToLinks(note: string): string {
   return note.replace(SPAN_TAG_RE, (_match, _q1, id: string, _q2, name: string, _q3, referenceText?: string) => {
-    // Markdown link labels can't contain unescaped brackets; span names rarely do.
     const label = name.replace(/[[\]]/g, " ").trim() || "span";
     const params = new URLSearchParams({ spanId: id, lmnrSpanChip: "1" });
     if (referenceText) params.set("referenceText", referenceText);
-    return `[${label}](https://lmnr.ai/project/-/traces/${traceId}?${params.toString()})`;
+    return `[${label}](https://lmnr.ai/span?${params.toString()})`;
   });
 }

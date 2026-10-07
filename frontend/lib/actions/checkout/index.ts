@@ -6,8 +6,10 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
+import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -49,7 +51,8 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
     expand: ["latest_invoice.lines"],
   });
 
-  const tierName = workspace.subscriptionTier.name.toLowerCase().trim() as PaidTier;
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const tierName = normalizeTier(workspace.subscriptionTier.name) as PaidTier;
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
@@ -197,7 +200,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     throw new Error("No active subscription found. Use the checkout page to subscribe.");
   }
 
-  const currentTierName = workspace[0].tierName.toLowerCase().trim();
+  const currentTierName = normalizeTier(workspace[0].tierName);
   if (currentTierName === newTier) {
     throw new Error(`Already on the ${newTier} tier`);
   }
@@ -227,7 +230,13 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  const newSignalRunsOverage = Math.max(0, usage.totalSignalSteps - newTierConfig.includedSignalSteps);
+  // Credited runs are excluded from the Stripe meter baseline.
+  const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
+    usage.uncreditedSignalCostMicroUsd,
+    0,
+    newTierConfig.includedSignalCostMicroUsd
+  );
+  const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
 
@@ -237,14 +246,14 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     lookup_keys: [
       newTierConfig.lookupKey,
       newTierConfig.overageMegabytesLookupKey,
-      newTierConfig.overageSignalStepsProcessedLookupKey,
+      newTierConfig.overageSignalCostLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
   const newMegabytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
-    (p) => p.lookup_key === newTierConfig.overageSignalStepsProcessedLookupKey
+    (p) => p.lookup_key === newTierConfig.overageSignalCostLookupKey
   );
 
   if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {
@@ -295,7 +304,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       timestamp,
       payload: {
         stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: String(newSignalRunsOverage),
+        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: newSignalCostOverageUsd,
       },
     }),
   ]);

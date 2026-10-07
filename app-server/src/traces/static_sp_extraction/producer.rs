@@ -1,0 +1,87 @@
+//! Legacy (skeleton-hash) static-prompt publisher: candidates whose naive
+//! signature has no cached static-part regex, collapsing same-trace repeats
+//! within the batch.
+//!
+//! Reached only through the sp-versioning dispatcher
+//! (`sp_versioning::producer::publish_static_prompt_candidates`), which owns
+//! the shared guards (LLM availability, internal-project filter) and routes
+//! here when `Feature::StaticSpV2` is off.
+
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use uuid::Uuid;
+
+use super::{
+    STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_ROUTING_KEY, consumer::StaticPromptQueueMessage,
+    static_regex_cache_key,
+};
+use crate::{
+    cache::{Cache, CacheTrait},
+    mq::{MessageQueue, MessageQueueTrait},
+    traces::sp_versioning::producer::StaticPromptCandidate,
+};
+
+/// Publish candidates whose signature has no cached regex. Best-effort:
+/// cache/publish failures are logged and never propagated — a later span
+/// with the same prompt re-triggers.
+pub(crate) async fn publish_legacy_candidates(
+    candidates: Vec<StaticPromptCandidate>,
+    cache: &Cache,
+    queue: &Arc<MessageQueue>,
+) {
+    let mut seen: HashSet<(Uuid, Uuid, String)> = HashSet::new();
+    let mut messages: Vec<StaticPromptQueueMessage> = Vec::new();
+
+    for candidate in candidates {
+        if !seen.insert((
+            candidate.project_id,
+            candidate.trace_id,
+            candidate.prompt_hash.clone(),
+        )) {
+            continue;
+        }
+
+        let regex_key = static_regex_cache_key(candidate.project_id, &candidate.prompt_hash);
+        let cached = cache.exists(&regex_key).await.unwrap_or_else(|e| {
+            log::warn!("[STATIC_PROMPT] Failed to read regex cache {regex_key}: {e:?}");
+            // On cache errors, skip publishing rather than flooding the
+            // queue with prompts that may already have a regex.
+            true
+        });
+        if cached {
+            continue;
+        }
+
+        messages.push(StaticPromptQueueMessage {
+            project_id: candidate.project_id,
+            trace_id: candidate.trace_id,
+            prompt_hash: candidate.prompt_hash,
+            system_prompt: candidate.system_prompt,
+        });
+    }
+
+    if messages.is_empty() {
+        return;
+    }
+
+    let payload = match serde_json::to_vec(&messages) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("[STATIC_PROMPT] Failed to serialize queue messages: {e:?}");
+            return;
+        }
+    };
+
+    if let Err(e) = queue
+        .publish(
+            &payload,
+            STATIC_PROMPT_EXCHANGE,
+            STATIC_PROMPT_ROUTING_KEY,
+            None,
+        )
+        .await
+    {
+        log::error!("[STATIC_PROMPT] Failed to publish queue messages: {e:?}");
+    }
+}

@@ -10,7 +10,7 @@ import { type Operator } from "@/lib/actions/common/operators.ts";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation } from "../store";
-import { type FocusableRef, getOperationsForField } from "../types";
+import { type FocusableRef, getColumnFilter, getOperationsForField } from "../types";
 
 interface FilterSelectProps {
   tagId: string;
@@ -38,11 +38,18 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
 
   const options: FilterSelectOption[] = useMemo(() => {
     if (selectType === "field") {
-      return filters.map((f) => ({ value: f.key, label: f.name }));
+      const fieldOptions = filters.map((f) => ({ value: f.key, label: f.name }));
+      // A filter from a shared URL may target a column not in this user's list
+      // (e.g. someone else's custom column). Surface it so the field is labelled
+      // rather than showing the empty-select placeholder.
+      if (tag && !fieldOptions.some((o) => o.value === tag.field)) {
+        fieldOptions.push({ value: tag.field, label: tag.field });
+      }
+      return fieldOptions;
     } else {
       // operator
       if (!tag) return [];
-      const operations = getOperationsForField(filters, tag.field);
+      const operations = getOperationsForField(filters, tag.field, tag.dataType);
       return operations.map((op) => ({ value: op.key, label: op.label }));
     }
   }, [selectType, filters, tag]);
@@ -65,26 +72,37 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
 
       if (selectType === "field") {
         updateTagField(tag.id, newValue);
-        updateTagValue(tag.id, "");
-        setTagFocusState(tagId, { type: "operator", mode: "edit" });
+        const operations = getOperationsForField(filters, newValue);
+        // The old operator may not exist on the new column (`>` → span tags).
+        if (!operations.some((op) => op.key === tag.operator)) {
+          updateTagOperator(tag.id, operations[0].key);
+        }
+        // Array columns take a list of values, and a single-operator column has
+        // a static operator label with nothing to focus — skip straight to it.
+        updateTagValue(tag.id, getColumnFilter(filters, newValue)?.dataType === "array" ? [] : "");
+        setTagFocusState(tagId, { type: operations.length <= 1 ? "value" : "operator", mode: "edit" });
       } else {
         updateTagOperator(tag.id, newValue as Operator);
         setTagFocusState(tagId, { type: "value", mode: "edit" });
       }
     },
-    [tag, selectType, updateTagField, updateTagOperator, updateTagValue, setTagFocusState, tagId]
+    [tag, selectType, filters, updateTagField, updateTagOperator, updateTagValue, setTagFocusState, tagId]
   );
 
   if (!tag) return null;
 
-  const wrapperClassName = cn(focusState.type === selectType && "bg-primary/35", {
+  // A lone option renders as static text, so it gets neither the focus
+  // highlight nor a click handler.
+  const isStatic = options.length <= 1;
+
+  const wrapperClassName = cn(focusState.type === selectType && !isStatic && "bg-primary/35", {
     "rounded-l-[0.29rem]": selectType === "field",
   });
 
   return (
     <UIFilterSelect
       className={wrapperClassName}
-      onMouseDown={handleClick}
+      onMouseDown={isStatic ? undefined : handleClick}
       onClick={(e) => e.stopPropagation()}
       ref={ref}
       value={value}

@@ -1,13 +1,9 @@
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
-import { getClusterColorById } from "@/lib/clusters/colors";
 
-/** The panel's accent is the active signal's leaf-cluster color (the same color
- *  shown in the cluster list / stacked chart), falling back to the platform
- *  primary for unclustered signals. */
-export function getSignalAccentColor(signal?: TraceSignal): string {
-  const leaf = signal?.leafCluster;
-  return leaf ? getClusterColorById(leaf.id) : "var(--color-primary)";
-}
+/** The worst event's severity. With several events (a per-span signal) the header
+ *  speaks for the whole card, and the card is as bad as its worst event. */
+export const worstSeverity = (signal: TraceSignal) =>
+  signal.events.reduce((worst, e) => Math.max(worst, e.severity), 0);
 
 export function schemaFieldsToStructuredOutput(fields: TraceSignal["schemaFields"]): {
   type: string;

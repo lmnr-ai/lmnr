@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import SlackChannelProjects from "@/components/slack/slack-channel-projects";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
 import { useProjectContext } from "@/contexts/project-context";
 import { track } from "@/lib/posthog";
@@ -36,7 +37,10 @@ export default function WorkspaceIntegrations({
           slackRedirectUri={slackRedirectUri}
           brokerEnabled={slackBrokerEnabled}
           returnPath={settingsHref("integrations")}
-        />
+          hideSettingsLink
+        >
+          <SlackChannelProjects workspaceId={workspaceId} className="rounded-none border-0 bg-transparent" />
+        </SlackConnectionCard>
       </div>
     </>
   );

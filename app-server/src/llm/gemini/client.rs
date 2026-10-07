@@ -19,27 +19,10 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 /// Per-request HTTP timeout applied only to flex-tier requests (the shared client
-/// timeout is 120s and must stay that way for every other call). Flex responses can
-/// take minutes. Reads `SIGNALS_FLEX_LLM_TIMEOUT_SECS` (default 900).
+/// timeout is `LLM_HTTP_TIMEOUT_SECS`, default 300s). Flex responses can take
+/// minutes. Reads `SIGNALS_FLEX_LLM_TIMEOUT_SECS` (default 900).
 static FLEX_REQUEST_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(env::llm::FLEX_LLM_TIMEOUT_SECS.get()));
-
-/// Log a non-2xx Gemini response. For FLEX requests, transient capacity errors
-/// (429/503) are downgraded to `debug` — the flex tier retries them and falls
-/// back to standard, so logging every attempt at `error` floods pod logs. On any
-/// other path (standard signals, trace-chat, batch) every non-2xx stays at
-/// `error`, since a 429/503 there is meaningful and not part of a retry storm.
-fn log_gemini_api_error(status: reqwest::StatusCode, error_text: &str, is_flex: bool) {
-    if is_flex && matches!(status.as_u16(), 429 | 503) {
-        log::debug!(
-            "Gemini API capacity error ({}) [flex]: {}",
-            status,
-            error_text
-        );
-    } else {
-        log::error!("Gemini API error ({}): {}", status, error_text);
-    }
-}
 
 #[derive(Clone)]
 pub struct GeminiClient {
@@ -59,12 +42,29 @@ impl GeminiClient {
             .ok()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());
-        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
         let default_headers = default_headers_from_env().map_err(GeminiError::config)?;
+        Self::with_config(api_key, &raw_base_url, default_headers)
+    }
+
+    /// Build from explicit values (LLM profiles) instead of env.
+    pub(crate) fn with_api_key(api_key: String) -> GeminiResult<Self> {
+        Self::with_config(
+            api_key,
+            "https://generativelanguage.googleapis.com/v1beta",
+            reqwest::header::HeaderMap::new(),
+        )
+    }
+
+    fn with_config(
+        api_key: String,
+        raw_base_url: &str,
+        default_headers: reqwest::header::HeaderMap,
+    ) -> GeminiResult<Self> {
+        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .default_headers(default_headers)
             .build()
             .map_err(|e| GeminiError::config(format!("Failed to build HTTP client: {}", e)))?;
@@ -106,8 +106,6 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, is_flex);
-
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
 
@@ -118,6 +116,7 @@ impl GeminiClient {
         Ok(generate_response)
     }
 
+    #[allow(dead_code)]
     pub async fn create_batch(
         &self,
         model: &str,
@@ -144,8 +143,6 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, false);
-
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
 
@@ -156,6 +153,7 @@ impl GeminiClient {
         Ok(operation)
     }
 
+    #[allow(dead_code)]
     pub async fn get_batch(&self, batch_name: &str) -> GeminiResult<Operation> {
         let url = format!("{}/batches/{}", self.api_base_url, batch_name);
 
@@ -170,8 +168,6 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, false);
-
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
 
@@ -184,10 +180,6 @@ impl GeminiClient {
 }
 
 impl LanguageModelClient for GeminiClient {
-    fn supports_batch(&self) -> bool {
-        true
-    }
-
     async fn generate_content(
         &self,
         model: &str,
@@ -245,7 +237,6 @@ impl LanguageModelClient for GeminiClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log_gemini_api_error(status, &error_text, false);
             return Err(GeminiError::from_response(status.as_u16(), error_text).into());
         }
 

@@ -1,7 +1,8 @@
+import { env } from "process";
+
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { env } from "process";
 
 import * as relations from "./migrations/relations";
 import * as schema from "./migrations/schema";

@@ -30,46 +30,35 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
 export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId, projectId } = GetTraceSchema.parse(input);
 
-  const sharedTrace = await db.query.sharedTraces.findFirst({
-    where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
-  });
-
-  const [[trace], [extraTokens]] = await Promise.all([
+  const [sharedTrace, [trace]] = await Promise.all([
+    db.query.sharedTraces.findFirst({
+      where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
+    }),
     executeQuery<Omit<TraceViewTrace, "visibility">>({
       query: `
-      SELECT
-        id,
-        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
-        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
-        input_tokens as inputTokens,
-        output_tokens as outputTokens,
-        total_tokens as totalTokens,
-        input_cost as inputCost,
-        output_cost as outputCost,
-        total_cost as totalCost,
-        metadata,
-        status,
-        trace_type as traceType,
-        has_browser_session as hasBrowserSession,
-        session_id as sessionId,
-        user_id as userId
-      FROM traces
-      WHERE id = {traceId: UUID}
-      LIMIT 1
-    `,
-      projectId,
-      parameters: {
-        traceId,
-      },
-    }),
-    executeQuery<{ cacheReadInputTokens: number; reasoningTokens: number }>({
-      query: `
-      SELECT
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens,
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.reasoning_tokens')) as reasoningTokens
-      FROM spans
-      WHERE trace_id = {traceId: UUID}
-        AND span_type = 'LLM'
+        SELECT
+          id,
+          formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+          formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+          input_tokens as inputTokens,
+          output_tokens as outputTokens,
+          total_tokens as totalTokens,
+          cache_read_input_tokens as cacheReadInputTokens,
+          cache_creation_input_tokens as cacheCreationInputTokens,
+          reasoning_tokens as reasoningTokens,
+          input_cost as inputCost,
+          output_cost as outputCost,
+          total_cost as totalCost,
+          metadata,
+          status,
+          trace_type as traceType,
+          has_browser_session as hasBrowserSession,
+          session_id as sessionId,
+          user_id as userId,
+          agent_input as agentInput
+        FROM traces
+        WHERE id = {traceId: UUID}
+        LIMIT 1
       `,
       projectId,
       parameters: {
@@ -84,13 +73,14 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
 
   return {
     ...trace,
-    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
-    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
     visibility: sharedTrace ? "public" : "private",
   };
 }
 
 export async function isTracePublic(traceId: string): Promise<boolean> {
+  // Non-UUID → not public, rather than a Postgres cast error (500) in the proxy.
+  if (!z.guid().safeParse(traceId).success) return false;
+
   const sharedTrace = await db.query.sharedTraces.findFirst({
     where: eq(sharedTraces.id, traceId),
   });

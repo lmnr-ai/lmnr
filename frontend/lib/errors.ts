@@ -9,3 +9,17 @@ export class NotFoundError extends Error {
     this.name = "NotFoundError";
   }
 }
+
+/**
+ * Thrown when the caller is not authenticated (401) or lacks the required role
+ * (403), so route handlers can return the right status instead of a 500.
+ */
+export class AuthorizationError extends Error {
+  constructor(
+    message: string,
+    public readonly status: 401 | 403
+  ) {
+    super(message);
+    this.name = "AuthorizationError";
+  }
+}

@@ -29,6 +29,11 @@ const MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 /// Cache invalidation handles the common case, but this limits the blast
 /// radius if invalidation misses a variant (e.g. uncommon model name form).
 const MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS: u64 = 60 * 30; // 30 minutes
+/// Custom model costs are project-specific, user-entered entries that change
+/// infrequently, and every write path (`upsertCustomModelCost`, delete, copy)
+/// explicitly invalidates the affected cache key. So a positive hit can be
+/// cached much longer than universal model costs without risking staleness.
+const CUSTOM_MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 30; // 30 days
 
 /// Costs JSON blob from the `model_costs` table, cached as-is.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -227,7 +232,7 @@ async fn get_custom_model_costs(
 
     // Cache the result (positive or negative)
     let ttl = if result.is_some() {
-        MODEL_COSTS_CACHE_TTL_SECONDS
+        CUSTOM_MODEL_COSTS_CACHE_TTL_SECONDS
     } else {
         MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS
     };

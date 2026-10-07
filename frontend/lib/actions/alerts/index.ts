@@ -18,9 +18,10 @@ const TargetSchema = z.object({
 const SignalEventMetadataSchema = z.object({
   severities: z.array(z.number().int().min(0).max(2)).nonempty(),
   skipSimilar: z.boolean().optional(),
+  disabled: z.boolean().optional(),
 });
 
-const NewClusterMetadataSchema = z.object({}).strict();
+const NewClusterMetadataSchema = z.object({ disabled: z.boolean().optional() }).strict();
 
 // NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar.
 const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: unknown) => {
@@ -55,6 +56,12 @@ const UpdateAlertSchema = z.object({
 const DeleteAlertSchema = z.object({
   alertId: z.guid(),
   projectId: z.guid(),
+});
+
+const SetAlertDisabledSchema = z.object({
+  alertId: z.guid(),
+  projectId: z.guid(),
+  disabled: z.boolean(),
 });
 
 export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {
@@ -217,6 +224,66 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
 
   return result;
+}
+
+export async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
+  const { alertId, projectId, disabled } = SetAlertDisabledSchema.parse(input);
+
+  const [existing] = await db
+    .select({ metadata: alerts.metadata })
+    .from(alerts)
+    .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)))
+    .limit(1);
+
+  if (!existing) throw new Error("Alert not found.");
+
+  const nextMetadata: AlertMetadata = { ...((existing.metadata as AlertMetadata) ?? {}) };
+  if (disabled) {
+    nextMetadata.disabled = true;
+  } else {
+    delete nextMetadata.disabled;
+  }
+
+  await db
+    .update(alerts)
+    .set({ metadata: nextMetadata })
+    .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
+
+  await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
+
+  return { id: alertId, disabled };
+}
+
+export class AlertEmailTargetError extends Error {
+  constructor() {
+    super("Cannot set alert email targets for other users.");
+    this.name = "AlertEmailTargetError";
+  }
+}
+
+// Single dispatch point for PATCH /alerts/:id, keyed on `body.action` (defaults to "update").
+export async function patchAlert(input: {
+  projectId: string;
+  alertId: string;
+  userEmail?: string;
+  body: Record<string, any>;
+}) {
+  const { projectId, alertId, userEmail, body } = input;
+
+  switch (body?.action ?? "update") {
+    case "toggleDisabled":
+      return setAlertDisabled({ alertId, projectId, disabled: body.disabled });
+    case "update": {
+      const emailTargets = (body.targets ?? []).filter((t: { type: string; email?: string }) => t.type === "EMAIL");
+      if (userEmail && emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {
+        throw new AlertEmailTargetError();
+      }
+      // updateAlert re-validates via zod; body is untyped JSON so cast to its input shape.
+      return updateAlert({ ...body, projectId, alertId, userEmail } as Parameters<typeof updateAlert>[0]);
+    }
+    default:
+      throw new Error(`Unknown alert action: ${body?.action}`);
+  }
 }
 
 export async function deleteAlert(input: z.infer<typeof DeleteAlertSchema>) {

@@ -1,11 +1,10 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
-import { shallow } from "zustand/shallow";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
+import SignalVersion from "@/components/signal/signal-version";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
@@ -77,14 +76,16 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
-function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<string, string> }) {
-  const router = useRouter();
-  const pathName = usePathname();
-  const searchParams = useSearchParams();
-  const { setTraceId, setSpanId } = useSignalStoreContext(
-    (state) => ({ setTraceId: state.setTraceId, setSpanId: state.setSpanId }),
-    shallow
-  );
+function PayloadText({
+  text,
+  eventId,
+  spanTypes,
+}: {
+  text: string;
+  eventId: string;
+  spanTypes?: Record<string, string>;
+}) {
+  const [, setTraceParams] = useSignalTraceParams();
 
   const callbacks = useMemo<SpanReferenceCallbacks>(
     () => ({
@@ -92,20 +93,17 @@ function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<str
       getSpanType: (uuid) => spanTypes?.[uuid] as SpanType | undefined,
       onSelectSpan: ({ traceId, spanId }) => {
         if (!traceId) return;
-        setTraceId(traceId);
-        setSpanId(spanId ?? null);
-
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("traceId", traceId);
-        if (spanId) {
-          params.set("spanId", spanId);
-        } else {
-          params.delete("spanId");
-        }
-        router.replace(`${pathName}?${params.toString()}`);
+        void setTraceParams(
+          {
+            traceId,
+            eventId,
+            spanId: spanId ?? null,
+          },
+          { history: "replace" }
+        );
       },
     }),
-    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes]
+    [setTraceParams, spanTypes, eventId]
   );
 
   return <>{renderSpanReferences(text, callbacks) ?? text}</>;
@@ -134,6 +132,11 @@ function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
   );
 }
 
+// Mirrors PAYLOAD_SORT_FIELD_RE in lib/actions/events/utils.ts: the server
+// rejects non-identifier field names in ORDER BY and silently falls back to
+// timestamp DESC, so such columns must not be offered as sortable.
+const SORTABLE_FIELD_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
   const columnId = `payload:${field.name}`;
 
@@ -142,6 +145,9 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
     accessorFn: (row) => parsePayloadField(row.payload, field.name),
     header: () => <PayloadFieldHeader name={field.name} description={field.description} />,
     size: getColumnSize(field.type),
+    // String payloads are free-text and sorted lexically server-side would be
+    // surprising; only typed fields (number/boolean/enum) are sortable.
+    enableSorting: field.type !== "string" && SORTABLE_FIELD_NAME_RE.test(field.name),
     cell: ({ row, getValue }) => {
       const snippet = row.original.fieldSnippets?.[field.name];
       if (snippet) {
@@ -163,7 +169,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
         case "string":
           return (
             <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
-              <PayloadText text={String(value)} spanTypes={row.original.spanTypes} />
+              <PayloadText text={String(value)} eventId={row.original.id} spanTypes={row.original.spanTypes} />
             </span>
           );
       }
@@ -189,7 +195,8 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
       return {
         name: field.name,
         key: `payload.${field.name}`,
-        dataType: "string",
+        dataType: "enum",
+        options: (field.enumValues ?? []).map((v) => ({ label: v, value: v })),
       };
     default:
       return {
@@ -223,6 +230,7 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 140,
     id: "timestamp",
+    enableSorting: true,
   },
   {
     accessorKey: "severity",
@@ -230,6 +238,7 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <SeverityCell value={Number(row.getValue())} />,
     size: 120,
     id: "severity",
+    enableSorting: true,
   },
 ];
 
@@ -259,6 +268,13 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
     size: 180,
     id: "traceId",
   },
+  {
+    accessorKey: "signalVersion",
+    header: "Version",
+    cell: (row) => <SignalVersion version={Number(row.getValue())} />,
+    size: 88,
+    id: "signalVersion",
+  },
 ];
 
 const staticFilters: ColumnFilter[] = [
@@ -287,11 +303,23 @@ const staticFilters: ColumnFilter[] = [
       { value: "2", label: "Critical" },
     ],
   },
+  {
+    name: "Version",
+    key: "signal_version",
+    dataType: "number",
+  },
 ];
+
+// Hidden by default, like Run ID on the runs table: only relevant once you're
+// comparing definitions.
+const defaultEventsColumnVisibility: Record<string, boolean> = {
+  signalVersion: false,
+};
 
 export function buildEventsColumns(schemaFields: SchemaField[]): {
   columns: ColumnDef<EventRow>[];
   columnOrder: string[];
+  columnVisibility: Record<string, boolean>;
   filters: ColumnFilter[];
 } {
   const validFields = schemaFields.filter((f) => f.name.trim());
@@ -300,9 +328,21 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", "severity", ...validFields.map((f) => `payload:${f.name}`), "traceId", "id"];
+  const columnOrder = [
+    "timestamp",
+    "severity",
+    ...validFields.map((f) => `payload:${f.name}`),
+    "traceId",
+    "id",
+    "signalVersion",
+  ];
 
   const filters = [...staticFilters, ...payloadFilters];
 
-  return { columns, columnOrder, filters };
+  return {
+    columns,
+    columnOrder,
+    columnVisibility: defaultEventsColumnVisibility,
+    filters,
+  };
 }

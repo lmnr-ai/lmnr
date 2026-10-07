@@ -7,8 +7,9 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey, trace::trace_exists},
-    mq::MessageQueue,
+    ch::traces_agg::trace_exists,
+    db::{DB, project_api_keys::ProjectApiKey},
+    mq::{MessageQueue, stream::StreamPublisher},
     routes::types::ResponseResult,
     traces::metadata::publish_trace_metadata_patch,
 };
@@ -25,32 +26,46 @@ pub struct UpdateTraceMetadataRequest {
 /// The patch is delivered as a virtual span carrying
 /// `lmnr.association.properties.metadata.<key>` attributes plus the
 /// `lmnr.internal.metadata_only` marker. The consumer (`process_span_messages`)
-/// splits these spans out before the regular pipeline and applies them to
-/// `traces.metadata` via a UPDATE that takes the same row lock as the regular
-/// `upsert_trace_statistics_batch`. The virtual span is never recorded to the
+/// splits these spans out before the regular pipeline and writes the metadata to
+/// `traces_agg` / `traces_static`. The virtual span is never recorded to the
 /// `spans` table and contributes nothing to trace stats (start/end/tokens/
-/// num_spans/top_span/etc.).
+/// top_span/etc.).
+///
+/// The existence check keeps the endpoint 404ing on unknown traces, but it is
+/// not a guarantee: a trace deleted between request and consumption still leaves
+/// its patch behind as a row carrying metadata only.
 #[post("metadata")]
 pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
     project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    handle_trace_metadata(project_api_key.project_id, req, spans_message_queue, db, cache).await
+    handle_trace_metadata(
+        project_api_key.project_id,
+        req,
+        spans_message_queue,
+        spans_stream_publisher,
+        db,
+        cache,
+        clickhouse,
+    )
+    .await
 }
 
-/// Shared handler body for `/v1/traces/metadata` and its CLI twin
-/// `/v1/cli/traces/metadata`. Both surfaces differ only in auth (project API key
-/// vs `CliProjectAuth` user token) and how they resolve `project_id`; the
-/// empty-check, existence check, and patch publish live here so they can't drift.
+/// Handler body for `/v1/traces/metadata`: empty-check, existence check, and
+/// patch publish.
 pub async fn handle_trace_metadata(
     project_id: Uuid,
     req: web::Json<UpdateTraceMetadataRequest>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let req = req.into_inner();
 
@@ -61,7 +76,7 @@ pub async fn handle_trace_metadata(
     let db = db.into_inner();
     let cache = cache.into_inner();
 
-    if !trace_exists(&db.pool, project_id, req.trace_id).await? {
+    if !trace_exists(&clickhouse, project_id, req.trace_id).await? {
         return Ok(HttpResponse::NotFound().json("Trace not found"));
     }
 
@@ -72,6 +87,7 @@ pub async fn handle_trace_metadata(
         spans_message_queue.as_ref().clone(),
         db,
         cache,
+        spans_stream_publisher.get_ref().clone(),
     )
     .await
     .map_err(|e| {

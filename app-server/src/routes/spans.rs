@@ -7,16 +7,18 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::{self, Actor},
     api::v1::traces::RabbitMqSpanMessage,
-    db::spans::{Span, SpanType},
+    cache::Cache,
+    db::{
+        DB,
+        spans::{Span, SpanType},
+    },
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     quickwit::client::QuickwitClient,
     routes::ResponseResult,
     search::snippets::SearchSpanHit,
-    traces::{
-        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, prompt_hash::structural_skeleton_hash,
-        spans::SpanAttributes,
-    },
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
 #[derive(Deserialize)]
@@ -65,8 +67,6 @@ pub async fn create_span(
         status: None,
         events: vec![],
         tags: None,
-        input_url: None,
-        output_url: None,
         size_bytes: 0,
     };
 
@@ -105,6 +105,8 @@ pub async fn create_span(
     Ok(HttpResponse::Ok().json(response))
 }
 
+/// `actor` is mandatory, as on `/sql/query`: this route is only reachable
+/// from the frontend server, which always knows who is reading.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchSpansRequest {
@@ -117,6 +119,7 @@ pub struct SearchSpansRequest {
     pub offset: usize,
     #[serde(default)]
     pub get_snippets: bool,
+    pub actor: Actor,
 }
 
 #[post("spans/search")]
@@ -125,9 +128,23 @@ pub async fn search_spans(
     request: web::Json<SearchSpansRequest>,
     quickwit_client: web::Data<Option<QuickwitClient>>,
     clickhouse: web::Data<clickhouse::Client>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
     let request = request.into_inner();
+
+    // Hits come from the index, which holds redacted text. Snippets are cut
+    // from raw `spans`/`unique_content` rows, so under a masking policy they
+    // are withheld rather than masked (docs/internal/rbac.md).
+    let policy = access_policy::for_actor_or_masked(
+        &request.actor,
+        project_id,
+        db.into_inner(),
+        cache.into_inner(),
+    )
+    .await;
+    let get_snippets = request.get_snippets && !policy.mask_pii;
 
     let trimmed_query = request.search_query.trim();
     if trimmed_query.is_empty() {
@@ -152,32 +169,9 @@ pub async fn search_spans(
         request.offset,
         request.start_time,
         request.end_time,
-        request.get_snippets,
+        get_snippets,
     )
     .await?;
 
     Ok(HttpResponse::Ok().json(results))
-}
-
-#[derive(Deserialize)]
-pub struct SkeletonHashRequest {
-    pub texts: Vec<String>,
-}
-
-#[post("skeleton-hashes")]
-pub async fn get_skeleton_hashes(
-    _project_id: web::Path<Uuid>,
-    request: web::Json<SkeletonHashRequest>,
-) -> ResponseResult {
-    let texts = &request.texts;
-
-    if texts.is_empty() || texts.len() > 200 {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "texts must contain between 1 and 200 items"
-        })));
-    }
-
-    let hashes: Vec<String> = texts.iter().map(|t| structural_skeleton_hash(t)).collect();
-
-    Ok(HttpResponse::Ok().json(hashes))
 }

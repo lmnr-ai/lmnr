@@ -15,11 +15,14 @@ const getFalse = () => false;
  * - Same-tab sync: updates when other components in the same tab change the same key.
  * - No manual useEffect: uses React 18's built-in external store synchronization.
  */
-export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T | ((prevValue: T) => T)) => void] {
-  // 1. Detect if we are mounted on the client.
+export function useLocalStorage<T>(
+  key: string,
+  defaultValue: T
+): [T, (value: T | ((prevValue: T) => T)) => void, boolean] {
+  // 1. Detect when hydration is complete.
   // This ensures the first client render matches the server render (returning false).
   // Then React will immediately re-render on the client with true.
-  const isMounted = useSyncExternalStore(subscribeNone, getTrue, getFalse);
+  const isHydrated = useSyncExternalStore(subscribeNone, getTrue, getFalse);
 
   // 2. Subscribe to storage changes (both from other tabs and this tab).
   const subscribe = useCallback(
@@ -56,7 +59,7 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T 
   // 5. Derive the final value.
   // We use defaultValue until isMounted is true to guarantee hydration match.
   const value = useMemo(() => {
-    if (!isMounted || rawValue === null) {
+    if (!isHydrated || rawValue === null) {
       return defaultValue;
     }
     try {
@@ -65,7 +68,7 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T 
       console.warn(`Error parsing localStorage key "${key}":`, error);
       return defaultValue;
     }
-  }, [isMounted, rawValue, defaultValue, key]);
+  }, [isHydrated, rawValue, defaultValue, key]);
 
   // 6. Persistence function
   const setStoredValue = useCallback(
@@ -87,5 +90,5 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T 
     [key, defaultValue]
   );
 
-  return [value, setStoredValue];
+  return [value, setStoredValue, isHydrated];
 }

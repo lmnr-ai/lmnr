@@ -1,7 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_s3::Client;
-use std::pin::Pin;
+
+use super::StorageBytesStream;
 
 #[derive(Clone)]
 pub struct S3Storage {
@@ -16,10 +17,7 @@ impl S3Storage {
 
 #[async_trait]
 impl super::StorageTrait for S3Storage {
-    type StorageBytesStream =
-        Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-
-    async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream> {
+    async fn get_stream(&self, bucket: &str, key: &str) -> Result<StorageBytesStream> {
         let response = self
             .client
             .get_object()

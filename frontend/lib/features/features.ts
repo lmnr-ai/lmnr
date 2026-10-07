@@ -15,12 +15,14 @@ export enum Feature {
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
   BATCH_SIGNALS = "BATCH_SIGNALS",
-  CLUSTERING = "CLUSTERING",
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  SIGNAL_LLM_PROFILES = "SIGNAL_LLM_PROFILES",
+  LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
+  ONBOARDING_COMPANY_NAME = "ONBOARDING_COMPANY_NAME",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -93,15 +95,18 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.SIGNALS_ENABLED !== "true") {
       return false;
     }
-    return isAiProviderConfigured();
+    // Self-hosted deployments can supply credentials per signal via LLM
+    // profiles, so an env-configured provider is only required on cloud.
+    return isAiProviderConfigured() || isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES);
+  }
+
+  if (feature === Feature.SIGNAL_LLM_PROFILES) {
+    // Cloud runs signals on Laminar's own keys; only self-hosted signals pick a profile.
+    return process.env.LAMINAR_CLOUD !== "true";
   }
 
   if (feature === Feature.BATCH_SIGNALS) {
     return false;
-  }
-
-  if (feature === Feature.CLUSTERING) {
-    return process.env.CLUSTERING_ENABLED === "true";
   }
 
   if (feature === Feature.SEND_EMAIL) {
@@ -130,8 +135,16 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     return process.env.LAMINAR_CLOUD === "true";
   }
 
+  if (feature === Feature.LOOPS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.LOOPS_API_KEY;
+  }
+
   if (feature === Feature.AGENT) {
     return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.ONBOARDING_COMPANY_NAME) {
+    return process.env.LAMINAR_CLOUD === "true" && isAiProviderConfigured();
   }
 
   if (feature === Feature.TELEMETRY) {

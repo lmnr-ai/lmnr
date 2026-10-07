@@ -19,9 +19,10 @@ const DEFAULT_START_TIME: &str = "{start_time:DateTime64}";
 const DEFAULT_END_TIME: &str = "{end_time:DateTime64}";
 
 pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
-    // Use the shared parse shim (not `Parser::parse_sql` directly) to work
-    // around a sqlparser bug where `IN {placeholder}` is rejected without
-    // surrounding parens: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
+    // Use the shared parse helper (not `Parser::parse_sql` directly) to work
+    // around a sqlparser bug where a bare single-expression RHS after `IN`
+    // (`col IN {placeholder}`, `col IN 5`, ...) is rejected without surrounding
+    // parens: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
     let mut statements = super::validator::parse_clickhouse_sql(sql)
         .map_err(|e| format!("Failed to parse SQL: {e}"))?;
 

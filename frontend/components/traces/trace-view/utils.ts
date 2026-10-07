@@ -170,12 +170,18 @@ export const onRealtimeUpdateSpans =
     const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
     const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
     const cacheReadInputTokens = get(newSpan.attributes, "gen_ai.usage.cache_read_input_tokens", 0);
+    const cacheCreationInputTokens = get(newSpan.attributes, "gen_ai.usage.cache_creation_input_tokens", 0);
     const reasoningTokens = get(newSpan.attributes, "gen_ai.usage.reasoning_tokens", 0);
     const totalTokens = inputTokens + outputTokens;
     const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
     const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
     const totalCost = get(newSpan.attributes, "gen_ai.usage.cost", inputCost + outputCost);
     const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
+
+    // Only LLM (and cached-LLM) spans contribute to the trace token/cost total. A non-LLM span
+    // may carry stray `gen_ai.usage.*` attributes; counting them would double the live total
+    // relative to the persisted trace row (LAM-1873).
+    const isLLMSpan = newSpan.spanType === "LLM" || newSpan.spanType === "CACHED";
 
     setTrace((trace) => {
       if (!trace) return trace;
@@ -188,14 +194,17 @@ export const onRealtimeUpdateSpans =
           : newSpan.startTime;
       newTrace.endTime =
         new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-      newTrace.totalTokens += totalTokens;
-      newTrace.inputTokens += inputTokens;
-      newTrace.outputTokens += outputTokens;
-      newTrace.cacheReadInputTokens = (newTrace.cacheReadInputTokens || 0) + cacheReadInputTokens;
-      newTrace.reasoningTokens = (newTrace.reasoningTokens || 0) + reasoningTokens;
-      newTrace.inputCost += inputCost;
-      newTrace.outputCost += outputCost;
-      newTrace.totalCost += totalCost;
+      if (isLLMSpan) {
+        newTrace.totalTokens += totalTokens;
+        newTrace.inputTokens += inputTokens;
+        newTrace.outputTokens += outputTokens;
+        newTrace.cacheReadInputTokens = (newTrace.cacheReadInputTokens || 0) + cacheReadInputTokens;
+        newTrace.cacheCreationInputTokens = (newTrace.cacheCreationInputTokens || 0) + cacheCreationInputTokens;
+        newTrace.reasoningTokens = (newTrace.reasoningTokens || 0) + reasoningTokens;
+        newTrace.inputCost += inputCost;
+        newTrace.outputCost += outputCost;
+        newTrace.totalCost += totalCost;
+      }
       return newTrace;
     });
 

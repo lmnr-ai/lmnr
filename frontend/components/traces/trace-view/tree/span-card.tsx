@@ -1,6 +1,6 @@
 import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
-import { useRef } from "react";
+import { memo, useRef } from "react";
 
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
@@ -34,7 +34,7 @@ interface SpanCardProps {
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-export function SpanCard({
+function SpanCardInner({
   span,
   branchMask,
   output,
@@ -175,3 +175,29 @@ export function SpanCard({
     </div>
   );
 }
+
+function arraysShallowEqual(a: boolean[], b: boolean[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+// `branchMask` is a fresh array per getTreeSpans() run, so compare it by content.
+function areSpanCardPropsEqual(prev: SpanCardProps, next: SpanCardProps) {
+  return (
+    prev.span === next.span &&
+    prev.output === next.output &&
+    prev.depth === next.depth &&
+    prev.hasChildren === next.hasChildren &&
+    prev.isSelected === next.isSelected &&
+    prev.showTreeContent === next.showTreeContent &&
+    prev.onToggleCollapse === next.onToggleCollapse &&
+    prev.onSpanSelect === next.onSpanSelect &&
+    arraysShallowEqual(prev.branchMask, next.branchMask)
+  );
+}
+
+export const SpanCard = memo(SpanCardInner, areSpanCardPropsEqual);

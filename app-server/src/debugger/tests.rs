@@ -74,6 +74,42 @@ fn hash_ignores_system_message() {
     }
 }
 
+/// LAM-1922: the SDK hashes the verbatim AI SDK LanguageModel prompt (dash-typed
+/// parts, `providerOptions`, LanguageModel `file` parts). System-strip and key
+/// canonicalization must behave identically on that shape — a system message
+/// carrying any content shape is dropped, and key order in nested parts is
+/// irrelevant.
+#[test]
+fn hash_strips_system_and_canonicalizes_verbatim_ai_sdk_input() {
+    let no_sys = serde_json::json!([
+        { "role": "user", "content": [
+            { "type": "text", "text": "What is in this image?" },
+            { "type": "file", "data": "https://example.com/pic.png", "mediaType": "image/png" }
+        ]},
+        { "role": "assistant", "content": [
+            { "type": "reasoning", "text": "Let me look.", "providerOptions": { "anthropic": { "signature": "sig" } } },
+            { "type": "tool-call", "toolCallId": "call_1", "toolName": "describe_image", "input": { "detail": "high" } }
+        ]}
+    ]);
+    // Same messages with a leading system message and scrambled key order.
+    let with_sys_scrambled = serde_json::json!([
+        { "content": "You are a helpful assistant.", "role": "system" },
+        { "content": [
+            { "text": "What is in this image?", "type": "text" },
+            { "mediaType": "image/png", "data": "https://example.com/pic.png", "type": "file" }
+        ], "role": "user" },
+        { "content": [
+            { "providerOptions": { "anthropic": { "signature": "sig" } }, "text": "Let me look.", "type": "reasoning" },
+            { "toolName": "describe_image", "input": { "detail": "high" }, "toolCallId": "call_1", "type": "tool-call" }
+        ], "role": "assistant" }
+    ]);
+    assert_eq!(
+        debug_input_hash(&no_sys),
+        debug_input_hash(&with_sys_scrambled),
+        "verbatim AI SDK input must hash identically after system-strip + canonicalization"
+    );
+}
+
 fn uuid_with_suffix(suffix_hex: &str) -> Uuid {
     let mut s = "0".repeat(32 - suffix_hex.len());
     s.push_str(suffix_hex);
@@ -353,6 +389,40 @@ fn resolve_falls_back_to_gen_ai() {
             assert_eq!(messages[0]["role"], "assistant");
             assert_eq!(finish_reasons, Some(vec!["stop".to_owned()]));
             assert_eq!(model.as_deref(), Some("gpt-4o"));
+        }
+        other => panic!("expected GenAi, got {other:?}"),
+    }
+}
+
+/// LAM-1922: with the SDK sending verbatim AI SDK output
+/// (`[{role: "assistant", content: event.content}]` with dash-typed parts),
+/// the GenAi fallback must carry those messages through byte-for-byte — the
+/// replaying SDK consumes the same shape it recorded.
+#[test]
+fn resolve_gen_ai_carries_verbatim_ai_sdk_output() {
+    let verbatim = serde_json::json!([{
+        "role": "assistant",
+        "content": [
+            { "type": "text", "text": "done", "providerMetadata": { "openai": { "itemId": "msg_1" } } },
+            { "type": "tool-call", "toolCallId": "c1", "toolName": "t", "input": { "a": 1 } }
+        ]
+    }]);
+    let row = DebugCacheSpanRow {
+        span_id: Uuid::nil(),
+        input: String::new(),
+        raw_response: String::new(),
+        gen_ai_output: verbatim.to_string(),
+        finish_reason: String::new(),
+        finish_reasons: String::new(),
+        model: String::new(),
+        output: String::new(),
+    };
+    match resolve_response(&row).unwrap() {
+        DebugCacheResponse::GenAi { messages, .. } => {
+            assert_eq!(
+                messages, verbatim,
+                "verbatim output must round-trip unchanged"
+            );
         }
         other => panic!("expected GenAi, got {other:?}"),
     }

@@ -12,9 +12,14 @@ interface GitHubStarsButtonProps {
   className?: string;
 }
 
+/** Header-local: the badge has room for the exact figure. The landing feature
+ *  row abbreviates instead, so this is deliberately NOT shared. */
 const formatCount = (count: number): string => count.toLocaleString();
 
-export default function GitHubStarsButton({ owner, repo, className }: GitHubStarsButtonProps) {
+/** A repo's live star count, or null. Unauthenticated GitHub API, so a
+ *  rate-limited or offline visitor never gets one — null is a permanent state
+ *  every caller has to render for, not a brief loading one. */
+export const useGitHubStars = (owner: string, repo: string): number | null => {
   const [stars, setStars] = useState<number | null>(null);
 
   useEffect(() => {
@@ -32,6 +37,12 @@ export default function GitHubStarsButton({ owner, repo, className }: GitHubStar
 
     fetchStars();
   }, [owner, repo]);
+
+  return stars;
+};
+
+export default function GitHubStarsButton({ owner, repo, className }: GitHubStarsButtonProps) {
+  const stars = useGitHubStars(owner, repo);
 
   return (
     <Link

@@ -64,8 +64,7 @@ type TraceResult = { inputPreview: string | null; outputPreview: string | null; 
 type ResultsMap = Record<string, TraceResult>;
 
 // For a group of traces sharing a system prompt, retrieve or generate a regex
-// and apply it to extract each trace's input. `results` is mutated in place;
-// trace-io.ts hydrates the full Span afterwards.
+// and apply it to extract each trace's input. `results` is mutated in place.
 export async function extractInputsForGroup(
   systemHash: string,
   projectId: string,
@@ -78,6 +77,7 @@ export async function extractInputsForGroup(
   await observe(
     {
       name: "traces:extract-inputs",
+      metadata: { feature: "input-extraction" },
       input: { projectId, systemHash, fingerprint, traceCount: traces.length, cacheKey },
     },
     async () => {
@@ -106,7 +106,7 @@ export async function extractInputsForGroup(
         };
       }
 
-      const llmOutcome = await runRegexExtraction(cacheKey, traces, samples, results);
+      const llmOutcome = await runRegexExtraction(projectId, cacheKey, traces, samples, results);
 
       const path: ExtractionPath = !llmOutcome.regexGenerated
         ? "llm-no-regex"
@@ -234,6 +234,7 @@ interface LlmOutcome {
 }
 
 async function runRegexExtraction(
+  projectId: string,
   cacheKey: string,
   traces: TraceForExtraction[],
   samples: TraceForExtraction[],
@@ -247,7 +248,7 @@ async function runRegexExtraction(
     async () => {
       const allUserParts = samples.map((s) => s.parsed!.userParts);
       const llmInput = buildDeduplicatedLLMInput(allUserParts);
-      const regex = await generateExtractionRegex(llmInput);
+      const regex = await generateExtractionRegex(llmInput, projectId);
 
       if (!regex) {
         for (const trace of traces) {

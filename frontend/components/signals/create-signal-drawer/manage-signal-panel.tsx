@@ -1,15 +1,16 @@
 "use client";
 
-import { Activity, Bell, History, Settings2 } from "lucide-react";
+import { Bell, GitBranch, History, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import AlertsManager from "@/components/settings/alerts/alerts-manager";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import CreateSignalJob from "@/components/signal/create-signal-job";
-import SignalRunsTable from "@/components/signal/runs-table";
+import { signalSectionHref } from "@/components/signal/hooks/signal-tab-search";
+import VersionsSection from "@/components/signal/versions-section";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -39,13 +40,13 @@ interface Props {
   slackBrokerEnabled?: boolean;
 }
 
-type SignalTab = "settings" | "activity" | "backfill" | "alerts";
+type SignalTab = "settings" | "versions" | "backfill" | "alerts";
 
 const tabs: { id: SignalTab; label: string; icon: ReactNode }[] = [
   { id: "settings", label: "General", icon: <Settings2 /> },
+  { id: "versions", label: "Versions", icon: <GitBranch /> },
   { id: "alerts", label: "Alerts", icon: <Bell /> },
   { id: "backfill", label: "Backfill", icon: <History /> },
-  { id: "activity", label: "Activity", icon: <Activity /> },
 ];
 
 const tabHeaders: Record<SignalTab, { title: string; description?: string }> = {
@@ -53,9 +54,9 @@ const tabHeaders: Record<SignalTab, { title: string; description?: string }> = {
     title: "General",
     description: "Configure this signal's definition and triggers.",
   },
-  activity: {
-    title: "Activity",
-    description: "Runs produced when this signal is evaluated against incoming traces.",
+  versions: {
+    title: "Versions",
+    description: "Versions of signal's definition.",
   },
   backfill: {
     title: "Backfill",
@@ -94,18 +95,8 @@ export default function ManageSignalPanel({
 
   const signalId = initialValues?.id;
 
-  const previousTriggerIds = useMemo(
-    () => (initialValues?.triggers ?? []).filter((t) => t.id).map((t) => t.id!),
-    [initialValues]
-  );
-
   const buildSectionHref = useCallback(
-    (section: SignalTab) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", "settings");
-      params.set("section", section);
-      return `${pathName}?${params.toString()}`;
-    },
+    (section: SignalTab) => signalSectionHref(pathName, searchParams.toString(), section),
     [searchParams, pathName]
   );
 
@@ -143,26 +134,19 @@ export default function ManageSignalPanel({
             <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
               <SettingsSectionHeader {...tabHeaders.settings} />
               <FormProvider {...form}>
-                <ManageSignalContent
-                  variant="panel"
-                  onSuccess={onSuccess}
-                  onSubmitComplete={onSubmitComplete}
-                  previousTriggerIds={previousTriggerIds}
-                />
+                <ManageSignalContent variant="panel" onSuccess={onSuccess} onSubmitComplete={onSubmitComplete} />
               </FormProvider>
             </div>
           </ScrollArea>
         );
-      case "activity":
+      case "versions":
         return (
-          <div className={cn("flex flex-col flex-1 overflow-hidden w-full", contentWidthClass)}>
-            <div className="px-4 pb-4">
-              <SettingsSectionHeader {...tabHeaders.activity} />
+          <ScrollArea className="flex-1">
+            <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
+              <SettingsSectionHeader {...tabHeaders.versions} />
+              <VersionsSection />
             </div>
-            <div className="flex flex-1 overflow-hidden px-4 pb-4">
-              <SignalRunsTable />
-            </div>
-          </div>
+          </ScrollArea>
         );
       case "backfill":
         return (
@@ -207,21 +191,23 @@ export default function ManageSignalPanel({
           <SidebarContent className="bg-background">
             <SidebarGroup className="px-4 py-0">
               <SidebarMenu>
-                {tabs.map((tab) => (
-                  <SidebarMenuItem className="h-7" key={tab.id}>
-                    <SidebarMenuButton
-                      asChild
-                      className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
-                      isActive={activeTab === tab.id}
-                      tooltip={tab.label}
-                    >
-                      <Link href={buildSectionHref(tab.id)}>
-                        {tab.icon}
-                        <span className="mr-2">{tab.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {tabs
+                  .filter((tab) => tab.id !== "versions" || signalId)
+                  .map((tab) => (
+                    <SidebarMenuItem className="h-7" key={tab.id}>
+                      <SidebarMenuButton
+                        asChild
+                        className="flex items-center flex-1 hover:bg-surface-150 active:bg-surface-200 data-[active=true]:bg-surface-200"
+                        isActive={activeTab === tab.id}
+                        tooltip={tab.label}
+                      >
+                        <Link href={buildSectionHref(tab.id)}>
+                          {tab.icon}
+                          <span className="mr-2">{tab.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>

@@ -3,13 +3,10 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
-import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Feature } from "@/lib/features/features";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
@@ -18,22 +15,15 @@ import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
-
-export interface TraceViewPanels {
-  tracePanel: React.ReactNode;
-  spanPanel: React.ReactNode;
-  chatPanel: React.ReactNode;
-  showSpan: boolean;
-  showChat: boolean;
-}
+import { type TraceViewPanels } from "./trace-view-panels";
 
 export interface TraceViewContentProps {
   traceId: string;
   spanId?: string;
   propsTrace?: TraceViewTrace;
-  onClose: () => void;
+  // Omit to hide the close button entirely (e.g. an always-open panel).
+  onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
-  showChatInitial?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -44,7 +34,6 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
-  showChatInitial,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -52,17 +41,8 @@ export default function TraceViewContent({
   const pathName = usePathname();
   const { projectId } = useParams();
 
-  const featureFlags = useFeatureFlags();
   // Panel visibility states
-  const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
-    (state) => ({
-      spanPanelOpen: state.spanPanelOpen,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
-      selectSpanById: state.selectSpanById,
-    }),
-    shallow
-  );
+  const spanPanelOpen = useTraceViewStore((state) => state.spanPanelOpen);
 
   // Data states
   const {
@@ -146,7 +126,6 @@ export default function TraceViewContent({
     setIsTraceLoading,
     setTrace,
     setTraceError,
-    setTracesAgentOpen,
     traceId,
   ]);
 
@@ -253,7 +232,7 @@ export default function TraceViewContent({
     const params = new URLSearchParams(searchParams);
     params.delete("spanId");
     router.push(`${pathName}?${params.toString()}`);
-    onClose();
+    onClose?.();
   }, [onClose, pathName, router, searchParams]);
 
   const handleSpanPanelClose = useCallback(() => {
@@ -290,15 +269,6 @@ export default function TraceViewContent({
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
 
-  // The store is created once with `initialChatOpen` from whatever URL state
-  // exists when the provider mounts, but `router.push` is a transition so the
-  // `chat` param can arrive late — or be stale from a previous trace. Keep the
-  // panel in sync with the URL both ways so a late-arriving `chat=true` opens
-  // the panel and a late-arriving `chat=false` closes it.
-  useEffect(() => {
-    setTracesAgentOpen(!!showChatInitial);
-  }, [showChatInitial, setTracesAgentOpen]);
-
   useEffect(() => {
     handleFetchTrace();
   }, [handleFetchTrace]);
@@ -325,7 +295,8 @@ export default function TraceViewContent({
   const tracePanel = (
     <TracePanel
       traceId={traceId}
-      handleClose={handleClose}
+      // No onClose ⇒ no close button (always-open panels).
+      handleClose={onClose ? handleClose : undefined}
       handleSpanSelect={handleSpanSelect}
       fetchSpans={fetchSpans}
       isLoading={isLoading}
@@ -366,22 +337,12 @@ export default function TraceViewContent({
     </div>
   );
 
-  const isChatEnabled = featureFlags[Feature.AGENT];
-  const chatPanel = isChatEnabled ? (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
-    </div>
-  ) : null;
-
-  const showSpan = spanPanelOpen || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
-  const showChat = isChatEnabled && tracesAgentOpen;
-
+  // Chat is no longer a panel inside the trace layout — it's the page-level agent column (see the
+  // project layout). The trace drawer just reflows within the space left of it.
   const panels: TraceViewPanels = {
     tracePanel,
     spanPanel,
-    chatPanel,
-    showSpan,
-    showChat,
+    showSpan: spanPanelOpen,
   };
 
   return isNil(sidePanelRef) ? (

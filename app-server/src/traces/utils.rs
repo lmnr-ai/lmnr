@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 
 use indexmap::IndexMap;
@@ -10,7 +9,7 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 
 use crate::{
     cache::Cache,
-    db::{DB, spans::Span, trace::Trace},
+    db::{DB, spans::Span},
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
@@ -30,7 +29,16 @@ use super::spans::{SpanAttributes, SpanUsage};
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
-/// Calculate usage for both default and LLM spans
+/// Calculate token/cost usage for an LLM span from its `gen_ai.usage.*` attributes.
+///
+/// **Consumer-side only.** Resolving the model's prices is a DB lookup (`model_costs` plus the
+/// project's overrides), far too heavy for the ingest path — anything that needs raw token
+/// counts before the queue reads them off [`SpanAttributes`] directly instead.
+///
+/// Call this only for LLM spans. A non-LLM span may still carry stray `gen_ai.usage.*`
+/// attributes (some auto-instrumentations set them on Default/Tool spans); counting those
+/// would inflate the per-span token/cost columns and the trace totals (LAM-1873), so the
+/// caller uses `SpanUsage::default()` (all zeros) for non-LLM spans instead.
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,
@@ -42,6 +50,11 @@ pub async fn get_llm_usage_for_span(
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
     let total_tokens = input_tokens.total() + output_tokens;
+    let cache_read_input_tokens = input_tokens.cache_read_tokens;
+    let cache_creation_input_tokens = input_tokens.cache_write_tokens;
+    let reasoning_tokens = attributes
+        .int_attr(GEN_AI_USAGE_REASONING_TOKENS)
+        .unwrap_or(0);
 
     let input_cost = attributes.input_cost();
     let output_cost = attributes.output_cost();
@@ -65,6 +78,9 @@ pub async fn get_llm_usage_for_span(
             input_tokens: input_tokens.total(),
             output_tokens,
             total_tokens,
+            cache_read_input_tokens,
+            cache_creation_input_tokens,
+            reasoning_tokens,
             input_cost: input_cost.unwrap_or(0.0),
             output_cost: output_cost.unwrap_or(0.0),
             total_cost: total_cost
@@ -117,6 +133,9 @@ pub async fn get_llm_usage_for_span(
         input_tokens: input_tokens.total(),
         output_tokens,
         total_tokens,
+        cache_read_input_tokens,
+        cache_creation_input_tokens,
+        reasoning_tokens,
         input_cost,
         output_cost,
         total_cost,
@@ -177,7 +196,7 @@ pub fn skip_span_name(name: &str) -> bool {
     SKIP_SPAN_NAME_REGEX.is_match(name)
 }
 
-pub(crate) fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
+fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     let first_in_ids = span.span_id
         == attributes
             .ids_path()
@@ -310,16 +329,6 @@ pub fn convert_any_value_to_json_value(
             .map(|s| serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)))
             .unwrap_or_default(),
     }
-}
-
-/// Groups traces by their project_id.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
-    let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
-    for trace in traces {
-        grouped.entry(trace.project_id()).or_default().push(trace);
-    }
-    grouped
 }
 
 /// Custom logic to transform model/provider not covered by main flow

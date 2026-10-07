@@ -23,7 +23,7 @@ fn contains_ws(haystack: &str, needle: &str) -> bool {
 }
 
 fn validate(query: &str) -> Result<String, String> {
-    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID)
+    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID, "{}")
 }
 
 fn validate_ok(query: &str) -> String {
@@ -65,6 +65,19 @@ fn test_traces_table_schema() {
 }
 
 #[test]
+fn test_spans_token_detail_columns_allowed() {
+    // Qualified references are the only ones checked against the allowlist, so
+    // a column missing from `spans_columns` fails only in this form.
+    for column in [
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "reasoning_tokens",
+    ] {
+        validate_ok(&format!("SELECT spans.{column} FROM spans"));
+    }
+}
+
+#[test]
 fn test_column_validation() {
     let reg = TableRegistry::new();
     let spans = reg.get_table_schema("spans").expect("spans schema");
@@ -83,7 +96,7 @@ fn test_validate_basic_spans_select() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}')")
         ),
         "got: {result}"
     );
@@ -91,28 +104,345 @@ fn test_validate_basic_spans_select() {
 
 #[test]
 fn test_validate_basic_traces_select() {
+    // No time filter ⇒ broad epoch defaults on both bounds.
     let result = validate_ok("SELECT trace_id, start_time FROM traces");
     assert!(
         contains_ws(
             &result,
-            &format!("FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
+            )
         ),
         "got: {result}"
     );
 }
 
 #[test]
+fn test_validate_trace_outputs_select() {
+    // Not time-parameterized — only project_id is injected.
+    let result = validate_ok("SELECT trace_id, agent_output FROM trace_outputs");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM trace_outputs_v0(project_id = '{SAMPLE_PROJECT_ID}') AS trace_outputs")
+        ),
+        "got: {result}"
+    );
+}
+
+/// Columns the shared schema advertises must also be allowlisted here, or a
+/// table-qualified reference to one is rejected as nonexistent even though the
+/// `_v0` view exposes it. `spans.events` and `traces.has_browser_session` were
+/// advertised without being allowlisted. Only the TABLE-qualified form hits the
+/// allowlist, which is why the unqualified spelling always worked.
+#[test]
+fn test_schema_advertised_columns_are_allowlisted() {
+    validate_ok("SELECT spans.events FROM spans");
+    validate_ok("SELECT traces.has_browser_session FROM traces");
+}
+
+/// `trace_outputs` exposes `start_time`, not `updated_at`. The allowlist used to
+/// say the opposite, so a table-qualified `trace_outputs.updated_at` passed
+/// validation and then died in ClickHouse with UNKNOWN_IDENTIFIER, while the
+/// real `trace_outputs.start_time` was rejected here as a non-existent column.
+/// Only the TABLE-qualified form exercises the allowlist — an alias qualifier
+/// isn't in the registry, so that path skips the check entirely.
+#[test]
+fn test_trace_outputs_time_column_is_start_time() {
+    validate_ok("SELECT trace_outputs.start_time FROM trace_outputs");
+
+    let err = validate("SELECT trace_outputs.updated_at FROM trace_outputs")
+        .expect_err("updated_at is not a trace_outputs column");
+    assert!(
+        err.contains("Column 'updated_at' does not exist"),
+        "got: {err}"
+    );
+}
+
+#[test]
 fn test_validate_evaluation_datapoints_select() {
+    // No WHERE: the mandatory args are still supplied, as sentinel + defaults.
     let result = validate_ok("SELECT id, evaluation_id FROM evaluation_datapoints");
     assert!(
         contains_ws(
             &result,
             &format!(
-                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}') AS evaluation_datapoints"
+                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}', eval_ids = [], \
+                 min_start_time = toDateTime64('1970-01-01 00:00:00', 9), \
+                 max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS evaluation_datapoints"
             )
         ),
         "got: {result}"
     );
+}
+
+/// Extract the `eval_ids = [...]` fragment of the rewritten
+/// `evaluation_datapoints_v0(...)` call, whitespace-normalized.
+fn eval_ids_of(query: &str) -> String {
+    let sql = validate_ok(query);
+    let n = norm(&sql);
+    let start = n
+        .find("eval_ids = [")
+        .expect("no eval_ids in output; got: {n}");
+    let after = &n[start + "eval_ids = ".len()..];
+    let end = after.find(']').expect("unterminated eval_ids array") + 1;
+    after[..end].to_string()
+}
+
+#[test]
+fn test_eval_ids_picked_up_from_where() {
+    // The shape the evaluations page emits, and the case this exists for.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // A bind placeholder is a scalar, so it hoists like a literal.
+    assert_eq!(
+        eval_ids_of("SELECT id FROM evaluation_datapoints WHERE evaluation_id = {evalId: UUID}"),
+        "[toUUID({evalId: UUID})]"
+    );
+    // Column on the right-hand side.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE '0195b6e0-0000-7000-8000-000000000001' = evaluation_id"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // Qualified by the relation's own alias.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT e.id FROM evaluation_datapoints AS e \
+             WHERE e.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN \
+             ('0195b6e0-0000-7000-8000-000000000001', '0195b6e0-0000-7000-8000-000000000002')"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001'), \
+         toUUID('0195b6e0-0000-7000-8000-000000000002')]"
+    );
+    // AND keeps the restriction; the unrelated conjunct is ignored.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' AND index > 5"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // AND of two restrictions picks the shorter side, not the intersection.
+    // {001,002,003} ∩ {003,004} = {003}, but comparing value expressions is
+    // unreliable; the shorter set is a conservative superset and only costs
+    // scan work.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id IN \
+             ('0195b6e0-0000-7000-8000-000000000001', \
+              '0195b6e0-0000-7000-8000-000000000002', \
+              '0195b6e0-0000-7000-8000-000000000003') \
+             AND evaluation_id IN \
+             ('0195b6e0-0000-7000-8000-000000000003', \
+              '0195b6e0-0000-7000-8000-000000000004')"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000003'), \
+         toUUID('0195b6e0-0000-7000-8000-000000000004')]"
+    );
+    // OR of two evaluation_ids restricts to their union.
+    assert_eq!(
+        eval_ids_of(
+            "SELECT id FROM evaluation_datapoints \
+             WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' \
+             OR evaluation_id = '0195b6e0-0000-7000-8000-000000000002'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001'), \
+         toUUID('0195b6e0-0000-7000-8000-000000000002')]"
+    );
+}
+
+#[test]
+fn test_eval_ids_array_placeholder_passed_through() {
+    // The bind already *is* the view argument — wrapping it in toUUID is what
+    // ClickHouse rejects.
+    for q in [
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {ids: Array(UUID)}",
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {evaluationIds: Array(UUID)}",
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN ({evaluationIds:Array(UUID)})",
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id IN {evaluationIds:Array(String)}",
+    ] {
+        let sql = validate_ok(q);
+        assert!(
+            !contains_ws(&sql, "toUUID({"),
+            "array bind must not be wrapped in toUUID; query: {q}\ngot: {sql}"
+        );
+        assert!(
+            contains_ws(&sql, "eval_ids = {") && contains_ws(&sql, "Array("),
+            "array bind should be passed through as eval_ids; query: {q}\ngot: {sql}"
+        );
+    }
+}
+
+#[test]
+fn test_eval_ids_widen_to_sentinel_when_unsafe() {
+    // Each of these legitimately wants rows outside one evaluation, so eval_ids
+    // must widen to the sentinel. Narrowing any would silently drop rows.
+    for q in [
+        // `index > 5` rows belong to other evaluations.
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' OR index > 5",
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id != '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id NOT IN ('0195b6e0-0000-7000-8000-000000000001')",
+        "SELECT id FROM evaluation_datapoints WHERE index > 5",
+        // A per-row column cannot become a scalar view argument.
+        "SELECT id FROM evaluation_datapoints WHERE evaluation_id = group_id",
+        // Another relation's evaluation_id must not be borrowed, even when
+        // this relation's evaluation_id is in the SELECT list.
+        "SELECT e.id FROM evaluation_datapoints AS e \
+         WHERE other.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT e.evaluation_id FROM evaluation_datapoints AS e \
+         WHERE other.evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+        // Array bind mixed with a scalar cannot become `[toUUID(<array>), toUUID(x)]`.
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id IN {ids: Array(UUID)} \
+         OR evaluation_id = '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id IN ({ids: Array(UUID)}, '0195b6e0-0000-7000-8000-000000000001')",
+    ] {
+        assert_eq!(eval_ids_of(q), "[]", "should have widened, query: {q}");
+    }
+}
+
+#[test]
+fn test_eval_ids_and_bounds_derived_together() {
+    // A time-filtered evaluation query gets both narrowings at once.
+    let sql = validate_ok(
+        "SELECT id FROM evaluation_datapoints \
+         WHERE evaluation_id = '0195b6e0-0000-7000-8000-000000000001' \
+         AND start_time >= '2026-09-08 00:00:00' AND start_time <= '2026-09-10 00:00:00'",
+    );
+    let n = norm(&sql);
+    assert!(
+        n.contains("eval_ids = [toUUID('0195b6e0-0000-7000-8000-000000000001')]"),
+        "got: {n}"
+    );
+    assert!(
+        n.contains("min_start_time = toDateTime64('2026-09-08 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {n}"
+    );
+    assert!(
+        n.contains("max_start_time = toDateTime64('2026-09-10 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {n}"
+    );
+}
+
+#[test]
+fn test_eval_ids_cannot_be_passed_by_user() {
+    // The rewriter is the only thing that may set eval_ids.
+    validate(
+        "SELECT id FROM evaluation_datapoints_v0(project_id = '00000000-0000-0000-0000-000000000000', eval_ids = [])",
+    )
+    .expect_err("_v0 view functions must not be callable directly");
+    validate("SELECT id FROM evaluation_datapoints(eval_ids = [])")
+        .expect_err("an allowlisted table must not be usable as a table function");
+}
+
+#[test]
+fn test_validate_signal_events_all_select() {
+    // No WHERE: the mandatory signal_ids arg is still supplied, as the sentinel.
+    let result = validate_ok("SELECT id FROM signal_events_all");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM signal_events_all_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) \
+                 AS signal_events_all"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+/// Extract the `signal_ids = [...]` fragment of a rewritten `_v0(...)` call,
+/// whitespace-normalized. Mirrors [`eval_ids_of`].
+fn signal_ids_of(query: &str) -> String {
+    let sql = validate_ok(query);
+    let n = norm(&sql);
+    let start = n
+        .find("signal_ids = [")
+        .expect("no signal_ids in output; got: {n}");
+    let after = &n[start + "signal_ids = ".len()..];
+    let end = after.find(']').expect("unterminated signal_ids array") + 1;
+    after[..end].to_string()
+}
+
+#[test]
+fn test_signal_ids_picked_up_from_where() {
+    assert_eq!(
+        signal_ids_of(
+            "SELECT id FROM signal_events_all \
+             WHERE signal_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // A bind placeholder is a scalar, so it hoists like a literal.
+    assert_eq!(
+        signal_ids_of("SELECT id FROM event_clusters_all WHERE signal_id = {signalId: UUID}"),
+        "[toUUID({signalId: UUID})]"
+    );
+    // Qualified by the relation's own alias.
+    assert_eq!(
+        signal_ids_of(
+            "SELECT s.id FROM signal_events_all AS s \
+             WHERE s.signal_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+    // `clusters_v0` pushes signal_ids into its own PREWHERE rather than an
+    // internal subquery, but derivation is the same code path.
+    assert_eq!(
+        signal_ids_of(
+            "SELECT id FROM clusters WHERE signal_id = '0195b6e0-0000-7000-8000-000000000001'"
+        ),
+        "[toUUID('0195b6e0-0000-7000-8000-000000000001')]"
+    );
+}
+
+#[test]
+fn test_signal_ids_widen_to_sentinel_when_unsafe() {
+    // `getTraceSignals` deliberately reads every signal that fired on a trace —
+    // no signal_id predicate at all — so the no-predicate case must widen. This
+    // is the case `signal_ids` exists to not break.
+    for q in [
+        "SELECT id FROM signal_events WHERE trace_id = '0195b6e0-0000-7000-8000-000000000001'",
+        // `severity > 1` rows belong to other signals too.
+        "SELECT id FROM signal_events_all \
+         WHERE signal_id = '0195b6e0-0000-7000-8000-000000000001' OR severity > 1",
+        "SELECT id FROM signal_events_all \
+         WHERE signal_id != '0195b6e0-0000-7000-8000-000000000001'",
+        "SELECT id FROM event_clusters_all WHERE signal_id NOT IN ('0195b6e0-0000-7000-8000-000000000001')",
+        "SELECT id FROM clusters WHERE level > 0",
+    ] {
+        assert_eq!(signal_ids_of(q), "[]", "should have widened, query: {q}");
+    }
+}
+
+#[test]
+fn test_signal_ids_cannot_be_passed_by_user() {
+    // The rewriter is the only thing that may set signal_ids.
+    validate(
+        "SELECT id FROM signal_events_all_v0(project_id = '00000000-0000-0000-0000-000000000000', signal_ids = [])",
+    )
+    .expect_err("_v0 view functions must not be callable directly");
+    validate("SELECT id FROM signal_events_all(signal_ids = [])")
+        .expect_err("an allowlisted table must not be usable as a table function");
 }
 
 #[test]
@@ -240,6 +570,25 @@ fn test_reject_invalid_column() {
 }
 
 #[test]
+fn test_clusters_path_is_not_exposed() {
+    // `path` is internal machinery -- it expands a trace's leaf-only cluster_ids
+    // into leaf + ancestors inside the views, and lives only as a `clusters_dict`
+    // attribute. Callers walk the hierarchy with `parent_id`, which stays exposed.
+    let err = validate("SELECT clusters.path FROM clusters")
+        .expect_err("clusters.path must not be queryable");
+    assert!(err.contains("Column 'path' does not exist"), "got: {err}");
+    // Unqualified, it gets past the column check (which only resolves qualified
+    // names) and then fails in ClickHouse, because `clusters_v0` no longer
+    // selects it -- the registry and the view have to drop it together.
+    validate("SELECT path FROM clusters").expect("bare column names are not table-resolved");
+    // Being an array column, exposing it would also have made this legal.
+    validate("SELECT x FROM clusters ARRAY JOIN path AS x")
+        .expect_err("ARRAY JOIN on clusters.path must not be legal");
+    // The hierarchy is still walkable.
+    validate("SELECT id, parent_id, level FROM clusters").expect("parent_id stays exposed");
+}
+
+#[test]
 fn test_cte_with_spans() {
     let query = r#"
         WITH span_stats AS (
@@ -253,7 +602,7 @@ fn test_cte_with_spans() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -273,7 +622,7 @@ fn test_subquery_with_spans() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -294,14 +643,16 @@ fn test_join_with_allowed_tables() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS s")
         ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!("JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS t")
+            &format!(
+                "JOIN traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+            )
         ),
         "got: {result}"
     );
@@ -319,10 +670,10 @@ fn test_complex_nested_query() {
         )
         "#;
     let result = validate_ok(query);
-    let spans_v0_count = result.matches("spans_v0").count();
+    let spans_v1_count = result.matches("spans_v1").count();
     assert!(
-        spans_v0_count >= 2,
-        "expected >=2 spans_v0, got {spans_v0_count} in: {result}"
+        spans_v1_count >= 2,
+        "expected >=2 spans_v1, got {spans_v1_count} in: {result}"
     );
     let project_filter_count = result
         .matches(&format!("project_id = '{SAMPLE_PROJECT_ID}'"))
@@ -343,7 +694,7 @@ fn test_basic_spans_query_transformation() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -359,7 +710,7 @@ fn test_spans_with_where_clause() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -375,7 +726,7 @@ fn test_spans_with_order_by_and_limit() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -401,13 +752,13 @@ fn test_spans_time_range_query() {
         contains_ws(
             &result,
             &format!(
-                "SELECT start_time FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans"
+                "SELECT start_time FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans"
             )
         ),
         "got: {result}"
     );
     // The interval predicate is preserved on the query (not lifted into the view fn).
-    let after_from = result.split("spans_v0").last().unwrap_or("");
+    let after_from = result.split("spans_v1").last().unwrap_or("");
     assert!(
         contains_ws(after_from, "start_time > now() - INTERVAL 1 HOUR"),
         "interval predicate missing in: {result}"
@@ -417,15 +768,27 @@ fn test_spans_time_range_query() {
 
 #[test]
 fn test_traces_time_range_query() {
+    // start_time >= lower bound; end_time <= upper bound (end_time upper is also
+    // a start_time upper because end_time >= start_time). Both padded ±3h. The
+    // original WHERE stays intact on the query.
     let result = validate_ok(
         "SELECT trace_id, duration FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'",
     );
     assert!(
         contains_ws(
             &result,
-            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+            )
         ),
         "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'"
+        ),
+        "original WHERE dropped: {result}"
     );
 }
 
@@ -437,7 +800,9 @@ fn test_traces_time_range_query_between() {
     assert!(
         contains_ws(
             &result,
-            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+            )
         ),
         "got: {result}"
     );
@@ -455,21 +820,23 @@ fn test_multiple_tables_in_join() {
     assert!(
         contains_ws(
             &result,
-            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+            &format!("spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS s")
         ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS t")
+            &format!(
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+            )
         ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS se")
+            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) AS se")
         ),
         "got: {result}"
     );
@@ -575,17 +942,22 @@ LEFT JOIN spans_pivot USING (user_id)
 "#;
     let result = validate_ok(query);
 
+    // The traces CTE's WHERE (`start_time >= .. AND start_time < ..`) is pushed
+    // into the view bounds, padded ±3h; the `<` upper bound has no bucket so it's
+    // used as-is.
     assert!(
         contains_ws(
             &result,
-            &format!("FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
+            &format!(
+                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
+            )
         ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -616,7 +988,7 @@ ORDER BY time_bucket WITH FILL STEP INTERVAL 1 MINUTE
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -667,7 +1039,7 @@ fn test_cte_with_safe_name_still_allowed() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -737,7 +1109,7 @@ fn test_in_with_array_placeholder_unparenthesized() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
         ),
         "got: {result}"
     );
@@ -803,6 +1175,87 @@ fn test_not_in_with_array_placeholder() {
 }
 
 #[test]
+fn test_in_with_bare_scalar_literal() {
+    // ClickHouse accepts a bare single value after IN (it wraps it in a tuple).
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens IN 5");
+    assert!(contains_ws(&result, "input_tokens IN (5)"), "got: {result}");
+}
+
+#[test]
+fn test_in_with_bare_string_literal() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE span_type IN 'TOOL'");
+    assert!(
+        contains_ws(&result, "span_type IN ('TOOL')"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_bare_function_call() {
+    // `IN power(2, 3)` — the RHS is a full expression, not a parenthesized list.
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens IN power(2, 3)");
+    assert!(
+        contains_ws(&result, "input_tokens IN (power(2, 3))"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_bare_column_ref_not_rewritten() {
+    // A bare identifier RHS is a column reference, NOT a relation — it must not
+    // be rewritten to a `_v0` view function.
+    let result = validate_ok("SELECT span_id FROM spans WHERE span_id IN parent_span_id");
+    assert!(
+        contains_ws(&result, "span_id IN (parent_span_id)"),
+        "got: {result}"
+    );
+    assert!(!result.contains("parent_span_id_v0"), "got: {result}");
+}
+
+#[test]
+fn test_not_in_with_bare_function_call() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE input_tokens NOT IN power(2, 3)");
+    assert!(
+        contains_ws(&result, "input_tokens NOT IN (power(2, 3))"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_interval_rhs_cross_feature() {
+    // Exercises BOTH the optional-interval-qualifier dialect AND the bare-IN
+    // expression parse together: `toIntervalDay(1) IN INTERVAL 1 day`.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE toIntervalDay(1) IN INTERVAL 1 day LIMIT 1");
+    assert!(
+        contains_ws(&result, "toIntervalDay(1) IN (INTERVAL 1 DAY)"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_bare_rhs_does_not_swallow_trailing_and() {
+    // The bare RHS is parsed at BETWEEN precedence, so a following `AND` is a
+    // separate predicate — not absorbed into the IN operand.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE input_tokens IN 5 AND span_type = 'LLM'");
+    assert!(contains_ws(&result, "input_tokens IN (5)"), "got: {result}");
+    assert!(contains_ws(&result, "span_type = 'LLM'"), "got: {result}");
+}
+
+#[test]
+fn test_in_with_blocked_function_rhs_still_rejected() {
+    // The parse_infix override only changes parsing; the validator still scans
+    // the parsed InList RHS, so a blocked function there is rejected.
+    let err = validate("SELECT span_id FROM spans WHERE span_id IN url('http://evil')")
+        .expect_err("blocked function in IN RHS must be rejected");
+    assert!(
+        err.to_lowercase().contains("url") || err.contains("blocked"),
+        "got: {err}"
+    );
+}
+
+#[test]
 fn test_array_join_column_not_rewritten() {
     // `ARRAY JOIN clusters AS cluster_id` unnests the `clusters` ARRAY column of
     // signal_events — `clusters` here is a column, NOT the `clusters` table, so
@@ -818,7 +1271,10 @@ fn test_array_join_column_not_rewritten() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+            &format!(
+                "FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 signal_ids = [toUUID({{signalId: UUID}})]) AS signal_events"
+            )
         ),
         "got: {result}"
     );
@@ -862,11 +1318,12 @@ fn test_array_join_does_not_shadow_real_clusters_table() {
         )
     "#;
     let result = validate_ok(query);
-    // The real FROM table is scoped...
+    // The real FROM table is scoped. `c.id IN (...)` doesn't restrict `c`'s own
+    // signal_id, so signal_ids widens to the sentinel.
     assert!(
         contains_ws(
             &result,
-            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}') AS c")
+            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) AS c")
         ),
         "got: {result}"
     );
@@ -904,14 +1361,20 @@ fn test_full_clusters_emerging_query() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}') AS clusters")
+            &format!(
+                "FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 signal_ids = [toUUID({{signalId: UUID}})]) AS clusters"
+            )
         ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+            &format!(
+                "FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 signal_ids = [toUUID({{signalId: UUID}})]) AS signal_events"
+            )
         ),
         "got: {result}"
     );
@@ -921,4 +1384,983 @@ fn test_full_clusters_emerging_query() {
     );
     // Only the outer clusters TABLE is rewritten; the array-join column is not.
     assert_eq!(result.matches("clusters_v0").count(), 1, "got: {result}");
+}
+
+#[test]
+fn test_array_join_allows_other_tables_array_columns() {
+    // Every allowlisted array column is reachable, not just `signal_events.clusters`.
+    let by_table = [
+        ("traces", "span_names", "n"),
+        ("traces", "tags", "tag"),
+        ("traces", "signal_events", "e"),
+        ("traces", "clusters", "c"),
+        ("evaluation_datapoints", "trace_spans", "s"),
+        ("spans", "tags", "tag"),
+    ];
+    for (table, column, alias) in by_table {
+        let query = format!("SELECT {alias} FROM {table} ARRAY JOIN {column} AS {alias}");
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(&result, &format!("ARRAY JOIN {column} AS {alias}")),
+            "{table}.{column} should stay a bare array column, got: {result}"
+        );
+        assert!(
+            !result.contains(&format!("{column}_v0")),
+            "{table}.{column} must not be rewritten as a view, got: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_array_join_rejects_name_that_is_not_a_column_of_the_joined_table() {
+    // The hole this closes: an ARRAY JOIN right-hand side used to be skipped by
+    // every pass, so a name that is not a column of the left relation was
+    // neither validated nor rewritten and reached ClickHouse verbatim. `spans`
+    // is a real table but not a column of `signal_events`.
+    let err = validate("SELECT x FROM signal_events ARRAY JOIN spans AS x")
+        .expect_err("ARRAY JOIN of a non-column must be rejected");
+    assert!(err.contains("'spans'"), "got: {err}");
+
+    // Same for a name that is neither table nor column.
+    let err = validate("SELECT x FROM traces ARRAY JOIN not_a_column AS x")
+        .expect_err("ARRAY JOIN of an unknown identifier must be rejected");
+    assert!(err.contains("'not_a_column'"), "got: {err}");
+}
+
+#[test]
+fn test_array_join_allows_qualified_array_column() {
+    // A qualified right-hand side is the only spelling ClickHouse accepts when
+    // two joined relations share a column name, so the qualifier is resolved
+    // against the FROM clause rather than the name being refused outright.
+    for (query, expected) in [
+        (
+            "SELECT x FROM signal_events s ARRAY JOIN s.clusters AS x",
+            "ARRAY JOIN s.clusters AS x",
+        ),
+        (
+            "SELECT tag FROM traces t JOIN spans s ON t.id = s.trace_id ARRAY JOIN t.tags AS tag",
+            "ARRAY JOIN t.tags AS tag",
+        ),
+        // Unaliased: the bare table name is what addresses the relation, and
+        // the rewriter preserves it as the view's alias.
+        (
+            "SELECT tag FROM spans ARRAY JOIN spans.tags AS tag",
+            "ARRAY JOIN spans.tags AS tag",
+        ),
+    ] {
+        let result = validate_ok(query);
+        assert!(
+            contains_ws(&result, expected),
+            "query: {query}\ngot: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_array_join_rejects_qualifier_that_is_not_a_relation_in_scope() {
+    // The reason qualified names need resolving at all: `default.spans` has the
+    // same shape as `s.tags`, and must not be mistaken for a column.
+    let err = validate("SELECT x FROM signal_events ARRAY JOIN default.spans AS x")
+        .expect_err("a database-qualified table must be rejected");
+    assert!(err.contains("qualifier 'default'"), "got: {err}");
+
+    // A qualifier naming a relation in scope still has its column checked.
+    let err = validate("SELECT x FROM signal_events s ARRAY JOIN s.not_a_column AS x")
+        .expect_err("an unknown column must be rejected");
+    assert!(err.contains("'not_a_column'"), "got: {err}");
+}
+
+#[test]
+fn test_array_join_allows_function_over_array_columns() {
+    // A function call is an expression over the row's own columns. Only the
+    // table allowlist looks away, so the function name is left verbatim.
+    for (query, expected) in [
+        (
+            "SELECT x FROM spans ARRAY JOIN splitByChar(',', name) AS x",
+            "ARRAY JOIN splitByChar(',', name) AS x",
+        ),
+        (
+            "SELECT z FROM traces ARRAY JOIN arrayZip(tags, span_names) AS z",
+            "ARRAY JOIN arrayZip(tags, span_names) AS z",
+        ),
+    ] {
+        let result = validate_ok(query);
+        assert!(
+            contains_ws(&result, expected),
+            "query: {query}\ngot: {result}"
+        );
+    }
+
+    // Tables referenced inside the arguments are still project-scoped, because
+    // a function operand stays visible to the rewriter.
+    let result = validate_ok(
+        "SELECT x FROM traces ARRAY JOIN arrayConcat((SELECT groupArray(name) FROM spans)) AS x",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}')")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_array_join_rejects_allowlisted_table_as_function_or_deep_name() {
+    // Exempting function operands from the allowlist must not re-open the
+    // `spans(1)` hole — the rewriter still sees them and rejects it.
+    let err = validate("SELECT x FROM signal_events ARRAY JOIN spans(1) AS x")
+        .expect_err("an allowlisted table as a table function must be rejected");
+    assert!(
+        err.contains("cannot be used as a table function"),
+        "got: {err}"
+    );
+
+    // A blocked function is caught by the global scan, exemption or not. The
+    // table functions that read other tables by name are blocked precisely
+    // because an ARRAY JOIN operand skips the allowlist that stops them in FROM.
+    for (query, name) in [
+        (
+            "SELECT x FROM spans ARRAY JOIN s3('http://e/f', 'CSV') AS x",
+            "s3",
+        ),
+        (
+            "SELECT x FROM spans ARRAY JOIN merge('default', '^spans') AS x",
+            "merge",
+        ),
+        (
+            "SELECT x FROM spans ARRAY JOIN mergeTreeIndex('default', 'spans') AS x",
+            "mergetreeindex",
+        ),
+    ] {
+        let err = validate(query).expect_err("a blocked function must be rejected");
+        assert!(
+            err.contains(&format!("'{name}' is not allowed")),
+            "query: {query}\ngot: {err}"
+        );
+    }
+
+    // Three-part names cannot be column references.
+    let err = validate("SELECT x FROM spans s ARRAY JOIN a.b.c AS x")
+        .expect_err("a three-part name must be rejected");
+    assert!(
+        err.contains("ARRAY JOIN must reference an array column"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_array_join_rejects_every_table_function_family() {
+    // The whole point of the `BLOCKED_FUNCTIONS` table-function entries is this
+    // position: an ARRAY JOIN function operand is exempt from the table
+    // allowlist, so a name that reads another table (or an external source) has
+    // nothing else stopping it. Every family in `system.table_functions` that
+    // reads by name or reaches off-box must be covered, not just the ones that
+    // existed when the exemption was written.
+    for name in [
+        // Read another table / dictionary / view by name.
+        "loop",
+        "dictionary",
+        "viewExplain",
+        "mergeTreeParts",
+        "mergeTreeProjection",
+        "mergeTreeTextIndex",
+        "mergeTreeAnalyzeIndexes",
+        "mergeTreeAnalyzeIndexesUUID",
+        "timeSeriesData",
+        "timeSeriesTags",
+        "timeSeriesMetrics",
+        "timeSeriesSelector",
+        "prometheusQuery",
+        "prometheusQueryRange",
+        // Reach off-box. The lakehouse readers take a path/URL argument.
+        "iceberg",
+        "icebergS3Cluster",
+        "deltaLake",
+        "deltaLakeAzureCluster",
+        "hudi",
+        "hudiCluster",
+        "paimon",
+        "paimonS3",
+        "arrowFlight",
+        "hive",
+        "ytsaurus",
+        "urlCluster",
+        "fileCluster",
+        "hdfsCluster",
+        "azureBlobStorageCluster",
+    ] {
+        let query = format!("SELECT x FROM spans ARRAY JOIN {name}('a', 'b') AS x");
+        let err = validate(&query).expect_err(&format!("{name} must be rejected"));
+        assert!(
+            err.contains(&format!("'{}' is not allowed", name.to_lowercase())),
+            "query: {query}\ngot: {err}"
+        );
+    }
+}
+
+#[test]
+fn test_blocked_table_function_prefixes_spare_legitimate_scalars() {
+    // The `mergetree` / `iceberg` prefixes are broad on purpose, but the
+    // `timeSeries*` scalar family must survive — two of its members even extend
+    // `timeseriestags`, which is why that one is exact-matched.
+    for expr in [
+        "timeSeriesTagsToGroup(tags)",
+        "timeSeriesTagsGroupToTags(tags)",
+        "timeSeriesExtractTag(name, 'a')",
+        "timeSeriesRange(1, 2, 3)",
+    ] {
+        let query = format!("SELECT {expr} FROM spans");
+        validate(&query).unwrap_or_else(|e| panic!("query: {query}\nunexpectedly rejected: {e}"));
+    }
+}
+
+#[test]
+fn test_array_join_subquery_right_hand_side_is_still_rewritten() {
+    // A subquery is a genuine relation, so it must stay visible to the rewriter
+    // — the inner `spans` is a real table and has to become a scoped view.
+    let query = r#"
+        SELECT x
+        FROM signal_events
+        ARRAY JOIN (SELECT groupArray(name) FROM spans) AS x
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}')")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_array_join_on_cte_cannot_name_an_allowlisted_table() {
+    // A CTE's columns are unknown here, so an identifier is allowed in general...
+    let ok = validate_ok(
+        r#"
+        WITH grouped AS (SELECT groupArray(name) AS names FROM spans)
+        SELECT n FROM grouped ARRAY JOIN names AS n
+    "#,
+    );
+    assert!(contains_ws(&ok, "ARRAY JOIN names AS n"), "got: {ok}");
+
+    // ...but never an allowlisted table name, which would otherwise be shipped
+    // to ClickHouse unscoped.
+    let err = validate(
+        r#"
+        WITH grouped AS (SELECT groupArray(name) AS names FROM spans)
+        SELECT n FROM grouped ARRAY JOIN spans AS n
+    "#,
+    )
+    .expect_err("an allowlisted table name must never be treated as a column");
+    assert!(err.contains("'spans'"), "got: {err}");
+}
+
+#[test]
+fn test_interval_with_unit_inside_string_literal() {
+    // LAM-1854: ClickHouse (and Postgres) accept the unit inside the string
+    // literal, e.g. `interval '1 day'`. sqlparser's stock ClickHouseDialect
+    // rejects it ("INTERVAL requires a unit after the literal value"); our
+    // optional-qualifier dialect must parse it and round-trip it verbatim.
+    let result = validate_ok(
+        "SELECT span_id FROM spans WHERE start_time > now() - interval '1 day' LIMIT 1",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
+        ),
+        "got: {result}"
+    );
+    // The unit must NOT be hoisted out of the literal into a trailing qualifier
+    // (that would corrupt the SQL sent to ClickHouse).
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL '1 day'"),
+        "interval literal not preserved verbatim in: {result}"
+    );
+    assert!(!contains_ws(&result, "'1 day' SECOND"), "got: {result}");
+}
+
+#[test]
+fn test_interval_with_unit_outside_string_literal() {
+    let result = validate_ok(
+        "SELECT span_id FROM spans WHERE start_time > now() - interval '1' day LIMIT 1",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL '1' DAY"),
+        "interval literal not parsed with string amount: {result}"
+    );
+}
+
+#[test]
+fn test_interval_with_explicit_unit_still_parses() {
+    // The classic `INTERVAL 1 HOUR` form must keep working after the dialect
+    // swap.
+    let result =
+        validate_ok("SELECT span_id FROM spans WHERE start_time > now() - INTERVAL 1 HOUR LIMIT 1");
+    assert!(
+        contains_ws(&result, "start_time > now() - INTERVAL 1 HOUR"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_interval_various_units_inside_string_literal() {
+    for unit in ["1 hour", "30 minute", "2 week", "3 month", "1 year"] {
+        let query = format!(
+            "SELECT span_id FROM spans WHERE start_time > now() - interval '{unit}' LIMIT 1"
+        );
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(&result, &format!("INTERVAL '{unit}'")),
+            "unit '{unit}' not preserved in: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_string_literal_resembling_interval_not_misparsed() {
+    // A plain string literal that merely contains the words is NOT an INTERVAL
+    // and must survive untouched.
+    let result = validate_ok("SELECT span_id FROM spans WHERE name = '1 day ago' LIMIT 1");
+    assert!(contains_ws(&result, "name = '1 day ago'"), "got: {result}");
+}
+
+#[test]
+fn test_mixed_type_intervals_with_range_qualifier() {
+    // https://clickhouse.com/docs/sql-reference/data-types/special-data-types/interval#mixed-type-intervals
+    // Fairly new for ClickHouse (~26.4 or 26.5), but have been there in some
+    // other dialects for quite a while.
+    for lit in [
+        "INTERVAL '2-6' YEAR TO MONTH",
+        "INTERVAL '5 12' DAY TO HOUR",
+        "INTERVAL '5 12:30' DAY TO MINUTE",
+        "INTERVAL '5 12:30:45' DAY TO SECOND",
+        "INTERVAL '1:30' HOUR TO MINUTE",
+        "INTERVAL '1:30:45' HOUR TO SECOND",
+        "INTERVAL '5:30' MINUTE TO SECOND",
+    ] {
+        let query = format!("SELECT span_id FROM spans WHERE start_time > now() - {lit} LIMIT 1");
+        let result = validate_ok(&query);
+        assert!(
+            contains_ws(
+                &result,
+                &format!(
+                    "FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans"
+                )
+            ),
+            "table not rewritten for {lit}: {result}"
+        );
+        assert!(
+            contains_ws(&result, &format!("start_time > now() - {lit}")),
+            "mixed-type interval not preserved verbatim for {lit}: {result}"
+        );
+    }
+}
+
+#[test]
+fn test_backtick_quoted_identifiers_still_parse() {
+    // ClickHouseDialect does NOT override is_delimited_identifier_start; the
+    // trait default accepts backticks. ClickHouseOptionalIntervalDialect must
+    // tokenize backtick-quoted identifiers identically to the bare dialect.
+    let result = validate_ok("SELECT `span_id` FROM spans WHERE `name` = 'x' LIMIT 1");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "`span_id`"), "got: {result}");
+    assert!(contains_ws(&result, "`name` = 'x'"), "got: {result}");
+}
+
+// ----------------------------------------------------------------------------
+// traces_v1 start_time bound extraction (LAM-1876)
+// ----------------------------------------------------------------------------
+
+/// Extract the `min_start_time = ..., max_start_time = ...` fragment of the
+/// first `traces_v1(...)` call in the rewritten SQL, whitespace-normalized.
+fn traces_bounds(query: &str) -> String {
+    let sql = validate_ok(query);
+    let n = norm(&sql);
+    let start = n.find("traces_v1(").expect("no traces_v1 in output");
+    // Find the matching close paren for the view-arg list.
+    let after = &n[start + "traces_v1(".len()..];
+    let mut depth = 1usize;
+    let mut end = 0usize;
+    for (i, c) in after.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    after[..end].to_string()
+}
+
+fn assert_default_min(bounds: &str) {
+    assert!(
+        bounds.contains("min_start_time = toDateTime64('1970-01-01 00:00:00', 9)"),
+        "expected default min, got: {bounds}"
+    );
+}
+
+fn assert_default_max(bounds: &str) {
+    assert!(
+        bounds.contains("max_start_time = toDateTime64('2099-12-31 00:00:00', 9)"),
+        "expected default max, got: {bounds}"
+    );
+}
+
+#[test]
+fn test_bounds_relative_now_with_interval_placeholder() {
+    // Query A: `start_time >= now() - INTERVAL {pastHours: UInt32} HOUR`. The
+    // `{pastHours:UInt32}` placeholder is a scalar bind value, not a column, so
+    // the comparison must still yield a lower bound (padded ±3h). No upper bound
+    // is present, so max stays at the broad default.
+    let b = traces_bounds(
+        "SELECT id, user_id AS userId FROM traces \
+         WHERE start_time >= now() - INTERVAL {pastHours: UInt32} HOUR \
+         AND trace_type = {traceType: String} \
+         ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
+    );
+    assert!(
+        b.contains(
+            "min_start_time = toDateTime64(now() - INTERVAL {pastHours: UInt32} HOUR, 9) - INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_parameterized_time_bounds() {
+    // Query B: parameterized `start_time >= {startTime: String}` and
+    // `start_time <= {endTime: String}`. Both placeholders are scalar binds, so
+    // both bounds must be derived (padded ±3h) rather than falling back to the
+    // broad defaults.
+    let b = traces_bounds(
+        "SELECT id, user_id AS userId FROM traces \
+         WHERE start_time >= {startTime: String} \
+         AND start_time <= {endTime: String} \
+         AND trace_type = {traceType: String} \
+         ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64({endTime: String}, 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_parameterized_value_lower_only() {
+    // A single parameterized lower bound derives a min and leaves max default.
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time >= {startTime: String}");
+    assert!(
+        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_no_filter_uses_broad_defaults() {
+    let b = traces_bounds("SELECT id FROM traces");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_bare_start_time_gt() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_bare_start_time_gte() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_bare_start_time_lt() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time < '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_bare_start_time_lte() {
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time <= '2026-06-02 00:00:00'");
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_end_time_upper_only() {
+    // end_time <= X ⇒ start_time <= X (end_time >= start_time). Lower unbounded.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time < '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_end_time_lower_ignored() {
+    // A LOWER bound on end_time says nothing about start_time → no min bound.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time > '2026-06-01 00:00:00'");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_end_time_eq_upper_only() {
+    // end_time = X ⇒ start_time <= X (end_time >= start_time). Lower unbounded —
+    // equality on end_time yields only an upper bound on start_time.
+    let b = traces_bounds("SELECT id FROM traces WHERE end_time = '2026-06-02 00:00:00'");
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_start_and_end_range() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00' AND end_time <= '2026-06-02 00:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_between_start_time() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 00:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_between_end_time_upper_only() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE end_time BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 00:00:00'",
+    );
+    assert_default_min(&b);
+    assert!(
+        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_todate_equality_widens_by_day() {
+    let b = traces_bounds("SELECT id FROM traces WHERE toDate(start_time) = '2026-06-01'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains(
+            "max_start_time = (toDateTime64('2026-06-01', 9) + INTERVAL 1 DAY) + INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_tostartofhour_equality_widens_by_hour() {
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE toStartOfHour(start_time) = '2026-06-01 13:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 13:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert!(
+        b.contains(
+            "max_start_time = (toDateTime64('2026-06-01 13:00:00', 9) + INTERVAL 1 HOUR) + INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_tomonday_equality_widens_by_week() {
+    let b = traces_bounds("SELECT id FROM traces WHERE toMonday(start_time) = '2026-06-01'");
+    assert!(
+        b.contains(
+            "max_start_time = (toDateTime64('2026-06-01', 9) + INTERVAL 7 DAY) + INTERVAL 3 HOUR"
+        ),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_tostartofmonth_gte_lower_no_widen() {
+    // A `>=` on a truncation is a lower bound; buckets only widen the UPPER edge,
+    // so the lower is the value as-is (minus pad).
+    let b = traces_bounds("SELECT id FROM traces WHERE toStartOfMonth(start_time) >= '2026-06-01'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_column_on_right_flips_operator() {
+    let b = traces_bounds("SELECT id FROM traces WHERE '2026-06-01 00:00:00' < start_time");
+    // '...' < start_time  ⇔  start_time > '...'  ⇒ lower bound.
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_or_both_branches_bound_upper() {
+    // (start_time < A) OR (end_time < B): both branches give an upper bound, so
+    // the OR keeps the LOOSER (greatest) upper; lower stays unbounded.
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time < '2026-06-01 00:00:00' OR end_time < '2026-06-05 00:00:00'",
+    );
+    assert_default_min(&b);
+    assert!(
+        b.contains("greatest("),
+        "expected greatest() for OR upper, got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_or_unbounded_branch_drops_bound() {
+    // start_time > X OR name = 'y': the second branch bounds nothing, so the OR
+    // must NOT constrain start_time — both bounds fall back to defaults.
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00' OR name = 'y'",
+    );
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_and_multiple_lowers_takes_tightest() {
+    // Two lower bounds under AND ⇒ greatest() (the tightest lower).
+    let b = traces_bounds(
+        "SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00' AND start_time > '2026-06-03 00:00:00'",
+    );
+    assert!(
+        b.contains("min_start_time = greatest("),
+        "expected greatest() for AND lower, got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_value_referencing_column_skipped() {
+    // start_time > end_time : the value side is a column, not a constant, so it
+    // can't be a view-fn argument → no bound.
+    let b = traces_bounds("SELECT id FROM traces WHERE start_time > end_time");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_from_alias_qualified_filter() {
+    let b = traces_bounds("SELECT t.id FROM traces t WHERE t.start_time >= '2026-06-01 00:00:00'");
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_other_relation_qualifier_ignored() {
+    // In a join, a filter on the SPANS alias's start_time must not become a
+    // traces bound.
+    let b = traces_bounds(
+        "SELECT t.id FROM traces t JOIN spans s ON s.trace_id = t.id WHERE s.start_time >= '2026-06-01 00:00:00'",
+    );
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+#[test]
+fn test_bounds_in_subquery_from_traces() {
+    // Filter lives on the traces subquery's own WHERE.
+    let query = "SELECT * FROM (SELECT id, start_time FROM traces WHERE start_time >= '2026-06-01 00:00:00') sub";
+    let b = traces_bounds(query);
+    assert!(
+        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        "got: {b}"
+    );
+}
+
+#[test]
+fn test_bounds_unsupported_function_falls_back_to_default() {
+    // addDays(start_time, 1) is not a truncation we parse → broad defaults.
+    let b = traces_bounds("SELECT id FROM traces WHERE addDays(start_time, 1) > '2026-06-01'");
+    assert_default_min(&b);
+    assert_default_max(&b);
+}
+
+/// Independent check of the core invariant: re-parse the validator's output and
+/// assert no allowlisted table survives as a bare relation. ARRAY JOIN operands
+/// are excluded — ClickHouse parses those as expressions, never relations.
+fn assert_no_bare_allowlisted_table(sql: &str) {
+    use sqlparser::ast::TableFactor as TF;
+    struct Chk {
+        reg: TableRegistry,
+        exempt: HashSet<Span>,
+        bad: Vec<String>,
+    }
+    impl Visitor for Chk {
+        type Break = ();
+        fn pre_visit_select(&mut self, s: &Select) -> ControlFlow<()> {
+            for twj in &s.from {
+                for j in &twj.joins {
+                    if matches!(
+                        j.join_operator,
+                        JoinOperator::ArrayJoin
+                            | JoinOperator::LeftArrayJoin
+                            | JoinOperator::InnerArrayJoin
+                    ) && let TF::Table { name, .. } = &j.relation
+                        && let Some(sp) = relation_name_span(name)
+                    {
+                        self.exempt.insert(sp);
+                    }
+                }
+            }
+            ControlFlow::Continue(())
+        }
+        fn pre_visit_table_factor(&mut self, tf: &TF) -> ControlFlow<()> {
+            if let TF::Table {
+                name, args: None, ..
+            } = tf
+                && !relation_name_span(name).is_some_and(|s| self.exempt.contains(&s))
+                && self.reg.is_table_allowed(&relation_table_name(name))
+            {
+                self.bad.push(name.to_string());
+            }
+            ControlFlow::Continue(())
+        }
+    }
+    let stmts = parse_clickhouse_sql(sql).expect("output must re-parse");
+    let mut c = Chk {
+        reg: TableRegistry::new(),
+        exempt: HashSet::new(),
+        bad: Vec::new(),
+    };
+    for s in &stmts {
+        let _ = s.visit(&mut c);
+    }
+    assert!(c.bad.is_empty(), "UNSCOPED {:?} in: {sql}", c.bad);
+}
+
+#[test]
+fn test_array_join_never_leaves_an_unscoped_table() {
+    // The exemption sets are keyed by source span, so the risk that matters is
+    // an exempted operand accidentally covering a real relation. Assert the
+    // invariant directly on the output of every ARRAY JOIN shape we accept,
+    // independently of the passes that produced it.
+    for query in [
+        "SELECT tag FROM spans ARRAY JOIN tags AS tag, traces",
+        "SELECT tag FROM traces, spans ARRAY JOIN tags AS tag",
+        "SELECT tag FROM spans ARRAY JOIN tags AS t UNION ALL SELECT name FROM spans",
+        "SELECT a, b FROM traces ARRAY JOIN tags AS a ARRAY JOIN span_names AS b",
+        "SELECT x FROM traces ARRAY JOIN tags AS x WHERE id IN (SELECT trace_id FROM spans)",
+        "WITH c AS (SELECT x FROM spans ARRAY JOIN tags AS x) SELECT * FROM c",
+        // Aliases shadowing a table name or a database name.
+        "SELECT x FROM spans AS traces ARRAY JOIN traces.tags AS x",
+        "SELECT x FROM spans AS default ARRAY JOIN default.tags AS x",
+        "SELECT x FROM traces t JOIN spans t2 ON t.id = t2.trace_id ARRAY JOIN t2.tags AS x",
+        // Case and quoting variants of the same names.
+        "SELECT x FROM SPANS S ARRAY JOIN S.TAGS AS x",
+        r#"SELECT x FROM spans s ARRAY JOIN "s"."tags" AS x"#,
+        // Function operands must still scope tables nested in their arguments.
+        "SELECT x FROM spans ARRAY JOIN arrayMap(y -> y, tags) AS x",
+        "SELECT x FROM spans ARRAY JOIN arrayConcat(tags, (SELECT groupArray(name) FROM traces)) AS x",
+        "SELECT x FROM spans ARRAY JOIN f((SELECT g FROM (SELECT groupArray(name) AS g FROM spans))) AS x",
+        // Subquery and CTE left relations, whose column sets are unknown.
+        "SELECT x FROM (SELECT tags FROM spans) d ARRAY JOIN d.tags AS x",
+        "WITH c AS (SELECT tags FROM spans) SELECT x FROM c ARRAY JOIN c.anything AS x",
+    ] {
+        assert_no_bare_allowlisted_table(&validate_ok(query));
+    }
+}
+
+#[test]
+fn test_array_join_qualifier_cannot_reach_another_database() {
+    // Each of these is a way of spelling "read a table the allowlist would
+    // reject", relying on the ARRAY JOIN operand being skipped.
+    for query in [
+        "SELECT x FROM signal_events ARRAY JOIN spans AS x",
+        "SELECT x FROM signal_events ARRAY JOIN default.spans AS x",
+        r#"SELECT x FROM signal_events ARRAY JOIN "default"."spans" AS x"#,
+        // An alias that shadows the database name does not make the table a column.
+        "SELECT x FROM spans AS default ARRAY JOIN default.spans AS x",
+        "SELECT x FROM spans ARRAY JOIN evaluation_datapoints AS x",
+        "SELECT x FROM spans s ARRAY JOIN s.evaluation_datapoints AS x",
+        "SELECT x FROM (SELECT tags FROM spans) d ARRAY JOIN d.spans AS x",
+        "WITH c AS (SELECT tags FROM spans) SELECT x FROM c ARRAY JOIN c.spans AS x",
+        // Table functions, with and without arguments.
+        "SELECT x FROM signal_events ARRAY JOIN spans() AS x",
+        "SELECT x FROM signal_events ARRAY JOIN spans(1) AS x",
+        // project_id stays unreachable through an operand.
+        "SELECT x FROM spans ARRAY JOIN f(project_id) AS x",
+        "SELECT project_id FROM spans s ARRAY JOIN s.tags AS project_id",
+    ] {
+        validate(query).expect_err(&format!("must be rejected: {query}"));
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Access policy injection (docs/internal/rbac.md)
+// ----------------------------------------------------------------------------
+
+fn validate_with_policy(query: &str, policy: &str) -> String {
+    QueryValidator::new()
+        .validate_and_secure_query(query, SAMPLE_PROJECT_ID, policy)
+        .unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
+}
+
+#[test]
+fn test_policy_reaches_every_spans_and_traces_reference() {
+    let result = validate_with_policy(
+        "SELECT s.name, t.id FROM spans s JOIN traces t ON s.trace_id = t.id \
+         WHERE s.trace_id IN (SELECT trace_id FROM spans WHERE name = 'x')",
+        r#"{"maskPii":true}"#,
+    );
+    assert_eq!(
+        result.matches(r#"policy = '{"maskPii":true}'"#).count(),
+        3,
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "spans_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}') AS s"
+            )
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_policy_is_not_passed_to_v0_views() {
+    let result = validate_with_policy(
+        "SELECT se.id FROM signal_events se JOIN trace_outputs o ON se.trace_id = o.trace_id",
+        r#"{"maskPii":true}"#,
+    );
+    assert!(!result.contains("policy"), "got: {result}");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}', signal_ids = []) AS se")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_user_supplied_policy_argument_is_rejected() {
+    // The only way to reach `spans_v1` is through the rewriter; a caller
+    // cannot hand-pick a laxer policy by naming the view function directly.
+    for query in [
+        "SELECT name FROM spans_v1(project_id = 'x', policy = '{}')",
+        "SELECT name FROM spans(project_id = 'x', policy = '{}')",
+    ] {
+        validate(query).expect_err(&format!("must be rejected: {query}"));
+    }
+}
+
+#[test]
+fn test_policy_literal_is_quoted_as_a_string() {
+    // A stray quote in the policy must not break out of the string literal.
+    let result = validate_with_policy("SELECT name FROM spans", "{\"k\":\"it's\"}");
+    assert!(
+        result.contains(r#"policy = '{"k":"it''s"}'"#),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_trace_filter_value_with_quotes_survives_as_one_literal() {
+    // A filter value is user data; `'` and `"` in it must reach ClickHouse
+    // inside the policy string, and the rewritten SQL must still parse.
+    use crate::access_policy::{AccessPolicy, TraceFilter, TraceFilterOperator};
+    let policy = AccessPolicy {
+        trace_filters: vec![TraceFilter::metadata(
+            "team",
+            TraceFilterOperator::Eq,
+            r#"o'neil "the" boss"#,
+        )],
+        ..Default::default()
+    };
+    let result = validate_with_policy("SELECT name FROM spans", &policy.to_view_arg());
+    assert!(
+        result.contains(
+            r#"policy = '{"traceFilters":[{"column":"metadata","key":"team","operator":"eq","value":"o''neil \"the\" boss"}]}'"#
+        ),
+        "got: {result}"
+    );
+    assert_eq!(result.matches("policy = ").count(), 1);
+    parse_clickhouse_sql(&result).expect("rewritten SQL re-parses");
 }

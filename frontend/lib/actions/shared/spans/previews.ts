@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types.ts";
 import { getSpanPreviews, type SpanPreviewsResult } from "@/lib/actions/spans/previews";
+import { SHARED_ACTOR } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 
@@ -44,6 +45,6 @@ export async function getSharedSpanPreviews(
       inputSpanIds,
       promptHashes,
     },
-    { skipGeneration: true }
+    { skipGeneration: true, actor: SHARED_ACTOR }
   );
 }

@@ -33,7 +33,7 @@ const ImageWithPreview = ({ src, className, alt }: ImageWithPreviewProps) => {
         <DialogTitle className="flex justify-between items-center">
           <span>Image Preview</span>
           <DialogClose asChild>
-            <Button className="size-4" variant="ghost" size="icon">
+            <Button aria-label="Close" className="size-4" variant="ghost" size="icon">
               <X size={12} />
             </Button>
           </DialogClose>

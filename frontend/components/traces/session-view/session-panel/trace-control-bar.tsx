@@ -52,6 +52,8 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
   };
 
   const handleTabChange = (next: ViewTab) => {
+    // Session surfaces only offer tree/transcript (ViewToggle default tabs).
+    if (next === "custom") return;
     if (next !== mode) {
       track(analyticsFeature, "view_switched", { from: mode, to: next, traceId: trace.id });
     }
@@ -68,6 +70,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
           onTabChange={handleTabChange}
           showContent={showContent}
           onToggleContent={() => toggleTraceShowTreeContent(trace.id)}
+          tabs={["tree", "transcript"]}
         />
         <Metadata metadata={metaString} />
       </div>
@@ -75,13 +78,11 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
       {isDebugger && (
         <Button
           onClick={handleToggleTimeline}
-          variant="outline"
-          className={cn(
-            "h-6 text-xs px-1.5 bg-transparent",
-            isTimelineOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-          )}
+          variant={isTimelineOpen ? "outlinePrimary" : "outline"}
+          size="sm"
+          className={cn("bg-transparent", !isTimelineOpen && "hover:bg-secondary")}
         >
-          <GanttChart size={14} className="mr-1" />
+          <GanttChart data-icon="inline-start" size={14} className="mr-1" />
           Timeline
         </Button>
       )}

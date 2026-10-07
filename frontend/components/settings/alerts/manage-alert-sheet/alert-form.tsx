@@ -1,6 +1,6 @@
 "use client";
 
-import { HelpCircle, Loader2, Mail, Send, Slack } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
@@ -14,13 +14,13 @@ import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import { IconSlack } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import {
   ALERT_TARGET_TYPE,
   ALERT_TYPE,
@@ -32,7 +32,6 @@ import {
 import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
-import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -74,9 +73,6 @@ export function AlertForm({
 }: AlertFormProps) {
   const isEditMode = !!alert;
   const hasSlackIntegration = !!integrationId;
-  const featureFlags = useFeatureFlags();
-  const clusteringEnabled = featureFlags[Feature.CLUSTERING];
-
   const [isTesting, setIsTesting] = useState(false);
   const [dateRange, setDateRange] = useState<{ pastHours?: string; startDate?: string; endDate?: string }>({
     pastHours: "168",
@@ -86,12 +82,12 @@ export function AlertForm({
 
   const { toast } = useToast();
 
-  const form = useForm<AlertFormValues>({ defaultValues });
+  const form = useForm<AlertFormValues>({ defaultValues, mode: "onChange" });
   const {
     control,
     handleSubmit,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid, isDirty },
   } = form;
 
   const alertType = watch("type");
@@ -303,19 +299,22 @@ export function AlertForm({
         const url = isEditMode ? `/api/projects/${projectId}/alerts/${alert.id}` : `/api/projects/${projectId}/alerts`;
         const method = isEditMode ? "PATCH" : "POST";
 
+        // Only persist `disabled` when deactivated; absence means active.
+        const disabledMeta = data.disabled ? { disabled: true } : {};
         const metadata =
           data.type === ALERT_TYPE.SIGNAL_EVENT
             ? {
                 severities: Array.from(new Set(data.severities)).sort((a, b) => a - b),
-                // Force skipSimilar off without clustering so a stale form value can't leak through.
-                skipSimilar: clusteringEnabled ? data.skipSimilar : false,
+                skipSimilar: data.skipSimilar,
+                ...disabledMeta,
               }
-            : {};
+            : { ...disabledMeta };
 
         const res = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            ...(isEditMode && { action: "update" }),
             name: data.name.trim(),
             type: data.type,
             sourceId: selectedSignal.id,
@@ -388,7 +387,6 @@ export function AlertForm({
       isEditMode,
       alert,
       onOpenChange,
-      clusteringEnabled,
       previousFilterIds,
     ]
   );
@@ -450,6 +448,48 @@ export function AlertForm({
       <form className="flex flex-col flex-1 overflow-hidden" onSubmit={handleSubmit(onSubmit)}>
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-8 p-4 pb-24">
+            {isEditMode && (
+              <Controller
+                name="disabled"
+                control={control}
+                render={({ field }) => {
+                  const isActive = !field.value;
+                  return (
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
+                        isActive ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            "inline-flex size-2.5 shrink-0 rounded-full",
+                            isActive ? "bg-primary" : "bg-muted-foreground/40"
+                          )}
+                        />
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <Label htmlFor="alert-enabled" className="text-sm font-medium cursor-pointer">
+                            {isActive ? "Active" : "Inactive"}
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            {isActive
+                              ? "This alert is sending notifications."
+                              : "Paused — notifications aren't sent. The alert's configuration is kept."}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        id="alert-enabled"
+                        checked={isActive}
+                        onCheckedChange={(checked) => field.onChange(!checked)}
+                      />
+                    </div>
+                  );
+                }}
+              />
+            )}
+
             <Controller
               name="name"
               control={control}
@@ -493,7 +533,7 @@ export function AlertForm({
               />
             )}
 
-            {selectedSignal && clusteringEnabled && (
+            {selectedSignal && (
               <AlertSection title="Trigger" description="Choose the activity that fires this alert.">
                 <Controller
                   name="type"
@@ -591,24 +631,22 @@ export function AlertForm({
 
                     <AlertFiltersSection schema={selectedSignalDetails?.structuredOutput} />
 
-                    {clusteringEnabled && (
-                      <Controller
-                        name="skipSimilar"
-                        control={control}
-                        render={({ field }) => (
-                          <div className="flex items-center justify-between rounded-md border p-3">
-                            <div className="pr-3">
-                              <p className="text-sm font-medium">Skip notifications for similar events</p>
-                              <p className="text-xs text-muted-foreground">
-                                When enabled, only the first event in a group of semantically similar events will
-                                trigger a notification. Subsequent events in the same group are ignored.
-                              </p>
-                            </div>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    <Controller
+                      name="skipSimilar"
+                      control={control}
+                      render={({ field }) => (
+                        <div className="flex items-center justify-between rounded-md border p-3">
+                          <div className="pr-3">
+                            <p className="text-sm font-medium">Skip notifications for similar events</p>
+                            <p className="text-xs text-muted-foreground">
+                              When enabled, only the first event in a group of semantically similar events will trigger
+                              a notification. Subsequent events in the same group are ignored.
+                            </p>
                           </div>
-                        )}
-                      />
-                    )}
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </div>
+                      )}
+                    />
                   </AlertSection>
                 )}
 
@@ -669,7 +707,7 @@ export function AlertForm({
                         render={({ field, fieldState }) => (
                           <div className="grid gap-2 p-3">
                             <div className="flex items-center gap-3">
-                              <Slack className="size-4 shrink-0 text-muted-foreground" />
+                              <IconSlack className="size-4 shrink-0 text-muted-foreground" />
                               <Label className="text-sm font-medium">Slack channels</Label>
                             </div>
                             <div className="flex items-center gap-2 pl-7">
@@ -706,7 +744,7 @@ export function AlertForm({
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting || !selectedSignal || !alertType}>
+          <Button type="submit" disabled={isSubmitting || !selectedSignal || !alertType || !isValid || !isDirty}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>

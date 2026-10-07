@@ -1,14 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
+use super::debugger;
 use crate::{
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
-        EvaluationDatapointResult, UpdatedDatapointStrings,
-        insert_evaluation_datapoints,
-        realtime::{
-            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates,
-        },
+        EvaluationDatapointResult, UpdatedDatapointStrings, insert_evaluation_datapoints,
+        realtime::{RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates},
         update_evaluation_datapoint,
     },
     names::NameGenerator,
@@ -37,6 +35,7 @@ pub async fn init_eval(
     req: Json<InitEvalRequest>,
     db: web::Data<DB>,
     name_generator: web::Data<Arc<NameGenerator>>,
+    pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let req = req.into_inner();
@@ -53,7 +52,61 @@ pub async fn init_eval(
         db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name, &metadata)
             .await?;
 
+    db::debugger_session_blocks::upsert_block_for_evaluation(
+        &db.pool,
+        &project_id,
+        &evaluation.id,
+        metadata.as_ref(),
+        &evaluation.created_at,
+    )
+    .await;
+
+    // Push the eval block to the session live (scores fill in on next load).
+    if let Some(session_id) = debugger::session_id_from_metadata(metadata.as_ref()) {
+        debugger::push_evaluation_block(
+            pubsub.get_ref().as_ref(),
+            &project_id,
+            &session_id,
+            &evaluation,
+        )
+        .await;
+    }
+
     Ok(HttpResponse::Ok().json(evaluation))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateEvalRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<Value>,
+}
+
+/// Update an evaluation's name and/or metadata. `group_id` is immutable.
+/// Fields omitted from the request are left unchanged. Postgres-only:
+/// evaluation-level name/metadata are not duplicated into ClickHouse
+/// (`evaluation_datapoints.metadata` is per-datapoint).
+#[post("/evals/{eval_id}")]
+pub async fn update_eval(
+    eval_id: web::Path<Uuid>,
+    req: Json<UpdateEvalRequest>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let eval_id = eval_id.into_inner();
+    let req = req.into_inner();
+    let project_id = project_api_key.project_id;
+
+    let evaluation =
+        db::evaluations::update_evaluation(&db.pool, eval_id, project_id, &req.name, &req.metadata)
+            .await?;
+
+    match evaluation {
+        Some(evaluation) => Ok(HttpResponse::Ok().json(evaluation)),
+        None => Ok(HttpResponse::NotFound().json("Evaluation not found")),
+    }
 }
 
 #[derive(Deserialize)]
@@ -92,8 +145,10 @@ pub async fn save_eval_datapoints(
 
     cache_inserted_datapoint_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
 
-    let realtime_points: Vec<RealtimeDatapoint<'_>> =
-        ch_rows.iter().map(RealtimeDatapoint::from_ch_insert).collect();
+    let realtime_points: Vec<RealtimeDatapoint<'_>> = ch_rows
+        .iter()
+        .map(RealtimeDatapoint::from_ch_insert)
+        .collect();
 
     send_datapoint_updates(
         pubsub.get_ref().as_ref(),

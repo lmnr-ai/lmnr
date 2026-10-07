@@ -12,9 +12,11 @@ interface Props {
   traceId: string;
   onClose: () => void;
   className?: string;
+  /** Public shared trace: the findings render, the ways into the project don't. */
+  readOnly?: boolean;
 }
 
-export default function SignalEventsPanel({ traceId, onClose, className }: Props) {
+export default function SignalEventsPanel({ traceId, onClose, className, readOnly }: Props) {
   const { traceSignals, isTraceSignalsLoading } = useTraceViewStore(
     (state) => ({
       traceSignals: state.traceSignals,
@@ -33,7 +35,7 @@ export default function SignalEventsPanel({ traceId, onClose, className }: Props
       exit={{ height: 0, opacity: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
     >
-      <PanelBody traceId={traceId} onClose={onClose} />
+      <PanelBody traceId={traceId} onClose={onClose} readOnly={readOnly} />
     </motion.div>
   );
 }

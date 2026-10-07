@@ -36,7 +36,7 @@ impl DataPlaneClient {
         };
 
         let data_plane_url = crypto::decrypt(
-            self.config.workspace_id,
+            &self.config.workspace_id.to_string(),
             data_plane_url_nonce,
             data_plane_url,
         )

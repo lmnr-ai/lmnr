@@ -3,25 +3,27 @@ import type Stripe from "stripe";
 export type TierConfigEntry = {
   lookupKey: string;
   overageMegabytesLookupKey: string;
-  overageSignalStepsProcessedLookupKey: string;
+  overageSignalCostLookupKey: string;
   includedBytes: number;
-  includedSignalSteps: number;
+  // Recurring Signals allowance in micro-USD. Self-serve tiers have no monthly
+  // allowance; the separate workspace sign-up credit is consumed only once.
+  includedSignalCostMicroUsd: number;
 };
 
 export const TIER_CONFIG = {
   hobby: {
     lookupKey: "hobby_monthly_2026_02",
     overageMegabytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
-    overageSignalStepsProcessedLookupKey: "hobby_monthly_2026_04_overage_signal_steps_processed",
+    overageSignalCostLookupKey: "hobby_monthly_2026_06_overage_signal_cost",
     includedBytes: 3 * 1024 ** 3,
-    includedSignalSteps: 5_000,
+    includedSignalCostMicroUsd: 0,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
-    overageSignalStepsProcessedLookupKey: "pro_monthly_2026_04_overage_signal_steps_processed",
+    overageSignalCostLookupKey: "pro_monthly_2026_06_overage_signal_cost",
     includedBytes: 10 * 1024 ** 3,
-    includedSignalSteps: 50_000,
+    includedSignalCostMicroUsd: 0,
   },
 } as const;
 
@@ -58,17 +60,18 @@ export const METER_EVENT_NAMES = {
     payloadKey: "megabytes",
   },
   overageSignalRuns: {
-    eventName: "2026_04_overage_signal_steps_processed",
-    payloadKey: "signal_steps_processed",
+    eventName: "2026_06_overage_signal_cost",
+    payloadKey: "signal_cost",
   },
 } as const;
 
 export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
-  // Base tiers
-  hobby_monthly_2026_02: "Hobby plan",
+  // Base tiers. "Starter" is the display name of the internal "hobby" tier;
+  // the Stripe lookup keys are immutable identifiers and keep the old name.
+  hobby_monthly_2026_02: "Starter plan",
   pro_monthly_2026_02: "Pro plan",
-  hobby_monthly_2025_04: "Hobby plan",
-  hobby_monthly_2026_02_legacy: "Hobby plan",
+  hobby_monthly_2025_04: "Starter plan",
+  hobby_monthly_2026_02_legacy: "Starter plan",
   pro_monthly_2025_04: "Pro plan",
   // Overage - bytes
   hobby_monthly_2026_03_overage_megabytes: "Data overage",
@@ -84,6 +87,8 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   pro_monthly_2025_04_overage_signal_runs: "Signal runs overage",
   pro_monthly_2026_04_overage_signal_steps_processed: "Signal steps processed overage",
   hobby_monthly_2026_04_overage_signal_steps_processed: "Signal steps processed overage",
+  pro_monthly_2026_06_overage_signal_cost: "Signal cost overage",
+  hobby_monthly_2026_06_overage_signal_cost: "Signal cost overage",
   // Addons
   [DATAPLANE_ADDON_LOOKUP_KEY]: "Data Plane addon",
 };

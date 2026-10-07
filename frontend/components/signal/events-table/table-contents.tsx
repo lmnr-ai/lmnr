@@ -1,0 +1,279 @@
+"use client";
+
+import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect, useMemo } from "react";
+
+import { signalTraceHref, useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
+import { type SchemaField } from "@/components/signals/utils";
+import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
+import { type DateRange, getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { type EventRow } from "@/lib/events/types";
+import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
+
+const FETCH_SIZE = 50;
+
+function getEmptyRow({
+  pastHours,
+  startDate,
+  endDate,
+  onSelect,
+}: {
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  onSelect: (range: DateRange) => void;
+}) {
+  const { from, to } = getDisplayRange({ startDate, endDate, pastHours });
+  return (
+    <TableRow className="flex">
+      <TableCell className="text-center p-4 rounded-b w-full h-auto">
+        <div className="flex flex-1 justify-center">
+          <div className="flex flex-col items-center gap-2 max-w-md">
+            <h3 className="text-sm font-medium text-secondary-foreground">
+              No events in the {pastHours ? `last ${getTimeDifference(from, to)}` : "time range"}
+            </h3>
+            <SearchWiderRangeButton pastHours={pastHours} startDate={startDate} endDate={endDate} onSelect={onSelect} />
+          </div>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export interface EventsTableContentsProps {
+  refetchRef: RefObject<() => void>;
+  columns: ColumnDef<EventRow>[];
+  projectId: string;
+  signalId: string;
+  schemaFields: SchemaField[];
+  filter: string[];
+  textSearchFilter: string | null;
+  pastHours: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  isViewLoading: boolean;
+  sortBy: string | undefined;
+  sortDirection: "asc" | "desc" | undefined;
+  onSort: (columnId: string, direction: "asc" | "desc") => void;
+  selectedClusterIds: string[];
+  isUnclusteredFilter: boolean;
+  emergingClusterId: string | null;
+  /** The page-level scroller; see `InfiniteDataTableProps.externalScrollElement`. */
+  externalScrollElement: HTMLElement | null;
+}
+
+export const EventsTableContents = memo(function EventsTableContents({
+  children,
+  refetchRef,
+  columns,
+  projectId,
+  signalId,
+  schemaFields,
+  filter,
+  textSearchFilter,
+  pastHours,
+  startDate,
+  endDate,
+  isViewLoading,
+  sortBy,
+  sortDirection,
+  onSort,
+  selectedClusterIds,
+  isUnclusteredFilter,
+  emergingClusterId,
+  externalScrollElement,
+}: PropsWithChildren<EventsTableContentsProps>) {
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const pathName = usePathname();
+  const router = useRouter();
+  const [{ eventId }, setTraceParams] = useSignalTraceParams();
+
+  const fetchEnabled = !!(pastHours || (startDate && endDate)) && !isViewLoading;
+
+  const fetchEvents = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        if (pastHours) urlParams.set("pastHours", pastHours);
+        if (startDate) urlParams.set("startDate", startDate);
+        if (endDate) urlParams.set("endDate", endDate);
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        if (textSearchFilter) {
+          urlParams.set("search", textSearchFilter);
+          schemaFields.forEach((f) => {
+            if (f.name.trim() && f.type === "string") {
+              urlParams.append("payloadField", f.name);
+            }
+          });
+        }
+
+        if (sortBy && sortDirection) {
+          urlParams.set("sortBy", sortBy);
+          urlParams.set("sortDirection", sortDirection.toUpperCase());
+          if (sortBy.startsWith("payload:")) {
+            const fieldName = sortBy.slice("payload:".length);
+            const field = schemaFields.find((f) => f.name === fieldName);
+            const sortType = field?.type === "number" || field?.type === "boolean" ? field.type : "string";
+            urlParams.set("sortType", sortType);
+          }
+        }
+
+        if (emergingClusterId) {
+          urlParams.set("emergingClusterId", emergingClusterId);
+        } else if (isUnclusteredFilter) {
+          urlParams.set("unclustered", "true");
+        } else {
+          selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+        }
+
+        urlParams.set("eventDefinitionId", signalId);
+        urlParams.set("eventSource", "SEMANTIC");
+
+        const response = await fetch(`/api/projects/${projectId}/signals/${signalId}/events?${urlParams.toString()}`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch events");
+        }
+
+        const data: { items: EventRow[]; count: number } = await response.json();
+        return { items: data.items, count: data.count };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load events. Please try again.",
+          variant: "destructive",
+        });
+      }
+      return { items: [], count: 0 };
+    },
+    [
+      pastHours,
+      startDate,
+      endDate,
+      filter,
+      selectedClusterIds,
+      isUnclusteredFilter,
+      emergingClusterId,
+      textSearchFilter,
+      sortBy,
+      sortDirection,
+      signalId,
+      schemaFields,
+      projectId,
+      toast,
+    ]
+  );
+
+  const {
+    data: events,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteScroll<EventRow>({
+    fetchFn: fetchEvents,
+    enabled: fetchEnabled,
+    deps: [
+      projectId,
+      signalId,
+      pastHours,
+      startDate,
+      endDate,
+      filter,
+      selectedClusterIds,
+      isUnclusteredFilter,
+      emergingClusterId,
+      textSearchFilter,
+      sortBy,
+      sortDirection,
+    ],
+  });
+
+  useEffect(() => {
+    refetchRef.current = refetch;
+  }, [refetch, refetchRef]);
+
+  const searchWiderRange = useCallback(
+    (range: DateRange) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("startDate");
+      params.delete("endDate");
+      params.delete("groupByInterval");
+      params.set("pastHours", range.value);
+      params.set("pageNumber", "0");
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
+  const focusedRowId = useMemo(() => {
+    if (!events || !eventId) return undefined;
+    return events.some((e) => e.id === eventId) ? eventId : undefined;
+  }, [eventId, events]);
+
+  const getRowHref = useCallback(
+    (row: Row<EventRow>) =>
+      signalTraceHref(pathName, searchParams.toString(), {
+        traceId: row.original.traceId,
+        eventId: row.original.id,
+        spanId: null,
+      }),
+    [pathName, searchParams]
+  );
+
+  const handleRowClick = useCallback(
+    (row: Row<EventRow>) => {
+      track("signals", "event_to_trace");
+      void setTraceParams({
+        traceId: row.original.traceId,
+        eventId: row.original.id,
+        spanId: null,
+      });
+    },
+    [setTraceParams]
+  );
+
+  return (
+    <InfiniteDataTable<EventRow>
+      className="w-full"
+      externalScrollElement={externalScrollElement}
+      columns={columns}
+      data={events}
+      onRowClick={handleRowClick}
+      getRowId={(row: EventRow) => row.id}
+      focusedRowId={focusedRowId}
+      hasMore={hasMore}
+      isFetching={isFetching}
+      isLoading={isLoading || isViewLoading}
+      getRowHref={getRowHref}
+      fetchNextPage={fetchNextPage}
+      loadMoreButton
+      estimatedRowHeight={80}
+      sortBy={sortBy}
+      sortDirection={sortDirection}
+      onSort={onSort}
+      emptyRow={
+        filter.length === 0 &&
+        !textSearchFilter &&
+        selectedClusterIds.length === 0 &&
+        !isUnclusteredFilter &&
+        !emergingClusterId
+          ? getEmptyRow({ pastHours, startDate, endDate, onSelect: searchWiderRange })
+          : undefined
+      }
+    >
+      {children}
+    </InfiniteDataTable>
+  );
+});

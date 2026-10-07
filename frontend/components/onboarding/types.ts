@@ -10,7 +10,7 @@ export interface OnboardingFormValues {
   currentTier: OnboardingTier;
 }
 
-export const ONBOARDING_STEPS = ["workspace", "signals", "slack", "plan"] as const;
+export const ONBOARDING_STEPS = ["workspace", "signals", "slack", "plan", "connect"] as const;
 
 export const DEFAULT_SELECTED_TEMPLATE_NAMES = ["Failure Detector"] as const;
 

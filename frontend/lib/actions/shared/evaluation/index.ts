@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
+import { z } from "zod/v4";
 
 import {
   buildEvalQuery,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
@@ -21,6 +22,9 @@ import {
 } from "@/lib/evaluation/types";
 
 export async function getSharedEvaluation({ evaluationId }: { evaluationId: string }) {
+  // Non-UUID → not found, rather than a Postgres cast error (500) in every caller.
+  if (!z.guid().safeParse(evaluationId).success) return undefined;
+
   const publicEval = await db.query.sharedEvals.findFirst({
     where: eq(sharedEvals.id, evaluationId),
   });
@@ -102,11 +106,14 @@ export async function getSharedEvaluationDatapoints({
     sortDirection,
   });
 
-  const results = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  });
+  const results = await executeQuery<Record<string, unknown>>(
+    {
+      query,
+      parameters,
+      projectId,
+    },
+    { actor: SHARED_ACTOR }
+  );
 
   return { evaluation, results };
 }
@@ -156,11 +163,14 @@ export async function getSharedEvaluationStatistics({
     columns,
   });
 
-  const rawResults = await executeQuery<{ scores: string }>({
-    query: statsQuery,
-    parameters: statsParams,
-    projectId,
-  });
+  const rawResults = await executeQuery<{ scores: string }>(
+    {
+      query: statsQuery,
+      parameters: statsParams,
+      projectId,
+    },
+    { actor: SHARED_ACTOR }
+  );
 
   const parsedResults = rawResults.map((row) => {
     let scores: Record<string, unknown> | undefined;

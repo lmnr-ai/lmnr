@@ -18,18 +18,26 @@ export interface AgentListItem {
 export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise<AgentListItem[]> {
   const { projectId } = GetAgentsSchema.parse(input);
 
+  const topAgents = db
+    .select({ id: agents.id, name: agents.name, createdAt: agents.createdAt })
+    .from(agents)
+    .where(eq(agents.projectId, projectId))
+    .orderBy(desc(agents.createdAt))
+    .limit(20)
+    .as("top_agents");
+
   const rows = await db
     .select({
-      id: agents.id,
-      name: agents.name,
-      createdAt: agents.createdAt,
+      id: topAgents.id,
+      name: topAgents.name,
+      createdAt: topAgents.createdAt,
       versionCount: sql<number>`count(${agentVersions.versionHash})`.mapWith(Number),
     })
-    .from(agents)
-    .leftJoin(agentVersions, eq(agentVersions.agentId, agents.id))
-    .where(eq(agents.projectId, projectId))
-    .groupBy(agents.id)
-    .orderBy(desc(agents.createdAt));
+    .from(topAgents)
+    .leftJoin(agentVersions, eq(agentVersions.agentId, topAgents.id))
+    .groupBy(topAgents.id, topAgents.name, topAgents.createdAt)
+    .orderBy(desc(topAgents.createdAt))
+    .limit(100);
 
   return rows;
 }
@@ -75,7 +83,8 @@ export async function getAgentVersions(
     })
     .from(agentVersions)
     .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)))
-    .orderBy(desc(agentVersions.createdAt));
+    .orderBy(desc(agentVersions.createdAt))
+    .limit(50);
 
   return { agent, versions };
 }

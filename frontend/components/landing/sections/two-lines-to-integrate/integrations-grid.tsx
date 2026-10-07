@@ -50,20 +50,10 @@ interface Props {
   className?: string;
 }
 
-// 3-column grid of integration rows (icon + name). Items fill COLUMN-FIRST
-// at md+ so col1 = 1–5, col2 = 6–10, col3 = 11–15 in source order. On
-// mobile we drop back to a single row-major column so the array order
-// matches reading order.
-//
-// Each column tightens to its widest item via `repeat(3,max-content)`, and
-// `justify-between` distributes the leftover horizontal space between
-// columns. This avoids the wide empty whitespace short names had next to
-// them when the columns were fixed 1fr each.
-//
-// FLAG: `md:grid-rows-5` is coupled to `integrations.length === 15`. If
-// the list grows or shrinks, this number must change in lockstep or the
-// column split will be wrong (e.g. 16 items would spill into a fourth
-// column with one orphan). Treat the array length below as load-bearing.
+// 3-column grid filling COLUMN-FIRST at md+, row-major on mobile so the array
+// order matches reading order. Columns tighten to their widest item, killing the
+// whitespace short names had at a fixed 1fr. FLAG: `md:grid-rows-5` is coupled
+// to `integrations.length === 15` — change one and the other must follow.
 const IntegrationsGrid = ({ className }: Props) => (
   <div
     className={cn(

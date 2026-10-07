@@ -3,22 +3,22 @@ import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
+import { CostBreakdown, TokensBreakdown } from "@/components/traces/cells";
+import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type Span, type TraceRow } from "@/lib/traces/types.ts";
-import { cn, getDurationString } from "@/lib/utils";
+import {
+  durationMsBetween,
+  formatCostNumber,
+  formatDurationExact,
+  formatDurationMs,
+  formatTokensCompact,
+} from "@/lib/traces/format";
+import { type Span, SpanType, type TraceRow } from "@/lib/traces/types.ts";
+import { cn } from "@/lib/utils";
 
 import { Label } from "../ui/label";
 
-const numberFormat = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 3,
-});
-
-const compactNumberFormat = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-});
-
-// Compute aggregate stats from a list of spans
 function computeSpanStats(
   spans: TraceViewSpan[]
 ): Pick<
@@ -66,6 +66,11 @@ function computeSpanStats(
     if (start < minStart) minStart = start;
     if (end > maxEnd) maxEnd = end;
 
+    // Token/cost totals count LLM (and cached-LLM) spans only. Non-LLM spans can carry
+    // stray `gen_ai.usage.*` values on their own row; summing them would double-count into
+    // the trace/selection total (LAM-1873). Duration still spans every selected span.
+    if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
+
     inputTokens += span.inputTokens || 0;
     outputTokens += span.outputTokens || 0;
     totalTokens += span.totalTokens || 0;
@@ -90,10 +95,7 @@ function computeSpanStats(
   };
 }
 
-// Sum aggregate stats across a list of traces. Mirrors `computeSpanStats` but
-// operates on `TraceRow`s — used by the session view, since the server doesn't
-// expose a "fetch one session aggregate" endpoint here (the sessions table
-// lists pre-aggregated SessionRows but we only have the traces loaded).
+// Session view aggregates client-side — no dedicated server endpoint.
 export function computeTraceStats(
   traces: Pick<
     TraceRow,
@@ -159,7 +161,7 @@ export function computeTraceStats(
     outputCost,
     totalCost,
     cacheReadInputTokens,
-    reasoningTokens: 0, // not available on TraceRow
+    reasoningTokens: 0,
   };
 }
 
@@ -180,57 +182,47 @@ interface StatsShieldsProps {
   className?: string;
   variant?: "filled" | "outline";
   labelPrefix?: string;
+  span?: Span;
 }
 
-export function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
-  const label = (text: string) =>
-    labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
+export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
+  const durationMs = durationMsBetween(stats.startTime, stats.endTime);
   const durationContent = (
-    <div className="flex space-x-1 items-center">
-      <Clock3 size={12} className="min-w-3 min-h-3" />
-      <Label
-        className={cn("text-xs truncate", { "text-white": variant === "outline" })}
-        title={getDurationString(stats.startTime, stats.endTime)}
-      >
-        {getDurationString(stats.startTime, stats.endTime)}
-      </Label>
-    </div>
+    <TooltipProvider delayDuration={250}>
+      <Tooltip>
+        <TooltipTrigger className="min-w-8">
+          <div className="flex space-x-1 items-center">
+            <Clock3 size={14} className="min-w-3 min-h-3" />
+            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+              {formatDurationMs(durationMs)}
+            </Label>
+          </div>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent>{formatDurationExact(durationMs)}</TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
   );
 
   const tokensContent = (
     <TooltipProvider delayDuration={250}>
       <Tooltip>
-        <TooltipTrigger className="min-w-8">
+        <TooltipTrigger>
           <div className="flex space-x-1 items-center">
-            <Coins className="min-w-3" size={12} />
+            <Coins className="min-w-3" size={14} />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
-              {compactNumberFormat.format(stats.totalTokens)}
+              {formatTokensCompact(stats.totalTokens)}
             </Label>
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("input tokens")}</span>{" "}
-                {numberFormat.format(stats.inputTokens)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("output tokens")}</span>{" "}
-                {numberFormat.format(stats.outputTokens)}
-              </Label>
-              {!!stats.cacheReadInputTokens && (
-                <Label className="flex text-xs gap-1 text-success-bright">
-                  <span>{label("cache input tokens")}</span> {numberFormat.format(stats.cacheReadInputTokens)}
-                </Label>
-              )}
-              {!!stats.reasoningTokens && (
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">{label("reasoning tokens")}</span>{" "}
-                  {numberFormat.format(stats.reasoningTokens)}
-                </Label>
-              )}
-            </div>
+          <TooltipContent side="bottom" className="flex flex-col gap-1 min-w-55 p-2">
+            {span && (span.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED) ? (
+              <InputTokenBreakdown span={span} />
+            ) : (
+              <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />
+            )}
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
@@ -242,28 +234,15 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
-            <CircleDollarSign className="min-w-3" size={12} />
+            <CircleDollarSign className="min-w-3" size={14} />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
-              {stats.totalCost?.toFixed(2)}
+              {formatCostNumber(stats.totalCost)}
             </Label>
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("total cost")}</span>{" "}
-                {"$" + stats.totalCost?.toFixed(5)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("input cost")}</span>{" "}
-                {"$" + stats.inputCost?.toFixed(5)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("output cost")}</span>{" "}
-                {"$" + stats.outputCost?.toFixed(5)}
-              </Label>
-            </div>
+          <TooltipContent className="flex flex-col gap-1 p-2">
+            <CostBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
@@ -273,8 +252,8 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-1.5 py-0.5 rounded-md overflow-hidden text-xs font-mono min-w-0",
-        variant === "outline" ? "border border-muted text-white" : "bg-muted text-secondary-foreground",
+        "flex h-6 items-center gap-2.5 px-2 rounded-md overflow-hidden text-xs min-w-0",
+        variant === "outline" ? "border border-muted text-white" : "bg-surface-up-2 text-secondary-foreground",
         className
       )}
     >
@@ -336,6 +315,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
+    span={span}
   />
 );
 

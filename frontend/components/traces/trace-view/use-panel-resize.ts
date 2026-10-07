@@ -15,13 +15,18 @@ export function usePanelResize(panel: ResizablePanel, resizePanel: (panel: Resiz
 
   const [isResizing, setIsResizing] = useState(false);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
       e.preventDefault();
+      const handle = e.currentTarget;
       let lastX = e.clientX;
+      // Capture the pointer so move/up keep firing on the handle even when the
+      // cursor crosses an iframe (custom renderer) mid-drag — document-level
+      // listeners go silent over iframes and freeze the resize.
+      handle.setPointerCapture(e.pointerId);
       setIsResizing(true);
 
-      const onMouseMove = (moveEvent: MouseEvent) => {
+      const onMove = (moveEvent: PointerEvent) => {
         // Left-edge handle: moving left (negative dx) = grow, moving right (positive dx) = shrink
         const delta = lastX - moveEvent.clientX;
         lastX = moveEvent.clientX;
@@ -30,17 +35,19 @@ export function usePanelResize(panel: ResizablePanel, resizePanel: (panel: Resiz
         }
       };
 
-      const onMouseUp = () => {
+      const onUp = () => {
         setIsResizing(false);
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        handle.removeEventListener("pointercancel", onUp);
       };
 
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+      handle.addEventListener("pointercancel", onUp);
     },
     [panel]
   );
 
-  return { handleMouseDown, isResizing };
+  return { handlePointerDown, isResizing };
 }

@@ -32,8 +32,9 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         }
     }
 
+    let replay_reasoning = crate::env::llm::OPENAI_REPLAY_REASONING_CONTENT.get();
     for content in &request.contents {
-        append_content_as_messages(content, &mut messages);
+        append_content_as_messages(content, &mut messages, replay_reasoning);
     }
 
     let mut body = json!({
@@ -77,8 +78,10 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         // gpt-5 reasoning models reject `reasoning_effort` + function tools on
         // /v1/chat/completions (400, "use /v1/responses instead") — true for both
         // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals),
-        // so only forward `reasoning_effort` when no tools are present.
-        if !has_tools {
+        // so only forward `reasoning_effort` when no tools are present, unless the
+        // endpoint is known to support the combination.
+        let allow_reasoning_with_tools = crate::env::llm::OPENAI_ALLOW_REASONING_WITH_TOOLS.get();
+        if !has_tools || allow_reasoning_with_tools {
             if let Some(tc) = gc.thinking_config.as_ref() {
                 if let Some(level) = tc.thinking_level.as_ref() {
                     if let Some(effort) = thinking_level_to_effort(level) {
@@ -101,13 +104,16 @@ pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderReq
     body
 }
 
-fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
+pub(crate) fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
     match level {
         ProviderThinkingLevel::ThinkingLevelUnspecified => None,
         ProviderThinkingLevel::Minimal => Some("minimal"),
         ProviderThinkingLevel::Low => Some("low"),
         ProviderThinkingLevel::Medium => Some("medium"),
         ProviderThinkingLevel::High => Some("high"),
+        // `xhigh` is OpenAI's tier above `high` (gpt-5.2+/codex-max+); models
+        // without it reject the value, same pre-existing risk as `minimal`.
+        ProviderThinkingLevel::XHigh => Some("xhigh"),
     }
 }
 
@@ -133,7 +139,15 @@ fn concat_text_parts(content: &ProviderContent) -> String {
 /// emit them as a single assistant message with both `content` and `tool_calls`.
 /// Any `function_response` parts in the same content (regardless of role) are
 /// flushed as separate `role: "tool"` messages keyed by `tool_call_id`.
-fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
+///
+/// `replay_reasoning` sends assistant thought parts back as `reasoning_content`
+/// (see [`crate::env::llm::OPENAI_REPLAY_REASONING_CONTENT`]); otherwise
+/// thoughts are dropped from the outbound request.
+fn append_content_as_messages(
+    content: &ProviderContent,
+    out: &mut Vec<Value>,
+    replay_reasoning: bool,
+) {
     let raw_role = content.role.as_deref().unwrap_or("user");
     let role = match raw_role {
         "assistant" | "model" => "assistant",
@@ -146,17 +160,22 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
     let parts = content.parts.as_ref().cloned().unwrap_or_default();
 
     let mut text_buf = String::new();
+    let mut reasoning_buf = String::new();
     let mut tool_calls: Vec<Value> = Vec::new();
     let mut tool_results: Vec<Value> = Vec::new();
 
     for part in parts {
         if part.thought == Some(true) {
+            if replay_reasoning && role == "assistant" {
+                if let Some(t) = &part.text {
+                    reasoning_buf.push_str(t);
+                }
+            }
             continue;
         }
         if let Some(fr) = part.function_response {
             let tool_call_id = fr.id.unwrap_or_default();
-            let content_str =
-                serde_json::to_string(&fr.response).unwrap_or_else(|_| "".to_string());
+            let content_str = serde_json::to_string(&fr.response).unwrap_or("".to_string());
             tool_results.push(json!({
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -165,9 +184,9 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
             continue;
         }
         if let Some(fc) = part.function_call {
-            let id = fc.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let id = fc.id.unwrap_or_default();
             let args = fc.args.unwrap_or(Value::Object(Default::default()));
-            let arguments_str = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+            let arguments_str = serde_json::to_string(&args).unwrap_or("{}".to_string());
             tool_calls.push(json!({
                 "id": id,
                 "type": "function",
@@ -198,6 +217,9 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
         if has_tool_calls {
             msg["tool_calls"] = Value::Array(tool_calls);
         }
+        if !reasoning_buf.is_empty() {
+            msg["reasoning_content"] = Value::String(reasoning_buf);
+        }
         out.push(msg);
     }
 
@@ -226,6 +248,22 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
             .map(|_| "model".to_string());
 
         let mut parts: Vec<ProviderPart> = Vec::new();
+
+        // OpenAI-compatible proxies return reasoning under `reasoning_content`
+        // (DeepSeek/vLLM/Fireworks) or `reasoning` (OpenRouter); official OpenAI
+        // exposes none here. Mirror the streaming accumulator's field names.
+        if let Some(reasoning) = message
+            .and_then(|m| m.get("reasoning_content").or_else(|| m.get("reasoning")))
+            .and_then(|r| r.as_str())
+        {
+            if !reasoning.is_empty() {
+                parts.push(ProviderPart {
+                    text: Some(reasoning.to_string()),
+                    thought: Some(true),
+                    ..Default::default()
+                });
+            }
+        }
 
         if let Some(content_val) = message.and_then(|m| m.get("content")) {
             if let Some(text) = content_val.as_str() {
@@ -344,12 +382,14 @@ pub(super) fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
         total_token_count: total_tokens,
         cache_read_input_tokens: cached_tokens,
         cache_creation_input_tokens: None,
+        reasoning_token_count: None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::LlmRoute;
     use crate::llm::models::{
         ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderThinkingConfig,
@@ -409,8 +449,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5-mini", &req);
         let messages = body["messages"].as_array().unwrap();
@@ -435,8 +474,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         let messages = body["messages"].as_array().unwrap();
@@ -457,24 +495,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_tool_call_id_gets_uuid() {
-        let req = ProviderRequest {
-            contents: vec![assistant_with_tool_call(None, "f", json!({}))],
-            system_instruction: None,
-            tools: None,
-            generation_config: None,
-            service_tier: None,
-            provider: None,
-            model_size: None,
-        };
-        let body = provider_request_to_openai_body("gpt-5", &req);
-        let id = body["messages"][0]["tool_calls"][0]["id"].as_str().unwrap();
-        // uuid v4 is 36 chars with 4 hyphens.
-        assert_eq!(id.len(), 36);
-        assert_eq!(id.chars().filter(|c| *c == '-').count(), 4);
-    }
-
-    #[test]
     fn tools_are_translated_to_chat_completions_shape() {
         let req = ProviderRequest {
             contents: vec![user("hi")],
@@ -488,8 +508,7 @@ mod tests {
             }]),
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         let tools = body["tools"].as_array().unwrap();
@@ -516,8 +535,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
 
         // No tools: reasoning_effort forwarded.
@@ -552,8 +570,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
 
         // Function tools + reasoning_effort 400s on gpt-5 chat/completions, on
@@ -590,6 +607,87 @@ mod tests {
         assert_eq!(usage.cache_read_input_tokens, Some(4));
         assert_eq!(usage.cache_creation_input_tokens, None);
         assert_eq!(resp.model_version.as_deref(), Some("gpt-5-mini"));
+    }
+
+    #[test]
+    fn parses_reasoning_content_as_thought() {
+        // OpenAI-compatible gateways (Fireworks GLM, DeepSeek) return reasoning
+        // under `message.reasoning_content` on non-streaming responses.
+        let value = json!({
+            "model": "glm-4.6",
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "reasoning_content": "let me think",
+                    "content": "answer"
+                },
+                "finish_reason": "stop"
+            }]
+        });
+        let resp = parse_openai_response(value).unwrap();
+        let cand = &resp.candidates.as_ref().unwrap()[0];
+        let parts = cand.content.as_ref().unwrap().parts.as_ref().unwrap();
+        assert!(
+            parts
+                .iter()
+                .any(|p| p.thought == Some(true) && p.text.as_deref() == Some("let me think"))
+        );
+        assert!(parts.iter().any(|p| p.text.as_deref() == Some("answer")));
+    }
+
+    #[test]
+    fn reasoning_replayed_as_reasoning_content_only_when_enabled() {
+        let content = ProviderContent {
+            role: Some("model".to_string()),
+            parts: Some(vec![
+                ProviderPart {
+                    text: Some("let me think".to_string()),
+                    thought: Some(true),
+                    ..Default::default()
+                },
+                ProviderPart {
+                    function_call: Some(ProviderFunctionCall {
+                        id: Some("call_1".to_string()),
+                        name: "grep".to_string(),
+                        args: Some(json!({"searches": []})),
+                    }),
+                    ..Default::default()
+                },
+            ]),
+        };
+
+        let mut replayed = Vec::new();
+        append_content_as_messages(&content, &mut replayed, true);
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0]["role"], "assistant");
+        assert_eq!(replayed[0]["reasoning_content"], "let me think");
+        assert_eq!(replayed[0]["tool_calls"][0]["id"], "call_1");
+
+        let mut stripped = Vec::new();
+        append_content_as_messages(&content, &mut stripped, false);
+        assert_eq!(stripped.len(), 1);
+        assert!(stripped[0].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn reasoning_never_replayed_on_user_messages() {
+        // Non-assistant roles never emit `reasoning_content`.
+        let content = ProviderContent {
+            role: Some("user".to_string()),
+            parts: Some(vec![
+                ProviderPart {
+                    text: Some("stray thought".to_string()),
+                    thought: Some(true),
+                    ..Default::default()
+                },
+                text_part("hello"),
+            ]),
+        };
+        let mut out = Vec::new();
+        append_content_as_messages(&content, &mut out, true);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0]["content"], "hello");
+        assert!(out[0].get("reasoning_content").is_none());
     }
 
     #[test]

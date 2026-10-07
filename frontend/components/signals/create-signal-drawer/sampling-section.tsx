@@ -27,8 +27,8 @@ export default function SamplingSection() {
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-60">
                 <p>
-                  When enabled, only a percentage of traces will be analyzed. Traces are sampled per user to ensure
-                  diverse coverage across different users.
+                  Specify a percentage of traces to be analyzed. Traces are sampled per user to ensure diverse coverage
+                  across different users.
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -49,7 +49,7 @@ export default function SamplingSection() {
             render={({ field }) => (
               <div className="flex items-center gap-3">
                 <Slider
-                  className="w-1/2"
+                  className="flex-1"
                   min={5}
                   max={95}
                   step={5}
@@ -60,7 +60,7 @@ export default function SamplingSection() {
               </div>
             )}
           />
-          <p className="text-xs text-muted-foreground w-1/2">
+          <p className="text-xs text-muted-foreground">
             {sampleRate}% of all traces will be processed. When user_id is set, traces are sampled evenly across users
             so each gets equal coverage.{" "}
             <a

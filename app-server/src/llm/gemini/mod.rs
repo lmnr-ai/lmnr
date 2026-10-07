@@ -26,6 +26,10 @@ pub enum GeminiErrorStatus {
     Internal,
     Unavailable,
     DeadlineExceeded,
+    /// gRPC CANCELLED (code 1) surfaced over HTTP as 499. Transient — the
+    /// operation was cancelled before completing (client/proxy/deadline drop or
+    /// server-side shed), so it's safe to retry.
+    Cancelled,
     Unknown(String),
 }
 
@@ -37,6 +41,7 @@ impl GeminiErrorStatus {
                 | GeminiErrorStatus::Unavailable
                 | GeminiErrorStatus::DeadlineExceeded
                 | GeminiErrorStatus::ResourceExhausted
+                | GeminiErrorStatus::Cancelled
         )
     }
 
@@ -47,11 +52,33 @@ impl GeminiErrorStatus {
             (403, _) => Self::PermissionDenied,
             (404, _) => Self::NotFound,
             (429, _) => Self::ResourceExhausted,
+            (499, _) => Self::Cancelled,
             (500, _) => Self::Internal,
             (503, _) => Self::Unavailable,
             (504, _) => Self::DeadlineExceeded,
             _ => Self::Unknown(status_msg.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_499_maps_to_cancelled_and_is_retryable() {
+        let status = GeminiErrorStatus::from_http(499, "Cancelled");
+        assert_eq!(status, GeminiErrorStatus::Cancelled);
+        assert!(status.is_retryable());
+    }
+
+    #[test]
+    fn unmapped_status_code_stays_unknown_and_non_retryable() {
+        // Regression guard: an unrecognized code (e.g. a future/other transient
+        // status) must not silently fall into a retryable variant.
+        let status = GeminiErrorStatus::from_http(418, "Teapot");
+        assert_eq!(status, GeminiErrorStatus::Unknown("Teapot".to_string()));
+        assert!(!status.is_retryable());
     }
 }
 
@@ -275,6 +302,10 @@ pub enum ThinkingLevel {
     Minimal,
     Low,
     Medium,
+    // Gemini has no tier above HIGH. The provider→Gemini conversion is a serde
+    // round-trip, so accept the provider enum's `XHigh` ("X_HIGH") here
+    // and collapse it to HIGH (re-serialized as "HIGH" on the wire to Google).
+    #[serde(alias = "X_HIGH")]
     High,
 }
 
@@ -307,14 +338,18 @@ pub struct GenerateContentRequest {
     pub service_tier: Option<String>,
 }
 
+// Batch-endpoint wire types — currently unused (the batch API has no callers)
+// but kept alongside `create_batch`/`get_batch` for future batch workloads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlineRequests {
     pub requests: Vec<InlineRequestItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlineRequestItem {
     pub request: GenerateContentRequest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -323,6 +358,7 @@ pub struct InlineRequestItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InputConfig {
     pub requests: Option<InlineRequests>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -331,6 +367,7 @@ pub struct InputConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct Batch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -338,11 +375,13 @@ pub struct Batch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct BatchCreateRequest {
     pub batch: Batch,
 }
 
 impl BatchCreateRequest {
+    #[allow(dead_code)]
     pub fn inline(requests: Vec<InlineRequestItem>, display_name: Option<String>) -> Self {
         Self {
             batch: Batch {
@@ -357,7 +396,7 @@ impl BatchCreateRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 pub enum JobState {
     BATCH_STATE_UNSPECIFIED,
     BATCH_STATE_PENDING,
@@ -370,6 +409,7 @@ pub enum JobState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct BatchStats {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_count: Option<String>,
@@ -383,12 +423,14 @@ pub struct BatchStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlinedResponsesWrapper {
     pub inlined_responses: Vec<InlineResponse>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct GenerateContentBatchOutput {
     pub inlined_responses: InlinedResponsesWrapper,
 }
@@ -404,6 +446,7 @@ pub struct ErrorInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct BatchJobMetadata {
     #[serde(rename = "@type")]
     pub type_url: String,
@@ -424,6 +467,7 @@ pub struct BatchJobMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct Operation {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -547,7 +591,9 @@ pub struct GenerateContentResponse {
 impl From<GeminiError> for super::ProviderError {
     fn from(e: GeminiError) -> Self {
         match e {
-            GeminiError::RequestError(e) => super::ProviderError::RequestError(e.to_string()),
+            GeminiError::RequestError(e) => {
+                super::ProviderError::RequestError(super::format_error_chain(&e))
+            }
             GeminiError::ParseError(e) => super::ProviderError::ParseError(e.to_string()),
             GeminiError::ConfigError(s) => super::ProviderError::ConfigError(s),
             GeminiError::ApiError {
@@ -566,6 +612,7 @@ impl From<GeminiError> for super::ProviderError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct InlineResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response: Option<GenerateContentResponse>,

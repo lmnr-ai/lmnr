@@ -1,83 +1,48 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
-import AdvancedSearch from "@/components/common/advanced-search";
-import ClustersSection from "@/components/signal/clusters-section";
-import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
-import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
+import { EventsTableContents } from "@/components/signal/events-table/table-contents";
+import { EventsTableControls } from "@/components/signal/events-table/table-controls";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
-import DateRangeFilter from "@/components/ui/date-range-filter";
-import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
-import { TableCell, TableRow } from "@/components/ui/table.tsx";
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
-import { type EventRow } from "@/lib/events/types";
-import { useToast } from "@/lib/hooks/use-toast";
-import { track } from "@/lib/posthog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 
 import { buildEventsColumns } from "./columns";
 
-const FETCH_SIZE = 50;
-
-const getEmptyRow = ({
-  startDate,
-  endDate,
-  pastHours,
-}: {
-  pastHours?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-}) => {
-  const { from, to } = getDisplayRange({ startDate, endDate, pastHours });
-
-  return (
-    <TableRow className="flex">
-      <TableCell className="text-center p-4 rounded-b w-full h-auto">
-        <div className="flex flex-1 justify-center">
-          <div className="max-w-md">
-            <h3 className="text-sm font-medium text-secondary-foreground">
-              No events in the {pastHours ? `last ${getTimeDifference(from, to)}` : "time range"}
-            </h3>
-          </div>
-        </div>
-      </TableCell>
-    </TableRow>
-  );
-};
-
 function PureEventsTable() {
-  const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
+  const searchParams = useSearchParams();
+  const pathName = usePathname();
+  const router = useRouter();
+  const refetchRef = useRef<() => void>(() => {});
+  // State, not a ref: the virtualizer lives further down the tree and has to
+  // re-measure once this element exists.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
-  const searchParams = useSearchParams();
-  const pathName = usePathname();
-  const router = useRouter();
+  const { mutate } = useSWRConfig();
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
-  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters, setSort } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const textSearchFilter = effective.search.length > 0 ? effective.search : null;
+  const sortBy = effective.sortBy ?? undefined;
+  const sortDirection = (effective.sortDirection ?? undefined) as "asc" | "desc" | undefined;
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -85,207 +50,82 @@ function PureEventsTable() {
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
-  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+  const fetchEnabled = !!(pastHours || (startDate && endDate)) && !isViewLoading;
 
-  const fetchEvents = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
+  const handleRefresh = useCallback(() => {
+    if (!fetchEnabled) return;
+    refetchRef.current();
+    mutate((key) => typeof key === "string" && key.includes(`/signals/${signal.id}/clusters/visualization`));
+  }, [fetchEnabled, mutate, signal.id]);
 
-        if (pastHours) {
-          urlParams.set("pastHours", pastHours);
-        }
-
-        if (startDate) {
-          urlParams.set("startDate", startDate);
-        }
-
-        if (endDate) {
-          urlParams.set("endDate", endDate);
-        }
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (textSearchFilter) {
-          urlParams.set("search", textSearchFilter);
-          // Only string-typed schema fields can produce useful free-text
-          // snippets — numbers/booleans/enums are reachable via column
-          // filters and shouldn't show highlighted matches. The backend
-          // (`search_signal_events` in `app-server/src/search/signal_events.rs`)
-          // additionally filters names against a strict identifier regex
-          // before interpolating them into the Quickwit query, so any
-          // non-identifier name silently produces no hits.
-          signal.schemaFields.forEach((f) => {
-            if (f.name.trim() && f.type === "string") {
-              urlParams.append("payloadField", f.name);
-            }
-          });
-        }
-
-        if (emergingClusterId) {
-          urlParams.set("emergingClusterId", emergingClusterId);
-        } else if (isUnclusteredFilter) {
-          urlParams.set("unclustered", "true");
-        } else {
-          selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
-        }
-
-        urlParams.set("eventDefinitionId", signal.id);
-
-        urlParams.set("eventSource", "SEMANTIC");
-
-        const response = await fetch(
-          `/api/projects/${params.projectId}/signals/${signal.id}/events?${urlParams.toString()}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch events");
-        }
-
-        const data: { items: EventRow[]; count: number } = await response.json();
-        return { items: data.items, count: data.count };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load events. Please try again.",
-          variant: "destructive",
-        });
-      }
-      return { items: [], count: 0 };
+  const handleSort = useCallback(
+    (columnId: string, direction: "asc" | "desc") => {
+      setSort(columnId || null, columnId ? direction : null);
     },
-    [
-      pastHours,
-      startDate,
-      endDate,
-      filter,
-      selectedClusterIds,
-      isUnclusteredFilter,
-      emergingClusterId,
-      textSearchFilter,
-      signal.id,
-      signal.schemaFields,
-      params.projectId,
-      toast,
-    ]
+    [setSort]
   );
-
-  const getRowHref = useCallback(
-    (row: Row<EventRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("eventId", row.original.id);
-      return `${pathName}?${params.toString()}`;
-    },
-    [pathName, searchParams]
-  );
-
-  const handleRowClick = useCallback(
-    (row: Row<EventRow>) => {
-      const traceId = row.original.traceId;
-      track("signals", "event_to_trace");
-      setTraceId(traceId);
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
-      router.push(`${pathName}?${newParams.toString()}`);
-    },
-    [setTraceId, searchParams, pathName, router]
-  );
-
-  const {
-    data: events,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-  } = useInfiniteScroll<EventRow>({
-    fetchFn: fetchEvents,
-    enabled: !!(pastHours || (startDate && endDate)) && !isViewLoading,
-    deps: [
-      params.projectId,
-      signal.id,
-      pastHours,
-      startDate,
-      endDate,
-      filter,
-      selectedClusterIds,
-      isUnclusteredFilter,
-      emergingClusterId,
-      textSearchFilter,
-    ],
-  });
-
-  // Find the first event matching the active traceId to highlight it
-  const focusedRowId = useMemo(() => {
-    if (!traceId || !events) return undefined;
-    const match = events.find((e) => e.traceId === traceId);
-    return match?.id;
-  }, [traceId, events]);
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("pastHours", "72");
-      router.replace(`${pathName}?${params.toString()}`);
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("pastHours", "72");
+      router.replace(`${pathName}?${p.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <div className="flex flex-1 overflow-hidden px-4 pb-4">
-      <InfiniteDataTable<EventRow>
-        className="w-full"
+    <ScrollArea ref={setScroller} className="min-h-0 flex-1" viewportClassName="px-4 pb-4">
+      <EventsTableContents
+        externalScrollElement={scroller}
+        refetchRef={refetchRef}
         columns={columns}
-        data={events}
-        onRowClick={handleRowClick}
-        getRowId={(row: EventRow) => row.id}
-        focusedRowId={focusedRowId}
-        hasMore={hasMore}
-        isFetching={isFetching}
-        isLoading={isLoading || isViewLoading}
-        getRowHref={getRowHref}
-        fetchNextPage={fetchNextPage}
-        loadMoreButton
-        estimatedRowHeight={80}
-        emptyRow={filter.length === 0 && !textSearchFilter ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
+        projectId={params.projectId}
+        signalId={signal.id}
+        schemaFields={signal.schemaFields}
+        filter={filter}
+        textSearchFilter={textSearchFilter}
+        pastHours={pastHours}
+        startDate={startDate}
+        endDate={endDate}
+        isViewLoading={isViewLoading}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        selectedClusterIds={selectedClusterIds}
+        isUnclusteredFilter={isUnclusteredFilter}
+        emergingClusterId={emergingClusterId}
       >
-        <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
-          <ViewsToolbar projectId={params.projectId} resource={`signal-events:${signal.id}`} />
-          <DateRangeFilter />
-        </div>
-        <div className="w-full px-px">
-          <AdvancedSearch
-            value={searchValue}
-            onChange={setSearchAndFilters}
-            filters={filters}
-            storageKey={`signal-events-${signal.id}`}
-            resource="signal-events"
-            placeholder="Search events by payload, severity, trace id, and more..."
-            className="w-full flex-1 mb-2"
-          />
-        </div>
-        {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <ClustersSection className="mb-2" />
-      </InfiniteDataTable>
-    </div>
+        <EventsTableControls
+          projectId={params.projectId}
+          signalId={signal.id}
+          filterColumns={filters}
+          columnLabels={columns.map((column) => ({
+            id: column.id!,
+            label: typeof column.header === "string" ? column.header : column.id!,
+          }))}
+          filters={effective.filters}
+          onFiltersChange={setFilters}
+          searchValue={searchValue}
+          onSearchChange={setSearchAndFilters}
+          onRefresh={handleRefresh}
+        />
+      </EventsTableContents>
+    </ScrollArea>
   );
 }
 
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
   const params = useParams<{ projectId: string }>();
-  const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const { columnOrder, columnVisibility } = useMemo(
+    () => buildEventsColumns(signal.schemaFields),
+    [signal.schemaFields]
+  );
 
   return (
     <InfiniteDataTableProvider
       uniqueKey="id"
-      defaults={{ columnOrder }}
+      defaults={{ columnOrder, columnVisibility }}
       views={{ projectId: params.projectId, resource: `signal-events:${signal.id}` }}
     >
       <PureEventsTable />

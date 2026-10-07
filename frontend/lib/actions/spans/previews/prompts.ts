@@ -1,7 +1,8 @@
-import { getTracer, observe } from "@lmnr-ai/lmnr";
+import { observe } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 
 import { flattenPaths } from "./utils.ts";
 
@@ -124,22 +125,21 @@ const parsePreviewKeysResponse = (text: string, expectedLength: number): Preview
   }
 };
 
-export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<PreviewKeyResult> => {
+export const generatePreviewKeys = async (
+  structures: SpanStructure[],
+  projectId: string
+): Promise<PreviewKeyResult> => {
   if (structures.length === 0) return [];
 
   try {
     const { text } = await observe({ name: "previews:generate-preview-keys" }, async () =>
       generateText({
-        model: getLanguageModel("small"),
+        model: await getLanguageModel(LlmFeature.SPAN_PREVIEW_PROMPTS, projectId),
         system: PREVIEW_KEY_SYSTEM_PROMPT,
         prompt: buildUserMessage(structures),
         maxRetries: 0,
         temperature: 0,
         abortSignal: AbortSignal.timeout(5000),
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
       })
     );
 

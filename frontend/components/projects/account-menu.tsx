@@ -13,6 +13,8 @@ import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { signOut } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
+import { reset } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
 // Account section at the bottom of the project picker dropdown (user row + upgrade + log out).
@@ -30,8 +32,12 @@ const AccountMenu = () => {
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut();
+      // Unlink this device from the user so a subsequent sign-in (possibly a
+      // different account) starts from a fresh anonymous id — PostHog's
+      // recommended logout practice; prevents cross-account event merging.
+      reset();
       broadcastLogout();
-      window.location.href = "/";
+      window.location.href = withBasePath("/");
     } catch (e) {
       console.error(e);
     }
@@ -42,7 +48,7 @@ const AccountMenu = () => {
       <div className="flex items-center gap-2 px-2 pt-1 pb-1.5">
         <Avatar className="size-6 rounded-md shrink-0">
           <AvatarImage src={user.image ?? ""} alt="avatar" />
-          <AvatarFallback className="rounded-md text-[10px] bg-surface-300">
+          <AvatarFallback className="rounded-md text-[10px] bg-surface-350">
             {user.name?.at(0)?.toUpperCase() || user.email?.at(0)?.toUpperCase() || "L"}
           </AvatarFallback>
         </Avatar>

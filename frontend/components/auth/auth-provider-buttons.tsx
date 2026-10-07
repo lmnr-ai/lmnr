@@ -1,16 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-import googleLogo from "@/assets/logo/google.svg";
-import keycloakLogo from "@/assets/logo/keycloak.svg";
-import microsoftLogo from "@/assets/logo/microsoft.svg";
-import oktaLogo from "@/assets/logo/okta.svg";
 import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { ProviderButton } from "@/components/auth/provider-button";
-import { IconGitHub } from "@/components/ui/icons";
+import { IconGitHub, IconGoogleMono, IconKeycloak, IconMicrosoft, IconOkta } from "@/components/ui/icons";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type AuthProvider, signInWithProvider } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
@@ -68,7 +63,7 @@ export function AuthProviderButtons({ callbackUrl, trackAction, errorPath }: Pro
       )}
       {enableGoogle && (
         <ProviderButton
-          icon={<Image src={googleLogo} alt="Google" width={20} height={20} />}
+          icon={<IconGoogleMono />}
           label="Continue with Google"
           onClick={() => handleClick("google")}
           isLoading={isLoading === "google"}
@@ -86,7 +81,7 @@ export function AuthProviderButtons({ callbackUrl, trackAction, errorPath }: Pro
       )}
       {enableAzure && (
         <ProviderButton
-          icon={<Image src={microsoftLogo} alt="Microsoft" width={20} height={20} />}
+          icon={<IconMicrosoft />}
           label="Continue with Microsoft"
           onClick={() => handleClick("microsoft-entra-id")}
           isLoading={isLoading === "microsoft-entra-id"}
@@ -95,7 +90,7 @@ export function AuthProviderButtons({ callbackUrl, trackAction, errorPath }: Pro
       )}
       {enableOkta && (
         <ProviderButton
-          icon={<Image src={oktaLogo} alt="Okta" width={20} height={20} />}
+          icon={<IconOkta />}
           label="Continue with Okta"
           onClick={() => handleClick("okta")}
           isLoading={isLoading === "okta"}
@@ -104,7 +99,7 @@ export function AuthProviderButtons({ callbackUrl, trackAction, errorPath }: Pro
       )}
       {enableKeycloak && (
         <ProviderButton
-          icon={<Image src={keycloakLogo} alt="Keycloak" width={20} height={20} />}
+          icon={<IconKeycloak />}
           label="Continue with Keycloak"
           onClick={() => handleClick("keycloak")}
           isLoading={isLoading === "keycloak"}

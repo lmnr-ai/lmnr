@@ -1,33 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { FileText, FlaskConical, MessageCircle, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { spanTagsToLinks } from "../note-markdown";
-import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
-import { headingAnchorId, parseNoteHeadings } from "./utils";
-
-// One outline row per markdown heading pulled from the runs' notes — the
-// outline is a pure note TOC; traces themselves get no row.
-type OutlineRow = { key: string; anchor: string; level: number; text: string };
-
-const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
-  const rows: OutlineRow[] = [];
-  state.traces.forEach((trace: TraceRow) => {
-    const note = state.noteForTrace(trace.id);
-    if (!note) return;
-    // Parse the SAME span-tag-transformed string RunComment renders, so heading
-    // order and slugs line up exactly with the ids it stamps.
-    for (const h of parseNoteHeadings(spanTagsToLinks(note, trace.id))) {
-      const a = headingAnchorId(trace.id, h.slug);
-      rows.push({ key: a, anchor: a, level: h.level, text: h.text });
-    }
-  });
-  return rows;
-};
+import { commandIcon } from "../debugger-list/command-block/command-icon";
+import { useDebuggerSessionViewStore } from "../store";
+import { buildRows } from "./utils";
 
 interface SessionOutlineProps {
   className?: string;
@@ -35,12 +16,17 @@ interface SessionOutlineProps {
 
 /**
  * Left-rail session outline: a continuous left track with a single
- * framer-motion indicator that slides to the active row. Rows are the markdown
- * headings from each run's note (a pure note TOC — no per-trace rows). Active
- * state is tracked with an IntersectionObserver rooted at the browser viewport.
+ * framer-motion indicator that slides to the active row. One row per block
+ * (trace / eval / text). Active state comes from the store (`activeBlockId`,
+ * written by the virtualized list's scroll tracking) — IntersectionObserver
+ * can't work here because offscreen virtual rows unmount. Clicks route through
+ * `requestScrollToBlock` so the list can scroll to not-yet-mounted blocks.
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
-  const storeApi = useDebuggerSessionViewStoreRaw();
+  const blocks = useDebuggerSessionViewStore((s) => s.blocks);
+  const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
+  const activeBlockId = useDebuggerSessionViewStore((s) => s.activeBlockId);
+  const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
   const navRef = useRef<HTMLElement>(null);
 
   // Edge state for the fade gradients: hide the top fade at the very top and
@@ -55,67 +41,35 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
     setEdges((prev) => (prev.atTop === atTop && prev.atBottom === atBottom ? prev : { atTop, atBottom }));
   }, []);
 
-  // Primitive signature: rebuild rows only when order / start-time / note text
-  // actually changes (not on every streamed span that mutates traceSpans).
-  const signature = useDebuggerSessionViewStore((s) =>
-    s.traces.map((t) => `${t.id}${t.startTime}${s.noteForTrace(t.id) ?? ""}`).join("")
-  );
-  // `signature` is the change-trigger; the rows are read from the store snapshot.
+  // Rebuild rows only when block order / eval names actually change (not on
+  // every streamed span that mutates traceSpans).
+  // `!` marks a missing trace so the outline rebuilds (dropping its entry) when a
+  // trace flips to missing — block order alone doesn't change in that case.
+  const signature = blocks
+    .map((b) =>
+      b.type === "trace"
+        ? `t${b.traceId}${traceRowStates[b.traceId] === "missing" ? "!" : ""}`
+        : b.type === "evaluation"
+          ? `e${b.evaluation.id}${b.evaluation.name}`
+          : `x${b.id}`
+    )
+    .join("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const rows = useMemo(() => buildRows(storeApi.getState()), [signature]);
+  const rows = useMemo(() => buildRows(blocks, traceRowStates), [signature]);
 
-  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
 
-  // Derive (don't store) the effective active row, falling back to the first row
-  // when the stored anchor no longer exists — avoids a reset effect.
-  const active = useMemo(
-    () => (activeAnchor && rows.some((r) => r.anchor === activeAnchor) ? activeAnchor : (rows[0]?.anchor ?? null)),
-    [activeAnchor, rows]
-  );
-
-  // After a click we optimistically highlight the clicked row and ignore the
-  // observer briefly, so a row that can't be scrolled high enough to enter the
-  // top band still lights up.
-  const suppressRef = useRef(false);
-  const suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectOnClick = (anchor: string) => {
-    setActiveAnchor(anchor);
-    suppressRef.current = true;
-    if (suppressTimer.current) clearTimeout(suppressTimer.current);
-    suppressTimer.current = setTimeout(() => {
-      suppressRef.current = false;
-    }, 700);
-  };
-  useEffect(() => () => (suppressTimer.current ? clearTimeout(suppressTimer.current) : undefined), []);
-
-  // Active-row detection. Root is the browser viewport (root: null) — works
-  // regardless of WHICH element scrolls. Active = crossed into the top 15%.
-  // Setup is deferred one frame: heading ids are stamped by RunComment's
-  // post-render effect, which can flush after this one in the same commit.
-  useEffect(() => {
-    if (rows.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (suppressRef.current) return;
-        entries.forEach((e) => {
-          if (e.isIntersecting) setActiveAnchor(e.target.id);
-        });
-      },
-      { rootMargin: "0px 0px -85% 0px" }
-    );
-    const rafId = requestAnimationFrame(() => {
-      rows
-        .map((r) => document.getElementById(r.anchor))
-        .filter((el): el is HTMLElement => el !== null)
-        .forEach((t) => observer.observe(t));
-    });
-    return () => {
-      cancelAnimationFrame(rafId);
-      observer.disconnect();
-    };
-  }, [rows]);
+  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first
+  // row. Map through `memberIds` so a collapsed command group stays active while
+  // any of its member blocks is the in-view block (not just its first).
+  const active = useMemo(() => {
+    if (activeBlockId) {
+      const owner = rows.find((r) => r.memberIds.includes(activeBlockId));
+      if (owner) return owner.blockId;
+    }
+    return rows[0]?.blockId ?? null;
+  }, [activeBlockId, rows]);
 
   // Re-derive the edge state when rows change (content height moved without a
   // scroll event) and when the nav resizes. Keyed on `rows` so the observer
@@ -173,23 +127,67 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
           )}
 
           {rows.map((row) => {
-            const isActive = active === row.anchor;
+            const isActive = active === row.blockId;
             return (
               <a
-                key={row.key}
+                key={row.blockId}
                 ref={(el) => {
-                  if (el) rowRefs.current.set(row.anchor, el);
-                  else rowRefs.current.delete(row.anchor);
+                  if (el) rowRefs.current.set(row.blockId, el);
+                  else rowRefs.current.delete(row.blockId);
                 }}
-                href={`#${row.anchor}`}
-                onClick={() => selectOnClick(row.anchor)}
-                className="flex h-[30px] items-center pl-4 text-left no-underline"
+                href="#"
+                onClick={(e) => {
+                  // Not an anchor jump — the target row may be virtualized out
+                  // (unmounted); the list scrolls via the virtualizer instead.
+                  e.preventDefault();
+                  requestScrollToBlock(row.blockId);
+                }}
+                className="group flex h-[30px] items-center pl-4 text-left no-underline"
               >
+                {row.kind === "trace" && (
+                  <MessageCircle
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-violet-500" : "text-violet-500/70 group-hover:text-llm"
+                    )}
+                  />
+                )}
+                {row.kind === "eval" && (
+                  <FlaskConical
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-emerald-500" : "text-emerald-500/70 group-hover:text-emerald-500"
+                    )}
+                  />
+                )}
+                {row.kind === "command" &&
+                  (row.command ? (
+                    commandIcon(
+                      row.command,
+                      cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )
+                    )
+                  ) : (
+                    <SquareTerminal
+                      className={cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                  ))}
+                {row.kind === "text" && (
+                  <FileText
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
                 <span
                   className={cn(
                     "truncate text-sm transition-colors",
-                    row.level === 2 && "pl-3",
-                    row.level >= 3 && "pl-6",
                     isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >

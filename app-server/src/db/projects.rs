@@ -1,8 +1,35 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
+
+/// How a project's span input/output is treated for PII.
+#[derive(Deserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PiiMode {
+    /// Stored as received.
+    #[default]
+    Off,
+    /// The redactor's output replaces the raw text before storage.
+    Redact,
+    /// Raw text is stored with its PII masks; the read path masks per role.
+    Dual,
+}
+
+/// Unknown mode strings (a frontend ahead of this binary) resolve to `redact`
+/// so a new mode can never silently disable redaction.
+fn deserialize_pii_mode<'de, D: Deserializer<'de>>(d: D) -> Result<Option<PiiMode>, D::Error> {
+    Ok(Option::<String>::deserialize(d)?.map(|s| match s.as_str() {
+        "off" => PiiMode::Off,
+        "redact" => PiiMode::Redact,
+        "dual" => PiiMode::Dual,
+        other => {
+            log::warn!("unknown piiMode {other:?}, treating as redact");
+            PiiMode::Redact
+        }
+    }))
+}
 
 /// Read-only view of `projects.settings` JSONB. Writes happen exclusively
 /// from the Next.js side; the Rust app-server only deserializes. New
@@ -12,9 +39,65 @@ use uuid::Uuid;
 #[derive(Deserialize, Serialize, Default, Clone, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ProjectSettings {
-    /// PII redaction toggle. Enabling routes every span on this project
-    /// through the pii-redactor before storage. Pro-tier gated frontend-side.
+    /// PII mode; read through [`ProjectSettings::pii_mode`], which applies
+    /// the legacy fallback. Pro-tier gated frontend-side.
+    #[serde(deserialize_with = "deserialize_pii_mode")]
+    pub pii_mode: Option<PiiMode>,
+    /// Legacy toggle that predates `piiMode`; `true` without `piiMode` reads
+    /// as `redact`. Not migrated: the settings route mirrors `piiMode` into
+    /// it (`mode != off`) so a pod on the previous binary, which reads only
+    /// this, follows changes made during a rollout.
     pub remove_pii: bool,
+    /// Per-project eval-score direction overrides (score name -> isHigherBetter).
+    /// Frontend-only concern; mirrored here so the JSONB round-trips losslessly.
+    pub score_direction_overrides: std::collections::HashMap<String, bool>,
+}
+
+impl ProjectSettings {
+    /// Configured PII mode with the legacy `removePii` fallback applied.
+    pub fn pii_mode(&self) -> PiiMode {
+        match self.pii_mode {
+            Some(mode) => mode,
+            None if self.remove_pii => PiiMode::Redact,
+            None => PiiMode::Off,
+        }
+    }
+}
+
+#[cfg(test)]
+mod pii_mode_tests {
+    use super::*;
+
+    fn settings(json: &str) -> ProjectSettings {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn explicit_mode_wins_over_legacy_toggle() {
+        assert_eq!(
+            settings(r#"{"piiMode":"off","removePii":true}"#).pii_mode(),
+            PiiMode::Off
+        );
+        assert_eq!(settings(r#"{"piiMode":"dual"}"#).pii_mode(), PiiMode::Dual);
+    }
+
+    #[test]
+    fn legacy_toggle_reads_as_redact() {
+        assert_eq!(
+            settings(r#"{"removePii":true}"#).pii_mode(),
+            PiiMode::Redact
+        );
+        assert_eq!(settings(r#"{"removePii":false}"#).pii_mode(), PiiMode::Off);
+        assert_eq!(settings("{}").pii_mode(), PiiMode::Off);
+    }
+
+    #[test]
+    fn unknown_mode_fails_closed_to_redact() {
+        assert_eq!(
+            settings(r#"{"piiMode":"vault"}"#).pii_mode(),
+            PiiMode::Redact
+        );
+    }
 }
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
@@ -27,13 +110,12 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_steps_limit: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
-    /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
-    pub custom_signal_steps_limit: Option<i64>,
+    pub signal_cost_hard_limit_micro_usd: Option<i64>,
     /// `projects.settings` JSONB, opaque to the SQL row binding (we hand it
     /// to serde_json on the way into the typed `ProjectWithWorkspaceBillingInfo`).
     #[serde(default)]
@@ -81,17 +163,6 @@ impl WorkspaceTierName {
         }
     }
 
-    /// Signal steps included in this tier's monthly plan. Must stay in sync
-    /// with `TIER_CONFIG.includedSignalSteps` values in the frontend.
-    pub fn included_signal_steps(&self) -> Option<i64> {
-        match self {
-            Self::Free => Some(500),
-            Self::Hobby => Some(5_000),
-            Self::Pro => Some(50_000),
-            Self::Other => None,
-        }
-    }
-
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Free => "Free",
@@ -112,13 +183,12 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_steps_limit: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
-    /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
-    pub custom_signal_steps_limit: Option<i64>,
+    pub signal_cost_hard_limit_micro_usd: Option<i64>,
     /// Typed view of `projects.settings`. Unknown keys are tolerated;
     /// missing keys fall back to the field's `Default` impl.
     #[serde(default)]
@@ -145,9 +215,8 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             reset_time: self.reset_time,
             workspace_project_ids: self.workspace_project_ids,
             bytes_limit: self.bytes_limit,
-            signal_steps_limit: self.signal_steps_limit,
             custom_bytes_limit: self.custom_bytes_limit,
-            custom_signal_steps_limit: self.custom_signal_steps_limit,
+            signal_cost_hard_limit_micro_usd: self.signal_cost_hard_limit_micro_usd,
             settings,
         }
     }
@@ -157,6 +226,58 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
 pub struct ProjectInfo {
     pub id: Uuid,
     pub name: String,
+}
+
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_signal_credit_remaining(
+    pool: &PgPool,
+    workspace_id: Uuid,
+) -> anyhow::Result<Option<i64>> {
+    let remaining = sqlx::query_scalar(
+        "SELECT signal_credit_remaining_micro_usd FROM workspaces WHERE id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(remaining)
+}
+
+/// Consume a completed run's cost from its workspace's one-time credit.
+/// Returns true when credit remains after the deduction.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn apply_signal_credit(
+    pool: &PgPool,
+    project_id: Uuid,
+    cost_micro_usd: i64,
+) -> anyhow::Result<bool> {
+    if cost_micro_usd <= 0 {
+        return Ok(false);
+    }
+
+    let credit_applied = sqlx::query_scalar(
+        r#"
+        UPDATE workspaces
+        SET signal_credit_remaining_micro_usd = GREATEST(
+            signal_credit_remaining_micro_usd - $2,
+            0
+        )
+        WHERE id = (
+            SELECT workspace_id
+            FROM projects
+            WHERE id = $1
+        )
+          AND signal_credit_remaining_micro_usd > 0
+        RETURNING signal_credit_remaining_micro_usd > 0
+        "#,
+    )
+    .bind(project_id)
+    .bind(cost_micro_usd)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or(false);
+
+    Ok(credit_applied)
 }
 
 pub async fn get_projects_for_workspace(
@@ -170,6 +291,64 @@ pub async fn get_projects_for_workspace(
             .await?;
 
     Ok(projects)
+}
+
+/// A project plus its owning workspace — used by the in-Slack project picker, which spans EVERY
+/// workspace a Slack team is connected to (so the binding write knows which workspace to scope to).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+#[derive(FromRow, Debug, Clone)]
+pub struct ProjectForTeam {
+    pub id: Uuid,
+    pub name: String,
+    // Selected for the binding write (frontend interaction handler); app-server doesn't read it.
+    #[allow(dead_code)]
+    pub workspace_id: Uuid,
+}
+
+/// Every project across ALL Laminar workspaces a given Slack `team_id` is connected to. A team can be
+/// connected to many workspaces (`slack_integrations` is unique on `workspace_id`, not `team_id`), so
+/// the picker enumerates them all. Each row carries its `workspace_id` so the chosen project can be
+/// bound to the right workspace.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_projects_for_team(
+    pool: &PgPool,
+    team_id: &str,
+) -> anyhow::Result<Vec<ProjectForTeam>> {
+    let projects = sqlx::query_as::<_, ProjectForTeam>(
+        r#"
+        SELECT p.id, p.name, p.workspace_id
+        FROM projects p
+        JOIN slack_integrations si ON si.workspace_id = p.workspace_id
+        WHERE si.team_id = $1
+        -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
+        ORDER BY lower(p.name), p.name
+        "#,
+    )
+    .bind(team_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(projects)
+}
+
+/// Fetch a single project's name by id.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_project_name(pool: &PgPool, project_id: &Uuid) -> anyhow::Result<String> {
+    let name = sqlx::query_scalar::<_, String>("SELECT name FROM projects WHERE id = $1")
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+
+    Ok(name)
+}
+
+/// `projects.workspace_id`; `None` when the project does not exist.
+pub async fn get_project_workspace_id(pool: &PgPool, project_id: Uuid) -> Result<Option<Uuid>> {
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT workspace_id FROM projects WHERE id = $1")
+        .bind(project_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|(id,)| id))
 }
 
 /// Returns true if `user_id` is a member of the workspace that owns `project_id`.
@@ -219,7 +398,8 @@ pub async fn get_projects_for_user(
          JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
          JOIN workspaces w ON w.id = p.workspace_id
          WHERE m.user_id = $1
-         ORDER BY w.name, p.name
+         -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
+         ORDER BY lower(w.name), w.name, lower(p.name), p.name
          LIMIT 1000",
     )
     .bind(user_id)
@@ -249,9 +429,8 @@ pub async fn get_project_and_workspace_billing_info(
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
             subscription_tiers.bytes_ingested as bytes_limit,
-            subscription_tiers.signal_steps_processed as signal_steps_limit,
             wul_bytes.limit_value as custom_bytes_limit,
-            wul_signal_steps.limit_value as custom_signal_steps_limit,
+            wul_signal_cost.limit_value as signal_cost_hard_limit_micro_usd,
             projects.settings
         FROM
             projects
@@ -260,8 +439,8 @@ pub async fn get_project_and_workspace_billing_info(
             LEFT join workspace_project_ids on projects.workspace_id = workspace_project_ids.workspace_id
             LEFT join workspace_usage_limits wul_bytes
                 on wul_bytes.workspace_id = workspaces.id AND wul_bytes.limit_type = 'bytes'
-            LEFT join workspace_usage_limits wul_signal_steps
-                on wul_signal_steps.workspace_id = workspaces.id AND wul_signal_steps.limit_type = 'signal_steps_processed'
+            LEFT join workspace_usage_limits wul_signal_cost
+                on wul_signal_cost.workspace_id = workspaces.id AND wul_signal_cost.limit_type = 'signal_cost'
         WHERE
             projects.id = $1",
     )

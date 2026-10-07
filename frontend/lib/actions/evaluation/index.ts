@@ -11,14 +11,15 @@ import {
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, type SqlActor } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { datasets, evaluations } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
+  type LinkedDataset,
 } from "@/lib/evaluation/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
@@ -76,25 +77,61 @@ export const RenameEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
-export const getEvaluationScoreNames = async ({
-  projectId,
-  evaluationId,
-}: {
-  projectId: string;
-  evaluationId: string;
-}): Promise<string[]> => {
-  const rows = await executeQuery<{ name: string }>({
-    query: `
+export const getEvaluationScoreNames = async (
+  {
+    projectId,
+    evaluationId,
+  }: {
+    projectId: string;
+    evaluationId: string;
+  },
+  options?: { actor?: SqlActor }
+): Promise<string[]> => {
+  const rows = await executeQuery<{ name: string }>(
+    {
+      query: `
       SELECT DISTINCT arrayJoin(JSONExtractKeys(scores)) AS name
       FROM evaluation_datapoints
       WHERE evaluation_id = {evaluationId:UUID}
         AND length(scores) > 0
       ORDER BY name
     `,
+      parameters: { evaluationId },
+      projectId,
+    },
+    { actor: options?.actor }
+  );
+  return rows.map((r) => r.name).filter(Boolean);
+};
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+// Distinct non-nil dataset ids on the eval's CH datapoints, named from Postgres.
+export const getEvaluationDatasets = async ({
+  projectId,
+  evaluationId,
+}: {
+  projectId: string;
+  evaluationId: string;
+}): Promise<LinkedDataset[]> => {
+  const rows = await executeQuery<{ dataset_id: string }>({
+    query: `
+      SELECT DISTINCT dataset_id
+      FROM evaluation_datapoints
+      WHERE evaluation_id = {evaluationId:UUID}
+    `,
     parameters: { evaluationId },
     projectId,
   });
-  return rows.map((r) => r.name).filter(Boolean);
+
+  const ids = [...new Set(rows.map((r) => r.dataset_id).filter((id) => id && id !== NIL_UUID))];
+  if (ids.length === 0) return [];
+
+  const found = await db.query.datasets.findMany({
+    where: and(eq(datasets.projectId, projectId), inArray(datasets.id, ids)),
+    columns: { id: true, name: true },
+  });
+  return found.map((d) => ({ id: d.id, name: d.name }));
 };
 
 export const getEvaluationDatapoints = async (
@@ -306,6 +343,14 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   return results[0][col.id] ?? null;
 };
 
+/**
+ * Fetch the scores JSON for a single datapoint index across a set of evaluations.
+ * Used by the datapoint-comparison overview: pivot a single datapoint position
+ * across every run in its group.
+ *
+ * Returns one row per (evaluationId, index) found — evaluations that don't
+ * contain this index are simply omitted.
+ */
 export const GetEvaluationDatapointComparisonSchema = z.object({
   projectId: z.guid(),
   evaluationIds: z.array(z.guid()).min(1),
@@ -333,20 +378,14 @@ export const getEvaluationDatapointComparison = async (
   const filteredIds = owned.map((e) => e.id);
   if (filteredIds.length === 0) return [];
 
-  // Aliases must NOT shadow a column used in WHERE: ClickHouse resolves the WHERE
-  // reference to the SELECT alias, so `toString(evaluation_id) AS evaluation_id`
-  // would turn `WHERE evaluation_id IN (...)` into a String-vs-UUID compare that
-  // matches nothing. Use distinct alias names (`eval_id` / `tid`) instead.
-  // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
-  // `scores` may come back as a string or an object depending on the driver.
   const rows = await executeQuery<{
     evaluationId: string;
-    idx: number | string;
+    index: number | string;
     scores: string | Record<string, unknown>;
     traceId: string;
   }>({
     query: `
-      SELECT evaluation_id AS evaluationId, \`index\` AS idx, scores, trace_id AS traceId
+      SELECT evaluation_id evaluationId, \`index\`, scores, trace_id traceId
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND \`index\` = ${index}
@@ -374,7 +413,7 @@ export const getEvaluationDatapointComparison = async (
           )
         )
       : {};
-    return { evaluationId: r.evaluationId, index: Number(r.idx), scores, traceId: r.traceId };
+    return { evaluationId: r.evaluationId, index: Number(r.index), scores, traceId: r.traceId };
   });
 };
 
