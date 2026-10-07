@@ -3,7 +3,7 @@
 import ChartBuilder from "components/chart-builder";
 import { AlertCircle, ChartArea, FileJson2, Loader2, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useDefaultLayout } from "react-resizable-panels";
 
@@ -14,13 +14,11 @@ import ResultsTable from "@/components/sql/results-table";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import TemplateEditor from "@/components/sql/template-editor";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-
-const emptySubscribe = () => () => {};
 
 export default function EditorPanel() {
   const { projectId } = useParams();
@@ -51,16 +49,7 @@ export default function EditorPanel() {
     }));
 
   // One split for every query: the editor/results ratio is a workspace preference, not per query.
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "sql-editor-layout",
-    storage: browserLayoutStorage,
-  });
-  // The group reads `defaultLayout` once, on mount, and the server has no stored layout to render with.
-  const isClient = useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false
-  );
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "sql-editor-layout" });
 
   const hasResults = results !== null && results.length > 0;
 
@@ -237,10 +226,6 @@ export default function EditorPanel() {
       <p className="text-sm">{text}</p>
     </div>
   );
-
-  if (!isClient) {
-    return <ElevatedSurface className="h-full w-full rounded-xl border" />;
-  }
 
   return (
     <ElevatedSurface className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border">
