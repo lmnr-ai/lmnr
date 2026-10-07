@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
 export const WELCOME_BANNER_CID = "welcome-banner-background";
-const GET_STARTED_URL = "https://laminar.sh/docs/getting-started";
+const GET_STARTED_URL = "https://lmnr.ai/docs/getting-started";
 
 export default function WelcomeEmail() {
   return (
@@ -40,7 +40,7 @@ export default function WelcomeEmail() {
                 <tr>
                   <td style={bulletMarker}>●</td>
                   <td style={bulletText}>
-                    <Link style={link} href="https://laminar.sh/docs/tracing/introduction" target="_blank">
+                    <Link style={link} href="https://lmnr.ai/docs/tracing/introduction" target="_blank">
                       Trace your agents
                     </Link>
                     {" — capture every LLM call and tool invocation. Set up tracing for your agent with a "}
@@ -53,11 +53,11 @@ export default function WelcomeEmail() {
                 <tr>
                   <td style={bulletMarker}>●</td>
                   <td style={bulletText}>
-                    <Link style={link} href="https://laminar.sh/docs/signals/introduction" target="_blank">
+                    <Link style={link} href="https://lmnr.ai/docs/signals/introduction" target="_blank">
                       Signals
                     </Link>
                     {" — find deep issues across thousands of traces with our "}
-                    <Link style={link} href="https://laminar.sh/blog/flow-1" target="_blank">
+                    <Link style={link} href="https://lmnr.ai/blog/flow-1" target="_blank">
                       trace-analysis model
                     </Link>{" "}
                     optimized for intelligence and efficiency.
@@ -66,11 +66,11 @@ export default function WelcomeEmail() {
                 <tr>
                   <td style={bulletMarker}>●</td>
                   <td style={bulletText}>
-                    <Link style={link} href="https://laminar.sh/docs/platform/cli" target="_blank">
+                    <Link style={link} href="https://lmnr.ai/docs/platform/cli" target="_blank">
                       CLI
                     </Link>{" "}
                     and{" "}
-                    <Link style={link} href="https://laminar.sh/docs/platform/mcp" target="_blank">
+                    <Link style={link} href="https://lmnr.ai/docs/platform/mcp" target="_blank">
                       MCP
                     </Link>
                     {
@@ -81,7 +81,7 @@ export default function WelcomeEmail() {
                 <tr>
                   <td style={lastBulletMarker}>●</td>
                   <td style={lastBulletText}>
-                    <Link style={link} href="https://laminar.sh/docs/evaluations/introduction" target="_blank">
+                    <Link style={link} href="https://lmnr.ai/docs/evaluations/introduction" target="_blank">
                       Evals
                     </Link>
                     {" — run evals against datasets locally or in CI. Catch regressions before they ship."}
