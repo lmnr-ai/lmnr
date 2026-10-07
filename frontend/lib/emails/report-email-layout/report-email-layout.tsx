@@ -92,6 +92,6 @@ const titleStyle: CSSProperties = {
   color: "#ffffff",
   fontSize: "28px",
   fontWeight: 400,
-  letterSpacing: 0,
+  letterSpacing: "-0.56px",
   lineHeight: "34px",
 };

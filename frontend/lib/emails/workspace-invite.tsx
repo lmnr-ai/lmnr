@@ -94,7 +94,7 @@ const heading: CSSProperties = {
   fontFamily: "'General Sans', 'Inter', 'Roboto', 'Helvetica', sans-serif",
   fontSize: "28px",
   fontWeight: 500,
-  letterSpacing: 0,
+  letterSpacing: "-0.56px",
   lineHeight: "38px",
 };
 const card: CSSProperties = {
