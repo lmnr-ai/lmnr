@@ -1,10 +1,3 @@
-export interface UserSession {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-}
-
 export type ChatMessageText = {
   type: "text";
   text: string;

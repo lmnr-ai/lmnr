@@ -53,8 +53,14 @@ export async function POST(
     const result = await createSignalTrigger({
       projectId,
       signalId,
-      filters: body.filters,
+      conditions: body.conditions,
+      filters: body.filters ?? [],
+      mode: body.mode ?? 0,
     });
+
+    if (!result) {
+      return Response.json({ error: "Signal not found" }, { status: 404 });
+    }
 
     return Response.json(result);
   } catch (error) {
@@ -81,7 +87,9 @@ export async function PUT(
       projectId,
       signalId,
       triggerId: body.triggerId,
-      filters: body.filters,
+      conditions: body.conditions,
+      filters: body.filters ?? [],
+      mode: body.mode,
     });
 
     if (!result) {

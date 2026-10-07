@@ -1,5 +1,6 @@
 "use client";
 
+import { type Extension } from "@codemirror/state";
 import CodeMirror from "@uiw/react-codemirror";
 import { motion } from "framer-motion";
 import { Loader2, Sparkles } from "lucide-react";
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
 import { toast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 export interface SQLEditorProps {
   value: string;
@@ -24,6 +26,8 @@ export interface SQLEditorProps {
   inputPlaceholder?: string;
   projectId?: string;
   aiButtonVariant?: "icon" | "full";
+  /** Extra CodeMirror extensions appended per-usage (e.g. scroll margins). */
+  extraExtensions?: Extension[];
 }
 
 export default function SQLEditor({
@@ -38,13 +42,17 @@ export default function SQLEditor({
   inputPlaceholder = "e.g. Get top 10 most expensive traces from last 24 hours",
   projectId,
   aiButtonVariant = "icon",
+  extraExtensions,
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const extensions = useMemo(() => createExtensions(schema), [schema]);
+  const extensions = useMemo(
+    () => [...createExtensions(schema), ...(extraExtensions ?? [])],
+    [schema, extraExtensions]
+  );
 
   const handleAiGenerate = useCallback(async () => {
     const prompt = aiPrompt.trim();
@@ -74,6 +82,7 @@ export default function SQLEditor({
 
       if (data.query && onChange) {
         onChange(data.query);
+        track("sql_editor", "ai_generated", { mode: generationMode });
       }
     } catch (error) {
       toast({

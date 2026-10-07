@@ -77,18 +77,29 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
 
     router.push(`/project/${projectId}/sql/${optimisticData.id}`);
 
-    await fetch(`/api/projects/${projectId}/sql/templates`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        id: optimisticData.id,
-        name: `Untitled Query`,
-        query: optimisticData.query,
-      }),
-    });
-  }, [mutate, projectId, router]);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: optimisticData.id,
+          name: `Untitled Query`,
+          query: optimisticData.query,
+        }),
+      });
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        toast({ variant: "destructive", title: errMessage ?? "Failed to create query" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to create query" });
+    }
+  }, [mutate, projectId, router, toast]);
 
   const debouncedAutoSave = useMemo(() => debounce(autoSaveTemplate, 500), [autoSaveTemplate]);
 
@@ -130,7 +141,7 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
               <p className="text-sm text-muted-foreground">Create a new query or select one from the sidebar</p>
             </div>
             <Button onClick={handleCreate} variant="secondaryLight" size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
+              <Plus data-icon="inline-start" className="w-4 h-4" />
               New Query
             </Button>
           </div>

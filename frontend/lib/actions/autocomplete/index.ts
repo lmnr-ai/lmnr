@@ -5,7 +5,7 @@ import { FIELD_TO_CACHE_KEY } from "@/lib/actions/autocomplete/fields";
 import { executeQuery } from "@/lib/actions/sql";
 
 const GetAutocompleteSuggestionsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   entity: z.enum(["traces", "spans"]),
   field: z.string().optional(),
 });
@@ -111,7 +111,7 @@ const getAutocompleteQueries = (field: string): { queries: string[] } => {
     case "tags":
       return {
         queries: [
-          `SELECT arrayJoin(topK(512)(name)) as value FROM tags WHERE created_at >= now() - INTERVAL 7 days AND created_at < now() AND name != ''`,
+          `SELECT arrayJoin(topK(512)(tag)) as value FROM spans ARRAY JOIN tags AS tag WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND tag != ''`,
         ],
       };
     default:

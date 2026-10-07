@@ -1,0 +1,51 @@
+version: "0.8"
+index_id: signal_events
+doc_mapping:
+  mode: dynamic
+  dynamic_mapping:
+    indexed: true
+    stored: false
+    tokenizer: default
+    record: position
+    expand_dots: true
+    fast: false
+  field_mappings:
+    - name: id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: project_id
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: false
+    - name: signal_id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: trace_id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: severity
+      type: u64
+      fast: true
+      stored: false
+    - name: timestamp
+      type: datetime
+      fast: true
+      stored: false
+    - name: payload
+      type: json
+      tokenizer: default
+      fast: false
+      stored: false
+      record: position
+  tag_fields: []
+  timestamp_field: timestamp
+  partition_key: hash_mod(project_id, 100)
+search_settings:
+  default_search_fields: []
+retention:
+  period: 90 days
+  schedule: daily

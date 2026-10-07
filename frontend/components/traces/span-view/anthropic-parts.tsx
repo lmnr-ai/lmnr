@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { type z } from "zod/v4";
 
+import PdfRenderer from "@/components/ui/pdf-renderer";
 import { type AnthropicContentBlockSchema, type AnthropicMessageSchema } from "@/lib/spans/types/anthropic";
 
 import {
@@ -16,11 +17,13 @@ const AnthropicPartRenderer = ({
   presetKey,
   messageIndex,
   contentPartIndex,
+  toolNameMap,
 }: {
   block: z.infer<typeof AnthropicContentBlockSchema>;
   presetKey: string;
   messageIndex: number;
   contentPartIndex: number;
+  toolNameMap?: Map<string, string>;
 }) => {
   switch (block.type) {
     case "text":
@@ -48,6 +51,7 @@ const AnthropicPartRenderer = ({
       return (
         <ToolCallContentPart
           toolName={block.name}
+          toolCallId={block.id}
           content={block.input ?? {}}
           presetKey={presetKey}
           messageIndex={messageIndex}
@@ -60,6 +64,7 @@ const AnthropicPartRenderer = ({
       return (
         <ToolResultContentPart
           toolCallId={block.tool_use_id}
+          toolName={toolNameMap?.get(block.tool_use_id)}
           content={resultContent}
           presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
         />
@@ -71,6 +76,7 @@ const AnthropicPartRenderer = ({
       return (
         <ToolResultContentPart
           toolCallId={block.tool_use_id}
+          toolName={toolNameMap?.get(block.tool_use_id)}
           content={searchResultContent}
           presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
         />
@@ -97,6 +103,19 @@ const AnthropicPartRenderer = ({
       );
 
     case "document": {
+      if (
+        block.source.type === "base64" &&
+        block.source.media_type === "application/pdf" &&
+        typeof block.source.data === "string"
+      ) {
+        return (
+          <div className="flex flex-col gap-2 my-2 w-full">
+            {block.title && <div className="text-sm font-medium px-2">{block.title}</div>}
+            <PdfRenderer base64={block.source.data} className="w-full min-h-[400px] border rounded-md" />
+          </div>
+        );
+      }
+
       const docLabel = block.title ? `[Document: ${block.title}]` : "[Document]";
       return (
         <TextContentPart
@@ -128,10 +147,12 @@ const PureAnthropicContentParts = ({
   message,
   parentIndex,
   presetKey,
+  toolNameMap,
 }: {
   message: z.infer<typeof AnthropicMessageSchema>;
   parentIndex: number;
   presetKey: string;
+  toolNameMap?: Map<string, string>;
 }) => {
   if (typeof message.content === "string") {
     return (
@@ -153,6 +174,7 @@ const PureAnthropicContentParts = ({
           presetKey={`${parentIndex}-part-${index}-${presetKey}`}
           messageIndex={parentIndex}
           contentPartIndex={index}
+          toolNameMap={toolNameMap}
         />
       ))}
     </>

@@ -1,10 +1,9 @@
-import { and, eq } from 'drizzle-orm';
-import { prettifyError, ZodError } from 'zod';
+import { and, eq } from "drizzle-orm";
+import { prettifyError, ZodError } from "zod";
 
-import { createOrUpdateTagClass } from '@/lib/actions/tags';
-import { db } from '@/lib/db/drizzle';
-import { tagClasses } from '@/lib/db/migrations/schema';
-
+import { createOrUpdateTagClass } from "@/lib/actions/tags";
+import { db } from "@/lib/db/drizzle";
+import { tagClasses } from "@/lib/db/migrations/schema";
 
 export async function POST(
   req: Request,
@@ -39,15 +38,13 @@ export async function DELETE(
   const projectId = params.projectId;
   const tagName = params.tagName;
 
-  const affectedRows = await db.delete(tagClasses).where(
-    and(
-      eq(tagClasses.name, tagName),
-      eq(tagClasses.projectId, projectId)
-    )
-  ).returning();
+  const affectedRows = await db
+    .delete(tagClasses)
+    .where(and(eq(tagClasses.name, tagName), eq(tagClasses.projectId, projectId)))
+    .returning();
 
   if (affectedRows.length === 0) {
-    return new Response('Tag class not found', { status: 404 });
+    return new Response("Tag class not found", { status: 404 });
   }
 
   return new Response(null, { status: 200 });

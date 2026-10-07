@@ -8,8 +8,6 @@ pub enum Error {
     #[error("{0}")]
     InternalAnyhowError(#[from] anyhow::Error),
     #[error("{0}")]
-    MultipartError(#[from] actix_multipart::MultipartError),
-    #[error("{0}")]
     SqlQueryError(#[from] SqlQueryError),
 }
 
@@ -17,7 +15,6 @@ impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
             Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::MultipartError(_) => StatusCode::BAD_REQUEST,
             Self::SqlQueryError(e) => match e {
                 SqlQueryError::ValidationError(_) => StatusCode::BAD_REQUEST,
                 SqlQueryError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,

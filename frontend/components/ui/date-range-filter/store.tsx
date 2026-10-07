@@ -2,7 +2,7 @@
 
 import { isNil } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 import { createStore, type StoreApi, useStore } from "zustand";
 
@@ -184,34 +184,21 @@ export const DateRangeFilterProvider = ({
     };
   }, [searchParams, mode, initialPastHours, initialStartDate, initialEndDate]);
 
-  const storeRef = useRef<StoreApi<DateRangeFilterStore>>(null);
-
-  if (!storeRef.current) {
-    storeRef.current = createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router, pathname);
-  }
+  const [storeState] = useState(() =>
+    createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router, pathname)
+  );
 
   useEffect(() => {
-    if (mode === "state") return;
+    const store = storeState.getState();
+    if (store.pastHours === pastHours && store.startDate === startDate && store.endDate === endDate) return;
 
-    const store = storeRef.current?.getState();
-    if (!store) return;
+    storeState.setState({
+      pastHours,
+      startDate,
+      endDate,
+      calendarDate: startDate && endDate ? { from: new Date(startDate), to: new Date(endDate) } : undefined,
+    });
+  }, [pastHours, startDate, endDate, storeState]);
 
-    const urlPastHours = searchParams.get("pastHours");
-    const urlStartDate = searchParams.get("startDate");
-    const urlEndDate = searchParams.get("endDate");
-
-    if (store.pastHours !== urlPastHours || store.startDate !== urlStartDate || store.endDate !== urlEndDate) {
-      storeRef.current?.setState({
-        pastHours: urlPastHours,
-        startDate: urlStartDate,
-        endDate: urlEndDate,
-        calendarDate:
-          urlStartDate && urlEndDate ? { from: new Date(urlStartDate), to: new Date(urlEndDate) } : undefined,
-      });
-    }
-  }, [searchParams, mode]);
-
-  return (
-    <DateRangeFilterStoreContext.Provider value={storeRef.current}>{children}</DateRangeFilterStoreContext.Provider>
-  );
+  return <DateRangeFilterStoreContext.Provider value={storeState}>{children}</DateRangeFilterStoreContext.Provider>;
 };

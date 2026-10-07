@@ -1,6 +1,64 @@
-import { flow, isNumber, mean, round } from "lodash";
+import { flow, get, isNumber, mean, round } from "lodash";
 
-import { getOptimalTextColor, interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
+import { interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
+import {
+  type EvalRow,
+  type Evaluation,
+  type EvaluationScoreDistributionBucket,
+  type EvaluationScoreStatistics,
+} from "@/lib/evaluation/types";
+
+export type EvalDatapointStatus = "error" | "pending" | "success";
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
+  if (row["traceStatus"] === "error") return "error";
+
+  const scores = get(row, "scores");
+  const hasScoresString = typeof scores === "string" && scores.length > 0 && scores !== "{}";
+  const hasFlattenedScores = Object.keys(row).some((k) => k.startsWith("score:") && row[k] != null);
+  if (!hasScoresString && !hasFlattenedScores) return "pending";
+
+  const topSpanId = get(row, "topSpanId");
+  if (typeof topSpanId !== "string" || topSpanId === "" || topSpanId === NIL_UUID) {
+    return "pending";
+  }
+  return "success";
+};
+
+/**
+ * Explode a `{name: number}` JSON string into `{score:<name>: number}` keys.
+ */
+export const flattenScores = (scores: unknown): Record<string, number> => {
+  if (typeof scores !== "string" || scores.length === 0) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(scores);
+  } catch {
+    return {};
+  }
+  if (parsed == null || typeof parsed !== "object") return {};
+  const out: Record<string, number> = {};
+  for (const [name, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      out[`score:${name}`] = value;
+    }
+  }
+  return out;
+};
+
+/**
+ * Server-computed stats payload returned by `/api/.../evaluations/[id]/stats`.
+ * Score names are NOT returned here — they live in the eval store
+ * (`useEvalStore.scoreNames`), seeded from the server-side
+ * `getEvaluationScoreNames` and updated by realtime events.
+ */
+export type EvaluationStatsPayload = {
+  evaluation: Evaluation;
+  allStatistics: Record<string, EvaluationScoreStatistics>;
+  allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+};
 
 export type ScoreRanges = Record<string, ScoreRange>;
 export type ScoreValue = number | undefined;
@@ -49,10 +107,13 @@ const getColorByNormalizedValue = (normalized: number): RGBColor => {
   }
 };
 
-const getScoreBackgroundColor = (min: number, max: number, value: number): RGBColor => {
+const getScoreBackgroundColor = (min: number, max: number, value: number, isHigherBetter = true): RGBColor => {
   if (min === max) return SCORE_COLORS.gray;
 
-  return flow((val: number) => normalizeValue(min, max, val), getColorByNormalizedValue)(value);
+  // When lower is better, reflect the normalized position about the midpoint so
+  // the "good" end of the range maps to green regardless of magnitude.
+  const toColor = (n: number) => getColorByNormalizedValue(isHigherBetter ? n : 1 - n);
+  return flow((val: number) => normalizeValue(min, max, val), toColor)(value);
 };
 
 const hasSignificantRange = ({ min, max }: ScoreRange): boolean => {
@@ -64,18 +125,97 @@ const hasSignificantRange = ({ min, max }: ScoreRange): boolean => {
 
 export const shouldShowHeatmap = (range: ScoreRange): boolean => hasSignificantRange(range);
 
-export const createHeatmapStyle = (value: number, { min, max }: ScoreRange) => {
-  if (!shouldShowHeatmap({ min, max })) {
-    return {
-      background: "transparent",
-      color: "inherit",
-    };
+/**
+ * Merge a realtime `datapoint_upsert` payload into the existing rows array.
+ *
+ * Updates an existing row in place if it matches by id; otherwise inserts the
+ * new row at the position implied by `index` (datapoints are conventionally
+ * rendered ascending by index).
+ */
+export const mergeDatapointUpsertIntoRows = (
+  rows: EvalRow[],
+  incoming: EvalRow & { id: string },
+  flattened: Record<string, number>
+): EvalRow[] => {
+  const idx = rows.findIndex((r) => r["id"] === incoming.id);
+  if (idx !== -1) {
+    const next = [...rows];
+    next[idx] = { ...next[idx], ...incoming, ...flattened };
+    return next;
   }
+  const seeded: EvalRow = { ...incoming, ...flattened };
+  const incomingIndex = Number(seeded["index"] ?? Number.POSITIVE_INFINITY);
+  const insertAt = rows.findIndex((r) => Number(r["index"] ?? -1) > incomingIndex);
+  if (insertAt === -1) return [...rows, seeded];
+  const next = [...rows];
+  next.splice(insertAt, 0, seeded);
+  return next;
+};
 
-  const bgColor = getScoreBackgroundColor(min, max, value);
+// Accumulate a `trace_update` delta onto the matching row (no-op if not yet
+// fetched).
+export const mergeTraceUpdateIntoRows = (
+  rows: EvalRow[],
+  trace: Record<string, unknown> & { id: string }
+): EvalRow[] => {
+  const idx = rows.findIndex((r) => r["traceId"] === trace.id);
+  if (idx === -1) return rows;
 
-  return {
-    background: `rgb(${bgColor.join(", ")})`,
-    color: getOptimalTextColor(bgColor),
+  const prev = rows[idx];
+  const num = (key: string): number => Number(prev[key] ?? 0) + Number(trace[key] ?? 0);
+
+  const inputCost = num("inputCost");
+  const outputCost = num("outputCost");
+  const totalCost = num("totalCost");
+  const sumCost = inputCost + outputCost;
+  const cost = totalCost > 0 ? Math.max(sumCost, totalCost) : sumCost;
+
+  const startTime = minIso(prev["startTime"] as string | undefined, trace["startTime"] as string | undefined);
+  const endTime = maxIso(prev["endTime"] as string | undefined, trace["endTime"] as string | undefined);
+  const duration = startTime && endTime ? (Date.parse(endTime) - Date.parse(startTime)) / 1000 : undefined;
+
+  const status =
+    prev["traceStatus"] === "error" || trace["status"] === "error" ? "error" : (trace["status"] ?? prev["traceStatus"]);
+
+  const next = [...rows];
+  next[idx] = {
+    ...prev,
+    cost,
+    inputCost,
+    outputCost,
+    totalCost,
+    inputTokens: num("inputTokens"),
+    outputTokens: num("outputTokens"),
+    totalTokens: num("totalTokens"),
+    cacheReadInputTokens: num("cacheReadInputTokens"),
+    cacheCreationInputTokens: num("cacheCreationInputTokens"),
+    reasoningTokens: num("reasoningTokens"),
+    traceStatus: status,
+    topSpanId: trace["topSpanId"] ?? prev["topSpanId"],
+    startTime,
+    endTime,
+    ...(duration != null ? { duration } : {}),
   };
+  return next;
+};
+
+const minIso = (a: string | undefined, b: string | undefined): string | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(b) < Date.parse(a) ? b : a;
+};
+
+const maxIso = (a: string | undefined, b: string | undefined): string | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(b) > Date.parse(a) ? b : a;
+};
+
+// rgb(...) string for the heatmap color, or null when the range is too narrow
+// to be meaningful — callers treat null as "render the plain number".
+// `isHigherBetter` (default true) inverts the gradient for lower-is-better scores.
+export const getHeatmapColor = (value: number, { min, max }: ScoreRange, isHigherBetter = true): string | null => {
+  if (!shouldShowHeatmap({ min, max })) return null;
+  const [r, g, b] = getScoreBackgroundColor(min, max, value, isHigherBetter);
+  return `rgb(${r}, ${g}, ${b})`;
 };

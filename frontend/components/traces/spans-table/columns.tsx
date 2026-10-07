@@ -1,29 +1,14 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import TagsCell from "@/components/tags/tags-cell";
+import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SpanRow, SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
-
-const format = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 5,
-  minimumFractionDigits: 1,
-});
-
-const detailedFormat = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 8,
-});
 
 export const filters: ColumnFilter[] = [
   {
@@ -139,20 +124,6 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     size: 150,
   },
   {
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
-    accessorKey: "inputPreview",
-    header: "Input",
-    id: "input",
-    size: 150,
-  },
-  {
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
-    accessorKey: "outputPreview",
-    header: "Output",
-    id: "output",
-    size: 150,
-  },
-  {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
@@ -160,78 +131,23 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     size: 150,
   },
   {
-    accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      const duration = end.getTime() - start.getTime();
-
-      return `${(duration / 1000).toFixed(2)}s`;
-    },
     header: "Duration",
     id: "duration",
-    size: 80,
+    cell: (row) => <DurationCell startTime={row.row.original.startTime} endTime={row.row.original.endTime} />,
+    size: 100,
   },
   {
     accessorFn: (row) => row.totalTokens,
     header: "Tokens",
     id: "tokens",
-    cell: (row) => {
-      if (row.getValue()) {
-        return (
-          <div className="truncate">
-            {`${row.row.original.inputTokens ?? "-"}`}
-            {" → "}
-            {`${row.row.original.outputTokens ?? "-"}`}
-            {` (${row.getValue() ?? "-"})`}
-          </div>
-        );
-      }
-      return <div className="flex items-center">-</div>;
-    },
-    size: 150,
+    cell: (row) => <TokensCell stats={row.row.original} />,
+    size: 160,
   },
   {
     accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "cost",
-    cell: (row) => {
-      if (row.getValue() > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger className="relative p-0">
-                <div
-                  style={{
-                    width: row.column.getSize() - 32,
-                  }}
-                  className="relative"
-                >
-                  <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                    <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                      {format.format(row.getValue())}
-                    </div>
-                  </div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="p-2 border">
-                <div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Input cost</span>
-                    <span>{detailedFormat.format(row.row.original.inputCost)}</span>
-                  </div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Output cost</span>
-                    <span>{detailedFormat.format(row.row.original.outputCost)}</span>
-                  </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      return "-";
-    },
+    cell: (row) => <CostCell stats={row.row.original} />,
     size: 100,
   },
   {
@@ -243,35 +159,7 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     accessorFn: (row) => row.tags,
     cell: (row) => {
       const tags = row.getValue() as string[];
-
-      if (tags?.length > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="truncate">
-                  {tags.map((tag) => (
-                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                      <span>{tag}</span>
-                    </Badge>
-                  ))}
-                </div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border max-w-sm">
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                      <Badge key={tag} className="rounded-3xl" variant="outline">
-                        <span>{tag}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
+      if (tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
     header: "Tags",
@@ -286,8 +174,6 @@ export const defaultSpansColumnOrder = [
   "trace_id",
   "span",
   "path",
-  "input",
-  "output",
   "start_time",
   "duration",
   "cost",

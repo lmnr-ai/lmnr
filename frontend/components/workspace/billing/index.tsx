@@ -1,8 +1,8 @@
 "use client";
 
-import { ExternalLink, Info, Loader2 } from "lucide-react";
+import { Calendar, ExternalLink, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import WorkspaceAddons from "@/components/workspace/billing/addons";
 import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";
 import SwitchTierDialog from "@/components/workspace/billing/switch-tier-dialog";
-import { formatCurrency, formatDate, type TierKey, TIERS } from "@/components/workspace/billing/utils";
+import {
+  formatCurrency,
+  formatDate,
+  formatShortDate,
+  groupLinesByPeriod,
+  type TierKey,
+  TIERS,
+} from "@/components/workspace/billing/utils";
 import {
   LOOKUP_KEY_DISPLAY_NAMES,
   type PaidTier,
@@ -19,6 +26,7 @@ import {
   TIER_CONFIG,
   type UpcomingInvoiceInfo,
 } from "@/lib/actions/checkout/types";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -31,6 +39,13 @@ interface WorkspaceBillingProps {
 }
 
 function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInvoiceInfo }) {
+  const groups = groupLinesByPeriod(upcomingInvoice.lines);
+  const subtotal = upcomingInvoice.lines.reduce((sum, l) => sum + l.amount, 0);
+  const appliedCredit =
+    upcomingInvoice.startingBalance < 0
+      ? Math.min(Math.abs(upcomingInvoice.startingBalance), Math.max(subtotal, 0))
+      : 0;
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -51,20 +66,57 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
         <CardDescription className="text-xs">Due {formatDate(upcomingInvoice.periodStart)}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md divide-y text-sm">
-          {upcomingInvoice.lines.map((line, i) => {
-            const displayName = line.lookupKey ? (LOOKUP_KEY_DISPLAY_NAMES[line.lookupKey] ?? line.lookupKey) : "Other";
-            return (
-              <div
-                key={i}
-                className="flex justify-between items-center px-3 py-2 font-mono text-xs text-secondary-foreground"
-              >
-                <span className="truncate mr-2">{displayName}</span>
-                <span>{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
+        <div className="border rounded-md overflow-hidden text-sm">
+          {groups.map((group, gi) => (
+            <div key={group.key} className={cn(gi > 0 && "border-t")}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground cursor-default w-fit">
+                    <Calendar className="h-3 w-3 shrink-0 mb-0.5" />
+                    {formatShortDate(group.periodStart)} – {formatShortDate(group.periodEnd)}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start" className="bg-background">
+                  {formatDate(group.periodStart)} – {formatDate(group.periodEnd)}
+                </TooltipContent>
+              </Tooltip>
+              <div>
+                {group.lines.map((line, i) => {
+                  const displayName = line.lookupKey
+                    ? (LOOKUP_KEY_DISPLAY_NAMES[line.lookupKey] ?? line.lookupKey)
+                    : "Other";
+                  return (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center px-3 py-1.5 font-mono text-xs text-secondary-foreground"
+                    >
+                      <span className="truncate mr-2">{displayName}</span>
+                      <span className="shrink-0">{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-          <div className="flex justify-between items-center px-3 py-2 font-semibold bg-secondary/30">
+            </div>
+          ))}
+          {appliedCredit > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex justify-between items-center px-3 py-1.5 border-t text-xs cursor-help">
+                  <span className="text-emerald-500 font-medium flex items-center gap-1">
+                    <Info className="h-3 w-3" />
+                    Applied credit
+                  </span>
+                  <span className="font-mono text-emerald-500">
+                    −{formatCurrency(appliedCredit, upcomingInvoice.currency)}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="start" className="bg-background max-w-60">
+                <p>Credit from prorated refund of your previous plan, applied to this invoice.</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <div className="flex justify-between items-center px-3 py-2 font-semibold border-t bg-secondary/30">
             <span>Total</span>
             <span className="font-mono">{formatCurrency(upcomingInvoice.amountDue, upcomingInvoice.currency)}</span>
           </div>
@@ -84,11 +136,15 @@ export default function WorkspaceBilling({
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentTierKey: TierKey = subscription
-    ? (subscription.currentTier as TierKey)
-    : (workspace.tierName.toLowerCase() as TierKey);
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const workspaceTierKey = workspace.tierName.toLowerCase() === "starter" ? "hobby" : workspace.tierName.toLowerCase();
+  const currentTierKey: TierKey = subscription ? (subscription.currentTier as TierKey) : (workspaceTierKey as TierKey);
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
   const isFree = currentTierKey === "free";
+
+  useEffect(() => {
+    track("billing", "page_viewed", { tier: currentTierKey });
+  }, []);
 
   const handleManagePaymentMethods = async () => {
     setIsLoadingPortal(true);
@@ -139,8 +195,12 @@ export default function WorkspaceBilling({
 
     if (tierKey === "enterprise") {
       return (
-        <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry" className="block">
-          <Button variant="outline" className="w-full h-8 text-xs">
+        <Link
+          href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry"
+          className="block"
+          onClick={() => track("billing", "contact_us_clicked")}
+        >
+          <Button variant="outline" className="w-full h-8 text-xs bg-transparent">
             Contact us
           </Button>
         </Link>
@@ -162,6 +222,7 @@ export default function WorkspaceBilling({
         <Link
           href={`/checkout?lookupKey=${TIER_CONFIG[tierKey as PaidTier].lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
           className="block"
+          onClick={() => track("billing", "upgrade_clicked", { from_tier: currentTierKey, to_tier: tierKey })}
         >
           <Button variant={tierKey === "pro" ? "default" : "outline"} className="w-full h-8 text-xs">
             Upgrade
@@ -174,6 +235,7 @@ export default function WorkspaceBilling({
     return (
       <SwitchTierDialog
         workspaceId={workspace.id}
+        fromTier={currentTierKey as PaidTier}
         targetTier={tierKey as PaidTier}
         action={action as "upgrade" | "downgrade"}
         currentTierName={currentTierInfo?.name ?? workspace.tierName}
@@ -263,15 +325,15 @@ export default function WorkspaceBilling({
       <SettingsSection>
         <SettingsSectionHeader size="sm" title="Plans" description="Compare and switch between available plans" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {TIERS.map(({ key, info }) => {
+          {TIERS.map(({ key, info }, i) => {
             const isCurrent = getActionForTier(key) === "current";
 
             return (
               <div
                 key={key}
                 className={cn(
-                  "p-4 rounded-lg border flex flex-col justify-between min-h-[180px]",
-                  isCurrent && "ring-2 ring-primary border-primary bg-primary/5",
+                  "p-4 rounded-lg bg-surface-100 flex flex-col justify-between min-h-[180px]",
+                  isCurrent && "ring-1 ring-primary/50",
                   key === "pro" && !isCurrent && "border-primary/50"
                 )}
               >

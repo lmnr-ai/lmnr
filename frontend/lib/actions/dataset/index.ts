@@ -6,8 +6,8 @@ import { datasetParquets, datasets } from "@/lib/db/migrations/schema";
 import { getExportsMetadataByPath, streamExportDataByPath } from "@/lib/s3";
 
 const UpdateDatasetSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   name: z.string().min(1, { message: "Dataset name is required" }),
 });
 

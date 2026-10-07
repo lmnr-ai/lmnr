@@ -1,0 +1,263 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelSize {
+    Small,
+    Medium,
+    Large,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderRequestItem {
+    pub request: ProviderRequest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderRequest {
+    pub contents: Vec<ProviderContent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_instruction: Option<ProviderContent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ProviderTool>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_config: Option<ProviderGenerationConfig>,
+    /// Inference service tier (e.g. `"flex"`). Only honored by the Gemini
+    /// provider (https://ai.google.dev/gemini-api/docs/flex-inference);
+    /// other providers ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
+    /// Which provider client and model serve this request. Defaults to the
+    /// `default` feature with no workspace scope.
+    #[serde(default)]
+    pub route: super::features::LlmRoute,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderGenerationConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<ProviderThinkingConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderThinkingConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include_thoughts: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_level: Option<ProviderThinkingLevel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ProviderThinkingLevel {
+    #[default]
+    ThinkingLevelUnspecified,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    XHigh,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderContent {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Vec<ProviderPart>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderPart {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function_call: Option<ProviderFunctionCall>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function_response: Option<ProviderFunctionResponse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderFunctionCall {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderFunctionResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub name: String,
+    pub response: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderTool {
+    pub function_declarations: Vec<ProviderFunctionDeclaration>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderFunctionDeclaration {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct ProviderBatchOutput {
+    pub responses: Vec<ProviderInlineResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderInlineResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response: Option<ProviderResponse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ProviderErrorInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// A single streamed delta from a provider's token stream. Providers emit these as tokens
+/// arrive; the agent forwards them to the SSE client so the UI renders text/thoughts
+/// incrementally. The fully assembled `ProviderResponse` is still returned when the stream
+/// completes (used for persistence + tracing), so deltas are purely additive UX.
+#[derive(Debug, Clone)]
+pub enum ProviderStreamChunk {
+    Text(String),
+    Thought(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidates: Option<Vec<ProviderCandidate>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_metadata: Option<ProviderUsageMetadata>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderCandidate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<ProviderContent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<ProviderFinishReason>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ProviderFinishReason {
+    Stop,
+    MaxTokens,
+    Safety,
+    MalformedFunctionCall,
+    Other(String),
+}
+
+impl ProviderFinishReason {
+    #[allow(dead_code)]
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::Stop => true,
+            Self::MaxTokens | Self::Safety => false,
+            Self::MalformedFunctionCall => true,
+            Self::Other(_) => true,
+        }
+    }
+
+    pub fn is_success(&self) -> bool {
+        matches!(self, Self::Stop)
+    }
+
+    pub fn is_malformed_function_call(&self) -> bool {
+        matches!(self, Self::MalformedFunctionCall)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderErrorInfo {
+    pub code: i32,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUsageMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_token_count: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidates_token_count: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_token_count: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<i32>,
+    /// Reasoning/thinking tokens, when the provider reports them separately.
+    /// Already counted within `candidates_token_count`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_token_count: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum ProviderBatchState {
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+    Expired,
+    Unspecified,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct ProviderBatchOperation {
+    pub name: String,
+    #[serde(default)]
+    pub done: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response: Option<ProviderBatchOutput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ProviderErrorInfo>,
+    #[serde(skip)]
+    pub state: Option<ProviderBatchState>,
+}

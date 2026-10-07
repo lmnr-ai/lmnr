@@ -1,7 +1,30 @@
 import { type RowData } from "@tanstack/react-table";
+import { type ReactNode } from "react";
+
+import { type ScoreRanges } from "@/components/evaluation/utils";
 
 // -- tanstack module augmentation --
 declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface TableMeta<TData extends RowData> {
+    // Evaluation table — passed via InfiniteDataTable so cell components can
+    // read shared rendering state (comparison mode, heatmap toggle, score
+    // ranges, shared/public flag) without importing the eval store. This
+    // keeps the cell modules free of `useEvalStore` and breaks the
+    // store ↔ cell import cycle that confused React Refresh.
+    evalCellMeta?: {
+      isComparison: boolean;
+      isShared: boolean;
+      heatmapEnabled: boolean;
+      scoreRanges: ScoreRanges;
+      // Resolved eval-score direction per score name (isHigherBetter). Drives
+      // delta colors + heatmap gradient. Absent name defaults to true.
+      scoreDirections?: Record<string, boolean>;
+      // Flip + persist a score's direction (from the header dropdown toggle).
+      onToggleScoreDirection?: (scoreName: string) => void;
+    };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     // The raw SQL/ClickHouse expression used in the SELECT clause and as the
@@ -40,5 +63,10 @@ declare module "@tanstack/react-table" {
     fullSql?: string;
     // When true, indicates that the column value may be truncated (e.g. via substring).
     truncated?: boolean;
+    // Custom dropdown items rendered in the column header dropdown menu between
+    // sort options and "Hide column". Used for inline controls like scale selectors.
+    customDropdownItems?: (
+      table: unknown
+    ) => Array<{ label: string; icon?: ReactNode; isActive?: boolean; onClick: () => void }>;
   }
 }

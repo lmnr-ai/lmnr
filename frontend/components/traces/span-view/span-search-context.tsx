@@ -1,5 +1,3 @@
-import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
-import { type EditorView } from "@codemirror/view";
 import {
   createContext,
   type PropsWithChildren,
@@ -11,194 +9,146 @@ import {
   useState,
 } from "react";
 
-interface EditorInstance {
-  id: string;
-  view: EditorView;
-  messageIndex: number;
-  contentPartIndex: number;
+import { type SearchableSource } from "@/components/traces/span-view/searchable";
+
+interface RegisteredSource {
+  source: SearchableSource;
   matchCount: number;
-  containerElement: HTMLElement;
 }
 
-interface SpanSearchContextValue {
+interface SpanSearchStateContextValue {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   totalMatches: number;
   currentIndex: number;
   goToNext: () => void;
   goToPrev: () => void;
-  registerEditor: (
-    id: string,
-    view: EditorView,
-    messageIndex: number,
-    contentPartIndex: number,
-    containerElement: HTMLElement
-  ) => void;
-  unregisterEditor: (id: string) => void;
 }
 
-const SpanSearchContext = createContext<SpanSearchContextValue | null>(null);
-
-export const useSpanSearchContext = () => useContext(SpanSearchContext);
-
-function countMatches(text: string, search: string): number {
-  if (!search.trim()) return 0;
-
-  const lowerText = text.toLowerCase();
-  const lowerSearch = search.toLowerCase();
-  let count = 0;
-  let pos = 0;
-
-  while ((pos = lowerText.indexOf(lowerSearch, pos)) !== -1) {
-    count++;
-    pos += lowerSearch.length;
-  }
-
-  return count;
+interface SpanSearchRegistrationContextValue {
+  registerSource: (source: SearchableSource) => void;
+  unregisterSource: (id: string) => void;
 }
 
-function navigateToMatch(view: EditorView, searchTerm: string, localIndex: number) {
-  view.dispatch({
-    selection: { anchor: 0, head: 0 },
-    scrollIntoView: false,
-  });
+const SpanSearchStateContext = createContext<SpanSearchStateContextValue | null>(null);
+const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContextValue | null>(null);
 
-  closeSearchPanel(view);
-  openSearchPanel(view);
+export const useSpanSearchState = () => useContext(SpanSearchStateContext);
+export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
 
-  view.dispatch({
-    effects: setSearchQuery.of(
-      new SearchQuery({
-        search: searchTerm,
-        caseSensitive: false,
-        literal: true,
-        wholeWord: false,
-        regexp: false,
-      })
-    ),
-  });
-
-  requestAnimationFrame(() => {
-    for (let i = 0; i <= localIndex; i++) {
-      findNext(view);
-    }
-  });
-}
-
-export function SpanSearchProvider({ children }: PropsWithChildren) {
-  const editors = useRef<Map<string, EditorInstance>>(new Map());
-  const updateTimerRef = useRef<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChildren<{ initialSearchTerm?: string }>) {
+  const sources = useRef<Map<string, RegisteredSource>>(new Map());
+  const searchTermRef = useRef(initialSearchTerm ?? "");
+  const [searchTerm, setSearchTermState] = useState(initialSearchTerm ?? "");
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentGlobalIndex, setCurrentGlobalIndex] = useState(0);
 
-  const updateTotalMatches = useCallback(() => {
+  const setSearchTerm = useCallback((term: string) => {
+    searchTermRef.current = term;
+    setCurrentGlobalIndex(0);
+    setSearchTermState(term);
+  }, []);
+
+  const syncTotals = useCallback(() => {
     let total = 0;
-    editors.current.forEach((editor) => {
-      const doc = editor.view.state.doc.toString();
-      const count = countMatches(doc, searchTerm);
-      editor.matchCount = count;
-      total += count;
+    sources.current.forEach((entry) => {
+      total += entry.matchCount;
     });
     setTotalMatches(total);
-  }, [searchTerm]);
-
-  const scheduleUpdate = useCallback(() => {
-    if (updateTimerRef.current !== null) {
-      cancelAnimationFrame(updateTimerRef.current);
-    }
-    updateTimerRef.current = requestAnimationFrame(() => {
-      updateTotalMatches();
-      updateTimerRef.current = null;
+    setCurrentGlobalIndex((prev) => {
+      if (total === 0) return 0;
+      return Math.min(prev, total);
     });
-  }, [updateTotalMatches]);
+  }, []);
 
-  const registerEditor = useCallback(
-    (id: string, view: EditorView, messageIndex: number, contentPartIndex: number, containerElement: HTMLElement) => {
-      editors.current.set(id, {
-        id,
-        view,
-        messageIndex,
-        contentPartIndex,
-        matchCount: 0,
-        containerElement,
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      sources.current.forEach((entry) => {
+        entry.matchCount = entry.source.apply(searchTerm);
       });
-      if (searchTerm) {
-        scheduleUpdate();
+      syncTotals();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [searchTerm, syncTotals]);
+
+  const registerSource = useCallback(
+    (source: SearchableSource) => {
+      const existing = sources.current.get(source.id);
+      if (existing && existing.source !== source) {
+        existing.source.destroy();
+      }
+
+      const matchCount = source.apply(searchTermRef.current);
+      sources.current.set(source.id, { source, matchCount });
+      requestAnimationFrame(() => syncTotals());
+    },
+    [syncTotals]
+  );
+
+  const unregisterSource = useCallback(
+    (id: string) => {
+      const entry = sources.current.get(id);
+      if (entry) {
+        entry.source.destroy();
+        sources.current.delete(id);
+        requestAnimationFrame(() => syncTotals());
       }
     },
-    [searchTerm, scheduleUpdate]
+    [syncTotals]
   );
 
-  const unregisterEditor = useCallback(
-    (id: string) => {
-      editors.current.delete(id);
-      scheduleUpdate();
-    },
-    [scheduleUpdate]
-  );
-
-  const getSortedEditors = useCallback(
-    (): EditorInstance[] =>
-      Array.from(editors.current.values())
+  const getSortedSources = useCallback(
+    (): RegisteredSource[] =>
+      Array.from(sources.current.values())
         .filter((e) => e.matchCount > 0)
         .sort((a, b) => {
-          if (a.messageIndex !== b.messageIndex) return a.messageIndex - b.messageIndex;
-          return a.contentPartIndex - b.contentPartIndex;
+          if (a.source.messageIndex !== b.source.messageIndex) {
+            return a.source.messageIndex - b.source.messageIndex;
+          }
+          return a.source.contentPartIndex - b.source.contentPartIndex;
         }),
     []
   );
 
-  const getEditorForGlobalIndex = useCallback(
-    (globalIndex: number): { editor: EditorInstance; localIndex: number } | null => {
-      const sortedEditors = getSortedEditors();
+  const getSourceForGlobalIndex = useCallback(
+    (globalIndex: number): { entry: RegisteredSource; localIndex: number } | null => {
+      const sorted = getSortedSources();
       let accumulated = 0;
 
-      for (const editor of sortedEditors) {
-        if (globalIndex < accumulated + editor.matchCount) {
+      for (const entry of sorted) {
+        if (globalIndex < accumulated + entry.matchCount) {
           return {
-            editor,
+            entry,
             localIndex: globalIndex - accumulated,
           };
         }
-        accumulated += editor.matchCount;
+        accumulated += entry.matchCount;
       }
 
       return null;
     },
-    [getSortedEditors]
+    [getSortedSources]
   );
 
   const goToGlobalMatch = useCallback(
     (globalIndex: number) => {
-      const result = getEditorForGlobalIndex(globalIndex);
+      const result = getSourceForGlobalIndex(globalIndex);
       if (!result) return;
 
-      const { editor, localIndex } = result;
+      const { entry, localIndex } = result;
 
       setCurrentGlobalIndex(globalIndex + 1);
 
-      editors.current.forEach((ed) => {
-        if (ed.id !== editor.id) {
-          ed.view.dispatch({
-            selection: { anchor: 0, head: 0 },
-          });
+      sources.current.forEach((other) => {
+        if (other.source.id !== entry.source.id) {
+          other.source.clearActive();
         }
       });
 
-      editor.containerElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
-      });
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          navigateToMatch(editor.view, searchTerm, localIndex);
-        });
-      });
+      entry.source.goTo(localIndex);
     },
-    [getEditorForGlobalIndex, searchTerm]
+    [getSourceForGlobalIndex]
   );
 
   const goToNext = useCallback(() => {
@@ -213,32 +163,7 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
     goToGlobalMatch(prevIndex);
   }, [totalMatches, currentGlobalIndex, goToGlobalMatch]);
 
-  useEffect(() => {
-    if (updateTimerRef.current !== null) {
-      cancelAnimationFrame(updateTimerRef.current);
-    }
-    updateTimerRef.current = requestAnimationFrame(() => {
-      updateTotalMatches();
-      updateTimerRef.current = null;
-    });
-
-    return () => {
-      if (updateTimerRef.current !== null) {
-        cancelAnimationFrame(updateTimerRef.current);
-        updateTimerRef.current = null;
-      }
-    };
-  }, [searchTerm, updateTotalMatches]);
-
-  useEffect(() => {
-    if (totalMatches > 0 && currentGlobalIndex === 0) {
-      setCurrentGlobalIndex(1);
-    } else if (totalMatches === 0) {
-      setCurrentGlobalIndex(0);
-    }
-  }, [totalMatches, currentGlobalIndex]);
-
-  const value = useMemo(
+  const stateValue = useMemo(
     () => ({
       searchTerm,
       setSearchTerm,
@@ -246,21 +171,31 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
       currentIndex: currentGlobalIndex,
       goToNext,
       goToPrev,
-      registerEditor,
-      unregisterEditor,
     }),
-    [searchTerm, totalMatches, currentGlobalIndex, goToNext, goToPrev, registerEditor, unregisterEditor]
+    [searchTerm, setSearchTerm, totalMatches, currentGlobalIndex, goToNext, goToPrev]
+  );
+
+  const registrationValue = useMemo(
+    () => ({
+      registerSource,
+      unregisterSource,
+    }),
+    [registerSource, unregisterSource]
   );
 
   useEffect(
     () => () => {
-      if (updateTimerRef.current !== null) {
-        cancelAnimationFrame(updateTimerRef.current);
-      }
-      editors.current.clear();
+      sources.current.forEach((entry) => entry.source.destroy());
+      sources.current.clear();
     },
     []
   );
 
-  return <SpanSearchContext.Provider value={value}>{children}</SpanSearchContext.Provider>;
+  return (
+    <SpanSearchStateContext.Provider value={stateValue}>
+      <SpanSearchRegistrationContext.Provider value={registrationValue}>
+        {children}
+      </SpanSearchRegistrationContext.Provider>
+    </SpanSearchStateContext.Provider>
+  );
 }

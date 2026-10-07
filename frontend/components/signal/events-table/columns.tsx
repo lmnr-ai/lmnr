@@ -1,13 +1,248 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import React from "react";
+import { Check, X } from "lucide-react";
+import React, { useMemo } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
+import SignalVersion from "@/components/signal/signal-version";
+import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
+import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { Badge } from "@/components/ui/badge";
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono.tsx";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
+import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type EventRow } from "@/lib/events/types.ts";
+import { type SpanType } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
-export const eventsTableColumns: ColumnDef<EventRow>[] = [
+function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
+  if (!description) {
+    return <span>{name}</span>;
+  }
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-default">{name}</span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-[250px]">
+          <p>{description}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function EnumCell({ value }: { value: string }) {
+  return (
+    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+      {value}
+    </span>
+  );
+}
+
+function BooleanCell({ value }: { value: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {value ? <Check className="size-4 text-green-500" /> : <X className="size-4 text-muted-foreground" />}
+      <span className="text-secondary-foreground">{value ? "true" : "false"}</span>
+    </span>
+  );
+}
+
+function getColumnSize(type: SchemaFieldType): number {
+  switch (type) {
+    case "boolean":
+      return 80;
+    case "number":
+      return 120;
+    case "enum":
+      return 160;
+    case "string":
+      return 400;
+  }
+}
+
+function parsePayloadField(payload: string, fieldName: string): unknown {
+  try {
+    const parsed = JSON.parse(payload);
+    return parsed[fieldName];
+  } catch {
+    return null;
+  }
+}
+
+function PayloadText({
+  text,
+  eventId,
+  spanTypes,
+}: {
+  text: string;
+  eventId: string;
+  spanTypes?: Record<string, string>;
+}) {
+  const [, setTraceParams] = useSignalTraceParams();
+
+  const callbacks = useMemo<SpanReferenceCallbacks>(
+    () => ({
+      resolveSpanId: async () => null,
+      getSpanType: (uuid) => spanTypes?.[uuid] as SpanType | undefined,
+      onSelectSpan: ({ traceId, spanId }) => {
+        if (!traceId) return;
+        void setTraceParams(
+          {
+            traceId,
+            eventId,
+            spanId: spanId ?? null,
+          },
+          { history: "replace" }
+        );
+      },
+    }),
+    [setTraceParams, spanTypes, eventId]
+  );
+
+  return <>{renderSpanReferences(text, callbacks) ?? text}</>;
+}
+
+/**
+ * Render the snippet text with the matched span wrapped in `<mark>`. Offsets
+ * are UTF-16 code units (what the backend produces, what JS `slice` consumes)
+ * so emoji/CJK content stays aligned. Span-link parsing is intentionally not
+ * applied here — the snippet is a truncated window and a link that straddles
+ * the boundary would render half-broken.
+ *
+ * No `+N` count badge here (unlike `SnippetPreview` for traces): every
+ * matched field renders in its own column, so there are no hidden matches a
+ * count badge would point at.
+ */
+function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
+  const { text, highlight } = snippet;
+  const [start, end] = highlight;
+  return (
+    <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
+      {text.slice(0, start)}
+      <mark className="font-medium text-primary bg-primary/15 rounded px-0.5">{text.slice(start, end)}</mark>
+      {text.slice(end)}
+    </span>
+  );
+}
+
+// Mirrors PAYLOAD_SORT_FIELD_RE in lib/actions/events/utils.ts: the server
+// rejects non-identifier field names in ORDER BY and silently falls back to
+// timestamp DESC, so such columns must not be offered as sortable.
+const SORTABLE_FIELD_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
+  const columnId = `payload:${field.name}`;
+
+  return {
+    id: columnId,
+    accessorFn: (row) => parsePayloadField(row.payload, field.name),
+    header: () => <PayloadFieldHeader name={field.name} description={field.description} />,
+    size: getColumnSize(field.type),
+    // String payloads are free-text and sorted lexically server-side would be
+    // surprising; only typed fields (number/boolean/enum) are sortable.
+    enableSorting: field.type !== "string" && SORTABLE_FIELD_NAME_RE.test(field.name),
+    cell: ({ row, getValue }) => {
+      const snippet = row.original.fieldSnippets?.[field.name];
+      if (snippet) {
+        return <HighlightedSnippet snippet={snippet} />;
+      }
+
+      const value = getValue();
+      if (value === null || value === undefined) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+
+      switch (field.type) {
+        case "boolean":
+          return <BooleanCell value={Boolean(value)} />;
+        case "enum":
+          return <EnumCell value={String(value)} />;
+        case "number":
+          return <span className="tabular-nums">{String(value)}</span>;
+        case "string":
+          return (
+            <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
+              <PayloadText text={String(value)} eventId={row.original.id} spanTypes={row.original.spanTypes} />
+            </span>
+          );
+      }
+    },
+  };
+}
+
+function createPayloadFilter(field: SchemaField): ColumnFilter {
+  switch (field.type) {
+    case "number":
+      return {
+        name: field.name,
+        key: `payload.${field.name}`,
+        dataType: "number",
+      };
+    case "boolean":
+      return {
+        name: field.name,
+        key: `payload.${field.name}`,
+        dataType: "boolean",
+      };
+    case "enum":
+      return {
+        name: field.name,
+        key: `payload.${field.name}`,
+        dataType: "enum",
+        options: (field.enumValues ?? []).map((v) => ({ label: v, value: v })),
+      };
+    default:
+      return {
+        name: field.name,
+        key: `payload.${field.name}`,
+        dataType: "string",
+      };
+  }
+}
+
+const SEVERITY_STYLES: Record<number, string> = {
+  0: "rounded-3xl mr-1 text-muted-foreground/60",
+  1: "rounded-3xl mr-1 text-orange-400/80",
+  2: "rounded-3xl mr-1 text-red-400/100",
+};
+
+function SeverityCell({ value }: { value: number }) {
+  const className = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
+  const label = SEVERITY_LABELS[value as keyof typeof SEVERITY_LABELS] ?? "Info";
+  return (
+    <Badge variant="outline" className={cn("rounded-full font-medium", className)}>
+      {label}
+    </Badge>
+  );
+}
+
+const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
+  {
+    accessorKey: "timestamp",
+    header: "Timestamp",
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    size: 140,
+    id: "timestamp",
+    enableSorting: true,
+  },
+  {
+    accessorKey: "severity",
+    header: "Severity",
+    cell: (row) => <SeverityCell value={Number(row.getValue())} />,
+    size: 120,
+    id: "severity",
+    enableSorting: true,
+  },
+];
+
+const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
   {
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
@@ -18,36 +253,31 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
   {
     accessorKey: "traceId",
     header: "Trace ID",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-    size: 100,
+    cell: (row) => {
+      const traceId = String(row.getValue());
+      return (
+        <div className="flex items-center min-w-0">
+          <CopyTooltip value={traceId} delayDuration={300} className="min-w-0 truncate">
+            <span className="font-mono text-xs truncate" dir="rtl">
+              {traceId}
+            </span>
+          </CopyTooltip>
+        </div>
+      );
+    },
+    size: 180,
     id: "traceId",
   },
   {
-    id: "payload",
-    accessorKey: "payload",
-    header: "Payload",
-    accessorFn: (row) => row.payload,
-    cell: ({ getValue, column }) => (
-      <JsonTooltip
-        data={getValue()}
-        columnSize={column.getSize()}
-        className="line-clamp-4 whitespace-pre-wrap break-words"
-      />
-    ),
-    size: 840,
-  },
-  {
-    accessorKey: "timestamp",
-    header: "Timestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    size: 140,
-    id: "timestamp",
+    accessorKey: "signalVersion",
+    header: "Version",
+    cell: (row) => <SignalVersion version={Number(row.getValue())} />,
+    size: 88,
+    id: "signalVersion",
   },
 ];
 
-export const defaultEventsColumnOrder = ["id", "traceId", "payload", "timestamp"];
-
-export const eventsTableFilters: ColumnFilter[] = [
+const staticFilters: ColumnFilter[] = [
   {
     name: "ID",
     key: "id",
@@ -64,8 +294,55 @@ export const eventsTableFilters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: "Payload",
-    key: "payload",
-    dataType: "json",
+    name: "Severity",
+    key: "severity",
+    dataType: "enum",
+    options: [
+      { value: "0", label: "Info" },
+      { value: "1", label: "Warning" },
+      { value: "2", label: "Critical" },
+    ],
+  },
+  {
+    name: "Version",
+    key: "signal_version",
+    dataType: "number",
   },
 ];
+
+// Hidden by default, like Run ID on the runs table: only relevant once you're
+// comparing definitions.
+const defaultEventsColumnVisibility: Record<string, boolean> = {
+  signalVersion: false,
+};
+
+export function buildEventsColumns(schemaFields: SchemaField[]): {
+  columns: ColumnDef<EventRow>[];
+  columnOrder: string[];
+  columnVisibility: Record<string, boolean>;
+  filters: ColumnFilter[];
+} {
+  const validFields = schemaFields.filter((f) => f.name.trim());
+  const payloadColumns = validFields.map(createPayloadColumnDef);
+  const payloadFilters = validFields.map(createPayloadFilter);
+
+  const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
+
+  const columnOrder = [
+    "timestamp",
+    "severity",
+    ...validFields.map((f) => `payload:${f.name}`),
+    "traceId",
+    "id",
+    "signalVersion",
+  ];
+
+  const filters = [...staticFilters, ...payloadFilters];
+
+  return {
+    columns,
+    columnOrder,
+    columnVisibility: defaultEventsColumnVisibility,
+    filters,
+  };
+}

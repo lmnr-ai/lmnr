@@ -1,4 +1,4 @@
-ALTER TYPE "public"."label_source" ADD VALUE 'CODE';--> statement-breakpoint
+ALTER TYPE "label_source" ADD VALUE 'CODE';--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "playgrounds" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "playgrounds" (
 DROP INDEX IF EXISTS "spans_parent_span_id_project_id_start_time_end_time_idx";--> statement-breakpoint
 DROP INDEX IF EXISTS "spans_project_id_idx";--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "playgrounds" ADD CONSTRAINT "playgrounds_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "playgrounds" ADD CONSTRAINT "playgrounds_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

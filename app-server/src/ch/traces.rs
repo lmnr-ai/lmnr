@@ -1,96 +1,14 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
-use clickhouse::Row;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::utils::chrono_to_nanoseconds;
-use super::{ClickhouseInsertable, DataPlaneBatch, Table};
+use super::utils::merge_json_objects;
 use crate::db::spans::{Span, SpanType};
-use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Row)]
-pub struct CHTrace {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub project_id: Uuid,
-    /// Start time in nanoseconds
-    pub start_time: i64,
-    /// End time in nanoseconds
-    pub end_time: i64,
-    pub duration: f64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub total_tokens: i64,
-    pub input_cost: f64,
-    pub output_cost: f64,
-    pub total_cost: f64,
-    pub metadata: String,
-    pub session_id: String,
-    pub user_id: String,
-    pub status: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub top_span_id: Uuid,
-    pub top_span_name: String,
-    pub top_span_type: u8,
-    pub trace_type: u8,
-    pub tags: Vec<String>,
-    pub num_spans: u64,
-    pub has_browser_session: bool,
-    pub span_names: Vec<String>,
-}
-
-impl CHTrace {
-    /// Create CHTrace from database Trace
-    pub fn from_db_trace(trace: &Trace) -> Self {
-        let start_time_ns = trace.start_time().map(chrono_to_nanoseconds).unwrap_or(0);
-        let end_time_ns = trace.end_time().map(chrono_to_nanoseconds).unwrap_or(0);
-
-        let duration = if start_time_ns > 0 && end_time_ns > 0 {
-            (end_time_ns - start_time_ns) as f64 / 1_000_000_000.0 // Convert to seconds
-        } else {
-            0.0
-        };
-
-        CHTrace {
-            id: trace.id(),
-            project_id: trace.project_id(),
-            start_time: start_time_ns,
-            end_time: end_time_ns,
-            duration,
-            input_tokens: trace.input_token_count(),
-            output_tokens: trace.output_token_count(),
-            total_tokens: trace.total_token_count(),
-            input_cost: trace.input_cost(),
-            output_cost: trace.output_cost(),
-            total_cost: trace.cost(),
-            metadata: trace.metadata().map(|m| m.to_string()).unwrap_or_default(),
-            session_id: trace.session_id().unwrap_or_default(),
-            user_id: trace.user_id().unwrap_or_default(),
-            status: trace.status().unwrap_or_default(),
-            top_span_id: trace.top_span_id().unwrap_or(Uuid::nil()),
-            top_span_name: trace.top_span_name().unwrap_or_default(),
-            top_span_type: trace.top_span_type().unwrap_or(0) as u8,
-            trace_type: trace.trace_type() as u8,
-            tags: trace.tags().clone(),
-            num_spans: trace.num_spans() as u64,
-            has_browser_session: trace.has_browser_session().unwrap_or(false),
-            span_names: trace.span_names(),
-        }
-    }
-}
-
-impl ClickhouseInsertable for CHTrace {
-    const TABLE: Table = Table::Traces;
-
-    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
-        DataPlaneBatch::Traces(items)
-    }
-}
-
+/// One batch's trace-stats delta. Folded by `traces_agg` (aggregates) and
+/// `traces_static` (set-once columns); never a cumulative row.
 #[derive(Debug, Clone)]
 pub struct TraceAggregation {
     pub trace_id: Uuid,
@@ -100,6 +18,9 @@ pub struct TraceAggregation {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
+    pub reasoning_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
@@ -136,6 +57,9 @@ impl TraceAggregation {
                         input_tokens: 0,
                         output_tokens: 0,
                         total_tokens: 0,
+                        cache_read_input_tokens: 0,
+                        cache_creation_input_tokens: 0,
+                        reasoning_tokens: 0,
                         input_cost: 0.0,
                         output_cost: 0.0,
                         total_cost: 0.0,
@@ -165,13 +89,21 @@ impl TraceAggregation {
                 None => span.end_time,
             });
 
-            // Sum tokens and costs from SpanUsage
-            entry.input_tokens += span_usage.input_tokens;
-            entry.output_tokens += span_usage.output_tokens;
-            entry.total_tokens += span_usage.total_tokens;
-            entry.input_cost += span_usage.input_cost;
-            entry.output_cost += span_usage.output_cost;
-            entry.total_cost += span_usage.total_cost;
+            // Sum tokens and costs from SpanUsage — LLM spans only. `get_llm_usage_for_span`
+            // computes usage for every span (it reads `gen_ai.usage.*` unconditionally), so a
+            // non-LLM span carrying those attributes would otherwise inflate the trace totals.
+            // This mirrors `prepare_span_for_recording`, which records usage only on LLM spans.
+            if span.is_llm_span() {
+                entry.input_tokens += span_usage.input_tokens;
+                entry.output_tokens += span_usage.output_tokens;
+                entry.total_tokens += span_usage.total_tokens;
+                entry.cache_read_input_tokens += span_usage.cache_read_input_tokens;
+                entry.cache_creation_input_tokens += span_usage.cache_creation_input_tokens;
+                entry.reasoning_tokens += span_usage.reasoning_tokens;
+                entry.input_cost += span_usage.input_cost;
+                entry.output_cost += span_usage.output_cost;
+                entry.total_cost += span_usage.total_cost;
+            }
 
             // Use "any" strategy for these fields (take first non-empty value)
             if entry.session_id.is_none() {
@@ -188,22 +120,25 @@ impl TraceAggregation {
                     }
                 }
             }
-            if entry.status.is_none() {
-                if let Some(status) = &span.status {
-                    if !status.is_empty() {
-                        entry.status = Some(status.clone());
-                    }
+            if let Some(status) = &span.status {
+                if status == "error" {
+                    entry.status = Some("error".to_string());
+                } else if entry.status.is_none() && !status.is_empty() {
+                    entry.status = Some(status.clone());
                 }
             }
-            if entry.metadata.is_none() {
-                if let Some(metadata) = span.attributes.metadata() {
-                    if let Ok(metadata_value) = serde_json::to_value(&metadata) {
-                        entry.metadata = Some(metadata_value);
-                    }
+            if let Some(metadata) = span.attributes.metadata() {
+                if let Ok(metadata_value) = serde_json::to_value(&metadata) {
+                    entry.metadata = Some(match entry.metadata.take() {
+                        Some(existing) => merge_json_objects(existing, metadata_value),
+                        None => metadata_value,
+                    });
                 }
             }
-            if let Some(trace_type) = span.attributes.trace_type() {
-                entry.trace_type = trace_type.clone().into();
+            if entry.trace_type == 0 {
+                if let Some(trace_type) = span.attributes.trace_type() {
+                    entry.trace_type = trace_type.clone().into();
+                }
             }
 
             if span.span_type == SpanType::Evaluation {
@@ -214,6 +149,12 @@ impl TraceAggregation {
                 entry.top_span_id = Some(span.span_id);
                 entry.top_span_name = Some(span.name.clone());
                 entry.top_span_type = span.span_type.clone().into();
+            }
+
+            // An explicit trace name wins over the root span's name, which emitters
+            // that send one (OpenRouter Broadcast) leave generic.
+            if let Some(trace_name) = span.attributes.trace_name() {
+                entry.top_span_name = Some(trace_name);
             }
 
             if entry.top_span_name.is_none() {
@@ -240,5 +181,95 @@ impl TraceAggregation {
         }
 
         trace_aggregations.into_values().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use super::*;
+    use crate::traces::spans::SpanAttributes;
+
+    fn make_span(trace_id: Uuid, span_type: SpanType, output_tokens: i64) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id,
+            parent_span_id: None,
+            name: "test".to_string(),
+            attributes: SpanAttributes::new(HashMap::from([(
+                "gen_ai.usage.output_tokens".to_string(),
+                json!(output_tokens),
+            )])),
+            input: None,
+            output: None,
+            span_type,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            size_bytes: 0,
+        }
+    }
+
+    fn make_usage(output_tokens: i64, total_cost: f64) -> SpanUsage {
+        SpanUsage {
+            input_tokens: 0,
+            output_tokens,
+            total_tokens: output_tokens,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
+            input_cost: 0.0,
+            output_cost: total_cost,
+            total_cost,
+            request_model: None,
+            response_model: None,
+            provider_name: None,
+        }
+    }
+
+    // A Default span carrying `gen_ai.usage.*` must NOT contribute to the trace token/cost
+    // totals — only LLM spans do (LAM-1873).
+    #[test]
+    fn only_llm_spans_contribute_to_trace_usage() {
+        let trace_id = Uuid::new_v4();
+        let spans = vec![
+            make_span(trace_id, SpanType::LLM, 100),
+            make_span(trace_id, SpanType::Default, 50),
+        ];
+        let usage = vec![make_usage(100, 1.5), make_usage(50, 0.5)];
+
+        let aggregations = TraceAggregation::from_spans(&spans, &usage);
+
+        assert_eq!(aggregations.len(), 1);
+        let agg = &aggregations[0];
+        assert_eq!(agg.output_tokens, 100);
+        assert_eq!(agg.total_tokens, 100);
+        assert_eq!(agg.total_cost, 1.5);
+        assert_eq!(agg.num_spans, 2);
+    }
+
+    #[test]
+    fn explicit_trace_name_overrides_root_span_name() {
+        let trace_id = Uuid::new_v4();
+        let mut root = make_span(trace_id, SpanType::LLM, 100);
+        root.name = "LLM Generation".to_string();
+        root.attributes
+            .raw_attributes
+            .insert("trace.name".to_string(), json!("my-agent-run"));
+
+        let aggregations = TraceAggregation::from_spans(&[root], &[make_usage(100, 1.5)]);
+
+        assert_eq!(
+            aggregations[0].top_span_name,
+            Some("my-agent-run".to_string())
+        );
+        // The span tree itself is untouched.
+        assert!(aggregations[0].span_names.contains("LLM Generation"));
     }
 }

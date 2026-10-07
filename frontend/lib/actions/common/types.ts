@@ -1,8 +1,20 @@
 import { z } from "zod/v4";
 
-import { FilterSchema } from "./filters";
+import { FilterSchema } from "./filter-schemas";
 
 export { FilterSchema };
+
+const hasEmptyFilterValue = (value: unknown): boolean => {
+  if (typeof value === "string") {
+    return value.trim() === "";
+  }
+
+  if (Array.isArray(value)) {
+    return value.length === 0 || value.every((item) => typeof item === "string" && item.trim() === "");
+  }
+
+  return false;
+};
 
 export const FiltersSchema = z.object({
   filter: z
@@ -13,6 +25,9 @@ export const FiltersSchema = z.object({
         .map((filter) => {
           try {
             const parsed = JSON.parse(filter);
+            if (hasEmptyFilterValue((parsed as { value?: unknown })?.value)) {
+              return undefined;
+            }
             return FilterSchema.parse(parsed);
           } catch (error) {
             ctx.issues.push({

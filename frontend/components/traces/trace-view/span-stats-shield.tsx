@@ -1,54 +1,68 @@
-import { CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { ArrowRight, CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { memo } from "react";
 
-import { cn, getDurationString } from "@/lib/utils";
-
-const numberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-});
+import { durationMsBetween, formatCostNumber, formatDurationMs, formatTokensCompact } from "@/lib/traces/format";
+import { cn } from "@/lib/utils";
 
 interface SpanStatsShieldProps {
   startTime: string;
   endTime: string;
-  tokens?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   cost?: number | null;
   cacheReadInputTokens?: number | null;
   className?: string;
+  variant?: "badge" | "inline";
 }
 
-export function SpanStatsShield({
+function SpanStatsShieldInner({
   startTime,
   endTime,
-  tokens,
+  inputTokens,
+  outputTokens,
   cost,
   cacheReadInputTokens,
   className,
+  variant = "badge",
 }: SpanStatsShieldProps) {
+  const isInline = variant === "inline";
+  const itemColor = isInline ? "text-muted-foreground" : "text-secondary-foreground";
+  const hasTokens = !!inputTokens || !!outputTokens;
+
   return (
     <div
       className={cn(
-        "items-center gap-2 text-xs bg-muted px-1.5 rounded-md flex flex-shrink-0 animate-in fade-in duration-200",
+        "items-center gap-2 text-xs flex shrink-0",
+        !isInline && "h-6 bg-muted px-1.5 rounded-md animate-in fade-in duration-200",
         className
       )}
     >
-      <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-        <Clock3 size={12} className="min-w-3 min-h-3" />
-        <span>{getDurationString(startTime, endTime)}</span>
+      <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+        <Clock3 size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
+        <span>{formatDurationMs(durationMsBetween(startTime, endTime))}</span>
       </div>
-      {!!tokens && (
-        <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-          <Coins size={14} className="min-w-[14px] min-h-[14px]" />
-          <span>{numberFormatter.format(tokens)}</span>
+      {hasTokens && (
+        <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+          <Coins size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
+          <span>{formatTokensCompact(inputTokens ?? 0)}</span>
           {!!cacheReadInputTokens && (
-            <span className="text-success-bright">({numberFormatter.format(cacheReadInputTokens)})</span>
+            <span className="text-success-bright">({formatTokensCompact(cacheReadInputTokens)})</span>
           )}
+          <ArrowRight size={12} />
+          <span>{formatTokensCompact(outputTokens ?? 0)}</span>
         </div>
       )}
       {!!cost && (
-        <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-          <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
-          <span>${cost.toFixed(4)}</span>
+        <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+          <CircleDollarSign
+            size={isInline ? 12 : 14}
+            className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")}
+          />
+          <span>{formatCostNumber(cost)}</span>
         </div>
       )}
     </div>
   );
 }
+
+export const SpanStatsShield = memo(SpanStatsShieldInner);

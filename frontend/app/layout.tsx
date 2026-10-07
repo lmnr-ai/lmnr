@@ -1,19 +1,33 @@
 import "@/app/globals.css";
 import "@/app/scroll.css";
-
 import { type Metadata } from "next";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
+import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
 import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
+import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
-import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
+import { manrope, sans, sansLanding } from "@/lib/fonts";
+import { description, ogImage, title } from "@/lib/metadata";
+import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
-
-import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
-  title: "Laminar",
+  title: {
+    default: title,
+    template: "%s | Laminar",
+  },
+  description,
+  // Orange icon in dev so a local tab is distinguishable from a prod one.
+  // Both live in public/ rather than app/: an app/favicon.ico is always
+  // prepended to metadata.icons and would win here (vercel/next.js#55767).
+  icons: {
+    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/favicon.ico",
+  },
   keywords: [
     "laminar",
     "evals",
@@ -39,43 +53,46 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar",
-    description: "Understand why your agent failed. Iterate fast to fix it.",
+    title,
+    description,
     siteName: "Laminar",
-    images: {
-      url: "/opengraph-image.png",
-      alt: "Laminar",
-    },
+    url: "https://laminar.sh",
+    images: [ogImage],
   },
   twitter: {
-    card: "summary",
-    description: "Understand why your agent failed. Iterate fast to fix it.",
-    title: "Laminar",
-    images: {
-      url: "/twitter-image.png",
-      alt: "Laminar",
-    },
+    card: "summary_large_image",
+    title,
+    description,
+    images: [ogImage],
   },
 };
 
 export default async function RootLayout({ children }: PropsWithChildren) {
-  const telemetryEnabled = isFeatureEnabled(Feature.POSTHOG);
+  const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
+
+  const posthogEnabled = featureFlags[Feature.POSTHOG];
+  const session = posthogEnabled ? await getServerSession().catch(() => null) : null;
+  const email = session?.user?.email ?? undefined;
 
   return (
-    <html
-      lang="en"
-      className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}
-    >
-      <PostHogProvider telemetryEnabled={telemetryEnabled}>
-        <body className="flex flex-col h-full">
-          <div className="flex">
-            <div className="flex flex-col grow max-w-full min-h-screen">
-              <main className="z-10 flex flex-col grow">{children}</main>
-              <Toaster />
-            </div>
-          </div>
-        </body>
-      </PostHogProvider>
+    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
+      <body className="flex flex-col h-full">
+        <BasePathFetchShim />
+        <FeatureFlagsProvider flags={featureFlags}>
+          <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+            <TooltipProvider delayDuration={0}>
+              <NuqsAdapter>
+                <div className="flex">
+                  <div className="flex flex-col grow max-w-full min-h-screen">
+                    <main className="z-10 flex flex-col grow">{children}</main>
+                    <Toaster />
+                  </div>
+                </div>
+              </NuqsAdapter>
+            </TooltipProvider>
+          </PostHogProvider>
+        </FeatureFlagsProvider>
+      </body>
     </html>
   );
 }

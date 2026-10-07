@@ -27,6 +27,7 @@ export async function POST(req: Request): Promise<Response> {
 
     return Response.json(workspace);
   } catch (error) {
+    console.error(error);
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }

@@ -1,72 +1,35 @@
 import { clamp, has } from "lodash";
 import { createContext, useContext } from "react";
-import { type StoreApi, useStore } from "zustand";
+import { type StoreApi } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
+import type { TraceViewSpan, TranscriptListEntry } from "./types";
 import {
-  buildSpanNameMap,
+  buildTranscriptListEntries,
   computePathInfoMap,
+  computeSubagentGroups,
+  type CondensedSubagentGroup,
   type CondensedTimelineData,
-  groupIntoSections,
   transformSpansToCondensedTimeline,
   transformSpansToTree,
   type TreeSpan,
 } from "./utils";
 
-export const MAX_ZOOM = 18;
+export const MAX_ZOOM = 25;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 
-export type TraceViewSpan = {
-  spanId: string;
-  parentSpanId?: string;
-  traceId: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  attributes: Record<string, any>;
-  spanType: SpanType;
-  path: string;
-  events: SpanEvent[];
-  status?: string;
-  model?: string;
-  pending?: boolean;
-  collapsed: boolean;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cacheReadInputTokens?: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  aggregatedMetrics?: {
-    totalCost: number;
-    totalTokens: number;
-    cacheReadInputTokens?: number;
-    hasLLMDescendants: boolean;
-  };
-};
-
-export type TraceViewListSpan = {
-  spanId: string;
-  parentSpanId?: string;
-  spanType: SpanType;
-  name: string;
-  model?: string;
-  startTime: string;
-  endTime: string;
-  totalTokens: number;
-  cacheReadInputTokens?: number;
-  totalCost: number;
-  pending?: boolean;
-  pathInfo: {
-    display: Array<{ spanId: string; name: string; count?: number }>;
-    full: Array<{ spanId: string; name: string }>;
-  } | null;
-};
+export type {
+  TraceViewListSpan,
+  TraceViewSpan,
+  TranscriptGroupInput,
+  TranscriptGroupSpan,
+  TranscriptListEntry,
+  TranscriptListGroup,
+} from "./types";
 
 export type TraceViewTrace = {
   id: string;
@@ -76,14 +39,47 @@ export type TraceViewTrace = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
   metadata: string;
   status: string;
   traceType: string;
+  topSpanName?: string | null;
+  topSpanType?: SpanType | null;
   visibility: "public" | "private";
   hasBrowserSession: boolean;
+  sessionId?: string;
+  userId?: string;
+  // Ingestion-time-extracted agent task (traces_v0.agent_input).
+  agentInput?: string | null;
+};
+
+export type TraceSignalClusterNode = {
+  id: string;
+  name: string;
+  level: number;
+};
+
+// Client-safe mirror of the server-only TraceSignalEvent in lib/actions/signals/trace.ts;
+// kept in sync manually since that module can't be imported into client code.
+export type TraceSignalEvent = {
+  id: string;
+  signalId: string;
+  traceId: string;
+  payload: string;
+  severity: number;
+  leafClusters: TraceSignalClusterNode[];
+};
+
+export type TraceSignal = {
+  signalId: string;
+  signalName: string;
+  prompt: string;
+  schemaFields: Array<{ name: string; type: string; description?: string }>;
+  events: TraceSignalEvent[];
 };
 
 export interface BaseTraceViewState {
@@ -91,7 +87,6 @@ export interface BaseTraceViewState {
   isTraceLoading: boolean;
   traceError?: string;
   spans: TraceViewSpan[];
-  spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
   selectedSpan?: TraceViewSpan;
@@ -99,13 +94,56 @@ export interface BaseTraceViewState {
   langGraph: boolean;
   sessionTime?: number;
   sessionStartTime?: number;
-  tab: "tree" | "reader";
+  tab: "tree" | "transcript" | "custom";
   hasBrowserSession: boolean;
-  spanTemplates: Record<string, string>;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
   condensedTimelineZoom: number;
+  isCostHeatmapVisible: boolean;
+
+  // Absolute ms time range covered by rows currently visible in the active
+  // transcript/tree virtualizer. Drives the scroll indicator in the condensed
+  // timeline. Undefined when no view is reporting.
+  scrollStartTime?: number;
+  scrollEndTime?: number;
+
+  // Panel visibility
+  spanPanelOpen: boolean;
+  signalsPanelOpen: boolean;
+
+  // True while a react-resizable-panels handle is being dragged. The custom-view
+  // iframe reads this to go pointer-transparent so it can't swallow the drag's
+  // pointer events (the library listens on document and has no drag-state hook).
+  isResizing: boolean;
+
+  // Signal data for the signal events panel
+  traceSignals: TraceSignal[];
+  isTraceSignalsLoading: boolean;
+  activeSignalTabId: string | null;
+
+  // Which fetch's findings the panel has already offered itself for, so a
+  // revalidation doesn't reopen a panel the user closed. Keyed rather than
+  // derived from `traceSignals` being empty: an unkeyed `TraceView` keeps one
+  // store across a trace swap (only `TraceViewSidePanel` keys by trace id), and
+  // a warm SWR cache hands over the next trace's list without ever passing
+  // through empty.
+  signalsOfferedFor: string | null;
+
+  // Set once at store creation. When signal data arrives via fetch, the Header
+  // checks this value to pick the correct default tab.
+  initialSignalId?: string;
+
+  initialSearch: string;
+
+  // Layout options
+  isAlwaysSelectSpan: boolean;
+
+  // Transcript mode: IDs of groups the user has expanded
+  transcriptExpandedGroups: Set<string>;
+
+  /** One-shot scroll request: timeline click → transcript scrolls to group header. */
+  scrollToGroupId: string | null;
 }
 
 export interface BaseTraceViewActions {
@@ -117,7 +155,6 @@ export interface BaseTraceViewActions {
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
-  setSpanPath: (spanPath: string[]) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
@@ -126,8 +163,6 @@ export interface BaseTraceViewActions {
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
-  saveSpanTemplate: (spanPathKey: string, template: string) => void;
-  deleteSpanTemplate: (spanPathKey: string) => void;
   setShowTreeContent: (show: boolean) => void;
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
 
@@ -135,15 +170,29 @@ export interface BaseTraceViewActions {
   setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
   clearCondensedTimelineSelection: () => void;
   setCondensedTimelineZoom: (zoom: number) => void;
+  setIsCostHeatmapVisible: (visible: boolean) => void;
+  selectMaxSpanCost: () => number;
+  setScrollTimeRange: (start?: number, end?: number) => void;
+
+  // Panel visibility actions
+  setSpanPanelOpen: (open: boolean) => void;
+  setSignalsPanelOpen: (open: boolean) => void;
+  setIsResizing: (isResizing: boolean) => void;
+
+  // Signal data actions
+  setTraceSignals: (signals: TraceSignal[], sourceKey: string, preferredSignalId?: string) => void;
+  setIsTraceSignalsLoading: (loading: boolean) => void;
+  setActiveSignalTabId: (id: string | null) => void;
+
+  toggleTranscriptGroup: (groupId: string) => void;
+  requestScrollToGroup: (groupId: string) => void;
+  consumeScrollToGroup: () => void;
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
-  getListData: () => TraceViewListSpan[];
-  getSpanNameInfo: (spanId: string) => { name: string; count?: number } | undefined;
+  getCondensedSubagentGroups: () => CondensedSubagentGroup[];
+  getTranscriptListData: () => TranscriptListEntry[];
   getHasLangGraph: () => boolean;
-  getSpanBranch: <T extends { spanId: string; parentSpanId?: string }>(span: T) => T[];
-  getSpanTemplate: (spanPathKey: string) => string | undefined;
-  getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 }
 
 export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
@@ -151,30 +200,61 @@ export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
 export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
   set: (partial: T | Partial<T> | ((state: T) => T | Partial<T>)) => void,
   get: () => T,
-  options?: { initialTrace?: TraceViewTrace }
+  options?: {
+    initialTrace?: TraceViewTrace;
+    initialSpans?: TraceViewSpan[];
+    isAlwaysSelectSpan?: boolean;
+    initialSignalId?: string;
+    initialSearch?: string;
+  }
 ): BaseTraceViewStore {
   return {
     trace: options?.initialTrace,
     isTraceLoading: false,
     traceError: undefined,
-    spans: [],
+    spans: (options?.initialSpans ?? []).map((span) => ({ ...span, collapsed: false })),
     isSpansLoading: false,
     spansError: undefined,
     selectedSpan: undefined,
     browserSession: options?.initialTrace?.hasBrowserSession || false,
     sessionTime: undefined,
     sessionStartTime: undefined,
-    tab: "tree",
+    tab: "transcript",
     langGraph: false,
-    spanPath: null,
     hasBrowserSession: options?.initialTrace?.hasBrowserSession || false,
-    spanTemplates: {},
     showTreeContent: true,
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
+    isCostHeatmapVisible: false,
+    scrollStartTime: undefined,
+    scrollEndTime: undefined,
+
+    // Panel visibility defaults
+    // spanPanelOpen is intentionally false — in the dynamic (drawer) layout we keep the
+    // span panel closed until the user selects a span. In the full-width trace page the
+    // panel is driven by isAlwaysSelectSpan instead.
+    spanPanelOpen: false,
+    signalsPanelOpen: false,
+    isResizing: false,
+
+    // Signal data defaults
+    traceSignals: [],
+    isTraceSignalsLoading: false,
+    activeSignalTabId: null,
+    signalsOfferedFor: null,
+    initialSignalId: options?.initialSignalId,
+    initialSearch: options?.initialSearch ?? "",
+
+    // Layout options
+    isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
+
+    // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
+    transcriptExpandedGroups: new Set<string>(),
+    scrollToGroupId: null,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
+    setIsResizing: (isResizing: boolean) => set({ isResizing } as Partial<T>),
     setTrace: (trace) => {
       if (typeof trace === "function") {
         const prevTrace = get().trace;
@@ -214,36 +294,29 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const pathInfoMap = computePathInfoMap(filteredSpans);
       return transformSpansToTree(filteredSpans, pathInfoMap);
     },
-    getListData: () => {
+    getTranscriptListData: () => {
       const { spans, condensedTimelineVisibleSpanIds } = get();
+      return buildTranscriptListEntries(spans, condensedTimelineVisibleSpanIds);
+    },
+    getCondensedSubagentGroups: () => computeSubagentGroups(get().spans),
 
-      const selectionFilteredSpans =
-        condensedTimelineVisibleSpanIds.size === 0
-          ? spans
-          : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-      const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
-      const pathInfoMap = computePathInfoMap(spans);
-
-      const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
-        spanId: span.spanId,
-        parentSpanId: span.parentSpanId,
-        spanType: span.spanType,
-        name: span.name,
-        model: span.model,
-        startTime: span.startTime,
-        endTime: span.endTime,
-        totalTokens: span.totalTokens,
-        cacheReadInputTokens: span.cacheReadInputTokens,
-        totalCost: span.totalCost,
-        pending: span.pending,
-        pathInfo: pathInfoMap.get(span.spanId) ?? null,
-      }));
-
-      return lightweightListSpans;
+    toggleTranscriptGroup: (groupId: string) => {
+      const prev = get().transcriptExpandedGroups;
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      set({ transcriptExpandedGroups: next } as Partial<T>);
     },
 
-    setSelectedSpan: (span) => set({ selectedSpan: span } as Partial<T>),
+    requestScrollToGroup: (groupId: string) => set({ scrollToGroupId: groupId } as Partial<T>),
+    consumeScrollToGroup: () => {
+      if (get().scrollToGroupId !== null) set({ scrollToGroupId: null } as Partial<T>);
+    },
+
+    setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),
     selectSpanById: (spanId: string) => {
       const span = get().spans.find((s) => s.spanId === spanId);
       if (span && !span.pending) {
@@ -262,11 +335,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           );
         }
 
-        set({ selectedSpan: span } as Partial<T>);
-        const spanPath = span.attributes?.["lmnr.span.path"];
-        if (spanPath && Array.isArray(spanPath)) {
-          set({ spanPath } as Partial<T>);
-        }
+        get().setSelectedSpan(span);
       }
     },
     setSessionTime: (sessionTime) => set({ sessionTime } as Partial<T>),
@@ -281,21 +350,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       set({ sessionTime: newTime } as Partial<T>);
       return newTime >= maxTime;
     },
-    saveSpanTemplate: (spanPathKey: string, template: string) => {
-      set(
-        (state) =>
-          ({
-            spanTemplates: { ...state.spanTemplates, [spanPathKey]: template },
-          }) as Partial<T>
-      );
-    },
-    deleteSpanTemplate: (spanPathKey: string) => {
-      set((state) => {
-        const newTemplates = { ...state.spanTemplates };
-        delete newTemplates[spanPathKey];
-        return { spanTemplates: newTemplates } as Partial<T>;
-      });
-    },
     setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent } as Partial<T>),
     setCondensedTimelineEnabled: (enabled: boolean) => set({ condensedTimelineEnabled: enabled } as Partial<T>),
     setCondensedTimelineVisibleSpanIds: (ids: Set<string>) =>
@@ -304,6 +358,18 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     setCondensedTimelineZoom: (zoom) => {
       set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) } as Partial<T>);
     },
+    setIsCostHeatmapVisible: (visible: boolean) => set({ isCostHeatmapVisible: visible } as Partial<T>),
+    setScrollTimeRange: (start, end) => set({ scrollStartTime: start, scrollEndTime: end } as Partial<T>),
+    selectMaxSpanCost: () => {
+      const spans = get().spans;
+      let max = 0;
+      for (const span of spans) {
+        if (span.totalCost > max) {
+          max = span.totalCost;
+        }
+      }
+      return max;
+    },
     getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
     setBrowserSession: (browserSession: boolean) => set({ browserSession } as Partial<T>),
     toggleCollapse: (spanId: string) => {
@@ -311,78 +377,50 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span))
       );
     },
-    setSpanPath: (spanPath) => set({ spanPath } as Partial<T>),
     getHasLangGraph: () =>
       !!get().spans.find(
         (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
       ),
-    getSpanBranch: <U extends { spanId: string; parentSpanId?: string }>(span: U): U[] => {
-      const spans = get().spans as unknown as U[];
-      const spanMap = new Map(spans.map((s) => [s.spanId, s]));
 
-      const parentChain: U[] = [];
-      let currentSpanId: string | undefined = span.parentSpanId;
+    // Panel visibility actions
+    setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),
+    setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 
-      while (currentSpanId) {
-        const parentSpan = spanMap.get(currentSpanId);
-        if (!parentSpan) break;
-        parentChain.unshift(parentSpan);
-        currentSpanId = parentSpan.parentSpanId;
-      }
-
-      const descendantPath: U[] = [span];
-      let currentId = span.spanId;
-
-      while (true) {
-        const children = spans.filter((s) => s.parentSpanId === currentId);
-        if (children.length === 0) break;
-
-        const firstChild = children[0];
-        descendantPath.push(firstChild);
-        currentId = firstChild.spanId;
-      }
-
-      return [...parentChain, ...descendantPath];
-    },
-    getSpanNameInfo: (spanId: string) => {
-      const spans = get().spans;
-      const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
-      const spanMap = new Map(
-        spans.map((span) => [
-          span.spanId,
-          {
-            spanId: span.spanId,
-            name: span.name,
-            parentSpanId: span.parentSpanId,
-          },
-        ])
-      );
-      const sections = groupIntoSections(listSpans);
-      const spanNameMap = buildSpanNameMap(sections, spanMap);
-      return spanNameMap.get(spanId);
-    },
-    getSpanTemplate: (spanPathKey: string) => get().spanTemplates[spanPathKey],
-    getSpanAttribute: (spanId: string, attributeKey: string) => {
-      const span = get().spans.find((s) => s.spanId === spanId);
-      return span?.attributes?.[attributeKey];
-    },
+    // Signal data actions
+    // Findings offer the panel once per `sourceKey` (one fetch, so one trace), on
+    // the tab the caller prefers. After that the open state and the active tab are
+    // the user's: the fetch revalidates, and returning the same findings must not
+    // reopen a panel they closed. Keying on the fetch rather than on the list
+    // having been empty is what gives the NEXT trace its own first look — a store
+    // outlives a trace swap under an unkeyed `TraceView`, and a warm SWR cache
+    // replaces the list without it ever passing through empty.
+    // An empty result offers nothing and leaves the key alone, so the panel still
+    // gets its look when that trace's findings arrive.
+    setTraceSignals: (signals: TraceSignal[], sourceKey: string, preferredSignalId?: string) =>
+      set((state) => {
+        const isFirstLook = signals.length > 0 && state.signalsOfferedFor !== sourceKey;
+        if (!isFirstLook) return { traceSignals: signals } as Partial<T>;
+        return {
+          traceSignals: signals,
+          signalsOfferedFor: sourceKey,
+          signalsPanelOpen: true,
+          activeSignalTabId: preferredSignalId ?? signals[0].signalId,
+        } as Partial<T>;
+      }),
+    setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
+    setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
   };
 }
 
 export const TraceViewContext = createContext<StoreApi<BaseTraceViewStore> | undefined>(undefined);
 
-export const useTraceViewBaseStore = <T>(selector: (store: BaseTraceViewStore) => T): T => {
+export const useTraceViewBaseStore = <T>(
+  selector: (store: BaseTraceViewStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(TraceViewContext);
   if (!store) {
     throw new Error("useTraceViewContext must be used within a TraceViewContext provider");
   }
-  return useStore(store, selector);
-};
-
-export const useTraceViewBaseStoreRaw = () => {
-  const store = useContext(TraceViewContext);
-  if (!store) {
-    throw new Error("useTraceViewBaseStore must be used within a TraceViewContext provider");
-  }
-  return store;
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };

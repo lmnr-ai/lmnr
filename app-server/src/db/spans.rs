@@ -86,19 +86,8 @@ pub struct Span {
     pub events: Vec<Event>,
     pub status: Option<String>,
     pub tags: Option<Value>,
-    pub input_url: Option<String>,
-    pub output_url: Option<String>,
     #[serde(default)]
     pub size_bytes: usize,
-}
-
-impl Span {
-    pub fn should_record_to_clickhouse(&self) -> bool {
-        // This function is intended to filter out "signal" spans from record to clickhouse
-        // One of the signal spans is the span that carries the attribute to indicate whether
-        // the trace has a browser session or not and is named "cdp_use.session".
-        !(self.attributes.has_browser_session().unwrap_or(false) && self.name == "cdp_use.session")
-    }
 }
 
 #[cfg(test)]
@@ -182,8 +171,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -405,8 +392,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -504,7 +489,9 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Verify function metadata is PRESERVED
+        // Fallback path: the filter KEEPS tool-def keys so legacy spans (no
+        // producer extraction) still render tools. New-path stripping is
+        // covered by `traces::dedup::tools` tests.
         assert_eq!(
             attrs.get("llm.request.functions.0.name"),
             Some(&json!("get_weather"))
@@ -661,8 +648,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 

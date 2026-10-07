@@ -14,13 +14,13 @@ interface SelectionRect {
 interface SelectionOverlayProps {
   spans: CondensedTimelineSpan[];
   containerRef: React.RefObject<HTMLDivElement | null>;
-  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   onSelectionComplete: (spanIds: Set<string>) => void;
 }
 
 const DRAG_THRESHOLD = 5;
 
-const SelectionOverlay = ({ spans, containerRef, onSelectionComplete }: SelectionOverlayProps) => {
+const SelectionOverlay = ({ spans, containerRef, scrollContainerRef, onSelectionComplete }: SelectionOverlayProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
   const startPos = useRef<{ x: number; y: number } | null>(null);
@@ -40,11 +40,14 @@ const SelectionOverlay = ({ spans, containerRef, onSelectionComplete }: Selectio
 
   const isPointInContainer = useCallback(
     (e: MouseEvent): boolean => {
-      if (!containerRef.current) return false;
-      const rect = containerRef.current.getBoundingClientRect();
+      // Use the scroll container's visible bounds for hit-testing, not the inner content ref.
+      // When zoomed in, the content ref extends beyond the visible area into the span panel.
+      const el = scrollContainerRef.current ?? containerRef.current;
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
       return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
     },
-    [containerRef]
+    [scrollContainerRef, containerRef]
   );
 
   const findSpansInRect = useCallback(

@@ -1,19 +1,13 @@
-pub mod batching;
-pub mod clustering;
-pub mod queue;
+//! Public surface for the clustering feature.
+//!
+//! Implementation lives in `private/` and is gated behind the `signals` cargo
+//! feature (clustering is part of the enterprise signals bundle). With the
+//! feature off, `public.rs` provides no-op stubs and the clustering consumer
+//! worker is never spawned from `main.rs` — OSS builds ingest signal events
+//! without any downstream clustering.
 
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+#[cfg(feature = "signals")]
+pub mod private;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClusteringMessage {
-    pub project_id: Uuid,
-    pub signal_id: Uuid,
-    pub event_id: Uuid,
-    pub content: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClusteringBatchMessage {
-    pub events: Vec<ClusteringMessage>,
-}
+#[cfg(not(feature = "signals"))]
+mod public;

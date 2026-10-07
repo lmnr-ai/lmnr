@@ -132,6 +132,7 @@ const sessionsSelectColumns = [
   "SUM(input_tokens) as inputTokens",
   "SUM(output_tokens) as outputTokens",
   "SUM(total_tokens) as totalTokens",
+  "SUM(cache_read_input_tokens) as cacheReadInputTokens",
   "formatDateTime(MIN(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
   "formatDateTime(MAX(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
   "SUM(end_time - start_time) as duration",
@@ -140,6 +141,8 @@ const sessionsSelectColumns = [
   "SUM(total_cost) as totalCost",
   "any(user_id) as userId",
 ];
+
+export type SessionSortColumn = "start_time" | "end_time" | "duration" | "total_tokens" | "total_cost" | "trace_count";
 
 export interface BuildSessionsQueryOptions {
   columns?: string[];
@@ -150,10 +153,32 @@ export interface BuildSessionsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  sortColumn?: SessionSortColumn;
+  sortDirection?: "ASC" | "DESC";
 }
 
+const SORT_COLUMN_MAP: Record<SessionSortColumn, string> = {
+  start_time: "MIN(start_time)",
+  end_time: "MAX(end_time)",
+  duration: "SUM(end_time - start_time)",
+  total_tokens: "SUM(total_tokens)",
+  total_cost: "SUM(total_cost)",
+  trace_count: "COUNT(*)",
+};
+
 export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
-  const { traceIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
+  const {
+    traceIds = [],
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    columns,
+    sortColumn,
+    sortDirection,
+  } = options;
 
   const whereFilters: Filter[] = [];
   const havingFilters: Filter[] = [];
@@ -213,9 +238,11 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     groupBy: ["session_id"],
     orderBy: [
       {
-        column: "MIN(start_time)",
-        direction: "DESC",
+        column: (sortColumn && SORT_COLUMN_MAP[sortColumn]) || "MIN(start_time)",
+        direction: sortDirection === "ASC" ? "ASC" : "DESC",
       },
+      // Stable tie-breaker: aggregate sort keys produce ties, and a non-deterministic order duplicates/drops rows across pages.
+      { column: "session_id", direction: "ASC" },
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
@@ -224,97 +251,6 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
           offset,
         },
       }),
-  };
-
-  return buildSelectQuery(queryOptions);
-};
-
-export const buildSessionsCountQueryWithParams = (
-  options: Omit<BuildSessionsQueryOptions, "limit" | "offset">
-): QueryResult => {
-  const { traceIds = [], filters, startTime, endTime, pastHours } = options;
-
-  const whereFilters: Filter[] = [];
-  const havingFilters: Filter[] = [];
-
-  const aggregateColumns = new Set([
-    "trace_count",
-    "input_tokens",
-    "output_tokens",
-    "total_tokens",
-    "input_cost",
-    "output_cost",
-    "total_cost",
-    "duration",
-  ]);
-
-  filters.forEach((filter) => {
-    if (aggregateColumns.has(filter.column)) {
-      havingFilters.push(filter);
-    } else {
-      whereFilters.push(filter);
-    }
-  });
-
-  const customConditions: Array<{
-    condition: string;
-    params: QueryParams;
-  }> = [];
-
-  if (traceIds?.length > 0) {
-    customConditions.push({
-      condition: `id IN ({traceIds:Array(UUID)})`,
-      params: { traceIds },
-    });
-  }
-
-  customConditions.push({
-    condition: `session_id != '<null>' AND session_id != ''`,
-    params: {},
-  });
-
-  if (havingFilters.length > 0) {
-    const subqueryOptions: SelectQueryOptions = {
-      select: {
-        columns: ["session_id"],
-        table: "traces",
-      },
-      timeRange: {
-        startTime,
-        endTime,
-        pastHours,
-        timeColumn: "start_time",
-      },
-      filters: whereFilters,
-      columnFilterConfig: sessionsWhereColumnFilterConfig,
-      havingFilters,
-      havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
-      customConditions,
-      groupBy: ["session_id"],
-    };
-
-    const subquery = buildSelectQuery(subqueryOptions);
-
-    return {
-      query: `SELECT COUNT(*) as count FROM (${subquery.query}) as sessions_with_filters`,
-      parameters: subquery.parameters,
-    };
-  }
-
-  const queryOptions: SelectQueryOptions = {
-    select: {
-      columns: ["COUNT(DISTINCT session_id) as count"],
-      table: "traces",
-    },
-    timeRange: {
-      startTime,
-      endTime,
-      pastHours,
-      timeColumn: "start_time",
-    },
-    filters: whereFilters,
-    columnFilterConfig: sessionsWhereColumnFilterConfig,
-    customConditions,
   };
 
   return buildSelectQuery(queryOptions);

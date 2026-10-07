@@ -1,7 +1,9 @@
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
+  createCustomFilter,
   createStringFilter,
   type QueryParams,
   type QueryResult,
@@ -16,8 +18,24 @@ const signalRunsSelectColumns = [
   "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt",
   "status",
   "event_id eventId",
-  "error_message errorMessage"
+  "input_tokens inputTokens",
+  "cache_read_tokens cacheReadTokens",
+  "output_tokens outputTokens",
+  // 0 = the run predates versioning; rendered as an em dash.
+  "signal_version signalVersion",
 ];
+
+const NIL_EVENT_ID = "00000000-0000-0000-0000-000000000000";
+
+// Virtual column: Has event Yes/No in the picker, an `event_id` nil-check in SQL (`ne` inverts the choice).
+const createHasEventFilter = createCustomFilter(
+  (filter, paramKey) => {
+    const wantsEvent = String(filter.value) === "event";
+    const hasEvent = wantsEvent === (filter.operator !== "ne");
+    return hasEvent ? `event_id != {${paramKey}:UUID}` : `event_id = {${paramKey}:UUID}`;
+  },
+  (_filter, paramKey) => ({ [paramKey]: NIL_EVENT_ID })
+);
 
 export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -26,8 +44,18 @@ export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
     ["trace_id", createStringFilter],
     ["trigger_id", createStringFilter],
     ["event_id", createStringFilter],
+    ["has_event", createHasEventFilter],
     ["status", createStringFilter],
-    ["error_message", createStringFilter],
+    [
+      "signal_version",
+      (filter, paramKey) => {
+        const opSymbol = OperatorLabelMap[filter.operator];
+        return {
+          condition: `signal_version ${opSymbol} {${paramKey}:UInt32}`,
+          params: { [paramKey]: parseInt(String(filter.value), 10) || 0 },
+        };
+      },
+    ],
   ]),
 };
 
@@ -48,11 +76,11 @@ export const buildSignalRunsQueryWithParams = (options: BuildSignalRunsQueryOpti
     condition: string;
     params: QueryParams;
   }> = [
-      {
-        condition: "signal_id = {signalId:UUID}",
-        params: { signalId },
-      },
-    ];
+    {
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
+    },
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {

@@ -6,8 +6,10 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
+import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -21,38 +23,36 @@ import {
 } from "./types";
 
 const SwitchTierSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   tier: z.enum(["hobby", "pro"]),
 });
 
 const PaymentPortalSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   returnUrl: z.url(),
 });
 
 export async function getSubscriptionDetails(workspaceId: string): Promise<SubscriptionDetails | null> {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
-  const workspace = await db
-    .select({
-      subscriptionId: workspaces.subscriptionId,
-      tierName: subscriptionTiers.name,
-    })
-    .from(workspaces)
-    .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
-    .where(eq(workspaces.id, workspaceId))
-    .limit(1);
+  const workspace = await db.query.workspaces.findFirst({
+    with: {
+      subscriptionTier: true,
+    },
+    where: eq(workspaces.id, workspaceId),
+  });
 
-  if (!workspace[0]?.subscriptionId) {
+  if (!workspace?.subscriptionId) {
     return null;
   }
 
   const s = stripe();
-  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId, {
+  const subscription = await s.subscriptions.retrieve(workspace.subscriptionId, {
     expand: ["latest_invoice.lines"],
   });
 
-  const tierName = workspace[0].tierName.toLowerCase().trim() as PaidTier;
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const tierName = normalizeTier(workspace.subscriptionTier.name) as PaidTier;
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
@@ -96,6 +96,7 @@ export const getUpcomingInvoice = async (workspaceId: string): Promise<UpcomingI
       amountDue: preview.amount_due,
       currency: preview.currency,
       periodStart: subscriptionLine?.period.start ?? preview.period_start,
+      startingBalance: preview.starting_balance,
       lines: preview.lines.data.map((line) => {
         const priceObj = line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" ? priceObj.lookup_key : null;
@@ -103,6 +104,8 @@ export const getUpcomingInvoice = async (workspaceId: string): Promise<UpcomingI
         return {
           lookupKey,
           amount: line.amount,
+          periodStart: line.period.start,
+          periodEnd: line.period.end,
         };
       }),
     };
@@ -156,12 +159,15 @@ export const cancelSubscription = async (
       amountDue: preview.amount_due,
       currency: preview.currency,
       periodStart: previewLine?.period.start ?? preview.period_start,
+      startingBalance: preview.starting_balance,
       lines: preview.lines.data.map((line) => {
         const priceObj = line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" ? priceObj.lookup_key : null;
         return {
           lookupKey,
           amount: line.amount,
+          periodStart: line.period.start,
+          periodEnd: line.period.end,
         };
       }),
     };
@@ -194,7 +200,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     throw new Error("No active subscription found. Use the checkout page to subscribe.");
   }
 
-  const currentTierName = workspace[0].tierName.toLowerCase().trim();
+  const currentTierName = normalizeTier(workspace[0].tierName);
   if (currentTierName === newTier) {
     throw new Error(`Already on the ${newTier} tier`);
   }
@@ -208,8 +214,29 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
 
   const usage = await getWorkspaceUsage(workspaceId);
 
-  const newBytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes);
-  const newSignalRunsOverage = Math.max(0, usage.totalSignalRuns - newTierConfig.includedSignalRuns);
+  const newMegabytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes) / 1024 / 1024;
+
+  // Stripe limits this number to up to 15 digits with up to 12 decimal places.
+  // We round off to 5 decimal places.
+  let newMegabytesOverageStr = newMegabytesOverage.toFixed(5);
+  // If with decimal point it's longer than 16 chars (15 digits + 1 decimal point), try rounding to integer.
+  if (newMegabytesOverageStr.length > 16) {
+    newMegabytesOverageStr = Math.floor(newMegabytesOverage).toString();
+  }
+  // If still longer than 15 chars (no decimal point), report 10^15 - 1.
+  // This is practically unlikely, as it would mean ~999M petabytes.
+  if (newMegabytesOverageStr.length > 15) {
+    console.error(`CRITICAL: too large number of megabytes for workspace ${workspaceId}: ${newMegabytesOverage}`);
+    newMegabytesOverageStr = (10 ** 15 - 1).toString();
+  }
+
+  // Credited runs are excluded from the Stripe meter baseline.
+  const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
+    usage.uncreditedSignalCostMicroUsd,
+    0,
+    newTierConfig.includedSignalCostMicroUsd
+  );
+  const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
 
@@ -218,18 +245,18 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newPrices = await s.prices.list({
     lookup_keys: [
       newTierConfig.lookupKey,
-      newTierConfig.overageBytesLookupKey,
-      newTierConfig.overageSignalRunsLookupKey,
+      newTierConfig.overageMegabytesLookupKey,
+      newTierConfig.overageSignalCostLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
-  const newBytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageBytesLookupKey);
+  const newMegabytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
-    (p) => p.lookup_key === newTierConfig.overageSignalRunsLookupKey
+    (p) => p.lookup_key === newTierConfig.overageSignalCostLookupKey
   );
 
-  if (!newFlatPrice || !newBytesOveragePrice || !newSignalRunsOveragePrice) {
+  if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {
     throw new Error("Could not resolve new tier prices in Stripe");
   }
 
@@ -243,7 +270,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   await s.subscriptions.update(workspace[0].subscriptionId, {
     items: [
       ...oldUsageItems.map((item) => ({ id: item.id, deleted: true as const })),
-      { price: newBytesOveragePrice.id },
+      { price: newMegabytesOveragePrice.id },
       { price: newSignalRunsOveragePrice.id },
     ],
     proration_behavior: "none",
@@ -269,7 +296,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       timestamp,
       payload: {
         stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageBytes.payloadKey]: String(newBytesOverage),
+        [METER_EVENT_NAMES.overageBytes.payloadKey]: newMegabytesOverageStr,
       },
     }),
     s.billing.meterEvents.create({
@@ -277,7 +304,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       timestamp,
       payload: {
         stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: String(newSignalRunsOverage),
+        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: newSignalCostOverageUsd,
       },
     }),
   ]);

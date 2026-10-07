@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::{
-    quickwit::{FlattenJson, IndexerQueuePayload, client::QuickwitClient},
+    quickwit::{FlattenJson, IndexerQueuePayload, PreprocessForIndexing, client::QuickwitClient},
     worker::MessageHandler,
 };
 
@@ -18,7 +18,10 @@ impl MessageHandler for QuickwitIndexerHandler {
         let index_id = payload.index_id();
         let mut docs = payload.into_documents();
 
-        docs.iter_mut().for_each(|doc| doc.flatten_json());
+        docs.iter_mut().for_each(|doc| {
+            doc.flatten_json();
+            doc.preprocess_for_indexing();
+        });
 
         let result = self.quickwit_client.ingest(index_id, &docs).await;
 

@@ -1,62 +1,158 @@
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type BaseTraceViewStore, createBaseTraceViewSlice, TraceViewContext, type TraceViewTrace } from "./base";
+import {
+  applyDrag,
+  DEFAULT_TARGETS,
+  type ResizablePanel,
+  type Targets,
+  type Visible,
+} from "@/components/traces/trace-view/panel-layout";
+
+import {
+  type BaseTraceViewStore,
+  createBaseTraceViewSlice,
+  TraceViewContext,
+  type TraceViewSpan,
+  type TraceViewTrace,
+} from "./base";
 
 export {
   MAX_ZOOM,
   MIN_ZOOM,
+  type TraceSignal,
   type TraceViewListSpan,
   type TraceViewSpan,
   type TraceViewTrace,
   ZOOM_INCREMENT,
 } from "./base";
+export type { ResizablePanel } from "@/components/traces/trace-view/panel-layout";
 
-export const MIN_TREE_VIEW_WIDTH = 500;
+/**
+ * What kind of state change last affected layout. Drives transition selection
+ * in the layout component (drag/container = instant, visibility = spring).
+ */
+export type LayoutChangeSource = "initial" | "drag" | "container" | "visibility";
 
 interface TraceViewStoreState {
-  treeWidth: number;
+  targets: Targets;
+  maxWidth: number;
+  layoutChangeSource: LayoutChangeSource;
 }
 
 interface TraceViewStoreActions {
-  setTreeWidth: (width: number) => void;
+  resizePanel: (panel: ResizablePanel, delta: number, visible: Visible) => void;
+  setMaxWidth: (maxWidth: number) => void;
 }
 
 type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) =>
+const createTraceViewStore = (options?: {
+  initialTrace?: TraceViewTrace;
+  initialSpans?: TraceViewSpan[];
+  storeKey?: string;
+  isAlwaysSelectSpan?: boolean;
+  initialSignalId?: string;
+  initialSearch?: string;
+}) =>
   createStore<TraceViewStore>()(
     persist(
-      (set, get) => ({
-        ...createBaseTraceViewSlice(set, get, { initialTrace }),
+      (set, get) => {
+        const baseSlice = createBaseTraceViewSlice<TraceViewStore>(set, get, {
+          initialTrace: options?.initialTrace,
+          initialSpans: options?.initialSpans,
+          isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
+          initialSignalId: options?.initialSignalId,
+          initialSearch: options?.initialSearch,
+        });
 
-        treeWidth: MIN_TREE_VIEW_WIDTH,
-        setTreeWidth: (treeWidth) => set({ treeWidth }),
-      }),
+        return {
+          ...baseSlice,
+
+          targets: DEFAULT_TARGETS,
+          maxWidth: Infinity,
+          layoutChangeSource: "initial",
+
+          setMaxWidth: (maxWidth: number) => {
+            const current = get().maxWidth;
+            if (Math.abs(maxWidth - current) < 1) return;
+            set({ maxWidth, layoutChangeSource: "container" } as Partial<TraceViewStore>);
+          },
+
+          resizePanel: (panel, delta, visible) => {
+            const state = get();
+            const next = applyDrag(state.targets, visible, panel, delta, state.maxWidth);
+            if (next === state.targets) return;
+            set({ targets: next, layoutChangeSource: "drag" } as Partial<TraceViewStore>);
+          },
+
+          setSelectedSpan: (span) => {
+            baseSlice.setSelectedSpan(span);
+            set({ layoutChangeSource: "visibility" } as Partial<TraceViewStore>);
+          },
+
+          setSpanPanelOpen: (open) => {
+            baseSlice.setSpanPanelOpen(open);
+            set({ layoutChangeSource: "visibility" } as Partial<TraceViewStore>);
+          },
+        };
+      },
       {
-        name: storeKey ?? "trace-view-state",
+        name: options?.storeKey ?? "trace-view-state",
+        version: 2,
+        migrate: (persistedState, version) => {
+          if (!persistedState || typeof persistedState !== "object") return persistedState as TraceViewStore;
+          const s = persistedState as Record<string, unknown>;
+
+          if (version < 1) s.tab = "transcript";
+
+          if (version < 2) {
+            const trace = s.tracePanelWidth;
+            const span = s.spanPanelWidth;
+            if (typeof trace === "number" && typeof span === "number") {
+              s.targets = { trace, span };
+            }
+            delete s.tracePanelWidth;
+            delete s.spanPanelWidth;
+            delete s.chatPanelWidth;
+          }
+
+          return persistedState as TraceViewStore;
+        },
         partialize: (state) => {
-          const persistentTabs = ["tree", "reader"] as const;
+          const persistentTabs = ["tree", "transcript", "custom"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
-            treeWidth: state.treeWidth,
-            spanPath: state.spanPath,
-            spanTemplates: state.spanTemplates,
+            targets: state.targets,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
           };
         },
         merge: (persistedState, currentState) => {
-          const persisted = persistedState as Partial<TraceViewStore>;
-          const validTabs = ["tree", "reader"] as const;
-          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+          const persisted = (persistedState ?? {}) as Record<string, unknown>;
+          const validTabs = ["tree", "transcript", "custom"] as const;
+          const tab =
+            persisted.tab && validTabs.includes(persisted.tab as (typeof validTabs)[number])
+              ? (persisted.tab as TraceViewStore["tab"])
+              : "transcript";
+
+          const t = persisted.targets as Partial<Targets> | undefined;
+          const targets: Targets =
+            t && typeof t.trace === "number" && typeof t.span === "number"
+              ? { trace: t.trace, span: t.span }
+              : currentState.targets;
 
           return {
             ...currentState,
-            ...persisted,
+            targets,
+            ...(typeof persisted.showTreeContent === "boolean" && { showTreeContent: persisted.showTreeContent }),
+            ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
+              condensedTimelineEnabled: persisted.condensedTimelineEnabled,
+            }),
             tab,
           };
         },
@@ -69,28 +165,57 @@ const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined
 const TraceViewStoreProvider = ({
   children,
   initialTrace,
+  initialSpans,
   storeKey,
-}: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string }>) => {
-  const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
-
-  if (!storeRef.current) {
-    storeRef.current = createTraceViewStore(initialTrace, storeKey);
-  }
+  isAlwaysSelectSpan,
+  initialSignalId,
+  initialSearch,
+}: PropsWithChildren<{
+  initialTrace?: TraceViewTrace;
+  initialSpans?: TraceViewSpan[];
+  storeKey?: string;
+  isAlwaysSelectSpan?: boolean;
+  initialSignalId?: string;
+  initialSearch?: string;
+}>) => {
+  const [storeState] = useState(() =>
+    createTraceViewStore({
+      initialTrace,
+      initialSpans,
+      storeKey,
+      isAlwaysSelectSpan,
+      initialSignalId,
+      initialSearch,
+    })
+  );
 
   return (
-    <TraceViewContext.Provider value={storeRef.current}>
-      <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>
+    <TraceViewContext.Provider value={storeState}>
+      <TraceViewStoreContext.Provider value={storeState}>{children}</TraceViewStoreContext.Provider>
     </TraceViewContext.Provider>
   );
 };
 
-export const useTraceViewStore = <T,>(selector: (store: TraceViewStore) => T): T => {
+export const useTraceViewStore = <T,>(
+  selector: (store: TraceViewStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(TraceViewStoreContext);
   if (!store) {
     throw new Error("useTraceViewStoreContext must be used within a TraceViewStoreContext");
   }
 
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
+};
+
+// Raw store handle (not a selector hook) for consumers that register the whole store, e.g. the
+// Laminar agent reading live trace state for span-reference resolution.
+export const useTraceViewStoreApi = (): StoreApi<TraceViewStore> => {
+  const store = useContext(TraceViewStoreContext);
+  if (!store) {
+    throw new Error("useTraceViewStoreApi must be used within a TraceViewStoreContext");
+  }
+  return store;
 };
 
 export default TraceViewStoreProvider;

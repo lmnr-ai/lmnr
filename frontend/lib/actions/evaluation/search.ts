@@ -12,7 +12,6 @@ export async function getSearchTraceIds(
 
   const spanHits = await searchSpans({
     projectId,
-    traceId: undefined,
     searchQuery: search,
     timeRange: getTimeRangeForEvaluation(evaluationCreatedAt),
     searchType: searchIn as SpanSearchType[],

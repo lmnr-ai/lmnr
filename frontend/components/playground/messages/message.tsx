@@ -113,6 +113,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               </TooltipPortal>
               <TooltipTrigger asChild>
                 <Button
+                  aria-label="Add text message part"
                   onClick={() => append(defaultTextPart)}
                   className={buttonClassName}
                   variant="outline"
@@ -128,6 +129,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               </TooltipPortal>
               <TooltipTrigger asChild>
                 <Button
+                  aria-label="Add image"
                   onClick={() => append(defaultImagePart)}
                   className={buttonClassName}
                   variant="outline"
@@ -146,6 +148,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             </TooltipPortal>
             <TooltipTrigger asChild>
               <Button
+                aria-label="Add tool result part"
                 onClick={() => append(defaultToolResultPart)}
                 className={buttonClassName}
                 variant="outline"
@@ -163,6 +166,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
             </TooltipPortal>
             <TooltipTrigger asChild>
               <Button
+                aria-label="Add tool call part"
                 onClick={() => append(defaultToolCallPart)}
                 className={buttonClassName}
                 variant="outline"
@@ -179,6 +183,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
           </TooltipPortal>
           <TooltipTrigger asChild>
             <Button
+              aria-label="Add message"
               onClick={() => insert(index + 1, defaultMessage)}
               className={buttonClassName}
               variant="outline"
@@ -194,14 +199,20 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
               <TooltipContent>Remove message</TooltipContent>
             </TooltipPortal>
             <TooltipTrigger asChild>
-              <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+              <Button
+                aria-label="Remove message"
+                onClick={() => remove(index)}
+                className={buttonClassName}
+                variant="outline"
+                size="icon"
+              >
                 <CircleMinus className="text-muted-foreground" size={12} />
               </Button>
             </TooltipTrigger>
           </Tooltip>
         )}
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon" className="w-6 h-6 ml-auto">
+          <Button aria-label="Toggle message parts" variant="ghost" size="icon" className="w-6 h-6 ml-auto">
             <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
           </Button>
         </CollapsibleTrigger>

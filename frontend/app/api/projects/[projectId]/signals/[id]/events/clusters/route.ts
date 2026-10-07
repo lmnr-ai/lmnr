@@ -1,26 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getEventClusters } from "@/lib/actions/clusters";
+import { getEventClusters, GetEventClustersSchema } from "@/lib/actions/clusters";
+import { parseUrlParams } from "@/lib/actions/common/utils";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<NextResponse> {
   try {
-    const { projectId } = await params;
-    const eventName = req.nextUrl.searchParams.get("eventName");
+    const { projectId, id: signalId } = await params;
 
-    if (!eventName) {
-      return NextResponse.json({ error: "eventName is required" }, { status: 400 });
+    const parseResult = parseUrlParams(
+      req.nextUrl.searchParams,
+      GetEventClustersSchema.omit({ projectId: true, signalId: true })
+    );
+
+    if (!parseResult.success) {
+      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
     }
 
-    const result = await getEventClusters({
-      projectId,
-      eventName,
-    });
+    const result = await getEventClusters({ ...parseResult.data, projectId, signalId });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      items: result.items,
+      totalEventCount: result.totalEventCount,
+      clusteredEventCount: result.clusteredEventCount,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ success: false, error: prettifyError(error) }, { status: 400 });

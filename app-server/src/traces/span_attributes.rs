@@ -18,6 +18,8 @@ pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
 // This one is not in the open-telemetry specs. See:
 // https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py#L65
 pub const GEN_AI_TOTAL_COST: &str = "gen_ai.usage.cost";
+// Same meaning, OpenRouter Broadcast's spelling.
+pub const GEN_AI_USAGE_TOTAL_COST: &str = "gen_ai.usage.total_cost";
 
 // These are in neither standard.
 pub const GEN_AI_INPUT_COST: &str = "gen_ai.usage.input_cost";
@@ -28,6 +30,103 @@ pub const ASSOCIATION_PROPERTIES_PREFIX: &str = "lmnr.association.properties";
 pub const SPAN_TYPE: &str = "lmnr.span.type";
 pub const SPAN_PATH: &str = "lmnr.span.path";
 pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
+pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
+/// First-sentence hash of the span's system prompt — the "agent identity"
+/// key for static-prompt version tracking (blind to structural scaffolding,
+/// unlike the skeleton hash above).
+pub const SPAN_AGENT_HASH: &str = "lmnr.span.agent_hash";
+/// Marker on virtual spans produced by `POST /v1/traces/metadata`. The
+/// consumer treats them as a metadata patch against an existing trace:
+/// the row is not written to `spans`, doesn't index in Quickwit, and
+/// contributes nothing to trace stats (start/end/tokens/num_spans/top_span/etc.).
+pub const SPAN_METADATA_ONLY: &str = "lmnr.internal.metadata_only";
+/// Raw extracted trace input carried verbatim on a metadata-only virtual
+/// span (LAM-1953). Unlike association-property metadata, this holds the
+/// raw JSON value with NO predefined key — the key is added only on the
+/// deprecated `traces_replacing` merge path; the supplementary RMT table
+/// stores the raw value directly.
+pub const SPAN_TRACE_INPUT: &str = "lmnr.internal.trace_input";
+/// Hex-encoded per-message output hashes (into `deduped_content`) carried
+/// verbatim on a metadata-only virtual span (LAM-1953 rework). The output
+/// path stores hashes, not a rendered string, because every output message
+/// is already content-hashed by the existing dedup pipeline.
+pub const SPAN_TRACE_OUTPUT_HASHES: &str = "lmnr.internal.trace_output_hashes";
+/// Winning span's end time (ns since epoch) accompanying
+/// `SPAN_TRACE_OUTPUT_HASHES`: the RMT version for the `trace_agent_output`
+/// row, so FINAL converges on the latest-ending answer regardless of
+/// insert arrival order.
+pub const SPAN_TRACE_OUTPUT_END_TIME: &str = "lmnr.internal.trace_output_end_time";
+/// Marker on the checkpoints pipeline's own tracing spans, skipped by its producer.
+pub const CHECKPOINT_INTERNAL_SPAN: &str = "lmnr.internal.checkpoint";
 
+// Legacy names (pre-spec). These remain the canonical internal keys our
+// normalization writes into — they are what `db/spans.rs` and the signals
+// pipeline read. New instrumentations use the dotted forms below.
 pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
 pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";
+
+// Current OTel GenAI spec (dotted form). See:
+// https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/
+pub const GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED: &str =
+    "gen_ai.usage.cache_read.input_tokens";
+pub const GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED: &str =
+    "gen_ai.usage.cache_creation.input_tokens";
+
+// pydantic_ai-specific keys under the `gen_ai.usage.details.*` prefix.
+pub const GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS: &str = "gen_ai.usage.details.cache_read_tokens";
+pub const GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS: &str = "gen_ai.usage.details.cache_write_tokens";
+
+// OpenRouter Broadcast breakdowns, subsets of the `{input,output}_tokens` totals.
+pub const GEN_AI_USAGE_INPUT_TOKENS_CACHED: &str = "gen_ai.usage.input_tokens.cached";
+pub const GEN_AI_USAGE_OUTPUT_TOKENS_REASONING: &str = "gen_ai.usage.output_tokens.reasoning";
+
+// Additional usage attributes for cost calculation
+pub const GEN_AI_USAGE_AUDIO_INPUT_TOKENS: &str = "gen_ai.usage.audio_input_tokens";
+pub const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: &str = "gen_ai.usage.audio_output_tokens";
+pub const GEN_AI_USAGE_REASONING_TOKENS: &str = "gen_ai.usage.reasoning_tokens";
+pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS: &str =
+    "gen_ai.usage.cache_creation.input_tokens.ephemeral_5m";
+pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS: &str =
+    "gen_ai.usage.cache_creation.input_tokens.ephemeral_1h";
+pub const GEN_AI_REQUEST_BATCH: &str = "gen_ai.request.batch";
+
+// Service tier
+pub const GEN_AI_RESPONSE_SERVICE_TIER: &str = "gen_ai.response.service_tier";
+pub const GEN_AI_REQUEST_SERVICE_TIER: &str = "gen_ai.request.service_tier";
+pub const OPENAI_RESPONSE_SERVICE_TIER: &str = "openai.response.service_tier";
+pub const OPENAI_REQUEST_SERVICE_TIER: &str = "openai.request.service_tier";
+pub const ANTHROPIC_RESPONSE_SERVICE_TIER: &str = "anthropic.response.service_tier";
+pub const ANTHROPIC_REQUEST_SERVICE_TIER: &str = "anthropic.request.service_tier";
+
+// Newer Vercel AI SDK / Mastra attributes
+pub const AISDK_MODEL_ID: &str = "aisdk.model.id";
+pub const AISDK_MODEL_PROVIDER: &str = "aisdk.model.provider";
+
+// OTel GenAI semantic conventions — structured message attributes
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
+pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
+pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
+pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
+pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
+pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
+pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
+pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
+
+// Plain trace-identity keys, read after the `lmnr.association.properties.*` ones.
+pub const SESSION_ID: &str = "session.id";
+pub const USER_ID: &str = "user.id";
+pub const TRACE_NAME: &str = "trace.name";
+
+// OpenRouter Broadcast: the whole conversation as a JSON string, unlike the
+// indexed OpenLLMetry keys (`gen_ai.prompt.0.content`). See `traces/openrouter.rs`.
+pub const GEN_AI_PROMPT: &str = "gen_ai.prompt";
+pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
+// Duplicate copies of the two above, sent on the same span.
+pub const OPENROUTER_SPAN_INPUT: &str = "span.input";
+pub const OPENROUTER_SPAN_OUTPUT: &str = "span.output";
+// OpenRouter's own span kind: `generation` vs `span` for the child attempts.
+pub const OPENROUTER_SPAN_TYPE: &str = "span.type";
+// The only Broadcast marker present on every span of a trace: resource
+// attributes (`service.name = openrouter`) are dropped by `Span::from_otel_span`.
+pub const OPENROUTER_METADATA_PREFIX: &str = "trace.metadata.openrouter.";

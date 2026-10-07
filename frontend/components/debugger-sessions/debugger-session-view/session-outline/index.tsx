@@ -1,0 +1,216 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { FileText, FlaskConical, MessageCircle, SquareTerminal } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
+
+import { commandIcon } from "../debugger-list/command-block/command-icon";
+import { useDebuggerSessionViewStore } from "../store";
+import { buildRows } from "./utils";
+
+interface SessionOutlineProps {
+  className?: string;
+}
+
+/**
+ * Left-rail session outline: a continuous left track with a single
+ * framer-motion indicator that slides to the active row. One row per block
+ * (trace / eval / text). Active state comes from the store (`activeBlockId`,
+ * written by the virtualized list's scroll tracking) — IntersectionObserver
+ * can't work here because offscreen virtual rows unmount. Clicks route through
+ * `requestScrollToBlock` so the list can scroll to not-yet-mounted blocks.
+ */
+export default function SessionOutline({ className }: SessionOutlineProps) {
+  const blocks = useDebuggerSessionViewStore((s) => s.blocks);
+  const traceRowStates = useDebuggerSessionViewStore((s) => s.traceRowStates);
+  const activeBlockId = useDebuggerSessionViewStore((s) => s.activeBlockId);
+  const requestScrollToBlock = useDebuggerSessionViewStore((s) => s.requestScrollToBlock);
+  const navRef = useRef<HTMLElement>(null);
+
+  // Edge state for the fade gradients: hide the top fade at the very top and
+  // the bottom fade at the very bottom (both hidden when the nav doesn't
+  // scroll at all). Mirrors the blog TOC's scrollable-nav treatment.
+  const [edges, setEdges] = useState({ atTop: true, atBottom: true });
+  const updateEdges = useCallback(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const atTop = el.scrollTop <= 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    setEdges((prev) => (prev.atTop === atTop && prev.atBottom === atBottom ? prev : { atTop, atBottom }));
+  }, []);
+
+  // Rebuild rows only when block order / eval names actually change (not on
+  // every streamed span that mutates traceSpans).
+  // `!` marks a missing trace so the outline rebuilds (dropping its entry) when a
+  // trace flips to missing — block order alone doesn't change in that case.
+  const signature = blocks
+    .map((b) =>
+      b.type === "trace"
+        ? `t${b.traceId}${traceRowStates[b.traceId] === "missing" ? "!" : ""}`
+        : b.type === "evaluation"
+          ? `e${b.evaluation.id}${b.evaluation.name}`
+          : `x${b.id}`
+    )
+    .join("");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => buildRows(blocks, traceRowStates), [signature]);
+
+  const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
+  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
+
+  // `requestScrollToBlock` sets `activeBlockId` on click; fall back to the first
+  // row. Map through `memberIds` so a collapsed command group stays active while
+  // any of its member blocks is the in-view block (not just its first).
+  const active = useMemo(() => {
+    if (activeBlockId) {
+      const owner = rows.find((r) => r.memberIds.includes(activeBlockId));
+      if (owner) return owner.blockId;
+    }
+    return rows[0]?.blockId ?? null;
+  }, [activeBlockId, rows]);
+
+  // Re-derive the edge state when rows change (content height moved without a
+  // scroll event) and when the nav resizes. Keyed on `rows` so the observer
+  // attaches once the nav actually mounts (rows start empty → early return null).
+  useEffect(() => {
+    updateEdges();
+    const el = navRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [rows, updateEdges]);
+
+  // Slide the indicator to the active row (post-layout) and keep it visible.
+  useLayoutEffect(() => {
+    if (!active) return;
+    const el = rowRefs.current.get(active);
+    if (!el) return;
+    setIndicator({ top: el.offsetTop, height: el.offsetHeight });
+    const nav = el.closest("nav");
+    if (nav) {
+      const elRect = el.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      const delta =
+        elRect.top < navRect.top
+          ? elRect.top - navRect.top
+          : elRect.bottom > navRect.bottom
+            ? elRect.bottom - navRect.bottom
+            : 0;
+      if (delta !== 0) nav.scrollBy({ top: delta, behavior: "smooth" });
+    }
+  }, [active, rows]);
+
+  if (rows.length === 0) return null;
+
+  return (
+    // The relative wrapper carries the caller's sticky/size classes and hosts
+    // the edge-fade overlays — they must sit OUTSIDE the scroll port so they
+    // stay clipped to the visible area instead of scrolling with the rows.
+    <div className={cn("relative", className)}>
+      <nav
+        ref={navRef}
+        onScroll={updateEdges}
+        className="no-scrollbar flex max-h-full w-full flex-col gap-6 overflow-y-auto pb-20 pt-1"
+      >
+        <div className="relative flex flex-col">
+          <div className="absolute bottom-0 left-0 top-0 w-px bg-border" />
+          {indicator && (
+            <motion.div
+              className="absolute left-0 w-px bg-primary-foreground"
+              initial={false}
+              animate={{ top: indicator.top, height: indicator.height }}
+              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            />
+          )}
+
+          {rows.map((row) => {
+            const isActive = active === row.blockId;
+            return (
+              <a
+                key={row.blockId}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(row.blockId, el);
+                  else rowRefs.current.delete(row.blockId);
+                }}
+                href="#"
+                onClick={(e) => {
+                  // Not an anchor jump — the target row may be virtualized out
+                  // (unmounted); the list scrolls via the virtualizer instead.
+                  e.preventDefault();
+                  requestScrollToBlock(row.blockId);
+                }}
+                className="group flex h-[30px] items-center pl-4 text-left no-underline"
+              >
+                {row.kind === "trace" && (
+                  <MessageCircle
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-violet-500" : "text-violet-500/70 group-hover:text-llm"
+                    )}
+                  />
+                )}
+                {row.kind === "eval" && (
+                  <FlaskConical
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-emerald-500" : "text-emerald-500/70 group-hover:text-emerald-500"
+                    )}
+                  />
+                )}
+                {row.kind === "command" &&
+                  (row.command ? (
+                    commandIcon(
+                      row.command,
+                      cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )
+                    )
+                  ) : (
+                    <SquareTerminal
+                      className={cn(
+                        "mr-1.5 size-3 shrink-0 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                  ))}
+                {row.kind === "text" && (
+                  <FileText
+                    className={cn(
+                      "mr-1.5 size-3 shrink-0 transition-colors",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                )}
+                <span
+                  className={cn(
+                    "truncate text-sm transition-colors",
+                    isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {row.text}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      </nav>
+      {/* Edge fades: soften the clip when there's more content above/below. */}
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-background to-transparent"
+        initial={false}
+        animate={{ opacity: edges.atTop ? 0 : 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      />
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent"
+        initial={false}
+        animate={{ opacity: edges.atBottom ? 0 : 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      />
+    </div>
+  );
+}

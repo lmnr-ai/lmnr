@@ -13,8 +13,12 @@ use crate::cache::Cache;
 use crate::data_plane::client::DataPlaneClient;
 use crate::db::workspaces::WorkspaceDeployment;
 
+use super::notification_deliveries::CHNotificationDelivery;
+use super::notifications::CHNotification;
 use super::spans::CHSpan;
-use super::traces::CHTrace;
+use super::traces_agg::CHTraceAgg;
+use super::traces_static::CHTraceStatic;
+use super::unique_content::CHUniqueContent;
 use super::{ClickhouseInsertable, ClickhouseTrait};
 
 /// Batched data for data plane write requests.
@@ -23,7 +27,11 @@ use super::{ClickhouseInsertable, ClickhouseTrait};
 #[serde(tag = "table", content = "data", rename_all = "snake_case")]
 pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
-    Traces(Vec<CHTrace>),
+    TracesAgg(Vec<CHTraceAgg>),
+    TracesStatic(Vec<CHTraceStatic>),
+    NotificationDeliveries(Vec<CHNotificationDelivery>),
+    Notifications(Vec<CHNotification>),
+    UniqueContent(Vec<CHUniqueContent>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.
@@ -41,7 +49,10 @@ impl DataPlaneClickhouse {
 
 #[async_trait]
 impl ClickhouseTrait for DataPlaneClickhouse {
-    #[instrument(skip(self, items, config))]
+    #[instrument(
+        skip(self, items, config),
+        fields(table = T::TABLE.as_str(), batch_size = items.len())
+    )]
     async fn insert_batch<T: ClickhouseInsertable>(
         &self,
         items: &[T],

@@ -1,5 +1,4 @@
 import { CheckCircle2, CircleDot, ExternalLink, Loader2 } from "lucide-react";
-import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
@@ -7,18 +6,19 @@ import { Button } from "@/components/ui/button.tsx";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
-import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/types";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface HybridSetupProps {
+  // From props, not useParams: settings render under /project/[projectId], which has no workspaceId segment.
+  workspaceId: string;
   isSaving: boolean;
   isVerified: boolean;
   onVerifiedChange: (verified: boolean) => void;
 }
 
-const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProps) => {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: HybridSetupProps) => {
   const { watch, setValue } = useFormContext<DeploymentManagementForm>();
   const { toast } = useToast();
   const publicKey = watch("publicKey");

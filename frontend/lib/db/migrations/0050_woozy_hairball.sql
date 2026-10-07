@@ -7,4 +7,4 @@ CREATE TABLE "dashboard_charts" (
 	"project_id" uuid NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "dashboard_charts" ADD CONSTRAINT "fk_dashboard_charts_project_id" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "dashboard_charts" ADD CONSTRAINT "fk_dashboard_charts_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;

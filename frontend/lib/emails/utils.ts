@@ -1,16 +1,46 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { Resend } from "resend";
 
-import { type ItemDescription } from "@/lib/actions/checkout/types";
-
 import PaymentFailedEmail from "./payment-failed-email";
+import { LAMINAR_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
-import WelcomeEmail from "./welcome-email";
+import WelcomeEmail, { WELCOME_BANNER_CID } from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
 
 const RESEND = new Resend(process.env.RESEND_API_KEY ?? "_RESEND_API_KEY_PLACEHOLDER");
 
+// Hardcoded to the production top-level domain because all Laminar transactional
+// emails are sent from *@lmnr.ai / *@mail.lmnr.ai; linking to a different TLD
+// (or a self-hosted URL from FRONTEND_URL) degrades email deliverability.
+// /checkout/portal mints a Stripe billing portal session and redirects, so the
+// user lands directly on the Stripe-hosted billing portal (with invoices) instead
+// of having to navigate workspace settings → billing → "Billing portal".
+const billingPortalUrl = (workspaceId: string) =>
+  `https://lmnr.ai/checkout/portal?workspaceId=${encodeURIComponent(workspaceId)}`;
+
+const laminarLogoAttachment = async () => ({
+  content: await readFile(path.join(process.cwd(), "public", "laminar-logo-sm.png")),
+  filename: "laminar-logo-sm.png",
+  contentId: LAMINAR_LOGO_CID,
+});
+
+const welcomeBannerAttachment = async () => ({
+  content: await readFile(path.join(process.cwd(), "public", "welcome-banner-background.png")),
+  filename: "welcome-banner-background.png",
+  contentId: WELCOME_BANNER_CID,
+});
+
+interface InvoiceEmailArgs {
+  email: string;
+  workspaceId: string;
+  total: string;
+  date: string;
+}
+
 export async function sendWelcomeEmail(email: string) {
-  const from = "Robert from Laminar <robert@lmnr.ai>";
+  const from = "Robert from Laminar <robert@mail.lmnr.ai>";
   const subject = "Welcome to Laminar!";
 
   const { data, error } = await RESEND.emails.send({
@@ -18,21 +48,20 @@ export async function sendWelcomeEmail(email: string) {
     to: [email],
     subject,
     react: WelcomeEmail(),
+    attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
   if (error) console.log(error);
 }
 
-export async function sendOnPaymentReceivedEmail(email: string, itemDescriptions: ItemDescription[], date: string) {
+export async function sendOnPaymentReceivedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
   const from = "Laminar team <founders@lmnr.ai>";
-  const subject =
-    itemDescriptions.length === 1
-      ? `Laminar: Payment for ${itemDescriptions[0].shortDescription ?? itemDescriptions[0].productDescription} is received.`
-      : "Laminar: Payment received.";
+  const subject = `Laminar: Payment of ${total} received.`;
   const component = SubscriptionUpdatedEmail({
-    itemDescriptions,
+    total,
     date,
     billedTo: email,
+    billingPortalUrl: billingPortalUrl(workspaceId),
   });
 
   const { data, error } = await RESEND.emails.send({
@@ -40,21 +69,20 @@ export async function sendOnPaymentReceivedEmail(email: string, itemDescriptions
     to: [email],
     subject,
     react: component,
+    attachments: [await laminarLogoAttachment()],
   });
 
   if (error) console.error(error);
 }
 
-export async function sendOnPaymentFailedEmail(email: string, itemDescriptions: ItemDescription[], date: string) {
+export async function sendOnPaymentFailedEmail({ email, workspaceId, total, date }: InvoiceEmailArgs) {
   const from = "Laminar team <founders@lmnr.ai>";
-  const subject =
-    itemDescriptions.length === 1
-      ? `Laminar: Payment for ${itemDescriptions[0].shortDescription ?? itemDescriptions[0].productDescription} failed.`
-      : "Laminar: Payment failed.";
+  const subject = `Laminar: Payment of ${total} failed.`;
   const component = PaymentFailedEmail({
-    itemDescriptions,
+    total,
     date,
     billedTo: email,
+    billingPortalUrl: billingPortalUrl(workspaceId),
   });
 
   const { data, error } = await RESEND.emails.send({
@@ -62,13 +90,14 @@ export async function sendOnPaymentFailedEmail(email: string, itemDescriptions: 
     to: [email],
     subject,
     react: component,
+    attachments: [await laminarLogoAttachment()],
   });
 
   if (error) console.error(error);
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {
-  const from = "Robert from Laminar <robert@lmnr.ai>";
+  const from = "Robert from Laminar <robert@mail.lmnr.ai>";
   const subject = `You are invited to join ${workspaceName} on Laminar`;
 
   const { data, error } = await RESEND.emails.send({
@@ -76,6 +105,7 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     to: [email],
     subject,
     react: WorkspaceInviteEmail({ workspaceName, inviteLink }),
+    attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
   if (error) console.log(error);

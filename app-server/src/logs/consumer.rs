@@ -11,6 +11,7 @@ use crate::{
     ch::{self, logs::CHLog},
     db::DB,
     features::{Feature, is_feature_enabled},
+    mq::MessageQueue,
     utils::limits::update_workspace_bytes_ingested,
     worker::{HandlerError, MessageHandler},
 };
@@ -22,6 +23,7 @@ pub struct LogsHandler {
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
     pub clickhouse: clickhouse::Client,
+    pub queue: Arc<MessageQueue>,
 }
 
 #[async_trait]
@@ -34,17 +36,19 @@ impl MessageHandler for LogsHandler {
             self.db.clone(),
             self.cache.clone(),
             self.clickhouse.clone(),
+            self.queue.clone(),
         )
         .await
     }
 }
 
-#[instrument(skip(messages, db, cache, clickhouse))]
+#[instrument(skip(messages, db, cache, clickhouse, queue))]
 async fn process_logs_batch(
     messages: Vec<RabbitMqLogMessage>,
     db: Arc<DB>,
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     if messages.is_empty() {
         return Ok(());
@@ -88,7 +92,7 @@ async fn process_logs_batch(
     // Update workspace limits cache
     if is_feature_enabled(Feature::UsageLimit) {
         if let Err(e) =
-            update_workspace_bytes_ingested(db, clickhouse, cache, project_id, total_ingested_bytes)
+            update_workspace_bytes_ingested(db, clickhouse, cache, queue, project_id, total_ingested_bytes)
                 .await
         {
             log::error!(

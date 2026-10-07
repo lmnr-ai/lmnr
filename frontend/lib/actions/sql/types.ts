@@ -1,19 +1,29 @@
 import { z } from "zod/v4";
 
-export type GenerationMode = "query" | "eval-expression";
+export type GenerationMode = "query" | "eval-expression" | "trace-expression" | "dataset-expression";
 
 export type GenerationResult = { success: true; result: string } | { success: false; error: string };
 
 export const MetricSchema = z
   .object({
-    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
+    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile", "raw"]),
     column: z.string(),
     args: z.array(z.number()),
     alias: z.string().optional().nullable(),
+    // When true, the column is included in SELECT but hidden from Table chart
+    // rendering. Used for auto-injected click-target columns (trace_id, span_id).
+    // The backend SQL generator ignores this field — it's purely a client-side
+    // rendering hint.
+    hidden: z.boolean().optional(),
   })
-  .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
-    message: "Column is required for this metric function",
-    path: ["column"],
+  .superRefine((data, ctx) => {
+    if (data.fn !== "count" && data.column.trim().length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: data.fn === "raw" ? "SQL expression is required" : "Column is required for this metric function",
+        path: ["column"],
+      });
+    }
   });
 
 export const FilterStringSchema = z.object({
@@ -46,6 +56,7 @@ export const OrderBySchema = z.object({
 
 export const QueryStructureSchema = z.object({
   table: z.string().min(1, "Table is required"),
+  // NOTE: should be "columns", possible future migration
   metrics: z.array(MetricSchema).min(1, "At least one metric is required"),
   dimensions: z.array(z.string().min(1, "Dimension is required")),
   filters: z.array(FilterSchema),

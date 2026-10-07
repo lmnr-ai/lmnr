@@ -1,0 +1,84 @@
+import "@/app/globals.css";
+import { cookies } from "next/headers";
+import { type ReactNode } from "react";
+
+import LaminarAgent, { RouteAgentContext } from "@/components/agent";
+import AnnouncementDetailsDialog from "@/components/announcements/details-dialog";
+import SessionSyncProvider from "@/components/auth/session-sync-provider";
+import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
+import NotificationPanel from "@/components/notifications/notification-panel";
+import ProjectSidebar from "@/components/project/sidebar";
+import ProjectUsageBanner from "@/components/project/usage-banner";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { ProjectContextProvider } from "@/contexts/project-context";
+import { UserContextProvider } from "@/contexts/user-context";
+import { getProjectDetails } from "@/lib/actions/project";
+import { getProjectsByWorkspace } from "@/lib/actions/projects";
+import { getWorkspaceInfo } from "@/lib/actions/workspace";
+import { getDismissedAnnouncementIds, getAnnouncements } from "@/lib/announcements/server";
+import { requireProjectAccess } from "@/lib/authorization";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+const projectSidebarCookieName = "project-sidebar-state";
+
+export default async function ProjectIdLayout(props: { children: ReactNode; params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
+
+  const { children } = props;
+
+  const projectId = params.projectId;
+  const session = await requireProjectAccess(projectId);
+  const announcementsEnabled = isFeatureEnabled(Feature.LAMINAR_CLOUD);
+  const [projectDetails, announcements, dismissedAnnouncementIds] = await Promise.all([
+    getProjectDetails(projectId),
+    announcementsEnabled ? getAnnouncements() : [],
+    announcementsEnabled ? getDismissedAnnouncementIds(session.user.id) : [],
+  ]);
+
+  const user = session.user;
+  const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
+  const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
+  const showBanner =
+    isFeatureEnabled(Feature.SUBSCRIPTION) &&
+    projectDetails.isFreeTier &&
+    projectDetails.gbLimit > 0 &&
+    projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;
+
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get(projectSidebarCookieName)
+    ? cookieStore.get(projectSidebarCookieName)?.value === "true"
+    : true;
+
+  return (
+    <UserContextProvider user={user}>
+      <SessionSyncProvider>
+        <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
+          <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
+          {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
+          {announcementsEnabled && <AnnouncementDetailsDialog />}
+          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
+            <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
+              <ProjectSidebar
+                dismissedAnnouncementIds={dismissedAnnouncementIds}
+                details={projectDetails}
+                announcements={announcements}
+              />
+              <SidebarInset className="relative flex flex-row h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
+                {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
+                    space left of the agent column, rather than under it. */}
+                <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
+                  <NotificationPanel />
+                  {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                  {children}
+                  {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+                </div>
+                {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
+                {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
+              </SidebarInset>
+            </SidebarProvider>
+          </div>
+        </ProjectContextProvider>
+      </SessionSyncProvider>
+    </UserContextProvider>
+  );
+}

@@ -13,6 +13,7 @@ interface CopyLinkButtonProps extends Omit<ButtonProps, "icon"> {
   iconClassName?: string;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  onCopy?: () => void;
 }
 
 export function CopyButton({
@@ -23,6 +24,7 @@ export function CopyButton({
   variant = "outline",
   size = "default",
   children,
+  onCopy,
   ...props
 }: PropsWithChildren<CopyLinkButtonProps>) {
   const [copied, setCopied] = useState(false);
@@ -33,6 +35,7 @@ export function CopyButton({
       e.stopPropagation();
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      onCopy?.();
 
       setTimeout(() => {
         setCopied(false);

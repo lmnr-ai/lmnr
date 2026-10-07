@@ -1,4 +1,4 @@
-ALTER TYPE "public"."span_type" ADD VALUE 'HUMAN_EVALUATOR';--> statement-breakpoint
+ALTER TYPE "span_type" ADD VALUE 'HUMAN_EVALUATOR';--> statement-breakpoint
 --> statement-breakpoint
 ALTER TABLE "spans" DROP CONSTRAINT "unique_span_id_project_id";--> statement-breakpoint
 DROP INDEX "span_path_idx";--> statement-breakpoint

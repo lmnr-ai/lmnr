@@ -1,8 +1,8 @@
-import { formatDate, subYears } from "date-fns";
+import { formatDate, subDays, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 
 import { Badge } from "@/components/ui/badge.tsx";
@@ -12,16 +12,26 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context.tsx";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
+import { QuickRangesList } from "./quick-ranges-list";
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
-import { getTimeDifference, QUICK_RANGES } from "./utils.ts";
+import { type DateRange, getTimeDifference } from "./utils.ts";
+
+const useIsMounted = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
 const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const isMounted = useIsMounted();
 
-  if (!mounted) {
+  if (!isMounted) {
     return (
       <div className="flex items-center space-x-2">
         <Skeleton className="h-4 w-8 rounded-full" />
@@ -32,7 +42,7 @@ const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Dat
 
   return (
     <div className="flex items-center space-x-2">
-      <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
+      <Badge className="pointer-events-none text-xs bg-surface-up group-hover:bg-surface-up-3 py-px px-2 mr-2">
         {getTimeDifference(displayRange.from, displayRange.to)}
       </Badge>
       <span className="text-muted-foreground">
@@ -41,49 +51,6 @@ const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Dat
     </div>
   );
 };
-
-const QuickRangesList = ({
-  pastHours,
-  onSelect,
-  onAbsoluteClick,
-}: {
-  pastHours: string | null;
-  onSelect: (value: string) => void;
-  onAbsoluteClick: () => void;
-}) => (
-  <motion.div
-    key="ranges"
-    initial={{ x: -20, opacity: 0 }}
-    animate={{ x: 0, opacity: 1 }}
-    exit={{ x: -20, opacity: 0 }}
-    transition={{ duration: 0.1 }}
-  >
-    <div className="p-1 w-62">
-      <div className="px-2 py-1.5 text-xs text-muted-foreground mb-1">Quick ranges</div>
-      <div>
-        {QUICK_RANGES.map((range) => (
-          <div
-            key={range.value}
-            className={cn(
-              "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-              pastHours === range.value && "bg-accent text-accent-foreground"
-            )}
-            onClick={() => onSelect(range.value)}
-          >
-            {range.name}
-          </div>
-        ))}
-        <div
-          className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-          onClick={onAbsoluteClick}
-        >
-          <span className="font-medium">Absolute date</span>
-          <ChevronRight className="size-4" />
-        </div>
-      </div>
-    </div>
-  </motion.div>
-);
 
 const TimeSelector = ({
   label,
@@ -163,17 +130,31 @@ const AbsoluteDatePicker = ({
 );
 
 export const DateRangeFilterInner = ({
-  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  disabled = [{ after: new Date() }, { before: subYears(new Date(), 1) }],
   buttonDisabled = false,
   className,
+  quickRanges,
+  hideAbsoluteDate = false,
 }: {
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
   className?: string;
+  quickRanges?: DateRange[];
+  hideAbsoluteDate?: boolean;
 }) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const searchParams = useSearchParams();
+  const { project, settingsHref } = useProjectContext();
+  const featureFlags = useFeatureFlags();
+
+  const isSubscriptionEnabled = featureFlags[Feature.SUBSCRIPTION];
+  const logRetentionDays = project?.logRetentionDays;
+  const maxHours = isSubscriptionEnabled && logRetentionDays != null ? logRetentionDays * 24 : undefined;
+  const retentionDisabled =
+    isSubscriptionEnabled && logRetentionDays != null
+      ? [{ after: new Date() }, { before: subDays(new Date(), logRetentionDays) }]
+      : disabled;
 
   const pastHours = useDateRangeFilterContext((state) => state.pastHours);
   const calendarDate = useDateRangeFilterContext((state) => state.calendarDate);
@@ -208,7 +189,7 @@ export const DateRangeFilterInner = ({
         <Button
           disabled={buttonDisabled}
           variant="outline"
-          className={cn("justify-between text-left font-normal text-xs", className)}
+          className={cn("justify-between text-left font-normal text-xs outline-0 group", className)}
         >
           <DateRangeButton displayRange={getDisplayRange()} />
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />
@@ -221,6 +202,10 @@ export const DateRangeFilterInner = ({
               pastHours={pastHours}
               onSelect={handleQuickRangeSelect}
               onAbsoluteClick={() => setShowCalendar(true)}
+              maxHours={maxHours}
+              billingHref={project ? settingsHref("billing") : undefined}
+              ranges={quickRanges}
+              hideAbsoluteDate={hideAbsoluteDate}
             />
           ) : (
             <AbsoluteDatePicker
@@ -232,7 +217,7 @@ export const DateRangeFilterInner = ({
               onEndTimeChange={setEndTime}
               onBack={() => setShowCalendar(false)}
               onApply={handleCalendarApply}
-              disabled={disabled}
+              disabled={retentionDisabled}
             />
           )}
         </AnimatePresence>
@@ -244,12 +229,14 @@ export const DateRangeFilterInner = ({
 DateRangeFilterInner.displayName = "DateRangeFilterInner";
 
 export default function DateRangeFilter({
-  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  disabled = [{ after: new Date() }, { before: subYears(new Date(), 1) }],
   buttonDisabled = false,
   className,
   mode = "url",
   value,
   onChange,
+  quickRanges,
+  hideAbsoluteDate = false,
 }: {
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
@@ -257,6 +244,8 @@ export default function DateRangeFilter({
   mode?: "url" | "state";
   value?: { pastHours?: string; startDate?: string; endDate?: string };
   onChange?: (value: { pastHours?: string; startDate?: string; endDate?: string }) => void;
+  quickRanges?: DateRange[];
+  hideAbsoluteDate?: boolean;
 }) {
   return (
     <DateRangeFilterProvider
@@ -266,9 +255,16 @@ export default function DateRangeFilter({
       initialEndDate={value?.endDate}
       onChange={onChange}
     >
-      <DateRangeFilterInner disabled={disabled} buttonDisabled={buttonDisabled} className={className} />
+      <DateRangeFilterInner
+        disabled={disabled}
+        buttonDisabled={buttonDisabled}
+        className={className}
+        quickRanges={quickRanges}
+        hideAbsoluteDate={hideAbsoluteDate}
+      />
     </DateRangeFilterProvider>
   );
 }
 
 export { DateRangeFilterProvider } from "./store";
+export { type DateRange } from "./utils";

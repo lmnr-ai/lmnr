@@ -4,10 +4,11 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::AccessPolicy,
     cache::Cache,
     db::DB,
     query_engine::QueryEngine,
-    sql::{ClickhouseReadonlyClient, SqlQueryError},
+    sql::{ClickhouseReadonlyClient, SqlQueryError, SqlQuerySource},
 };
 
 pub async fn get_top_span_id(
@@ -23,6 +24,8 @@ pub async fn get_top_span_id(
         String::from("SELECT top_span_id FROM traces WHERE id = {trace_id:UUID}"),
         project_id,
         HashMap::from([("trace_id".to_string(), Value::String(trace_id.to_string()))]),
+        SqlQuerySource::Internal,
+        AccessPolicy::UNRESTRICTED,
         clickhouse_ro,
         query_engine,
         http_client,

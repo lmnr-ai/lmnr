@@ -1,56 +1,88 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useMemo } from "react";
+import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
+import { memo, useCallback, useMemo, useState } from "react";
+import { shallow } from "zustand/shallow";
 
+import { useLaminarAgentStore } from "@/components/agent";
+import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
+import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
-import { useToast } from "@/lib/hooks/use-toast";
+import { Operator } from "@/lib/actions/common/operators";
+import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
+import SignalEventsPanel from "../signal-events-panel";
+import { HeaderIconButton } from "./header-icon-button";
+import { HeaderLinkButton } from "./header-link-button";
 import CondensedTimelineControls from "./timeline-toggle";
+import TraceDropdown from "./trace-dropdown";
+
+const HEADER_ITEM_CLS = "flex items-center h-7";
+
+const FREE_TIER_RETENTION_DAYS = 7;
+
+// The traces table reads `filter` through nuqs `parseAsArrayOf(parseAsString)`, which
+// splits on unescaped commas — so hand-built `URLSearchParams` shred the filter JSON.
+// Serialize with nuqs so the escaping matches the reader.
+const serializeTracesFilterQuery = createSerializer({
+  filter: parseAsArrayOf(parseAsString),
+  pastHours: parseAsString,
+});
 
 interface HeaderProps {
-  handleClose: () => void;
-  chatOpen: boolean;
-  setChatOpen: (open: boolean) => void;
+  // Undefined ⇒ the close button is hidden (always-open panel).
+  handleClose?: () => void;
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
+  traceId: string;
 }
 
-const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderProps) => {
+const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
+  const { project } = useProjectContext();
+  const featureFlags = useFeatureFlags();
+  const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
+  const openAgent = useLaminarAgentStore((s) => s.open);
+  const collapseAgent = useLaminarAgentStore((s) => s.collapse);
+  const [isSearchAnimating, setIsSearchAnimating] = useState(false);
 
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
-    trace: state.trace,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-  }));
+  const {
+    trace,
+    tab,
+    condensedTimelineEnabled,
+    setCondensedTimelineEnabled,
+    signalsPanelOpen,
+    setSignalsPanelOpen,
+    traceSignals,
+    initialSearch,
+  } = useTraceViewStore(
+    (state) => ({
+      trace: state.trace,
+      tab: state.tab,
+      condensedTimelineEnabled: state.condensedTimelineEnabled,
+      setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+      signalsPanelOpen: state.signalsPanelOpen,
+      setSignalsPanelOpen: state.setSignalsPanelOpen,
+      traceSignals: state.traceSignals,
+      initialSearch: state.initialSearch,
+    }),
+    shallow
+  );
 
-  const { toast } = useToast();
-  const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
-    projectId: projectId as string,
-    params: { type: "trace", traceId: String(trace?.id) },
-  });
-
-  const handleCopyTraceId = useCallback(async () => {
-    if (trace?.id) {
-      await navigator.clipboard.writeText(trace.id);
-      toast({ title: "Copied trace ID", duration: 1000 });
-    }
-  }, [trace?.id, toast]);
+  useTraceSignals(traceId && projectId ? `/api/projects/${projectId}/traces/${traceId}/signals` : null);
 
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
@@ -60,83 +92,170 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     return ps;
   }, [params.evaluationId, searchParams]);
 
+  const signalCount = traceSignals.length;
+
+  const sessionId = trace?.sessionId;
+  const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
+
+  const handleOpenSession = useCallback(() => {
+    if (!hasSession) return;
+    track("sessions", "detail_opened", { source: "trace_header" });
+    const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
+    window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
+  }, [hasSession, sessionId, projectId]);
+
+  const userId = trace?.userId;
+  const hasUser = userId && userId !== "<null>" && userId !== "";
+
+  const { tags: traceTags } = useTraceTags(traceId);
+  const hasRow2 = hasSession || hasUser || traceTags.length > 0;
+
+  const handleOpenUserTraces = useCallback(() => {
+    if (!hasUser) return;
+    const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
+    const query = serializeTracesFilterQuery({
+      filter: [JSON.stringify({ column: "user_id", operator: Operator.Eq, value: userId, dataType: "string" })],
+      pastHours: String(retentionDays * 24),
+    });
+    window.open(`/project/${projectId}/traces${query}`, "_blank");
+  }, [hasUser, userId, projectId, project?.logRetentionDays]);
+
   return (
-    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center min-w-0 gap-2">
+    <div className="relative flex flex-col px-2 pt-1.5 pb-2 flex-shrink-0">
+      {/* Row 1: core trace controls + actions (share justified to end) */}
+      <div className="flex items-center gap-1">
+        <div className="flex items-center flex-1 min-w-0">
           {!params?.traceId && (
-            <div className="flex items-center flex-shrink-0 gap-0.5">
-              <Button variant="ghost" className="px-0.5" onClick={handleClose}>
-                <ChevronsRight className="w-5 h-5" />
-              </Button>
+            <span className={cn(HEADER_ITEM_CLS)}>
+              {handleClose && (
+                <Button
+                  aria-label="Collapse panel"
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-surface-up"
+                  onClick={handleClose}
+                >
+                  <ChevronsRight className="w-4.5 h-4.5" />
+                </Button>
+              )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" className="px-0.5">
-                    <Maximize className="w-4 h-4" />
+                  <Button aria-label="Expand" variant="ghost" size="icon" className="hover:bg-surface-up">
+                    <Maximize className="w-3.5 h-3.5" />
                   </Button>
                 </NextLink>
               )}
-            </div>
+            </span>
           )}
           {trace && (
-            <div className="flex">
-              <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={handleCopyTraceId}>
-                    <Copy size={14} />
-                    Copy trace ID
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
-                    {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
-                    Open in SQL editor
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <span className={HEADER_ITEM_CLS}>
+              <TraceDropdown traceId={traceId} />
+            </span>
           )}
-          <Button
-            onClick={() => setChatOpen(!chatOpen)}
-            variant="outline"
-            className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10"
-          >
-            <div
-              className="overflow-hidden transition-all duration-400"
-              style={{
-                width: chatOpen ? 0 : 14,
-                opacity: chatOpen ? 0 : 1,
-                marginRight: chatOpen ? 0 : 4,
-              }}
-            >
-              <Sparkles size={14} />
-            </div>
-            Chat with trace
-            <div
-              className="overflow-hidden transition-all duration-400"
-              style={{
-                width: chatOpen ? 14 : 0,
-                opacity: chatOpen ? 1 : 0,
-                marginLeft: chatOpen ? 4 : 0,
-              }}
-            >
-              <X size={14} />
-            </div>
-          </Button>
         </div>
-        <div className="flex items-center gap-x-0.5 flex-shrink-0">
-          <Metadata metadata={trace?.metadata} />
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {signalCount > 0 && (
+            <span className={HEADER_ITEM_CLS}>
+              <HeaderIconButton
+                icon={<Radio className={cn({ "text-primary": signalsPanelOpen })} size={14} />}
+                label={`Signals (${signalCount})`}
+                active={signalsPanelOpen}
+                onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
+              />
+            </span>
+          )}
+          {featureFlags[Feature.AGENT] && spans.length > 0 && (
+            <span className={HEADER_ITEM_CLS}>
+              <HeaderIconButton
+                icon={<Sparkles className={cn({ "text-primary": agentOpen })} size={14} />}
+                label="Chat"
+                active={agentOpen}
+                onClick={() => {
+                  if (agentOpen) {
+                    collapseAgent();
+                  } else {
+                    track("sessions", "agent_panel_opened", { surface: "trace_header" });
+                    openAgent();
+                  }
+                }}
+              />
+            </span>
+          )}
+          {trace?.metadata && (
+            <span className={HEADER_ITEM_CLS}>
+              <Metadata metadata={trace?.metadata} />
+            </span>
+          )}
+          <span className={HEADER_ITEM_CLS}>
+            <TraceTagsButton traceId={traceId} />
+          </span>
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
-      </div>
-      {!chatOpen && (
+      {/* Row 2: context pills (session, user, tags) */}
+      {hasRow2 && (
+        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+          {hasSession && (
+            <span className={HEADER_ITEM_CLS}>
+              <HeaderLinkButton
+                icon={<Layers size={14} className="flex-shrink-0" />}
+                label={sessionId}
+                tooltip="Open session in a new tab"
+                onClick={handleOpenSession}
+                className="max-w-56"
+              />
+            </span>
+          )}
+          {hasUser && (
+            <span className={HEADER_ITEM_CLS}>
+              <HeaderLinkButton
+                icon={<User size={14} className="flex-shrink-0" />}
+                label={userId}
+                tooltip="See user traces in a new tab"
+                onClick={handleOpenUserTraces}
+                className="max-w-40"
+              />
+            </span>
+          )}
+          <TraceTagsPills traceId={traceId} />
+        </div>
+      )}
+      <AnimatePresence>
+        {signalsPanelOpen && (
+          <SignalEventsPanel
+            traceId={traceId}
+            onClose={() => {
+              track("traces", "signals_panel_closed");
+              setSignalsPanelOpen(false);
+            }}
+            className="mt-2"
+          />
+        )}
+      </AnimatePresence>
+      {/* Search targets the tree/transcript span list — hide it in custom render view. */}
+      <AnimatePresence initial={false}>
+        {tab !== "custom" && (
+          <motion.div
+            // Clip only while the height animates — a persistent overflow-hidden
+            // would cut off the search suggestions dropdown.
+            className={cn("flex items-center gap-2", isSearchAnimating && "overflow-hidden")}
+            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+            animate={{ height: "auto", opacity: 1, marginTop: 8 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            onAnimationStart={() => setIsSearchAnimating(true)}
+            onAnimationComplete={() => setIsSearchAnimating(false)}
+          >
+            <TraceViewSearch
+              spans={spans}
+              onSubmit={onSearch}
+              className="flex-1"
+              initialSearch={initialSearch || undefined}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {spans.length > 0 && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
       )}
     </div>

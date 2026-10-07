@@ -1,40 +1,38 @@
+use std::sync::Arc;
+
 use futures_util::StreamExt;
 use redis::AsyncCommands;
-use std::sync::Arc;
+
+use crate::cache::connection::ResilientRedisConnection;
 
 use super::{PubSubError, PubSubTrait};
 
-#[derive(Debug)]
 pub struct RedisPubSub {
     client: redis::Client,
-    connection: Arc<redis::aio::MultiplexedConnection>,
+    connection: Arc<ResilientRedisConnection>,
+}
+
+impl std::fmt::Debug for RedisPubSub {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisPubSub").finish_non_exhaustive()
+    }
 }
 
 impl RedisPubSub {
-    pub async fn new(client: &redis::Client) -> Result<Self, PubSubError> {
-        let connection = client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| {
-                log::error!("Redis get connection error: {}", e);
-                PubSubError::InternalError(anyhow::Error::from(e))
-            })?;
-
-        Ok(Self {
-            client: client.clone(),
-            connection: Arc::new(connection),
-        })
+    pub fn new(client: redis::Client, connection: Arc<ResilientRedisConnection>) -> Self {
+        Self { client, connection }
     }
 }
 
 impl PubSubTrait for RedisPubSub {
     async fn publish(&self, channel: &str, message: &str) -> Result<(), PubSubError> {
-        let mut conn = (*self.connection).clone();
+        let mut conn = self.connection.current_clone();
         let result: redis::RedisResult<i32> = conn.publish(channel, message).await;
         match result {
             Ok(_count) => Ok(()),
             Err(e) => {
                 log::error!("Redis publish error: {}", e);
+                self.connection.notify_error();
                 Err(PubSubError::InternalError(anyhow::Error::from(e)))
             }
         }
@@ -44,6 +42,9 @@ impl PubSubTrait for RedisPubSub {
     where
         F: FnMut(String, String) + Send + 'static,
     {
+        // Pub/Sub uses a dedicated, non-multiplexed connection (Redis pins the
+        // subscription state per socket). Resilience here is "drop the stream
+        // and let the caller reconnect" — same as before.
         let mut pubsub = self.client.get_async_pubsub().await.map_err(|e| {
             log::error!("Failed to get async pubsub: {}", e);
             PubSubError::InternalError(anyhow::Error::from(e))

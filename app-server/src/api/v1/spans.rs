@@ -8,9 +8,13 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey, spans::{Span, SpanType}},
+    db::{
+        DB,
+        project_api_keys::ProjectApiKey,
+        spans::{Span, SpanType},
+    },
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     routes::types::ResponseResult,
     traces::{producer::publish_span_messages, spans::SpanAttributes},
     utils::limits::get_workspace_bytes_limit_exceeded,
@@ -44,6 +48,7 @@ pub async fn create_spans(
     request: web::Json<Vec<CreateSpanRequest>>,
     project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
@@ -57,6 +62,7 @@ pub async fn create_spans(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
+            spans_message_queue.as_ref().clone(),
             project_id,
         )
         .await
@@ -90,8 +96,6 @@ pub async fn create_spans(
             status: None,
             events: vec![],
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -99,7 +103,13 @@ pub async fn create_spans(
             span_id: req.span_id,
             trace_id: req.trace_id,
         });
-        messages.push(RabbitMqSpanMessage { span });
+        messages.push(RabbitMqSpanMessage {
+            span,
+            pre_processed: false,
+            input_dedup: None,
+            output_dedup: None,
+            tool_dedup: None,
+        });
     }
 
     publish_span_messages(
@@ -108,6 +118,7 @@ pub async fn create_spans(
         spans_message_queue.as_ref().clone(),
         db,
         cache,
+        spans_stream_publisher.get_ref().clone(),
     )
     .await
     .map_err(|e| {

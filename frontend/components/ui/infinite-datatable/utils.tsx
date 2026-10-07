@@ -10,7 +10,7 @@ export function createCheckboxColumn<TData extends RowData>(options?: CheckboxCo
   return {
     id: "__row_selection",
     enableResizing: false,
-    size: 52,
+    size: 42,
     header: ({ table }) => (
       <Checkbox
         checked={table.getIsAllRowsSelected()}

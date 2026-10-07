@@ -4,13 +4,13 @@ import { v4 } from "uuid";
 import { type SQLTemplate } from "@/components/sql/sql-editor-store.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 
-type Params = { type: "span"; spanId: string } | { type: "trace"; traceId: string };
+type Params = { type: "span"; spanId: string; traceId: string } | { type: "trace"; traceId: string };
 
 function buildQuery(params: Params): { query: string; name: string } {
   switch (params.type) {
     case "span":
       return {
-        query: `SELECT *\nFROM spans\nWHERE span_id = '${params.spanId}'`,
+        query: `SELECT *\nFROM spans\nWHERE trace_id = '${params.traceId}'\n  AND span_id = '${params.spanId}'`,
         name: `Span ${params.spanId}`,
       };
     case "trace":
@@ -65,7 +65,7 @@ export const useOpenInSql = ({ projectId, params }: { projectId: string; params:
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, query, name]);
 
   return { isLoading, openInSql };
 };

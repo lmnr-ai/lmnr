@@ -7,10 +7,14 @@ use serde::{Deserialize, Serialize};
 use crate::{
     db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::producer::push_spans_to_queue,
+    traces::{
+        dedup::{messages::MessageDedup, tools::ToolDedup},
+        rate_limit::{IngestionRateLimiter, IngestionTransport},
+        {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
+    },
     utils::limits::get_workspace_bytes_limit_exceeded,
 };
 use prost::Message;
@@ -18,6 +22,31 @@ use prost::Message;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
     pub span: Span,
+    /// Producer-side preprocessing applied: `parse_and_enrich_attributes` +
+    /// `convert_span_to_provider_format` already ran. Consumer skips them.
+    /// Older agents emit messages without this field; default `false` keeps
+    /// the legacy on-consumer pipeline working unchanged.
+    /// TODO: remove this field
+    #[serde(default)]
+    pub pre_processed: bool,
+    /// Pre-computed dedup verdict for an LLM span's input messages. Storage
+    /// is scoped by the span's group (session, else trace — derived from the
+    /// span itself, so nothing extra rides the wire); trace-new tracking is
+    /// trace-scoped to preserve the "first occurrence per trace" search
+    /// semantic. The consumer treats this as authoritative — it does not
+    /// re-hash or re-check Redis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_dedup: Option<MessageDedup>,
+    /// Pre-computed dedup verdict for an LLM span's output messages. Same
+    /// shape as `input_dedup`. Cross-direction collapse: model output of
+    /// span A and input of span B in the same group emit one
+    /// `unique_content` row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_dedup: Option<MessageDedup>,
+    /// Pre-computed dedup verdict for an LLM span's tool definitions.
+    /// Single hash per span, stored in the same group-scoped table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_dedup: Option<ToolDedup>,
 }
 
 // /v1/traces
@@ -28,14 +57,33 @@ pub async fn process_traces(
     project_api_key: ProjectApiKey,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
+    rate_limiter: web::Data<Option<Arc<IngestionRateLimiter>>>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
-    let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
-        anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
-    })?;
+
+    // Per-project ingestion rate limit, shared with the gRPC path so the
+    // two transports draw from one quota. Checked before decode so a
+    // rate-limited caller doesn't cost us the protobuf/JSON parse.
+    if let Some(limiter) = rate_limiter.get_ref() {
+        if !limiter
+            .check(&cache, project_api_key.project_id, IngestionTransport::Http)
+            .await
+        {
+            return Ok(HttpResponse::TooManyRequests().finish());
+        }
+    }
+
+    let request = match decode_export_trace_request(&req, body) {
+        Ok(request) => request,
+        Err(e) => {
+            return Ok(HttpResponse::BadRequest()
+                .body(format!("Failed to decode ExportTraceServiceRequest: {e}")));
+        }
+    };
     let spans_message_queue = spans_message_queue.as_ref().clone();
 
     if is_feature_enabled(Feature::UsageLimit) {
@@ -43,6 +91,7 @@ pub async fn process_traces(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
+            spans_message_queue.clone(),
             project_api_key.project_id,
         )
         .await
@@ -61,6 +110,7 @@ pub async fn process_traces(
         spans_message_queue,
         db,
         cache,
+        spans_stream_publisher.get_ref().clone(),
     )
     .await?;
     if response.partial_success.is_some() {
@@ -74,5 +124,26 @@ pub async fn process_traces(
         Ok(HttpResponse::Ok().keep_alive().finish())
     } else {
         Ok(HttpResponse::Ok().finish())
+    }
+}
+
+/// Dispatch on `Content-Type`: `application/json` is OTLP/HTTP+JSON, anything else
+/// (including missing) falls through to OTLP/HTTP+protobuf — matches what every
+/// existing SDK sends today.
+fn decode_export_trace_request(
+    req: &HttpRequest,
+    body: Bytes,
+) -> Result<ExportTraceServiceRequest, anyhow::Error> {
+    let content_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if content_type.starts_with("application/json") {
+        decode_export_trace_service_request(&body)
+            .map_err(|e| anyhow::anyhow!("OTLP/JSON decode failed: {e}"))
+    } else {
+        ExportTraceServiceRequest::decode(body)
+            .map_err(|e| anyhow::anyhow!("OTLP/protobuf decode failed: {e}"))
     }
 }

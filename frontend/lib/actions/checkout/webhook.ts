@@ -1,12 +1,27 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import {
+  deleteHardLimitNotification,
+  invalidateProjectCacheForWorkspace,
+  invalidateUsageWarningsCacheForWorkspace,
+} from "@/lib/actions/usage/utils";
+import { preservePrivacyModeOnDowngrade } from "@/lib/actions/workspace/settings";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
+import {
+  subscriptionTiers,
+  users,
+  userSubscriptionInfo,
+  workspaceAddons,
+  workspaces,
+  workspaceUsage,
+  workspaceUsageLimits,
+  workspaceUsageWarnings,
+} from "@/lib/db/migrations/schema";
 
-import { DATAPLANE_ADDON_LOOKUP_KEY } from "./types";
+import { DATAPLANE_ADDON_LOOKUP_KEY, type PaidTier, TIER_CONFIG, type TierConfigEntry } from "./types";
 
 interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
@@ -15,6 +30,13 @@ interface ManageWorkspaceSubscriptionEventArgs {
   subscriptionId: string;
   cancel?: boolean;
 }
+
+// DB tier rows may carry either the old "Hobby" or the new "Starter" display name
+// for the internal "hobby" tier; normalize both to the internal key.
+const normalizeTierName = (name?: string | null): string | undefined => {
+  const key = name?.trim().toLowerCase();
+  return key === "starter" ? "hobby" : key;
+};
 
 export async function getUserSubscriptionInfo(
   email: string
@@ -49,14 +71,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
       subscriptionTier: true,
     },
   });
-  const currentTier = workspace?.subscriptionTier?.name.trim().toLowerCase();
+  const currentTier = normalizeTierName(workspace?.subscriptionTier?.name);
 
-  await db
+  const updatedRows = await db
     .update(workspaces)
     .set({
       subscriptionId,
       tierId: sql`CASE
-      WHEN ${cancel ?? false} THEN 1 
+      WHEN ${cancel ?? false} THEN 1
       ELSE (
         SELECT id
         FROM subscription_tiers
@@ -69,9 +91,74 @@ export const manageWorkspaceSubscriptionEvent = async ({
       // - the webhook event contains actual tier change
       ...(currentTier === "free" ? { resetTime: sql`now()` } : {}),
     })
-    .where(eq(workspaces.id, workspaceId));
+    .where(eq(workspaces.id, workspaceId))
+    .returning({ tierId: workspaces.tierId });
 
-  await updateUsageCacheForWorkspace(workspaceId);
+  if (workspace && currentTier === "free") {
+    await db
+      .insert(workspaceUsage)
+      .values({
+        workspaceId: workspace.id,
+        bytes: 0,
+        signalCost: 0,
+        lastReportedDate: sql`date_trunc('day', now())`,
+      })
+      .onConflictDoUpdate({
+        target: workspaceUsage.workspaceId,
+        set: {
+          bytes: 0,
+          signalCost: 0,
+          lastReportedDate: sql`date_trunc('day', now())`,
+        },
+      });
+  }
+
+  if (cancel) {
+    await db.delete(workspaceUsage).where(eq(workspaceUsage.workspaceId, workspaceId));
+  }
+  await updateUsageCacheForWorkspace(workspaceId, true, true);
+  if (updatedRows.length === 0) {
+    return;
+  }
+  const newTierId = updatedRows[0].tierId;
+  try {
+    const newTier = await db.query.subscriptionTiers.findFirst({
+      where: eq(subscriptionTiers.id, newTierId),
+    });
+    const newTierName = normalizeTierName(newTier?.name);
+    const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
+    const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
+    const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
+    // Run limit and Hobby-overage-warning cleanup on every tier transition so that
+    // cancellations (Hobby → Free) also clear Hobby-specific defaults. Otherwise a
+    // later upgrade to Pro would inherit them.
+    await upsertDefaultTierUsageLimits({
+      workspaceId,
+      newTierName: newPaidTier,
+      currentTierName: currentPaidTier,
+    });
+    if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
+      await clearHobbyOverageWarnings(workspaceId);
+    }
+    // A plan change must never lower Privacy Mode protection: stamp the
+    // protection floor when an unset workspace leaves a default-ON tier for a
+    // default-OFF one (e.g. Pro → Free).
+    await preservePrivacyModeOnDowngrade(workspaceId, currentTier, newTierName);
+    if (newPaidTier) {
+      await insertNewTierUsageWarnings({
+        workspaceId,
+        newTierName: newPaidTier,
+        newTierConfig: TIER_CONFIG[newPaidTier],
+        currentTierConfig,
+      });
+    }
+    await Promise.all([
+      invalidateUsageWarningsCacheForWorkspace(workspaceId),
+      invalidateProjectCacheForWorkspace(workspaceId),
+    ]);
+  } catch (e) {
+    console.error(`Failed to sync usage warnings/limits for workspace ${workspaceId}, Error: ${e}`);
+  }
 };
 
 export const getIdFromStripeObject = (stripeObject: string | { id: string } | null): string | undefined => {
@@ -84,10 +171,11 @@ export const getIdFromStripeObject = (stripeObject: string | { id: string } | nu
 // This function updates the cache used on the backend,
 // but since Stripe as a feature assumes production, we assume
 // shared Redis cache as well.
-const updateUsageCacheForWorkspace = async (workspaceId: string) => {
+const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boolean, _hasSignalRuns: boolean) => {
+  if (hasBytes) {
+    await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
+  }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
 };
 
 type SubscriptionEvent =
@@ -197,11 +285,182 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
   }
 };
 
-export const handleInvoiceFinalized = async (workspaceId: string, periodStart: number) => {
-  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  console.log(
-    `Billing cycle reset for workspace ${workspaceId}, new period start: ${new Date(periodStart * 1000).toISOString()}`
-  );
+export const handleInvoiceFinalized = async (
+  workspaceId: string,
+  hasBytes: boolean,
+  hasSignalRuns: boolean,
+  newStartTime: Date | null
+) => {
+  const resetDateRaw = newStartTime ? newStartTime.toISOString() : sql`now()`;
+  const resetDate = sql`${resetDateRaw}::timestamptz`;
+  await db
+    .insert(workspaceUsage)
+    .values({
+      workspaceId: workspaceId,
+      bytes: 0,
+      signalCost: 0,
+      lastReportedDate: sql`date_trunc('day', ${resetDate})`,
+    })
+    .onConflictDoUpdate({
+      target: workspaceUsage.workspaceId,
+      set: {
+        lastReportedDate: sql`date_trunc('day', ${resetDate})`,
+        ...(hasBytes ? { bytes: 0 } : {}),
+        ...(hasSignalRuns ? { signalCost: 0 } : {}),
+      },
+    });
+  const nextResetTime = sql`date_trunc('day', ${resetDate})`;
+  await db
+    .update(workspaces)
+    .set({
+      resetTime: sql`GREATEST(${workspaces.resetTime}, ${nextResetTime})`,
+    })
+    .where(eq(workspaces.id, workspaceId));
+  await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
+};
+
+// Extra overage warnings fired on Hobby so users accumulating a large overage
+// bill are nudged before it grows further. The signal
+// threshold is in micro-USD (1e-6 USD): $100
+const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
+const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
+
+// Default hard cap on Hobby signal cost, in micro-USD ($50). Users can still
+// raise/remove it from workspace usage settings.
+const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD = HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD;
+
+const insertNewTierUsageWarnings = async ({
+  workspaceId,
+  newTierName,
+  newTierConfig,
+  currentTierConfig,
+}: {
+  workspaceId: string;
+  newTierName: PaidTier;
+  newTierConfig: TierConfigEntry;
+  currentTierConfig?: TierConfigEntry;
+}) => {
+  if (currentTierConfig) {
+    await db
+      .delete(workspaceUsageWarnings)
+      .where(
+        and(
+          eq(workspaceUsageWarnings.workspaceId, workspaceId),
+          eq(workspaceUsageWarnings.usageItem, "bytes"),
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedBytes)
+        )
+      );
+  }
+
+  const values = [
+    {
+      workspaceId,
+      usageItem: "bytes",
+      limitValue: newTierConfig.includedBytes,
+    },
+  ];
+  if (newTierName === "hobby") {
+    values.push(
+      {
+        workspaceId,
+        usageItem: "signal_cost",
+        limitValue: HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD,
+      },
+      {
+        workspaceId,
+        usageItem: "bytes",
+        limitValue: HOBBY_OVERAGE_WARNING_BYTES,
+      }
+    );
+  }
+
+  await db.insert(workspaceUsageWarnings).values(values).onConflictDoNothing();
+};
+
+// Clear the Hobby-only overage warning rows when a workspace transitions out of Hobby.
+// Matched on exact default values so user-adjusted thresholds are preserved.
+const clearHobbyOverageWarnings = async (workspaceId: string) => {
+  await db
+    .delete(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, "signal_cost"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD)
+      )
+    );
+  await db
+    .delete(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, "bytes"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_BYTES)
+      )
+    );
+};
+
+// Hobby gets a default hard cap on signal cost so cheaper-than-Pro customers
+// don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
+// is undefined when the workspace moves to Free (cancellation), which must still trigger the
+// Hobby cleanup — otherwise a canceled Hobby leaves a default row that would silently re-apply
+// on a future paid-tier upgrade.
+const upsertDefaultTierUsageLimits = async ({
+  workspaceId,
+  newTierName,
+  currentTierName,
+}: {
+  workspaceId: string;
+  newTierName?: PaidTier;
+  currentTierName?: PaidTier;
+}) => {
+  // Preserve user overrides: only clear the default when it still matches a known Hobby
+  // default. Looked up here (not accepted from the caller) so the cleanup does
+  // not silently skip when the caller forgets to pass currentTierConfig.
+  if (currentTierName === "hobby" && newTierName !== "hobby") {
+    const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD];
+    const deleted = await db
+      .delete(workspaceUsageLimits)
+      .where(
+        and(
+          eq(workspaceUsageLimits.workspaceId, workspaceId),
+          eq(workspaceUsageLimits.limitType, "signal_cost"),
+          inArray(workspaceUsageLimits.limitValue, clearableValues)
+        )
+      )
+      .returning({ id: workspaceUsageLimits.id });
+    // Mirror the user-facing delete path: clearing the default hard limit must also
+    // drop the dedup stamp so a re-applied limit on a future upgrade starts fresh.
+    // Best-effort: the limit delete already committed, and a throw here would skip
+    // the warnings sync + cache invalidations in the caller's try block.
+    if (deleted.length > 0) {
+      try {
+        await deleteHardLimitNotification(workspaceId, "signal_cost");
+      } catch (e) {
+        console.error("Failed to clear hard-limit dedup row on Hobby default limit delete, continuing", e);
+      }
+    }
+  }
+
+  if (newTierName === "hobby") {
+    const inserted = await db
+      .insert(workspaceUsageLimits)
+      .values({
+        workspaceId,
+        limitType: "signal_cost",
+        limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD,
+      })
+      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] })
+      .returning({ id: workspaceUsageLimits.id });
+    // A freshly inserted default is a brand-new limit; drop any leftover dedup stamp
+    // (e.g. from a prior Hobby stint) so the first breach under the new limit notifies.
+    // Best-effort, same as the delete path above.
+    if (inserted.length > 0) {
+      try {
+        await deleteHardLimitNotification(workspaceId, "signal_cost");
+      } catch (e) {
+        console.error("Failed to clear hard-limit dedup row on Hobby default limit insert, continuing", e);
+      }
+    }
+  }
 };

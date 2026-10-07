@@ -1,10 +1,12 @@
 pub mod error;
+pub mod llm_profiles;
 pub mod probes;
 pub mod realtime;
 pub mod rollouts;
-pub mod signals;
+pub mod signal_events;
 pub mod spans;
 pub mod sql;
+pub mod static_sp;
 pub mod types;
 use serde::Serialize;
 use types::*;

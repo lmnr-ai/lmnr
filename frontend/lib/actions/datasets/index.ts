@@ -16,16 +16,16 @@ import { type PaginatedResponse } from "@/lib/types";
 
 const CreateDatasetSchema = z.object({
   name: z.string().min(1, { message: "Dataset name is required" }),
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 export const getDatasetsSchema = PaginationFiltersSchema.extend({
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
 });
 
 const deleteDatasetsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   datasetIds: z.array(z.string()),
 });
 

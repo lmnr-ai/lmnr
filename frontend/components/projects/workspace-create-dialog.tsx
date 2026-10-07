@@ -3,6 +3,8 @@ import { useRouter } from "next/navigation";
 import { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -10,23 +12,48 @@ import { Label } from "../ui/label";
 
 export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   const createNewWorkspace = async () => {
     setIsLoading(true);
-    const res = await fetch("/api/workspaces", {
-      method: "POST",
-      body: JSON.stringify({
-        name: newWorkspaceName,
-      }),
-    });
+    try {
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newWorkspaceName,
+          projectName: newProjectName,
+          isFirstProject: true,
+        }),
+      });
 
-    const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
+      if (!res.ok) {
+        const error = (await res.json().catch(() => ({ error: "Failed to create workspace" }))) as { error: string };
+        throw new Error(error?.error ?? "Failed to create workspace");
+      }
 
-    router.push(`/workspace/${newWorkspace.id}`);
-    setIsLoading(false);
+      const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
+
+      track("workspace", "created");
+      // A project is created alongside the workspace (isFirstProject) — drop into it directly.
+      // Fallback to /projects (the /settings/[workspaceId] route was removed in this PR).
+      if (newWorkspace.projectId) {
+        router.push(`/project/${newWorkspace.projectId}/traces`);
+      } else {
+        router.push("/projects");
+      }
+    } catch (e) {
+      toast({
+        title: "Error creating workspace",
+        variant: "destructive",
+        description: e instanceof Error ? e.message : "Failed to create workspace",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -37,11 +64,19 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
           <DialogTitle>New workspace</DialogTitle>
         </DialogHeader>
         <div className="grid gap-2">
-          <Label>Name</Label>
+          <Label>Workspace name</Label>
           <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewWorkspaceName(e.target.value)} />
         </div>
+        <div className="grid gap-2">
+          <Label>Project name</Label>
+          <Input placeholder="Enter name..." onChange={(e) => setNewProjectName(e.target.value)} />
+        </div>
         <DialogFooter>
-          <Button onClick={createNewWorkspace} handleEnter={true} disabled={!newWorkspaceName || isLoading}>
+          <Button
+            onClick={createNewWorkspace}
+            handleEnter={true}
+            disabled={!newWorkspaceName || !newProjectName || isLoading}
+          >
             {isLoading && <Loader2 className="mr-2 animate-spin" size={16} />}
             Create
           </Button>

@@ -5,9 +5,9 @@ export type TagClass = typeof tagClasses.$inferSelect;
 
 export type SpanTag = {
   id: string;
-  createdAt: string;
-  spanId: string;
   name: string;
+  createdAt?: string;
+  spanId?: string;
   email?: string;
   color?: string;
 };
@@ -48,8 +48,8 @@ export type Span = {
   attributes: Record<string, any>;
   input: any;
   output: any;
-  inputPreview: string;
-  outputPreview: string;
+  inputPreview?: string;
+  outputPreview?: string;
   spanType: SpanType;
   events: SpanEvent[];
   path: string;
@@ -59,9 +59,19 @@ export type Span = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
+  /**
+   * Deduped tool definitions reconstructed from the content-dedup dicts by
+   * `spans_v0` (camelCased from the view's `tool_definitions` column).
+   * Empty string when the span has no tools or for legacy spans whose
+   * definitions still ride in the attributes blob — the frontend's
+   * `extractToolsFromAttributes` is the fallback.
+   */
+  toolDefinitions?: string;
 };
 
 export type SpanRow = {
@@ -71,8 +81,6 @@ export type SpanRow = {
   name: string;
   startTime: string;
   endTime: string;
-  inputPreview?: string;
-  outputPreview?: string;
   spanType: SpanType;
 
   totalCost: number;
@@ -127,44 +135,59 @@ export type TraceRow = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  reasoningTokens?: number;
 
   inputCost: number;
   outputCost: number;
   totalCost: number;
 
-  summary?: string;
   traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
   sessionId?: string;
   metadata: Record<string, string>;
   userId?: string;
   status: string;
-  tags: string[];
-  analysis_status?: string;
-  analysis_preview?: string;
-  analysis?: string;
+  spanTags: string[];
+  traceTags: string[];
+  agentInput?: string;
+  inputSnippet?: { text: string; highlight: [number, number] };
+  outputSnippet?: { text: string; highlight: [number, number] };
+  attributesSnippet?: { text: string; highlight: [number, number] };
+  snippetsCount?: number;
 };
 
+// Wire shape of one trace in a `trace_update` SSE event — mirrors the Rust
+// `RealtimeTrace` (app-server/src/traces/realtime.rs), camelCase serde. Numbers
+// are per-batch deltas the frontend accumulates. Keep in sync with
+// `realtimeTraceToRow` / `mergeTraceDelta` / `tracesSelectColumns`.
 export type RealtimeTracePayload = {
   id: string;
-  session_id: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  sessionId: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  reasoningTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
   metadata: Record<string, any> | null;
-  project_id: string;
-  end_time: string | null;
-  start_time: string | null;
-  total_token_count: number;
-  cost: number;
-  created_at: string;
-  trace_type: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
-  input_token_count: number;
-  output_token_count: number;
-  input_cost: number;
-  output_cost: number;
-  has_browser_session: boolean | null;
-  top_span_id: string | null;
-  agent_session_id: string | null;
-  visibility: string | null;
+  topSpanId: string | null;
+  traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
+  topSpanName: string | null;
+  topSpanType: string | null;
   status: string | null;
-  user_id: string | null;
+  userId: string | null;
+  tags: string[];
+};
+
+// `trace_agent_input_update` SSE event — real agent_input, delivered async.
+export type RealtimeAgentInputPayload = {
+  traceId: string;
+  agentInput: unknown;
 };
 
 export type TracePreview = {

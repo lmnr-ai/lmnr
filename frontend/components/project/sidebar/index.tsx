@@ -6,20 +6,25 @@ import ProjectSidebarHeader from "@/components/project/sidebar/header.tsx";
 import SidebarFooter from "@/components/projects/sidebar-footer.tsx";
 import { Sidebar } from "@/components/ui/sidebar";
 import { type ProjectDetails } from "@/lib/actions/project";
+import { type Announcement } from "@/lib/announcements/types";
 
 import ProjectSidebarContent from "./content";
 
 interface ProjectSidebarProps {
+  dismissedAnnouncementIds: string[];
   details: ProjectDetails;
-  isSubscription: boolean;
-  isSignals: boolean;
+  announcements: Announcement[];
 }
 
-export default function ProjectSidebar({ details, isSubscription, isSignals }: ProjectSidebarProps) {
+export default function ProjectSidebar({ dismissedAnnouncementIds, details, announcements }: ProjectSidebarProps) {
   return (
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
-      <ProjectSidebarContent details={details} isSubscription={isSubscription} isSignals={isSignals} />
+      <ProjectSidebarContent
+        announcements={announcements}
+        details={details}
+        dismissedAnnouncementIds={dismissedAnnouncementIds}
+      />
       <SidebarFooter />
     </Sidebar>
   );

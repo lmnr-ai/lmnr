@@ -8,9 +8,9 @@ use serde::Serialize;
 /// Batch Worker type enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum BatchWorkerType {
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     ClusteringBatching,
     BrowserEvents,
-    SignalsBatching,
     Spans,
     DataPlaneSpans,
 }
@@ -20,7 +20,6 @@ impl std::fmt::Display for BatchWorkerType {
         match self {
             BatchWorkerType::ClusteringBatching => write!(f, "clustering_batch"),
             BatchWorkerType::BrowserEvents => write!(f, "browser_events"),
-            BatchWorkerType::SignalsBatching => write!(f, "signals_batch"),
             BatchWorkerType::Spans => write!(f, "spans"),
             BatchWorkerType::DataPlaneSpans => write!(f, "data_plane_spans"),
         }

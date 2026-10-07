@@ -1,17 +1,15 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, type ResizeCallback } from "re-resizable";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
+import { shallow } from "zustand/shallow";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
-import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
-import TraceView from "./trace-view";
+import { TraceViewSidePanel } from "./trace-view";
 import { TracesStoreProvider, useTracesStoreContext } from "./traces-store";
 import TracesTable from "./traces-table";
 
@@ -28,27 +26,21 @@ type NavigationItem =
       spanId: string;
     };
 
-function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
+function TracesContent() {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
-  const ref = useRef<Resizable>(null);
-  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
-    spanId: state.spanId,
-    traceId: state.traceId,
-    setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
-  }));
-
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
-
-  useEffect(() => {
-    if (!initialTraceViewWidth) {
-      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
-    }
-  }, []);
+  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext(
+    (state) => ({
+      spanId: state.spanId,
+      traceId: state.traceId,
+      setTraceId: state.setTraceId,
+      setSpanId: state.setSpanId,
+    }),
+    shallow
+  );
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
@@ -61,16 +53,11 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     router.push(`${pathName}?${params.toString()}`);
   };
 
-  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
-    const newWidth = defaultTraceViewWidth + delta.width;
-    setDefaultTraceViewWidth(newWidth);
-    setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
-  };
-
   const handleNavigate = useCallback(
     (item: NavigationItem | null) => {
       if (item) {
         if (typeof item === "string") {
+          setSpanId(null);
           setTraceId(item);
         } else {
           setSpanId(item.spanId);
@@ -81,21 +68,10 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     [setSpanId, setTraceId]
   );
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (defaultTraceViewWidth > window.innerWidth - 180) {
-        const newWidth = window.innerWidth - 240;
-        setDefaultTraceViewWidth(newWidth);
-        setTraceViewWidthCookie(newWidth);
-        ref?.current?.updateSize({ width: newWidth });
-      }
-    }
-  }, [defaultTraceViewWidth, setDefaultTraceViewWidth]);
-
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
       <Tabs
-        className="flex flex-1 overflow-hidden gap-4"
+        className="flex flex-1 min-h-0 overflow-hidden gap-4"
         value={tracesTab}
         onValueChange={(value) => resetUrlParams(value)}
       >
@@ -121,37 +97,24 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
         </TabsContent>
       </Tabs>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            ref={ref}
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
-            }}
-            defaultSize={{
-              width: defaultTraceViewWidth,
-            }}
-          >
-            <TraceView
-              spanId={spanId || undefined}
-              key={traceId}
-              onClose={() => {
-                const params = new URLSearchParams(searchParams);
-                params.delete("traceId");
-                params.delete("spanId");
-                router.push(`${pathName}?${params.toString()}`);
-                setTraceId(null);
-              }}
-              traceId={traceId}
-            />
-          </Resizable>
-        </div>
+        <TraceViewSidePanel
+          spanId={spanId || undefined}
+          onClose={() => {
+            const params = new URLSearchParams(searchParams);
+            params.delete("traceId");
+            params.delete("spanId");
+            router.push(`${pathName}?${params.toString()}`);
+            setTraceId(null);
+          }}
+          traceId={traceId}
+          initialSearch={searchParams.get("search") ?? undefined}
+        />
       )}
     </TraceViewNavigationProvider>
   );
 }
 
-export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
+export default function Traces() {
   const searchParams = useSearchParams();
 
   const traceId = searchParams.get("traceId");
@@ -159,7 +122,7 @@ export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidt
 
   return (
     <TracesStoreProvider traceId={traceId} spanId={spanId}>
-      <TracesContent initialTraceViewWidth={initialTraceViewWidth} />
+      <TracesContent />
     </TracesStoreProvider>
   );
 }

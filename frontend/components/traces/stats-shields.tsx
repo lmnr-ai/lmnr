@@ -3,22 +3,22 @@ import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
+import { CostBreakdown, TokensBreakdown } from "@/components/traces/cells";
+import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type Span } from "@/lib/traces/types.ts";
-import { cn, getDurationString } from "@/lib/utils";
+import {
+  durationMsBetween,
+  formatCostNumber,
+  formatDurationExact,
+  formatDurationMs,
+  formatTokensCompact,
+} from "@/lib/traces/format";
+import { type Span, SpanType, type TraceRow } from "@/lib/traces/types.ts";
+import { cn } from "@/lib/utils";
 
 import { Label } from "../ui/label";
 
-const numberFormat = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 3,
-});
-
-const compactNumberFormat = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-});
-
-// Compute aggregate stats from a list of spans
 function computeSpanStats(
   spans: TraceViewSpan[]
 ): Pick<
@@ -32,6 +32,7 @@ function computeSpanStats(
   | "outputCost"
   | "totalCost"
   | "cacheReadInputTokens"
+  | "reasoningTokens"
 > {
   if (spans.length === 0) {
     return {
@@ -44,6 +45,7 @@ function computeSpanStats(
       outputCost: 0,
       totalCost: 0,
       cacheReadInputTokens: 0,
+      reasoningTokens: 0,
     };
   }
 
@@ -56,12 +58,18 @@ function computeSpanStats(
   let outputCost = 0;
   let totalCost = 0;
   let cacheReadInputTokens = 0;
+  let reasoningTokens = 0;
 
   for (const span of spans) {
     const start = new Date(span.startTime).getTime();
     const end = new Date(span.endTime).getTime();
     if (start < minStart) minStart = start;
     if (end > maxEnd) maxEnd = end;
+
+    // Token/cost totals count LLM (and cached-LLM) spans only. Non-LLM spans can carry
+    // stray `gen_ai.usage.*` values on their own row; summing them would double-count into
+    // the trace/selection total (LAM-1873). Duration still spans every selected span.
+    if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
 
     inputTokens += span.inputTokens || 0;
     outputTokens += span.outputTokens || 0;
@@ -70,6 +78,7 @@ function computeSpanStats(
     outputCost += span.outputCost || 0;
     totalCost += span.totalCost || 0;
     cacheReadInputTokens += span.cacheReadInputTokens || 0;
+    reasoningTokens += span.reasoningTokens || 0;
   }
 
   return {
@@ -82,6 +91,77 @@ function computeSpanStats(
     outputCost,
     totalCost,
     cacheReadInputTokens,
+    reasoningTokens,
+  };
+}
+
+// Session view aggregates client-side — no dedicated server endpoint.
+export function computeTraceStats(
+  traces: Pick<
+    TraceRow,
+    | "startTime"
+    | "endTime"
+    | "inputTokens"
+    | "outputTokens"
+    | "totalTokens"
+    | "inputCost"
+    | "outputCost"
+    | "totalCost"
+    | "cacheReadInputTokens"
+  >[]
+): StatsShieldsProps["stats"] {
+  if (traces.length === 0) {
+    const now = new Date().toISOString();
+    return {
+      startTime: now,
+      endTime: now,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      cacheReadInputTokens: 0,
+      reasoningTokens: 0,
+    };
+  }
+
+  let minStart = new Date(traces[0].startTime).getTime();
+  let maxEnd = new Date(traces[0].endTime).getTime();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let totalTokens = 0;
+  let inputCost = 0;
+  let outputCost = 0;
+  let totalCost = 0;
+  let cacheReadInputTokens = 0;
+
+  for (const t of traces) {
+    const start = new Date(t.startTime).getTime();
+    const end = new Date(t.endTime).getTime();
+    if (start < minStart) minStart = start;
+    if (end > maxEnd) maxEnd = end;
+
+    inputTokens += t.inputTokens || 0;
+    outputTokens += t.outputTokens || 0;
+    totalTokens += t.totalTokens || 0;
+    inputCost += t.inputCost || 0;
+    outputCost += t.outputCost || 0;
+    totalCost += t.totalCost || 0;
+    cacheReadInputTokens += t.cacheReadInputTokens || 0;
+  }
+
+  return {
+    startTime: new Date(minStart).toISOString(),
+    endTime: new Date(maxEnd).toISOString(),
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    inputCost,
+    outputCost,
+    totalCost,
+    cacheReadInputTokens,
+    reasoningTokens: 0,
   };
 }
 
@@ -97,51 +177,52 @@ interface StatsShieldsProps {
     | "outputCost"
     | "totalCost"
     | "cacheReadInputTokens"
+    | "reasoningTokens"
   >;
   className?: string;
   variant?: "filled" | "outline";
+  labelPrefix?: string;
+  span?: Span;
 }
 
-function StatsShields({ stats, className, variant = "filled" }: StatsShieldsProps) {
+export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
+  const durationMs = durationMsBetween(stats.startTime, stats.endTime);
   const durationContent = (
-    <div className="flex space-x-1 items-center">
-      <Clock3 size={12} className="min-w-3 min-h-3" />
-      <Label
-        className={cn("text-xs truncate", { "text-white": variant === "outline" })}
-        title={getDurationString(stats.startTime, stats.endTime)}
-      >
-        {getDurationString(stats.startTime, stats.endTime)}
-      </Label>
-    </div>
+    <TooltipProvider delayDuration={250}>
+      <Tooltip>
+        <TooltipTrigger className="min-w-8">
+          <div className="flex space-x-1 items-center">
+            <Clock3 size={14} className="min-w-3 min-h-3" />
+            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+              {formatDurationMs(durationMs)}
+            </Label>
+          </div>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent>{formatDurationExact(durationMs)}</TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
   );
 
   const tokensContent = (
     <TooltipProvider delayDuration={250}>
       <Tooltip>
-        <TooltipTrigger className="min-w-8">
+        <TooltipTrigger>
           <div className="flex space-x-1 items-center">
-            <Coins className="min-w-3" size={12} />
+            <Coins className="min-w-3" size={14} />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
-              {compactNumberFormat.format(stats.totalTokens)}
+              {formatTokensCompact(stats.totalTokens)}
             </Label>
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Input tokens</span> {numberFormat.format(stats.inputTokens)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Output tokens</span>{" "}
-                {numberFormat.format(stats.outputTokens)}
-              </Label>
-              {!!stats.cacheReadInputTokens && (
-                <Label className="flex text-xs gap-1 text-success-bright">
-                  <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
-                </Label>
-              )}
-            </div>
+          <TooltipContent side="bottom" className="flex flex-col gap-1 min-w-55 p-2">
+            {span && (span.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED) ? (
+              <InputTokenBreakdown span={span} />
+            ) : (
+              <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />
+            )}
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
@@ -153,25 +234,15 @@ function StatsShields({ stats, className, variant = "filled" }: StatsShieldsProp
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
-            <CircleDollarSign className="min-w-3" size={12} />
+            <CircleDollarSign className="min-w-3" size={14} />
             <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
-              {stats.totalCost?.toFixed(2)}
+              {formatCostNumber(stats.totalCost)}
             </Label>
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
-              </Label>
-            </div>
+          <TooltipContent className="flex flex-col gap-1 p-2">
+            <CostBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
@@ -181,8 +252,8 @@ function StatsShields({ stats, className, variant = "filled" }: StatsShieldsProp
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-1.5 py-0.5 rounded-md overflow-hidden text-xs font-mono min-w-0",
-        variant === "outline" ? "border border-muted text-white" : "bg-muted text-secondary-foreground",
+        "flex h-6 items-center gap-2.5 px-2 rounded-md overflow-hidden text-xs min-w-0",
+        variant === "outline" ? "border border-muted text-white" : "bg-surface-up-2 text-secondary-foreground",
         className
       )}
     >
@@ -212,13 +283,14 @@ const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsPro
       "outputTokens",
       "totalTokens",
       "cacheReadInputTokens",
+      "reasoningTokens",
       "inputCost",
       "outputCost",
       "totalCost",
     ]);
   }, [trace, spans]);
 
-  return <StatsShields stats={stats} className={className} />;
+  return <StatsShields stats={stats} className={className} labelPrefix="Trace" />;
 };
 
 interface SpanStatsShieldsProps {
@@ -235,12 +307,15 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
       "inputTokens",
       "outputTokens",
       "totalTokens",
+      "cacheReadInputTokens",
+      "reasoningTokens",
       "inputCost",
       "outputCost",
       "totalCost",
     ])}
     className={className}
     variant={variant}
+    span={span}
   />
 );
 

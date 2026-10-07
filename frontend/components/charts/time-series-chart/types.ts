@@ -1,3 +1,5 @@
+import type React from "react";
+
 export type TimeSeriesDataPoint = {
   timestamp: string;
 } & Record<string, number>;
@@ -7,8 +9,20 @@ export interface TimeSeriesChartConfig {
     label: string;
     color: string;
     stackId?: string;
+    icon?: React.ComponentType;
   };
 }
+
+/** A dashed vertical annotation, e.g. "a new signal version took effect here". */
+export type TimeSeriesMarker = {
+  /** Any instant; snapped to the bucket it falls in before rendering. */
+  timestamp: string;
+  label: string;
+  /** Optional Settings deep-link. Last marker wins when several snap to one bar. */
+  href?: string;
+  /** Hover rows. Snap fills this from `label` + original `timestamp` when omitted. */
+  tooltip?: { label: string; timestamp: string }[];
+};
 
 export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   data: T[];
@@ -20,4 +34,22 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   onZoom?: (startDate: string, endDate: string) => void;
   formatValue?: (value: number) => string;
   showTotal?: boolean;
+  showTooltip?: boolean;
+  /** Milliseconds the pointer must dwell on the plot before the tooltip appears.
+   *  0 (the default) is recharts' own behaviour — it opens on the first move. */
+  tooltipDelay?: number;
+  /** Only open the tooltip when the pointer is actually over the stack, not
+   *  anywhere in its column. Off by default — recharts' own behaviour. */
+  tooltipRequireBar?: boolean;
+  /** Cap the tooltip's rows, keeping the largest and summarising the rest.
+   *  Unset (the default) lists every series. */
+  tooltipMaxItems?: number;
+  /** Bar entry animation. Turn it off where the stack is wide enough that the
+   *  transition costs more main thread than it is worth. */
+  animate?: boolean;
+  hideZeroValues?: boolean;
+  // Optional secondary-axis line + gradient drawn behind the bars.
+  overlayField?: string;
+  overlayColor?: string;
+  markers?: TimeSeriesMarker[];
 }

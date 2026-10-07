@@ -1,76 +1,66 @@
-import { Bolt, Brain, ChevronRight, GripHorizontal } from "lucide-react";
-import { Resizable } from "re-resizable";
-import React, { memo, type PropsWithChildren, type ReactNode } from "react";
+import { capitalize } from "lodash";
+import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
-import { useSpanViewStore } from "@/components/traces/span-view/span-view-store";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
-import { isStorageUrl } from "@/lib/s3";
+import { ElevatedSurface } from "@/components/ui/surface";
+import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
 import { cn } from "@/lib/utils";
 
-interface ResizableWrapperProps {
-  children: ReactNode;
-  height: number | null;
-  onHeightChange: (height: number) => void;
-  maxHeight?: number;
-  className?: string;
+interface RoleColorConfig {
+  border: string;
+  badgeBg: string;
+  badgeBorder: string;
+  badgeText: string;
 }
 
-export const ResizableWrapper = ({
-  children,
-  height,
-  onHeightChange,
-  maxHeight = 400,
-  className,
-}: ResizableWrapperProps) => {
-  const currentHeight = height !== null ? height : "auto";
-  return (
-    <Resizable
-      size={{ width: "100%", height: currentHeight }}
-      maxHeight={height !== null ? undefined : maxHeight}
-      onResizeStart={(_e, _direction, ref) => {
-        if (height === null) {
-          const actualHeight = ref.offsetHeight;
-          onHeightChange(actualHeight);
-        }
-      }}
-      onResizeStop={(_e, _direction, ref, _d) => {
-        const newHeight = ref.offsetHeight;
-        onHeightChange(newHeight);
-      }}
-      enable={{
-        bottom: true,
-      }}
-      handleComponent={{
-        bottom: (
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center w-full h-0 bg-background/90 backdrop-blur-sm">
-            <div className="flex items-end justify-center w-full overflow-hidden h-2">
-              <GripHorizontal className="w-4 h-4 text-muted-foreground" />
-            </div>
-          </div>
-        ),
-      }}
-      handleStyles={{
-        bottom: { height: 0, bottom: 0 },
-      }}
-      handleWrapperStyle={{
-        height: 0,
-      }}
-      className={cn("relative flex w-full", className)}
-    >
-      <div className="overflow-auto w-full">{children}</div>
-    </Resizable>
-  );
+const ROLE_COLORS: Record<string, RoleColorConfig> = {
+  system: {
+    border: "hsl(215, 15%, 40%)",
+    badgeBg: "hsl(215, 15%, 15%)",
+    badgeBorder: "hsl(215, 15%, 25%)",
+    badgeText: "hsl(215, 15%, 65%)",
+  },
+  user: {
+    border: "hsl(217, 91%, 60%)",
+    badgeBg: "hsl(217, 60%, 12%)",
+    badgeBorder: "hsl(217, 50%, 25%)",
+    badgeText: "hsl(217, 80%, 70%)",
+  },
+  assistant: {
+    border: "hsl(262, 83%, 58%)",
+    badgeBg: "hsl(262, 50%, 12%)",
+    badgeBorder: "hsl(262, 40%, 25%)",
+    badgeText: "hsl(262, 70%, 70%)",
+  },
+  tool: {
+    border: "hsl(42, 93%, 46%)",
+    badgeBg: "hsl(42, 60%, 12%)",
+    badgeBorder: "hsl(42, 50%, 25%)",
+    badgeText: "hsl(42, 80%, 65%)",
+  },
 };
+
+const ROLE_ALIASES: Record<string, string> = {
+  human: "user",
+  ai: "assistant",
+  model: "assistant",
+  computer_call_output: "tool",
+};
+
+export function getRoleColors(role?: string): RoleColorConfig {
+  if (!role) return ROLE_COLORS.system;
+  const normalized = ROLE_ALIASES[role.toLowerCase()] ?? role.toLowerCase();
+  return ROLE_COLORS[normalized] ?? ROLE_COLORS.system;
+}
 
 interface ToolCallContentPartProps {
   toolName: string;
+  toolCallId?: string;
   content: unknown;
   presetKey: string;
   messageIndex?: number;
@@ -79,59 +69,86 @@ interface ToolCallContentPartProps {
 
 const PureToolCallContentPart = ({
   toolName,
+  toolCallId,
   content,
   presetKey,
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolCallContentPartProps) => {
-  const storageKey = `resize-${presetKey}`;
-  const setHeight = useSpanViewStore((state) => state.setHeight);
-  const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-  const searchContext = useSpanSearchContext();
-
+  const { mode, modes, value } = resolveContentMode(content);
   return (
-    <div className="flex flex-col gap-2 p-2 bg-background">
-      <span className="flex items-center text-xs">
-        <Bolt size={12} className="min-w-3 mr-2" />
+    <div className="flex flex-col gap-2 p-2">
+      <span
+        className="flex items-center gap-1.5 text-xs font-medium"
+        style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
+      >
+        <Bolt size={14} className="min-w-3.5" />
         {toolName}
+        {toolCallId && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
       </span>
-      <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className="border-0">
-        <ContentRenderer
-          readOnly
-          defaultMode="json"
-          codeEditorClassName="rounded"
-          value={JSON.stringify(content, null, 2)}
-          presetKey={`editor-${presetKey}`}
-          className="border-0 bg-muted/50"
-          searchTerm={searchContext?.searchTerm || ""}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      </ResizableWrapper>
+      <ContentRenderer
+        readOnly
+        defaultMode={mode}
+        modes={modes}
+        codeEditorClassName="rounded"
+        value={value}
+        presetKey={`editor-${presetKey}`}
+        className="border-0"
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
+        customTheme={spanViewTheme}
+      />
     </div>
   );
 };
 
 interface ToolResultContentPartProps {
   toolCallId: string;
+  toolName?: string;
   content: string | any;
   presetKey: string;
   children?: ReactNode;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
-const PureToolResultContentPart = ({ toolCallId, content, presetKey, children }: ToolResultContentPartProps) => (
-  <div className="flex flex-col">
-    <Badge className="w-fit m-1 font-medium" variant="secondary">
-      ID: {toolCallId}
-    </Badge>
-    {children || (
-      <TextContentPart
-        content={typeof content === "string" ? content : JSON.stringify(content, null, 2)}
-        presetKey={presetKey}
-      />
-    )}
-  </div>
-);
+const PureToolResultContentPart = ({
+  toolCallId,
+  toolName,
+  content,
+  presetKey,
+  children,
+  messageIndex = 0,
+  contentPartIndex = 0,
+}: ToolResultContentPartProps) => {
+  const { mode, modes, value } = resolveContentMode(content);
+  return (
+    <div className="flex flex-col gap-2 p-2">
+      <span
+        className="flex items-center gap-1.5 text-xs font-medium"
+        style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
+      >
+        <Bolt size={14} className="min-w-3.5" />
+        {toolName ?? toolCallId}
+        {toolName && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
+      </span>
+      {children || (
+        <ContentRenderer
+          readOnly
+          defaultMode={mode}
+          modes={modes}
+          codeEditorClassName="rounded"
+          value={value}
+          presetKey={`editor-${presetKey}`}
+          className="border-0"
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+          customTheme={spanViewTheme}
+        />
+      )}
+    </div>
+  );
+};
 
 interface FileContentPartProps {
   data: string;
@@ -164,25 +181,22 @@ const PureTextContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: TextContentPartProps) => {
-  const storageKey = `resize-${presetKey}`;
-  const setHeight = useSpanViewStore((state) => state.setHeight);
-  const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-  const searchContext = useSpanSearchContext();
-
+  const { mode, modes, value } = resolveContentMode(content);
   return (
-    <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
+    <div>
       <ContentRenderer
-        defaultMode="json"
+        defaultMode={mode}
+        modes={modes}
         readOnly
-        value={content}
+        value={value}
         presetKey={`editor-${presetKey}`}
-        className="border-0 bg-muted/50"
+        className={cn("border-0", className)}
         codeEditorClassName={codeEditorClassName}
-        searchTerm={searchContext?.searchTerm || ""}
         messageIndex={messageIndex}
         contentPartIndex={contentPartIndex}
+        customTheme={spanViewTheme}
       />
-    </ResizableWrapper>
+    </div>
   );
 };
 
@@ -193,14 +207,12 @@ interface RoleHeaderProps {
 
 export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
+    const colors = getRoleColors(role);
     return (
-      <div className={cn("flex items-center font-medium text-sm text-secondary-foreground px-2 py-1", className)}>
-        <span>{role.toUpperCase()}</span>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon" className="w-6 h-6 ml-auto focus-visible:ring-0">
-            <ChevronRight className="w-4 h-4 text-muted-foreground group-data-[state=open]/message-wrapper:rotate-90 transition-transform duration-200" />
-          </Button>
-        </CollapsibleTrigger>
+      <div className={cn("flex items-center px-2 py-1 gap-2 border-b rounded-t", className)}>
+        <span className="text-sm font-medium" style={{ color: colors.badgeText }}>
+          {capitalize(role)}
+        </span>
       </div>
     );
   }
@@ -217,11 +229,7 @@ const PureImageContentPart = ({
   src,
   className = "object-cover rounded-sm size-16 m-2",
   alt = "span image",
-}: ImageContentPartProps) => {
-  const imageUrl = isStorageUrl(src) ? `${src}?payloadType=image` : src;
-
-  return <ImageWithPreview src={imageUrl} className={className} alt={alt} />;
-};
+}: ImageContentPartProps) => <ImageWithPreview src={src} className={className} alt={alt} />;
 
 interface ThinkingContentPartProps {
   content: string;
@@ -237,34 +245,26 @@ const PureThinkingContentPart = ({
   presetKey,
   messageIndex = 0,
   contentPartIndex = 0,
-}: ThinkingContentPartProps) => {
-  const storageKey = `resize-${presetKey}`;
-  const setHeight = useSpanViewStore((state) => state.setHeight);
-  const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-  const searchContext = useSpanSearchContext();
-
-  return (
-    <div className="flex flex-col gap-2 p-2 bg-background">
-      <span className="flex items-center text-xs">
-        <Brain size={12} className="min-w-3 mr-2" />
-        {label}
-      </span>
-      <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className="border-0">
-        <ContentRenderer
-          readOnly
-          defaultMode="json"
-          codeEditorClassName="rounded"
-          value={content}
-          presetKey={`editor-${presetKey}`}
-          className="border-0 bg-muted/50"
-          searchTerm={searchContext?.searchTerm || ""}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      </ResizableWrapper>
-    </div>
-  );
-};
+}: ThinkingContentPartProps) => (
+  <div className="flex flex-col gap-2 p-2">
+    <span className="flex items-center text-xs">
+      <Brain size={12} className="min-w-3 mr-2" />
+      {label}
+    </span>
+    <ContentRenderer
+      readOnly
+      defaultMode="text"
+      modes={["TEXT"]}
+      codeEditorClassName="rounded"
+      value={content}
+      presetKey={`editor-${presetKey}`}
+      className="border-0"
+      messageIndex={messageIndex}
+      contentPartIndex={contentPartIndex}
+      customTheme={spanViewTheme}
+    />
+  </div>
+);
 
 export const ImageContentPart = memo(PureImageContentPart);
 export const TextContentPart = memo(PureTextContentPart);
@@ -273,29 +273,78 @@ export const FileContentPart = memo(PureFileContentPart);
 export const ToolCallContentPart = memo(PureToolCallContentPart);
 export const ToolResultContentPart = memo(PureToolResultContentPart);
 
+const DEFAULT_MESSAGE_MAX_HEIGHT = 360;
+
 export const MessageWrapper = ({
   children,
   role,
-  presetKey,
+  maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
+  stickyHeader = true,
+  defaultExpanded = false,
 }: PropsWithChildren<{
   role?: string;
   presetKey: string;
+  maxHeight?: number;
+  stickyHeader?: boolean;
+  defaultExpanded?: boolean;
 }>) => {
-  const { collapsed, toggleCollapse } = useSpanViewStore((state) => ({
-    collapsed: state.isCollapsed,
-    toggleCollapse: state.toggleCollapse,
-  }));
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  const checkOverflow = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setIsOverflowing(el.scrollHeight > maxHeight);
+  }, [maxHeight]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    checkOverflow();
+
+    const resizeObserver = new ResizeObserver(checkOverflow);
+    resizeObserver.observe(el);
+
+    return () => resizeObserver.disconnect();
+  }, [checkOverflow]);
+
+  const showToggle = isOverflowing;
 
   return (
-    <div className="border rounded mb-4 overflow-hidden flex">
-      <Collapsible
-        open={!collapsed(presetKey)}
-        onOpenChange={() => toggleCollapse(presetKey)}
-        className="group/message-wrapper divide-y flex flex-col flex-1 w-full"
+    // overflow-clip (not hidden): clips to radius without creating a scroll
+    // container, so sticky can still pin to the messages list.
+    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
+      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10 bg-surface" : undefined} />
+      <div
+        ref={containerRef}
+        className="overflow-hidden bg-surface-down"
+        style={!isExpanded ? { maxHeight } : undefined}
       >
-        <RoleHeader role={role} />
-        <CollapsibleContent className="flex flex-col divide-y">{children}</CollapsibleContent>
-      </Collapsible>
-    </div>
+        <div className="flex flex-col divide-y">{children}</div>
+      </div>
+      {showToggle && (
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
+          <div
+            className="w-full pointer-events-none bg-gradient-to-b from-background/0 to-background"
+            style={{
+              height: isExpanded ? 16 : 36,
+              marginTop: isExpanded ? -8 : -36,
+            }}
+          />
+          <div className="w-full bg-background rounded-b-lg">
+            <button
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="h-3 relative w-full flex items-center justify-center cursor-pointer rounded-b-lg"
+            >
+              <span className="absolute -top-2.5 w-full flex justify-center">
+                {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+    </ElevatedSurface>
   );
 };

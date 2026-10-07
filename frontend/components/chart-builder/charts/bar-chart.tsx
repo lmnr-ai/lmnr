@@ -1,10 +1,12 @@
-import React, { useCallback, useMemo } from "react";
-import { Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import React, { useMemo } from "react";
+import { Bar, BarChart as RechartsBarChart, BarStack, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 
-import RoundedBar from "@/components/charts/time-series-chart/bar";
+import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
+import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
+import { formatMetricValue } from "./format-value";
+import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 interface BarChartProps {
   data: Record<string, any>[];
@@ -12,19 +14,20 @@ interface BarChartProps {
   y: string;
   keys: string[];
   chartConfig: ChartConfig;
-  total?: boolean;
+  displayMode?: DisplayMode;
+  metricColumn?: string;
+  syncId?: string;
+  drag?: ChartDragHandlers;
 }
 
-const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
+const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn, syncId, drag }: BarChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
-  const chartMargins = useMemo(() => {
-    const yValues = data.flatMap((row) => keys.map((key) => row[key])).filter((value) => value != null);
-    return getChartMargins(yValues, yAxisFormatter);
-  }, [data, keys, yAxisFormatter]);
-
-  const { totalSum, totalMax } = useMemo(() => calculateChartTotals(data, keys, total), [data, keys, total]);
+  const { displayValue, totalMax } = useMemo(
+    () => calculateDisplayValue(data, keys, displayMode),
+    [data, keys, displayMode]
+  );
 
   const sortedKeys = useMemo(() => {
     const keyTotals = keys.map((key) => ({
@@ -35,16 +38,22 @@ const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
     return keyTotals.sort((a, b) => b.total - a.total).map((item) => item.key);
   }, [data, keys]);
 
-  const BarShapeWithConfig = useCallback(
-    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={sortedKeys} />,
-    [chartConfig, sortedKeys]
-  );
-
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
+      {displayValue !== null && (
+        <span className="font-medium text-2xl mb-2 truncate min-h-fit">
+          {formatMetricValue(displayValue, metricColumn)}
+        </span>
+      )}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-        <RechartsBarChart data={data} margin={chartMargins}>
+        <RechartsBarChart
+          data={data}
+          syncId={syncId}
+          onMouseDown={drag?.onMouseDown}
+          onMouseMove={drag?.onMouseMove}
+          onMouseUp={drag?.onMouseUp}
+          style={drag ? { userSelect: "none", cursor: "crosshair" } : undefined}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             type="category"
@@ -57,21 +66,32 @@ const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
           <YAxis
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
             tickCount={5}
             domain={["auto", totalMax]}
-            width={32}
+            width="auto"
             tickFormatter={yAxisFormatter}
           />
           <ChartTooltip
             content={<ChartTooltipContent labelKey={x} labelFormatter={(_, p) => xAxisFormatter(p[0].payload[x])} />}
           />
-          {sortedKeys.map((key) => {
-            const config = chartConfig[key];
-            if (!config) return null;
+          <BarStack radius={[4, 4, 4, 4]}>
+            {sortedKeys.map((key) => {
+              const config = chartConfig[key];
+              if (!config) return null;
 
-            return <Bar key={key} dataKey={key} fill={config.color} stackId="stack" shape={BarShapeWithConfig} />;
-          })}
+              return <Bar key={key} dataKey={key} fill={config.color} stackId="stack" />;
+            })}
+          </BarStack>
+          {drag?.refArea.left && drag.refArea.right && (
+            <ReferenceArea
+              x1={drag.refArea.left}
+              x2={drag.refArea.right}
+              stroke="hsl(var(--primary))"
+              strokeOpacity={0.5}
+              fill="hsl(var(--primary))"
+              fillOpacity={0.3}
+            />
+          )}
         </RechartsBarChart>
       </ChartContainer>
     </div>

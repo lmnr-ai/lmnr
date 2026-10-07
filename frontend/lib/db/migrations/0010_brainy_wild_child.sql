@@ -17,13 +17,13 @@ ALTER TABLE "events" ADD COLUMN "name" text NOT NULL;--> statement-breakpoint
 ALTER TABLE "events" ADD COLUMN "attributes" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
 ALTER TABLE "events" ADD COLUMN "project_id" uuid NOT NULL;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "old_events" ADD CONSTRAINT "events_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "public"."event_templates"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "old_events" ADD CONSTRAINT "events_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "event_templates"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "events" ADD CONSTRAINT "events_span_id_project_id_fkey" FOREIGN KEY ("span_id","project_id") REFERENCES "public"."spans"("span_id","project_id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "events" ADD CONSTRAINT "events_span_id_project_id_fkey" FOREIGN KEY ("span_id","project_id") REFERENCES "spans"("span_id","project_id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

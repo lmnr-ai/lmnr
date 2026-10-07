@@ -4,8 +4,12 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
+import {
+  buildTracesCountQueryWithParams,
+  buildTracesQueryWithParams,
+  parseCustomColumnsJson,
+} from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -18,7 +22,7 @@ const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
 
 export const GetTracesSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   traceType: z
     .enum(["DEFAULT", "EVALUATION", "EVENT", "PLAYGROUND"])
     .nullable()
@@ -26,15 +30,17 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
     .transform((val) => val || "DEFAULT"),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  sortSql: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export const DeleteTracesSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
 
 export const GetTracesByIdsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
 
@@ -50,6 +56,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     search,
     searchIn,
     filter: inputFilters,
+    sortBy,
+    sortSql,
+    sortDirection,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -57,13 +67,13 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
+        getSnippets: true,
       })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
@@ -78,6 +88,8 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
+
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
@@ -88,6 +100,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     startTime,
     endTime,
     pastHours,
+    sortBy,
+    sortSql,
+    sortDirection: sortDirection as "ASC" | "DESC" | undefined,
+    customColumns,
   });
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
@@ -100,6 +116,24 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
       return indexA - indexB;
     });
+
+    const snippetMap = new Map<string, SpanSearchHit>();
+    const snippetsCountMap = new Map<string, number>();
+    for (const hit of spanHits) {
+      snippetsCountMap.set(hit.trace_id, (snippetsCountMap.get(hit.trace_id) ?? 0) + 1);
+      if (!snippetMap.has(hit.trace_id) && (hit.input_snippet || hit.output_snippet || hit.attributes_snippet)) {
+        snippetMap.set(hit.trace_id, hit);
+      }
+    }
+    for (const item of items) {
+      const hit = snippetMap.get(item.id);
+      if (hit) {
+        item.inputSnippet = hit.input_snippet;
+        item.outputSnippet = hit.output_snippet;
+        item.attributesSnippet = hit.attributes_snippet;
+      }
+      item.snippetsCount = snippetsCountMap.get(item.id) ?? 0;
+    }
   }
 
   return {
@@ -117,14 +151,16 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     search,
     searchIn,
     filter: inputFilters,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
 
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
+
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -144,6 +180,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     startTime,
     endTime,
     pastHours,
+    customColumns,
   });
 
   const result = await executeQuery<{ count: number }>({

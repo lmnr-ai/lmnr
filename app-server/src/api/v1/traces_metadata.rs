@@ -1,0 +1,99 @@
+use std::{collections::HashMap, sync::Arc};
+
+use actix_web::{HttpResponse, post, web};
+use serde::Deserialize;
+use serde_json::Value;
+use uuid::Uuid;
+
+use crate::{
+    cache::Cache,
+    ch::traces_agg::trace_exists,
+    db::{DB, project_api_keys::ProjectApiKey},
+    mq::{MessageQueue, stream::StreamPublisher},
+    routes::types::ResponseResult,
+    traces::metadata::publish_trace_metadata_patch,
+};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateTraceMetadataRequest {
+    pub trace_id: Uuid,
+    pub metadata: HashMap<String, Value>,
+}
+
+/// `POST /v1/traces/metadata` — merge a metadata patch onto an existing trace.
+///
+/// The patch is delivered as a virtual span carrying
+/// `lmnr.association.properties.metadata.<key>` attributes plus the
+/// `lmnr.internal.metadata_only` marker. The consumer (`process_span_messages`)
+/// splits these spans out before the regular pipeline and writes the metadata to
+/// `traces_agg` / `traces_static`. The virtual span is never recorded to the
+/// `spans` table and contributes nothing to trace stats (start/end/tokens/
+/// top_span/etc.).
+///
+/// The existence check keeps the endpoint 404ing on unknown traces, but it is
+/// not a guarantee: a trace deleted between request and consumption still leaves
+/// its patch behind as a row carrying metadata only.
+#[post("metadata")]
+pub async fn update_trace_metadata(
+    req: web::Json<UpdateTraceMetadataRequest>,
+    project_api_key: ProjectApiKey,
+    spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    handle_trace_metadata(
+        project_api_key.project_id,
+        req,
+        spans_message_queue,
+        spans_stream_publisher,
+        db,
+        cache,
+        clickhouse,
+    )
+    .await
+}
+
+/// Handler body for `/v1/traces/metadata`: empty-check, existence check, and
+/// patch publish.
+pub async fn handle_trace_metadata(
+    project_id: Uuid,
+    req: web::Json<UpdateTraceMetadataRequest>,
+    spans_message_queue: web::Data<Arc<MessageQueue>>,
+    spans_stream_publisher: web::Data<Option<Arc<StreamPublisher>>>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    let req = req.into_inner();
+
+    if req.metadata.is_empty() {
+        return Ok(HttpResponse::BadRequest().json("metadata cannot be empty"));
+    }
+
+    let db = db.into_inner();
+    let cache = cache.into_inner();
+
+    if !trace_exists(&clickhouse, project_id, req.trace_id).await? {
+        return Ok(HttpResponse::NotFound().json("Trace not found"));
+    }
+
+    publish_trace_metadata_patch(
+        req.trace_id,
+        project_id,
+        req.metadata,
+        spans_message_queue.as_ref().clone(),
+        db,
+        cache,
+        spans_stream_publisher.get_ref().clone(),
+    )
+    .await
+    .map_err(|e| {
+        log::error!("Failed to publish trace metadata patch: {:?}", e);
+        anyhow::anyhow!("Failed to publish trace metadata patch")
+    })?;
+
+    Ok(HttpResponse::Ok().finish())
+}

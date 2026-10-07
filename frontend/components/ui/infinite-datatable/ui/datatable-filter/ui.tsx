@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { find, get, head, isEmpty, isEqual, map } from "lodash";
 import { ListFilter, X } from "lucide-react";
-import { memo, type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type PropsWithChildren, useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -12,12 +12,13 @@ import {
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
   STRING_OPERATIONS,
+  toFilterDataType,
 } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
-import { type Filter } from "@/lib/actions/common/filters";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
 
@@ -29,6 +30,25 @@ interface FilterUIProps {
   filters: Filter[];
 }
 
+const parseFirstFilter = (columnFilters: ColumnFilter[]) => {
+  const firstColumn = head(columnFilters);
+  if (firstColumn) {
+    const { key: column, dataType } = firstColumn;
+    if (dataType && dataTypeOperationsMap[dataType]?.length) {
+      return {
+        operator: dataTypeOperationsMap[dataType][0].key,
+        column,
+        value: "",
+      };
+    }
+  }
+  return {
+    operator: Operator.Eq,
+    column: "",
+    value: "",
+  };
+};
+
 const FilterPopover = ({
   columns,
   presetFilters,
@@ -38,23 +58,30 @@ const FilterPopover = ({
   children,
 }: PropsWithChildren<FilterUIProps>) => {
   // Internal filter state - value is string during editing, converted to proper type on apply
-  const [filter, setFilter] = useState<{ column: string; operator: Operator; value: string }>({
-    operator: Operator.Eq,
-    column: "",
-    value: "",
-  });
+  const [filter, setFilter] = useState<{ column: string; operator: Operator; value: string }>(() =>
+    parseFirstFilter(columns)
+  );
+
+  const [prevColumns, setPrevColumns] = useState(columns);
+  if (!isEqual(columns, prevColumns)) {
+    setPrevColumns(columns);
+    setFilter(parseFirstFilter(columns));
+  }
 
   const handleApplyFilters = useCallback(
     (filter: { column: string; operator: Operator; value: string | number | string[] }) => {
       const column = find(columns, ["key", filter.column]);
-      const dataType = column?.dataType || "string";
+      const dataType: FilterDataType = toFilterDataType(column?.dataType || "string");
 
       const filterValue = dataType === "array" && typeof filter.value === "string" ? [filter.value] : filter.value;
 
-      const filterToAdd = { ...filter, value: filterValue } as Filter;
+      const filterToAdd = { ...filter, dataType, value: filterValue } as Filter;
       if (!filters.some((f) => isEqual(f, filterToAdd))) {
         onAddFilter(filterToAdd);
       }
+      // Clear the value so reopening the popover doesn't re-apply stale input;
+      // keep column/operator so adding several filters on one column (e.g. metadata keys) stays quick.
+      setFilter((prev) => ({ ...prev, value: "" }));
     },
     [columns, filters, onAddFilter]
   );
@@ -81,24 +108,6 @@ const FilterPopover = ({
     },
     [columns]
   );
-
-  useEffect(() => {
-    const firstColumn = head(columns);
-
-    if (firstColumn) {
-      const { key: column, dataType } = firstColumn;
-
-      if (dataType && dataTypeOperationsMap[dataType]?.length) {
-        const operator = dataTypeOperationsMap[dataType][0].key;
-
-        setFilter({
-          operator,
-          column,
-          value: "",
-        });
-      }
-    }
-  }, [columns]);
 
   return (
     <Popover>
@@ -231,7 +240,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
         <>
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="key"
             value={currentKey}
             onChange={(e) => {
@@ -241,7 +250,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           />
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={currentValue}
             onChange={(e) => {
@@ -297,7 +306,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           {renderOperatorSelect()}
           <Input
             type="number"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={filter.value}
             onChange={(e) => onValueChange({ field: "value", value: e.target.value })}
@@ -311,7 +320,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           {renderOperatorSelect()}
           <Input
             type="text"
-            className="h-7 hide-arrow"
+            className="h-7 hide-arrow bg-transparent"
             placeholder="value"
             value={filter.value}
             onChange={(e) => onValueChange({ field: "value", value: e.target.value })}
@@ -337,33 +346,14 @@ const PureFilterList = ({
   return (
     <div className="flex gap-2 flex-wrap">
       {filters.map((f, index) => (
-        <TooltipProvider key={`${index}-${f.column}-${f.value}-${f.operator}`}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge
-                className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
-                variant="outline"
-              >
-                <ListFilter className="w-3 h-3 text-primary" />
-                <span className="text-xs text-primary truncate font-mono">
-                  {f.column}{" "}
-                  {get(
-                    find(
-                      [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
-                      ["key", f.operator]
-                    ),
-                    "label",
-                    f.operator
-                  )}{" "}
-                  {f.value}
-                </span>
-                <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
-                  <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
-                </Button>
-              </Badge>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent>
+        <Tooltip key={`${index}-${f.column}-${f.value}-${f.operator}`}>
+          <TooltipTrigger asChild>
+            <Badge
+              className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
+              variant="outline"
+            >
+              <ListFilter className="w-3 h-3 text-primary" />
+              <span className="text-xs text-primary truncate font-mono">
                 {f.column}{" "}
                 {get(
                   find(
@@ -374,10 +364,32 @@ const PureFilterList = ({
                   f.operator
                 )}{" "}
                 {f.value}
-              </TooltipContent>
-            </TooltipPortal>
-          </Tooltip>
-        </TooltipProvider>
+              </span>
+              <Button
+                aria-label={`Remove ${f.column} ${f.value} filter`}
+                onClick={() => onRemoveFilter(f)}
+                className="p-0 h-fit group"
+                variant="ghost"
+              >
+                <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
+              </Button>
+            </Badge>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent>
+              {f.column}{" "}
+              {get(
+                find(
+                  [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
+                  ["key", f.operator]
+                ),
+                "label",
+                f.operator
+              )}{" "}
+              {f.value}
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
       ))}
     </div>
   );

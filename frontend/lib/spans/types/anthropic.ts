@@ -2,7 +2,7 @@ import { map } from "lodash";
 import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/s3";
+import { tryParseJson } from "@/lib/utils";
 
 /** Content Block Schemas **/
 
@@ -103,9 +103,19 @@ export const AnthropicContentBlockSchema = z.union([
 export const AnthropicMessageSchema = z
   .object({
     role: z.enum(["user", "assistant", "system"]),
-    content: z.union([z.string(), z.array(AnthropicContentBlockSchema)]),
+    content: z.union([
+      z.array(AnthropicContentBlockSchema),
+      z.string().transform((str) => {
+        const parsed = tryParseJson(str);
+        if (Array.isArray(parsed)) {
+          const result = z.array(AnthropicContentBlockSchema).safeParse(parsed);
+          if (result.success) return result.data;
+        }
+        return str;
+      }),
+    ]),
   })
-  .passthrough();
+  .loose();
 
 export const AnthropicMessagesSchema = z.array(AnthropicMessageSchema);
 
@@ -212,7 +222,7 @@ export const convertAnthropicToPlaygroundMessages = async (
               break;
 
             case "thinking":
-              content.push({ type: "text", text: `[Thinking]\n${block.thinking}` });
+              content.push({ type: "text", text: block.thinking as string });
               break;
 
             case "tool_use":
@@ -242,15 +252,7 @@ export const convertAnthropicToPlaygroundMessages = async (
                 const src = `data:${block.source.media_type};base64,${block.source.data}`;
                 content.push({ type: "image", image: src });
               } else {
-                let imageData = block.source.url;
-                if (isStorageUrl(imageData)) {
-                  try {
-                    imageData = await urlToBase64(imageData);
-                  } catch (error) {
-                    console.error("Error downloading Anthropic image:", error);
-                  }
-                }
-                content.push({ type: "image", image: imageData });
+                content.push({ type: "image", image: block.source.url });
               }
               break;
             }

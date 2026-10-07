@@ -6,7 +6,12 @@ import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
+import {
+  buildTracesStatsWhereConditions,
+  generateEmptyTimeBuckets,
+  parseCustomColumnsJson,
+} from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
@@ -18,11 +23,7 @@ export const GetTraceStatsSchema = GetTracesSchema.omit({
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
 
-export type TracesStatsDataPoint = {
-  timestamp: string;
-  successCount: number;
-  errorCount: number;
-} & Record<string, number>;
+export type { TracesStatsDataPoint };
 
 export async function getTraceStats(
   input: z.infer<typeof GetTraceStatsSchema>
@@ -38,14 +39,16 @@ export async function getTraceStats(
     filter: inputFilters,
     intervalValue,
     intervalUnit,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
 
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
+
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -63,6 +66,7 @@ export async function getTraceStats(
     traceType,
     traceIds,
     filters,
+    customColumns,
   });
 
   const {

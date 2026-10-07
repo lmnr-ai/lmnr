@@ -1,202 +1,107 @@
 "use client";
 
-import { SquareArrowOutUpRight } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { defaultSignalsColumnsOrder, signalsColumns, signalsTableFilters } from "@/components/signals/columns.tsx";
-import ManageSignalSheet from "@/components/signals/manage-signal-sheet.tsx";
-import { Button } from "@/components/ui/button";
-import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
+import { signalsColumnLabels } from "@/components/signals/columns";
+import {
+  DEFAULT_SPARKLINE_PAST_HOURS,
+  defaultSignalsColumnOrder,
+  defaultSignalsColumnVisibility,
+  RESOURCE,
+} from "@/components/signals/constants";
+import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
+import { SignalsTableContents } from "@/components/signals/table-contents";
+import { SignalsTableControls } from "@/components/signals/table-controls";
+import { type DateRangeValue } from "@/components/ui/date-range-filter/store";
 import Header from "@/components/ui/header.tsx";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
-import { TableCell, TableRow } from "@/components/ui/table";
-import { type SignalRow } from "@/lib/actions/signals";
-import { useToast } from "@/lib/hooks/use-toast";
-
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No signals yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Signals let you track outcomes, behaviors, and failures in your traces using LLM-based evaluation. Click +
-            Signal above to get started.
-          </p>
-          <a
-            href="https://docs.laminar.sh/signals"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            Learn more
-            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { track } from "@/lib/posthog";
 
 export default function Signals() {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider storageKey="signals-table" uniqueKey="id" defaultColumnOrder={defaultSignalsColumnsOrder}>
+    <InfiniteDataTableProvider
+      uniqueKey="id"
+      defaults={{ columnOrder: defaultSignalsColumnOrder, columnVisibility: defaultSignalsColumnVisibility }}
+      lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <SignalsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
-  const { rowSelection, onRowSelectionChange } = useSelection();
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: DEFAULT_SPARKLINE_PAST_HOURS });
+  const refetchRef = useRef<() => void>(() => {});
 
-  const searchParams = useSearchParams();
-  const filter = searchParams.getAll("filter");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const pastHours = searchParams.get("pastHours");
-  const search = searchParams.get("search");
+  useEffect(() => {
+    track("signals", "page_viewed");
+  }, []);
 
-  const FETCH_SIZE = 50;
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
 
-  const fetchSignals = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (pastHours != null) urlParams.set("pastHours", pastHours);
-        if (startDate != null) urlParams.set("startDate", startDate);
-        if (endDate != null) urlParams.set("endDate", endDate);
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (typeof search === "string" && search.length > 0) {
-          urlParams.set("search", search);
-        }
-
-        const response = await fetch(`/api/projects/${projectId}/signals?${urlParams.toString()}`);
-        if (!response.ok) throw new Error("Failed to fetch signals");
-
-        const data = (await response.json()) as { items: SignalRow[] };
-        return { items: data.items };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load signals.",
-          variant: "destructive",
-        });
-        throw error;
-      }
-    },
-    [endDate, filter, pastHours, projectId, startDate, search, toast]
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
+  const sortBy = effective.sortBy ?? undefined;
+  const sortDirection = (effective.sortDirection ?? undefined) as "asc" | "desc" | undefined;
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
   );
 
-  const {
-    data: eventDefinitions,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    refetch,
-    updateData,
-  } = useInfiniteScroll<SignalRow>({
-    fetchFn: fetchSignals,
-    enabled: true,
-    deps: [endDate, filter, pastHours, projectId, startDate, search],
-  });
+  const sparklinePastHours = dateRange.pastHours ?? DEFAULT_SPARKLINE_PAST_HOURS;
 
   const handleSuccess = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    refetchRef.current();
+  }, []);
 
-  const handleDelete = useCallback(
-    async (selectedRowIds: string[]) => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/signals`, {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ ids: selectedRowIds }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to delete signals");
-        }
-
-        updateData((currentData) => currentData.filter((eventDef) => !selectedRowIds.includes(eventDef.id)));
-        onRowSelectionChange({});
-
-        toast({
-          title: "Signals deleted",
-          description: `Successfully deleted ${selectedRowIds.length} signal(s).`,
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete signals. Please try again.",
-          variant: "destructive",
-        });
-      }
+  const handleSort = useCallback(
+    (columnId: string, direction: "asc" | "desc") => {
+      setSort(columnId || null, columnId ? direction : null);
     },
-    [projectId, toast, updateData, onRowSelectionChange]
+    [setSort]
   );
 
   return (
     <>
-      <Header path="signals" />
-      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-        <div className="flex items-center gap-2">
-          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-              Signal
-            </Button>
-          </ManageSignalSheet>
-        </div>
-        <InfiniteDataTable<SignalRow>
-          columns={signalsColumns}
-          data={eventDefinitions}
-          getRowId={(row) => row.id}
-          getRowHref={(row) => `/project/${projectId}/signals/${row.original.id}`}
-          hasMore={hasMore}
-          isFetching={isFetching}
-          isLoading={isLoading}
-          fetchNextPage={fetchNextPage}
-          enableRowSelection
-          state={{
-            rowSelection,
-          }}
-          onRowSelectionChange={onRowSelectionChange}
-          lockedColumns={["__row_selection"]}
-          selectionPanel={(selectedRowIds) => (
-            <div className="flex flex-col space-y-2">
-              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
-            </div>
-          )}
-          emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
-        >
-          <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={signalsTableFilters} />
-            <ColumnsMenu
-              lockedColumns={["__row_selection"]}
-              columnLabels={signalsColumns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
+      <Header path="signals">
+        <SignalsBannerInfoButton />
+      </Header>
+      <div className="px-4">
+        <SignalsBanner onCreateSignal={() => setIsDialogOpen(true)} />
+      </div>
+      <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          <SignalsTableContents
+            refetchRef={refetchRef}
+            filter={filter}
+            search={search}
+            sortBy={sortBy}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            isViewLoading={isViewLoading}
+            sparklinePastHours={sparklinePastHours}
+          >
+            <SignalsTableControls
+              projectId={String(projectId)}
+              filters={effective.filters}
+              onFiltersChange={setFilters}
+              searchValue={searchValue}
+              onSearchChange={setSearchAndFilters}
+              columnLabels={signalsColumnLabels}
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+              isCreateOpen={isDialogOpen}
+              onCreateOpenChange={setIsDialogOpen}
+              onCreateSuccess={handleSuccess}
             />
-            <DataTableSearch className="mr-0.5" placeholder="Search by signal name..." />
-          </div>
-          <DataTableFilterList />
-        </InfiniteDataTable>
+          </SignalsTableContents>
+        </div>
       </div>
     </>
   );

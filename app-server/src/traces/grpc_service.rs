@@ -5,7 +5,7 @@ use crate::{
     cache::Cache,
     db::DB,
     features::{Feature, is_feature_enabled},
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
     },
@@ -13,13 +13,18 @@ use crate::{
 };
 use tonic::{Request, Response, Status};
 
-use super::producer::push_spans_to_queue;
+use super::{
+    producer::push_spans_to_queue,
+    rate_limit::{IngestionRateLimiter, IngestionTransport},
+};
 
 pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    spans_stream_publisher: Option<Arc<StreamPublisher>>,
+    rate_limiter: Option<Arc<IngestionRateLimiter>>,
 }
 
 impl ProcessTracesService {
@@ -28,12 +33,16 @@ impl ProcessTracesService {
         cache: Arc<Cache>,
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
+        spans_stream_publisher: Option<Arc<StreamPublisher>>,
+        rate_limiter: Option<Arc<IngestionRateLimiter>>,
     ) -> Self {
         Self {
             db,
             cache,
             clickhouse,
             queue,
+            spans_stream_publisher,
+            rate_limiter,
         }
     }
 }
@@ -50,11 +59,23 @@ impl TraceService for ProcessTracesService {
         let project_id = api_key.project_id;
         let request = request.into_inner();
 
+        // Per-project ingestion rate limit, shared with the HTTP /v1/traces
+        // path so the two transports draw from one quota.
+        if let Some(ref limiter) = self.rate_limiter {
+            if !limiter
+                .check(&self.cache, project_id, IngestionTransport::Grpc)
+                .await
+            {
+                return Err(Status::resource_exhausted("Rate limit exceeded"));
+            }
+        }
+
         if is_feature_enabled(Feature::UsageLimit) {
             let bytes_limit_exceeded = get_workspace_bytes_limit_exceeded(
                 self.db.clone(),
                 self.clickhouse.clone(),
                 self.cache.clone(),
+                self.queue.clone(),
                 project_id,
             )
             .await
@@ -76,6 +97,7 @@ impl TraceService for ProcessTracesService {
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
+            self.spans_stream_publisher.clone(),
         )
         .await
         .map_err(|e| {

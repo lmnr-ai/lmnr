@@ -1,11 +1,12 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
+import { deriveStatus } from "@/components/evaluation/utils";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { CostCell } from "./cost-cell";
 import { DataCell } from "./data-cell";
 import { DurationCell } from "./duration-cell";
-import { createScoreColumnCell } from "./score-cell";
+import { createScoreColumnCell, scoreDirectionDropdownItems } from "./score-cell";
 import { StatusCell } from "./status-cell";
 
 // -- Static column definitions --
@@ -27,12 +28,12 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   },
   {
     id: "status",
-    accessorFn: (row) => row["status"],
+    accessorFn: (row) => deriveStatus(row),
     cell: StatusCell,
     header: "Status",
     size: 70,
     enableSorting: false,
-    meta: { sql: "trace_status", dataType: "string", filterable: false, comparable: false },
+    meta: { dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "index",
@@ -205,6 +206,20 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       hidden: true,
     },
   },
+  {
+    id: "traceStatus",
+    accessorFn: (row) => row["traceStatus"],
+    header: "Trace Status",
+    enableSorting: false,
+    meta: { sql: "trace_status", dataType: "string", filterable: false, comparable: false, hidden: true },
+  },
+  {
+    id: "topSpanId",
+    accessorFn: (row) => row["topSpanId"],
+    header: "Top Span ID",
+    enableSorting: false,
+    meta: { sql: "top_span_id", dataType: "string", filterable: false, comparable: false, hidden: true },
+  },
 ];
 
 // -- Score column factory --
@@ -218,12 +233,13 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
     cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
-      sql: `simpleJSONExtractFloat(scores, '${name.replace(/'/g, "\\'")}')`,
+      sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
       dataType: "number",
       filterable: true,
       comparable: true,
       scoreName: name,
       dbType: "Float64",
+      customDropdownItems: (table) => scoreDirectionDropdownItems(name, table),
     },
   };
 }

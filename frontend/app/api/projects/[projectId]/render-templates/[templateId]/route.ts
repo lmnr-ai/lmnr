@@ -39,6 +39,7 @@ export async function PUT(request: Request, props: { params: Promise<{ projectId
       templateId,
       name: body.name,
       code: body.code,
+      whereClause: body.whereClause,
     });
 
     return NextResponse.json(result);

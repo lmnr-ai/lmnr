@@ -14,8 +14,8 @@ import { signalJobs } from "@/lib/db/migrations/schema";
 import { fetcherJSON } from "@/lib/utils";
 
 export const GetSignalJobsSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string().optional(),
+  projectId: z.guid(),
+  signalId: z.guid().optional(),
   ...FiltersSchema.shape,
 });
 
@@ -51,10 +51,12 @@ export async function getSignalJobs(input: z.infer<typeof GetSignalJobsSchema>) 
 }
 
 export const CreateSignalJob = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   search: z.string().nullable().optional(),
   traceIds: z.array(z.string()).optional(),
+  /** 0 = batch, 1 = realtime */
+  mode: z.number().int().min(0).max(1).default(0),
   ...FiltersSchema.shape,
   ...TimeRangeSchema.shape,
 });
@@ -87,18 +89,18 @@ export async function createSignalJob(
     startDate,
     endDate,
     traceIds: selectedTraceIds,
+    mode,
   } = CreateSignalJob.parse(input);
 
   const filters: Filter[] = compact(inputFilters);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startDate, endDate),
-      searchType: [] as SpanSearchType[],
-    })
+        projectId,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startDate, endDate),
+        searchType: [] as SpanSearchType[],
+      })
     : [];
   const traceIdsFromSearch = [...new Set(spanHits.map((span) => span.trace_id))];
 
@@ -127,6 +129,7 @@ export async function createSignalJob(
       query: sqlQuery,
       parameters,
       signalId,
+      mode,
     }),
   });
 

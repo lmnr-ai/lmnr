@@ -1,14 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { processSlashCommand } from "@/lib/actions/slack/slash-commands";
-import { SlackSlashCommandSchema, SlackWebhookRequestSchema } from "@/lib/actions/slack/types";
+import { handleSlackInteraction } from "@/lib/actions/slack/handle-interaction";
+import { SlackBlockActionsSchema, SlackWebhookRequestSchema } from "@/lib/actions/slack/types";
 import { processSlackEvent, verifySlackRequest } from "@/lib/actions/slack/webhook";
 
 /**
  * https://api.slack.com/apis/connections/events-api
  * https://api.slack.com/authentication/verifying-requests-from-slack
- * https://api.slack.com/interactivity/slash-commands
  */
 export async function POST(req: NextRequest): Promise<Response> {
   try {
@@ -25,16 +24,23 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     const contentType = req.headers.get("content-type");
-    const payload = contentType?.includes("application/x-www-form-urlencoded")
-      ? Object.fromEntries(new URLSearchParams(body))
-      : JSON.parse(body);
 
-    if ("command" in payload && typeof payload.command === "string") {
-      const slashCommand = SlackSlashCommandSchema.parse(payload);
-      const response = await processSlashCommand(slashCommand);
-      return NextResponse.json(response, { status: 200 });
+    // Interactive actions (block_actions from the project picker) are sent as form-urlencoded with a
+    // `payload` field carrying URL-encoded JSON. Bind the channel, then ACK 200 (the bind is a quick
+    // upsert + a response_url post, well within Slack's 3s budget). A handler failure must not 500 the
+    // webhook — log and still ACK so Slack stops retrying.
+    if (contentType?.includes("application/x-www-form-urlencoded")) {
+      const params = new URLSearchParams(body);
+      const { payload } = SlackBlockActionsSchema.parse({ payload: params.get("payload") ?? "" });
+      try {
+        await handleSlackInteraction(payload);
+      } catch (error) {
+        console.error("Slack interaction handling failed:", error);
+      }
+      return NextResponse.json({ ok: true }, { status: 200 });
     }
 
+    const payload = JSON.parse(body);
     const data = SlackWebhookRequestSchema.parse(payload);
 
     if ("type" in data) {
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       if (data.type === "event_callback") {
         const { event, team_id } = data;
-        await processSlackEvent({ event, teamId: team_id });
+        await processSlackEvent({ event, teamId: team_id, rawBody: body });
         return NextResponse.json({ ok: true }, { status: 200 });
       }
     }

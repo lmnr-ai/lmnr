@@ -2,15 +2,14 @@ import { z } from "zod/v4";
 
 import { fetcherJSON } from "@/lib/utils";
 
+import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
 
-export * from "./export-job";
-export { generateSql } from "./generate";
-export * from "./templates";
+export { SHARED_ACTOR, type SqlActor } from "./actor";
 export type { GenerationMode, GenerationResult } from "./types";
 
 const ExecuteQuerySchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   query: z.string().min(1, { error: "Query is required." }),
   parameters: z
     .looseObject({
@@ -21,22 +20,30 @@ const ExecuteQuerySchema = z.object({
     .optional(),
 });
 
-export const executeQuery = async <T extends object>(input: z.infer<typeof ExecuteQuerySchema>) => {
+/**
+ * The actor is a separate argument, not part of the input schema, so route
+ * handlers that spread a request body cannot let a client pick who they are.
+ */
+export const executeQuery = async <T extends object>(
+  input: z.infer<typeof ExecuteQuerySchema>,
+  options?: { actor?: SqlActor }
+) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
+  const actor = await resolveSqlActor(options?.actor);
 
   const res = (await fetcherJSON(`/projects/${projectId}/sql/query`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, parameters }),
+    body: JSON.stringify({ query, parameters, actor }),
   })) as T[];
 
   return res;
 };
 
 const SqlToJsonInputSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   sql: z.string().min(1, { error: "SQL query is required." }),
 });
 
@@ -61,7 +68,7 @@ export const sqlToJson = async (input: z.infer<typeof SqlToJsonInputSchema>): Pr
 };
 
 const JsonToSqlInputSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   queryStructure: QueryStructureSchema,
 });
 

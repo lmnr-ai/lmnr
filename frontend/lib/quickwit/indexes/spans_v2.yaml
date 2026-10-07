@@ -1,0 +1,49 @@
+version: "0.8"
+index_id: spans_v2
+doc_mapping:
+  mode: dynamic
+  dynamic_mapping:
+    indexed: true
+    stored: false
+    tokenizer: default
+    record: position
+    expand_dots: true
+    fast: false
+  field_mappings:
+    - name: span_id
+      type: text
+      tokenizer: raw
+      fast: false
+    - name: project_id
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: false
+    - name: trace_id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: start_time
+      type: datetime
+      fast: true
+      stored: false
+    - name: input
+      type: text
+      tokenizer: default
+      fast: false
+      stored: false
+      record: position
+    - name: output
+      type: text
+      tokenizer: default
+      fast: false
+      stored: false
+      record: position
+  tag_fields: []
+  timestamp_field: start_time
+  partition_key: hash_mod(project_id, 100)
+search_settings:
+  default_search_fields: [input, output]
+retention:
+  period: 90 days
+  schedule: daily

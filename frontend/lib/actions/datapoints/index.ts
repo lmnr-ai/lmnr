@@ -1,10 +1,14 @@
+import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { type Filter } from "@/lib/actions/common/filters";
+import { FiltersSchema } from "@/lib/actions/common/types";
 import {
   buildAllDatapointsQueryWithParams,
   buildDatapointCountQueryWithParams,
   buildDatapointsByIdsQueryWithParams,
   buildDatapointsQueryWithParams,
+  parseCustomColumnsJson,
 } from "@/lib/actions/datapoints/utils";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
@@ -16,55 +20,67 @@ import {
 import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 export const ListDatapointsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
-  pageNumber: z.number().default(0),
-  pageSize: z.number().default(50),
+  ...FiltersSchema.shape,
+  projectId: z.guid(),
+  datasetId: z.guid(),
+  pageNumber: z.coerce.number().default(0),
+  pageSize: z.coerce.number().default(50),
+  searchQuery: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export const CreateDatapointsSchema = z.object({
   datapoints: z.array(
     z.object({
-      id: z.string().optional(),
+      id: z.guid().optional(),
       data: z.any(),
       target: z.any().optional(),
       metadata: z.record(z.string(), z.any()).optional(),
     })
   ),
-  sourceSpanId: z.string().optional(),
+  sourceSpanId: z.guid().optional(),
 });
 
 export const CreateDatapointsInputSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   datapoints: CreateDatapointsSchema.shape.datapoints,
   sourceSpanId: CreateDatapointsSchema.shape.sourceSpanId,
 });
 
 export const DeleteDatapointsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   datapointIds: z.array(z.string()),
 });
 
 export const PushDatapointsToQueueSchema = z.object({
   datapointIds: z.array(z.string()),
-  projectId: z.string(),
-  datasetId: z.string(),
-  queueId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
+  queueId: z.guid(),
 });
 
 export const CountDatapointsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  ...FiltersSchema.shape,
+  projectId: z.guid(),
+  datasetId: z.guid(),
+  searchQuery: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export async function countDatapoints(input: z.infer<typeof CountDatapointsSchema>) {
-  const { projectId, datasetId } = CountDatapointsSchema.parse(input);
+  const { projectId, datasetId, searchQuery, filter: inputFilters, customColumns: customColumnsJson } = input;
+
+  const filters: Filter[] = compact(inputFilters);
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   // Get total count for pagination
   const { query: countQuery, parameters: countParams } = buildDatapointCountQueryWithParams({
     datasetId,
+    searchQuery,
+    filters,
+    customColumns,
   });
 
   const countResult = await executeQuery<{ count: number }>({
@@ -80,15 +96,29 @@ export async function countDatapoints(input: z.infer<typeof CountDatapointsSchem
   };
 }
 export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>) {
-  const { projectId, datasetId, pageNumber, pageSize } = ListDatapointsSchema.parse(input);
+  const {
+    projectId,
+    datasetId,
+    pageNumber,
+    pageSize,
+    searchQuery,
+    filter: inputFilters,
+    customColumns: customColumnsJson,
+  } = input;
 
   const offset = Math.max(0, pageNumber * pageSize);
+
+  const filters: Filter[] = compact(inputFilters);
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   // Get datapoints using SQL endpoint
   const { query: datapointsQuery, parameters: datapointsParams } = buildDatapointsQueryWithParams({
     datasetId,
     pageSize,
     offset,
+    searchQuery,
+    filters,
+    customColumns,
   });
 
   const datapointsData = (await executeQuery<Record<string, unknown>>({
@@ -138,6 +168,7 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
   }));
 
   const result = await pushQueueItems({
+    projectId,
     queueId,
     items: queueItems,
   });

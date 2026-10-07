@@ -1,7 +1,7 @@
 import { pushQueueItems, PushQueueItemsRequestSchema } from "@/lib/actions/queue";
 
 export async function POST(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
-  const params = await props.params;
+  const { projectId, queueId } = await props.params;
 
   try {
     const body = await request.json();
@@ -12,7 +12,8 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
     }
 
     const newQueueItems = await pushQueueItems({
-      queueId: params.queueId,
+      projectId,
+      queueId,
       items: result.data,
     });
 

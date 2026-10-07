@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ export default function CreateQueueDialog({
         onSuccess(newQueue);
       }
 
+      track("labeling_queues", "created");
       toast({ title: "Successfully created queue" });
       setIsDialogOpen(false);
     } catch (e) {
@@ -89,7 +91,11 @@ export default function CreateQueueDialog({
         </div>
         <DialogFooter>
           <Button onClick={createNewQueue} disabled={!newQueueName || isLoading} handleEnter>
-            <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+            <Loader2
+              data-icon="inline-start"
+              className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")}
+              size={16}
+            />
             Create
           </Button>
         </DialogFooter>

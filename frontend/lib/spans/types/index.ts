@@ -2,75 +2,7 @@ import { type ModelMessage } from "ai";
 import { isArray, isNumber, isString } from "lodash";
 
 import { type Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/s3";
-import { type ChatMessage, type ChatMessageContentPart, type ChatMessageImage } from "@/lib/types";
-
-/**
- * Downloads images of internal messages format
- */
-export const downloadImages = async (
-  messages: ChatMessage[] | Record<string, unknown> | string | undefined
-): Promise<ChatMessage[] | Record<string, unknown> | string | undefined> => {
-  if (isString(messages) || isNumber(messages)) {
-    return messages;
-  }
-
-  if (isArray(messages)) {
-    return Promise.all(
-      messages.map(async (message) => {
-        if (isString(message) || isNumber(message)) {
-          return message;
-        }
-        if (typeof message === "object" && message !== null) {
-          if ("content" in message && Array.isArray(message.content)) {
-            const processedContent = await Promise.all(
-              (message.content as ChatMessageContentPart[]).map(async (part) => {
-                switch (part.type) {
-                  case "image_url": {
-                    try {
-                      const imageUrl =
-                        "image_url" in part && part.image_url ? part.image_url.url : "url" in part ? part.url : null;
-
-                      if (!imageUrl) {
-                        return part;
-                      }
-
-                      if (isStorageUrl(imageUrl)) {
-                        const base64Image = await urlToBase64(imageUrl);
-                        return {
-                          type: "image" as const,
-                          mediaType: "image/png",
-                          data: base64Image.split(",")[1] || base64Image,
-                        } as ChatMessageImage;
-                      }
-
-                      return part;
-                    } catch (error) {
-                      console.error("Error downloading image:", error);
-                      return part;
-                    }
-                  }
-                  default:
-                    return part;
-                }
-              })
-            );
-            return {
-              ...message,
-              content: processedContent,
-            } as ChatMessage;
-          }
-
-          return message as ChatMessage;
-        }
-
-        return message;
-      })
-    );
-  }
-
-  return messages;
-};
+import { type ChatMessage, type ChatMessageContentPart } from "@/lib/types";
 
 const processContentPart = (
   part: ChatMessageContentPart | any,
@@ -178,6 +110,42 @@ const processMessageContent = (
   return JSON.stringify(content);
 };
 
+const isMessageObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "role" in value &&
+  ("content" in value || "parts" in value);
+
+// A headerless content part: has a string `type` but no message-level keys.
+const isContentPart = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { type?: unknown }).type === "string" &&
+  !("role" in value) &&
+  !("content" in value) &&
+  !("parts" in value);
+
+const ASSISTANT_PART_TYPES = new Set(["reasoning", "thinking", "tool-call", "tool_call", "tool-approval-request"]);
+const TOOL_PART_TYPES = new Set(["tool-result", "tool_call_response", "tool-approval-response"]);
+
+// A bare parts array carries no role; infer one from the parts it holds.
+const inferRoleFromParts = (parts: unknown[]): string => {
+  const types = new Set(parts.map((p) => (p as { type?: string })?.type ?? ""));
+  if ([...TOOL_PART_TYPES].some((t) => types.has(t))) return "tool";
+  if ([...ASSISTANT_PART_TYPES].some((t) => types.has(t))) return "assistant";
+  return "user";
+};
+
+// Wrap a single message object or a bare parts array into a message array; no-op otherwise.
+export const normalizeToMessages = (data: unknown): unknown => {
+  if (isMessageObject(data)) return [data];
+  if (Array.isArray(data) && data.length > 0 && data.every(isContentPart)) {
+    return [{ role: inferRoleFromParts(data), content: data }];
+  }
+  return data;
+};
+
 export const convertToMessages = (
   messages: ChatMessage[] | Record<string, unknown> | string | undefined
 ): (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] => {
@@ -219,10 +187,8 @@ export const convertToMessages = (
   ];
 };
 
-export const convertToPlaygroundMessages = async (messages: ChatMessage[]): Promise<Message[]> => {
-  const processedImages = await downloadImages(messages);
-
-  return convertToMessages(processedImages).map((message) => {
+export const convertToPlaygroundMessages = async (messages: ChatMessage[]): Promise<Message[]> =>
+  convertToMessages(messages).map((message) => {
     if (typeof message.content === "string") {
       return {
         ...message,
@@ -231,4 +197,3 @@ export const convertToPlaygroundMessages = async (messages: ChatMessage[]): Prom
     }
     return message as Message;
   });
-};

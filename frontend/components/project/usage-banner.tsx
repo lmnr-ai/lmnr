@@ -3,13 +3,11 @@
 import { AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 
-export default function ProjectUsageBanner({
-  details: { workspaceId, gbUsedThisMonth, gbLimit },
-}: {
-  details: ProjectDetails;
-}) {
+export default function ProjectUsageBanner({ details: { gbUsedThisMonth, gbLimit } }: { details: ProjectDetails }) {
+  const { settingsHref } = useProjectContext();
   const dataPercentage = gbLimit > 0 ? (gbUsedThisMonth / gbLimit) * 100 : 0;
 
   const messageContent =
@@ -19,7 +17,7 @@ export default function ProjectUsageBanner({
 
   return (
     <Link
-      href={`/workspace/${workspaceId}`}
+      href={settingsHref("usage")}
       className="flex items-center gap-3 w-full px-4 py-2 bg-yellow-900/10 hover:bg-yellow-900/30 transition-colors"
     >
       <AlertCircle className="flex-shrink-0 text-yellow-400" size={16} />

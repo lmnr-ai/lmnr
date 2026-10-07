@@ -1,0 +1,119 @@
+import { and, eq } from "drizzle-orm";
+
+import { getWorkspaceUsage } from "@/lib/actions/workspace";
+import {
+  cache,
+  HARD_LIMIT_NOTIFIED_CACHE_KEY,
+  PROJECT_CACHE_KEY,
+  WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+} from "@/lib/cache";
+import { db } from "@/lib/db/drizzle";
+import { projects, subscriptionTiers, workspaceHardLimitNotifications, workspaces } from "@/lib/db/migrations/schema";
+
+import type { UsageLimitType } from "./types";
+
+export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean> => {
+  const result = await db
+    .select({ tierName: subscriptionTiers.name })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  return result.length > 0 && result[0].tierName.toLowerCase() === "free";
+};
+
+export const invalidateProjectCacheForWorkspace = async (workspaceId: string): Promise<void> => {
+  try {
+    const workspaceProjects = await db.query.projects.findMany({
+      where: eq(projects.workspaceId, workspaceId),
+      columns: { id: true },
+    });
+
+    await Promise.all(workspaceProjects.map((project) => cache.remove(`${PROJECT_CACHE_KEY}:${project.id}`)));
+  } catch (e) {
+    console.error("Error clearing project cache after usage limit change", e);
+  }
+};
+
+export const invalidateUsageWarningsCacheForWorkspace = async (workspaceId: string): Promise<void> => {
+  try {
+    await cache.remove(`${WORKSPACE_USAGE_WARNINGS_CACHE_KEY}:${workspaceId}`);
+  } catch (e) {
+    console.error("Error clearing usage warnings cache", e);
+  }
+};
+
+// Drop the once-per-cycle hard-limit dedup row so a later, legitimately distinct
+// hard-limit notification isn't suppressed by a stale `last_notified_at`. There's
+// no FK cascade from `workspace_usage_limits` (free tiers have no limit row at all),
+// so cleanup is explicit. Called whenever the underlying hard limit is removed.
+export const deleteHardLimitNotification = async (workspaceId: string, usageItem: UsageLimitType): Promise<void> => {
+  await db
+    .delete(workspaceHardLimitNotifications)
+    .where(
+      and(
+        eq(workspaceHardLimitNotifications.workspaceId, workspaceId),
+        eq(workspaceHardLimitNotifications.usageItem, usageItem)
+      )
+    );
+
+  // The app-server fronts the dedup-row read with a short-TTL cache of the
+  // suppressing state; evict it so the cleared row takes effect immediately
+  // instead of after the TTL. Best-effort: on failure the TTL still bounds
+  // the staleness.
+  try {
+    await cache.remove(`${HARD_LIMIT_NOTIFIED_CACHE_KEY}:${workspaceId}:${usageItem}`);
+  } catch (e) {
+    console.error("Error clearing hard-limit notified cache", e);
+  }
+};
+
+// When a hard limit is *raised*, only clear the dedup row if the workspace was
+// already notified this billing cycle AND the new limit sits above current usage —
+// i.e. the workspace is back below its (higher) cap and a future breach is a fresh
+// event worth notifying about. If usage already exceeds the new limit, the existing
+// stamp correctly continues to suppress duplicate notifications.
+//
+// Current usage comes from `getWorkspaceUsage` (cache → ClickHouse), NOT the
+// `workspace_usage` table: those columns are only written on checkout/reset and are
+// not kept in sync with enforcement. `getWorkspaceUsage` returns uncredited
+// Signals cost in micro-USD and `totalBytesIngested` for bytes limits.
+export const clearHardLimitNotificationOnIncrease = async (
+  workspaceId: string,
+  usageItem: UsageLimitType,
+  newLimitValue: number
+): Promise<void> => {
+  const rows = await db
+    .select({ lastNotifiedAt: workspaceHardLimitNotifications.lastNotifiedAt })
+    .from(workspaceHardLimitNotifications)
+    .where(
+      and(
+        eq(workspaceHardLimitNotifications.workspaceId, workspaceId),
+        eq(workspaceHardLimitNotifications.usageItem, usageItem)
+      )
+    )
+    .limit(1);
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const { lastNotifiedAt } = rows[0];
+  if (!lastNotifiedAt) {
+    return;
+  }
+
+  // getWorkspaceUsage recomputes the billing-cycle start from resetTime internally,
+  // so compare lastNotifiedAt against that same cycle start.
+  const usage = await getWorkspaceUsage(workspaceId);
+  const notifiedThisCycle = new Date(lastNotifiedAt) >= usage.resetTime;
+  if (!notifiedThisCycle) {
+    return;
+  }
+
+  const currentUsage = usageItem === "bytes" ? usage.totalBytesIngested : usage.uncreditedSignalCostMicroUsd;
+  if (newLimitValue > currentUsage) {
+    await deleteHardLimitNotification(workspaceId, usageItem);
+  }
+};

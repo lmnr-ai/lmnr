@@ -8,6 +8,7 @@ import {
   FileContentPart,
   ImageContentPart,
   TextContentPart,
+  ThinkingContentPart,
   ToolCallContentPart,
   ToolResultContentPart,
 } from "./common";
@@ -26,6 +27,16 @@ const GeminiPartRenderer = ({
   // Gemini parts use field-presence discrimination (no "type" key).
   // Unrecognised variants fall through to null.
   if ("text" in part) {
+    if (part.thought) {
+      return (
+        <ThinkingContentPart
+          content={part.text}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+    }
     return (
       <TextContentPart
         content={part.text}
@@ -64,6 +75,7 @@ const GeminiPartRenderer = ({
     return (
       <ToolResultContentPart
         toolCallId={part.functionResponse.name}
+        toolName={part.functionResponse.name}
         content={part.functionResponse.response}
         presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
       />

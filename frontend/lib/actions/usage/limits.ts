@@ -1,12 +1,16 @@
-import { addMonths } from "date-fns";
-import { eq } from "drizzle-orm";
+import { addMonths, subHours } from "date-fns";
+import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { cache, PROJECT_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import { retentionCutoff } from "@/lib/billing/retention";
+import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
+import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+import { getSignalCreditState } from "./signal-credit";
 
 interface ProjectBillingInfo {
   id: string;
@@ -16,15 +20,15 @@ interface ProjectBillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   bytesLimit: number;
-  signalRunsLimit: number;
+  signalCostHardLimitMicroUsd?: number | null;
 }
 
 interface BillingInfo {
   workspaceId: string;
   tierName: string;
-  signalRunsLimit: number;
   resetTime: string;
   workspaceProjectIds: string[];
+  signalCostHardLimitMicroUsd: number | null;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -35,9 +39,10 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       return {
         workspaceId: cached.workspaceId,
         tierName: cached.tierName,
-        signalRunsLimit: Number(cached.signalRunsLimit),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
+        signalCostHardLimitMicroUsd:
+          cached.signalCostHardLimitMicroUsd != null ? Number(cached.signalCostHardLimitMicroUsd) : null,
       };
     }
   } catch {
@@ -47,7 +52,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   const tierRows = await db
     .select({
       workspaceId: workspaces.id,
-      signalRunsLimit: subscriptionTiers.signalRuns,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
     })
@@ -63,21 +67,35 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
 
   const row = tierRows[0];
 
-  const projectRows = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, row.workspaceId),
-    columns: { id: true },
-  });
+  const [projectRows, customLimitRows] = await Promise.all([
+    db.query.projects.findMany({
+      where: eq(projects.workspaceId, row.workspaceId),
+      columns: { id: true },
+    }),
+    db
+      .select({ limitValue: workspaceUsageLimits.limitValue })
+      .from(workspaceUsageLimits)
+      .where(
+        and(eq(workspaceUsageLimits.workspaceId, row.workspaceId), eq(workspaceUsageLimits.limitType, "signal_cost"))
+      )
+      .limit(1),
+  ]);
 
   return {
     workspaceId: row.workspaceId,
     tierName: row.tierName,
-    signalRunsLimit: Number(row.signalRunsLimit),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
+    signalCostHardLimitMicroUsd: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
   };
 }
 
-export async function checkSignalRunsLimit(projectId: string, tracesCount: number): Promise<void> {
+// Pre-flight budget guard run before a signal job is enqueued. Signals are
+// now billed by the token cost the agent spends (micro-USD), which can't be
+// known until a run completes, so we can't predict this job's cost up front.
+// Instead we block only when the workspace has already exhausted its signal
+// cost budget for the billing period.
+export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
     return;
   }
@@ -87,53 +105,106 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     return;
   }
 
-  const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds } = info;
+  const {
+    workspaceId,
+    tierName,
+    resetTime,
+    workspaceProjectIds,
+    signalCostHardLimitMicroUsd: customSignalCostLimit,
+  } = info;
+  const isFree = tierName.trim().toLowerCase() === "free";
 
-  if (tierName.trim().toLowerCase() !== "free") {
-    return;
-  }
+  const formatUsd = (microUsd: number) =>
+    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (signalRunsLimit === 0) {
-    return;
-  }
-
-  const usageCacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
-
-  let totalSignalRuns: number | null = null;
-  try {
-    totalSignalRuns = await cache.get<number>(usageCacheKey);
-  } catch {
-    // cache read failed, fall through to ClickHouse
-  }
-
-  if (totalSignalRuns === null) {
-    if (workspaceProjectIds.length === 0) {
-      return;
+  if (isFree) {
+    const credit = await getSignalCreditState(workspaceId, 0);
+    if (credit.remainingMicroUsd === 0) {
+      throw new Error(
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
+      );
     }
+    return;
+  }
 
-    const resetTimeDate = new Date(resetTime);
-    const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-    const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
+  // Paid tiers only need this preflight path when the owner configured a
+  // monthly safety cap.
+  if (customSignalCostLimit == null) {
+    return;
+  }
 
-    const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
-    FROM signal_runs
+  const resetTimeDate = new Date(resetTime);
+  const signalUsageStart = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+  if (workspaceProjectIds.length === 0) {
+    return;
+  }
+
+  const resetTimeStr = signalUsageStart.toISOString().replace(/Z$/, "");
+  const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
+    FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
-    AND signal_runs.status = 1`;
+    AND signal_runs.status = 1
+    AND signal_runs.credit_applied = false`;
 
-    const result = await clickhouseClient.query({
-      query: signalRunsQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds: workspaceProjectIds, latestResetTime: latestResetTimeStr },
-    });
-    const rows = await result.json<{ total_signal_runs: number }>();
-    totalSignalRuns = rows.length > 0 ? Number(rows[0].total_signal_runs) : 0;
-  }
+  const result = await clickhouseClient.query({
+    query: signalRunsQuery,
+    format: "JSONEachRow",
+    query_params: { projectIds: workspaceProjectIds, latestResetTime: resetTimeStr },
+  });
+  const rows = await result.json<{ inputTokens: number; cacheReadTokens: number; outputTokens: number }>();
+  const inputTokens = rows.length > 0 ? Number(rows[0].inputTokens) : 0;
+  const cacheReadTokens = rows.length > 0 ? Number(rows[0].cacheReadTokens) : 0;
+  const outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
 
-  if (totalSignalRuns + tracesCount > signalRunsLimit) {
-    const remaining = Math.max(signalRunsLimit - totalSignalRuns, 0);
+  const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
+
+  const effectiveLimit = customSignalCostLimit!;
+  if (totalSignalCost >= effectiveLimit) {
     throw new Error(
-      `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${signalRunsLimit} allowed this billing period. Please upgrade your plan.`
+      `Signal cost limit exceeded. Your workspace has used ${formatUsd(totalSignalCost)} of the ${formatUsd(effectiveLimit)} signal budget allowed this billing period.`
     );
   }
+}
+
+export async function checkDataRetentionAccess(
+  projectId: string,
+  timeRange: { pastHours?: string; startDate?: string }
+): Promise<Response | null> {
+  if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
+    return null;
+  }
+
+  const info = await getProjectBillingInfo(projectId);
+  if (!info) {
+    return null;
+  }
+
+  const cutoff = retentionCutoff(info.tierName);
+  if (!cutoff) {
+    return null;
+  }
+
+  let effectiveStart: Date | null = null;
+
+  if (timeRange.pastHours) {
+    effectiveStart = subHours(new Date(), parseInt(timeRange.pastHours));
+  } else if (timeRange.startDate) {
+    effectiveStart = new Date(timeRange.startDate);
+  }
+
+  if (!effectiveStart) {
+    return null;
+  }
+
+  if (effectiveStart < cutoff) {
+    return Response.json(
+      {
+        error: `Forbidden.`,
+      },
+      { status: 403 }
+    );
+  }
+
+  return null;
 }

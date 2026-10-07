@@ -1,43 +1,224 @@
-//! This module traces the app-server itself with OpenTelemetry tracing
-//! and using the tracing crate for instrumentation.
+//! Self-tracing for app-server (distinct from the `traces` module, which handles client spans).
 //!
-//! This is not to be confused with the `traces` module, which refers to
-//! and processes the traces and spans sent to the app-server from clients.
+//! Two independent OTEL tracer providers sit behind two per-layer-filtered
+//! `tracing-opentelemetry` layers so Sentry tracing and Laminar's internal self-tracing never share
+//! a trace or corrupt each other's span context:
+//! - **Sentry** — owns `SentrySpanProcessor`, stays the global provider, receives non-internal spans.
+//! - **Internal** — dedicated provider whose batch exporter is the in-process
+//!   [`InProcessInternalExporter`]; built only when internal tracing is enabled, never global.
+//!
+//! The filters are disjoint (`is_internal` vs `!is_internal`), so each span's `OtelData` is written
+//! by exactly one layer and the two trees can't leak into or parent each other.
+//!
+//! Emit an internal span by setting its `target` to [`INTERNAL_TRACING_TARGET`]; set attributes via
+//! `OpenTelemetrySpanExt::set_attribute`. Pass `parent = None` to root a fresh internal trace.
+//! ```ignore
+//! #[tracing::instrument(target = "lmnr::internal", skip_all)]
+//! async fn do_work() { /* ... */ }
+//! ```
+
+pub mod internal_exporter;
+// Shared internal-span builder. `allow(dead_code)`: OSS consumers use only a
+// subset of the helpers; the rest are consumed by `signals`-gated code.
+#[allow(dead_code)]
+pub mod spans;
 
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use sentry::integrations::tracing::EventFilter;
+use tracing::Metadata;
+use tracing_subscriber::{
+    EnvFilter, Layer, filter::FilterFn, layer::SubscriberExt, util::SubscriberInitExt,
+};
 
-pub fn setup_tracing(enable_otel: bool) {
-    let env_filter = if std::env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
-        EnvFilter::from_default_env()
-    } else {
-        EnvFilter::new("info")
+use internal_exporter::{InProcessInternalExporter, SharedIngestDeps};
+
+/// `target` marking a span/event as Laminar-internal; routes it to the internal provider, never Sentry.
+pub const INTERNAL_TRACING_TARGET: &str = "lmnr::internal";
+
+/// Per-span destination project UUID. The exporter routes by it and strips it before ingest, so one
+/// exporter can fan internal spans out to different projects.
+pub const INTERNAL_PROJECT_ID_ATTR: &str = "lmnr.internal.project_id";
+
+/// Whether a span/event belongs to the internal self-tracing tree.
+fn is_internal(metadata: &Metadata<'_>) -> bool {
+    metadata.target().starts_with(INTERNAL_TRACING_TARGET)
+}
+
+/// Known-noisy error messages that stay `error`-level in logs but are never
+/// reported to Sentry: frequent, client-caused, and not actionable on our side.
+const SENTRY_SUPPRESSED_MESSAGES: &[&str] = &["invalid project API key"];
+
+/// `before_send` hook for [`sentry::ClientOptions`]: drops events whose message
+/// (or exception value) matches a suppressed pattern.
+pub fn sentry_before_send(
+    event: sentry::protocol::Event<'static>,
+) -> Option<sentry::protocol::Event<'static>> {
+    let suppressed = |s: &str| SENTRY_SUPPRESSED_MESSAGES.iter().any(|m| s.contains(m));
+    if event.message.as_deref().is_some_and(suppressed)
+        || event
+            .exception
+            .values
+            .iter()
+            .any(|e| e.value.as_deref().is_some_and(suppressed))
+    {
+        return None;
+    }
+    Some(event)
+}
+
+/// Sets up logging and the two OTEL trace trees (Sentry + internal).
+///
+/// The trees are gated independently: `enable_sentry_tracing` (`Feature::Tracing`, requires a Sentry
+/// DSN) drives the Sentry tree, `enable_internal_tracing` (`Feature::InternalTracing`, no DSN needed)
+/// drives the internal tree. The returned provider is `None` when internal tracing is off. Caller must
+/// keep the provider alive (batch exporter) and fill the returned [`SharedIngestDeps`] once the
+/// queue/DB/cache exist. `runtime_handle` is the runtime the in-process exporter drives ingest on.
+#[must_use = "keep the returned provider alive and populate the ingest deps so internal spans are flushed"]
+pub fn setup_tracing_and_logging(
+    enable_sentry_tracing: bool,
+    enable_internal_tracing: bool,
+    runtime_handle: &tokio::runtime::Handle,
+) -> (Option<SdkTracerProvider>, SharedIngestDeps) {
+    // Built fresh per layer (`EnvFilter` isn't `Clone`); applied to both the fmt logger and the
+    // Sentry OTEL layer so neither bridges TRACE/DEBUG library spans.
+    //
+    // The `clickhouse` crate emits its own `INFO`-level `clickhouse.insert`/`response` spans inside
+    // `insert_batch`, duplicating our own `#[instrument]`ed span in Sentry/logs. Their target-scoped
+    // directives win over the blanket `info` level regardless of order (`EnvFilter` picks the most
+    // specific target match), and survive a caller-supplied `RUST_LOG` too since they're appended
+    // after it.
+    let build_env_filter = || {
+        let filter =
+            if std::env::var(crate::env::observability::RUST_LOG).is_ok_and(|s| !s.is_empty()) {
+                EnvFilter::from_default_env()
+            } else {
+                EnvFilter::new("info")
+            };
+        filter
+            .add_directive("clickhouse::insert_formatted=off".parse().unwrap())
+            .add_directive("clickhouse::response=off".parse().unwrap())
+            .add_directive("clickhouse::query=off".parse().unwrap())
     };
 
+    let sentry_dsn_set =
+        std::env::var(crate::env::observability::SENTRY_DSN).is_ok_and(|s| !s.is_empty());
+
+    // Sentry's tracing layer only forwards ERROR-level events, and never any
+    // internal ones. `span_filter` must be disabled: its default captures
+    // every INFO+ span as a Sentry span, duplicating the OTEL bridge below
+    // (Provider A + `SentrySpanProcessor`), which is the single owner of
+    // Sentry span export — each application-level span would otherwise
+    // arrive in Sentry twice with slightly different durations.
+    let sentry_layer = (enable_sentry_tracing && sentry_dsn_set).then(|| {
+        sentry::integrations::tracing::layer()
+            .event_filter(|md| match *md.level() {
+                tracing::Level::ERROR => EventFilter::Event,
+                _ => EventFilter::Ignore,
+            })
+            .span_filter(|_| false)
+            .with_filter(FilterFn::new(|md: &Metadata<'_>| !is_internal(md)))
+    });
+
+    // Alternative: send logs to Sentry Logs (enable_logs on ClientOptions + sentry -F logs):
+    // let sentry_layer = (enable_otel && sentry_dsn_set)
+    //     .then(|| sentry::integrations::tracing::layer().with_filter(LevelFilter::ERROR));
+
+    // PER-LAYER, not global: a global filter would short-circuit the whole stack, so a module-scoped
+    // `RUST_LOG` could starve the internal export layer. `!is_internal` keeps internal events
+    // (e.g. `record_error`'s exception event) off stderr.
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_filter(build_env_filter())
+        .with_filter(FilterFn::new(|md: &Metadata<'_>| !is_internal(md)));
+
     let registry = tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer());
+        .with(fmt_layer)
+        .with(sentry_layer);
 
-    if enable_otel {
-        let mut provider_builder = SdkTracerProvider::builder();
-
-        if std::env::var("SENTRY_DSN").is_ok() {
-            provider_builder = provider_builder.with_span_processor(
+    // == Provider A: Sentry == receives non-internal spans, stays the global provider. Gated on
+    // `enable_sentry_tracing` (`Feature::Tracing`); the internal tree below does NOT depend on it.
+    let otel_sentry_layer = enable_sentry_tracing.then(|| {
+        let mut sentry_provider_builder = SdkTracerProvider::builder();
+        if sentry_dsn_set {
+            sentry_provider_builder = sentry_provider_builder.with_span_processor(
                 sentry::integrations::opentelemetry::SentrySpanProcessor::new(),
             );
         }
+        let sentry_provider = sentry_provider_builder.build();
+        let sentry_tracer = sentry_provider.tracer("app-server");
+        global::set_tracer_provider(sentry_provider);
 
-        let tracer_provider = provider_builder.build();
-        let tracer = tracer_provider.tracer("app-server");
+        // Level gate is REQUIRED: without it this layer bridges every non-internal span at every
+        // level into Sentry, flooding it with TRACE/DEBUG library spans (tower/hyper `poll_ready`).
+        tracing_opentelemetry::layer()
+            .with_tracer(sentry_tracer)
+            .with_filter(build_env_filter())
+            .with_filter(FilterFn::new(|md: &Metadata<'_>| !is_internal(md)))
+    });
 
-        global::set_tracer_provider(tracer_provider);
+    // == Provider B: internal self-tracing == gated on `enable_internal_tracing` (no Sentry DSN
+    // required), never the global provider. The exporter needs the queue/DB/cache, so it holds a
+    // `SharedIngestDeps` slot `main` fills later.
+    let ingest_deps: SharedIngestDeps = std::sync::Arc::new(std::sync::OnceLock::new());
 
-        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-
-        registry.with(otel_layer).init();
+    let (internal_provider, otel_internal_layer) = if enable_internal_tracing {
+        let exporter = InProcessInternalExporter::new(ingest_deps.clone(), runtime_handle.clone());
+        let provider = SdkTracerProvider::builder()
+            .with_batch_exporter(exporter)
+            .build();
+        let internal_tracer = provider.tracer("app-server-internal");
+        let layer = tracing_opentelemetry::layer()
+            .with_tracer(internal_tracer)
+            .with_filter(FilterFn::new(|md: &Metadata<'_>| is_internal(md)));
+        (Some(provider), Some(layer))
     } else {
-        registry.init();
+        (None, None)
+    };
+
+    registry
+        .with(otel_sentry_layer)
+        .with(otel_internal_layer)
+        .init();
+
+    (internal_provider, ingest_deps)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sentry_before_send;
+
+    fn event_with_message(message: &str) -> sentry::protocol::Event<'static> {
+        sentry::protocol::Event {
+            message: Some(message.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_suppresses_invalid_project_api_key() {
+        // The auth middleware logs "Error validating project_token: invalid project API key".
+        let event = event_with_message("Error validating project_token: invalid project API key");
+        assert!(sentry_before_send(event).is_none());
+    }
+
+    #[test]
+    fn test_suppresses_invalid_project_api_key_exception() {
+        let mut event = sentry::protocol::Event::default();
+        event.exception.values.push(sentry::protocol::Exception {
+            ty: "Error".to_string(),
+            value: Some("invalid project API key".to_string()),
+            ..Default::default()
+        });
+        assert!(sentry_before_send(event).is_none());
+    }
+
+    #[test]
+    fn test_keeps_other_errors() {
+        let event = event_with_message("Error validating project_token: database timed out");
+        assert!(sentry_before_send(event).is_some());
+
+        let event = sentry::protocol::Event::default();
+        assert!(sentry_before_send(event).is_some());
     }
 }

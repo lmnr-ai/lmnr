@@ -1,46 +1,135 @@
-import { type Row } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { useCallback, useMemo } from "react";
 
+import { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import { useEvalStore } from "@/components/evaluation/store";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { type ScoreRanges } from "@/components/evaluation/utils";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type Filter } from "@/lib/actions/common/filters";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-import EvalTableSkeleton from "./eval-table-skeleton";
-import EvaluationDatapointsTableContent from "./evaluation-datapoints-table-content";
+import { EvaluationDatapointsTableContents } from "./table-contents";
+import { EvaluationDatapointsTableControls } from "./table-controls";
 
-export interface EvaluationDatapointsTableProps {
-  isLoading: boolean;
-  datapointId?: string;
+interface EvaluationDatapointsTableProps {
   data: EvalRow[] | undefined;
-  scores: string[];
+  isLoading: boolean;
+  isFetching: boolean;
+  hasMore: boolean;
+  fetchNextPage: () => void;
+  columnDefs: ColumnDef<EvalRow>[];
+  visibleColumnDefs: ColumnDef<EvalRow>[];
+  isComparison: boolean;
+  scoreRanges: ScoreRanges;
+  pinnedLeftColumnIds?: string[];
+  datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
-  hasMore: boolean;
-  isFetching: boolean;
-  fetchNextPage: () => void;
+  sortBy?: string;
+  sortDirection?: "asc" | "desc";
+  onSort: (columnId: string, direction: "asc" | "desc") => void;
+  heatmapEnabled?: boolean;
+  onHeatmapEnabledChange?: (enabled: boolean) => void;
+  onDeleteCustomColumn?: (columnId: string) => void;
+
+  /** Resolved score directions (name -> isHigherBetter) for delta/heatmap coloring. */
+  scoreDirections?: Record<string, boolean>;
+  /** Flip + persist a score's direction from the header dropdown. Omit to hide the toggle. */
+  onToggleScoreDirection?: (scoreName: string) => void;
+
+  searchValue: AdvancedSearchValue;
+  onSearchChange: (next: AdvancedSearchValue) => void;
+  viewsResource?: string;
 }
 
-const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+const buildColumnFilters = (columnDefs: ColumnDef<EvalRow>[]): ColumnFilter[] =>
+  columnDefs
+    .filter((c) => c.meta?.filterable)
+    .map((c) => ({
+      key: c.id!,
+      name: typeof c.header === "string" ? c.header : c.id!,
+      dataType:
+        c.meta!.dataType === "json"
+          ? ("json" as const)
+          : c.meta!.dataType === "number"
+            ? ("number" as const)
+            : ("string" as const),
+    }));
 
-const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  const { scores, isLoading } = props;
-  const customColumns = useEvalStore((s) => s.customColumns);
-  const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`), ...customColumns.map((cc) => `custom:${cc.name}`)],
-    [scores, customColumns]
+const EvaluationDatapointsTable = ({
+  data,
+  isLoading,
+  isFetching,
+  hasMore,
+  fetchNextPage,
+  columnDefs,
+  visibleColumnDefs,
+  isComparison,
+  scoreRanges,
+  pinnedLeftColumnIds,
+  datapointId,
+  handleRowClick,
+  getRowHref,
+  sortBy,
+  sortDirection,
+  onSort,
+  heatmapEnabled,
+  onHeatmapEnabledChange,
+  onDeleteCustomColumn,
+  scoreDirections,
+  onToggleScoreDirection,
+  searchValue,
+  onSearchChange,
+  viewsResource,
+}: EvaluationDatapointsTableProps) => {
+  const isShared = useEvalStore((s) => s.isShared);
+  const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
+  const isSearchActive = searchValue.search.length > 0;
+
+  const onFiltersChange = useCallback(
+    (next: Filter[]) => onSearchChange({ ...searchValue, filters: next }),
+    [onSearchChange, searchValue]
   );
 
-  // Delay mounting the store until scores are known, otherwise the store
-  // is created with an incomplete defaultColumnOrder and score columns
-  // won't be reorderable.
-  if (isLoading) {
-    return <EvalTableSkeleton />;
-  }
-
   return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
-      <EvaluationDatapointsTableContent {...props} />
-    </DataTableStateProvider>
+    <div className="flex overflow-hidden flex-1">
+      <EvaluationDatapointsTableContents
+        data={data}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        hasMore={hasMore}
+        fetchNextPage={fetchNextPage}
+        visibleColumnDefs={visibleColumnDefs}
+        isComparison={isComparison}
+        isShared={isShared}
+        scoreRanges={scoreRanges}
+        pinnedLeftColumnIds={pinnedLeftColumnIds}
+        datapointId={datapointId}
+        handleRowClick={handleRowClick}
+        getRowHref={getRowHref}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={onSort}
+        heatmapEnabled={heatmapEnabled}
+        scoreDirections={scoreDirections}
+        onToggleScoreDirection={onToggleScoreDirection}
+        isSearchActive={isSearchActive}
+      >
+        <EvaluationDatapointsTableControls
+          columnFilters={columnFilters}
+          columnDefs={columnDefs}
+          visibleColumnDefs={visibleColumnDefs}
+          activeFilters={searchValue.filters}
+          onFiltersChange={onFiltersChange}
+          heatmapEnabled={heatmapEnabled}
+          onHeatmapEnabledChange={onHeatmapEnabledChange}
+          onDeleteCustomColumn={onDeleteCustomColumn}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
+          viewsResource={viewsResource}
+        />
+      </EvaluationDatapointsTableContents>
+    </div>
   );
 };
 

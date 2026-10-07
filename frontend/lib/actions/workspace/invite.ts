@@ -13,36 +13,57 @@ import {
 } from "@/lib/db/migrations/schema";
 import { sendInvitationEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { BASE_PATH } from "@/lib/utils";
 
 const InviteUserSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   email: z.string(),
 });
 
-const addExistingUserToWorkspace = async (workspaceId: string, email: string) => {
+const createSelfHostedInvitation = async (workspaceId: string, email: string) => {
+  // If the user already exists and is a member, throw an error
   const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
 
-  if (!existingUser) {
-    throw new Error("No user found with this email. The user must have an existing account.");
+  if (existingUser) {
+    const [existingMembership] = await db
+      .select({ id: membersOfWorkspaces.id })
+      .from(membersOfWorkspaces)
+      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUser.id)))
+      .limit(1);
+
+    if (existingMembership) {
+      throw new Error("This user is already a member of this workspace.");
+    }
+
+    // User exists but is not a member — add them directly
+    await db.insert(membersOfWorkspaces).values({
+      userId: existingUser.id,
+      workspaceId,
+      memberRole: "member",
+    });
+
+    return { success: true, message: "User added to workspace successfully" };
   }
 
-  const [existingMembership] = await db
-    .select({ id: membersOfWorkspaces.id })
-    .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUser.id)))
+  // User doesn't exist yet — check for duplicate pending invitation
+  const [existingInvitation] = await db
+    .select({ id: workspaceInvitations.id })
+    .from(workspaceInvitations)
+    .where(and(eq(workspaceInvitations.email, email), eq(workspaceInvitations.workspaceId, workspaceId)))
     .limit(1);
 
-  if (existingMembership) {
-    throw new Error("This user is already a member of this workspace.");
+  if (existingInvitation) {
+    throw new Error("An invitation for this email is already pending.");
   }
 
-  await db.insert(membersOfWorkspaces).values({
-    userId: existingUser.id,
+  // Create a pending invitation record. When this user signs up, they will
+  // be automatically added to the workspace.
+  await db.insert(workspaceInvitations).values({
+    email,
     workspaceId,
-    memberRole: "member",
   });
 
-  return { success: true, message: "User added to workspace successfully" };
+  return { success: true, message: "Invitation created successfully. The user will be added when they sign up." };
 };
 
 export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSchema>) => {
@@ -51,7 +72,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
   await checkUserWorkspaceRole({ workspaceId, roles: ["admin", "owner"] });
 
   if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
-    return addExistingUserToWorkspace(workspaceId, email);
+    return createSelfHostedInvitation(workspaceId, email);
   }
 
   const [workspace] = await db
@@ -73,6 +94,19 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
     throw new Error("Inviting members is not available on the Free plan. Please upgrade to invite team members.");
   }
 
+  // Don't invite someone who's already a member (the self-hosted branch already guards this).
+  const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  if (existingUser) {
+    const [existingMembership] = await db
+      .select({ id: membersOfWorkspaces.id })
+      .from(membersOfWorkspaces)
+      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUser.id)))
+      .limit(1);
+    if (existingMembership) {
+      throw new Error("This user is already a member of this workspace.");
+    }
+  }
+
   const [{ id }] = await db
     .insert(workspaceInvitations)
     .values({
@@ -86,11 +120,17 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
       id,
       workspaceId,
     },
-    process.env.NEXTAUTH_SECRET!,
-    { expiresIn: "48h" }
+    (process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)!,
+    { expiresIn: "7d" }
   );
 
-  const link = `${process.env.NEXTAUTH_URL}/invitations?token=${token}`;
+  // Build from ORIGIN + the build-time-baked BASE_PATH, not the raw env URL: the
+  // sub-path is owned by NEXT_PUBLIC_BASE_PATH, and an operator naturally sets
+  // BETTER_AUTH_URL to their bare origin. Appending BASE_PATH to a URL that already
+  // carries the prefix would double it (`/lmnr/lmnr/invitations`). Same pattern as
+  // prefixedCallbackUri in lib/auth.ts.
+  const authOrigin = new URL((process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL)!).origin;
+  const link = `${authOrigin}${BASE_PATH}/invitations?token=${token}`;
 
   await sendInvitationEmail(email, workspace.name, link);
 

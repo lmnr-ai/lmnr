@@ -60,8 +60,8 @@ const buttonVariants = cva(
           "border border-destructive text-destructive shadow-sm hover:bg-destructive/90 hover:text-destructive-foreground",
         warning: "bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
         warningOutline: "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
-        outline: "border border-input bg-background hover:bg-accent",
-        outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
+        outline: "border bg-surface hover:bg-surface-up-2",
+        outlinePrimary: "border border-primary bg-surface hover:bg-primary/10 text-primary",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
         secondaryLight: "bg-secondary text-secondary-foreground hover:bg-secondary/60",
         ghost: "hover:text-accent-foreground/80",
@@ -72,8 +72,12 @@ const buttonVariants = cva(
       size: {
         default: "h-7 px-2 text-xs py-2",
         sm: "h-[22px] rounded-md px-2 text-xs",
+        md: "h-8 rounded-md px-3 text-sm",
         lg: "h-10 rounded-md px-8",
         icon: "h-7 w-7",
+        // Smaller icon sizes the shadcn chat components (message-scroller, attachment) default to.
+        "icon-sm": "h-6 w-6",
+        "icon-xs": "h-5 w-5",
       },
     },
     defaultVariants: {
@@ -138,8 +142,7 @@ type HandledKey = {
 };
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 
   // Must only be used for dialogs or other pop-ups where there is only 1 button to handle at the moment
@@ -188,7 +191,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           props.onClick?.(e as any);
         }
       },
-      [props.onClick]
+      [props.onClick, props.disabled, isHandledKey]
     );
 
     React.useEffect(() => {
@@ -201,13 +204,25 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           window.removeEventListener("keydown", handleKeyDown as any);
         }
       };
-    }, [props.onClick]);
+    }, [props.onClick, props.disabled, isHandledKey, handleKeyDown, handleKeysUp]);
 
     // Get the icon component from the map
     const IconComponent = icon ? iconMap[icon] : null;
 
+    // When asChild is true, Comp is Radix Slot which requires exactly one React
+    // element child. Injecting IconComponent alongside children would create two
+    // children (even if IconComponent is null), which causes React.Children.only
+    // to throw in React 19 where Children.count includes null entries.
+    if (asChild) {
+      return (
+        <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
+          {children}
+        </Comp>
+      );
+    }
+
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...(!asChild && { type })} {...props}>
+      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
         {IconComponent && (
           <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}

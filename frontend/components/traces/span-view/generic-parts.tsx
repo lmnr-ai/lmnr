@@ -13,6 +13,7 @@ import {
   FileContentPart,
   ImageContentPart,
   TextContentPart,
+  ThinkingContentPart,
   ToolCallContentPart,
   ToolResultContentPart,
 } from "./common";
@@ -45,6 +46,27 @@ const GenericTextContentPart = ({
   />
 );
 
+// `ReasoningPart` is not re-exported from "ai" (only imported internally from
+// `@ai-sdk/provider-utils`), so we type against its rendered shape directly.
+const GenericReasoningContentPart = ({
+  part,
+  presetKey,
+  messageIndex,
+  contentPartIndex,
+}: {
+  part: { type: "reasoning"; text: string };
+  presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}) => (
+  <ThinkingContentPart
+    content={part.text}
+    presetKey={presetKey}
+    messageIndex={messageIndex}
+    contentPartIndex={contentPartIndex}
+  />
+);
+
 const GenericToolCallContentPart = ({
   part,
   presetKey,
@@ -58,6 +80,7 @@ const GenericToolCallContentPart = ({
 }) => (
   <ToolCallContentPart
     toolName={part.toolName}
+    toolCallId={part.toolCallId}
     content={omit(part, "type")}
     presetKey={presetKey}
     messageIndex={messageIndex}
@@ -66,7 +89,34 @@ const GenericToolCallContentPart = ({
 );
 
 const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => (
-  <ToolResultContentPart toolCallId={part.toolCallId} content={omit(part, "type")} presetKey={presetKey} />
+  <ToolResultContentPart
+    toolCallId={part.toolCallId}
+    toolName={part.toolName}
+    content={omit(part, "type")}
+    presetKey={presetKey}
+  />
+);
+
+// v7 broadened the ModelMessage union with parts that have no dedicated UI
+// (`custom`, `reasoning-file`, `tool-approval-request`, `tool-approval-response`).
+// Surface them as a labeled JSON block so nothing is silently dropped.
+const GenericUnknownContentPart = ({
+  part,
+  presetKey,
+  messageIndex,
+  contentPartIndex,
+}: {
+  part: { type?: string };
+  presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}) => (
+  <TextContentPart
+    content={JSON.stringify(part, null, 2)}
+    presetKey={presetKey}
+    messageIndex={messageIndex}
+    contentPartIndex={contentPartIndex}
+  />
 );
 
 const PureContentParts = ({
@@ -103,6 +153,16 @@ const PureContentParts = ({
             contentPartIndex={index}
           />
         );
+      case "reasoning":
+        return (
+          <GenericReasoningContentPart
+            key={`${parentIndex}-reasoning-${index}-${presetKey}`}
+            part={part}
+            presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
+            messageIndex={parentIndex}
+            contentPartIndex={index}
+          />
+        );
       case "tool-call":
         return (
           <GenericToolCallContentPart
@@ -123,8 +183,18 @@ const PureContentParts = ({
         );
       case "file":
         return <GenericFileContentPart key={`${part.type}-${index}`} part={part} />;
-      default:
-        return;
+      default: {
+        const unknownPart = part as { type?: string };
+        return (
+          <GenericUnknownContentPart
+            key={`${unknownPart.type ?? "unknown"}-${index}`}
+            part={unknownPart}
+            presetKey={`${parentIndex}-${unknownPart.type ?? "unknown"}-${index}-${presetKey}`}
+            messageIndex={parentIndex}
+            contentPartIndex={index}
+          />
+        );
+      }
     }
   });
 };

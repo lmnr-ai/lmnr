@@ -2,7 +2,6 @@ import { type AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { type GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 import { type DataContent, type ToolChoice, type ToolSet } from "ai";
 
-import { type Provider } from "@/components/playground/types";
 import { type playgrounds } from "@/lib/db/migrations/schema";
 
 export type Playground = typeof playgrounds.$inferSelect & {
@@ -21,6 +20,7 @@ export interface ImagePart {
 export interface TextPart {
   type: "text";
   text: string;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface ToolResultPart {
@@ -69,11 +69,13 @@ export interface ToolCallPart {
   toolCallId: string;
   toolName: string;
   input: unknown;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface Message {
   role: "system" | "user" | "assistant" | "tool";
   content: Array<ImagePart | TextPart | ToolResultPart | ToolCallPart>;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export type OpenAIProviderOptions = {
@@ -83,13 +85,20 @@ export type OpenAIProviderOptions = {
 };
 
 export type ProviderOptions =
-  | { anthropic: AnthropicProviderOptions }
+  | {
+      anthropic: Omit<AnthropicProviderOptions, "thinking"> & {
+        thinking?: { type: "enabled"; budgetTokens?: number } | { type: "disabled" } | { type: "adaptive" };
+        effort?: "low" | "medium" | "high" | "max";
+      };
+    }
   | OpenAIProviderOptions
   | { google: GoogleGenerativeAIProviderOptions }
   | Record<string, never>;
 
 export interface PlaygroundForm<T extends ToolSet = ToolSet> {
-  model: `${Provider}:${string}`;
+  /** Workspace LLM profile + one of its models; both empty until the user picks. */
+  llmProfileId: string;
+  llmModel: string;
   temperature?: number;
   maxTokens?: number;
   topP?: number;

@@ -1,8 +1,12 @@
-export const enum Feature {
+import { isAiProviderConfigured } from "@/lib/ai/model";
+
+export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
   GITHUB_AUTH = "GITHUB_AUTH",
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
+  OKTA_AUTH = "OKTA_AUTH",
+  KEYCLOAK_AUTH = "KEYCLOAK_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
@@ -10,18 +14,40 @@ export const enum Feature {
   SUBSCRIPTION = "SUBSCRIPTION",
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
+  BATCH_SIGNALS = "BATCH_SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
+  LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  SIGNAL_LLM_PROFILES = "SIGNAL_LLM_PROFILES",
+  LOOPS = "LOOPS",
+  AGENT = "AGENT",
+  TELEMETRY = "TELEMETRY",
+  ONBOARDING_COMPANY_NAME = "ONBOARDING_COMPANY_NAME",
 }
 
+const AUTH_PROVIDER_FEATURES = [
+  Feature.GITHUB_AUTH,
+  Feature.GOOGLE_AUTH,
+  Feature.AZURE_AUTH,
+  Feature.OKTA_AUTH,
+  Feature.KEYCLOAK_AUTH,
+];
+
 // right now all managed-version features are disabled in local environment
-export const isFeatureEnabled = (feature: Feature) => {
+export const isFeatureEnabled = (feature: Feature): boolean => {
   if (feature === Feature.LANDING) {
     return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
   }
 
   if (feature === Feature.EMAIL_AUTH) {
-    return process.env.ENVIRONMENT !== "PRODUCTION" || process.env.FORCE_EMAIL_AUTH === "true";
+    if (process.env.FORCE_EMAIL_AUTH === "true") {
+      return true;
+    }
+    if (process.env.ENVIRONMENT === "PRODUCTION") {
+      return false;
+    }
+    // In self-hosted mode, hide the dummy email input when a real auth provider is configured
+    return !AUTH_PROVIDER_FEATURES.some((f) => isFeatureEnabled(f));
   }
 
   if (feature === Feature.LOCAL_DB) {
@@ -32,6 +58,10 @@ export const isFeatureEnabled = (feature: Feature) => {
     return !!process.env.AUTH_GITHUB_ID && !!process.env.AUTH_GITHUB_SECRET;
   }
 
+  if (feature === Feature.GOOGLE_AUTH) {
+    return !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
+  }
+
   if (feature === Feature.AZURE_AUTH) {
     return (
       !!process.env.AUTH_AZURE_AD_CLIENT_ID &&
@@ -40,12 +70,17 @@ export const isFeatureEnabled = (feature: Feature) => {
     );
   }
 
+  if (feature === Feature.OKTA_AUTH) {
+    return !!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER;
+  }
+
+  if (feature === Feature.KEYCLOAK_AUTH) {
+    return !!process.env.AUTH_KEYCLOAK_ID && !!process.env.AUTH_KEYCLOAK_SECRET && !!process.env.AUTH_KEYCLOAK_ISSUER;
+  }
+
   if (feature === Feature.FULL_BUILD) {
     const environment = process.env.ENVIRONMENT;
-    if (!environment) {
-      throw new Error("ENVIRONMENT is not set");
-    }
-    return ["FULL", "PRODUCTION"].includes(environment);
+    return !!environment && ["FULL", "PRODUCTION"].includes(environment);
   }
 
   if (feature === Feature.SUBSCRIPTION) {
@@ -57,7 +92,21 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SIGNALS) {
-    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (process.env.SIGNALS_ENABLED !== "true") {
+      return false;
+    }
+    // Self-hosted deployments can supply credentials per signal via LLM
+    // profiles, so an env-configured provider is only required on cloud.
+    return isAiProviderConfigured() || isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES);
+  }
+
+  if (feature === Feature.SIGNAL_LLM_PROFILES) {
+    // Cloud runs signals on Laminar's own keys; only self-hosted signals pick a profile.
+    return process.env.LAMINAR_CLOUD !== "true";
+  }
+
+  if (feature === Feature.BATCH_SIGNALS) {
+    return false;
   }
 
   if (feature === Feature.SEND_EMAIL) {
@@ -65,17 +114,51 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SLACK) {
-    return (
+    // Cloud: the official app's own OAuth config. Broker: a self-hosted instance
+    // points at the Laminar Cloud broker with its license key and needs no Slack
+    // app secrets of its own.
+    const cloudEnabled =
       process.env.ENVIRONMENT === "PRODUCTION" &&
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
-      !!process.env.SLACK_REDIRECT_URL
-    );
+      !!process.env.SLACK_REDIRECT_URL;
+    const brokerEnabled = !!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY;
+    return cloudEnabled || brokerEnabled;
   }
 
   if (feature === Feature.POSTHOG) {
     return process.env.POSTHOG_TELEMETRY === "true";
+  }
+
+  if (feature === Feature.LAMINAR_CLOUD) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.LOOPS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.LOOPS_API_KEY;
+  }
+
+  if (feature === Feature.AGENT) {
+    return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.ONBOARDING_COMPANY_NAME) {
+    return process.env.LAMINAR_CLOUD === "true" && isAiProviderConfigured();
+  }
+
+  if (feature === Feature.TELEMETRY) {
+    // Anonymous self-hosted usage telemetry. Never runs on Laminar Cloud
+    // (we have first-party analytics there), only on real self-hosted
+    // deployments, and operators can always opt out.
+    if (process.env.LAMINAR_TELEMETRY_DISABLED === "true") {
+      return false;
+    }
+    if (process.env.LAMINAR_CLOUD === "true") {
+      return false;
+    }
+
+    return true;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

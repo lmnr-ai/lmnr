@@ -1,9 +1,12 @@
+import { AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronsRight, Copy, Maximize } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback } from "react";
+import { shallow } from "zustand/shallow";
 
 import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
+import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,14 +20,21 @@ import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onClose?: () => void;
+  isHideTimelineControls?: boolean;
 }
 
-const Header = ({ onClose }: HeaderProps) => {
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
-    trace: state.trace,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-  }));
+const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled, signalsPanelOpen, setSignalsPanelOpen } =
+    useTraceViewStore(
+      (state) => ({
+        trace: state.trace,
+        condensedTimelineEnabled: state.condensedTimelineEnabled,
+        setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+        signalsPanelOpen: state.signalsPanelOpen,
+        setSignalsPanelOpen: state.setSignalsPanelOpen,
+      }),
+      shallow
+    );
 
   const { toast } = useToast();
 
@@ -35,30 +45,53 @@ const Header = ({ onClose }: HeaderProps) => {
     }
   }, [trace?.id, toast]);
 
-  if (!onClose) {
-    return (
-      <div className="relative h-0">
-        <CondensedTimelineControls
-          enabled={condensedTimelineEnabled}
-          setEnabled={setCondensedTimelineEnabled}
-          className={cn(condensedTimelineEnabled ? "top-full" : "top-[calc(100%+8px)]")}
+  // Inside the header, as on the project trace view: the card belongs above the
+  // timeline, and the timeline controls anchor to the header's bottom edge, so
+  // anything rendered after it would sit under them.
+  const signalsPanel = (className?: string) => (
+    <AnimatePresence>
+      {signalsPanelOpen && trace && (
+        <SignalEventsPanel
+          readOnly
+          traceId={trace.id}
+          onClose={() => setSignalsPanelOpen(false)}
+          className={className}
         />
+      )}
+    </AnimatePresence>
+  );
+
+  if (!onClose) {
+    // Collapses to zero height with the panel closed — the full-page variant has
+    // no header bar, only the floating timeline control.
+    return (
+      <div className="flex shrink-0 flex-col">
+        {signalsPanel(cn("mx-2 mt-2", condensedTimelineEnabled && "mb-2"))}
+        {!isHideTimelineControls && (
+          <div className="relative h-0">
+            <CondensedTimelineControls
+              enabled={condensedTimelineEnabled}
+              setEnabled={setCondensedTimelineEnabled}
+              className={cn(condensedTimelineEnabled ? "top-full" : "top-[calc(100%+8px)]")}
+            />
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-1">
+    <div className="relative flex shrink-0 flex-col gap-1.5 px-2 pt-1.5 pb-1">
       {/* Line 1: Close, Expand, Trace + chevron dropdown, Metadata */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 gap-2">
           <div className="flex items-center flex-shrink-0 gap-0.5">
-            <Button variant="ghost" className="px-0.5" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={onClose}>
               <ChevronsRight className="w-5 h-5" />
             </Button>
             {trace && (
               <Link passHref href={`/shared/traces/${trace.id}`}>
-                <Button variant="ghost" className="px-0.5">
+                <Button variant="ghost" size="icon">
                   <Maximize className="w-4 h-4" />
                 </Button>
               </Link>
@@ -69,7 +102,7 @@ const Header = ({ onClose }: HeaderProps) => {
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
+                  <Button variant="ghost" size="icon-sm" className="hover:bg-secondary">
                     <ChevronDown className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -88,8 +121,12 @@ const Header = ({ onClose }: HeaderProps) => {
         </div>
       </div>
 
+      {signalsPanel()}
+
       {/* Timeline toggle */}
-      <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      {!isHideTimelineControls && (
+        <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      )}
     </div>
   );
 };

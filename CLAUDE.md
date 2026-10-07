@@ -4,15 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Laminar is an open-source observability platform for AI agents. It provides OpenTelemetry-native tracing, evaluations, AI monitoring, and SQL access to all data.
+Laminar is an open-source observability platform for AI agents: OpenTelemetry-native tracing, evaluations, AI monitoring, and SQL access to all data.
 
 ## Repository Structure
 
-This is a multi-service monorepo with three main components:
+Multi-service monorepo:
 
-- **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC)
-- **frontend/** - Next.js/TypeScript web UI
-- **query-engine/** - Python gRPC service for SQL query processing
+- **app-server/** — Rust backend (Actix-web HTTP, Tonic gRPC). SQL query validation + JSON↔SQL conversion run in-process (`src/query_engine/`, built on `sqlparser`).
+- **frontend/** — Next.js/TypeScript web UI.
+- **pii-redactor/** — optional standalone Rust gRPC service running a HuggingFace PII model on CPU via ONNX Runtime. See `pii-redactor/README.md`.
+
+Some features (Signals evaluation, Laminar Agent, clustering) are enterprise-only and live in the private `lmnr-private` repo behind the `signals` cargo feature; OSS ships stubs and public scaffolding for them. Don't document them as OSS features.
 
 ## Development Commands
 
@@ -20,110 +22,151 @@ This is a multi-service monorepo with three main components:
 
 ```bash
 cd frontend
-pnpm install                    # Install dependencies
-pnpm run dev                    # Start dev server with Turbopack
-pnpm lint                       # Check linting
-pnpm lint:fix                   # Auto-fix linting issues
-pnpm format:write               # Format code with Prettier
-pnpm type-check                 # TypeScript type checking
-pnpm test                       # Run tests (tsx --test tests/**/*.test.ts)
-pnpm build                      # Production build
+pnpm install        # Install dependencies
+pnpm run dev        # Start dev server (Turbopack)
+pnpm lint           # oxlint (lint:fix to auto-fix)
+pnpm format:write   # oxfmt
+pnpm type-check     # TypeScript type checking
+pnpm test           # Run tests (tsx --test tests/**/*.test.ts)
+pnpm build          # Production build
 ```
+
+- The sandbox's global pnpm is v10 but the lockfile is written by pnpm 11 (`frontend/Dockerfile`). `pnpm add` on v10 rewrites hundreds of `(supports-color@…)` peer suffixes. Add deps with `npx -y pnpm@11 add <pkg> --lockfile-only`, then `pnpm install --frozen-lockfile` to sync `node_modules`.
+- Format only the files you changed: `npx oxfmt --write <files>`. `prettier` is present in `node_modules` (transitive dep) but is NOT the project formatter — running it reformats files oxfmt then flags in the pre-commit hook.
+- In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
+- `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
+- `pnpm test` on a clean `dev` already has two red tests (after `pnpm install --frozen-lockfile`, `ai` 7.0.15): `tests/test-ai-sdk-parser.test.ts` "skips empty text/reasoning parts" and `tests/test-normalize-messages.test.ts` "end-to-end: a bare AI-SDK parts array …". Both expect empty `text`/`reasoning` parts to be dropped and get 2 parts instead of 1. Pre-existing — `git stash -u` and re-run before blaming your change.
+- **A stale `node_modules` fakes ~47 "pre-existing" type errors.** An installed tree older than `pnpm-lock.yaml` (e.g. recharts 2.15.4 where the lock pins 3.10.1) makes `tsc --noEmit` and `pnpm build` fail on `BarStack` / `MouseHandlerDataParam` / `useYAxisScale` / `<YAxis width="auto">` across `chart-builder/`, `charts/`, `evaluation/`, `landing/`. They look exactly like the recharts v2→v3 debt they are not: `pnpm install --frozen-lockfile` clears all of them. Verify the install matches the lock before writing any of it off as pre-existing.
+- **Turbopack is the Next 16.3 default for both commands; `build` opts out with `--webpack`, `dev` does not.** Turbopack's production output miscompiled chunks (`module factory is not available` on client navigation). So both bundler blocks in `next.config.ts` are live, and a production repro needs `pnpm build`, not a bare `next build`. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
 
 ### Backend (Rust)
 
 ```bash
 cd app-server
-cargo r                         # Run in development mode
-cargo build --release           # Production build
-cargo test -- --nocapture       # Run tests
+cargo r                    # Run in development mode
+cargo build --release      # Production build
+cargo test -- --nocapture  # Run tests
 ```
 
-### Query Engine (Python)
-
-```bash
-cd query-engine
-uv sync                         # Install dependencies
-uv run python server.py         # Run gRPC server
-uv run pytest                   # Run tests
-```
+- The `aws-*` crates in `Cargo.lock` require **rustc ≥ 1.94.1**; on 1.94.0 `cargo check` fails during resolution ("requires rustc 1.94.1") before compiling anything — `rustup update stable`.
+- `cargo check --features signals` and `cargo fmt` on `main.rs` both fail in OSS — the `signals` feature gates modules that live only in `lmnr-private`. Default-feature `cargo check` is the real gate; format leaf files individually with `rustfmt --edition 2024 <file>`. Full stub workaround list: `docs/internal/app-server.md`.
+- NEVER run `cargo fmt`, even as `cargo fmt -- <file>` (the file arg does NOT scope it). The tree is not rustfmt-clean at HEAD, so it rewrites ~40 unrelated files and buries the real diff. Use `rustfmt --edition 2024 <file>` on the files you changed.
+- `cargo test --lib` fails with "no library targets found" — `app-server` is a binary crate. Use `cargo test --bin app-server <filter>`; the filter takes a single path prefix, not a list.
 
 ## Local Development Setup
 
-### Environment setup:
 ```bash
-cp .env.example .env
+cp app-server/.env.example .env   # app-server reads .env at the repo root (dotenv)
 cp frontend/.env.local.example frontend/.env.local
 ```
 
-### Minimal Working Setup
+**PostgreSQL** and **ClickHouse** are required. Everything else degrades gracefully: RabbitMQ → in-memory queue, Redis → in-memory cache, Quickwit → search disabled, S3 → MockStorage.
 
-**PostgreSQL**, **ClickHouse**, and **Query Engine** are required. Other services have automatic fallbacks:
+Docker-based:
 
-| Service      | Required | Fallback when not configured |
-|--------------|----------|------------------------------|
-| PostgreSQL   | Yes      | None                         |
-| ClickHouse   | Yes      | None                         |
-| Query Engine | Yes      | None                         |
-| RabbitMQ     | No       | In-memory queue (TokioMpsc)  |
-| Redis        | No       | In-memory cache (Moka)       |
-| Quickwit     | No       | Search disabled gracefully   |
-| S3 Storage   | No       | MockStorage                  |
-
-### Docker-based development
-
-**Frontend-only** (uses pre-built app-server image):
 ```bash
+# Frontend-only (pre-built app-server image):
 docker compose -f docker-compose-local-dev.yml up
 cd frontend && pnpm run dev
+
+# Full-stack (all dependencies, run app-server + frontend yourself):
+docker compose -f docker-compose-local-dev-full.yml up
+cd app-server && cargo r      # Terminal 1
+cd frontend && pnpm run dev   # Terminal 2
 ```
 
-**Full-stack with all services:**
-```bash
-docker compose -f docker-compose-local-dev-full.yml up  # All dependencies
-cd app-server && cargo r                                 # Terminal 1
-cd frontend && pnpm run dev                              # Terminal 2
-cd query-engine && uv run python server.py               # Terminal 3
-```
+**Gotcha:** `dotenv` does NOT override already-exported env vars. A shell that exports `PORT` silently breaks the app-server HTTP listener (bind error is swallowed) and `next dev` (`EADDRINUSE`). Launch with explicit `PORT=8000 cargo r` / `PORT=3000 pnpm run dev`, or `env -u PORT`. Details: `docs/internal/app-server.md`.
 
 ## Architecture
 
 ```
-Frontend (5667) ─────────────────────────┐
-                                         │
-App Server                               │
-├─ REST API (8000)  ◄────────────────────┘
+Frontend (5667 prod / 3000 local-dev) ────┐
+                                          │
+App Server                                │
+├─ REST API (8000) ◄──────────────────────┘
 ├─ gRPC ingestion (8001) ◄─── SDK traces
 └─ Realtime SSE (8002)
-         │
-         ├──► PostgreSQL (5433) - main database [required]
-         ├──► ClickHouse (8123) - analytics/spans [required]
-         ├──► RabbitMQ (5672) - async processing [optional, has in-memory fallback]
-         ├──► Query Engine (8903) - SQL processing [required]
-         └──► Quickwit (7280/7281) - full-text search [optional]
+   │
+   ├──► PostgreSQL (5433)  - main database        [required]
+   ├──► ClickHouse (8123)  - analytics/spans      [required]
+   ├──► RabbitMQ (5672)    - async processing     [optional]
+   └──► Quickwit (7280/81) - full-text search     [optional]
 ```
 
 ## Database Migrations
 
-Database schema is managed with Drizzle ORM. The source of truth is the database itself - do NOT edit schema files directly.
+Schema is managed with Drizzle ORM; the database itself is the source of truth — do NOT edit schema files directly.
 
 ```bash
 cd frontend
-npx drizzle-kit generate        # Generate migrations after manual DB changes
+pnpm db:generate   # generate migrations AND strip "public". qualifiers (required)
 # Migrations are applied automatically on frontend startup
 ```
 
+- Migration SQL must stay schema-neutral (no `"public".` qualifiers) — `pnpm db:generate` handles the strip; if you generate by hand, run `pnpm db:strip-schema` after.
+- Hand-written migrations also need a `meta/NNNN_snapshot.json` or the next generate produces a duplicate migration.
+- ClickHouse migrations (`frontend/lib/clickhouse/migrations/`) run once and are checksummed — NEVER modify an applied migration file; always add a new numbered one.
+- Full details (drizzle-kit quirks, snapshots, `POSTGRES_SCHEMA`): `docs/internal/database.md`.
+
+## Comments
+
+Comments are welcome when they add a WHY that names cannot: a constraint, invariant, or workaround. Keep them to a line or two. Skip comments that restate the next lines, and skip changelog notes ("previously X, now Y") — describe the current code, not the diff. Longer design notes belong in `docs/internal/`.
+
+```rust
+// Exclusive parks happen after admission; a wait_count>0 wake already owns the claim.
+```
+
+## App-server conventions
+
+- Every env var is registered in `app-server/src/env/` (typed `NumEnv`/`StringEnv`/`BoolEnv` descriptors) — never inline a string-literal env name at a call site.
+- `mod env` shadows `std::env`: inside files with `use crate::env;`, write `std::env::var(...)` fully qualified.
+- Backend `Feature` flags are fine-grained — one flag per feature; never gate a new feature on another feature's flag.
+- More: `docs/internal/app-server.md`, and `docs/internal/rust-best-practices.md` for reuse/layering/scoping rules.
+
+## Frontend conventions
+
+- One component per file; keep components <150 lines; related components in a folder with `index.tsx`.
+- Complex state belongs in a Zustand store (with `shallow` selectors); use nuqs for URL param state — never sync URL params into a store via `useEffect`.
+- Client fetches: `try/catch`, check `res.ok`, toast on error. API routes: `try/catch`, 400 for `ZodError`, 500 otherwise, always JSON with an `error` field. Use `AbortController` for superseded in-flight fetches.
+- Recharts is on v3 (`^3.10.1`). `CategoricalChartFunc` is defined from `MouseHandlerDataParam` in `chart-builder/charts/line-chart.tsx` (the v2 `recharts/types/chart/generateCategoricalChart` path is gone). Use `<YAxis width="auto">` and `<BarStack>` for stacked rounded bars — do not reintroduce a custom bar `shape`.
+- New data tables MUST follow the `InfiniteDataTable` split pattern (index/contents/controls/constants). Full patterns: `docs/internal/frontend-best-practices.md`.
+
 ## Key Technical Details
 
-- **Rust edition**: 2024 (requires Rust 1.90+)
-- **Node version**: 24+ (see Docker files)
-- **Python version**: 3.13+
-- **Package managers**: Cargo (Rust), pnpm (frontend), uv (Python)
+- **Rust edition**: 2024
+- **Node version**: 26 (`frontend/Dockerfile` is `node:26-alpine`)
+- **Package managers**: Cargo (Rust), pnpm (frontend)
 - **Git workflow**: Submit PRs to `dev` branch, which merges to `main` periodically
 
 ## Pre-commit Hooks
 
-The frontend uses Husky with lint-staged. Before commits:
-- Prettier formats staged files
-- ESLint fixes issues
-- TypeScript type-check runs
+Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
+
+## Detailed topic notes (read on demand)
+
+`docs/internal/` holds detailed, hard-won working notes. **Before working in one of these areas, read the matching file** — it documents invariants, security boundaries, and gotchas that are not inferable from the code:
+
+| File | Read when touching |
+|---|---|
+| `docs/internal/rust-best-practices.md` | Any app-server change — reuse, layering, db/cache scoping, named types, error retryability |
+| `docs/internal/database.md` | Postgres migrations, `POSTGRES_SCHEMA`, name-sort collation |
+| `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
+| `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
+| `docs/internal/dedup-search.md` | `unique_content` group-scoped dedup (`traces/dedup/`), `spans_v0` reconstruction, Quickwit indexing/search |
+| `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, system-prompt / user-template versioning, checkpoints, 413s |
+| `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
+| `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
+| `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
+| `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
+| `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
+| `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
+| `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
+| `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
+| `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
+| `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |
+| `docs/internal/debugger.md` | Debugger replay cache, debugger session blocks/timeline |
+| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, evaluations page, dashboards |
+| `docs/internal/frontend-trace-view.md` | Trace view, span rendering/message parsing, ContentRenderer, rrweb replay |
+| `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
+| `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
+| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |

@@ -51,9 +51,8 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const tracesCount = Number(body.tracesCount) || 0;
 
-    await checkSignalRunsLimit(projectId, tracesCount);
+    await checkSignalRunsLimit(projectId);
 
     const result = await createSignalJob({
       ...body,

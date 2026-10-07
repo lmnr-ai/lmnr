@@ -1,5 +1,23 @@
 import { z } from "zod/v4";
 
+// Scopes requested for every Slack OAuth flow (direct-connect and broker).
+// Defined here (no server-only imports) so client components can import it too.
+// Notification scopes: chat:write*, *:read. Channel-agent scopes (app_mention + thread
+// backfill): app_mentions:read, channels:history, groups:history. reactions:write powers the
+// :eyes: ack on mention. Must match the Slack app manifest's bot scopes — adding here only
+// requests them; existing installs need to reconnect.
+export const SLACK_SCOPES = [
+  "chat:write",
+  "chat:write.public",
+  "channels:read",
+  "groups:read",
+  "mpim:read",
+  "app_mentions:read",
+  "channels:history",
+  "groups:history",
+  "reactions:write",
+];
+
 const SlackOauthSuccessResponseSchema = z.looseObject({
   ok: z.literal(true),
   app_id: z.string(),
@@ -42,6 +60,14 @@ const SlackTokensRevokedEventSchema = z.looseObject({
   }),
 });
 
+// Mention of the bot in a channel — forwarded (raw) to app-server, which runs the agent and replies.
+// channel + ts are captured so the webhook can post an immediate :eyes: ack on the mentioned message.
+const SlackAppMentionEventSchema = z.looseObject({
+  type: z.literal("app_mention"),
+  channel: z.string().optional(),
+  ts: z.string().optional(),
+});
+
 const SlackGenericEventSchema = z.looseObject({
   type: z.string(),
   event_ts: z.string().optional(),
@@ -50,6 +76,7 @@ const SlackGenericEventSchema = z.looseObject({
 export const SlackEventSchema = z.union([
   SlackAppUninstalledEventSchema,
   SlackTokensRevokedEventSchema,
+  SlackAppMentionEventSchema,
   SlackGenericEventSchema,
 ]);
 
@@ -67,24 +94,6 @@ export const SlackEventCallbackSchema = z.looseObject({
   event: SlackEventSchema,
   event_id: z.string(),
   event_time: z.number(),
-});
-
-export const SlackSlashCommandSchema = z.looseObject({
-  token: z.string(),
-  team_id: z.string(),
-  team_domain: z.string(),
-  channel_id: z.string(),
-  channel_name: z.string(),
-  user_id: z.string(),
-  user_name: z.string(),
-  command: z.string(),
-  text: z.string(),
-  api_app_id: z.string(),
-  response_url: z.string(),
-  trigger_id: z.string(),
-  enterprise_id: z.string().optional(),
-  enterprise_name: z.string().optional(),
-  is_enterprise_install: z.string().optional(),
 });
 
 export const SlackBlockActionsSchema = z.object({

@@ -1,7 +1,7 @@
 import { capitalize, get } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { type TraceViewListSpan, type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { type RealtimeSpan, SpanType } from "@/lib/traces/types";
@@ -71,6 +71,7 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           outputTokens: 0,
           totalTokens: 0,
           cacheReadInputTokens: 0,
+          reasoningTokens: 0,
           traceId: span.traceId,
           spanType: SpanType.DEFAULT,
           path: "",
@@ -169,11 +170,18 @@ export const onRealtimeUpdateSpans =
     const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
     const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
     const cacheReadInputTokens = get(newSpan.attributes, "gen_ai.usage.cache_read_input_tokens", 0);
+    const cacheCreationInputTokens = get(newSpan.attributes, "gen_ai.usage.cache_creation_input_tokens", 0);
+    const reasoningTokens = get(newSpan.attributes, "gen_ai.usage.reasoning_tokens", 0);
     const totalTokens = inputTokens + outputTokens;
     const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
     const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
     const totalCost = get(newSpan.attributes, "gen_ai.usage.cost", inputCost + outputCost);
     const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
+
+    // Only LLM (and cached-LLM) spans contribute to the trace token/cost total. A non-LLM span
+    // may carry stray `gen_ai.usage.*` attributes; counting them would double the live total
+    // relative to the persisted trace row (LAM-1873).
+    const isLLMSpan = newSpan.spanType === "LLM" || newSpan.spanType === "CACHED";
 
     setTrace((trace) => {
       if (!trace) return trace;
@@ -186,13 +194,17 @@ export const onRealtimeUpdateSpans =
           : newSpan.startTime;
       newTrace.endTime =
         new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-      newTrace.totalTokens += totalTokens;
-      newTrace.inputTokens += inputTokens;
-      newTrace.outputTokens += outputTokens;
-      newTrace.cacheReadInputTokens = (newTrace.cacheReadInputTokens || 0) + cacheReadInputTokens;
-      newTrace.inputCost += inputCost;
-      newTrace.outputCost += outputCost;
-      newTrace.totalCost += totalCost;
+      if (isLLMSpan) {
+        newTrace.totalTokens += totalTokens;
+        newTrace.inputTokens += inputTokens;
+        newTrace.outputTokens += outputTokens;
+        newTrace.cacheReadInputTokens = (newTrace.cacheReadInputTokens || 0) + cacheReadInputTokens;
+        newTrace.cacheCreationInputTokens = (newTrace.cacheCreationInputTokens || 0) + cacheCreationInputTokens;
+        newTrace.reasoningTokens = (newTrace.reasoningTokens || 0) + reasoningTokens;
+        newTrace.inputCost += inputCost;
+        newTrace.outputCost += outputCost;
+        newTrace.totalCost += totalCost;
+      }
       return newTrace;
     });
 
@@ -207,6 +219,7 @@ export const onRealtimeUpdateSpans =
           inputTokens,
           outputTokens,
           cacheReadInputTokens,
+          reasoningTokens,
           inputCost,
           outputCost,
           totalCost,
@@ -222,6 +235,7 @@ export const onRealtimeUpdateSpans =
           inputTokens,
           outputTokens,
           cacheReadInputTokens,
+          reasoningTokens,
           inputCost,
           outputCost,
           totalCost,
@@ -238,39 +252,21 @@ export const onRealtimeUpdateSpans =
     });
   };
 
-const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
-  if (!path1 || !path2) return false;
-  if (path1.length !== path2.length) return false;
-  return path1.every((item, index) => item === path2[index]);
-};
-
 export const findSpanToSelect = (
   spans: TraceViewSpan[],
   spanId: string | undefined,
-  searchParams: URLSearchParams,
-  spanPath: string[] | null
+  searchParams: URLSearchParams
 ): TraceViewSpan | undefined => {
-  // Priority 1: Span from URL (either prop or search params)
   const urlSpanId = spanId || searchParams.get("spanId");
   if (urlSpanId) {
     const spanFromUrl = spans.find((span) => span.spanId === urlSpanId);
     if (spanFromUrl) return spanFromUrl;
   }
 
-  // Priority 2: Span matching saved path from local storage
-  if (spanPath) {
-    const spanFromPath = spans.find((span) => {
-      const attributePath = span.attributes?.["lmnr.span.path"];
-      return Array.isArray(attributePath) && isSpanPathsEqual(attributePath, spanPath);
-    });
-    if (spanFromPath) return spanFromPath;
-  }
-
-  // Priority 3: First span as fallback
   return spans?.[0];
 };
 
-export const getSpanDisplayName = (span: TraceViewSpan) => {
+export const getSpanDisplayName = (span: TraceViewSpan | TraceViewListSpan) => {
   const modelName = span.model;
   return (span.spanType === "LLM" || span.spanType === "CACHED") && modelName ? modelName : span.name;
 };
@@ -278,23 +274,29 @@ export const getSpanDisplayName = (span: TraceViewSpan) => {
 export const getLLMMetrics = (span: TraceViewSpan) => {
   if (span.aggregatedMetrics?.hasLLMDescendants) {
     return {
+      inputTokens: span.aggregatedMetrics.inputTokens,
+      outputTokens: span.aggregatedMetrics.outputTokens,
       cost: span.aggregatedMetrics.totalCost,
-      tokens: span.aggregatedMetrics.totalTokens,
       cacheReadInputTokens: span.aggregatedMetrics.cacheReadInputTokens,
+      reasoningTokens: span.aggregatedMetrics.reasoningTokens,
     };
   }
 
   if (span.spanType !== "LLM") return null;
 
+  const inputTokensValue = span.inputTokens ?? 0;
+  const outputTokensValue = span.outputTokens ?? 0;
   const costValue = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-  const tokensValue = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
   const cacheTokensValue = span.cacheReadInputTokens ?? 0;
+  const reasoningTokensValue = span.reasoningTokens ?? 0;
 
-  if (costValue === 0 && tokensValue === 0) return null;
+  if (costValue === 0 && inputTokensValue === 0 && outputTokensValue === 0) return null;
 
   return {
+    inputTokens: inputTokensValue,
+    outputTokens: outputTokensValue,
     cost: costValue,
-    tokens: tokensValue,
     cacheReadInputTokens: cacheTokensValue,
+    reasoningTokens: reasoningTokensValue,
   };
 };

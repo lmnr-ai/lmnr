@@ -11,7 +11,7 @@ ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "tag_classes_pkey";--> state
 ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "label_classes_pkey";--> statement-breakpoint
 ALTER TABLE "tag_classes" ADD CONSTRAINT "tag_classes_pkey" PRIMARY KEY("name","project_id");--> statement-breakpoint
 ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "label_classes_project_id_fkey";--> statement-breakpoint
-ALTER TABLE "tag_classes" ADD CONSTRAINT "tag_classes_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "tag_classes" ADD CONSTRAINT "tag_classes_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "tag_classes" DROP COLUMN "id" CASCADE;--> statement-breakpoint
 ALTER TABLE "tag_classes" DROP COLUMN "evaluator_runnable_graph";--> statement-breakpoint
 ALTER TABLE "tag_classes" DROP COLUMN "pipeline_version_id";--> statement-breakpoint

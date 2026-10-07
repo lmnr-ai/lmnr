@@ -1,52 +1,80 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { getWorkspaceUsage } from "@/lib/actions/workspace";
+import { getSignalCreditState } from "@/lib/actions/usage/signal-credit";
+import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-const LAST_PROJECT_ID = "last-project-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
+import { parseStoredProjectSettings, type ProjectSettings } from "./settings";
 
 export const DeleteProjectSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
 });
 
 export const UpdateProjectSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1, { error: "Project name is required" }),
 });
 
 export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) {
   const { projectId } = DeleteProjectSchema.parse(input);
 
-  try {
-    // Make sure to delete the project api keys first, because they will be
-    // cascade deleted from db once we delete the project.
-    const result = await deleteProjectApiKeysFromCache(projectId);
-    if (!result.success) {
-      console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
+  // A workspace must always retain at least one project — refuse to delete the last one.
+  // Guard + delete run in one transaction with the sibling rows locked FOR UPDATE, so two
+  // concurrent deletes can't both pass the count check and empty the workspace.
+  // A missing row is NOT an error: a prior attempt may have committed the Postgres delete
+  // and then failed on the ClickHouse purge, so the retry must be able to re-run the purge
+  // instead of throwing "Project not found" forever.
+  const deleted = await db.transaction(async (tx) => {
+    const projectRow = await tx.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+      columns: { workspaceId: true },
+    });
+    if (!projectRow) {
+      return null;
     }
-  } catch (error) {
-    console.error("Failed to delete project api keys from cache", error);
-  }
 
-  const workspaceId = await db.query.projects.findFirst({
-    where: eq(projects.id, projectId),
-    columns: {
-      workspaceId: true,
-    },
+    const siblingProjects = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.workspaceId, projectRow.workspaceId))
+      .for("update");
+    if (siblingProjects.length <= 1) {
+      throw new Error("Cannot delete the only project in a workspace");
+    }
+
+    // Capture the api key hashes before the cascade delete removes the rows — we still
+    // need them to evict the matching cache entries afterwards.
+    const apiKeys = await tx.query.projectApiKeys.findMany({
+      where: eq(projectApiKeys.projectId, projectId),
+      columns: { hash: true },
+    });
+
+    await tx.delete(projects).where(eq(projects.id, projectId));
+    const apiKeyHashes = apiKeys.flatMap((k) => (k.hash ? [k.hash] : []));
+    return { workspaceId: projectRow.workspaceId, apiKeyHashes };
   });
 
-  if (!workspaceId) {
-    throw new Error("Project not found");
+  if (deleted) {
+    try {
+      const result = await deleteProjectApiKeysFromCache(deleted.apiKeyHashes);
+      if (!result.success) {
+        console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
+      }
+    } catch (error) {
+      console.error("Failed to delete project api keys from cache", error);
+    }
+
+    await deleteAllProjectsWorkspaceInfoFromCache(deleted.workspaceId);
   }
 
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId.workspaceId);
-
-  await db.delete(projects).where(eq(projects.id, projectId));
+  // The Postgres delete has already committed, but a failed ClickHouse purge must still
+  // surface to the caller — success here would stop the user from retrying, and there is
+  // no background reconciliation for the retained rows. The retry is what re-runs the
+  // purge (the missing-row path above makes it reachable).
   const result = await deleteProjectDataFromClickHouse(projectId);
 
   if (!result.success) {
@@ -66,19 +94,72 @@ export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) 
   return { success: true, message: "Project renamed successfully" };
 }
 
+/** Narrows a `database.table` list to the ones that exist. A lookup failure returns
+ *  the list untouched, so a hiccup cannot silently skip a purge. */
+async function presentTables(tables: string[]): Promise<string[]> {
+  try {
+    const rs = await clickhouseClient.query({
+      query: `
+        SELECT concat(database, '.', name) AS qualified
+        FROM system.tables
+        WHERE concat(database, '.', name) IN ({tables: Array(String)})
+      `,
+      query_params: { tables },
+      format: "JSONEachRow",
+    });
+    const present = new Set((await rs.json<{ qualified: string }>()).map((r) => r.qualified));
+    return tables.filter((table) => present.has(table));
+  } catch (error) {
+    console.error("Could not resolve ClickHouse tables for project deletion:", error);
+    return tables;
+  }
+}
+
 async function deleteProjectDataFromClickHouse(
   projectId: string
 ): Promise<{ success: true } | { success: false; tables: string[] }> {
+  // Every project-scoped physical ClickHouse table must be listed here so deleting
+  // a project fully purges its data. Keep in sync with the schema: when a migration
+  // drops a table, remove it from this list too — an ALTER ... DELETE against a
+  // dropped table throws and aborts the purge after Postgres has already committed.
   const tables = [
     "default.spans",
-    "default.events",
-    "default.evaluation_scores",
-    "default.tags",
+    "default.traces_replacing",
+    "default.traces_agg",
+    "default.traces_static",
+    "default.trace_tags",
     "default.browser_session_events",
-    "default.evaluator_scores",
+    "default.unique_content",
+    "default.deduped_content",
+    "default.llm_messages",
+    "default.logs",
+    "default.evaluation_datapoints",
+    "default.dataset_datapoints",
+    "default.labeling_queue_items",
+    "default.notifications",
+    "default.notification_deliveries",
+    "default.signal_events",
+    "default.signal_event_clusters",
+    // Left by rebuild-signal-clusters.ts until dropped by hand; it copies from
+    // them into signal_event_clusters, so they are purged like it.
+    "default.signal_event_clusters_v2",
+    "default.old_unpartitioned_signal_event_clusters",
+    "default.signal_runs",
+    "default.signal_run_messages",
+    // Dropped by backfill-signal-clusters.ts once it finishes; the filter below
+    // keeps it from reporting a failure after that.
+    "default.events_to_clusters",
+    "default.signal_event_summaries",
+    "default.system_prompt_versions",
+    "default.system_prompt_version_defs",
+    "default.user_template_versions",
+    "default.user_template_version_defs",
   ];
 
-  const deletionPromises = tables.map(async (table) => {
+  // An absent table would otherwise report a false failure on every deletion.
+  const targets = await presentTables(tables);
+
+  const deletionPromises = targets.map(async (table) => {
     try {
       await clickhouseClient.command({
         query: `ALTER TABLE ${table} DELETE WHERE project_id = {project_id: UUID}`,
@@ -96,7 +177,7 @@ async function deleteProjectDataFromClickHouse(
 
   return results.reduce<{ success: true } | { success: false; tables: string[] }>(
     (acc, curr, index) => {
-      const table = tables[index];
+      const table = targets[index];
 
       if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
         if ("tables" in acc) {
@@ -112,14 +193,10 @@ async function deleteProjectDataFromClickHouse(
   );
 }
 
-async function deleteProjectApiKeysFromCache(projectId: string) {
-  const apiKeys = await db.query.projectApiKeys.findMany({
-    where: eq(projectApiKeys.projectId, projectId),
-  });
-
+async function deleteProjectApiKeysFromCache(apiKeyHashes: string[]) {
   const results = await Promise.allSettled(
-    apiKeys.map(async (apiKey) => {
-      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
+    apiKeyHashes.map(async (hash) => {
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
       try {
         await cache.remove(cacheKey);
         return { success: true };
@@ -131,7 +208,7 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
 
   return results.reduce<{ success: true } | { success: false; failedKeys: string[] }>(
     (acc, curr, index) => {
-      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKeys[index].hash}`;
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKeyHashes[index]}`;
       if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
         if ("failedKeys" in acc) {
           return { success: false, failedKeys: [...acc.failedKeys, cacheKey] };
@@ -143,6 +220,15 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
     },
     { success: true }
   );
+}
+
+/** `projects.workspace_id`, or null when the project does not exist. */
+export async function getProjectWorkspaceId(projectId: string): Promise<string | null> {
+  const row = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: { workspaceId: true },
+  });
+  return row?.workspaceId ?? null;
 }
 
 export async function deleteAllProjectsWorkspaceInfoFromCache(workspaceId: string) {
@@ -173,9 +259,12 @@ export interface ProjectDetails {
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
-  signalRunsUsedThisMonth: number;
-  signalRunsLimit: number;
+  signalCostUsedThisMonth: number;
+  signalCreditGrantedMicroUsd: number;
+  signalCreditRemainingMicroUsd: number;
+  logRetentionDays: number;
   isFreeTier: boolean;
+  settings: ProjectSettings;
 }
 
 export const getProjectDetails = async (projectId: string): Promise<ProjectDetails> => {
@@ -184,6 +273,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       id: projects.id,
       name: projects.name,
       workspaceId: projects.workspaceId,
+      settings: projects.settings,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -194,6 +284,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   }
 
   const project = projectResult[0];
+  const settings: ProjectSettings = parseStoredProjectSettings(project.settings);
 
   const workspaceResult = await db
     .select({
@@ -213,7 +304,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       name: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
-      signalRunsLimit: subscriptionTiers.signalRuns,
+      logRetentionDays: subscriptionTiers.logRetentionDays,
     })
     .from(subscriptionTiers)
     .where(eq(subscriptionTiers.id, workspace.tierId))
@@ -227,36 +318,40 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
-  const signalRunsLimit = Number(tier.signalRunsLimit);
 
   if (!isFreeTier) {
     return {
       id: project.id,
       name: project.name,
       workspaceId: project.workspaceId,
+      logRetentionDays: tier.logRetentionDays,
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
-      signalRunsLimit,
-      signalRunsUsedThisMonth: 0,
+      signalCostUsedThisMonth: 0,
+      signalCreditGrantedMicroUsd: 0,
+      signalCreditRemainingMicroUsd: 0,
       isFreeTier,
+      settings,
     };
   }
 
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
-  const signalRunsUsedThisMonth = usageResult.totalSignalRuns;
+  const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
+  const signalCredit = await getSignalCreditState(project.workspaceId, usageResult.creditedSignalCostMicroUsd);
 
   return {
     id: project.id,
     name: project.name,
     workspaceId: project.workspaceId,
+    logRetentionDays: tier.logRetentionDays,
     gbUsedThisMonth,
     gbLimit,
-    signalRunsUsedThisMonth,
-    signalRunsLimit,
+    signalCostUsedThisMonth,
+    signalCreditGrantedMicroUsd: signalCredit.grantedMicroUsd,
+    signalCreditRemainingMicroUsd: signalCredit.remainingMicroUsd,
     isFreeTier,
+    settings,
   };
 };
-
-export { LAST_PROJECT_ID, MAX_AGE };

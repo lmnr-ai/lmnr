@@ -1,4 +1,4 @@
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -71,7 +71,7 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
     ...chartState,
     setChartConfig: (config) =>
       set((state: ChartBuilderState) => ({
-        chartConfig: { ...state.chartConfig, ...config },
+        chartConfig: { ...state.chartConfig, ...config } as ChartConfig,
       })),
 
     setChartName: (name) =>
@@ -81,13 +81,7 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
 
     setChartType: (type) =>
       set((state: ChartBuilderState) => ({
-        chartConfig: {
-          ...state.chartConfig,
-          type,
-          x: undefined,
-          y: undefined,
-          breakdown: undefined,
-        },
+        chartConfig: { ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined } as ChartConfig,
       })),
 
     setXColumn: (columnName) =>
@@ -168,10 +162,7 @@ export const useChartBuilderStoreContext = <T,>(selector: (store: ChartBuilderSt
 };
 
 export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChildren<ChartBuilderProps>) => {
-  const storeRef = useRef<ChartBuilderStoreApi | undefined>(undefined);
+  const [storeState] = useState(() => createChartBuilderStore(props));
 
-  if (!storeRef.current) {
-    storeRef.current = createChartBuilderStore(props);
-  }
-  return <ChartBuilderStoreContext.Provider value={storeRef.current}>{children}</ChartBuilderStoreContext.Provider>;
+  return <ChartBuilderStoreContext.Provider value={storeState}>{children}</ChartBuilderStoreContext.Provider>;
 };

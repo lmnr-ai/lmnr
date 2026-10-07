@@ -1,20 +1,13 @@
-use std::pin::Pin;
-
 use anyhow::Result;
 use async_trait::async_trait;
+
+use super::StorageBytesStream;
 
 pub struct MockStorage;
 
 #[async_trait]
 impl super::StorageTrait for MockStorage {
-    type StorageBytesStream =
-        Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-
-    async fn store(&self, _bucket: &str, _key: &str, _data: Vec<u8>) -> Result<String> {
-        Ok("mock".to_string())
-    }
-
-    async fn get_stream(&self, _bucket: &str, _key: &str) -> Result<Self::StorageBytesStream> {
+    async fn get_stream(&self, _bucket: &str, _key: &str) -> Result<StorageBytesStream> {
         Ok(Box::pin(futures_util::stream::once(async move {
             bytes::Bytes::new()
         })))

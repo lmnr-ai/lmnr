@@ -6,6 +6,7 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
@@ -13,14 +14,14 @@ import { paginatedGet } from "@/lib/db/utils";
 import { type Evaluation } from "@/lib/evaluation/types";
 
 export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
-  projectId: z.string(),
+  projectId: z.guid(),
   groupId: z.string().nullable().optional(),
   search: z.string().nullable().optional(),
 });
 
 export const DeleteEvaluationsSchema = z.object({
-  projectId: z.string(),
-  evaluationIds: z.array(z.string()),
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()),
 });
 
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {
@@ -92,7 +93,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-      parameters: { 
+      parameters: {
         projectId,
         evaluationIds: allEvaluationIds,
       },
@@ -190,4 +191,20 @@ export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsS
   const { projectId, evaluationIds } = DeleteEvaluationsSchema.parse(input);
 
   await db.delete(evaluations).where(and(inArray(evaluations.id, evaluationIds), eq(evaluations.projectId, projectId)));
+
+  try {
+    await clickhouseClient.command({
+      query: `
+        DELETE FROM evaluation_datapoints
+        WHERE project_id = {projectId: UUID}
+          AND evaluation_id IN ({evaluationIds: Array(UUID)})
+      `,
+      query_params: {
+        projectId,
+        evaluationIds,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to delete evaluation datapoints from ClickHouse:", error);
+  }
 }

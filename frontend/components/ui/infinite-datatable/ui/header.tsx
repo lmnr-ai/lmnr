@@ -1,17 +1,36 @@
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { type RowData } from "@tanstack/react-table";
-import { forwardRef } from "react";
+import { forwardRef, useCallback } from "react";
+import { shallow } from "zustand/shallow";
 
 import { TableHeader, TableRow } from "@/components/ui/table.tsx";
 
+import { useTableConfigStore } from "../model/table-config-store.tsx";
 import { type InfiniteDataTableHeaderProps } from "../model/types.ts";
 import { InfiniteTableHead } from "./head.tsx";
 
 export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, InfiniteDataTableHeaderProps<RowData>>(
   function InfiniteDatatableHeader<TData extends RowData>(
-    { table, columnOrder, onHideColumn, lockedColumns }: InfiniteDataTableHeaderProps<TData>,
+    { table }: InfiniteDataTableHeaderProps<TData>,
     ref: React.Ref<HTMLTableSectionElement>
   ) {
+    const { lockedColumns, disableHideColumn, columnVisibility, setColumnVisibility } = useTableConfigStore(
+      (state) => ({
+        lockedColumns: state.lockedColumns,
+        disableHideColumn: state.disableHideColumn,
+        columnVisibility: state.config.columnVisibility,
+        setColumnVisibility: state.setColumnVisibility,
+      }),
+      shallow
+    );
+
+    const onHideColumn = useCallback(
+      (columnId: string) => {
+        setColumnVisibility({ ...columnVisibility, [columnId]: false });
+      },
+      [columnVisibility, setColumnVisibility]
+    );
+
     return (
       <TableHeader
         ref={ref}
@@ -23,20 +42,23 @@ export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, Infin
           zIndex: 20,
         }}
       >
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow className="p-0 m-0 w-full rounded-tl rounded-tr flex" key={headerGroup.id}>
-            <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
-              {headerGroup.headers.map((header) => (
-                <InfiniteTableHead
-                  key={header.id}
-                  header={header}
-                  onHideColumn={onHideColumn}
-                  isControllable={!lockedColumns?.includes(header.column.id)}
-                />
-              ))}
-            </SortableContext>
-          </TableRow>
-        ))}
+        {table.getHeaderGroups().map((headerGroup) => {
+          const sortableIds = headerGroup.headers.map((h) => h.column.id);
+          return (
+            <TableRow className="p-0 m-0 w-full rounded-tl rounded-tr flex" key={headerGroup.id}>
+              <SortableContext items={sortableIds} strategy={horizontalListSortingStrategy}>
+                {headerGroup.headers.map((header) => (
+                  <InfiniteTableHead
+                    key={header.id}
+                    header={header}
+                    onHideColumn={disableHideColumn ? undefined : onHideColumn}
+                    isControllable={!lockedColumns.includes(header.column.id)}
+                  />
+                ))}
+              </SortableContext>
+            </TableRow>
+          );
+        })}
       </TableHeader>
     );
   }

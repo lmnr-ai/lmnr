@@ -8,18 +8,26 @@ import useSWR from "swr";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
-import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
-import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
+import SpanOverview from "@/components/traces/span-view/span-overview";
+import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { Skeleton } from "@/components/ui/skeleton";
-import { type Span } from "@/lib/traces/types";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
+import { track } from "@/lib/posthog";
+import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { SpanViewSkeleton } from "./skeleton";
+
+export type SpanViewTab = "overview" | "span-input" | "span-output" | "attributes" | "events";
 
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  initialSearchTerm?: string;
+  initialTab?: SpanViewTab;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
 const swrFetcher = async (url: string) => {
@@ -34,40 +42,48 @@ const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-// Inner component that has access to SpanSearchContext
-const SpanViewTabs = ({
+// Inner component that has access to SpanSearchContext. Exported so the public
+// shared-trace span view renders the exact same tab set instead of a copy.
+export const SpanViewTabs = ({
   span,
   searchRef,
   searchOpen,
   setSearchOpen,
+  initialTab,
 }: {
   span: Span;
   searchRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  initialTab?: SpanViewTab;
 }) => {
-  const searchContext = useSpanSearchContext();
+  const isLLM = span.spanType === SpanType.LLM;
+  const defaultTab = initialTab ?? (isLLM ? "overview" : "span-input");
 
   return (
-    <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input" tabIndex={0}>
+    <Tabs
+      key={initialTab}
+      className="flex flex-col grow overflow-hidden gap-0"
+      defaultValue={defaultTab}
+      onValueChange={(value) => track("traces", "span_tab_selected", { tab: value })}
+      tabIndex={0}
+    >
       <div className="px-2 pb-2 mt-2 border-b w-full">
-        <TabsList className="border-none text-xs h-7">
-          <TabsTrigger value="span-input" className="text-xs">
-            Span Input
-          </TabsTrigger>
-          <TabsTrigger value="span-output" className="text-xs">
-            Span Output
-          </TabsTrigger>
-          <TabsTrigger value="attributes" className="text-xs">
-            Attributes
-          </TabsTrigger>
-          <TabsTrigger value="events" className="text-xs">
-            Events
-          </TabsTrigger>
+        <TabsList size="sm">
+          {isLLM && <TabsTrigger value="overview">Overview</TabsTrigger>}
+          <TabsTrigger value="span-input">Span Input</TabsTrigger>
+          <TabsTrigger value="span-output">Span Output</TabsTrigger>
+          <TabsTrigger value="attributes">Attributes</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
         </TabsList>
       </div>
       <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
       <div className="grow flex overflow-hidden">
+        {isLLM && (
+          <TabsContent value="overview" className="w-full h-full">
+            <SpanOverview span={span} />
+          </TabsContent>
+        )}
         <TabsContent value="span-input" className="w-full h-full">
           <SpanContent span={span} type="input" />
         </TabsContent>
@@ -77,21 +93,21 @@ const SpanViewTabs = ({
         <TabsContent value="attributes" className="w-full h-full">
           <ContentRenderer
             className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            codeEditorClassName="rounded-none border-none contain-strict"
             readOnly
             value={JSON.stringify(span.attributes)}
             defaultMode="yaml"
-            searchTerm={searchContext?.searchTerm || ""}
+            customTheme={spanViewTheme}
           />
         </TabsContent>
         <TabsContent value="events" className="w-full h-full">
           <ContentRenderer
             className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            codeEditorClassName="rounded-none border-none contain-strict"
             readOnly
             value={JSON.stringify(span.events)}
             defaultMode="yaml"
-            searchTerm={searchContext?.searchTerm || ""}
+            customTheme={spanViewTheme}
           />
         </TabsContent>
       </div>
@@ -99,9 +115,16 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({
+  spanId,
+  traceId,
+  initialSearchTerm,
+  initialTab,
+  onClose,
+  isAlwaysSelectSpan,
+}: SpanViewProps) {
   const { projectId } = useParams();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
     data: span,
     isLoading,
@@ -126,13 +149,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col space-y-2 p-2">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
+    return <SpanViewSkeleton />;
   }
 
   if (error) {
@@ -155,7 +172,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span && get(span.attributes, "gen_ai.prompt.user")) {
     return (
-      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+      <div className="whitespace-pre-wrap p-4 m-2 border rounded-md bg-surface-up">
         {get(span.attributes, "gen_ai.prompt.user")}
       </div>
     );
@@ -163,18 +180,17 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span) {
     return (
-      <SpanViewStateProvider>
-        <SpanSearchProvider>
-          <SpanControls span={span}>
-            <SpanViewTabs
-              span={span}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              setSearchOpen={setSearchOpen}
-            />
-          </SpanControls>
-        </SpanSearchProvider>
-      </SpanViewStateProvider>
+      <SpanSearchProvider initialSearchTerm={initialSearchTerm}>
+        <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
+          <SpanViewTabs
+            span={span}
+            searchRef={searchRef}
+            searchOpen={searchOpen}
+            setSearchOpen={setSearchOpen}
+            initialTab={initialTab}
+          />
+        </SpanControls>
+      </SpanSearchProvider>
     );
   }
 }

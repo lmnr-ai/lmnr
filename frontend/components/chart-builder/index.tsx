@@ -69,17 +69,19 @@ const ChartBuilderCore = () => {
           <div>
             <label className="text-sm font-medium mb-1 block">Chart type</label>
             <Select value={chartConfig.type || ""} onValueChange={setChartType}>
-              <SelectTrigger className="focus:ring-0">
+              <SelectTrigger className="focus:ring-0" aria-label="Chart type">
                 <SelectValue placeholder="Select Chart Type" />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(chartTypeLabelMap) as ChartType[]).map((item) => (
-                  <SelectItem key={item} value={item}>
-                    <div className="flex items-center">
-                      {chartTypeLabelMap[item].icon} {chartTypeLabelMap[item].label}
-                    </div>
-                  </SelectItem>
-                ))}
+                {(Object.entries(chartTypeLabelMap) as [ChartType, { label: string; icon: ReactNode }][]).map(
+                  ([item, meta]) => (
+                    <SelectItem key={item} value={item}>
+                      <div className="flex items-center">
+                        {meta.icon} {meta.label}
+                      </div>
+                    </SelectItem>
+                  )
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -203,7 +205,7 @@ const ChartBuilderCore = () => {
               className="self-end"
             >
               <Upload className="w-4 h-4 mr-2" />
-              Export to Dashboard
+              Export to Dashboards
             </Button>
           </ExportChartDialog>
         </div>
@@ -235,7 +237,7 @@ const ChartBuilder = ({ data, query, storageKey }: ChartBuilderProps) => (
 
 export default ChartBuilder;
 
-export const chartTypeLabelMap: Record<ChartType, { label: string; icon: ReactNode }> = {
+export const chartTypeLabelMap: Partial<Record<ChartType, { label: string; icon: ReactNode }>> = {
   [ChartType.LineChart]: {
     label: "Line Chart",
     icon: <ChartLine className="w-4 h-4 mr-2" />,

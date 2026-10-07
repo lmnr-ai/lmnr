@@ -1,23 +1,23 @@
-import { and, eq } from "drizzle-orm";
-import { getServerSession } from "next-auth";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
-import { type WorkspaceRole } from "@/lib/workspaces/types";
+import { AuthorizationError } from "@/lib/errors";
+import { WORKSPACE_ROLES, type WorkspaceRole } from "@/lib/workspaces/types";
 
 const CheckWorkspaceRoleSchema = z.object({
-  workspaceId: z.string(),
-  roles: z.array(z.enum(["member", "admin", "owner"])).min(1),
+  workspaceId: z.guid(),
+  roles: z.array(z.enum(WORKSPACE_ROLES)).min(1),
 });
 
 export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspaceRoleSchema>) => {
   const { workspaceId, roles } = CheckWorkspaceRoleSchema.parse(input);
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user) {
-    throw new Error("Unauthorized: User not authenticated");
+    throw new AuthorizationError("Unauthorized: User not authenticated", 401);
   }
 
   const membership = await db.query.membersOfWorkspaces.findFirst({
@@ -25,15 +25,23 @@ export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspac
   });
 
   if (!membership) {
-    throw new Error("User is not a member of this workspace");
+    throw new AuthorizationError("User is not a member of this workspace", 403);
   }
 
   const userRole = membership.memberRole as WorkspaceRole;
 
   if (!roles.includes(userRole)) {
     const roleList = roles.join(" or ");
-    throw new Error(`Forbidden: Only ${roleList} roles can perform this action`);
+    throw new AuthorizationError(`Forbidden: Only ${roleList} roles can perform this action`, 403);
   }
 
   return userRole;
+};
+
+export const countWorkspaceMemberships = async (userId: string): Promise<number> => {
+  const [{ count }] = await db
+    .select({ count: sql`count(*)`.mapWith(Number) })
+    .from(membersOfWorkspaces)
+    .where(eq(membersOfWorkspaces.userId, userId));
+  return count;
 };

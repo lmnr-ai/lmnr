@@ -1,12 +1,11 @@
 /// This module contains feature flags that can be used to enable or disable certain features in the application.
 // TODO: consider https://doc.rust-lang.org/reference/conditional-compilation.html instead
-use std::env;
-
-const OPERATION_MODE: &str = "OPERATION_MODE";
+use crate::{env, llm};
 
 const PRODUCER: &str = "producer";
 const CONSUMER: &str = "consumer";
 
+#[derive(Clone, Copy)]
 pub enum Feature {
     UsageLimit,
     /// Remote storage, such as S3
@@ -14,53 +13,150 @@ pub enum Feature {
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
     RabbitMQ,
-    SqlQueryEngine,
     ClickhouseReadOnly,
+    /// Sentry self-tracing tree. Requires a Sentry DSN.
     Tracing,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     Clustering,
+    /// Laminar internal self-tracing tree. Independent of Sentry — gated only
+    /// on `ENABLE_TRACING` so it works without a Sentry DSN.
+    InternalTracing,
     Signals,
+    /// Signals route their LLM calls through a profile. Self-hosted only: cloud
+    /// signals keep running on Laminar's internal keys.
+    SignalLlmProfiles,
+    /// Ingestion-time user-task extraction (LAM-1880). Shares the
+    /// LLM-provider condition with `Signals` but stays a separate flag —
+    /// features are fine-grained so gating can diverge later.
+    InputExtraction,
+    Reports,
+    /// Checkpoints / agent-versioning pipeline (LAM-1987). Temporarily
+    /// gated behind `CHECKPOINTS_ENABLED`, default off.
+    Checkpoints,
+    /// v2 static system-prompt extraction: per-agent prompt windows +
+    /// line-level version detection replacing the skeleton-hash keying.
+    /// Gated behind `SP_VERSIONING_ENABLED`, default off.
+    SystemPromptVersioning,
+    /// Signals resolve static prompts through the v2 version registry rather
+    /// than the legacy per-naive-signature regex cache. Separate from
+    /// `SystemPromptVersioning` so versioning can run (and be inspected) for a
+    /// while before summarization consumes it; needs BOTH switches on.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    SignalsVersionedPrompts,
+    RateLimiter,
+    /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
+    IngestionRateLimiter,
+    /// Strip PII from span input/output via the pii-redactor gRPC service,
+    /// gated per project by `projects.settings.piiMode`.
+    PiiRedaction,
+    /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
+    /// (default true).
+    Quickwit,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
     match feature {
-        Feature::UsageLimit => env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string()),
+        Feature::UsageLimit => {
+            std::env::var(env::connections::ENVIRONMENT) == Ok("PRODUCTION".to_string())
+        }
         Feature::Storage => {
-            env::var("AWS_ACCESS_KEY_ID").is_ok()
-                && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
-                && env::var("S3_TRACE_PAYLOADS_BUCKET").is_ok()
+            std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok()
+                && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok()
+                && std::env::var(env::storage::S3_EXPORTS_BUCKET).is_ok()
         }
         Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
-            &env::var("ENVIRONMENT")
+            &std::env::var(env::connections::ENVIRONMENT)
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
-        Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
-        Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
+        Feature::RabbitMQ => std::env::var(env::mq::URL).is_ok(),
         Feature::ClickhouseReadOnly => {
-            env::var("CLICKHOUSE_RO_USER").is_ok() && env::var("CLICKHOUSE_RO_PASSWORD").is_ok()
+            std::env::var(env::clickhouse::RO_USER).is_ok()
+                && std::env::var(env::clickhouse::RO_PASSWORD).is_ok()
         }
         Feature::Tracing => {
-            env::var("SENTRY_DSN").is_ok() && env::var("ENABLE_TRACING").is_ok_and(|s| s == "true")
+            std::env::var(env::observability::SENTRY_DSN).is_ok()
+                && std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
         }
-        Feature::Clustering => {
-            env::var("CLUSTERING_SERVICE_URL").is_ok()
-                && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
+        Feature::InternalTracing => {
+            std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
         }
-        Feature::Signals => {
-            env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|s| !s.is_empty())
+        Feature::Clustering => has_llm_backend(),
+        // Self-hosted signals can additionally pin a workspace LLM profile per
+        // signal, so they boot even with neither env provider nor system workspace.
+        Feature::Signals => has_llm_backend() || is_feature_enabled(Feature::SignalLlmProfiles),
+        Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
+        Feature::InputExtraction => has_llm_backend(),
+        Feature::Reports => {
+            std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
+                && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
+        Feature::Checkpoints => env::checkpoints::ENABLED.get(),
+        Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
+        Feature::SignalsVersionedPrompts => {
+            is_feature_enabled(Feature::SystemPromptVersioning)
+                && env::static_sp::SIGNALS_ENABLED.get()
+        }
+        Feature::RateLimiter => {
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
+                && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
+                && std::env::var(env::rate_limit::HTTP_PERIOD_SECS).is_ok()
+        }
+        Feature::IngestionRateLimiter => {
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
+                && std::env::var(env::rate_limit::INGESTION_LIMIT).is_ok()
+                && std::env::var(env::rate_limit::INGESTION_PERIOD_SECS).is_ok()
+        }
+        Feature::PiiRedaction => {
+            std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
+        }
+        Feature::Quickwit => env::quickwit::ENABLED.get(),
+    }
+}
+
+/// An LLM-backed feature can run when calls have somewhere to go: the
+/// `LLM_PROVIDER` env client, or global `llm_feature_routes` rows backed by the
+/// system workspace's profiles (`LLM_SYSTEM_WORKSPACE_ID`).
+fn has_llm_backend() -> bool {
+    has_llm_provider() || has_system_workspace()
+}
+
+fn has_system_workspace() -> bool {
+    std::env::var(env::llm::SYSTEM_WORKSPACE_ID)
+        .is_ok_and(|s| s.trim().parse::<uuid::Uuid>().is_ok())
+}
+
+/// Mirrors the credential checks in `LlmClient::new` so LLM-backed
+/// feature flags are true exactly when the env client would construct.
+fn has_llm_provider() -> bool {
+    let provider = std::env::var(env::llm::PROVIDER)
+        .ok()
+        .map(|s| s.trim().to_lowercase())
+        .unwrap_or_default();
+    let has_llm_api_key = std::env::var(env::llm::API_KEY).is_ok_and(|s| !s.is_empty());
+    let has_aws = std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok_and(|s| !s.is_empty())
+        && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|s| !s.is_empty())
+        && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
+    match provider.as_str() {
+        "gemini" | "openai" | "openai_responses" => has_llm_api_key,
+        "azure_chat_completions" | "azure_responses" | "azure_anthropic" => {
+            has_llm_api_key && llm::azure::has_endpoint()
+        }
+        "bedrock" => has_aws,
+        "mock" => true,
+        _ => false,
     }
 }
 
 pub fn enable_consumer() -> bool {
-    match env::var(OPERATION_MODE) {
+    match std::env::var(env::connections::OPERATION_MODE) {
         Ok(v) => v.trim().to_lowercase() == CONSUMER,
         Err(_) => true,
     }
 }
 
 pub fn enable_producer() -> bool {
-    match env::var(OPERATION_MODE) {
+    match std::env::var(env::connections::OPERATION_MODE) {
         Ok(v) => v.trim().to_lowercase() == PRODUCER,
         Err(_) => true,
     }

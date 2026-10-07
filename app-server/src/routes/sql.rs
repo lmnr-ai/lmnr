@@ -10,26 +10,34 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::{self, Actor},
     cache::Cache,
     db::DB,
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
-    sql::{self, ClickhouseReadonlyClient},
+    query_engine::{QueryEngine, QueryEngineValidationResult},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
 use super::ResponseResult;
 
+/// `actor` is mandatory: this route is only reachable from the frontend
+/// server, which always knows who is reading. A missing actor is a bug in a
+/// caller, not an anonymous reader, so it is a 400 rather than a fallback.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
     #[serde(default)]
     pub parameters: HashMap<String, Value>,
+    pub actor: Actor,
 }
 
+/// The validated SQL embeds the policy, so validation needs the actor too
+/// (export jobs run the validated text elsewhere).
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlValidateRequest {
     pub query: String,
+    pub actor: Actor,
 }
 
 #[derive(Serialize)]
@@ -50,14 +58,14 @@ pub struct SqlToJsonRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SqlToJsonResponse {
     pub success: bool,
-    pub query_structure: Option<crate::query_engine::query_engine::QueryStructure>,
+    pub query_structure: Option<crate::query_engine::types::QueryStructure>,
     pub error: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonToSqlRequest {
-    pub query_structure: crate::query_engine::query_engine::QueryStructure,
+    pub query_structure: crate::query_engine::types::QueryStructure,
 }
 
 #[derive(Serialize)]
@@ -79,7 +87,11 @@ pub async fn execute_sql_query(
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
-    let SqlQueryRequest { query, parameters } = req.into_inner();
+    let SqlQueryRequest {
+        query,
+        parameters,
+        actor,
+    } = req.into_inner();
 
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("frontend_sql_query");
@@ -87,17 +99,24 @@ pub async fn execute_sql_query(
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
     let _guard = mark_span_as_active(span);
 
+    let db = db.into_inner();
+    let cache = cache.into_inner();
+    let policy =
+        access_policy::for_actor_or_masked(&actor, project_id, db.clone(), cache.clone()).await;
+
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
             match sql::execute_sql_query(
                 query,
                 project_id,
                 parameters,
+                SqlQuerySource::Internal,
+                policy,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),
-                db.into_inner(),
-                cache.into_inner(),
+                db,
+                cache,
             )
             .await
             {
@@ -114,14 +133,19 @@ pub async fn validate_sql_query(
     req: web::Json<SqlValidateRequest>,
     path: web::Path<Uuid>,
     query_engine: web::Data<Arc<QueryEngine>>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
-    let SqlValidateRequest { query } = req.into_inner();
+    let SqlValidateRequest { query, actor } = req.into_inner();
+    let policy =
+        access_policy::for_actor_or_masked(&actor, project_id, db.into_inner(), cache.into_inner())
+            .await;
 
     match query_engine
         .into_inner()
         .as_ref()
-        .validate_query(query, project_id)
+        .validate_query(query, project_id, &policy)
         .await
     {
         Ok(validation_result) => {

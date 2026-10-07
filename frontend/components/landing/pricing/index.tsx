@@ -1,14 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
 
 import Footer from "@/components/landing/footer";
-import LandingButton from "@/components/landing/landing-button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { formatSignalTokenRate, signalCacheReadRate, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
+import { cn } from "@/lib/utils";
 
+import { bodyMedium, LANDING_COLUMN_MAX_W, subSection } from "../class-names";
+import Divider from "../sections/divider";
+import CardsVariant from "./cards-variant";
 import PricingCalculator from "./pricing-calculator";
-import PricingCard from "./pricing-card";
+import PricingTable from "./pricing-table";
 
 export default function Pricing() {
   const posthog = usePostHog();
@@ -17,130 +20,101 @@ export default function Pricing() {
     posthog?.capture("faq_question_clicked", { question });
   };
 
-  // Add FAQ data
   const faqItems = [
     {
       id: "data-calculation",
       question: "How is data usage calculated?",
       answer:
-        "Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that the pricing calculator does not take into account stored images and is an approximation of the total data usage.",
+        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
     },
     {
-      id: "signal-run",
-      question: "What is a signal run?",
+      id: "signals-pricing",
+      question: "How is Signals usage priced?",
+      answer: (
+        <>
+          Signals are billed by the tokens the agent spends to read a trace and generate a structured event:{" "}
+          {formatSignalTokenRate(signalInputRate())} per 1M input tokens, {formatSignalTokenRate(signalCacheReadRate())}{" "}
+          per 1M cached input tokens, and {formatSignalTokenRate(signalOutputRate())} per 1M output tokens. Every new
+          workspace receives a one-time $5 credit that carries forward until used; usage past that is billed at the
+          applicable per-token rates. You pay for what a Signal reads and writes, not for the spans your agent emits.
+          Read more in the{" "}
+          <a
+            href="https://laminar.sh/docs/signals/introduction"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground-50"
+          >
+            Signals docs
+          </a>
+          {"."}
+        </>
+      ),
+    },
+    {
+      id: "signals-not-one-to-one",
+      question: "Is this 1-to-1 with my agent's token usage?",
       answer:
-        "A signal run is a single execution of a signal job — for example, running an LLM-as-a-judge evaluator on one datapoint. The average cost per signal run is approximately $0.005.",
+        "No. Signals don't re-read your raw trace token-for-token. Laminar heavily compresses each trace and feeds a Signal only the parts it needs to produce its structured output, so the tokens you're billed for are a small fraction of the tokens your agent originally spent. The pricing calculator reflects this: move the trace-tokens slider and watch the much smaller Signals cost it produces.",
+    },
+    {
+      id: "signals-consumption",
+      question: "When is Signals usage consumed?",
+      answer:
+        "Signals run in two modes. Triggers run a Signal automatically on new traces that match your filters, which is useful for live dashboards and alerts. Jobs run a Signal across a historical slice of traces, which is useful to backfill a new Signal or re-evaluate a changed prompt. Both modes are billed by the same per-token rates. Trigger filters are AND-combined, so you can narrow which traces a Signal reads and only spend on the traces you care about.",
+    },
+    {
+      id: "overage",
+      question: "What happens if I exceed my plan's included usage?",
+      answer:
+        "Paid tiers keep working past their included data and bill overage at the per-GB data rate and the per-token Signals rates listed on each plan. Every new workspace receives a one-time $5 Signals credit that carries forward until used. The Free tier has no overage; once you hit its data cap or spend the credit, you'll need to upgrade to keep going. Enterprise has custom limits and rates negotiated per contract.",
     },
   ];
 
   return (
-    <div className="flex flex-col items-center pt-32 w-full h-full bg-landing-surface-800">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:p-16">
-        <div className="p-8 border border-landing-surface-400 rounded-lg flex flex-col justify-between">
-          <PricingCard
-            className="text-landing-text-200"
-            title="Free"
-            price="$0 / month"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
-            features={["1 GB data", "100 signal runs", "15 day retention", "1 project", "1 seat", "Community support"]}
-            subfeatures={["no overage", "no overage", null, null, null, null]}
-          />
-          <Link href="/projects">
-            <LandingButton variant="outline" className="w-full">
-              GET STARTED
-            </LandingButton>
-          </Link>
-        </div>
-        <div className="p-8 border border-landing-surface-400 rounded-lg flex flex-col justify-between">
-          <PricingCard
-            className="text-landing-text-200"
-            title="Hobby"
-            price="$30 / month"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
-            features={[
-              "3 GB data included",
-              "1,000 signal runs included",
-              "30 day retention",
-              "Unlimited projects",
-              "Unlimited seats",
-              "Email support",
-            ]}
-            subfeatures={["then $2 / GB", "then $0.02 / run", null, null, null, null]}
-          />
-          <Link href="/projects">
-            <LandingButton variant="outline" className="w-full">
-              GET STARTED
-            </LandingButton>
-          </Link>
-        </div>
-        <div className="h-full w-full p-8 flex flex-col justify-between z-20 border border-landing-primary-400 bg-landing-primary-400 rounded-lg">
-          <PricingCard
-            className="z-20"
-            title="Pro"
-            price="$150 / month"
-            titleClassName="text-landing-text-100"
-            featureClassName="text-landing-text-100"
-            subfeatureClassName="text-landing-text-100"
-            features={[
-              "10 GB data included",
-              "10,000 signal runs included",
-              "90 day retention",
-              "Unlimited projects",
-              "Unlimited seats",
-              "Slack support",
-            ]}
-            subfeatures={["then $1.50 / GB", "then $0.015 / run", null, null, null, null]}
-          />
-          <Link href="/projects" className="w-full z-20">
-            <LandingButton
-              variant="primary"
-              className="w-full bg-landing-text-100 text-landing-surface-900 hover:bg-landing-text-200"
-            >
-              GET STARTED
-            </LandingButton>
-          </Link>
-        </div>
-        <div className="p-8 border border-landing-surface-400 rounded-lg flex flex-col justify-between">
-          <PricingCard
-            className="text-landing-text-200"
-            title="Enterprise"
-            price="Custom"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
-            features={["Custom limits", "On-premise", "Unlimited projects", "Unlimited seats", "Dedicated support"]}
-          />
-          <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
-            <LandingButton variant="outline" className="w-full">
-              CONTACT US
-            </LandingButton>
-          </Link>
+    <div className="flex flex-col w-full overflow-x-clip">
+      <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-12 md:pt-[180px] pb-[72px] md:pb-[120px]">
+        <div className={cn("flex flex-col items-center w-full max-w-[1100px]")}>
+          {/* Tier cards */}
+          <div className="w-full mb-20 md:mb-[160px]">
+            <CardsVariant />
+          </div>
+
+          {/* Calculator. Wider than the old 640px column since it compares four
+              tiers side by side, but capped short of the page: past ~800px the
+              gap between a row's label and its last column stops being
+              scannable. */}
+          <div className="w-full max-w-[800px] mb-20 md:mb-[240px]">
+            <PricingCalculator />
+          </div>
+
+          {/* Detailed comparison table */}
+          <div className="-mx-6 mb-20 md:mb-[160px] w-[calc(100%+3rem)] md:mx-0 md:w-full">
+            <PricingTable />
+          </div>
+
+          <div className={cn("w-full", LANDING_COLUMN_MAX_W)}>
+            <Divider />
+          </div>
+
+          {/* FAQ — constrained to the landing column */}
+          <div className={cn("w-full mt-20 md:mt-[160px] flex flex-col gap-10", LANDING_COLUMN_MAX_W)}>
+            <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
+            <Accordion type="single" collapsible className="w-full">
+              {faqItems.map((item) => (
+                <AccordionItem key={item.id} value={item.id} className="border-surface-300">
+                  <AccordionTrigger
+                    className={cn("text-white text-lg leading-6 py-6 text-left gap-4")}
+                    onClick={() => handleQuestionClick(item.question)}
+                  >
+                    {item.question}
+                  </AccordionTrigger>
+                  <AccordionContent className={cn(bodyMedium, "text-base pb-6")}>{item.answer}</AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
         </div>
       </div>
-
-      {/* Calculator Section */}
-      <PricingCalculator />
-
-      <div className="w-full max-w-3xl mt-[180px] mb-32 px-4">
-        <h2 className="text-2xl font-semibold mb-6 text-center font-space-grotesk text-landing-text-100">
-          Frequently Asked Questions
-        </h2>
-        <Accordion type="single" collapsible className="w-full">
-          {faqItems.map((item) => (
-            <AccordionItem key={item.id} value={item.id} className="border-landing-surface-400">
-              <AccordionTrigger
-                className="text-xl text-landing-text-100"
-                onClick={() => handleQuestionClick(item.question)}
-              >
-                {item.question}
-              </AccordionTrigger>
-              <AccordionContent className="text-landing-text-200">{item.answer}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </div>
-      <div className="grow"></div>
       <Footer />
     </div>
   );

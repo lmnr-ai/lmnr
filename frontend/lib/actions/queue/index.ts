@@ -1,188 +1,225 @@
-import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
-import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
-import { generateUuid } from "@/lib/utils";
+import { labelingQueues } from "@/lib/db/migrations/schema";
+import { type LabelingQueueItem } from "@/lib/queue/types";
+import { generateUuid, tryParseJson } from "@/lib/utils";
 
-export const MoveQueueSchema = z.object({
-  queueId: z.string(),
-  refDate: z.string(),
-  refId: z.string(),
-  direction: z.enum(["next", "prev"]),
+import {
+  copyQueueItemsToDataset,
+  deleteQueueItems,
+  getQueueItems,
+  getQueueItemStates,
+  insertQueueItems,
+  updateQueueItem,
+} from "./items";
+
+export type { QueueItemState, QueueItemStateRow } from "./items";
+
+const PayloadSchema = z.object({
+  data: z.any(),
+  target: z.any(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
-export const MoveQueueRequestSchema = MoveQueueSchema.pick({ refDate: true, refId: true, direction: true });
+const ItemMetadataSchema = z
+  .object({
+    source: z.enum(["span", "datapoint", "sql"]).optional(),
+    datasetId: z.guid().optional(),
+    traceId: z.guid().optional(),
+    id: z.string().optional(),
+  })
+  .loose();
 
 export const PushQueueItemSchema = z.object({
-  queueId: z.string(),
+  queueId: z.guid(),
+  projectId: z.guid(),
   items: z.array(
     z.object({
       createdAt: z.string().optional(),
-      payload: z.object({
-        data: z.any(),
-        target: z.any(),
-        metadata: z.record(z.string(), z.any()),
-      }),
-      metadata: z.object({
-        source: z.enum(["span", "datapoint"]).optional(),
-        datasetId: z.string().optional(),
-        traceId: z.string().optional(),
-        id: z.string().optional(),
-      }),
+      payload: PayloadSchema,
+      metadata: ItemMetadataSchema,
     })
   ),
 });
 
 export const PushQueueItemsRequestSchema = PushQueueItemSchema.shape.items;
 
-export const RemoveQueueItemSchema = z.object({
-  queueId: z.string(),
-  id: z.string(),
-  skip: z.boolean().optional(),
-  datasetId: z.string().optional(),
-  data: z.any(),
-  target: z.any(),
-  metadata: z.record(z.string(), z.any()),
-  projectId: z.string(),
+/**
+ * PATCH input for an existing queue item. Only `edit` (UI-only) and `status`
+ * are mutable; `payload` is immutable post-insert. `edit` is the canonical
+ * current target (seeded equal to `payload.target` on insert) — overwrite it
+ * to change the current target; omit it to leave the column untouched.
+ */
+export const UpdateQueueItemEditSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+  id: z.guid(),
+  edit: z.string().optional(),
+  status: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
-export const RemoveQueueItemRequestSchema = RemoveQueueItemSchema.omit({ queueId: true, projectId: true });
+export const RemoveQueueItemSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+  id: z.guid(),
+  skip: z.boolean().optional(),
+  datasetId: z.guid().optional(),
+});
 
-export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
-  const { queueId, refDate, refId, direction } = MoveQueueSchema.parse(input);
+export const RemoveQueueItemRequestSchema = RemoveQueueItemSchema.omit({
+  queueId: true,
+  projectId: true,
+});
 
-  const [{ count }] = await db
-    .select({
-      count: sql<number>`count(*)::int4`,
-    })
-    .from(labelingQueueItems)
-    .where(eq(labelingQueueItems.queueId, queueId));
+export const PushItemsToDatasetSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+  datasetId: z.guid(),
+  itemIds: z.array(z.guid()).optional(),
+  /**
+   * When true, push every queue item regardless of `status`. This is the
+   * "ship everything that's in the queue right now" escape hatch — un-annotated
+   * items will land in the dataset with whatever (possibly empty) effective
+   * target they carry. Default false to preserve the historical
+   * "approved-only" contract.
+   */
+  includeUnlabelled: z.boolean().optional(),
+});
 
-  if (direction === "next") {
-    // Use compound ordering: (created_at, id) to handle items with same timestamp
-    // Find items where (created_at > refDate) OR (created_at = refDate AND id > refId)
-    const nextItem = await db.query.labelingQueueItems.findFirst({
-      where: and(
-        eq(labelingQueueItems.queueId, queueId),
-        or(
-          gt(labelingQueueItems.createdAt, refDate),
-          and(eq(labelingQueueItems.createdAt, refDate), gt(labelingQueueItems.id, refId))
-        )
-      ),
-      orderBy: [asc(labelingQueueItems.createdAt), asc(labelingQueueItems.id)],
-    });
+export const GetQueueItemsSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+  /**
+   * Optional id filter for the windowed UI: when present we return ONLY those
+   * rows (still in `(created_at, id)` order). Omit to fall back to the
+   * historical "return everything" contract callers without windowing rely on.
+   */
+  ids: z.array(z.guid()).optional(),
+});
 
-    if (!nextItem) {
-      return null;
-    }
+export const GetQueueItemStatesSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+});
 
-    const [{ position }] = await db
-      .select({
-        position: sql<number>`(
-          SELECT COUNT(*)::int4
-          FROM labeling_queue_items
-          WHERE queue_id = ${queueId}
-          AND (created_at < ${nextItem.createdAt} OR (created_at = ${nextItem.createdAt} AND id < ${nextItem.id}))
-        ) + 1`,
-      })
-      .from(labelingQueueItems)
-      .where(eq(labelingQueueItems.queueId, queueId));
+export const UpdateQueueAnnotationSchemaSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+  annotationSchema: z.record(z.string(), z.unknown()).nullable(),
+});
 
-    return {
-      ...nextItem,
-      count,
-      position,
-    };
-  } else if (direction === "prev") {
-    // Use compound ordering: (created_at, id) to handle items with same timestamp
-    // Find items where (created_at < refDate) OR (created_at = refDate AND id < refId)
-    const prevItem = await db.query.labelingQueueItems.findFirst({
-      where: and(
-        eq(labelingQueueItems.queueId, queueId),
-        or(
-          lt(labelingQueueItems.createdAt, refDate),
-          and(eq(labelingQueueItems.createdAt, refDate), lt(labelingQueueItems.id, refId))
-        )
-      ),
-      orderBy: [desc(labelingQueueItems.createdAt), desc(labelingQueueItems.id)],
-    });
-
-    if (!prevItem) {
-      return null;
-    }
-
-    const [{ position }] = await db
-      .select({
-        position: sql<number>`(
-          SELECT COUNT(*)::int4
-          FROM labeling_queue_items
-          WHERE queue_id = ${queueId}
-          AND (created_at < ${prevItem.createdAt} OR (created_at = ${prevItem.createdAt} AND id < ${prevItem.id}))
-        ) + 1`,
-      })
-      .from(labelingQueueItems)
-      .where(eq(labelingQueueItems.queueId, queueId));
-
-    return {
-      ...prevItem,
-      count,
-      position,
-    };
+/**
+ * Effective target for export. Under the mirror model `edit` is always the
+ * canonical current target — seeded equal to `payload.target` on insert and
+ * updated by every UI edit. The `payload.target` fallback is defensive for
+ * any pre-mirror rows that might still have `edit = ""`; if you hit it on
+ * fresh data something further upstream lost the seed.
+ */
+const effectiveTarget = (item: LabelingQueueItem): unknown => {
+  if (item.edit && item.edit.length > 0) {
+    return tryParseJson(item.edit) ?? (item.payload as { target?: unknown }).target ?? null;
   }
-
-  throw new Error("Invalid direction");
-}
+  return (item.payload as { target?: unknown }).target ?? null;
+};
 
 export async function pushQueueItems(input: z.infer<typeof PushQueueItemSchema>) {
-  const { queueId, items } = PushQueueItemSchema.parse(input);
+  const { queueId, projectId, items } = PushQueueItemSchema.parse(input);
+  if (items.length === 0) return [];
 
-  const queueItems = items.map((item) => ({
-    ...item,
+  const now = new Date().toISOString();
+  const toInsert = items.map((item) => ({
+    id: generateUuid(),
     queueId,
+    projectId,
+    payload: item.payload,
+    metadata: item.metadata ?? {},
+    edit: JSON.stringify(item.payload.target ?? null),
+    status: 0 as const,
+    createdAt: item.createdAt ?? now,
+    updatedAt: item.createdAt ?? now,
   }));
 
-  const newQueueItems = await db.insert(labelingQueueItems).values(queueItems).returning();
+  await insertQueueItems(toInsert);
 
-  if (newQueueItems.length === 0) {
-    throw new Error("Failed to push items to queue");
-  }
+  return toInsert.map((item) => ({
+    id: item.id,
+    queueId: item.queueId,
+    projectId: item.projectId,
+    createdAt: item.createdAt,
+  }));
+}
 
-  return newQueueItems;
+export async function updateQueueItemEdit(input: z.infer<typeof UpdateQueueItemEditSchema>) {
+  const parsed = UpdateQueueItemEditSchema.parse(input);
+
+  // Delegate the read-modify-write entirely to `updateQueueItem`: one FINAL
+  // SELECT there preserves the immutable fields (payload, metadata, createdAt,
+  // idempotency_key) while writing only the mutable columns (edit, status).
+  await updateQueueItem({
+    id: parsed.id,
+    queueId: parsed.queueId,
+    projectId: parsed.projectId,
+    edit: parsed.edit,
+    status: parsed.status,
+  });
+
+  return { success: true };
 }
 
 export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchema>) {
-  const { queueId, id, skip, datasetId, data, target, metadata, projectId } = RemoveQueueItemSchema.parse(input);
+  const { queueId, id, skip, datasetId, projectId } = RemoveQueueItemSchema.parse(input);
 
   if (skip) {
-    await db
-      .delete(labelingQueueItems)
-      .where(and(eq(labelingQueueItems.queueId, queueId), eq(labelingQueueItems.id, id)));
-  } else if (datasetId) {
-    await db
-      .delete(labelingQueueItems)
-      .where(and(eq(labelingQueueItems.queueId, queueId), eq(labelingQueueItems.id, id)));
+    await deleteQueueItems(projectId, queueId, [id]);
+    return { success: true };
+  }
 
+  if (datasetId) {
+    const [item] = await getQueueItems(projectId, queueId, { ids: [id] });
+    if (!item) {
+      throw new Error("Queue item not found");
+    }
+
+    const payloadMetadata = (item.payload as { metadata?: unknown }).metadata;
     await createDatapoints(projectId, datasetId, [
       {
         id: generateUuid(),
-        data,
-        target,
-        metadata,
+        data: (item.payload as { data?: unknown }).data ?? {},
+        target: effectiveTarget(item),
+        metadata: payloadMetadata ?? item.metadata ?? {},
         createdAt: new Date().toISOString(),
       },
     ]);
-  } else {
-    throw new Error("Invalid request parameters - either skip must be true or datasetId must be provided");
+    await deleteQueueItems(projectId, queueId, [id]);
+    return { success: true };
   }
+
+  throw new Error("Invalid request parameters - either skip must be true or datasetId must be provided");
 }
 
-export const UpdateQueueAnnotationSchemaSchema = z.object({
-  projectId: z.string(),
-  queueId: z.string(),
-  annotationSchema: z.record(z.string(), z.unknown()).nullable(),
-});
+export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatasetSchema>) {
+  const { projectId, queueId, datasetId, itemIds, includeUnlabelled } = PushItemsToDatasetSchema.parse(input);
+
+  const pushed = await copyQueueItemsToDataset(projectId, queueId, datasetId, {
+    ids: itemIds && itemIds.length > 0 ? itemIds : undefined,
+    includeUnlabelled,
+  });
+
+  return { pushed };
+}
+
+export async function listQueueItems(input: z.infer<typeof GetQueueItemsSchema>) {
+  const { projectId, queueId, ids } = GetQueueItemsSchema.parse(input);
+  return getQueueItems(projectId, queueId, ids ? { ids } : undefined);
+}
+
+export async function listQueueItemStates(input: z.infer<typeof GetQueueItemStatesSchema>) {
+  const { projectId, queueId } = GetQueueItemStatesSchema.parse(input);
+  return getQueueItemStates(projectId, queueId);
+}
 
 export async function updateQueueAnnotationSchema(input: z.infer<typeof UpdateQueueAnnotationSchemaSchema>) {
   const { queueId, projectId, annotationSchema } = UpdateQueueAnnotationSchemaSchema.parse(input);

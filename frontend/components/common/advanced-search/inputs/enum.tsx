@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Ref, useCallback, useMemo } from "react";
 
 import FilterSelect, {
@@ -24,10 +23,6 @@ interface EnumValueInputProps {
 const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-xs text-primary";
 
 const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const tags = useAdvancedSearchContext((state) => state.tags);
   const getTagFocusState = useAdvancedSearchContext((state) => state.getTagFocusState);
 
@@ -46,10 +41,10 @@ const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
   const handleChange = useCallback(
     (newValue: string) => {
       updateTagValue(tagId, newValue);
-      submit(router, pathname, searchParams);
+      submit();
       mainInputRef.current?.focus();
     },
-    [updateTagValue, tagId, submit, router, pathname, searchParams, mainInputRef]
+    [updateTagValue, tagId, submit, mainInputRef]
   );
 
   const selectOptions: FilterSelectOption[] = options.map((opt) => ({

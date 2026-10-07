@@ -1,209 +1,208 @@
 import { relations } from "drizzle-orm/relations";
 import {
-  projects,
-  rolloutSessions,
-  sharedEvals,
-  workspaces,
-  workspaceAddons,
   datasets,
-  users,
-  membersOfWorkspaces,
-  providerApiKeys,
-  userSubscriptionInfo,
-  apiKeys,
-  renderTemplates,
-  workspaceInvitations,
-  labelingQueues,
-  labelingQueueItems,
-  evaluations,
-  evaluationResults,
+  datasetParquets,
+  projects,
+  workspaces,
+  workspaceUsageLimits,
+  workspaceUsageWarnings,
+  signals,
+  tracesAgentMessages,
+  slackIntegrations,
   evaluators,
   evaluatorSpanPaths,
-  sharedPayloads,
-  playgrounds,
   evaluatorScores,
-  subscriptionTiers,
-  sqlTemplates,
-  dashboardCharts,
+  workspaceInvitations,
+  agents,
+  renderTemplates,
   tracesAgentChats,
-  tracesAgentMessages,
+  sharedEvals,
+  users,
+  apiKeys,
+  labelingQueues,
+  subscriptionTiers,
+  providerApiKeys,
+  userSubscriptionInfo,
   sharedTraces,
-  projectSettings,
-  eventDefinitions,
   datasetExportJobs,
-  datasetParquets,
+  customModelCosts,
+  reports,
+  reportTargets,
+  alerts,
+  evaluations,
+  membersOfWorkspaces,
   projectApiKeys,
-  agentSessions,
-  agentChats,
-  agentMessages,
+  alertTargets,
+  sqlTemplates,
+  sessions,
+  deviceCodes,
+  alertFilters,
   eventClusterConfigs,
-  eventClusters,
-  slackIntegrations,
-  slackChannelToEvents,
+  workspaceAddons,
+  accounts,
+  signalJobs,
+  playgrounds,
+  eventDefinitions,
+  dashboardCharts,
+  sharedPayloads,
+  debuggerSessions,
+  debuggerSessionBlocks,
+  workspaceUsage,
+  signalTriggers,
+  chatMessages,
+  chatSessions,
+  tableViews,
+  notificationReads,
   tagClasses,
-  semanticEventDefinitions,
-  semanticEventTriggerSpans,
-  clusters,
+  agentVersions,
   traces,
+  llmProfiles,
+  llmProfileModels,
+  llmFeatureRoutes,
 } from "./schema";
 
-export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
+export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [llmProfiles.workspaceId],
+    references: [workspaces.id],
+  }),
+  models: many(llmProfileModels),
+}));
+
+export const llmProfileModelsRelations = relations(llmProfileModels, ({ one }) => ({
+  profile: one(llmProfiles, {
+    fields: [llmProfileModels.profileId],
+    references: [llmProfiles.id],
+  }),
+}));
+
+export const llmFeatureRoutesRelations = relations(llmFeatureRoutes, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [llmFeatureRoutes.workspaceId],
+    references: [workspaces.id],
+  }),
+  profile: one(llmProfiles, {
+    fields: [llmFeatureRoutes.llmProfileId],
+    references: [llmProfiles.id],
+  }),
+}));
+
+export const datasetParquetsRelations = relations(datasetParquets, ({ one }) => ({
+  dataset: one(datasets, {
+    fields: [datasetParquets.datasetId],
+    references: [datasets.id],
+  }),
   project: one(projects, {
-    fields: [rolloutSessions.projectId],
+    fields: [datasetParquets.projectId],
     references: [projects.id],
   }),
 }));
 
+export const datasetsRelations = relations(datasets, ({ one, many }) => ({
+  datasetParquets: many(datasetParquets),
+  project: one(projects, {
+    fields: [datasets.projectId],
+    references: [projects.id],
+  }),
+  datasetExportJobs: many(datasetExportJobs),
+}));
+
 export const projectsRelations = relations(projects, ({ one, many }) => ({
-  rolloutSessions: many(rolloutSessions),
+  datasetParquets: many(datasetParquets),
+  signals: many(signals),
+  tracesAgentMessages: many(tracesAgentMessages),
+  evaluators: many(evaluators),
+  evaluatorSpanPaths: many(evaluatorSpanPaths),
+  evaluatorScores: many(evaluatorScores),
+  agents: many(agents),
+  renderTemplates: many(renderTemplates),
+  tracesAgentChats: many(tracesAgentChats),
   sharedEvals: many(sharedEvals),
+  labelingQueues: many(labelingQueues),
   datasets: many(datasets),
   workspace: one(workspaces, {
     fields: [projects.workspaceId],
     references: [workspaces.id],
   }),
   providerApiKeys: many(providerApiKeys),
-  renderTemplates: many(renderTemplates),
-  evaluators: many(evaluators),
-  evaluatorSpanPaths: many(evaluatorSpanPaths),
-  evaluations: many(evaluations),
-  sharedPayloads: many(sharedPayloads),
-  playgrounds: many(playgrounds),
-  evaluatorScores: many(evaluatorScores),
-  sqlTemplates: many(sqlTemplates),
-  dashboardCharts: many(dashboardCharts),
-  labelingQueues: many(labelingQueues),
-  tracesAgentChats: many(tracesAgentChats),
-  tracesAgentMessages: many(tracesAgentMessages),
   sharedTraces: many(sharedTraces),
-  projectSettings: many(projectSettings),
-  eventDefinitions: many(eventDefinitions),
   datasetExportJobs: many(datasetExportJobs),
-  datasetParquets: many(datasetParquets),
+  customModelCosts: many(customModelCosts),
+  alerts: many(alerts),
+  evaluations: many(evaluations),
   projectApiKeys: many(projectApiKeys),
+  alertTargets: many(alertTargets),
+  sqlTemplates: many(sqlTemplates),
+  alertFilters: many(alertFilters),
   eventClusterConfigs: many(eventClusterConfigs),
-  eventClusters: many(eventClusters),
-  slackIntegrations: many(slackIntegrations),
+  signalJobs: many(signalJobs),
+  playgrounds: many(playgrounds),
+  eventDefinitions: many(eventDefinitions),
+  dashboardCharts: many(dashboardCharts),
+  sharedPayloads: many(sharedPayloads),
+  debuggerSessions: many(debuggerSessions),
+  debuggerSessionBlocks: many(debuggerSessionBlocks),
+  signalTriggers: many(signalTriggers),
+  chatMessages: many(chatMessages),
+  chatSessions: many(chatSessions),
+  tableViews: many(tableViews),
+  notificationReads: many(notificationReads),
   tagClasses: many(tagClasses),
-  semanticEventDefinitions: many(semanticEventDefinitions),
-  clusters: many(clusters),
+  agentVersions: many(agentVersions),
   traces: many(traces),
 }));
 
-export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({
-  project: one(projects, {
-    fields: [sharedEvals.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const workspaceAddonsRelations = relations(workspaceAddons, ({ one }) => ({
+export const workspaceUsageLimitsRelations = relations(workspaceUsageLimits, ({ one }) => ({
   workspace: one(workspaces, {
-    fields: [workspaceAddons.workspaceId],
+    fields: [workspaceUsageLimits.workspaceId],
     references: [workspaces.id],
   }),
 }));
 
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
-  workspaceAddons: many(workspaceAddons),
-  projects: many(projects),
-  membersOfWorkspaces: many(membersOfWorkspaces),
+  workspaceUsageLimits: many(workspaceUsageLimits),
+  workspaceUsageWarnings: many(workspaceUsageWarnings),
+  slackIntegrations: many(slackIntegrations),
   workspaceInvitations: many(workspaceInvitations),
+  projects: many(projects),
   subscriptionTier: one(subscriptionTiers, {
     fields: [workspaces.tierId],
     references: [subscriptionTiers.id],
   }),
-}));
-
-export const datasetsRelations = relations(datasets, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [datasets.projectId],
-    references: [projects.id],
-  }),
-  datasetExportJobs: many(datasetExportJobs),
-  datasetParquets: many(datasetParquets),
-}));
-
-export const membersOfWorkspacesRelations = relations(membersOfWorkspaces, ({ one }) => ({
-  user: one(users, {
-    fields: [membersOfWorkspaces.userId],
-    references: [users.id],
-  }),
-  workspace: one(workspaces, {
-    fields: [membersOfWorkspaces.workspaceId],
-    references: [workspaces.id],
-  }),
-}));
-
-export const usersRelations = relations(users, ({ many }) => ({
+  reports: many(reports),
+  reportTargets: many(reportTargets),
   membersOfWorkspaces: many(membersOfWorkspaces),
-  userSubscriptionInfos: many(userSubscriptionInfo),
-  apiKeys: many(apiKeys),
-  agentChats: many(agentChats),
+  workspaceAddons: many(workspaceAddons),
+  workspaceUsages: many(workspaceUsage),
 }));
 
-export const providerApiKeysRelations = relations(providerApiKeys, ({ one }) => ({
-  project: one(projects, {
-    fields: [providerApiKeys.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const userSubscriptionInfoRelations = relations(userSubscriptionInfo, ({ one }) => ({
-  user: one(users, {
-    fields: [userSubscriptionInfo.userId],
-    references: [users.id],
-  }),
-}));
-
-export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
-  user: one(users, {
-    fields: [apiKeys.userId],
-    references: [users.id],
-  }),
-}));
-
-export const renderTemplatesRelations = relations(renderTemplates, ({ one }) => ({
-  project: one(projects, {
-    fields: [renderTemplates.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const workspaceInvitationsRelations = relations(workspaceInvitations, ({ one }) => ({
+export const workspaceUsageWarningsRelations = relations(workspaceUsageWarnings, ({ one }) => ({
   workspace: one(workspaces, {
-    fields: [workspaceInvitations.workspaceId],
+    fields: [workspaceUsageWarnings.workspaceId],
     references: [workspaces.id],
   }),
 }));
 
-export const labelingQueueItemsRelations = relations(labelingQueueItems, ({ one }) => ({
-  labelingQueue: one(labelingQueues, {
-    fields: [labelingQueueItems.queueId],
-    references: [labelingQueues.id],
+export const signalsRelations = relations(signals, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [signals.projectId],
+    references: [projects.id],
   }),
+  signalJobs: many(signalJobs),
+  signalTriggers: many(signalTriggers),
 }));
 
-export const labelingQueuesRelations = relations(labelingQueues, ({ one, many }) => ({
-  labelingQueueItems: many(labelingQueueItems),
+export const tracesAgentMessagesRelations = relations(tracesAgentMessages, ({ one }) => ({
   project: one(projects, {
-    fields: [labelingQueues.projectId],
+    fields: [tracesAgentMessages.projectId],
     references: [projects.id],
   }),
 }));
 
-export const evaluationResultsRelations = relations(evaluationResults, ({ one }) => ({
-  evaluation: one(evaluations, {
-    fields: [evaluationResults.evaluationId],
-    references: [evaluations.id],
-  }),
-}));
-
-export const evaluationsRelations = relations(evaluations, ({ one, many }) => ({
-  evaluationResults: many(evaluationResults),
-  project: one(projects, {
-    fields: [evaluations.projectId],
-    references: [projects.id],
+export const slackIntegrationsRelations = relations(slackIntegrations, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [slackIntegrations.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 
@@ -226,20 +225,6 @@ export const evaluatorSpanPathsRelations = relations(evaluatorSpanPaths, ({ one 
   }),
 }));
 
-export const sharedPayloadsRelations = relations(sharedPayloads, ({ one }) => ({
-  project: one(projects, {
-    fields: [sharedPayloads.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const playgroundsRelations = relations(playgrounds, ({ one }) => ({
-  project: one(projects, {
-    fields: [playgrounds.projectId],
-    references: [projects.id],
-  }),
-}));
-
 export const evaluatorScoresRelations = relations(evaluatorScores, ({ one }) => ({
   project: one(projects, {
     fields: [evaluatorScores.projectId],
@@ -247,20 +232,24 @@ export const evaluatorScoresRelations = relations(evaluatorScores, ({ one }) => 
   }),
 }));
 
-export const subscriptionTiersRelations = relations(subscriptionTiers, ({ many }) => ({
-  workspaces: many(workspaces),
-}));
-
-export const sqlTemplatesRelations = relations(sqlTemplates, ({ one }) => ({
-  project: one(projects, {
-    fields: [sqlTemplates.projectId],
-    references: [projects.id],
+export const workspaceInvitationsRelations = relations(workspaceInvitations, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceInvitations.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 
-export const dashboardChartsRelations = relations(dashboardCharts, ({ one }) => ({
+export const agentsRelations = relations(agents, ({ one, many }) => ({
   project: one(projects, {
-    fields: [dashboardCharts.projectId],
+    fields: [agents.projectId],
+    references: [projects.id],
+  }),
+  agentVersions: many(agentVersions),
+}));
+
+export const renderTemplatesRelations = relations(renderTemplates, ({ one }) => ({
+  project: one(projects, {
+    fields: [renderTemplates.projectId],
     references: [projects.id],
   }),
 }));
@@ -272,30 +261,59 @@ export const tracesAgentChatsRelations = relations(tracesAgentChats, ({ one }) =
   }),
 }));
 
-export const tracesAgentMessagesRelations = relations(tracesAgentMessages, ({ one }) => ({
+export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({
   project: one(projects, {
-    fields: [tracesAgentMessages.projectId],
+    fields: [sharedEvals.projectId],
     references: [projects.id],
+  }),
+}));
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [apiKeys.userId],
+    references: [users.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  apiKeys: many(apiKeys),
+  userSubscriptionInfos: many(userSubscriptionInfo),
+  membersOfWorkspaces: many(membersOfWorkspaces),
+  projectApiKeys: many(projectApiKeys),
+  sessions: many(sessions),
+  deviceCodes: many(deviceCodes),
+  accounts: many(accounts),
+  notificationReads: many(notificationReads),
+}));
+
+export const labelingQueuesRelations = relations(labelingQueues, ({ one }) => ({
+  project: one(projects, {
+    fields: [labelingQueues.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const subscriptionTiersRelations = relations(subscriptionTiers, ({ many }) => ({
+  workspaces: many(workspaces),
+}));
+
+export const providerApiKeysRelations = relations(providerApiKeys, ({ one }) => ({
+  project: one(projects, {
+    fields: [providerApiKeys.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const userSubscriptionInfoRelations = relations(userSubscriptionInfo, ({ one }) => ({
+  user: one(users, {
+    fields: [userSubscriptionInfo.userId],
+    references: [users.id],
   }),
 }));
 
 export const sharedTracesRelations = relations(sharedTraces, ({ one }) => ({
   project: one(projects, {
     fields: [sharedTraces.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectSettings.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const eventDefinitionsRelations = relations(eventDefinitions, ({ one }) => ({
-  project: one(projects, {
-    fields: [eventDefinitions.projectId],
     references: [projects.id],
   }),
 }));
@@ -311,44 +329,110 @@ export const datasetExportJobsRelations = relations(datasetExportJobs, ({ one })
   }),
 }));
 
-export const datasetParquetsRelations = relations(datasetParquets, ({ one }) => ({
-  dataset: one(datasets, {
-    fields: [datasetParquets.datasetId],
-    references: [datasets.id],
-  }),
+export const customModelCostsRelations = relations(customModelCosts, ({ one }) => ({
   project: one(projects, {
-    fields: [datasetParquets.projectId],
+    fields: [customModelCosts.projectId],
     references: [projects.id],
   }),
 }));
 
+export const reportsRelations = relations(reports, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [reports.workspaceId],
+    references: [workspaces.id],
+  }),
+  reportTargets: many(reportTargets),
+}));
+
+export const reportTargetsRelations = relations(reportTargets, ({ one }) => ({
+  report: one(reports, {
+    fields: [reportTargets.reportId],
+    references: [reports.id],
+  }),
+  workspace: one(workspaces, {
+    fields: [reportTargets.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const alertsRelations = relations(alerts, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [alerts.projectId],
+    references: [projects.id],
+  }),
+  alertTargets: many(alertTargets),
+  alertFilters: many(alertFilters),
+}));
+
+export const evaluationsRelations = relations(evaluations, ({ one }) => ({
+  project: one(projects, {
+    fields: [evaluations.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const membersOfWorkspacesRelations = relations(membersOfWorkspaces, ({ one }) => ({
+  user: one(users, {
+    fields: [membersOfWorkspaces.userId],
+    references: [users.id],
+  }),
+  workspace: one(workspaces, {
+    fields: [membersOfWorkspaces.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
 export const projectApiKeysRelations = relations(projectApiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [projectApiKeys.userId],
+    references: [users.id],
+  }),
   project: one(projects, {
     fields: [projectApiKeys.projectId],
     references: [projects.id],
   }),
 }));
 
-export const agentChatsRelations = relations(agentChats, ({ one }) => ({
-  agentSession: one(agentSessions, {
-    fields: [agentChats.sessionId],
-    references: [agentSessions.sessionId],
+export const alertTargetsRelations = relations(alertTargets, ({ one }) => ({
+  alert: one(alerts, {
+    fields: [alertTargets.alertId],
+    references: [alerts.id],
   }),
+  project: one(projects, {
+    fields: [alertTargets.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const sqlTemplatesRelations = relations(sqlTemplates, ({ one }) => ({
+  project: one(projects, {
+    fields: [sqlTemplates.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, {
-    fields: [agentChats.userId],
+    fields: [sessions.userId],
     references: [users.id],
   }),
 }));
 
-export const agentSessionsRelations = relations(agentSessions, ({ many }) => ({
-  agentChats: many(agentChats),
-  agentMessages: many(agentMessages),
+export const deviceCodesRelations = relations(deviceCodes, ({ one }) => ({
+  user: one(users, {
+    fields: [deviceCodes.userId],
+    references: [users.id],
+  }),
 }));
 
-export const agentMessagesRelations = relations(agentMessages, ({ one }) => ({
-  agentSession: one(agentSessions, {
-    fields: [agentMessages.sessionId],
-    references: [agentSessions.sessionId],
+export const alertFiltersRelations = relations(alertFilters, ({ one }) => ({
+  alert: one(alerts, {
+    fields: [alertFilters.alertId],
+    references: [alerts.id],
+  }),
+  project: one(projects, {
+    fields: [alertFilters.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -359,25 +443,125 @@ export const eventClusterConfigsRelations = relations(eventClusterConfigs, ({ on
   }),
 }));
 
-export const eventClustersRelations = relations(eventClusters, ({ one }) => ({
+export const workspaceAddonsRelations = relations(workspaceAddons, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceAddons.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, {
+    fields: [accounts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const signalJobsRelations = relations(signalJobs, ({ one }) => ({
   project: one(projects, {
-    fields: [eventClusters.projectId],
+    fields: [signalJobs.projectId],
+    references: [projects.id],
+  }),
+  signal: one(signals, {
+    fields: [signalJobs.signalId],
+    references: [signals.id],
+  }),
+}));
+
+export const playgroundsRelations = relations(playgrounds, ({ one }) => ({
+  project: one(projects, {
+    fields: [playgrounds.projectId],
     references: [projects.id],
   }),
 }));
 
-export const slackIntegrationsRelations = relations(slackIntegrations, ({ one, many }) => ({
+export const eventDefinitionsRelations = relations(eventDefinitions, ({ one }) => ({
   project: one(projects, {
-    fields: [slackIntegrations.projectId],
+    fields: [eventDefinitions.projectId],
     references: [projects.id],
   }),
-  slackChannelToEvents: many(slackChannelToEvents),
 }));
 
-export const slackChannelToEventsRelations = relations(slackChannelToEvents, ({ one }) => ({
-  slackIntegration: one(slackIntegrations, {
-    fields: [slackChannelToEvents.integrationId],
-    references: [slackIntegrations.id],
+export const dashboardChartsRelations = relations(dashboardCharts, ({ one }) => ({
+  project: one(projects, {
+    fields: [dashboardCharts.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const sharedPayloadsRelations = relations(sharedPayloads, ({ one }) => ({
+  project: one(projects, {
+    fields: [sharedPayloads.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const debuggerSessionsRelations = relations(debuggerSessions, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [debuggerSessions.projectId],
+    references: [projects.id],
+  }),
+  debuggerSessionBlocks: many(debuggerSessionBlocks),
+}));
+
+export const debuggerSessionBlocksRelations = relations(debuggerSessionBlocks, ({ one }) => ({
+  project: one(projects, {
+    fields: [debuggerSessionBlocks.projectId],
+    references: [projects.id],
+  }),
+  debuggerSession: one(debuggerSessions, {
+    fields: [debuggerSessionBlocks.sessionId],
+    references: [debuggerSessions.id],
+  }),
+}));
+
+export const workspaceUsageRelations = relations(workspaceUsage, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsage.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const signalTriggersRelations = relations(signalTriggers, ({ one }) => ({
+  project: one(projects, {
+    fields: [signalTriggers.projectId],
+    references: [projects.id],
+  }),
+  signal: one(signals, {
+    fields: [signalTriggers.signalId],
+    references: [signals.id],
+  }),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  project: one(projects, {
+    fields: [chatMessages.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const chatSessionsRelations = relations(chatSessions, ({ one }) => ({
+  project: one(projects, {
+    fields: [chatSessions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const tableViewsRelations = relations(tableViews, ({ one }) => ({
+  project: one(projects, {
+    fields: [tableViews.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const notificationReadsRelations = relations(notificationReads, ({ one }) => ({
+  project: one(projects, {
+    fields: [notificationReads.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [notificationReads.userId],
+    references: [users.id],
   }),
 }));
 
@@ -388,24 +572,13 @@ export const tagClassesRelations = relations(tagClasses, ({ one }) => ({
   }),
 }));
 
-export const semanticEventTriggerSpansRelations = relations(semanticEventTriggerSpans, ({ one }) => ({
-  semanticEventDefinition: one(semanticEventDefinitions, {
-    fields: [semanticEventTriggerSpans.projectId],
-    references: [semanticEventDefinitions.id],
+export const agentVersionsRelations = relations(agentVersions, ({ one }) => ({
+  agent: one(agents, {
+    fields: [agentVersions.agentId],
+    references: [agents.id],
   }),
-}));
-
-export const semanticEventDefinitionsRelations = relations(semanticEventDefinitions, ({ one, many }) => ({
-  semanticEventTriggerSpans: many(semanticEventTriggerSpans),
   project: one(projects, {
-    fields: [semanticEventDefinitions.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const clustersRelations = relations(clusters, ({ one }) => ({
-  project: one(projects, {
-    fields: [clusters.projectId],
+    fields: [agentVersions.projectId],
     references: [projects.id],
   }),
 }));
