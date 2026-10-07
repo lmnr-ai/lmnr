@@ -19,7 +19,9 @@ const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 
 const SYNC_INTERVAL_SECONDS: u64 = 6 * 60 * 60;
 // Only decides how soon a failed sync is retried; the lock TTL sets the schedule.
-const TICK_INTERVAL_SECONDS: u64 = 600;
+// Short because on a fresh install the first sync can race the frontend
+// migrations that create `model_costs`.
+const TICK_INTERVAL_SECONDS: u64 = 60;
 
 const SHORT_NAME_PREFIXES: [&str; 4] = ["mistral", "xai", "minimax", "moonshot"];
 const FLEX_PRICING_MODELS: [&str; 2] = ["gemini-3-flash-preview", "gemini-3.5-flash"];
