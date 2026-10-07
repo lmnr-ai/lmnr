@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface SettingsSectionHeaderProps {
   title: string;
-  description: string;
+  description?: string;
   size?: "sm" | "lg";
 }
 
@@ -14,7 +14,7 @@ export function SettingsSectionHeader({ title, description, size = "lg" }: Setti
   return (
     <div className="flex flex-col gap-2">
       <h1 className={size === "lg" ? "text-2xl font-semibold" : "text-base font-semibold"}>{title}</h1>
-      <p className="text-sm text-muted-foreground">{description}</p>
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
     </div>
   );
 }

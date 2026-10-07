@@ -1,16 +1,15 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import Datasets from "@/components/datasets/datasets";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
   title: "Datasets",
 };
 
 export default async function LogsPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session) {
     redirect("/sign-in");
   }

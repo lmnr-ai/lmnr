@@ -13,11 +13,12 @@ use crate::cache::Cache;
 use crate::data_plane::client::DataPlaneClient;
 use crate::db::workspaces::WorkspaceDeployment;
 
-use super::llm_messages::CHLlmMessage;
 use super::notification_deliveries::CHNotificationDelivery;
 use super::notifications::CHNotification;
 use super::spans::CHSpan;
-use super::traces::CHTrace;
+use super::traces_agg::CHTraceAgg;
+use super::traces_static::CHTraceStatic;
+use super::unique_content::CHUniqueContent;
 use super::{ClickhouseInsertable, ClickhouseTrait};
 
 /// Batched data for data plane write requests.
@@ -26,10 +27,11 @@ use super::{ClickhouseInsertable, ClickhouseTrait};
 #[serde(tag = "table", content = "data", rename_all = "snake_case")]
 pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
-    Traces(Vec<CHTrace>),
+    TracesAgg(Vec<CHTraceAgg>),
+    TracesStatic(Vec<CHTraceStatic>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
-    LlmMessages(Vec<CHLlmMessage>),
+    UniqueContent(Vec<CHUniqueContent>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.

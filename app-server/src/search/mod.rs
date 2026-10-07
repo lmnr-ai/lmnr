@@ -1,3 +1,4 @@
+pub mod signal_events;
 pub mod snippets;
 
 use chrono::{DateTime, Utc};
@@ -15,11 +16,11 @@ const DEFAULT_SEARCH_MAX_SPANS: usize = 500;
 const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
 
 // TODO: maybe remove all punctuation similar to the default tokenizer in the index?
-const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['"', '?', '`', '~', '!', '\\'];
+pub(crate) const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['"', '?', '`', '~', '!', '\\'];
 // Quickwit documentation is very brief on this, it lists all of the reserved characters
 // with a note that you can escape them with a backslash. However, some of them break
 // the query parsing when escaped, so we need to remove them.
-const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
+pub(crate) const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     ':', '^', '{', '}', '[', ']', '(', ')',
     // The below characters won't break parsing but change the meaning of the query
     // even when escaped, so safest to remove them.
@@ -31,7 +32,7 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
 
 /// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
-fn escape_quickwit_query(query: &str) -> String {
+pub(crate) fn escape_quickwit_query(query: &str) -> String {
     let escaped: String = query
         .chars()
         .flat_map(|c| {

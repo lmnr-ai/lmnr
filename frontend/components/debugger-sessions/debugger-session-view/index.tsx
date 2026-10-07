@@ -1,105 +1,56 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import React, { useCallback } from "react";
+import { type ComponentProps, useEffect } from "react";
 
-import DebuggerSessionContent from "@/components/debugger-sessions/debugger-session-view/debugger-session-content";
-import DebuggerSidebar from "@/components/debugger-sessions/debugger-session-view/sidebar";
-import { MIN_SIDEBAR_WIDTH, useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
-import { useToast } from "@/lib/hooks/use-toast";
+import Header from "@/components/ui/header";
+import { track } from "@/lib/posthog";
+
+import DebuggerSessionViewContent from "./debugger-session-view-content";
+import DebuggerSessionViewStoreProvider, { useDebuggerSessionViewStore } from "./store";
 
 interface DebuggerSessionViewProps {
+  // Breadcrumb path; last segment is the session title.
+  headerPath: ComponentProps<typeof Header>["path"];
+  // Debugger session id — drives the trace fetch + realtime span streaming.
   sessionId: string;
-  spanId?: string;
+  // The session's real name (null when never named). Seeds the editable title's
+  // raw name so it can show a "Set session name" placeholder vs. the breadcrumb,
+  // which falls back to the id.
+  initialName?: string | null;
 }
 
-const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps) => {
-  const { projectId } = useParams();
-  const { toast } = useToast();
-
-  const { runDebugger, cancelSession, isLoading, sidebarWidth, setSidebarWidth } = useDebuggerSessionStore((state) => ({
-    runDebugger: state.runDebugger,
-    cancelSession: state.cancelSession,
-    isLoading: state.isLoading,
-    sidebarWidth: state.sidebarWidth,
-    setSidebarWidth: state.setSidebarWidth,
-  }));
-
-  const handleRun = useCallback(async () => {
-    const result = await runDebugger(projectId as string, sessionId);
-    if (result.success) {
-      toast({
-        title: "Debugger started successfully",
-        description: "The debugger is now running with your configuration.",
-      });
-    } else {
-      toast({
-        title: "Failed to run debugger",
-        description: result.error,
-        variant: "destructive",
-      });
-    }
-  }, [runDebugger, projectId, sessionId, toast]);
-
-  const handleCancel = useCallback(async () => {
-    const result = await cancelSession(projectId as string, sessionId);
-    if (result.success) {
-      toast({
-        title: "Debugger cancelled",
-        description: "The debugger session has been stopped.",
-      });
-    } else {
-      toast({
-        title: "Failed to cancel debugger",
-        description: result.error,
-        variant: "destructive",
-      });
-    }
-  }, [cancelSession, projectId, sessionId, toast]);
-
-  const handleResizeSidebar = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = sidebarWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX);
-        setSidebarWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [setSidebarWidth, sidebarWidth]
-  );
-
-  return (
-    <div className="flex flex-col h-full w-full">
-      <div className="flex h-full w-full min-h-0">
-        <div className="flex-none border-r bg-background flex flex-col relative" style={{ width: sidebarWidth }}>
-          <DebuggerSidebar onRun={handleRun} onCancel={handleCancel} isLoading={isLoading} />
-          <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-            onMouseDown={handleResizeSidebar}
-          >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
-          </div>
-        </div>
-
-        <div className="flex-1">
-          <DebuggerSessionContent sessionId={sessionId} spanId={spanId} />
-        </div>
-      </div>
-    </div>
-  );
+// Last breadcrumb segment is the session/trace title rendered in the header.
+const titleFromPath = (path: ComponentProps<typeof Header>["path"]): string => {
+  if (Array.isArray(path)) return path[path.length - 1]?.name ?? "Session";
+  return path.split("/").pop() ?? "Session";
 };
 
-export default function DebuggerSessionView(props: DebuggerSessionViewProps) {
-  return <PureDebuggerSessionView {...props} />;
+// Breadcrumb that tracks live renames: the store's `sessionName` (updated by the
+// realtime `session_update` handler) replaces the last path segment's name. Must
+// render inside the store provider.
+function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["path"] }) {
+  const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
+  const livePath = Array.isArray(path)
+    ? path.map((segment, i) => (i === path.length - 1 ? { ...segment, name: sessionName } : segment))
+    : path;
+  return <Header path={livePath} />;
+}
+
+export default function DebuggerSessionView({ headerPath, sessionId, initialName }: DebuggerSessionViewProps) {
+  useEffect(() => {
+    track("debugger_sessions", "session_viewed");
+  }, []);
+
+  return (
+    <DebuggerSessionViewStoreProvider
+      key={sessionId}
+      initialSessionName={titleFromPath(headerPath)}
+      initialSessionNameRaw={initialName ?? null}
+      sessionId={sessionId}
+    >
+      <LiveSessionBreadcrumb path={headerPath} />
+      <div className="flex-none border-t" />
+      <DebuggerSessionViewContent sessionId={sessionId} />
+    </DebuggerSessionViewStoreProvider>
+  );
 }

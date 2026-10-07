@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts.ts";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { ascNameFold } from "@/lib/db/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Project } from "@/lib/workspaces/types";
 
@@ -73,7 +74,29 @@ export const getProjectsByWorkspace = async (workspaceId: string): Promise<Proje
       name: true,
       workspaceId: true,
     },
+    // Alphabetical — this list backs every project picker (sidebar switcher, Slack
+    // channel binding, copy-model-costs target). Not used for default-project selection.
+    orderBy: ascNameFold(projects.name),
   });
 
   return results;
+};
+
+// The workspace's newest project (or undefined). Single source for the "default project of a
+// workspace" pick so callers (settings paths, /projects, invite-accept) can't drift on ordering.
+export const getNewestProjectId = async (workspaceId: string): Promise<string | undefined> => {
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.workspaceId, workspaceId),
+    columns: { id: true },
+    orderBy: desc(projects.createdAt),
+  });
+  return project?.id;
+};
+
+// Settings path for a workspace, via its newest project. Falls back to /projects when the workspace
+// has no project (loses the workspace context, but every real caller targets one with ≥1 project).
+export const getWorkspaceSettingsPath = async (workspaceId: string, section?: string): Promise<string> => {
+  const projectId = await getNewestProjectId(workspaceId);
+  if (!projectId) return "/projects";
+  return section ? `/project/${projectId}/settings?tab=${section}` : `/project/${projectId}/settings`;
 };

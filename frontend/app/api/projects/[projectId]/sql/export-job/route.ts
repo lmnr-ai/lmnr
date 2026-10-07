@@ -7,8 +7,8 @@ export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const body = await req.json();
 
   const result = await createExportJob({
-    projectId,
     ...body,
+    projectId,
   });
 
   return Response.json({

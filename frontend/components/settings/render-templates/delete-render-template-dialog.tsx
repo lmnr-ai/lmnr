@@ -10,11 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { type TemplateScope } from "@/components/ui/template-renderer";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface TemplateInfo {
   id: string;
   name: string;
+  scope: TemplateScope;
 }
 
 interface Props {

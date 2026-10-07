@@ -1,30 +1,14 @@
-import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import type { ReadonlyURLSearchParams } from "next/navigation";
+import { createFilterFromTag, type FilterTagFocusState } from "../types";
+import type { SliceCreator, UndoRedoSlice } from "./types";
 
-import { createFilterFromTag, type FilterTag, type FilterTagFocusState } from "../types";
-import type { SliceCreator } from "./types";
+export type { UndoRedoSlice, UndoSnapshot } from "./types";
 
 const MAX_UNDO_STACK = 50;
-
-export interface UndoSnapshot {
-  tags: FilterTag[];
-  inputValue: string;
-}
-
-export interface UndoRedoSlice {
-  undoStack: UndoSnapshot[];
-  redoStack: UndoSnapshot[];
-  pushUndoSnapshot: () => void;
-  undo: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-  redo: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-  canUndo: () => boolean;
-  canRedo: () => boolean;
-}
 
 export const createUndoRedoSlice: SliceCreator<UndoRedoSlice> = (
   set,
   get,
-  { getLastCommittedSnapshot, setLastCommittedSnapshot, setLastSubmitted }
+  { getLastCommittedSnapshot, setLastCommittedSnapshot, setLastSubmitted, getOnChange }
 ) => ({
   undoStack: [],
   redoStack: [],
@@ -37,10 +21,9 @@ export const createUndoRedoSlice: SliceCreator<UndoRedoSlice> = (
     });
   },
 
-  undo: (router, pathname, searchParams) => {
+  undo: () => {
     const { undoStack } = get();
     if (undoStack.length === 0) return;
-
     const previous = undoStack[undoStack.length - 1];
 
     set({
@@ -57,29 +40,15 @@ export const createUndoRedoSlice: SliceCreator<UndoRedoSlice> = (
       inputValue: previous.inputValue,
     });
 
-    const { onSubmit, mode } = get();
     const filterObjects = previous.tags.map(createFilterFromTag);
     const searchValue = previous.inputValue.trim();
-
-    if (mode === "url") {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("filter");
-      params.delete("search");
-      params.delete("pageNumber");
-      params.set("pageNumber", "0");
-      filterObjects.forEach((filter) => params.append("filter", JSON.stringify(filter)));
-      if (searchValue) params.set("search", searchValue);
-      router.push(`${pathname}?${params.toString()}`);
-    }
-
     setLastSubmitted({ filters: filterObjects, search: searchValue });
-    onSubmit?.(filterObjects, searchValue);
+    getOnChange()({ filters: filterObjects, search: searchValue });
   },
 
-  redo: (router, pathname, searchParams) => {
+  redo: () => {
     const { redoStack } = get();
     if (redoStack.length === 0) return;
-
     const next = redoStack[redoStack.length - 1];
 
     set({
@@ -96,23 +65,10 @@ export const createUndoRedoSlice: SliceCreator<UndoRedoSlice> = (
       inputValue: next.inputValue,
     });
 
-    const { onSubmit, mode } = get();
     const filterObjects = next.tags.map(createFilterFromTag);
     const searchValue = next.inputValue.trim();
-
-    if (mode === "url") {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("filter");
-      params.delete("search");
-      params.delete("pageNumber");
-      params.set("pageNumber", "0");
-      filterObjects.forEach((filter) => params.append("filter", JSON.stringify(filter)));
-      if (searchValue) params.set("search", searchValue);
-      router.push(`${pathname}?${params.toString()}`);
-    }
-
     setLastSubmitted({ filters: filterObjects, search: searchValue });
-    onSubmit?.(filterObjects, searchValue);
+    getOnChange()({ filters: filterObjects, search: searchValue });
   },
 
   canUndo: () => get().undoStack.length > 0,

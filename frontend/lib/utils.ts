@@ -11,6 +11,63 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Sub-path the app is served under, baked in at build time (see next.config.ts).
+// Next auto-prefixes <Link>/router/redirect/next-image/assets, but NOT runtime
+// native fetch, EventSource, window.location.*, or Better Auth callbackURLs —
+// those must call withBasePath explicitly. Empty string when root-served, so all
+// helpers below are no-ops in the regular frontend-ee image.
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+// Prefix a root-relative app path with BASE_PATH. Absolute URLs (http(s)://,
+// //host) and non-root values are returned unchanged so external calls
+// (PostHog/Sentry) and already-prefixed paths are never double-stamped.
+export function withBasePath(path: string): string {
+  if (!BASE_PATH) return path;
+  if (!path.startsWith("/")) return path;
+  if (path.startsWith("//")) return path;
+  if (path === BASE_PATH || path.startsWith(`${BASE_PATH}/`)) return path;
+  return `${BASE_PATH}${path}`;
+}
+
+// Inverse of withBasePath: strip the baked prefix off a browser-observed path
+// (window.location.pathname carries it) so the result can be fed back into
+// anything that re-prefixes — router.push and Better Auth callbackURLs both add
+// BASE_PATH themselves, so storing a prefix-inclusive value would double-stamp.
+export function stripBasePath(path: string): string {
+  if (!BASE_PATH) return path;
+  if (path === BASE_PATH) return "/";
+  if (path.startsWith(`${BASE_PATH}/`)) return path.slice(BASE_PATH.length);
+  return path;
+}
+
+// Constrain a post-auth `callbackUrl` (read from the query string) to a
+// same-origin relative path before it reaches `router.push`, preventing an
+// open redirect to an attacker-controlled site. Anything that resolves off our
+// origin falls back to `defaultUrl`.
+export function sanitizeCallbackUrl(raw: string | string[] | undefined, defaultUrl = "/onboarding"): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return defaultUrl;
+  try {
+    // Parse against a placeholder base (works server-side — no `window`). A
+    // relative path keeps this origin; absolute / protocol-relative (`//host`)
+    // / backslash (`/\host`) targets resolve to a different origin and are
+    // rejected. The URL parser also strips tab/newline/CR per the WHATWG spec,
+    // so no manual sanitising is needed. https base => backslashes normalise to
+    // slashes, matching browser behaviour.
+    const base = "https://placeholder.invalid";
+    const url = new URL(value, base);
+    if (url.origin !== base) return defaultUrl;
+    // Enforce the prefix-free callbackUrl contract at the boundary: consumers
+    // (router.push, OAuth callbackURL) re-apply BASE_PATH, so an inbound value
+    // that already carries the prefix (stale link / hand-crafted query) would
+    // otherwise double-stamp to `/lmnr/lmnr/...`.
+    const path = stripBasePath(url.pathname) + url.search + url.hash;
+    return path === "/" ? defaultUrl : path;
+  } catch {
+    return defaultUrl;
+  }
+}
+
 // return string such as 0319 for March 19 or 1201 for December 1
 // Note that the date is calculated for local time
 export function getCurrentMonthDayStr() {
@@ -149,6 +206,28 @@ function innerFormatTimestamp(date: Date, format?: string): string {
   // TODO: Add year, if it's not equal to current year
 
   return `${dateStr}, ${timeStr}`;
+}
+
+/** Format a duration in ms as a short human-readable string (e.g. "3m 12s").
+ *  Returns null for zero/negative/invalid durations. */
+export function formatDuration(ms: number | undefined): string | null {
+  if (ms === undefined || !Number.isFinite(ms) || ms <= 0) return null;
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 1) return "<1s";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const s = seconds % 60;
+    return s === 0 ? `${minutes}m` : `${minutes}m ${s}s`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const m = minutes % 60;
+    return m === 0 ? `${hours}h` : `${hours}h ${m}m`;
+  }
+  const days = Math.floor(hours / 24);
+  const h = hours % 24;
+  return h === 0 ? `${days}d` : `${days}d ${h}h`;
 }
 
 export function deep<T>(value: T): T {
@@ -354,20 +433,6 @@ export function formatTimeRange(start: Date, end: Date): string {
   const endDateStr = `${months[end.getMonth()]} ${end.getDate()}`;
   return `${startDateStr}, ${startTimeStr} – ${endDateStr}, ${endTimeStr}`;
 }
-
-export const getDurationString = (startTime: string, endTime: string) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  const duration = end.getTime() - start.getTime();
-
-  return `${(duration / 1000).toFixed(2)}s`;
-};
-
-export const getDuration = (startTime: string, endTime: string) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  return Math.max(end.getTime() - start.getTime(), 0);
-};
 
 export const tryParseJson = (value: string) => {
   if (value === "" || value === undefined) return null;

@@ -1,19 +1,18 @@
 import { ArrowRight } from "lucide-react";
+import { memo } from "react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
-import { cn } from "@/lib/utils.ts";
+import { cn, formatTimestampWithSeconds } from "@/lib/utils.ts";
 
 interface InputItemProps {
   text: string | null;
   isLoading: boolean;
   inGroup?: boolean;
   className?: string;
+  startTime?: string;
 }
 
-export function InputItem({ text, inGroup, className }: InputItemProps) {
-  const { enabled: isDebuggerMode } = useOptionalDebuggerStore(() => null);
-
+function InputItemInner({ text, inGroup, className, startTime }: InputItemProps) {
   if (!text) return null;
 
   return (
@@ -24,7 +23,7 @@ export function InputItem({ text, inGroup, className }: InputItemProps) {
           {
             "bg-muted/60": inGroup,
           },
-          isDebuggerMode ? "pl-11" : "pl-1",
+          "pl-1",
           className
         )}
       >
@@ -33,6 +32,11 @@ export function InputItem({ text, inGroup, className }: InputItemProps) {
             <ArrowRight size={14} />
           </div>
           <span className="font-medium text-sm whitespace-nowrap shrink-0">Input</span>
+          {startTime && (
+            <time dateTime={startTime} className="ml-auto shrink-0 text-xs text-muted-foreground">
+              {formatTimestampWithSeconds(startTime)}
+            </time>
+          )}
         </div>
         <div className="pl-7">
           <CollapsedTextWithMore text={text} lineHeight={17} />
@@ -41,3 +45,5 @@ export function InputItem({ text, inGroup, className }: InputItemProps) {
     </div>
   );
 }
+
+export const InputItem = memo(InputItemInner);

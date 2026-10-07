@@ -1,7 +1,6 @@
 "use client";
 
 import { X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -16,32 +15,32 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { cn } from "@/lib/utils";
 
 import ValueInput from "../inputs";
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import {
+  type AdvancedSearchResource,
+  type ColumnFilter,
   type FilterTag as FilterTagType,
   type FilterTagRef,
   type FocusableRef,
   getColumnFilter,
   type TagFocusPosition,
 } from "../types";
+import { displayFilterValue } from "../utils";
 import FilterSelect from "./select";
 
 interface FilterTagProps {
   tag: FilterTagType;
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   isSelected?: boolean;
   ref?: Ref<FilterTagRef>;
 }
 
 const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: FilterTagProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
 
@@ -64,8 +63,23 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
 
   const focusState = getTagFocusState(tag.id);
 
-  const columnFilter = getColumnFilter(filters, tag.field);
-  const dataType = columnFilter?.dataType || "string";
+  // A filter coming from a shared URL may reference a column the current user
+  // hasn't configured (e.g. someone else's `custom:*` column). Synthesize a
+  // fallback so the tag stays visible and removable instead of silently vanishing.
+  const columnFilter: ColumnFilter = getColumnFilter(filters, tag.field) ?? {
+    name: tag.field,
+    key: tag.field,
+    dataType: tag.dataType ?? "string",
+  };
+  const dataType = columnFilter.dataType;
+
+  // Include operator + value so several filters on the SAME column get distinct
+  // remove-button names (e.g. "Remove metadata = foo filter"); fall back to the
+  // bare name while the tag is still being built and has no value yet.
+  const valueText = displayFilterValue(columnFilter, tag.value);
+  const removeLabel = valueText
+    ? `Remove ${columnFilter.name} ${OperatorLabelMap[tag.operator]} ${valueText} filter`
+    : `Remove ${columnFilter.name} filter`;
 
   const focusMainInput = useCallback(() => {
     mainInputRef.current?.focus();
@@ -126,10 +140,10 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     (e: MouseEvent | KeyboardEvent) => {
       e.stopPropagation();
       if ("key" in e && e.key !== "Enter" && e.key !== " ") return;
-      removeTag(tag.id, router, pathname, searchParams);
+      removeTag(tag.id);
       focusMainInput();
     },
-    [removeTag, tag.id, focusMainInput, router, pathname, searchParams]
+    [removeTag, tag.id, focusMainInput]
   );
 
   const handleEnterKey = useCallback(
@@ -221,8 +235,6 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     ]
   );
 
-  if (!columnFilter) return null;
-
   const removeButtonClassName = cn(
     "h-5.5 w-6 p-0 rounded-l-none rounded-r-[0.29rem] transition-colors outline-none border-0",
     focusState.type === "remove" && "bg-primary/35"
@@ -254,7 +266,14 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         mode={focusState.type === "idle" ? "nav" : focusState.mode}
       />
 
-      <Button variant="ghost" ref={removeRef} onClick={handleRemove} className={removeButtonClassName} type="button">
+      <Button
+        variant="ghost"
+        ref={removeRef}
+        onClick={handleRemove}
+        className={removeButtonClassName}
+        type="button"
+        aria-label={removeLabel}
+      >
         <X className="w-3 h-3 text-secondary-foreground" />
       </Button>
     </div>

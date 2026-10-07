@@ -1,21 +1,12 @@
-import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
+import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { authOptions } from "@/lib/auth";
-import {
-  cache,
-  PROJECT_MEMBER_CACHE_KEY,
-  WORKSPACE_BYTES_USAGE_CACHE_KEY,
-  WORKSPACE_MEMBER_CACHE_KEY,
-  WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY,
-} from "@/lib/cache";
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { getServerSession } from "@/lib/auth-session";
+import { cache, MEMBER_ROLE_CACHE_KEY, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -26,10 +17,7 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
-
-const LAST_WORKSPACE_ID = "last-workspace-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
+import { type Workspace, type WorkspaceTier, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.guid(),
@@ -120,6 +108,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
       id: workspaces.id,
       name: workspaces.name,
       tierName: subscriptionTiers.name,
+      settings: workspaces.settings,
     })
     .from(workspaces)
     .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
@@ -146,6 +135,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     name: workspace[0].name,
     tierName: workspace[0].tierName as WorkspaceTier,
     addons,
+    privacyMode: resolvePrivacyMode(parseWorkspaceSettings(workspace[0].settings), workspace[0].tierName),
   };
 };
 
@@ -197,105 +187,7 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
   };
 };
 
-export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  const workspace = await db.query.workspaces.findFirst({
-    where: eq(workspaces.id, workspaceId),
-    columns: { resetTime: true },
-  });
-
-  if (!workspace) {
-    throw new Error("Workspace not found");
-  }
-
-  const resetTimeDate = new Date(workspace.resetTime);
-  const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-  const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
-
-  // --- Bytes: cache → ClickHouse fallback ---
-  let totalBytesIngested = null;
-  const bytesCacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
-  try {
-    const cached = await cache.get<number>(bytesCacheKey);
-    totalBytesIngested = cached;
-  } catch (error) {
-    console.error("Error reading bytes usage from cache:", error);
-  }
-
-  // --- Signal steps: cache → ClickHouse fallback ---
-  let totalSignalSteps = null;
-  const signalStepsCacheKey = `${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`;
-  try {
-    const cached = await cache.get<number>(signalStepsCacheKey);
-    totalSignalSteps = cached;
-  } catch (error) {
-    console.error("Error reading signal runs usage from cache:", error);
-  }
-
-  // If both came from cache, return early
-  if (totalBytesIngested !== null && totalSignalSteps !== null) {
-    return { totalBytesIngested, totalSignalSteps, resetTime: latestResetTime };
-  }
-
-  // Need ClickHouse — fetch project IDs once
-  const projectRows = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, workspaceId),
-    columns: { id: true },
-  });
-
-  if (projectRows.length === 0) {
-    return {
-      totalBytesIngested: totalBytesIngested ?? 0,
-      totalSignalSteps: totalSignalSteps ?? 0,
-      resetTime: latestResetTime,
-    };
-  }
-
-  const projectIds = projectRows.map((p) => p.id);
-
-  if (totalBytesIngested === null) {
-    const bytesQuery = `WITH spans_bytes_ingested AS (
-      SELECT SUM(spans.size_bytes) as spans_bytes_ingested
-      FROM spans
-      WHERE project_id IN { projectIds: Array(UUID) }
-      AND spans.start_time >= { latestResetTime: DateTime(3, "UTC") }
-    ),
-    browser_session_events_bytes_ingested AS (
-      SELECT SUM(browser_session_events.size_bytes) as browser_session_events_bytes_ingested
-      FROM browser_session_events
-      WHERE project_id IN { projectIds: Array(UUID) }
-      AND browser_session_events.timestamp >= { latestResetTime: DateTime(3, "UTC") }
-    )
-    SELECT
-      spans_bytes_ingested + browser_session_events_bytes_ingested as total_bytes_ingested
-    FROM spans_bytes_ingested, browser_session_events_bytes_ingested`;
-
-    const bytesResult = await clickhouseClient.query({
-      query: bytesQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds, latestResetTime: latestResetTimeStr },
-    });
-    const bytesRows = await bytesResult.json<{ total_bytes_ingested: number }>();
-    totalBytesIngested = bytesRows.length > 0 ? Number(bytesRows[0].total_bytes_ingested) : 0;
-  }
-
-  if (totalSignalSteps === null) {
-    const signalRunsQuery = `SELECT SUM(IF(steps_processed > 0, steps_processed, 1)) as totalSignalSteps
-    FROM signal_runs FINAL
-    WHERE project_id IN { projectIds: Array(UUID) }
-    AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
-    AND signal_runs.status = 1`;
-
-    const signalRunsResult = await clickhouseClient.query({
-      query: signalRunsQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds, latestResetTime: latestResetTimeStr },
-    });
-    const signalRunsRows = await signalRunsResult.json<{ totalSignalSteps: number }>();
-    totalSignalSteps = signalRunsRows.length > 0 ? Number(signalRunsRows[0].totalSignalSteps) : 0;
-  }
-
-  return { totalBytesIngested, totalSignalSteps: totalSignalSteps, resetTime: latestResetTime };
-};
+export { getWorkspaceUsage } from "./usage-summary";
 
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
   const { workspaceId, userId, role } = UpdateRoleSchema.parse(input);
@@ -320,10 +212,12 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
     .set({ memberRole: role })
     .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)));
 
+  await cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, userId)).catch((e) => {
+    console.error("Error clearing member role cache after role update", e);
+  });
+
   return { success: true, message: "User role updated successfully" };
 };
-
-export { LAST_WORKSPACE_ID, MAX_AGE };
 
 export const TransferOwnershipSchema = z.object({
   workspaceId: z.guid(),
@@ -360,13 +254,19 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
       .where(and(eq(membersOfWorkspaces.userId, newOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
   });
 
+  await Promise.all(
+    [currentOwnerId, newOwnerId].map((id) => cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, id)))
+  ).catch((e) => {
+    console.error("Error clearing member role cache after ownership transfer", e);
+  });
+
   return { success: true };
 }
 
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user?.id) {
     throw new Error("Unauthorized: User not authenticated");
   }
@@ -383,6 +283,7 @@ export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSc
 
   try {
     await cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId));
+    await cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, userId));
 
     const workspaceProjects = await db.query.projects.findMany({
       where: eq(projects.workspaceId, workspaceId),

@@ -27,7 +27,7 @@ impl ClickhouseInsertable for CHNotification {
     const TABLE: Table = Table::Notifications;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_option("wait_for_async_insert", "0")
+        insert.with_setting("wait_for_async_insert", "0")
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {

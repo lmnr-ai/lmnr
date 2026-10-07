@@ -3,23 +3,26 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import { useEvalStore } from "@/components/evaluation/store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 interface EvalColumnsMenuProps {
   /** Derived column defs from the parent — see EvaluationDatapointsTableProps. */
   columnDefs: ColumnDef<EvalRow>[];
-  lockedColumns?: string[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
 }
 
-export default function EvalColumnsMenu({ columnDefs, lockedColumns = [], columnLabels = [] }: EvalColumnsMenuProps) {
+export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalColumnsMenuProps) {
   const { evaluationId } = useParams();
   const isShared = useEvalStore((s) => s.isShared);
-  const addCustomColumn = useEvalStore((s) => s.addCustomColumn);
-  const updateCustomColumn = useEvalStore((s) => s.updateCustomColumn);
+  const { addCustomColumn, updateCustomColumn } = useTableConfigStore(
+    (s) => ({ addCustomColumn: s.addCustomColumn, updateCustomColumn: s.updateCustomColumn }),
+    shallow
+  );
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
@@ -48,11 +51,9 @@ export default function EvalColumnsMenu({ columnDefs, lockedColumns = [], column
 
   return (
     <ColumnsMenu
-      lockedColumns={lockedColumns}
       columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-      showCreateButton={!isShared}
+      panelConfig={isShared ? undefined : panelConfig}
+      columnActions={isShared ? undefined : columnActions}
     />
   );
 }

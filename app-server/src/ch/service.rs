@@ -40,6 +40,7 @@ impl ClickhouseService {
 
     /// Insert a batch of items, routing to ClickHouse or data plane based on deployment mode.
     #[instrument(skip(self, items))]
+    #[allow(dead_code)]
     pub async fn insert_batch<T: ClickhouseInsertable>(
         &self,
         project_id: Uuid,

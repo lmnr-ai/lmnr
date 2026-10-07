@@ -1,13 +1,13 @@
 "use client";
-import { type GenerateTextResult, type ToolSet } from "ai";
 import { isEmpty } from "lodash";
 import { Bolt, ChevronRight, Loader, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
-import { Controller, type ControllerRenderProps, type SubmitHandler, useFormContext } from "react-hook-form";
+import { type SubmitHandler, useFormContext, useWatch } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 import { prettifyError } from "zod/v4";
 
+import { useLlmProfiles } from "@/components/playground/llm-profiles-context";
 import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
@@ -16,29 +16,27 @@ import ToolsSheet from "@/components/playground/messages/tools-sheet";
 import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
 import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import ProvidersAlert from "@/components/playground/providers-alert";
-import { type Provider } from "@/components/playground/types";
 import Usage from "@/components/playground/usage";
-import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
+import { getDefaultThinkingModelProviderOptions, type LlmRoute } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { type PlaygroundChatResult } from "@/lib/actions/chat";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
-import { type ProviderApiKey } from "@/lib/settings/types";
 
 export default function PlaygroundPanel({
   id,
-  apiKeys,
   onTraceSelect,
 }: {
   id: string;
-  apiKeys: ProviderApiKey[];
   onTraceSelect?: (traceId: string) => void;
 }) {
   const params = useParams();
   const { toast } = useToast();
+  const profiles = useLlmProfiles();
   const {
     setText,
     setUsage,
@@ -56,6 +54,7 @@ export default function PlaygroundPanel({
   } = usePlaygroundOutput();
 
   const { control, handleSubmit, setValue } = useFormContext<PlaygroundForm>();
+  const [llmProfileId, llmModel] = useWatch({ control, name: ["llmProfileId", "llmModel"] });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const abortRequest = useCallback(() => {
@@ -68,6 +67,14 @@ export default function PlaygroundPanel({
 
   const submit: SubmitHandler<PlaygroundForm> = useCallback(
     async (form) => {
+      if (!form.llmProfileId || !form.llmModel) {
+        toast({
+          title: "Select a model",
+          description: "Pick an LLM profile and a model to run.",
+          variant: "destructive",
+        });
+        return;
+      }
       try {
         reset();
         setIsLoading(true);
@@ -79,7 +86,8 @@ export default function PlaygroundPanel({
           method: "POST",
           body: JSON.stringify({
             playgroundId: id,
-            model: form.model,
+            llmProfileId: form.llmProfileId,
+            llmModel: form.llmModel,
             maxTokens: form.maxTokens,
             temperature: form.temperature,
             messages: parseSystemMessages(form.messages),
@@ -111,12 +119,12 @@ export default function PlaygroundPanel({
           return;
         }
 
-        const result = (await response.json()) as GenerateTextResult<ToolSet, Record<string, never>>;
+        const result = (await response.json()) as PlaygroundChatResult;
 
         setText(result.text);
         setToolCalls(result.toolCalls);
-        setReasoning(result.reasoning.map((r) => r.text).join(""));
-        setUsage(result.totalUsage);
+        setReasoning(result.reasoningText);
+        setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
           toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -135,15 +143,16 @@ export default function PlaygroundPanel({
   });
 
   const handleModelChange = useCallback(
-    (onChange: ControllerRenderProps["onChange"]) =>
-      <P extends Provider, K extends string>(value: `${P}:${K}`) => {
-        onChange(value);
-        setValue("providerOptions", getDefaultThinkingModelProviderOptions(value));
-      },
-    [setValue]
+    (route: LlmRoute) => {
+      setValue("llmProfileId", route.llmProfileId, { shouldDirty: true });
+      setValue("llmModel", route.llmModel, { shouldDirty: true });
+      const provider = profiles.find((p) => p.id === route.llmProfileId)?.provider;
+      setValue("providerOptions", getDefaultThinkingModelProviderOptions(provider, route.llmModel));
+    },
+    [profiles, setValue]
   );
 
-  if (isEmpty(apiKeys)) {
+  if (isEmpty(profiles)) {
     return (
       <div className="p-4">
         <ProvidersAlert />
@@ -154,13 +163,7 @@ export default function PlaygroundPanel({
   return (
     <>
       <div className="flex items-center gap-2 p-4">
-        <Controller
-          render={({ field: { value, onChange } }) => (
-            <LlmSelect className="w-fit" apiKeys={apiKeys} value={value} onChange={handleModelChange(onChange)} />
-          )}
-          name="model"
-          control={control}
-        />
+        <LlmSelect className="w-fit" value={{ llmProfileId, llmModel }} onChange={handleModelChange} />
         <ParamsPopover />
         <ToolsSheet />
         <StructuredOutputSheet />
@@ -174,9 +177,9 @@ export default function PlaygroundPanel({
         </Button>
         {isLoading ? (
           <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-7 w-fit px-2">
-            <Square className="w-4 h-4 mr-1" />
+            <Square data-icon="inline-start" className="w-4 h-4 mr-1" />
             <span className="mr-2 text-xs">Stop</span>
-            <Loader className="animate-spin w-4 h-4" />
+            <Loader data-icon="inline-end" className="animate-spin w-4 h-4" />
           </Button>
         ) : (
           <Button icon="playIcon" onClick={handleSubmit(submit)} className="ml-auto w-fit">

@@ -1,37 +1,20 @@
 import React from "react";
 
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import SessionSpanPanel from "./session-span-panel";
 
 export interface SessionViewPanels {
   sessionPanel: React.ReactNode;
-  spanPanel: React.ReactNode;
-  showSpan: boolean;
 }
 
-const SESSION_DEFAULT_PCT = 60;
-const SESSION_MIN_PCT = 30;
-const SPAN_DEFAULT_PCT = 40;
-const SPAN_MIN_PCT = 20;
-
+// Session content fills the remaining width; the span panel (last flex child)
+// owns its own visibility, open/close animation, and left-edge resizability —
+// see session-span-panel.tsx. Opening it pushes the session content over
+// in-layout rather than overlaying it.
 export default function FillWidthLayout({ panels }: { panels: SessionViewPanels }) {
   return (
-    <ResizablePanelGroup id="session-view-fill" orientation="horizontal" className="h-full w-full">
-      <ResizablePanel
-        id="session"
-        defaultSize={SESSION_DEFAULT_PCT}
-        minSize={SESSION_MIN_PCT}
-        className="overflow-hidden"
-      >
-        {panels.sessionPanel}
-      </ResizablePanel>
-      {panels.showSpan && (
-        <>
-          <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors" />
-          <ResizablePanel id="span" defaultSize={SPAN_DEFAULT_PCT} minSize={SPAN_MIN_PCT} className="overflow-hidden">
-            {panels.spanPanel}
-          </ResizablePanel>
-        </>
-      )}
-    </ResizablePanelGroup>
+    <div className="flex h-full w-full overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-hidden">{panels.sessionPanel}</div>
+      <SessionSpanPanel />
+    </div>
   );
 }

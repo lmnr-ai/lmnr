@@ -1,103 +1,81 @@
 "use client";
 
-import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useState } from "react";
-import { createStore, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { createStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type ManageSignalForm } from "@/components/signals/create-signal-drawer";
+import { type ManageSignalForm } from "@/components/signals/create-signal-drawer/types";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
-import { type Filter } from "@/lib/actions/common/filters.ts";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { type Signal } from "@/lib/actions/signals";
-import { type EventRow } from "@/lib/events/types";
 
 import { buildPath, buildTree, type ClusterNode, collectDescendantIds, findNodeById } from "./clusters-section/utils";
 
-export type { ClusterStatsDataPoint };
-
 export type SignalState = {
-  events?: EventRow[];
-  totalCount: number;
   signal: Omit<ManageSignalForm, "id"> & { id: string };
   traceId: string | null;
   spanId: string | null;
-  selectedEvent: EventRow | null;
-  runsFilters: Filter[];
-  jobsFilters: Filter[];
-  lastEvent?: {
-    id: string;
-    timestamp: string;
-  };
   // Cluster state
   rawClusters: EventCluster[];
   clusterTree: ClusterNode[];
   totalEventCount: number;
   clusteredEventCount: number;
-  isClustersLoading: boolean;
-  clusterStatsData: ClusterStatsDataPoint[];
-  isClusterStatsLoading: boolean;
+  clustersRangeKey: string | null;
 };
 
-export type FetchClusterStatsParams = {
-  statsUrl: string | null;
-  abortSignal?: AbortSignal;
+export type FetchClustersParams = {
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
 };
 
 export type SignalActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
-  setSelectedEvent: (event: EventRow | null) => void;
-  fetchEvents: (params: URLSearchParams) => Promise<void>;
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
-  setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
-  setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
-  fetchClusters: () => Promise<void>;
-  fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
+  setClusters: (data: {
+    items: EventCluster[];
+    totalEventCount: number;
+    clusteredEventCount: number;
+    rangeKey: string;
+  }) => void;
 };
 
 export interface EventsProps {
   signal: Signal & { triggers?: Trigger[] };
   traceId?: string | null;
   spanId?: string | null;
-  lastEvent?: {
-    id: string;
-    timestamp: string;
-  };
 }
 
 export type Store = SignalState & SignalActions;
 
 // --- Selectors ---
 
-export const selectTree = (state: Store): ClusterNode[] => state.clusterTree;
-
-export const getCurrentNode = (state: Store, clusterId: string | null): ClusterNode | null => {
+// Only the three selectors read by components are exported; the rest are the
+// pieces those three are built out of.
+const getCurrentNode = (state: Store, clusterId: string | null): ClusterNode | null => {
   if (!clusterId) return null;
   return findNodeById(state.clusterTree, clusterId);
 };
 
-export const getBreadcrumb = (state: Store, clusterId: string | null): ClusterNode[] => {
+export const getBreadcrumbFromData = (
+  clusterTree: ClusterNode[],
+  unclusteredCount: number,
+  clusterId: string | null
+): ClusterNode[] => {
   if (!clusterId) return [];
-  if (clusterId === UNCLUSTERED_ID) return [getUnclusteredVirtualCluster(state)];
-  return buildPath(state.clusterTree, clusterId);
+  if (clusterId === UNCLUSTERED_ID) return [getUnclusteredVirtualCluster(unclusteredCount)];
+  return buildPath(clusterTree, clusterId);
 };
 
-export const getVisibleClusters = (state: Store, clusterId: string | null): ClusterNode[] => {
-  const node = getCurrentNode(state, clusterId);
-  if (!node) return state.clusterTree;
-  return node.children;
-};
+export const getBreadcrumb = (state: Store, clusterId: string | null): ClusterNode[] =>
+  getBreadcrumbFromData(state.clusterTree, selectUnclusteredCount(state), clusterId);
 
-export const getIsLeaf = (state: Store, clusterId: string | null): boolean => {
-  if (clusterId === UNCLUSTERED_ID) return true;
-  const node = getCurrentNode(state, clusterId);
-  return node !== null && node.children.length === 0;
-};
-
-export const getDrillDownDepth = (state: Store, clusterId: string | null): number =>
-  getBreadcrumb(state, clusterId).length;
-
+// Exported for the readout, which offers the unclustered bucket as a pick and so
+// has to name its size. Not derivable from the cluster tree — the tree only knows
+// about events that landed in a cluster.
 export const selectUnclusteredCount = (state: Store): number =>
   Math.max(0, state.totalEventCount - state.clusteredEventCount);
 
@@ -107,179 +85,77 @@ export const getFilterClusterIds = (state: Store, clusterId: string | null): str
   return collectDescendantIds(node);
 };
 
-export const getUnclusteredVirtualCluster = (state: Store): ClusterNode => ({
+const getUnclusteredVirtualCluster = (unclusteredCount: number): ClusterNode => ({
   id: UNCLUSTERED_ID,
   name: "Unclustered Events",
   parentId: null,
   level: 0,
   numChildrenClusters: 0,
-  numEvents: selectUnclusteredCount(state),
+  numEvents: unclusteredCount,
   createdAt: "",
   updatedAt: "",
   children: [],
 });
 
-export const getChartClusters = (state: Store, clusterId: string | null): ClusterNode[] => {
-  // Unclustered selected — show only unclustered
-  if (clusterId === UNCLUSTERED_ID) {
-    return [getUnclusteredVirtualCluster(state)];
-  }
-  // Leaf selected — show only that leaf
-  const node = getCurrentNode(state, clusterId);
-  if (node && node.children.length === 0) {
-    return [node];
-  }
-  // Parent or root — show children + unclustered at root
-  const visible = getVisibleClusters(state, clusterId);
-  const depth = getDrillDownDepth(state, clusterId);
-  const unclustered = selectUnclusteredCount(state);
+export const getChartClustersFromData = (
+  clusterTree: ClusterNode[],
+  totalEventCount: number,
+  clusteredEventCount: number,
+  clusterId: string | null
+): ClusterNode[] => {
+  const unclusteredCount = Math.max(0, totalEventCount - clusteredEventCount);
+  if (clusterId === UNCLUSTERED_ID) return [getUnclusteredVirtualCluster(unclusteredCount)];
+
+  const node = clusterId ? findNodeById(clusterTree, clusterId) : null;
+  if (node && node.children.length === 0) return [node];
+
+  const visible = node?.children ?? clusterTree;
+  const depth = clusterId ? buildPath(clusterTree, clusterId).length : 0;
   const clusters: ClusterNode[] = [...visible];
-  if (depth === 0 && unclustered > 0) {
-    clusters.push(getUnclusteredVirtualCluster(state));
-  }
+  if (depth === 0 && unclusteredCount > 0) clusters.push(getUnclusteredVirtualCluster(unclusteredCount));
   return clusters;
 };
 
-export const getFilteredCountByCluster = (
-  state: Store,
-  clusterId: string | null,
-  hasTimeRange: boolean
-): Map<string, number> => {
-  const counts = new Map<string, number>();
-  if (hasTimeRange) {
-    for (const cluster of getVisibleClusters(state, clusterId)) {
-      counts.set(cluster.id, 0);
-    }
-    if (getDrillDownDepth(state, clusterId) === 0) {
-      counts.set(UNCLUSTERED_ID, 0);
-    }
-  }
-  for (const row of state.clusterStatsData) {
-    counts.set(row.cluster_id, (counts.get(row.cluster_id) ?? 0) + row.count);
-  }
-  return counts;
-};
+export const getChartClusters = (state: Store, clusterId: string | null): ClusterNode[] =>
+  getChartClustersFromData(state.clusterTree, state.totalEventCount, state.clusteredEventCount, clusterId);
 
 // --- Store ---
 
 export type SignalStoreApi = ReturnType<typeof createSignalStore>;
 
 export const createSignalStore = (initProps: EventsProps) =>
-  createStore<Store>()((set, get) => ({
-    totalCount: 0,
+  createStore<Store>()((set) => ({
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
-    selectedEvent: null,
-    runsFilters: [],
-    jobsFilters: [],
-    lastEvent: initProps.lastEvent,
     // Cluster state
     rawClusters: [],
     clusterTree: [],
     totalEventCount: 0,
     clusteredEventCount: 0,
-    isClustersLoading: true,
-    clusterStatsData: [],
-    isClusterStatsLoading: false,
+    clustersRangeKey: null,
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       schemaFields: jsonSchemaToSchemaFields(initProps.signal.structuredOutput as Record<string, unknown>),
-      triggers: (initProps.signal.triggers ?? []).map((t) => ({ id: t.id, filters: t.filters, mode: t.mode ?? 0 })),
+      triggers: (initProps.signal.triggers ?? []).map((t) => ({
+        id: t.id,
+        conditions: t.conditions ?? [],
+        filters: t.filters ?? [],
+        mode: t.mode ?? 0,
+      })),
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
-    setSelectedEvent: (event) => set({ selectedEvent: event }),
-    setRunsFilters: (filters) =>
-      set((state) => ({
-        runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,
-      })),
-    setJobsFilters: (filters) =>
-      set((state) => ({
-        jobsFilters: typeof filters === "function" ? filters(state.jobsFilters) : filters,
-      })),
-    fetchEvents: async (params: URLSearchParams) => {
-      const { signal } = get();
-
-      set({ events: undefined });
-
-      try {
-        const response = await fetch(
-          `/api/projects/${signal.projectId}/signals/${signal.id}/events?${params.toString()}`
-        );
-        if (!response.ok) throw new Error("Failed to fetch events");
-        const data: { items: EventRow[]; count: number } = await response.json();
-        set({
-          events: data.items,
-          totalCount: data.count,
-        });
-      } catch (error) {
-        set({ events: [], totalCount: 0 });
-        console.error("Error fetching events:", error);
-      }
-    },
     // Cluster actions
-    fetchClusters: async () => {
-      const { signal } = get();
-      set({ isClustersLoading: true });
-      try {
-        const res = await fetch(`/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters`);
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-        const data = (await res.json()) as {
-          items: EventCluster[];
-          totalEventCount: number;
-          clusteredEventCount: number;
-        };
-        set({
-          rawClusters: data.items,
-          clusterTree: buildTree(data.items),
-          totalEventCount: data.totalEventCount,
-          clusteredEventCount: data.clusteredEventCount,
-        });
-      } catch (err) {
-        console.error("Failed to load clusters:", err);
-      } finally {
-        set({ isClustersLoading: false });
-      }
-    },
-    fetchClusterStats: async ({ statsUrl, abortSignal }: FetchClusterStatsParams) => {
-      if (!statsUrl) {
-        set({ clusterStatsData: [], isClusterStatsLoading: false });
-        return;
-      }
-
-      set({ isClusterStatsLoading: true });
-
-      try {
-        const res = await fetch(statsUrl, { signal: abortSignal });
-        if (!res.ok) throw new Error("Failed to fetch cluster event counts");
-        const data = (await res.json()) as {
-          items: ClusterStatsDataPoint[];
-          unclusteredCounts: Array<{ timestamp: string; count: number }>;
-        };
-
-        const unclusteredData: ClusterStatsDataPoint[] = data.unclusteredCounts.map((item) => ({
-          cluster_id: UNCLUSTERED_ID,
-          timestamp: item.timestamp,
-          count: item.count,
-        }));
-
-        set({
-          clusterStatsData: [...data.items, ...unclusteredData],
-          isClusterStatsLoading: false,
-        });
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          set({ isClusterStatsLoading: false });
-          return;
-        }
-        set({ clusterStatsData: [], isClusterStatsLoading: false });
-      }
-    },
+    setClusters: ({ items, totalEventCount, clusteredEventCount, rangeKey }) =>
+      set({
+        rawClusters: items,
+        clusterTree: buildTree(items),
+        totalEventCount,
+        clusteredEventCount,
+        clustersRangeKey: rangeKey,
+      }),
   }));
 
 export const SignalContext = createContext<SignalStoreApi | null>(null);
@@ -287,7 +163,7 @@ export const SignalContext = createContext<SignalStoreApi | null>(null);
 export const useSignalStoreContext = <T,>(selector: (state: Store) => T, equalityFn?: (a: T, b: T) => boolean): T => {
   const store = useContext(SignalContext);
   if (!store) throw new Error("Missing SignalContext.Provider in the tree");
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {

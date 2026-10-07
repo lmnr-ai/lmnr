@@ -86,8 +86,6 @@ pub struct Span {
     pub events: Vec<Event>,
     pub status: Option<String>,
     pub tags: Option<Value>,
-    pub input_url: Option<String>,
-    pub output_url: Option<String>,
     #[serde(default)]
     pub size_bytes: usize,
 }
@@ -173,8 +171,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -396,8 +392,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 
@@ -495,7 +489,9 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Verify function metadata is PRESERVED
+        // Fallback path: the filter KEEPS tool-def keys so legacy spans (no
+        // producer extraction) still render tools. New-path stripping is
+        // covered by `traces::dedup::tools` tests.
         assert_eq!(
             attrs.get("llm.request.functions.0.name"),
             Some(&json!("get_weather"))
@@ -652,8 +648,6 @@ mod tests {
             events: vec![],
             status: None,
             tags: None,
-            input_url: None,
-            output_url: None,
             size_bytes: 0,
         };
 

@@ -136,9 +136,9 @@ export default function WorkspaceBilling({
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentTierKey: TierKey = subscription
-    ? (subscription.currentTier as TierKey)
-    : (workspace.tierName.toLowerCase() as TierKey);
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const workspaceTierKey = workspace.tierName.toLowerCase() === "starter" ? "hobby" : workspace.tierName.toLowerCase();
+  const currentTierKey: TierKey = subscription ? (subscription.currentTier as TierKey) : (workspaceTierKey as TierKey);
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
   const isFree = currentTierKey === "free";
 
@@ -200,7 +200,7 @@ export default function WorkspaceBilling({
           className="block"
           onClick={() => track("billing", "contact_us_clicked")}
         >
-          <Button variant="outline" className="w-full h-8 text-xs">
+          <Button variant="outline" className="w-full h-8 text-xs bg-transparent">
             Contact us
           </Button>
         </Link>
@@ -325,15 +325,15 @@ export default function WorkspaceBilling({
       <SettingsSection>
         <SettingsSectionHeader size="sm" title="Plans" description="Compare and switch between available plans" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {TIERS.map(({ key, info }) => {
+          {TIERS.map(({ key, info }, i) => {
             const isCurrent = getActionForTier(key) === "current";
 
             return (
               <div
                 key={key}
                 className={cn(
-                  "p-4 rounded-lg border flex flex-col justify-between min-h-[180px]",
-                  isCurrent && "ring-2 ring-primary border-primary bg-primary/5",
+                  "p-4 rounded-lg bg-surface-100 flex flex-col justify-between min-h-[180px]",
+                  isCurrent && "ring-1 ring-primary/50",
                   key === "pro" && !isCurrent && "border-primary/50"
                 )}
               >

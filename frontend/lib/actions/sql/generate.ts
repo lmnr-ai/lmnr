@@ -1,8 +1,9 @@
-import { getTracer, observe } from "@lmnr-ai/lmnr";
-import { generateObject } from "ai";
+import { observe } from "@lmnr-ai/lmnr";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 
 import { getGenerationPrompts } from "./prompts";
 import type { GenerationResult } from "./types";
@@ -16,7 +17,7 @@ const GenerationResultSchema = z.object({
 const GenerateSchema = z.object({
   projectId: z.guid(),
   prompt: z.string().min(1, "Prompt is required"),
-  mode: z.enum(["query", "eval-expression"]).optional(),
+  mode: z.enum(["query", "eval-expression", "trace-expression", "dataset-expression"]).optional(),
   currentQuery: z.string().optional(),
 });
 
@@ -24,24 +25,20 @@ export async function generateSql(input: z.infer<typeof GenerateSchema>): Promis
   const { projectId, prompt, mode, currentQuery } = GenerateSchema.parse(input);
   const prompts = getGenerationPrompts(mode, currentQuery);
 
-  const { object } = await observe(
-    { name: "generateSql", input: { projectId, mode } },
+  const { output } = await observe(
+    { name: "generateSql", metadata: { feature: "sql-generation" }, input: { projectId, mode } },
     async () =>
-      await generateObject({
-        model: getLanguageModel("medium"),
-        schema: GenerationResultSchema,
+      await generateText({
+        model: await getLanguageModel(LlmFeature.SQL_GENERATION, projectId),
+        output: Output.object({ schema: GenerationResultSchema }),
         system: prompts.system,
         prompt: prompts.user(prompt),
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
       })
   );
 
-  if (object.success && object.result) {
-    return { success: true, result: object.result };
+  if (output.success && output.result) {
+    return { success: true, result: output.result };
   }
 
-  return { success: false, error: object.error || "Failed to generate SQL" };
+  return { success: false, error: output.error || "Failed to generate SQL" };
 }

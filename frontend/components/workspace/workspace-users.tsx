@@ -15,8 +15,8 @@ import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
 import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import TransferOwnershipDialog from "@/components/workspace/transfer-ownership-dialog.tsx";
-import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { Feature } from "@/lib/features/features";
@@ -50,6 +50,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
   const user = useUserContext();
   const { toast } = useToast();
   const router = useRouter();
+  const { settingsHref } = useProjectContext();
   const featureFlags = useFeatureFlags();
 
   const {
@@ -65,7 +66,6 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
     track("team", "page_viewed");
   }, []);
 
-  const { setMenu } = useWorkspaceMenuContext();
   const canManageUsers = currentUserRole === "owner" || currentUserRole === "admin";
   const isFreeTier = workspace.tierName === WorkspaceTier.FREE;
 
@@ -217,11 +217,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
                     <p className="text-xs">Inviting members is not available on the Free plan.</p>
-                    <Link
-                      href={`/workspace/${workspace.id}?tab=billing`}
-                      onClick={() => setMenu("billing")}
-                      className="text-xs text-primary hover:underline"
-                    >
+                    <Link href={settingsHref("billing")} className="text-xs text-primary hover:underline">
                       Upgrade to invite team members
                     </Link>
                   </TooltipContent>

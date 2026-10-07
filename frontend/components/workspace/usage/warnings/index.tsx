@@ -8,6 +8,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { type WorkspaceUsageWarning } from "@/lib/actions/usage/usage-warnings";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
+import SurfaceCard from "../surface-card";
 import WarningChip, { AddWarningPopover } from "./warning-row";
 
 interface WarningsSettingsProps {
@@ -29,25 +30,24 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
   }, [mutate, router]);
 
   const bytesWarnings = warnings.filter((w) => w.usageItem === "bytes").sort((a, b) => a.limitValue - b.limitValue);
-  const signalStepsWarnings = warnings
-    .filter((w) => w.usageItem === "signal_steps_processed")
+  const signalCostWarnings = warnings
+    .filter((w) => w.usageItem === "signal_cost")
     .sort((a, b) => a.limitValue - b.limitValue);
 
   const toDisplayGB = (raw: number) => Math.round((raw / GB_IN_BYTES) * 100) / 100;
+  // Signal warning thresholds are stored in micro-USD (1e-6 USD); show dollars.
+  const toDisplaySignalUsd = (raw: number) => Math.round((raw / 1_000_000) * 100) / 100;
 
   return (
     <SettingsSection>
       <SettingsSectionHeader
         size="sm"
         title="Email warnings"
-        description="Get notified when your usage reaches a threshold. You can set multiple thresholds per meter."
+        description="Get an email when total usage this billing cycle reaches a threshold. Thresholds count from zero, and the one-time Signals credit doesn't shift them."
       />
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex flex-col rounded-md border flex-1">
-          <div className="flex items-center px-3 h-10">
-            <span className="text-sm font-medium">Data ingestion</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SurfaceCard title="Data ingestion">
+          <div className="flex flex-wrap items-center gap-2">
             {bytesWarnings.map((w) => (
               <WarningChip
                 key={w.id}
@@ -66,32 +66,29 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
               onAdd={handleUpdate}
             />
           </div>
-        </div>
+        </SurfaceCard>
 
-        <div className="flex flex-col rounded-md border flex-1">
-          <div className="flex items-center px-3 h-10">
-            <span className="text-sm font-medium">Signal steps processed</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
-            {signalStepsWarnings.map((w) => (
+        <SurfaceCard title="Signals usage">
+          <div className="flex flex-wrap items-center gap-2">
+            {signalCostWarnings.map((w) => (
               <WarningChip
                 key={w.id}
                 workspaceId={workspaceId}
                 id={w.id}
-                displayValue={w.limitValue}
-                unit="steps"
+                displayValue={toDisplaySignalUsd(w.limitValue)}
+                unit="USD"
                 onRemove={handleUpdate}
               />
             ))}
             <AddWarningPopover
               workspaceId={workspaceId}
-              usageItem="signal_steps_processed"
-              unit="steps"
-              toRawValue={(display) => Math.round(display)}
+              usageItem="signal_cost"
+              unit="USD"
+              toRawValue={(display) => Math.round(display * 1_000_000)}
               onAdd={handleUpdate}
             />
           </div>
-        </div>
+        </SurfaceCard>
       </div>
     </SettingsSection>
   );

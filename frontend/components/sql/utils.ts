@@ -32,7 +32,7 @@ export const enumValues = {
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
   status: ["success", "error"],
-  signal_run_status: ["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+  signal_run_status: ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -93,6 +93,17 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_tokens", type: "UInt64", description: "Number of input tokens" },
       { name: "output_tokens", type: "UInt64", description: "Number of output tokens" },
       { name: "total_tokens", type: "UInt64", description: "Total tokens used" },
+      {
+        name: "cache_read_input_tokens",
+        type: "UInt64",
+        description: "Tokens read from prompt cache. LLM spans only",
+      },
+      {
+        name: "cache_creation_input_tokens",
+        type: "UInt64",
+        description: "Tokens written to prompt cache. LLM spans only",
+      },
+      { name: "reasoning_tokens", type: "UInt64", description: "Reasoning tokens. LLM spans only" },
       { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
       { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
       { name: "total_cost", type: "Float64", description: "Total cost of the span" },
@@ -107,6 +118,11 @@ export const tableSchemas: Record<string, TableSchema> = {
         name: "events",
         type: "Array(Tuple(timestamp Int64, name String, attributes String))",
         description: "Events associated with the span",
+      },
+      {
+        name: "tool_definitions",
+        type: "String",
+        description: "Tool definitions available to the LLM span as stringified JSON",
       },
     ],
   },
@@ -127,6 +143,21 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_tokens", type: "Int64", description: "Number of input tokens" },
       { name: "output_tokens", type: "Int64", description: "Number of output tokens" },
       { name: "total_tokens", type: "Int64", description: "Total tokens used" },
+      {
+        name: "cache_read_input_tokens",
+        type: "Int64",
+        description: "Tokens read from prompt cache (summed across LLM spans)",
+      },
+      {
+        name: "cache_creation_input_tokens",
+        type: "Int64",
+        description: "Tokens written to prompt cache (summed across LLM spans)",
+      },
+      {
+        name: "reasoning_tokens",
+        type: "Int64",
+        description: "Reasoning tokens (summed across LLM spans)",
+      },
       { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
       { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
       { name: "total_cost", type: "Float64", description: "Total cost of the span" },
@@ -163,16 +194,40 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "De-duplicated list of span names produced anywhere in the trace",
       },
       {
-        name: "root_span_input",
+        name: "agent_input",
         type: "String",
-        description: "Input of the trace's top span as stringified JSON or raw string",
-      },
-      {
-        name: "root_span_output",
-        type: "String",
-        description: "Output of the trace's top span as stringified JSON or raw string",
+        description: "Extracted agent task / user input for the trace as stringified JSON or raw string",
       },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+      {
+        name: "signal_events",
+        type: "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
+        description:
+          "Signal events that fired on this trace. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Filtering on this column reads every tuple element including payload, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. Empty until backfilled for older traces. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+      },
+      {
+        name: "clusters",
+        type: "Array(Tuple(id UUID, signal_id UUID, name String, level UInt8, parent_id UUID, num_signal_events UInt32, created_at DateTime64(9), updated_at DateTime64(9)))",
+        description:
+          "Named clusters (L1 and ancestors) this trace's signal events belong to. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
+      },
+    ],
+  },
+  trace_outputs: {
+    description:
+      "Extracted final agent output per trace: the output messages of the last LLM call on the trace's main-agent path",
+    columns: [
+      { name: "trace_id", type: "UUID", description: "ID of the trace" },
+      {
+        name: "updated_at",
+        type: "DateTime64(9, 'UTC')",
+        description: "End time of the span the output was extracted from",
+      },
+      {
+        name: "agent_output",
+        type: "Array(String)",
+        description: "Output messages of the trace's final LLM call, one stringified JSON message per element",
+      },
     ],
   },
   dataset_datapoints: {
@@ -274,7 +329,8 @@ export const tableSchemas: Record<string, TableSchema> = {
         name: "status",
         type: "String",
         enumType: "signal_run_status",
-        description: "Status of the signal run",
+        description:
+          "Pipeline stage of the signal run: 'PENDING' (elected, waiting on the agent), 'PROCESSING' (agent running), 'COMPLETED', 'FAILED'",
       },
       {
         name: "mode",
@@ -285,6 +341,13 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "event_id", type: "UUID", description: "Unique identifier for the event" },
       { name: "error_message", type: "String", description: "Error message if the run failed" },
       { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the signal run was last updated" },
+      { name: "input_tokens", type: "UInt32", description: "Input tokens spent evaluating the signal" },
+      {
+        name: "cache_read_tokens",
+        type: "UInt32",
+        description: "Cached input tokens read (a subset of input_tokens)",
+      },
+      { name: "output_tokens", type: "UInt32", description: "Output tokens produced by the signal" },
     ],
   },
   signal_events: {
@@ -303,15 +366,47 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "Numeric severity level. 0 = INFO, 1 = WARNING, 2 = CRITICAL",
       },
       {
-        name: "summary",
-        type: "String",
-        description: "Short, human-readable description of the event. May be empty for older events",
-      },
-      {
         name: "clusters",
         type: "Array(UUID)",
         description: "Cluster IDs this event belongs to. Excludes L0 clusters",
       },
+      {
+        name: "leaf_clusters",
+        type: "Array(UUID)",
+        description: "L1 (finest named) cluster IDs this event belongs to",
+      },
+      {
+        name: "cluster_details",
+        type: "Array(Tuple(id UUID, name String, level UInt8))",
+        description: "Named clusters this event belongs to, with name and level. Excludes L0 clusters",
+      },
+      {
+        name: "signal_version",
+        type: "UInt32",
+        description: "Signal definition version that produced the event. 0 predates versioning",
+      },
+    ],
+  },
+  clusters: {
+    description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the cluster" },
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal the cluster belongs to" },
+      { name: "name", type: "String", description: "Human-readable name of the cluster" },
+      {
+        name: "level",
+        type: "UInt8",
+        description: "Level of the cluster in the hierarchy. Higher levels are coarser groupings",
+      },
+      { name: "parent_id", type: "UUID", description: "ID of the parent cluster. Nil UUID for top-level clusters" },
+      {
+        name: "num_signal_events",
+        type: "UInt32",
+        description: "Number of clustered event summaries in the cluster (an event contributes once per summary)",
+      },
+      { name: "num_children_clusters", type: "UInt16", description: "Number of immediate child clusters" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },
     ],
   },
   logs: {
@@ -648,7 +743,7 @@ const editorBaseStyles = {
   },
   ".cm-searchMatch-selected": {
     backgroundColor: "hsl(var(--primary))",
-    color: "hsl(var(--primary-foreground))",
+    color: "var(--color-primary-foreground)",
     fontWeight: "600",
   },
 };
@@ -678,8 +773,8 @@ const syntaxHighlightStyles = {
 // Autocomplete dropdown styles
 const autocompleteStyles = {
   ".cm-tooltip.cm-tooltip-autocomplete": {
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
     // Note: don't use overflow:hidden here as it clips the info panel
@@ -695,8 +790,8 @@ const autocompleteStyles = {
     gap: "6px",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "hsl(var(--accent))",
-    color: "hsl(var(--accent-foreground))",
+    background: "var(--color-accent)",
+    color: "var(--color-accent-foreground)",
   },
   ".cm-completionIcon": {
     width: "14px",
@@ -746,7 +841,7 @@ const autocompleteStyles = {
     fontSize: "11px",
   },
   ".cm-completionLabel": {
-    color: "hsl(var(--foreground))",
+    color: "var(--color-foreground)",
   },
   ".cm-completionMatchedText": {
     color: "hsl(var(--primary))",
@@ -754,20 +849,20 @@ const autocompleteStyles = {
     textDecoration: "none",
   },
   ".cm-completionDetail": {
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     fontStyle: "normal",
     marginLeft: "auto",
     fontSize: "11px",
   },
   ".cm-tooltip.cm-completionInfo": {
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     padding: "6px 10px",
     maxWidth: "400px",
     fontSize: "12px",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
     whiteSpace: "pre-wrap",
     lineHeight: "1.4",
@@ -778,8 +873,8 @@ const autocompleteStyles = {
 const signatureHelpStyles = {
   ".cm-tooltip .signature-help": {
     padding: "6px 10px",
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
     fontSize: "13px",
@@ -788,8 +883,8 @@ const signatureHelpStyles = {
   },
   ".signature-help": {
     padding: "6px 10px !important",
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
     fontSize: "13px",
@@ -801,7 +896,7 @@ const signatureHelpStyles = {
     fontWeight: "600",
   },
   ".signature-help .signature-param": {
-    color: "hsl(var(--foreground))",
+    color: "var(--color-foreground)",
   },
   ".signature-help .signature-param-current": {
     color: "hsl(var(--primary))",
@@ -811,33 +906,33 @@ const signatureHelpStyles = {
     borderRadius: "3px",
   },
   ".signature-help .signature-return-type": {
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     fontSize: "12px",
     marginLeft: "6px",
   },
   ".signature-help .signature-description": {
     marginTop: "6px",
     paddingTop: "6px",
-    borderTop: "1px solid hsl(var(--border))",
-    color: "hsl(var(--muted-foreground))",
+    borderTop: "1px solid var(--color-border)",
+    color: "var(--color-muted-foreground)",
     fontSize: "12px",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   ".signature-help .signature-param-details": {
     marginTop: "6px",
     paddingTop: "6px",
-    borderTop: "1px solid hsl(var(--border))",
+    borderTop: "1px solid var(--color-border)",
     fontSize: "12px",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   ".signature-help .signature-param-type": {
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
     marginLeft: "4px",
   },
   ".signature-help .signature-param-details div": {
     marginTop: "3px",
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
   },
 };
 

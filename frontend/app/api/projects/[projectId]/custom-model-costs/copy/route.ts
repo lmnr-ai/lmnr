@@ -1,9 +1,8 @@
 import { type NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { copyCustomModelCosts } from "@/lib/actions/custom-model-costs";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     // The source project (params.projectId) is implicitly authorized via DB filtering,
     // consistent with other project routes. The target project needs an explicit check
     // because it comes from the request body and is not covered by the URL path.
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session) {
       return new Response("Unauthorized", { status: 401 });
     }

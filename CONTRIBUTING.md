@@ -99,7 +99,7 @@ cp frontend/.env.local.example frontend/.env.local
 docker compose -f docker-compose-local-dev-full.yml up
 ```
 
-This will spin up postgres, qdrant, clickhouse, and RabbitMQ.
+This will spin up postgres, quickwit, clickhouse, and RabbitMQ.
 
 ### 2. Run app server in development mode
 

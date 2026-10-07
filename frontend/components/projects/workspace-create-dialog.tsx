@@ -12,6 +12,7 @@ import { Label } from "../ui/label";
 
 export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -24,6 +25,8 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
         method: "POST",
         body: JSON.stringify({
           name: newWorkspaceName,
+          projectName: newProjectName,
+          isFirstProject: true,
         }),
       });
 
@@ -35,7 +38,13 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
       track("workspace", "created");
-      router.push(`/workspace/${newWorkspace.id}`);
+      // A project is created alongside the workspace (isFirstProject) — drop into it directly.
+      // Fallback to /projects (the /settings/[workspaceId] route was removed in this PR).
+      if (newWorkspace.projectId) {
+        router.push(`/project/${newWorkspace.projectId}/traces`);
+      } else {
+        router.push("/projects");
+      }
     } catch (e) {
       toast({
         title: "Error creating workspace",
@@ -55,11 +64,19 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
           <DialogTitle>New workspace</DialogTitle>
         </DialogHeader>
         <div className="grid gap-2">
-          <Label>Name</Label>
+          <Label>Workspace name</Label>
           <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewWorkspaceName(e.target.value)} />
         </div>
+        <div className="grid gap-2">
+          <Label>Project name</Label>
+          <Input placeholder="Enter name..." onChange={(e) => setNewProjectName(e.target.value)} />
+        </div>
         <DialogFooter>
-          <Button onClick={createNewWorkspace} handleEnter={true} disabled={!newWorkspaceName || isLoading}>
+          <Button
+            onClick={createNewWorkspace}
+            handleEnter={true}
+            disabled={!newWorkspaceName || !newProjectName || isLoading}
+          >
             {isLoading && <Loader2 className="mr-2 animate-spin" size={16} />}
             Create
           </Button>

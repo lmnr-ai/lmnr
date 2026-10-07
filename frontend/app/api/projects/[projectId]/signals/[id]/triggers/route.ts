@@ -34,9 +34,14 @@ export const POST = apiHandler<{ projectId: string; id: string }>(async (req, ct
   const result = await createSignalTrigger({
     projectId,
     signalId,
-    filters: body.filters,
+    conditions: body.conditions,
+    filters: body.filters ?? [],
     mode: body.mode ?? 0,
   });
+
+  if (!result) {
+    return Response.json({ error: "Signal not found" }, { status: 404 });
+  }
 
   return Response.json(result);
 });
@@ -49,7 +54,8 @@ export const PUT = apiHandler<{ projectId: string; id: string }>(async (req, ctx
     projectId,
     signalId,
     triggerId: body.triggerId,
-    filters: body.filters,
+    conditions: body.conditions,
+    filters: body.filters ?? [],
     mode: body.mode,
   });
 

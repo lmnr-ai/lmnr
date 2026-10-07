@@ -2,7 +2,6 @@ import { map } from "lodash";
 import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 import { toStandardBase64 } from "@/lib/utils";
 
 /** Part Schemas **/
@@ -170,6 +169,19 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
   return candidates.map((c) => c.content);
 };
 
+// Content (input) and Candidate (output) are different Gemini shapes. The span
+// overview stitches input + output into one array, so accept a mix and unwrap
+// any candidates to their inner content.
+const GeminiContentOrCandidateSchema = z.union([GeminiContentSchema, GeminiCandidateSchema]);
+
+/** Parse `data` as a possibly-mixed array of Gemini Contents/Candidates. Returns null on mismatch. */
+export const parseGeminiContents = (data: unknown): z.infer<typeof GeminiContentsSchema> | null => {
+  const arr = Array.isArray(data) ? data : [data];
+  const result = z.array(GeminiContentOrCandidateSchema).safeParse(arr);
+  if (!result.success || result.data.length === 0) return null;
+  return result.data.map((el) => ("content" in el ? el.content : el));
+};
+
 /** Conversion Functions **/
 
 export const convertGeminiToPlaygroundMessages = async (
@@ -191,14 +203,7 @@ export const convertGeminiToPlaygroundMessages = async (
           content.push({ type: "text", text: part.text, ...(thoughtSig && { providerOptions: thoughtSig }) });
         } else if ("inlineData" in part) {
           if (part.inlineData.mimeType.startsWith("image/")) {
-            let imageData = part.inlineData.data;
-            if (isStorageUrl(imageData)) {
-              try {
-                imageData = await urlToBase64(imageData);
-              } catch (error) {
-                console.error("Error downloading inline image:", error);
-              }
-            }
+            const imageData = part.inlineData.data;
             content.push({
               type: "image",
               image: imageData.startsWith("data:")
@@ -212,17 +217,7 @@ export const convertGeminiToPlaygroundMessages = async (
             });
           }
         } else if ("fileData" in part) {
-          if (part.fileData.mimeType?.startsWith("image/") && isStorageUrl(part.fileData.fileUri)) {
-            try {
-              const base64 = await urlToBase64(part.fileData.fileUri);
-              content.push({ type: "image", image: base64 });
-            } catch (error) {
-              console.error("Error downloading file image:", error);
-              content.push({ type: "text", text: `[File: ${part.fileData.fileUri}]` });
-            }
-          } else {
-            content.push({ type: "text", text: `[File: ${part.fileData.fileUri}]` });
-          }
+          content.push({ type: "text", text: `[File: ${part.fileData.fileUri}]` });
         } else if ("functionCall" in part) {
           content.push({
             type: "tool-call",

@@ -206,6 +206,8 @@ export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSch
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error("Failed to verify data plane: Unknown error");
+    throw new Error("Failed to verify data plane: Unknown error", {
+      cause: error,
+    });
   }
 };

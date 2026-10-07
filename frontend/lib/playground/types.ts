@@ -2,7 +2,6 @@ import { type AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { type GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 import { type DataContent, type ToolChoice, type ToolSet } from "ai";
 
-import { type Provider } from "@/components/playground/types";
 import { type playgrounds } from "@/lib/db/migrations/schema";
 
 export type Playground = typeof playgrounds.$inferSelect & {
@@ -76,6 +75,7 @@ export interface ToolCallPart {
 export interface Message {
   role: "system" | "user" | "assistant" | "tool";
   content: Array<ImagePart | TextPart | ToolResultPart | ToolCallPart>;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export type OpenAIProviderOptions = {
@@ -96,7 +96,9 @@ export type ProviderOptions =
   | Record<string, never>;
 
 export interface PlaygroundForm<T extends ToolSet = ToolSet> {
-  model: `${Provider}:${string}`;
+  /** Workspace LLM profile + one of its models; both empty until the user picks. */
+  llmProfileId: string;
+  llmModel: string;
   temperature?: number;
   maxTokens?: number;
   topP?: number;

@@ -28,7 +28,7 @@ function SessionTimeline() {
     selectedSpan,
     setSelectedSpan,
     toggleTraceExpanded,
-    ensureTraceSpans,
+    fetchTraceSpans,
     zoom,
     setZoom,
     setSessionTimelineEnabled,
@@ -43,7 +43,7 @@ function SessionTimeline() {
       selectedSpan: s.selectedSpan,
       setSelectedSpan: s.setSelectedSpan,
       toggleTraceExpanded: s.toggleTraceExpanded,
-      ensureTraceSpans: s.ensureTraceSpans,
+      fetchTraceSpans: s.fetchTraceSpans,
       zoom: s.sessionTimelineZoom,
       setZoom: s.setSessionTimelineZoom,
       setSessionTimelineEnabled: s.setSessionTimelineEnabled,
@@ -78,7 +78,7 @@ function SessionTimeline() {
 
   // Two-phase expand (mirrors list/trace-item.tsx): when the user clicks a
   // collapsed trace whose spans aren't loaded yet, we DON'T flip
-  // `expandedTraceIds` immediately — we kick off `ensureTraceSpans` and
+  // `expandedTraceIds` immediately — we kick off `fetchTraceSpans` and
   // flush to expand once spans arrive. The bar meanwhile shows a shimmer
   // (driven by `traceSpansLoading` → `bar.shimmer` in utils.ts).
   //
@@ -119,9 +119,9 @@ function SessionTimeline() {
       const trace = traces.find((t) => t.id === traceId);
       if (!trace) return;
       pendingExpandIdsRef.current.add(traceId);
-      void ensureTraceSpans(trace);
+      void fetchTraceSpans(trace);
     },
-    [expandedTraceIds, traceSpans, traces, toggleTraceExpanded, ensureTraceSpans]
+    [expandedTraceIds, traceSpans, traces, toggleTraceExpanded, fetchTraceSpans]
   );
 
   const handleSpanBarClick = useCallback(
@@ -229,7 +229,7 @@ function SessionTimeline() {
 
       {/* Close button — top-right, styled as a flush tab */}
       <div className="absolute top-0 right-0 z-40 h-6 w-7 bg-muted border-b border-l rounded-bl flex items-end overflow-hidden">
-        <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon" className="size-5 min-w-5">
+        <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon-xs" className="min-w-5">
           <X className="size-3.5" />
         </Button>
       </div>

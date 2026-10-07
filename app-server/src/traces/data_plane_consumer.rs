@@ -16,7 +16,8 @@ use crate::{
     ch::data_plane::DataPlaneClickhouse,
     data_plane::get_workspace_deployment,
     db::DB,
-    mq::MessageQueue,
+    mq::{MessageQueue, stream::StreamPublisher},
+    pii_redactor::PiiRedactorClient,
     pubsub::PubSub,
     worker::HandlerError,
 };
@@ -32,6 +33,9 @@ pub struct DataPlaneSpanHandler {
     pub clickhouse: clickhouse::Client, // TODO: remove once all writes are implemented
     pub ch: DataPlaneClickhouse,
     pub pubsub: Arc<PubSub>,
+    pub pii_redactor: Option<PiiRedactorClient>,
+    pub indexer_stream_publisher: Option<Arc<StreamPublisher>>,
+    pub quickwit_indexing_enabled: bool,
     pub config: BatchingConfig,
 }
 
@@ -156,7 +160,10 @@ impl DataPlaneSpanHandler {
             self.queue.clone(),
             self.pubsub.clone(),
             self.ch.clone(),
+            self.pii_redactor.clone(),
             Some(&config),
+            self.indexer_stream_publisher.clone(),
+            self.quickwit_indexing_enabled,
         )
         .await
     }

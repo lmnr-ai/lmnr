@@ -1,18 +1,28 @@
 pub mod consumer;
 pub mod data_plane_consumer;
+pub mod dedup;
 pub mod grpc_service;
-pub mod input_dedup;
+pub mod input_extraction;
+pub mod metadata;
+pub mod openrouter;
 pub mod opentelemetry_json;
 #[cfg(feature = "signals")]
 pub mod previews;
 pub mod processor;
+#[cfg(test)]
+mod processor_tests;
 pub mod producer;
 pub mod prompt_hash;
 pub mod provider;
+pub mod rate_limit;
 pub mod realtime;
+#[cfg(feature = "signals")]
 pub mod sampling;
+pub mod sp_versioning;
 pub mod span_attributes;
 pub mod spans;
+pub mod static_sp_extraction;
+pub mod stream_consumer;
 pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";

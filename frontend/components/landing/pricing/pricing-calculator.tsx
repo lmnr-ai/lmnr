@@ -1,87 +1,110 @@
 "use client";
 
-import { Info } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ElevatedSurface } from "@/components/ui/surface";
+import { type Tier, TIER_ORDER, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
-const TOKEN_STEPS = [
-  100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000, 500_000_000,
-  1_000_000_000, 2_500_000_000, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000,
-  35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 300_000_000_000, 333_333_333_334,
-  400_000_000_000, 500_000_000_000, 1_000_000_000_000, 1_666_666_666_667,
-];
-const SIGNAL_STEPS = [1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 500_000];
+import { microLabel, subSection } from "../class-names";
+import { estimateSignalCostUsd } from "./signal-cost-estimate";
+import { estimateDataGB } from "./storage-estimate";
+import VolumeInputs from "./volume-inputs";
+import {
+  COVERAGE_STEPS,
+  DEFAULT_RUNS_IDX,
+  DEFAULT_TOKENS_PER_RUN_IDX,
+  RUN_STEPS,
+  TOKENS_PER_RUN_STEPS,
+} from "./volume-inputs/steps";
 
-const BYTES_PER_TOKEN = 3;
 const PRO_DATA_THRESHOLD_GB = 30;
-const ENTERPRISE_DATA_THRESHOLD_GB = 1000;
-const ENTERPRISE_SIGNAL_THRESHOLD = 100_000;
+// Once the estimated Hobby bill clears this, Pro is the cheaper/safer pick.
+const HOBBY_TO_PRO_BILL_THRESHOLD_USD = 100;
+// Enterprise is a bill-size question, not a usage question: whatever the mix of
+// data and Signals, once the best self-serve tier bills more than this it is
+// cheaper to be quoted.
+const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
 
+/** One metered line of one tier's column: what the bill picks up, and the
+ *  usage that produced it. */
+interface UsageCell {
+  /** "$5.00", "Included", "Not available", or "Custom". */
+  charge: string;
+  /** "1.1 GB / 3 GB". Absent on Enterprise, which has no numbers to show. */
+  detail?: string;
+}
+
+/** Everything a column renders is pre-formatted here, so the table itself holds
+ *  no branches. `totalUsd` picks the recommended column and is never shown. */
 interface TierEstimate {
   name: string;
-  basePrice: number;
-  includedDataGB: number;
-  includedSignalSteps: number;
-  dataOverageRate: number;
-  signalOverageRate: number;
-  dataOverageCost: number;
-  signalOverageCost: number;
-  total: number;
-  retention: string;
-  support: string;
+  base: string;
+  data: UsageCell;
+  signals: UsageCell;
+  total: string;
+  totalUsd: number;
+  /** False once usage passes an allowance the tier has no overage rate for —
+   *  Free simply stops, it does not bill. This is the whole reason the table
+   *  shows four columns instead of one: it puts the ceiling on screen. */
+  available: boolean;
 }
 
-function estimateDataFromTokens(tokens: number): number {
-  return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
-}
+/** A line costs nothing until usage passes its recurring allowance; past it,
+ *  the charge IS the difference. The one-time Signals sign-up credit is kept
+ *  out of this monthly estimate so it cannot look like a recurring discount. */
+const usageCell = (used: string, included: string, over: number, overageRate: number): UsageCell => {
+  const detail = `${used} / ${included}`;
+  if (over > 0 && overageRate === 0) return { charge: "Not available", detail };
+  const cost = over * overageRate;
+  return { charge: cost > 0 ? `$${formatDollars(cost)}` : "Included", detail };
+};
 
-function buildEstimate(
-  name: string,
-  basePrice: number,
-  includedDataGB: number,
-  includedSignalSteps: number,
-  dataOverageRate: number,
-  signalOverageRate: number,
-  dataGB: number,
-  signalStepsProcessed: number,
-  retention: string,
-  support: string
-): TierEstimate {
-  const dataOverageCost = Math.max(0, dataGB - includedDataGB) * dataOverageRate;
-  const signalOverageCost = Math.max(0, signalStepsProcessed - includedSignalSteps) * signalOverageRate;
+const signalUsageCell = (costUsd: number, overageAllowed: boolean): UsageCell => ({
+  charge: overageAllowed ? (costUsd > 0 ? `$${formatDollars(costUsd)}` : "Included") : "Not available",
+  detail: overageAllowed ? undefined : "after one-time credit",
+});
+
+const CUSTOM_CELL: UsageCell = { charge: "Custom" };
+
+function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierEstimate {
+  const t = TIERS[tier];
+
+  // Enterprise is quoted, not computed. A null base price is the only thing
+  // that distinguishes it, so it needs no separate component.
+  if (t.basePriceMonthly === null) {
+    return {
+      name: t.name,
+      base: "Custom",
+      data: CUSTOM_CELL,
+      signals: CUSTOM_CELL,
+      total: "Custom",
+      totalUsd: 0,
+      available: true,
+    };
+  }
+
+  const dataOver = Math.max(0, dataGB - t.includedBytesGB);
+  const signalOver = Math.max(0, signalCostUsd - t.includedSignalCostUsd);
+  // Signals overage is already priced in dollars, so its "rate" is 1 per dollar
+  // — the tier either bills the excess or it does not.
+  const signalOverageRate = t.dataOverageRatePerGB > 0 ? 1 : 0;
+
+  const data = usageCell(formatDataSize(dataGB), formatDataSize(t.includedBytesGB), dataOver, t.dataOverageRatePerGB);
+  const signals = signalUsageCell(signalCostUsd, signalOverageRate > 0);
+
+  const totalUsd = t.basePriceMonthly + dataOver * t.dataOverageRatePerGB + signalOver * signalOverageRate;
+  const available = data.charge !== "Not available" && signals.charge !== "Not available";
+
   return {
-    name,
-    basePrice,
-    includedDataGB,
-    includedSignalSteps,
-    dataOverageRate,
-    signalOverageRate,
-    dataOverageCost,
-    signalOverageCost,
-    total: basePrice + dataOverageCost + signalOverageCost,
-    retention,
-    support,
+    name: t.name,
+    base: `$${formatDollars(t.basePriceMonthly)}`,
+    data,
+    signals,
+    total: available ? `$${formatDollars(totalUsd)}` : "Not available",
+    totalUsd,
+    available,
   };
-}
-
-function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000_000_000) {
-    const trillions = tokens / 1_000_000_000_000;
-    return `${trillions % 1 === 0 ? trillions.toFixed(0) : trillions.toFixed(1)}T`;
-  }
-  if (tokens >= 1_000_000_000) {
-    const billions = tokens / 1_000_000_000;
-    return `${billions % 1 === 0 ? billions.toFixed(0) : billions.toFixed(1)}B`;
-  }
-  return `${(tokens / 1_000_000).toFixed(0)}M`;
-}
-
-function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
 }
 
 function formatDollars(n: number): string {
@@ -98,273 +121,143 @@ function formatDataSize(gb: number): string {
   return `${gb.toFixed(1)} GB`;
 }
 
-function RecommendedBadge({ tooltip }: { tooltip?: string }) {
-  if (tooltip) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
-              Recommended
-              <Info size={11} />
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
-  return (
-    <Badge variant="default" className="text-xs shrink-0">
-      Recommended
-    </Badge>
-  );
+function recommendTier(dataGB: number, estimates: Record<Tier, TierEstimate>): Tier {
+  if (estimates.free.available) return "free";
+  const paid =
+    dataGB >= PRO_DATA_THRESHOLD_GB ||
+    estimates.hobby.totalUsd > HOBBY_TO_PRO_BILL_THRESHOLD_USD ||
+    estimates.pro.totalUsd < estimates.hobby.totalUsd
+      ? "pro"
+      : "hobby";
+  // Judged on the tier the reader would otherwise land on, so the threshold
+  // means "your bill", not "some tier's bill".
+  return estimates[paid].totalUsd > ENTERPRISE_BILL_THRESHOLD_USD ? "enterprise" : paid;
 }
 
-function TierColumn({
-  estimate,
-  isRecommended,
-  recommendationTooltip,
-  dataGB,
-  signalStepsProcessed,
-}: {
-  estimate: TierEstimate;
-  isRecommended: boolean;
-  recommendationTooltip?: string;
-  dataGB: number;
-  signalStepsProcessed: number;
-}) {
-  const extraDataGB = Math.max(0, dataGB - estimate.includedDataGB);
-  const extraSignals = Math.max(0, signalStepsProcessed - estimate.includedSignalSteps);
+// One grid, four tier columns, so the reader compares across a row. Every cell
+// is pre-formatted by `buildEstimate`; nothing here branches on a tier.
+// EMPHASIS IS THE WHOLE SIGNAL: white is spent on the recommended column and
+// nothing else — four equally loud ones are a table you have to read.
+const GRID = "min-w-[600px] grid grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]";
+const CELL = "px-[14px] py-3 text-left";
 
+const emphasis = (isRecommended: boolean) => (isRecommended ? "text-white" : "text-foreground-400");
+const detailEmphasis = (isRecommended: boolean) => (isRecommended ? "text-foreground-300" : "text-foreground-500");
+
+/** Label + one cell per tier. A fragment so every cell is a direct child of the
+ *  grid and the columns line up on their own. */
+const Row = ({ label, children }: { label: ReactNode; children: ReactNode }) => (
+  <>
+    <div className="px-[14px] py-3 text-foreground-200">{label}</div>
+    {children}
+  </>
+);
+
+const UsageValue = ({ cell, isRecommended }: { cell: UsageCell; isRecommended: boolean }) => (
+  <div className="flex flex-col items-start gap-0.5">
+    <span className={emphasis(isRecommended)}>{cell.charge}</span>
+    {cell.detail && <span className={cn("text-xs", detailEmphasis(isRecommended))}>{cell.detail}</span>}
+  </div>
+);
+
+function TierComparison({ estimates, recommended }: { estimates: Record<Tier, TierEstimate>; recommended: Tier }) {
   return (
-    <div
-      className={cn(
-        "flex-1 rounded-lg p-4 space-y-3",
-        isRecommended ? "border border-landing-primary-400" : "border border-landing-surface-400"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">{estimate.name}</span>
-        {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
-      </div>
-
-      <div className="space-y-1.5 text-sm">
-        <div>
-          <div className="flex justify-between text-landing-text-200">
-            <span>Base</span>
-            <span>${formatDollars(estimate.basePrice)}</span>
-          </div>
-          <div className="text-xs text-landing-text-400">
-            {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignalSteps)} Signals steps
-            included
-          </div>
-        </div>
-
-        {estimate.dataOverageCost > 0 ? (
-          <div className="flex justify-between text-landing-text-300">
-            <span>
-              {formatDataSize(extraDataGB)} × ${estimate.dataOverageRate}/GB
+    <ElevatedSurface offset={3} className="rounded overflow-x-auto">
+      <div className={cn(GRID, "text-sm")}>
+        <div className="px-[14px] pt-4 pb-3" />
+        {TIER_ORDER.map((tier) => (
+          <div key={tier} className="px-[14px] pt-4 pb-3">
+            <span className={cn(subSection, "text-base leading-5", emphasis(tier === recommended))}>
+              {estimates[tier].name}
             </span>
-            <span>+${formatDollars(estimate.dataOverageCost)}</span>
           </div>
-        ) : (
-          <div className="flex justify-between text-landing-text-300">
-            <span>Data ({formatDataSize(dataGB)})</span>
-            <span>Included</span>
-          </div>
-        )}
+        ))}
 
-        {estimate.signalOverageCost > 0 ? (
-          <div className="flex justify-between text-landing-text-300">
-            <span>
-              {formatNumber(extraSignals)} × ${estimate.signalOverageRate}/step
-            </span>
-            <span>+${formatDollars(estimate.signalOverageCost)}</span>
-          </div>
-        ) : (
-          <div className="flex justify-between text-landing-text-300">
-            <span>Signals steps processed ({formatNumber(signalStepsProcessed)})</span>
-            <span>Included</span>
-          </div>
-        )}
-      </div>
+        <div className="col-span-5 border-t mx-[14px]" />
 
-      <div className="border-t border-landing-surface-400 pt-2">
-        <div className="flex justify-between font-semibold text-landing-text-100 font-space-grotesk">
-          <span>Total</span>
-          <span>${formatDollars(estimate.total)}/mo</span>
-        </div>
-      </div>
+        <Row label="Base">
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={cn(CELL, emphasis(tier === recommended))}>
+              {estimates[tier].base}
+            </div>
+          ))}
+        </Row>
+        <Row label="Data">
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={CELL}>
+              <UsageValue cell={estimates[tier].data} isRecommended={tier === recommended} />
+            </div>
+          ))}
+        </Row>
+        <Row label="Signals">
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={CELL}>
+              <UsageValue cell={estimates[tier].signals} isRecommended={tier === recommended} />
+            </div>
+          ))}
+        </Row>
 
-      <div className="flex flex-wrap gap-2 pt-1">
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
-          {estimate.retention} retention
-        </span>
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
-          {estimate.support} support
-        </span>
+        <div className="col-span-5 border-t mx-[14px]" />
+
+        <Row label={<span className="text-white">Estimated monthly total</span>}>
+          {TIER_ORDER.map((tier) => (
+            <div key={tier} className={cn(CELL, "pb-4", emphasis(tier === recommended))}>
+              {estimates[tier].total}
+              {estimates[tier].available && estimates[tier].totalUsd > 0 && (
+                <span className={detailEmphasis(tier === recommended)}>/mo</span>
+              )}
+            </div>
+          ))}
+        </Row>
       </div>
-    </div>
+    </ElevatedSurface>
   );
-}
-
-function EnterpriseTierColumn({
-  isRecommended,
-  recommendationTooltip,
-}: {
-  isRecommended: boolean;
-  recommendationTooltip?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex-1 rounded-lg p-4 space-y-3",
-        isRecommended ? "border border-landing-primary-400" : "border border-landing-surface-400"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">Enterprise</span>
-        {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
-      </div>
-
-      <div className="space-y-1.5 text-sm">
-        <div>
-          <div className="flex justify-between text-landing-text-200">
-            <span>Base</span>
-            <span>Custom</span>
-          </div>
-        </div>
-        <div className="flex justify-between text-landing-text-300">
-          <span>Additional data</span>
-          <span>Custom</span>
-        </div>
-        <div className="flex justify-between text-landing-text-300">
-          <span>Additional Signals steps processing</span>
-          <span>Custom</span>
-        </div>
-      </div>
-
-      <div className="border-t border-landing-surface-400 pt-2">
-        <div className="flex justify-between font-semibold text-landing-text-100 font-space-grotesk">
-          <span>Total</span>
-          <span>Custom</span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 pt-1">
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
-          Custom retention
-        </span>
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
-          Dedicated support
-        </span>
-      </div>
-    </div>
-  );
-}
-
-type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
-
-function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: number, proTotal: number): CalculatorState {
-  if (dataGB <= 1 && signalRuns <= 1000) return "free";
-  if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalRuns >= ENTERPRISE_SIGNAL_THRESHOLD) return "enterprise";
-  if (dataGB >= PRO_DATA_THRESHOLD_GB || proTotal < hobbyTotal) return "pro";
-  return "hobby";
 }
 
 export default function PricingCalculator() {
-  const [tokenIdx, setTokenIdx] = useState(0);
-  const [signalIdx, setSignalIdx] = useState(0);
+  const [runsIdx, setRunsIdx] = useState(DEFAULT_RUNS_IDX);
+  const [tokensPerRunIdx, setTokensPerRunIdx] = useState(DEFAULT_TOKENS_PER_RUN_IDX);
+  const [coverageIdx, setCoverageIdx] = useState(COVERAGE_STEPS.length - 1);
 
-  const tokens = TOKEN_STEPS[tokenIdx];
-  const dataGB = estimateDataFromTokens(tokens);
-  const signalRuns = SIGNAL_STEPS[signalIdx];
+  const runs = RUN_STEPS[runsIdx];
+  const tokensPerRun = TOKENS_PER_RUN_STEPS[tokensPerRunIdx];
+  const dataGB = estimateDataGB(runs, tokensPerRun);
+  const coveragePct = COVERAGE_STEPS[coverageIdx];
 
-  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "15-day", "Community");
-  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30-day", "Email");
-  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "90-day", "Slack");
+  // The landing estimate uses one provisional price across self-serve tiers;
+  // actual billing metering remains tier-specific and unchanged.
+  const signalCostUsd = estimateSignalCostUsd(runs, tokensPerRun, coveragePct);
+  const estimates: Record<Tier, TierEstimate> = {
+    free: buildEstimate("free", dataGB, signalCostUsd),
+    hobby: buildEstimate("hobby", dataGB, signalCostUsd),
+    pro: buildEstimate("pro", dataGB, signalCostUsd),
+    enterprise: buildEstimate("enterprise", dataGB, 0),
+  };
 
-  const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
-
-  const freeTooltip = "Your usage fits within the Free tier — no payment needed.";
-  const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
-  const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
-  const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
+  const recommended = recommendTier(dataGB, estimates);
 
   return (
-    <div className="w-full max-w-xl mt-16 px-4">
-      <div className="p-8 border border-landing-surface-400 rounded-lg space-y-6">
-        <h3 className="text-xl font-semibold font-space-grotesk text-landing-text-100">Pricing calculator</h3>
-
-        <div className="space-y-6 font-medium">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Tokens per month</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-landing-text-100">{formatTokens(tokens)}</span>
-                <span className="text-sm text-landing-text-300">≈ {formatDataSize(dataGB)}</span>
-              </div>
-            </div>
-            <Slider
-              value={[tokenIdx]}
-              max={TOKEN_STEPS.length - 1}
-              min={0}
-              step={1}
-              onValueChange={(v) => setTokenIdx(v[0])}
-              className="w-full"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Signals steps per month</span>
-              <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
-            </div>
-            <Slider
-              value={[signalIdx]}
-              max={SIGNAL_STEPS.length - 1}
-              min={0}
-              step={1}
-              onValueChange={(v) => setSignalIdx(v[0])}
-              className="w-full"
-            />
-          </div>
-        </div>
-
-        <div className="border-t border-landing-surface-400 pt-4">
-          {state === "free" && (
-            <TierColumn
-              estimate={free}
-              isRecommended
-              recommendationTooltip={freeTooltip}
-              dataGB={dataGB}
-              signalStepsProcessed={signalRuns}
-            />
-          )}
-          {state === "hobby" && (
-            <TierColumn
-              estimate={hobby}
-              isRecommended
-              recommendationTooltip={hobbyTooltip}
-              dataGB={dataGB}
-              signalStepsProcessed={signalRuns}
-            />
-          )}
-          {state === "pro" && (
-            <TierColumn
-              estimate={pro}
-              isRecommended
-              recommendationTooltip={proTooltip}
-              dataGB={dataGB}
-              signalStepsProcessed={signalRuns}
-            />
-          )}
-          {state === "enterprise" && <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />}
-        </div>
+    <div className="w-full space-y-6">
+      <p className={cn(subSection, "text-white")}>Pricing calculator</p>
+      <div className="flex flex-col gap-6 w-full">
+        {/* Every input the calculator has. Coverage is in there rather than
+            here because where it sits relative to the two volume factors is
+            part of how the multiplication reads. */}
+        <VolumeInputs
+          runsIdx={runsIdx}
+          tokensPerRunIdx={tokensPerRunIdx}
+          coverageIdx={coverageIdx}
+          onRunsIdx={setRunsIdx}
+          onTokensPerRunIdx={setTokensPerRunIdx}
+          onCoverageIdx={setCoverageIdx}
+        />
+        <TierComparison estimates={estimates} recommended={recommended} />
+        <p className={cn(microLabel, "text-foreground-300 text-sm")}>
+          Prices above are estimates only. Storage costs are not proportional to token count due to trace compression.
+          Signals are billed by tokens used during analysis by our internal Signals Agent. Signal estimates use measured
+          median flow-1 costs for each trace-size bucket and exclude the one-time $5 sign-up credit; actual billing
+          costs may differ.
+        </p>
       </div>
     </div>
   );

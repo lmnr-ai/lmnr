@@ -9,7 +9,8 @@ export const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
 });
 
-const chartColors = [
+// Series colors, assigned by position and wrapping past the fifth.
+const CHART_PALETTE = [
   "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
   "hsl(var(--chart-3))",
@@ -18,10 +19,14 @@ const chartColors = [
 ];
 
 export const parseUtcTimestamp = (s: string): Date => {
-  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
-  const hasTime = s.includes("T") || s.includes(" ");
-  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
-  return new Date(s);
+  // Same as before for ClickHouse (no offset → pin Z) and ISO. Postgres
+  // timestamptz is "+00"; Date only accepts that as "+00:00". Applied only
+  // after a "T" so a date's trailing "-04" is not treated as an offset.
+  let t = s.replace(" ", "T");
+  if (t.includes("T")) t = t.replace(/([+-]\d{2})$/, "$1:00");
+  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(t);
+  if (t.includes("T") && !hasTimezone) return new Date(`${t}Z`);
+  return new Date(t);
 };
 
 const tryFormatAsDate = (value: string | number | Date, formatPattern: string = "M/dd"): string => {
@@ -131,11 +136,11 @@ export const selectNiceTicksFromData = (
   };
 };
 
-export const generateChartConfig = (columns: string[]): ChartConfig =>
+export const generateChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
   columns.reduce((config, columnName, index) => {
     config[columnName] = {
       label: columnName,
-      color: chartColors[index % chartColors.length],
+      color: palette[index % palette.length],
     };
     return config;
   }, {} as ChartConfig);
@@ -146,36 +151,12 @@ export const calculateDataMax = (data: Record<string, any>[], yColumns: string[]
     return Math.max(max, ...values);
   }, 0);
 
-export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: any) => string) => {
-  if (yAxisValues && yAxisFormatter && yAxisValues.length > 0) {
-    const formattedValues = yAxisValues.map((value) => yAxisFormatter(value));
-    const longestLabel = formattedValues.reduce(
-      (longest, current) => (current.length > longest.length ? current : longest),
-      ""
-    );
-
-    return {
-      left: Math.max(4, longestLabel.length * 3),
-      right: 0,
-      top: 0,
-      bottom: 0,
-    };
-  }
-
-  return {
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  };
-};
-
-const createChartConfig = (columns: string[]): ChartConfig =>
+const createChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
   Object.fromEntries(
     columns.map((column, index) => [
       column,
       {
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        color: palette[index % palette.length],
         label: column,
         stackId: "stack",
       },

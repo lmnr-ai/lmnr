@@ -5,7 +5,6 @@ use chrono::{Duration, Utc};
 use clickhouse::Row;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::cache::keys::{AUTOCOMPLETE_CACHE_KEY, AUTOCOMPLETE_LOCK_CACHE_KEY};
@@ -40,7 +39,7 @@ const AUTOCOMPLETE_CONFIG: &[(&str, &[&str])] = &[
     (
         "tags",
         &[
-            "SELECT arrayJoin(topK(512)(name)) as value FROM tags WHERE project_id = {project_id:UUID} AND created_at >= {start_time:DateTime64(9)} AND created_at < {end_time:DateTime64(9)}",
+            "SELECT arrayJoin(topK(512)(tag)) as value FROM spans ARRAY JOIN tags_array AS tag WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND tag != ''",
         ],
     ),
 ];
@@ -101,7 +100,6 @@ async fn prefill_autocomplete_key_if_missing(
     Ok(())
 }
 
-#[instrument(skip_all)]
 pub async fn populate_autocomplete_cache(
     project_id: Uuid,
     spans: &[Span],

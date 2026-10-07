@@ -25,8 +25,9 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button
+              aria-label="Settings"
               size="icon"
-              disabled={!watch("model")}
+              disabled={!watch("llmModel")}
               variant="outline"
               className={cn(className, "self-end size-7")}
             >

@@ -17,6 +17,8 @@ use crate::cache::Cache;
 use crate::db::DB;
 use crate::db::project_api_keys::ProjectApiKey;
 
+pub mod cli_user;
+
 impl FromRequest for ProjectApiKey {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;

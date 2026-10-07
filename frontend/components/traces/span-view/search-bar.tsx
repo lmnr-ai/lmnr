@@ -38,7 +38,11 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
         clearTimeout(debounceRef.current);
         const value = e.currentTarget.value;
         if (value === searchTerm) {
-          goToNext?.();
+          if (e.shiftKey) {
+            goToPrev?.();
+          } else {
+            goToNext?.();
+          }
         } else {
           setSearchTerm?.(value);
         }
@@ -47,7 +51,7 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
         setOpen(false);
       }
     },
-    [searchTerm, goToNext, setSearchTerm, clearSearch, setOpen]
+    [searchTerm, goToNext, goToPrev, setSearchTerm, clearSearch, setOpen]
   );
 
   const handleClear = useCallback(() => {
@@ -99,8 +103,8 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
           <span className="text-xs text-muted-foreground whitespace-nowrap">
             {currentIndex === 0 ? `${totalMatches} found` : `${currentIndex} of ${totalMatches}`}
           </span>
-          <Button className="size-5" icon="chevronUp" variant="ghost" size="icon" onClick={goToPrev} />
-          <Button className="size-5" icon="chevronDown" variant="ghost" size="icon" onClick={goToNext} />
+          <Button icon="chevronUp" variant="ghost" size="icon-xs" onClick={goToPrev} />
+          <Button icon="chevronDown" variant="ghost" size="icon-xs" onClick={goToNext} />
         </>
       )}
     </div>

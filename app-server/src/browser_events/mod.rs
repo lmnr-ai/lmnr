@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ use crate::{
     db::DB,
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
-    utils::limits::update_workspace_bytes_ingested,
+    utils::{limits::update_workspace_bytes_ingested, retry},
     worker::HandlerError,
 };
 
@@ -84,27 +84,23 @@ impl BrowserEventHandler {
         }
 
         // Insert events into ClickHouse with exponential backoff
-        let insert_browser_events_fn = || async {
-            insert_browser_events(&self.clickhouse, &events_to_insert)
-                .await
-                .map_err(|e| {
-                    log::error!(
-                        "Failed attempt to insert browser events. Will retry: {:?}",
-                        e
-                    );
-                    backoff::Error::transient(e)
-                })
-        };
+        let insert_browser_events_fn =
+            || async { insert_browser_events(&self.clickhouse, &events_to_insert).await };
 
-        let exponential_backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(std::time::Duration::from_millis(1000))
-            .with_multiplier(1.5)
-            .with_randomization_factor(0.5)
-            .with_max_interval(std::time::Duration::from_secs(60))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
-            .build();
+        let exponential_backoff = retry::bounded_delay(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            Duration::from_secs(60),
+        );
 
-        backoff::future::retry(exponential_backoff, insert_browser_events_fn)
+        insert_browser_events_fn
+            .retry(exponential_backoff)
+            .notify(|e, _| {
+                log::error!(
+                    "Failed attempt to insert browser events. Will retry: {:?}",
+                    e
+                )
+            })
             .await
             .map_err(|e| {
                 log::error!("Failed to insert browser events after retries: {:?}", e);

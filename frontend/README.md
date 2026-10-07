@@ -22,3 +22,7 @@ To start in dev mode
 Run
 
 `pnpm test`
+
+## Anonymous usage telemetry
+
+Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.

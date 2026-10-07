@@ -3,22 +3,15 @@ import { z } from "zod/v4";
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
+import { resolveSpanTokenDetails, spanTokenDetailColumns } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { clickhouseClient } from "@/lib/clickhouse/client";
-import { downloadSpanImages } from "@/lib/spans/utils";
-import { type Span } from "@/lib/traces/types.ts";
+import { normalizeSpanForExport } from "@/lib/spans/utils";
+import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.guid(),
   projectId: z.guid(),
   traceId: z.guid().optional(),
-});
-
-export const UpdateSpanOutputSchema = z.object({
-  spanId: z.guid(),
-  projectId: z.guid(),
-  traceId: z.guid(),
-  output: z.any(),
 });
 
 export const ExportSpanSchema = z.object({
@@ -52,7 +45,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   }
 
   const mainQuery = `
-    SELECT 
+    SELECT
       span_id as spanId,
       parent_span_id as parentSpanId,
       name,
@@ -63,6 +56,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       input_cost as inputCost,
       output_cost as outputCost,
       total_cost as totalCost,
+      ${spanTokenDetailColumns.join(",\n      ")},
       formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       trace_id as traceId,
@@ -71,6 +65,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       output,
       path,
       attributes,
+      tool_definitions as toolDefinitions,
       events
     FROM spans
     WHERE ${whereConditions.join(" AND ")}
@@ -103,8 +98,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     input: tryParseJson(span.input),
     output: tryParseJson(span.output),
     attributes: parsedAttributes,
-    cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
-    reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
+    ...resolveSpanTokenDetails(span, parsedAttributes),
     events: (span.events || []).map((event) => ({
       timestamp: event.timestamp,
       name: event.name,
@@ -113,29 +107,11 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   };
 }
 
-export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
-  const { spanId, projectId, traceId, output } = UpdateSpanOutputSchema.parse(input);
-
-  await clickhouseClient.command({
-    query: `
-      ALTER TABLE spans
-      UPDATE output = {output: String}
-      WHERE project_id = {projectId: UUID} AND trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
-    `,
-    query_params: {
-      output: JSON.stringify(output),
-      spanId,
-      projectId,
-      traceId,
-    },
-  });
-}
-
 export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema>) {
   const { spanId, projectId, datasetId, metadata = {} } = ExportSpanSchema.parse(input);
 
   const span = await getSpan({ spanId, projectId });
-  const processedInput = await downloadSpanImages(span.input);
+  const processedInput = normalizeSpanForExport(span.input);
 
   await createDatapoints({
     projectId,
@@ -155,7 +131,7 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   const { queueId, spanId, metadata, projectId } = PushSpanSchema.parse(input);
 
   const span = await getSpan({ spanId, projectId });
-  const processedInput = await downloadSpanImages(span.input);
+  const processedInput = normalizeSpanForExport(span.input);
 
   await pushQueueItems({
     projectId,
@@ -171,4 +147,52 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
       },
     ],
   });
+}
+
+export const GetSpanTypeSchema = z.object({
+  projectId: z.guid(),
+  traceId: z.guid(),
+  spanId: z.guid(),
+});
+
+export async function getSpanType(input: z.infer<typeof GetSpanTypeSchema>): Promise<SpanType | null> {
+  const { projectId, traceId, spanId } = GetSpanTypeSchema.parse(input);
+
+  const rows = await executeQuery<{ spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_type as spanType
+      FROM spans
+      WHERE trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
+      LIMIT 1
+    `,
+    parameters: { traceId, spanId },
+  });
+
+  return rows[0]?.spanType ?? null;
+}
+
+export const GetSpanTypesSchema = z.object({
+  projectId: z.guid(),
+  spanIds: z.array(z.string()),
+});
+
+export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): Promise<Record<string, SpanType>> {
+  const { projectId, spanIds } = GetSpanTypesSchema.parse(input);
+
+  if (spanIds.length === 0) {
+    return {};
+  }
+
+  const rows = await executeQuery<{ spanId: string; spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_id as spanId, span_type as spanType
+      FROM spans
+      WHERE span_id IN ({spanIds: Array(UUID)})
+    `,
+    parameters: { spanIds },
+  });
+
+  return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));
 }

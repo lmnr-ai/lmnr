@@ -1,11 +1,9 @@
-import { get } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useMemo } from "react";
+import React from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanMessages from "@/components/traces/span-view/span-content";
-import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,28 +18,17 @@ interface HumanEvaluatorSpanViewProps {
 }
 
 export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelectSpan }: HumanEvaluatorSpanViewProps) {
-  const { projectId, evaluationId: evaluationIdParams } = useParams();
+  const { projectId } = useParams();
   const searchParams = useSearchParams();
-  const evaluationId = (evaluationIdParams || searchParams.get("evaluationId")) as string | null;
   const datapointId = searchParams.get("datapointId");
   const { data: span, isLoading } = useSWR<Span>(
     `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`,
     swrFetcher
   );
-  const humanEvaluatorOptions = useMemo(() => {
-    try {
-      const options = get(span?.attributes, "lmnr.span.human_evaluator_options");
-      if (options) {
-        return JSON.parse(options) as { value: number; label: string }[];
-      }
-    } catch {
-      // Invalid JSON options, return undefined
-    }
-  }, [span?.attributes]);
 
   if (isLoading || !span) {
     return (
-      <div className="flex flex-col space-y-2 p-4">
+      <div className="flex flex-col gap-2 p-4">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
@@ -51,7 +38,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
 
   if (span.attributes["gen_ai.prompt.user"]) {
     return (
-      <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
+      <div className="whitespace-pre-wrap p-4 m-2 border rounded-md bg-surface-up">
         {span.attributes["gen_ai.prompt.user"]}
       </div>
     );
@@ -61,35 +48,16 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
     <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
       <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
         <div className="px-2 pb-2 mt-2 border-b w-full">
-          <TabsList className="border-none text-xs h-7">
-            <TabsTrigger value="span" className="text-xs">
-              Span Input
-            </TabsTrigger>
-            <TabsTrigger value="attributes" className="text-xs">
-              Attributes
-            </TabsTrigger>
-            <TabsTrigger value="events" className="text-xs">
-              Events
-            </TabsTrigger>
+          <TabsList size="sm">
+            <TabsTrigger value="span">Span Input</TabsTrigger>
+            <TabsTrigger value="attributes">Attributes</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
         </div>
         <div className="flex-1 flex overflow-hidden">
           <TabsContent value="span" className="w-full h-full">
             <div className="flex flex-col h-full">
               <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}></SpanMessages>
-              {datapointId && evaluationId && (
-                <div className="flex flex-col p-2 pt-0">
-                  <HumanEvaluationScore
-                    traceId={traceId}
-                    options={humanEvaluatorOptions}
-                    evaluationId={evaluationId as string}
-                    spanId={span.spanId}
-                    resultId={datapointId}
-                    name={span.name}
-                    projectId={projectId as string}
-                  />
-                </div>
-              )}
             </div>
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">

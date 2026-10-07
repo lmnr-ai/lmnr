@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../dropdown-menu.tsx";
-import { useDataTableStore } from "../model/datatable-store.tsx";
+import { useTableStore } from "../model/table-store.tsx";
 
 interface DraggableTableHeaderProps<TData extends RowData> {
   header: Header<TData, unknown>;
@@ -30,7 +30,7 @@ export function InfiniteTableHead<TData extends RowData>({
   isControllable = true,
 }: DraggableTableHeaderProps<TData>) {
   const columnId = header.column.id;
-  const store = useDataTableStore();
+  const store = useTableStore();
   const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",
@@ -38,6 +38,7 @@ export function InfiniteTableHead<TData extends RowData>({
   });
 
   const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
+  const isPinned = header.column.getIsPinned() === "left";
 
   const transformValue = CSS.Translate.toString(transform);
   const scaleValue = isDragging ? "scale(1.02)" : "";
@@ -46,7 +47,8 @@ export function InfiniteTableHead<TData extends RowData>({
 
   const style: CSSProperties = {
     opacity: isDragging ? 0.4 : isOtherDragging ? 0.9 : 1,
-    position: "relative",
+    position: isPinned ? "sticky" : "relative",
+    left: isPinned ? header.column.getStart("left") : undefined,
     transform: combinedTransform,
     transition:
       transition ||
@@ -55,7 +57,7 @@ export function InfiniteTableHead<TData extends RowData>({
         : "transform 0.2s ease-out, opacity 0.2s ease-out"),
     whiteSpace: "nowrap",
     width: header.column.getSize(),
-    zIndex: isDragging ? 50 : isOtherDragging ? 1 : 0,
+    zIndex: isDragging ? 50 : isOtherDragging ? 1 : isPinned ? 30 : 0,
   };
   return (
     <TableHead
@@ -67,7 +69,11 @@ export function InfiniteTableHead<TData extends RowData>({
         minWidth: header.getSize(),
         display: "flex",
       }}
-      className={cn("m-0 relative text-secondary-foreground truncate hover:bg-transparent", isDragging && "shadow-lg")}
+      className={cn(
+        "m-0 relative text-secondary-foreground truncate hover:bg-transparent",
+        isDragging && "shadow-lg",
+        isPinned && "bg-secondary border-r shadow-[2px_0_6px_-2px_rgba(0,0,0,0.35)]"
+      )}
       key={header.id}
       ref={setNodeRef}
     >
@@ -78,13 +84,15 @@ export function InfiniteTableHead<TData extends RowData>({
           isControllable ? "cursor-grab active:cursor-grabbing" : "cursor-default"
         )}
       >
-        <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
+        <div className="flex-1 min-w-0 text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
           {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
         <div
           className={cn(
-            "transition-opacity duration-150",
-            header.column.getIsSorted() ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            "shrink-0 overflow-hidden transition-opacity duration-150",
+            header.column.getIsSorted()
+              ? "w-auto opacity-100"
+              : "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100"
           )}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
@@ -103,10 +111,7 @@ export function InfiniteTableHead<TData extends RowData>({
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
-                >
+                <DropdownMenuContent align="end" className="relative z-50 min-w-32 overflow-hidden rounded-md border">
                   {header.column.getCanSort() && (
                     <>
                       <DropdownMenuItem

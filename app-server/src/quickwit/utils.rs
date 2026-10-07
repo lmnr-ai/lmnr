@@ -23,3 +23,16 @@ pub fn extract_text_from_json_value(value: &Value) -> String {
         Value::Null => String::new(),
     }
 }
+
+/// Apply `preprocess_text` to every string leaf in a JSON value in place.
+/// Used to clean signal-event payloads before they reach Quickwit while
+/// preserving the JSON structure (so each subfield's positions stay
+/// independent for phrase-query scoping).
+pub fn preprocess_json_strings(value: &mut Value) {
+    match value {
+        Value::String(s) => *s = crate::quickwit::preprocess::preprocess_text(s),
+        Value::Object(map) => map.values_mut().for_each(preprocess_json_strings),
+        Value::Array(arr) => arr.iter_mut().for_each(preprocess_json_strings),
+        _ => {}
+    }
+}

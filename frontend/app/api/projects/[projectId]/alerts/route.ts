@@ -1,13 +1,11 @@
-import { getServerSession } from "next-auth";
-
 import { createAlert, deleteAlert, getAlerts } from "@/lib/actions/alerts";
 import { apiHandler } from "@/lib/api/api-handler";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
   const { projectId } = await ctx.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const userEmail = session?.user?.email ?? undefined;
   const result = await getAlerts(projectId, userEmail);
   return Response.json(result);
@@ -16,7 +14,7 @@ export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
 export const POST = apiHandler<{ projectId: string }>(async (request, ctx) => {
   const { projectId } = await ctx.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const userEmail = session?.user?.email;
   if (!userEmail) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

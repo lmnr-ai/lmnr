@@ -1,24 +1,25 @@
 import {
-  generateObject,
   generateText,
   type GenerateTextResult,
   jsonSchema,
+  type LanguageModelUsage,
   modelMessageSchema,
+  Output,
   type ToolSet,
+  type TypedToolCall,
 } from "ai";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { type Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
-import { decodeApiKey } from "@/lib/crypto";
-import { db } from "@/lib/db/drizzle";
-import { providerApiKeys } from "@/lib/db/migrations/schema";
-import { getModel } from "@/lib/playground/providersRegistry";
+import { resolveProjectLlmProfile } from "@/lib/actions/llm-profiles/resolve";
+import { providerFamily } from "@/lib/actions/llm-profiles/schema";
+import { languageModelFromProfile } from "@/lib/ai/profile-model";
+import { extractInstructions } from "@/lib/playground/utils";
 
+import { type JsonObject } from "./types";
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
-export type JsonObject = { [key: PropertyKey]: JsonObject | string | number | boolean | null | JsonObject[] } | null;
+export type { JsonObject };
 
 export const zJsonObject = z
   .string()
@@ -37,7 +38,8 @@ export const zJsonObject = z
 
 export const PlaygroundParamsSchema = z.object({
   messages: z.array(modelMessageSchema).min(1),
-  model: z.string().min(1),
+  llmProfileId: z.guid("Select an LLM profile and a model"),
+  llmModel: z.string().trim().min(1, "Select a model"),
   projectId: z.guid(),
   providerOptions: z.any().optional(),
   maxTokens: z.number().positive().optional(),
@@ -54,30 +56,37 @@ export const PlaygroundParamsSchema = z.object({
   abortSignal: z.any().optional(),
 });
 
+const emptyUsage: LanguageModelUsage = {
+  inputTokens: 0,
+  inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  outputTokens: 0,
+  outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+  totalTokens: 0,
+};
+
 export interface ChatGenerationResult {
-  result: GenerateTextResult<ToolSet, Record<string, never>>;
+  result: GenerateTextResult<ToolSet, Record<string, never>, never>;
+  /** Vendor family reported as `gen_ai.system`. */
+  provider: string;
   startTime: Date;
   endTime: Date;
 }
 
-export async function getProviderApiKey(projectId: string, provider: Provider): Promise<string> {
-  const apiKeyName = providerToApiKey[provider];
-
-  const [key] = await db
-    .select({
-      value: providerApiKeys.value,
-      nonceHex: providerApiKeys.nonceHex,
-      name: providerApiKeys.name,
-      createdAt: providerApiKeys.createdAt,
-    })
-    .from(providerApiKeys)
-    .where(and(eq(providerApiKeys.projectId, projectId), eq(providerApiKeys.name, apiKeyName)));
-
-  if (!key) {
-    throw new Error("No matching provider key found.");
-  }
-
-  return await decodeApiKey(key.name, key.nonceHex, key.value);
+/**
+ * Plain, serialization-safe result sent to the client.
+ *
+ * The AI SDK's `GenerateTextResult` is a class whose fields (`reasoning`,
+ * `usage`, `finalStep`, ...) are prototype getters — they do NOT survive an
+ * object spread or JSON serialization. So we materialize exactly what the
+ * client and span-attribute builder need into own properties here.
+ */
+export interface PlaygroundChatResult {
+  text: string;
+  reasoningText: string;
+  toolCalls: TypedToolCall<ToolSet>[];
+  usage: LanguageModelUsage;
+  finishReason: string | undefined;
+  response?: { modelId?: string };
 }
 
 export async function generateChatResponse(
@@ -85,7 +94,8 @@ export async function generateChatResponse(
 ): Promise<ChatGenerationResult> {
   const {
     messages,
-    model,
+    llmProfileId,
+    llmModel,
     projectId,
     providerOptions,
     maxTokens,
@@ -98,8 +108,8 @@ export async function generateChatResponse(
     abortSignal,
   } = params;
 
-  const provider = model.split(":")[0] as Provider;
-  const decodedKey = await getProviderApiKey(projectId, provider);
+  const resolved = await resolveProjectLlmProfile({ projectId, profileId: llmProfileId, model: llmModel });
+  const model = languageModelFromProfile(resolved.profile, resolved.secrets, resolved.model);
 
   if (providerOptions?.google?.thinkingConfig) {
     const tc = providerOptions.google.thinkingConfig as Record<string, unknown>;
@@ -111,37 +121,30 @@ export async function generateChatResponse(
   }
 
   const startTime = new Date();
+  const prompt = extractInstructions(messages);
 
   let result: any;
 
   if (structuredOutput) {
-    const objectResult = await generateObject({
+    // Keep the live result instance — spreading it into a plain object would drop
+    // the class getters (finalStep/reasoning/reasoningText/usage/...). The `text`
+    // override for structured output is applied later in handleChatGeneration.
+    result = await generateText({
       abortSignal,
-      model: getModel(model as `${Provider}:${string}`, decodedKey),
-      messages,
+      model,
+      ...prompt,
       maxOutputTokens: maxTokens,
       temperature,
       topK,
       topP,
       providerOptions,
-      schema: jsonSchema(structuredOutput),
+      output: Output.object({ schema: jsonSchema(structuredOutput) }),
     });
-
-    result = {
-      ...objectResult,
-      text: JSON.stringify(objectResult.object, null, 2),
-      reasoning: [],
-      toolCalls: [],
-      content: [],
-      files: [],
-      sources: [],
-      reasoningText: "",
-    };
   } else {
     result = await generateText({
       abortSignal,
-      model: getModel(model as `${Provider}:${string}`, decodedKey),
-      messages,
+      model,
+      ...prompt,
       maxOutputTokens: maxTokens,
       temperature,
       topK,
@@ -156,6 +159,7 @@ export async function generateChatResponse(
 
   return {
     result,
+    provider: providerFamily(resolved.profile.provider),
     startTime,
     endTime,
   };
@@ -163,44 +167,30 @@ export async function generateChatResponse(
 
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
-): Promise<GenerateTextResult<ToolSet, Record<string, never>>> {
+): Promise<PlaygroundChatResult> {
   const parsedParams = PlaygroundParamsSchema.parse(params);
-  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
+  const { messages, llmModel, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
     parsedParams;
 
-  const { result, startTime, endTime } = await generateChatResponse(parsedParams);
+  const { result, provider, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  const safeResult: GenerateTextResult<ToolSet, Record<string, never>> = {
-    ...result,
-    text: result.text || "",
-    reasoning: result.reasoning || [],
+  const finalStep = result.finalStep;
+
+  // In v7, generateText + Output.object still surfaces reasoning (thinking models),
+  // so we keep it. Structured runs don't pass tools, so toolCalls stays empty.
+  const safeResult: PlaygroundChatResult = {
+    text: structuredOutput ? JSON.stringify(result.output, null, 2) : result.text || "",
+    reasoningText: finalStep?.reasoningText || "",
     toolCalls: result.toolCalls || [],
-    usage: result.usage || {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cachedInputTokens: 0,
-      totalTokens: 0,
-    },
-    totalUsage: result.totalUsage || {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cachedInputTokens: 0,
-      totalTokens: 0,
-    },
-    content: result.content || [],
-    files: result.files || [],
-    sources: result.sources || [],
-    reasoningText: result.reasoningText || "",
+    usage: result.usage || emptyUsage,
+    finishReason: result.finishReason,
+    response: finalStep?.response ? { modelId: finalStep.response.modelId } : undefined,
   };
 
   try {
-    const provider = model.split(":")[0] as Provider;
-
     const spanData: SpanData = {
       provider,
-      model,
+      model: llmModel,
       result: safeResult,
       messages,
       maxTokens,

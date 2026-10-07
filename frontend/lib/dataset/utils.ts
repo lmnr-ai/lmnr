@@ -1,13 +1,14 @@
-export const uploadFile = async (
-  file: File,
-  url: string,
-) =>
+import { withBasePath } from "@/lib/utils";
+
+export const uploadFile = async (file: File, url: string) =>
   await new Promise<any>((resolve, reject) => {
     const data = new FormData();
-    data.set('file', file);
+    data.set("file", file);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
+    // XMLHttpRequest is not covered by the global fetch/EventSource base-path
+    // shim, so prefix root-relative URLs here for sub-path deploys.
+    xhr.open("POST", withBasePath(url), true);
 
     // Handle completion
     xhr.onload = () => {
@@ -20,7 +21,7 @@ export const uploadFile = async (
 
     // Handle errors
     xhr.onerror = () => {
-      reject('Network error occurred'); // Reject the promise on network error
+      reject("Network error occurred"); // Reject the promise on network error
     };
 
     // Send the request

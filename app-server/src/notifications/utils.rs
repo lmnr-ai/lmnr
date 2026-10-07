@@ -4,14 +4,15 @@ use regex::Regex;
 use uuid::Uuid;
 
 use super::NotificationKind;
-use crate::reports::email_template::{ProjectReportData, ReportData};
+use crate::reports::{ProjectReportData, ReportData};
 
 /// Public-facing base URL used to construct user-clickable links in notifications.
 /// Reads `NEXT_PUBLIC_URL` (the frontend's public URL) so self-hosted deployments
 /// route users to their own instance. Falls back to the given default for the
 /// managed Laminar Cloud experience.
 fn frontend_url_with_default(default: &str) -> String {
-    let raw = std::env::var("NEXT_PUBLIC_URL").unwrap_or_else(|_| default.to_string());
+    let raw =
+        std::env::var(crate::env::notifications::NEXT_PUBLIC_URL).unwrap_or(default.to_string());
     raw.trim_end_matches('/').to_string()
 }
 
@@ -128,6 +129,7 @@ pub(super) fn build_report_data_from_batch(
             period_start,
             period_end,
             signal_event_counts,
+            signals,
             ai_summary,
             noteworthy_events,
         } = kind
@@ -137,6 +139,7 @@ pub(super) fn build_report_data_from_batch(
                 project_name: project_name.clone(),
                 project_id: *project_id,
                 signal_event_counts: signal_event_counts.clone(),
+                signals: signals.clone(),
                 ai_summary: ai_summary.clone(),
                 noteworthy_events: noteworthy_events.clone(),
             };

@@ -2,17 +2,26 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createApiKey, deleteApiKey, getApiKeys } from "@/lib/actions/project-api-keys";
+import { getServerSession } from "@/lib/auth-session";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
 
   try {
     const body = await req.json();
+    const session = await getServerSession();
+
+    // expiresDays: positive integer days, or null/undefined for "never".
+    const expiresDays = typeof body.expiresDays === "number" ? body.expiresDays : null;
+    const expiresAt =
+      expiresDays && expiresDays > 0 ? new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000).toISOString() : null;
 
     const result = await createApiKey({
       projectId: params.projectId,
       name: body.name,
       isIngestOnly: body.isIngestOnly,
+      userId: session?.user.id ?? null,
+      expiresAt,
     });
 
     return new Response(JSON.stringify(result), {

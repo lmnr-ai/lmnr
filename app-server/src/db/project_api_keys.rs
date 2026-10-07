@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
@@ -11,6 +12,10 @@ pub struct ProjectApiKey {
     pub hash: String,
     pub shorthand: String,
     pub is_ingest_only: bool,
+    // `#[serde(default)]` keeps cache entries written before this column existed
+    // deserializable (they decode to `None` = never expires).
+    #[serde(default)]
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> {
@@ -21,7 +26,8 @@ pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> 
             project_api_keys.name,
             project_api_keys.id,
             project_api_keys.shorthand,
-            project_api_keys.is_ingest_only
+            project_api_keys.is_ingest_only,
+            project_api_keys.expires_at
         FROM
             project_api_keys
         WHERE
@@ -37,4 +43,12 @@ pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> 
     }?;
 
     Ok(api_key)
+}
+
+pub async fn delete_api_key_by_hash(pool: &PgPool, hash: &String) -> Result<()> {
+    sqlx::query("DELETE FROM project_api_keys WHERE hash = $1")
+        .bind(hash)
+        .execute(pool)
+        .await?;
+    Ok(())
 }

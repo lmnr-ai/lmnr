@@ -51,24 +51,39 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
 
         const reader = response.body.getReader();
 
+        // Ending the stream is always graceful, never `controller.error`: Next's
+        // `pipeToNodeResponse` rethrows any non-abort stream error as
+        // "failed to pipe response", which `onRequestError` reports to Sentry.
+        // Every way this stream can break is a normal connection lifecycle event
+        // (app-server pod rolled, client navigated away), and closing lets the
+        // browser's EventSource reconnect on its own.
+        const endStream = () => {
+          try {
+            controller.close();
+          } catch {
+            // Already closed or cancelled by the client.
+          }
+        };
+
         const pump = async () => {
           try {
             while (true) {
               const { done, value } = await reader.read();
 
               if (done) {
-                console.log(`Stream ended for project ${projectId}`);
-                controller.close();
                 break;
               }
 
               controller.enqueue(value);
             }
           } catch (error) {
-            controller.error(error);
+            if (!abortController.signal.aborted) {
+              // Upstream went away mid-stream (pod rollout, idle timeout).
+              console.warn(`Realtime stream for project ${projectId} ended early:`, error);
+            }
           } finally {
-            // Ensure reader is released
             reader.releaseLock();
+            endStream();
           }
         };
 
@@ -91,6 +106,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
       },
     });
   } catch (error) {
+    // Classify on the error, not on `request.signal.aborted`: a real upstream
+    // failure (`fetcherRealTime` throws on non-2xx too) can race a client
+    // disconnect, and keying off the signal alone would swallow it as a 499.
+    if (error instanceof Error && error.name === "AbortError") {
+      // Client hung up before the upstream connection was established. Nothing
+      // to report and nobody to report it to.
+      return new Response(null, { status: 499 });
+    }
     console.error("Error connecting to realtime service:", error);
     return new Response("Internal server error", { status: 500 });
   }

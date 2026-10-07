@@ -10,7 +10,7 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
     GetEventsPaginatedSchema.omit({ projectId: true, signalId: true }),
-    ["filter", "searchIn", "clusterId"]
+    ["filter", "searchIn", "clusterId", "payloadField"]
   );
 
   if (!parseResult.success) {

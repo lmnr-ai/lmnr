@@ -15,10 +15,14 @@ export enum Feature {
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
   BATCH_SIGNALS = "BATCH_SIGNALS",
-  CLUSTERING = "CLUSTERING",
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  SIGNAL_LLM_PROFILES = "SIGNAL_LLM_PROFILES",
+  LOOPS = "LOOPS",
+  AGENT = "AGENT",
+  TELEMETRY = "TELEMETRY",
+  ONBOARDING_COMPANY_NAME = "ONBOARDING_COMPANY_NAME",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -91,15 +95,18 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.SIGNALS_ENABLED !== "true") {
       return false;
     }
-    return isAiProviderConfigured();
+    // Self-hosted deployments can supply credentials per signal via LLM
+    // profiles, so an env-configured provider is only required on cloud.
+    return isAiProviderConfigured() || isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES);
+  }
+
+  if (feature === Feature.SIGNAL_LLM_PROFILES) {
+    // Cloud runs signals on Laminar's own keys; only self-hosted signals pick a profile.
+    return process.env.LAMINAR_CLOUD !== "true";
   }
 
   if (feature === Feature.BATCH_SIGNALS) {
     return false;
-  }
-
-  if (feature === Feature.CLUSTERING) {
-    return process.env.CLUSTERING_ENABLED === "true";
   }
 
   if (feature === Feature.SEND_EMAIL) {
@@ -107,13 +114,17 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
   }
 
   if (feature === Feature.SLACK) {
-    return (
+    // Cloud: the official app's own OAuth config. Broker: a self-hosted instance
+    // points at the Laminar Cloud broker with its license key and needs no Slack
+    // app secrets of its own.
+    const cloudEnabled =
       process.env.ENVIRONMENT === "PRODUCTION" &&
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
-      !!process.env.SLACK_REDIRECT_URL
-    );
+      !!process.env.SLACK_REDIRECT_URL;
+    const brokerEnabled = !!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY;
+    return cloudEnabled || brokerEnabled;
   }
 
   if (feature === Feature.POSTHOG) {
@@ -122,6 +133,32 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.LAMINAR_CLOUD) {
     return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.LOOPS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.LOOPS_API_KEY;
+  }
+
+  if (feature === Feature.AGENT) {
+    return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.ONBOARDING_COMPANY_NAME) {
+    return process.env.LAMINAR_CLOUD === "true" && isAiProviderConfigured();
+  }
+
+  if (feature === Feature.TELEMETRY) {
+    // Anonymous self-hosted usage telemetry. Never runs on Laminar Cloud
+    // (we have first-party analytics there), only on real self-hosted
+    // deployments, and operators can always opt out.
+    if (process.env.LAMINAR_TELEMETRY_DISABLED === "true") {
+      return false;
+    }
+    if (process.env.LAMINAR_CLOUD === "true") {
+      return false;
+    }
+
+    return true;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

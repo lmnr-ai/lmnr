@@ -60,13 +60,13 @@ export enum SpanSearchType {
 
 export enum AggregationFunction {
   AVG = "AVG",
-  "SUM" = "SUM",
-  "MIN" = "MIN",
-  "MAX" = "MAX",
-  "MEDIAN" = "MEDIAN",
-  "p90" = "p90",
-  "p95" = "p95",
-  "p99" = "p99",
+  SUM = "SUM",
+  MIN = "MIN",
+  MAX = "MAX",
+  MEDIAN = "MEDIAN",
+  p90 = "p90",
+  p95 = "p95",
+  p99 = "p99",
 }
 
 export const aggregationLabelMap: Record<AggregationFunction, string> = {

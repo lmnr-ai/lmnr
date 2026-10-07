@@ -18,6 +18,7 @@ export const PUT = apiHandler<{ projectId: string; templateId: string }>(async (
     templateId,
     name: body.name,
     code: body.code,
+    whereClause: body.whereClause,
   });
 
   return Response.json(result);

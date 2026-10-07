@@ -1,14 +1,11 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { getReports, optInReport, optOutReport, setEmailSubscriptions } from "@/lib/actions/reports";
 import { apiHandler } from "@/lib/api/api-handler";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
   const { workspaceId } = await ctx.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const userEmail = session?.user?.email ?? undefined;
   const result = await getReports(workspaceId, userEmail);
   return Response.json(result);
@@ -17,7 +14,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
 export const POST = apiHandler<{ workspaceId: string }>(async (request, ctx) => {
   const { workspaceId } = await ctx.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const email = session?.user?.email;
   if (!email) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -32,20 +29,21 @@ export const POST = apiHandler<{ workspaceId: string }>(async (request, ctx) => 
 
 export const PUT = apiHandler<{ workspaceId: string }>(async (request, ctx) => {
   const { workspaceId } = await ctx.params;
-  const session = await getServerSession(authOptions);
+
+  const session = await getServerSession();
   const email = session?.user?.email;
   if (!email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await request.json();
   const result = await setEmailSubscriptions({ workspaceId, email, subscribedReportIds: body.subscribedReportIds });
-  return NextResponse.json(result);
+  return Response.json(result);
 });
 
 export const DELETE = apiHandler<{ workspaceId: string }>(async (request, ctx) => {
   const { workspaceId } = await ctx.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const email = session?.user?.email;
   if (!email) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

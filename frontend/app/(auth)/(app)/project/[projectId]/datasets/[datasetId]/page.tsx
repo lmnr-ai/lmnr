@@ -1,10 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import Dataset from "@/components/dataset/dataset";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 
@@ -16,7 +15,7 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
   const params = await props.params;
   const projectId = params.projectId;
   const datasetId = params.datasetId;
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!session) {
     redirect("/sign-in");

@@ -1,5 +1,6 @@
 import { handleChatGeneration } from "@/lib/actions/chat";
 import { apiHandler } from "@/lib/api/api-handler";
+import { NotFoundError } from "@/lib/errors";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
 export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
@@ -14,10 +15,17 @@ export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
     projectId,
   };
 
-  const result = await handleChatGeneration({
-    ...params,
-    abortSignal: req.signal,
-  });
+  try {
+    const result = await handleChatGeneration({
+      ...params,
+      abortSignal: req.signal,
+    });
 
-  return Response.json(result);
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      return Response.json({ error: error.message }, { status: 404 });
+    }
+    throw error;
+  }
 });

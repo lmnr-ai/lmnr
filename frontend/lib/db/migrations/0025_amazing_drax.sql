@@ -16,5 +16,5 @@ CREATE TABLE "agent_sessions" (
 	"state" jsonb
 );
 --> statement-breakpoint
-ALTER TABLE "agent_messages" ADD CONSTRAINT "agent_message_to_user_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "agent_messages" ADD CONSTRAINT "agent_message_to_user_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "label_classes" ADD CONSTRAINT "label_classes_name_project_id_unique" UNIQUE("name","project_id");

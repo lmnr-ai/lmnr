@@ -8,6 +8,7 @@ import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import signalTemplates from "@/components/signals/prompts";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -20,6 +21,9 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "cloud-off": CloudOff,
   target: Target,
 };
+
+// surface-250, matching the plan step's cards.
+const CARD_ELEVATION = 5;
 
 interface SignalsStepProps {
   stepIndex: number;
@@ -64,37 +68,39 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                 const Icon = ICONS[template.icon] ?? AlertCircle;
                 const isSelected = selected.has(template.name);
                 return (
-                  <button
-                    key={template.name}
-                    type="button"
-                    onClick={() => toggle(template.name)}
-                    aria-pressed={isSelected}
-                    className={cn(
-                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full pb-4 xl:pb-8 pt-4",
-                      isSelected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
-                    )}
-                  >
-                    <div className="mt-0.5 flex items-center gap-2 shrink-0">
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors",
-                          isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-muted border-border"
-                        )}
-                      >
-                        {isSelected && <Check className="h-3 w-3" />}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-sm 2xl:text-base font-medium text-secondary-foreground">
-                        {template.name}
-                      </span>
-                      <span className="text-xs 2xl:text-sm text-muted-foreground line-clamp-3">
-                        {template.description}
-                      </span>
-                    </div>
-                    <Icon className="ml-auto sm:h-4 sm:w-4 sm:min-w-4 md:min-w-5 md:h-5 md:w-5 2xl:h-5 2xl:w-5 2xl:min-w-5 text-muted-foreground" />
-                  </button>
+                  // Painted at the plan cards' level; the checkbox and border read relative to it.
+                  <ElevatedSurface key={template.name} level={CARD_ELEVATION} asChild>
+                    <button
+                      type="button"
+                      onClick={() => toggle(template.name)}
+                      aria-pressed={isSelected}
+                      className={cn(
+                        "flex items-start gap-3 text-left rounded-md p-3 transition-colors h-full pb-4 xl:pb-8 pt-4 hover:bg-surface-up",
+                        isSelected && "ring-1 ring-inset ring-primary"
+                      )}
+                    >
+                      <div className="mt-0.5 flex items-center gap-2 shrink-0">
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors",
+                            isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-surface-up-2"
+                          )}
+                        >
+                          {isSelected && <Check className="h-3 w-3" />}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-sm 2xl:text-base font-medium text-secondary-foreground">
+                          {template.name}
+                        </span>
+                        <span className="text-xs 2xl:text-sm text-muted-foreground line-clamp-3">
+                          {template.description}
+                        </span>
+                      </div>
+                      <Icon className="ml-auto sm:h-4 sm:w-4 sm:min-w-4 md:min-w-5 md:h-5 md:w-5 2xl:h-5 2xl:w-5 2xl:min-w-5 text-muted-foreground" />
+                    </button>
+                  </ElevatedSurface>
                 );
               })}
             </div>

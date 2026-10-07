@@ -1,24 +1,27 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
+import {
+  getSuggestionAtIndex,
+  getSuggestionsCount,
+} from "@/components/common/advanced-search/components/suggestions.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { type AdvancedSearchResource } from "../types";
 import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
 interface FilterSearchInputProps {
   placeholder?: string;
   className?: string;
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   disableHotKey?: boolean;
   disabled?: boolean;
 }
@@ -30,10 +33,6 @@ const FilterSearchInput = ({
   disableHotKey,
   disabled,
 }: FilterSearchInputProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const tags = useAdvancedSearchContext((state) => state.tags);
   const inputValue = useAdvancedSearchContext((state) => state.inputValue);
   const isOpen = useAdvancedSearchContext((state) => state.isOpen);
@@ -45,6 +44,8 @@ const FilterSearchInput = ({
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
+  const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
+  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const {
     setInputValue,
@@ -87,12 +88,12 @@ const FilterSearchInput = ({
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       if (selectedTagIds.size > 0) {
-        removeSelectedTags(router, pathname, searchParams);
+        removeSelectedTags();
       }
       setInputValue(e.target.value);
       setIsOpen(true);
     },
-    [setInputValue, setIsOpen, selectedTagIds.size, removeSelectedTags, router, pathname, searchParams]
+    [setInputValue, setIsOpen, selectedTagIds.size, removeSelectedTags]
   );
 
   const handleInputFocus = useCallback(
@@ -109,37 +110,37 @@ const FilterSearchInput = ({
     if (activeTagId) return;
     if (openSelectId) return;
     setIsOpen(false);
-    submit(router, pathname, searchParams);
-  }, [activeTagId, openSelectId, setIsOpen, submit, router, pathname, searchParams]);
+    submit();
+  }, [activeTagId, openSelectId, setIsOpen, submit]);
 
   const handleRecentSelect = useCallback(
     (index: number) => {
       const rs = recentSearches[index];
       if (!rs) return;
-      applyRecentSearch(rs, router, pathname, searchParams);
+      applyRecentSearch(rs);
     },
-    [recentSearches, applyRecentSearch, router, pathname, searchParams]
+    [recentSearches, applyRecentSearch]
   );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, inputValue, autocompleteData);
+      const count = getSuggestionsCount(filters, inputValue, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
       const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
         e.preventDefault();
         if (e.shiftKey) {
-          redo(router, pathname, searchParams);
+          redo();
         } else {
-          undo(router, pathname, searchParams);
+          undo();
         }
         return;
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key === "y") {
         e.preventDefault();
-        redo(router, pathname, searchParams);
+        redo();
         return;
       }
 
@@ -157,7 +158,7 @@ const FilterSearchInput = ({
         if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
           if (inputValue) setInputValue("");
-          removeSelectedTags(router, pathname, searchParams);
+          removeSelectedTags();
           return;
         }
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -235,7 +236,14 @@ const FilterSearchInput = ({
       if (e.key === "Enter") {
         e.preventDefault();
         if (isOpen && count > 0 && activeIndex >= 0) {
-          const suggestion = getSuggestionAtIndex(filters, inputValue, activeIndex, autocompleteData);
+          const suggestion = getSuggestionAtIndex(
+            filters,
+            inputValue,
+            activeIndex,
+            autocompleteData,
+            uuidFilterColumn,
+            allowFreeTextSearch
+          );
           if (suggestion) {
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
@@ -244,16 +252,16 @@ const FilterSearchInput = ({
               const defaultOperator = columnFilter
                 ? (dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq)
                 : Operator.Eq;
-              addCompleteTag(suggestion.field, defaultOperator, suggestion.value, router, pathname, searchParams);
+              addCompleteTag(suggestion.field, defaultOperator, suggestion.value);
             } else {
               setInputValue(suggestion.value);
               setIsOpen(false);
-              submit(router, pathname, searchParams);
+              submit();
             }
           }
         } else {
           setIsOpen(false);
-          submit(router, pathname, searchParams);
+          submit();
         }
         return;
       }
@@ -282,7 +290,7 @@ const FilterSearchInput = ({
       // Backspace
       if (e.key === "Backspace" && inputValue === "" && tags.length > 0 && selectedTagIds.size === 0) {
         e.preventDefault();
-        removeTag(tags[tags.length - 1].id, router, pathname, searchParams);
+        removeTag(tags[tags.length - 1].id);
         return;
       }
     },
@@ -296,7 +304,9 @@ const FilterSearchInput = ({
       activeIndex,
       activeRecentIndex,
       autocompleteData,
+      allowFreeTextSearch,
       recentSearches,
+      uuidFilterColumn,
       setInputValue,
       setIsOpen,
       setActiveIndex,
@@ -312,9 +322,6 @@ const FilterSearchInput = ({
       submit,
       handleRecentSelect,
       navigateToTag,
-      router,
-      pathname,
-      searchParams,
     ]
   );
 
@@ -350,10 +357,12 @@ const FilterSearchInput = ({
       onClick={() => mainInputRef.current?.focus()}
       onBlur={handleContainerBlur}
     >
-      <span className="py-1 pl-1">
-        <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
-      </span>
-      <div className="flex items-center gap-1 flex-wrap flex-1">
+      {allowFreeTextSearch && (
+        <span className="py-1 pl-1">
+          <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
+        </span>
+      )}
+      <div className={cn("flex items-center gap-1 flex-wrap flex-1", !allowFreeTextSearch && "pl-1")}>
         {tags.map((tag) => (
           <FilterTag
             key={tag.id}
@@ -385,7 +394,7 @@ const FilterSearchInput = ({
         <Button
           type="button"
           variant="ghost"
-          onClick={() => clearAll(router, pathname, searchParams)}
+          onClick={() => clearAll()}
           className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:bg-muted"
           aria-label="Clear all filters"
         >

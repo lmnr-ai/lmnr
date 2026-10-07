@@ -18,13 +18,26 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
+    access_policy::AccessPolicy,
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, workspaces::DeploymentMode},
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
+    query_engine::{QueryEngine, QueryEngineValidationResult},
 };
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
+
+/// Where an ad-hoc SQL query originated. Determines whether the per-query
+/// `max_memory_usage` ceiling is applied: the trusted internal frontend runs
+/// uncapped, while public internet-facing and CLI traffic is capped to protect
+/// ClickHouse from OOM-inducing scans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SqlQuerySource {
+    /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`) or other internal use.
+    Internal,
+    /// Public internet-facing (`/v1/sql/query`) and CLI (`/v1/cli/sql/query`).
+    Public,
+}
 
 #[derive(Debug, thiserror::Error, Deserialize)]
 pub enum SqlQueryError {
@@ -83,10 +96,14 @@ impl ClickhouseReadonlyClient {
     }
 }
 
+/// `policy` is the caller's read restrictions; it is baked into the
+/// validated SQL, so it applies wherever the query is routed.
 pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
     parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
+    policy: AccessPolicy,
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
@@ -96,7 +113,7 @@ pub async fn execute_sql_query(
     let tracer = global::tracer("app-server");
 
     // Validate query first
-    let validated_query = match validate_query(query, project_id, query_engine).await {
+    let validated_query = match validate_query(query, project_id, &policy, query_engine).await {
         Ok(validated_query) => validated_query,
         Err(e) => {
             return Err(e);
@@ -112,6 +129,7 @@ pub async fn execute_sql_query(
         project_id,
         validated_query,
         parameters,
+        source,
     )
     .await;
 
@@ -189,14 +207,16 @@ fn remove_query_from_error_message(error_message: &str) -> String {
 pub async fn validate_query(
     query: String,
     project_id: Uuid,
+    policy: &AccessPolicy,
     query_engine: Arc<QueryEngine>,
 ) -> Result<String, SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("validate_sql_query");
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
+    span.set_attribute(KeyValue::new("sql.policy", policy.to_view_arg()));
 
-    let validation_result = query_engine.validate_query(query, project_id).await;
+    let validation_result = query_engine.validate_query(query, project_id, policy).await;
 
     let validated_query = match validation_result {
         Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,
@@ -231,6 +251,7 @@ pub async fn route_and_run_query(
     project_id: Uuid,
     query: String,
     parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
 ) -> Result<Bytes, SqlQueryError> {
     let config = get_workspace_deployment(pool, cache.clone(), project_id).await;
     let deployment_config = match config {
@@ -239,7 +260,9 @@ pub async fn route_and_run_query(
     };
 
     match deployment_config.mode {
-        DeploymentMode::CLOUD => ch::query(clickhouse_ro, project_id, query, parameters).await,
+        DeploymentMode::CLOUD => {
+            ch::query(clickhouse_ro, project_id, query, parameters, source).await
+        }
         DeploymentMode::HYBRID => {
             data_plane::query(
                 cache,

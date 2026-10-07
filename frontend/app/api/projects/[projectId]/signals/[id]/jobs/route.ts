@@ -30,12 +30,8 @@ export const POST = apiHandler<{ projectId: string; id: string }>(async (req, ct
   const { projectId, id: signalId } = await ctx.params;
 
   const body = await req.json();
-  const tracesCount = Number(body.tracesCount) || 0;
-  const mode = Number(body.mode) || 0;
-  // Realtime signals are billed as 2 signal runs each
-  const billedRuns = mode === 1 ? tracesCount * 2 : tracesCount;
 
-  await checkSignalRunsLimit(projectId, billedRuns);
+  await checkSignalRunsLimit(projectId);
 
   const result = await createSignalJob({
     ...body,

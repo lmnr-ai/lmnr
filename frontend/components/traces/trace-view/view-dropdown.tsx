@@ -1,108 +1,57 @@
-import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { shallow } from "zustand/shallow";
 
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import TemplateViewToggle from "@/components/traces/trace-view/template-view-toggle";
+import ViewToggle, { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import { track } from "@/lib/posthog";
-import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "transcript";
+interface ViewDropdownProps {
+  /** Tabs offered in the dropdown. The shared trace page passes tree/transcript
+   *  only — Custom needs authenticated render-data access it doesn't have. */
+  tabs?: ViewTab[];
+}
 
-const viewOptions: Record<
-  ViewTab,
-  {
-    icon: LucideIcon;
-    label: string;
-  }
-> = {
-  tree: {
-    icon: ListTree,
-    label: "Tree",
-  },
-  transcript: {
-    icon: List,
-    label: "Transcript",
-  },
-};
+export default function ViewDropdown({ tabs = ["tree", "transcript", "custom"] }: ViewDropdownProps) {
+  const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewBaseStore(
+    (state) => ({
+      tab: state.tab,
+      setTab: state.setTab,
+      showTreeContent: state.showTreeContent,
+      setShowTreeContent: state.setShowTreeContent,
+    }),
+    shallow
+  );
 
-const viewTabs: ViewTab[] = ["tree", "transcript"];
-
-export default function ViewDropdown() {
-  const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewBaseStore((state) => ({
-    tab: state.tab,
-    setTab: state.setTab,
-    showTreeContent: state.showTreeContent,
-    setShowTreeContent: state.setShowTreeContent,
-  }));
-
-  const isValidTab = viewTabs.includes(tab as ViewTab);
-  const displayTab: ViewTab = isValidTab ? (tab as ViewTab) : "transcript";
-  const currentView = viewOptions[displayTab];
-  const CurrentIcon = currentView.icon;
-
-  const isTreeView = tab === "tree";
   const contentVisible = showTreeContent ?? true;
 
-  const handleSelect = (next: ViewTab) => {
+  const handleTabChange = (next: ViewTab) => {
     if (next !== tab) {
       track("traces", "view_switched", { from: tab, to: next });
     }
     setTab(next);
   };
 
+  // The custom tab folds render templates into the dropdown, which needs a
+  // TemplatePickerProvider above (absent on the shared trace page).
+  if (tabs.includes("custom")) {
+    return (
+      <TemplateViewToggle
+        tab={tab}
+        onTabChange={handleTabChange}
+        showContent={contentVisible}
+        onToggleContent={() => setShowTreeContent(!contentVisible)}
+        viewTabs={tabs.filter((t) => t !== "custom")}
+      />
+    );
+  }
+
   return (
-    <div className="flex items-center min-w-0">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
-              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
-            )}
-          >
-            <CurrentIcon size={14} className="mr-1" />
-            <span className="capitalize">{currentView.label}</span>
-            <ChevronDown size={14} className="ml-1" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {viewTabs.map((option) => {
-            const view = viewOptions[option];
-            const OptionIcon = view.icon;
-            return (
-              <DropdownMenuItem
-                key={option}
-                onClick={() => handleSelect(option)}
-                className={cn(tab === option && "bg-accent")}
-              >
-                <OptionIcon size={14} />
-                {view.label}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {/* Content toggle (only visible in tree view) */}
-      {isTreeView && (
-        <button
-          onClick={() => setShowTreeContent(!contentVisible)}
-          className={cn(
-            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none text-muted-foreground overflow-hidden",
-            contentVisible ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
-          )}
-        >
-          {contentVisible ? (
-            <Eye size={14} className="flex-shrink-0" />
-          ) : (
-            <EyeOff size={14} className="flex-shrink-0" />
-          )}
-          <span className="ml-1 truncate">Content</span>
-        </button>
-      )}
-    </div>
+    <ViewToggle
+      tab={tab}
+      onTabChange={handleTabChange}
+      showContent={contentVisible}
+      onToggleContent={() => setShowTreeContent(!contentVisible)}
+      tabs={tabs}
+    />
   );
 }

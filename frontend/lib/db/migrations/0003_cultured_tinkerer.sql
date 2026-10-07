@@ -20,7 +20,7 @@ ALTER TABLE "spans" DROP CONSTRAINT "spans_pkey";--> statement-breakpoint
 ALTER TABLE "spans" ADD COLUMN "project_id" uuid NOT NULL;--> statement-breakpoint
 ALTER TABLE "spans" ADD CONSTRAINT "spans_pkey" PRIMARY KEY("span_id","project_id");--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "spans" ADD CONSTRAINT "spans_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE cascade;
+ ALTER TABLE "spans" ADD CONSTRAINT "spans_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE no action ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

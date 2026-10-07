@@ -1,8 +1,8 @@
-import { getTracer } from "@lmnr-ai/lmnr";
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 
 const SYSTEM_PROMPT = `<role>
 You write re2 regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in XML-like tags (e.g. <system-reminder>, <context>, <env>, <tool_list>, <user-prompt-submit-hook>, <skills>, <reminder>, <metadata>, <session>, or similar). Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction.
@@ -131,23 +131,19 @@ const RegexResultSchema = z.object({
     .describe("A re2 regex pattern starting with (?s) with exactly one capture group, or null if none applies."),
 });
 
-export async function generateExtractionRegex(userMessage: string): Promise<string | null> {
+export async function generateExtractionRegex(userMessage: string, projectId: string): Promise<string | null> {
   try {
-    const { object } = await generateObject({
-      model: getLanguageModel("small"),
+    const { output } = await generateText({
+      model: await getLanguageModel(LlmFeature.SESSION_PROMPT_EXTRACTION, projectId),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
-      schema: RegexResultSchema,
+      output: Output.object({ schema: RegexResultSchema }),
       maxRetries: 0,
       temperature: 0,
       abortSignal: AbortSignal.timeout(5000),
-      experimental_telemetry: {
-        isEnabled: true,
-        tracer: getTracer(),
-      },
     });
 
-    return object.regex?.trim() || null;
+    return output.regex?.trim() || null;
   } catch (error) {
     console.error("[traces:generate-extraction-regex] LLM call failed:", error);
     return null;

@@ -3,14 +3,21 @@ use std::sync::Arc;
 use anyhow::{Context, anyhow};
 use serde_json;
 
+use uuid::Uuid;
+
 use crate::{
-    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::{IndexerQueuePayload, SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_ROUTING_KEY},
+    ch::signal_events::CHSignalEvent,
+    mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
+    quickwit::{
+        IndexerQueuePayload, QuickwitIndexedSignalEvent, SPANS_INDEXER_EXCHANGE,
+        SPANS_INDEXER_ROUTING_KEY,
+    },
 };
 
 pub async fn publish_for_indexing(
     payload: &IndexerQueuePayload,
     queue: Arc<MessageQueue>,
+    indexer_stream_publisher: Option<Arc<StreamPublisher>>,
 ) -> anyhow::Result<()> {
     let serialized_payload =
         serde_json::to_vec(payload).context("Failed to serialize payload for Quickwit indexing")?;
@@ -25,6 +32,22 @@ pub async fn publish_for_indexing(
         ));
     }
 
+    // Indexing has no ordering requirement, so the partition key only spreads
+    // load — a fresh key per payload is what we want. Keying on the payload's
+    // index id would pin every span document to a single partition.
+    if let Some(publisher) = indexer_stream_publisher.as_ref() {
+        let key = Uuid::now_v7().to_string();
+        match publisher.publish(&serialized_payload, &key).await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                log::error!(
+                    "Stream publish to Quickwit indexer failed, falling back to queue: {:?}",
+                    e
+                );
+            }
+        }
+    }
+
     queue
         .publish(
             &serialized_payload,
@@ -36,4 +59,30 @@ pub async fn publish_for_indexing(
         .context("Failed to publish spans/events to Quickwit indexer queue")?;
 
     Ok(())
+}
+
+/// Publish a batch of signal events to the Quickwit indexer queue.
+///
+/// `payload` is shipped as a Quickwit `json` field, so per-subfield position
+/// streams + type inference take care of what the old flatten allow-list
+/// did (numbers stay numeric, keys stay metadata, phrase queries can't span
+/// fields). No schema knowledge needed at index time.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn publish_signal_events_for_indexing(
+    events: &[CHSignalEvent],
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    let indexed: Vec<QuickwitIndexedSignalEvent> = events
+        .iter()
+        .map(QuickwitIndexedSignalEvent::from_event)
+        .collect();
+    let payload = IndexerQueuePayload::SignalEvents(indexed);
+    // Signal events deliberately stay on the quorum queue (`None` publisher):
+    // they're low-volume, and threading the stream publisher through the
+    // enterprise signals pipeline isn't worth a cross-repo change.
+    publish_for_indexing(&payload, queue, None).await
 }

@@ -2,17 +2,15 @@ import { addMonths, subHours } from "date-fns";
 import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { cache, PROJECT_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
+import { retentionCutoff } from "@/lib/billing/retention";
+import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
+import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-const TIER_RETENTION_DAYS: Record<string, number> = {
-  free: 15,
-  hobby: 30,
-  pro: 90,
-};
+import { getSignalCreditState } from "./signal-credit";
 
 interface ProjectBillingInfo {
   id: string;
@@ -22,17 +20,15 @@ interface ProjectBillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   bytesLimit: number;
-  signalStepsLimit: number;
-  customSignalStepsLimit?: number | null;
+  signalCostHardLimitMicroUsd?: number | null;
 }
 
 interface BillingInfo {
   workspaceId: string;
   tierName: string;
-  signalStepsLimit: number;
   resetTime: string;
   workspaceProjectIds: string[];
-  customSignalStepsLimit: number | null;
+  signalCostHardLimitMicroUsd: number | null;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -43,10 +39,10 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       return {
         workspaceId: cached.workspaceId,
         tierName: cached.tierName,
-        signalStepsLimit: Number(cached.signalStepsLimit),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
-        customSignalStepsLimit: cached.customSignalStepsLimit != null ? Number(cached.customSignalStepsLimit) : null,
+        signalCostHardLimitMicroUsd:
+          cached.signalCostHardLimitMicroUsd != null ? Number(cached.signalCostHardLimitMicroUsd) : null,
       };
     }
   } catch {
@@ -56,7 +52,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   const tierRows = await db
     .select({
       workspaceId: workspaces.id,
-      signalStepsLimit: subscriptionTiers.signalStepsProcessed,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
     })
@@ -81,10 +76,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       .select({ limitValue: workspaceUsageLimits.limitValue })
       .from(workspaceUsageLimits)
       .where(
-        and(
-          eq(workspaceUsageLimits.workspaceId, row.workspaceId),
-          eq(workspaceUsageLimits.limitType, "signal_steps_processed")
-        )
+        and(eq(workspaceUsageLimits.workspaceId, row.workspaceId), eq(workspaceUsageLimits.limitType, "signal_cost"))
       )
       .limit(1),
   ]);
@@ -92,14 +84,18 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   return {
     workspaceId: row.workspaceId,
     tierName: row.tierName,
-    signalStepsLimit: Number(row.signalStepsLimit),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
-    customSignalStepsLimit: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
+    signalCostHardLimitMicroUsd: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
   };
 }
 
-export async function checkSignalRunsLimit(projectId: string, tracesCount: number): Promise<void> {
+// Pre-flight budget guard run before a signal job is enqueued. Signals are
+// now billed by the token cost the agent spends (micro-USD), which can't be
+// known until a run completes, so we can't predict this job's cost up front.
+// Instead we block only when the workspace has already exhausted its signal
+// cost budget for the billing period.
+export async function checkSignalRunsLimit(projectId: string): Promise<void> {
   if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
     return;
   }
@@ -112,67 +108,61 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
   const {
     workspaceId,
     tierName,
-    signalStepsLimit: signalRunsLimit,
     resetTime,
     workspaceProjectIds,
-    customSignalStepsLimit: customSignalRunsLimit,
+    signalCostHardLimitMicroUsd: customSignalCostLimit,
   } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
-  let effectiveLimit: number;
-  if (isFree) {
-    effectiveLimit = signalRunsLimit;
-  } else {
-    // For paid tiers, use the custom signal_runs limit if set
-    if (customSignalRunsLimit == null) {
-      return; // No custom limit for paid tier, no enforcement
-    }
-    effectiveLimit = customSignalRunsLimit;
-  }
+  const formatUsd = (microUsd: number) =>
+    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  // For free tier, signalRunsLimit=0 means "no limit configured on this tier"
-  // For custom limits (paid tiers), 0 means "block everything" so we don't skip
-  if (isFree && effectiveLimit === 0) {
+  if (isFree) {
+    const credit = await getSignalCreditState(workspaceId, 0);
+    if (credit.remainingMicroUsd === 0) {
+      throw new Error(
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
+      );
+    }
     return;
   }
 
-  const usageCacheKey = `${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`;
-
-  let totalSignalSteps: number | null = null;
-  try {
-    totalSignalSteps = await cache.get<number>(usageCacheKey);
-  } catch {
-    // cache read failed, fall through to ClickHouse
+  // Paid tiers only need this preflight path when the owner configured a
+  // monthly safety cap.
+  if (customSignalCostLimit == null) {
+    return;
   }
 
-  if (totalSignalSteps === null) {
-    if (workspaceProjectIds.length === 0) {
-      return;
-    }
+  const resetTimeDate = new Date(resetTime);
+  const signalUsageStart = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+  if (workspaceProjectIds.length === 0) {
+    return;
+  }
 
-    const resetTimeDate = new Date(resetTime);
-    const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-    const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
-
-    const signalRunsQuery = `SELECT SUM(IF(steps_processed > 0, steps_processed, 1)) as totalSignalSteps
+  const resetTimeStr = signalUsageStart.toISOString().replace(/Z$/, "");
+  const signalRunsQuery = `SELECT SUM(input_tokens) as inputTokens, SUM(cache_read_tokens) as cacheReadTokens, SUM(output_tokens) as outputTokens
     FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
-    AND signal_runs.status = 1`;
+    AND signal_runs.status = 1
+    AND signal_runs.credit_applied = false`;
 
-    const result = await clickhouseClient.query({
-      query: signalRunsQuery,
-      format: "JSONEachRow",
-      query_params: { projectIds: workspaceProjectIds, latestResetTime: latestResetTimeStr },
-    });
-    const rows = await result.json<{ totalSignalSteps: number }>();
-    totalSignalSteps = rows.length > 0 ? Number(rows[0].totalSignalSteps) : 0;
-  }
+  const result = await clickhouseClient.query({
+    query: signalRunsQuery,
+    format: "JSONEachRow",
+    query_params: { projectIds: workspaceProjectIds, latestResetTime: resetTimeStr },
+  });
+  const rows = await result.json<{ inputTokens: number; cacheReadTokens: number; outputTokens: number }>();
+  const inputTokens = rows.length > 0 ? Number(rows[0].inputTokens) : 0;
+  const cacheReadTokens = rows.length > 0 ? Number(rows[0].cacheReadTokens) : 0;
+  const outputTokens = rows.length > 0 ? Number(rows[0].outputTokens) : 0;
 
-  if (totalSignalSteps + tracesCount > effectiveLimit) {
-    const remaining = Math.max(effectiveLimit - totalSignalSteps, 0);
+  const totalSignalCost = signalTokenCostMicroUsd(inputTokens, cacheReadTokens, outputTokens);
+
+  const effectiveLimit = customSignalCostLimit!;
+  if (totalSignalCost >= effectiveLimit) {
     throw new Error(
-      `Signal steps processed limit exceeded. This job requires at least ${tracesCount} signal steps processed, but your workspace only has ${remaining} remaining out of ${effectiveLimit} allowed this billing period.${isFree ? " Please upgrade your plan." : ""}`
+      `Signal cost limit exceeded. Your workspace has used ${formatUsd(totalSignalCost)} of the ${formatUsd(effectiveLimit)} signal budget allowed this billing period.`
     );
   }
 }
@@ -190,9 +180,8 @@ export async function checkDataRetentionAccess(
     return null;
   }
 
-  const tierKey = info.tierName.trim().toLowerCase();
-  const retentionDays = TIER_RETENTION_DAYS[tierKey];
-  if (retentionDays === undefined) {
+  const cutoff = retentionCutoff(info.tierName);
+  if (!cutoff) {
     return null;
   }
 
@@ -208,9 +197,7 @@ export async function checkDataRetentionAccess(
     return null;
   }
 
-  const retentionCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-
-  if (effectiveStart < retentionCutoff) {
+  if (effectiveStart < cutoff) {
     return Response.json(
       {
         error: `Forbidden.`,

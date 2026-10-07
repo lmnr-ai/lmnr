@@ -5,4 +5,4 @@ CREATE TABLE "sql_templates" (
 	"query" text NOT NULL,
 	"project_id" uuid NOT NULL
 );
-ALTER TABLE "sql_templates" ADD CONSTRAINT "sql_templates_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sql_templates" ADD CONSTRAINT "sql_templates_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

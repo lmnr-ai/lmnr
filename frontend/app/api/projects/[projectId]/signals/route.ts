@@ -1,11 +1,9 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createSignal, deleteSignals, getSignals, GetSignalsSchema, setTemplateSignals } from "@/lib/actions/signals";
 import { apiHandler } from "@/lib/api/api-handler";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ projectId: string }>(async (request, ctx) => {
   const { projectId } = await ctx.params;
@@ -23,11 +21,23 @@ export const GET = apiHandler<{ projectId: string }>(async (request, ctx) => {
 export const POST = apiHandler<{ projectId: string }>(async (request, ctx) => {
   const { projectId } = await ctx.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const subscriberEmail = session?.user?.email ?? undefined;
   const body = await request.json();
 
   const result = await createSignal({ ...body, projectId, subscriberEmail });
+
+  return Response.json(result);
+});
+
+export const PUT = apiHandler<{ projectId: string }>(async (request, ctx) => {
+  const { projectId } = await ctx.params;
+
+  const session = await getServerSession();
+  const subscriberEmail = session?.user?.email ?? undefined;
+  const body = await request.json();
+
+  const result = await setTemplateSignals({ ...body, projectId, subscriberEmail });
 
   return Response.json(result);
 });
@@ -40,18 +50,4 @@ export const DELETE = apiHandler<{ projectId: string }>(async (request, ctx) => 
   const result = await deleteSignals({ projectId, ...body });
 
   return Response.json(result);
-});
-
-export const PUT = apiHandler<{ projectId: string }>(async (request, ctx) => {
-  const { projectId } = await ctx.params;
-
-  const session = await getServerSession(authOptions);
-
-  const subscriberEmail = session?.user?.email ?? undefined;
-
-  const body = await request.json();
-
-  const result = await setTemplateSignals({ ...body, projectId, subscriberEmail });
-
-  return NextResponse.json(result);
 });

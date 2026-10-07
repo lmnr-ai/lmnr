@@ -1,8 +1,16 @@
-import { and, getTableColumns, type SQL, sql } from "drizzle-orm";
+import { and, asc, type Column, getTableColumns, type SQL, sql } from "drizzle-orm";
 import { type PgTable, type SelectedFields, type TableConfig } from "drizzle-orm/pg-core";
 
 import { type PaginatedResponse } from "../types";
 import { db } from "./drizzle";
+
+/**
+ * Ascending order for user-facing names. `ORDER BY <col>` follows the database's
+ * collation, and a C-collation instance sorts every capital ahead of every
+ * lowercase letter ("Zebra" before "apple"), so fold case first. The raw column
+ * is the tiebreak, keeping the order deterministic for names differing only in case.
+ */
+export const ascNameFold = (column: Column): SQL[] => [asc(sql`lower(${column})`), asc(column)];
 
 interface PaginatedGetParams<T extends TableConfig, R> {
   table: PgTable<T>;

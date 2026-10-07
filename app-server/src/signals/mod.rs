@@ -4,6 +4,11 @@
 //! feature. With the feature off, `public.rs` provides no-op stubs so the OSS
 //! build keeps compiling and behaves as if signals never fire.
 
+/// Signal CRUD (validation + orchestration over the `db` layer). Ungated:
+/// writing a signal row is a plain DB write; signal *processing* is what the
+/// `signals` feature gates.
+pub mod service;
+
 #[cfg(feature = "signals")]
 pub mod private;
 
@@ -11,7 +16,7 @@ pub mod private;
 mod public;
 
 #[cfg(feature = "signals")]
-pub use private::{check_and_push_signals, get_trace_structure_as_string};
+pub use private::check_and_push_signals;
 
 #[cfg(not(feature = "signals"))]
-pub use public::{check_and_push_signals, get_trace_structure_as_string};
+pub use public::check_and_push_signals;

@@ -55,6 +55,8 @@ LIMIT n
 Additional rules:
 - Only generate SELECT queries
 - Join relationships: spans.trace_id = traces.id, signal_events.trace_id = traces.id
+- For per-trace signal/cluster questions prefer traces.signal_events and traces.clusters over joining
+  signal_events: ARRAY JOIN signal_events AS e, ARRAY JOIN clusters AS c
 </task>
 
 <examples>
@@ -107,10 +109,29 @@ Has error status: if(status = 'error', 1, 0)
 </examples>`,
 };
 
+const datasetExpressionMode: ModeConfig = {
+  tables: ["dataset_datapoints"],
+  prompt: `<task>
+Generate a ClickHouse SQL expression (NOT a full query).
+This expression will be used as a custom column: SELECT expression FROM dataset_datapoints
+
+Output only the expression - no SELECT, FROM, or WHERE clauses.
+</task>
+
+<examples>
+Extract data field: simpleJSONExtractString(data, 'question')
+Extract target field: simpleJSONExtractString(target, 'answer')
+Extract metadata value: simpleJSONExtractString(metadata, 'key')
+Length of data: length(data)
+Conditional label: if(simpleJSONExtractFloat(target, 'score') > 0.5, 'pass', 'fail')
+</examples>`,
+};
+
 const MODE_CONFIGS: Record<GenerationMode, ModeConfig> = {
   query: queryMode,
   "eval-expression": evalExpressionMode,
   "trace-expression": traceExpressionMode,
+  "dataset-expression": datasetExpressionMode,
 };
 
 export function getGenerationPrompts(mode: GenerationMode = "query", currentQuery?: string) {

@@ -1,11 +1,12 @@
-import { createRenderTemplate } from "@/lib/actions/render-template";
-import { getRenderTemplates } from "@/lib/actions/render-templates";
+import { createRenderTemplate, getRenderTemplates } from "@/lib/actions/render-template";
 import { apiHandler } from "@/lib/api/api-handler";
 
-export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
+export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
+  const type = req.nextUrl.searchParams.get("type") ?? undefined;
 
-  const templates = await getRenderTemplates({ projectId });
+  // zod parse inside the action validates the raw query value
+  const templates = await getRenderTemplates({ projectId, type: type as "span" | "trace" | undefined });
 
   return Response.json(templates);
 });
@@ -18,6 +19,8 @@ export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
     projectId,
     name: body.name,
     code: body.code,
+    type: body.type,
+    whereClause: body.whereClause,
   });
 
   return Response.json(result);

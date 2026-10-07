@@ -1,0 +1,1 @@
+DROP TABLE "labeling_queue_items" CASCADE;

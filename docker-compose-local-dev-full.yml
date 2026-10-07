@@ -19,11 +19,7 @@ services:
       retries: 3
 
   clickhouse:
-    # Version 26.3 will break queries on the spans_v0 view, if they are
-    # not filtered by trace_id and/or ordered by start_time. This is a
-    # known bug, tracking https://github.com/ClickHouse/ClickHouse/pull/101218.
-    # We will pin to the earliest stable version once this is fixed
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:26.5
     pull_policy: always
     container_name: clickhouse
     ports:
@@ -38,6 +34,9 @@ services:
       - type: bind
         source: ./clickhouse-profiles-config.xml
         target: /etc/clickhouse-server/users.d/lmnr.xml
+      - type: bind
+        source: ./clickhouse-server-config.xml
+        target: /etc/clickhouse-server/config.d/lmnr.xml
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
@@ -68,6 +67,19 @@ services:
       timeout: 5s
       retries: 5
 
+  valkey:
+    image: valkey/valkey:9.1
+    pull_policy: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   quickwit:
     image: quickwit/quickwit:v0.8.2
     pull_policy: always
@@ -85,3 +97,4 @@ volumes:
   clickhouse-logs:
   postgres-data:
   quickwit-data:
+  valkey-data:

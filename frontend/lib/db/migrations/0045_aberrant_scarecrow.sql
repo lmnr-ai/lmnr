@@ -3,4 +3,4 @@ CREATE TABLE "shared_payloads" (
 	"project_id" uuid NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "shared_payloads" ADD CONSTRAINT "shared_payloads_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "shared_payloads" ADD CONSTRAINT "shared_payloads_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;

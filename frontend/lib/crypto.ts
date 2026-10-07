@@ -1,27 +1,25 @@
 import _sodium from "libsodium-wrappers";
 
-async function getKeyFromEnv(): Promise<Uint8Array> {
+/** `Buffer.from(hex)` stops at the first non-hex character, so a malformed key would silently shrink. */
+async function hexKeyFromEnv(name: "AEAD_SECRET_KEY" | "SLACK_ENCRYPTION_KEY"): Promise<Uint8Array> {
   await _sodium.ready;
-  const keyHex = process.env.AEAD_SECRET_KEY;
+  const keyHex = process.env[name];
   if (!keyHex) {
-    throw new Error("AEAD_SECRET_KEY environment variable is not set");
+    throw new Error(`${name} environment variable is not set`);
+  }
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    throw new Error(`${name} must be 64 hex characters (32 bytes), got ${keyHex.length} characters`);
   }
   return Buffer.from(keyHex, "hex");
 }
 
-async function getSlackKeyFromEnv(): Promise<Uint8Array> {
-  await _sodium.ready;
-  const keyHex = process.env.SLACK_ENCRYPTION_KEY;
-  if (!keyHex) {
-    throw new Error("SLACK_ENCRYPTION_KEY environment variable is not set");
-  }
-  return Buffer.from(keyHex, "hex");
-}
+const getKeyFromEnv = () => hexKeyFromEnv("AEAD_SECRET_KEY");
+const getSlackKeyFromEnv = () => hexKeyFromEnv("SLACK_ENCRYPTION_KEY");
 
 export async function encodeApiKey(name: string, value: string): Promise<{ value: string; nonce: string }> {
+  const key = await getKeyFromEnv();
   try {
     await _sodium.ready;
-    const key = await getKeyFromEnv();
 
     const nonce = _sodium.randombytes_buf(_sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
     const additionalData = new TextEncoder().encode(name);
@@ -39,14 +37,16 @@ export async function encodeApiKey(name: string, value: string): Promise<{ value
       nonce: Buffer.from(nonce).toString("hex"),
     };
   } catch (error) {
-    throw new Error(`Failed to encode api_key ${name}`);
+    throw new Error(`Failed to encode api_key ${name}`, {
+      cause: error,
+    });
   }
 }
 
 export async function decodeApiKey(name: string, nonce: string, value: string): Promise<string> {
+  const key = await getKeyFromEnv();
   try {
     await _sodium.ready;
-    const key = await getKeyFromEnv();
 
     const nonceBytes = Buffer.from(nonce, "hex");
     const encryptedBytes = Buffer.from(value, "hex");
@@ -61,14 +61,16 @@ export async function decodeApiKey(name: string, nonce: string, value: string): 
     );
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    throw new Error(`Failed to decode api_key ${name}`);
+    throw new Error(`Failed to decode api_key ${name}`, {
+      cause: error,
+    });
   }
 }
 
 export async function encodeSlackToken(teamId: string, token: string): Promise<{ value: string; nonce: string }> {
+  const key = await getSlackKeyFromEnv();
   try {
     await _sodium.ready;
-    const key = await getSlackKeyFromEnv(); // Use Slack-specific key
 
     const nonce = _sodium.randombytes_buf(_sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
     const additionalData = new TextEncoder().encode(teamId);
@@ -86,14 +88,16 @@ export async function encodeSlackToken(teamId: string, token: string): Promise<{
       nonce: Buffer.from(nonce).toString("hex"),
     };
   } catch (error) {
-    throw new Error(`Failed to encode Slack token for team ${teamId}`);
+    throw new Error(`Failed to encode Slack token for team ${teamId}`, {
+      cause: error,
+    });
   }
 }
 
 export async function decodeSlackToken(teamId: string, nonceHex: string, encryptedValue: string): Promise<string> {
+  const key = await getSlackKeyFromEnv();
   try {
     await _sodium.ready;
-    const key = await getSlackKeyFromEnv();
 
     const nonceBytes = Buffer.from(nonceHex, "hex");
     const encryptedBytes = Buffer.from(encryptedValue, "hex");
@@ -108,14 +112,16 @@ export async function decodeSlackToken(teamId: string, nonceHex: string, encrypt
     );
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    throw new Error(`Failed to decode Slack token for team ${teamId}`);
+    throw new Error(`Failed to decode Slack token for team ${teamId}`, {
+      cause: error,
+    });
   }
 }
 
 export async function encryptValue(additionalData: string, value: string): Promise<{ value: string; nonce: string }> {
+  const key = await getKeyFromEnv();
   try {
     await _sodium.ready;
-    const key = await getKeyFromEnv();
 
     const nonce = _sodium.randombytes_buf(_sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
     const additionalDataEncoded = new TextEncoder().encode(additionalData);
@@ -133,14 +139,16 @@ export async function encryptValue(additionalData: string, value: string): Promi
       nonce: Buffer.from(nonce).toString("hex"),
     };
   } catch (error) {
-    throw new Error(`Failed to encode value with additional data: ${additionalData}`);
+    throw new Error(`Failed to encode value with additional data: ${additionalData}`, {
+      cause: error,
+    });
   }
 }
 
 export async function decryptValue(additionalData: string, nonce: string, value: string): Promise<string> {
+  const key = await getKeyFromEnv();
   try {
     await _sodium.ready;
-    const key = await getKeyFromEnv();
 
     const nonceBytes = Buffer.from(nonce, "hex");
     const encryptedBytes = Buffer.from(value, "hex");
@@ -155,7 +163,9 @@ export async function decryptValue(additionalData: string, nonce: string, value:
     );
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    throw new Error(`Failed to decode value with additional data: ${additionalData}`);
+    throw new Error(`Failed to decode value with additional data: ${additionalData}`, {
+      cause: error,
+    });
   }
 }
 
@@ -169,6 +179,8 @@ export async function generateKeyPair(): Promise<{ publicKey: string; privateKey
       privateKey: Buffer.from(keyPair.privateKey).toString("base64"),
     };
   } catch (error) {
-    throw new Error(`Failed to generate Ed25519 key pair`);
+    throw new Error(`Failed to generate Ed25519 key pair`, {
+      cause: error,
+    });
   }
 }

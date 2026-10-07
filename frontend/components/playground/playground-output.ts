@@ -29,9 +29,9 @@ const initialState: OutputState = {
   toolCalls: [],
   usage: {
     inputTokens: 0,
+    inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
     outputTokens: 0,
-    reasoningTokens: 0,
-    cachedInputTokens: 0,
+    outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
     totalTokens: 0,
   },
   history: false,

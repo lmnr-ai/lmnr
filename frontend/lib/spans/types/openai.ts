@@ -3,7 +3,6 @@ import { map } from "lodash";
 import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 
 /** Part Schemas**/
 export const OpenAITextPartSchema = z.object({
@@ -244,52 +243,10 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
   });
 };
 
-export const downloadOpenAIImages = async (
-  messages: z.infer<typeof OpenAIMessagesSchema>
-): Promise<z.infer<typeof OpenAIMessagesSchema>> =>
-  Promise.all(
-    messages.map(async (message) => {
-      if (message.role === "user" && Array.isArray(message.content)) {
-        const processedContent = await Promise.all(
-          message.content.map(async (part) => {
-            if (part.type === "image_url") {
-              const url = part.image_url.url;
-              try {
-                if (isStorageUrl(url)) {
-                  const base64Image = await urlToBase64(url);
-                  return {
-                    ...part,
-                    image_url: {
-                      ...part.image_url,
-                      url: base64Image,
-                    },
-                  };
-                }
-                return part;
-              } catch (error) {
-                console.error("Error processing image part:", error);
-                return {
-                  type: "text" as const,
-                  text: `[Image processing failed: ${part.image_url.url}]`,
-                };
-              }
-            }
-            return part;
-          })
-        );
-
-        return { ...message, content: processedContent };
-      }
-
-      return message;
-    })
-  );
-
 export const convertOpenAIToPlaygroundMessages = async (
   messages: z.infer<typeof OpenAIMessagesSchema>
-): Promise<Message[]> => {
-  const convertedImagesMessages = await downloadOpenAIImages(messages);
-  return convertOpenAIToChatMessages(convertedImagesMessages).map((message) => {
+): Promise<Message[]> =>
+  convertOpenAIToChatMessages(messages).map((message) => {
     if (typeof message.content === "string") {
       return {
         ...message,
@@ -298,4 +255,3 @@ export const convertOpenAIToPlaygroundMessages = async (
     }
     return message as Message;
   });
-};

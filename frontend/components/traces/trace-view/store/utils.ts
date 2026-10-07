@@ -1,4 +1,4 @@
-import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./base";
+import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./types";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;
@@ -9,6 +9,7 @@ export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
   branchMask: boolean[]; // branchMask[d] = true if ancestor at depth d has more children below
+  hasChildren: boolean; // structural children exist (independent of collapse / content-expandability)
   pending: boolean;
   pathInfo: PathInfo;
   // Keep yOffset/parentY for backward compatibility (minimap uses them)
@@ -95,6 +96,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
       span,
       depth,
       branchMask,
+      hasChildren: (childSpans[span.spanId]?.length ?? 0) > 0,
       yOffset,
       parentY,
       pending: span.pending || false,
@@ -267,20 +269,32 @@ const compositeKey = (parentSpanPath: string, promptHash: string, invocationRoot
 const pathHashKey = (parentSpanPath: string, promptHash: string): string => `${parentSpanPath}\0${promptHash}`;
 
 /**
- * For each cluster of LLMs sharing `(parentSpanPath, promptHash)`, return
- * each LLM's invocation root key: a string identifying the unique ancestor
- * chain that distinguishes its invocation from other invocations of the same
- * subagent. `""` means every member shares the same chain (one invocation).
+ * For each cluster of LLMs sharing `(parentSpanPath, promptHash)`, return each
+ * LLM's invocation root key: a string distinguishing its invocation from other
+ * invocations of the same subagent. `""` means one invocation.
  *
- * The key is the full structural portion of `ids_path` — every ancestor
- * except the last two positions (the LLM itself and its direct parent), which
- * are iteration noise: some SDKs reuse one loop body across iterations,
- * others spawn a fresh one per iteration; both are still one invocation.
+ * The key is a structural prefix of `ids_path`; how deep is decided per-span
+ * by whether *that span's own* direct parent is a real subagent container or
+ * per-iteration noise:
+ *  - If the LLM's direct parent holds 2+ of the cluster's LLMs, that parent ran
+ *    the subagent (looping internally), so it stays in the key (`ids_path`
+ *    minus the LLM itself). This separates sibling subagents that share a name
+ *    — hence a `parentSpanPath` — but directly parent their own LLM calls (e.g.
+ *    two Claude Code "Agent" tool spans, each making several calls).
+ *  - Otherwise the direct parent is a per-call wrapper (some SDKs spawn a fresh
+ *    loop body per iteration), so it's dropped with the LLM (`ids_path` minus
+ *    the last two); iterations then collapse while divergence higher up still
+ *    separates distinct invocations.
  *
- * Using the full structural prefix (rather than a single divergence-index
- * value) correctly partitions a cluster with multiple divergence depths —
- * e.g. two invocations sharing depth-1 but diverging at depth-2 stay
- * separate even when a third invocation diverges from them at depth-1.
+ * The decision is per-span, not per-cluster: a cluster can mix container
+ * parents and per-iteration wrappers (when they share a name), and each must
+ * be trimmed by its own rule. Within a cluster all members share one
+ * `parentSpanPath`, hence one `ids_path` length, so container keys (length-1
+ * trim) and noise keys (length-2 trim) never collide.
+ *
+ * Using the full structural prefix (not a single divergence index) correctly
+ * partitions a cluster with multiple divergence depths. Falls back to
+ * `parent_span_id` when `ids_path` is absent (older instrumentation).
  */
 const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => {
   const out = new Map<string, string>();
@@ -289,7 +303,25 @@ const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => 
     return out;
   }
 
-  const structuralPrefix = (s: LlmSpanInfo): string => (s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0"));
+  const directParentId = (s: LlmSpanInfo): string =>
+    s.idsPath.length >= 2 ? s.idsPath[s.idsPath.length - 2] : s.parentSpanId;
+
+  // Count how many of the cluster's LLMs sit under each direct parent.
+  const llmsPerParent = new Map<string, number>();
+  for (const s of cluster) {
+    const p = directParentId(s);
+    llmsPerParent.set(p, (llmsPerParent.get(p) ?? 0) + 1);
+  }
+
+  const structuralPrefix = (s: LlmSpanInfo): string => {
+    const p = directParentId(s);
+    // This span's own parent is a real container (2+ cluster LLMs) → keep it.
+    if ((llmsPerParent.get(p) ?? 0) >= 2) {
+      return s.idsPath.length >= 2 ? s.idsPath.slice(0, -1).join("\0") : p;
+    }
+    // Per-iteration wrapper → drop it (and the LLM) as noise.
+    return s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0");
+  };
 
   const keys = cluster.map(structuralPrefix);
   const firstKey = keys[0];
@@ -340,8 +372,8 @@ const computeSubagentBoundaries = (spans: TraceViewSpan[]): SubagentLlmGrouping 
     const spanPathAttr = span.attributes?.["lmnr.span.path"];
     const spanPathArr = Array.isArray(spanPathAttr) ? spanPathAttr : [];
     // Drop the trailing leaf — it can be dynamic (e.g. tool name per call) while
-    // still being the same agent step. Must stay in sync with `arrayPopBack(splitByChar('.', path))`
-    // in lib/actions/sessions/trace-io.ts (TOP_PATH_QUERY) and useTraceUserInput.
+    // still being the same agent step (mirrors the app-server compression
+    // boundary logic in signals/private/compression/boundaries.rs).
     const parentSpanPath = spanPathArr.slice(0, -1).join(".");
 
     llmSpans.push({
@@ -826,13 +858,13 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
   // Gravity algorithm: compact spans upward while respecting parent-child invariant
   const rowAssignments = new Map<string, number>();
-  const rowOccupancy: Array<Array<{ left: number; right: number; spanId: string }>> = [];
+  const rowOccupancy: Array<Array<{ startMs: number; endMs: number; spanId: string }>> = [];
 
-  // Helper to check if a span overlaps with any existing span in a row
-  const hasOverlap = (row: number, left: number, right: number, excludeSpanId?: string): boolean => {
+  // Compare source timestamps; percentage geometry can introduce false overlaps through floating-point rounding.
+  const hasOverlap = (row: number, startMs: number, endMs: number, excludeSpanId?: string): boolean => {
     if (!rowOccupancy[row]) return false;
     return rowOccupancy[row].some(
-      (occupant) => occupant.spanId !== excludeSpanId && !(right <= occupant.left || left >= occupant.right)
+      (occupant) => occupant.spanId !== excludeSpanId && !(endMs <= occupant.startMs || startMs >= occupant.endMs)
     );
   };
 
@@ -849,10 +881,7 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
     // Find the lowest valid row (closest to top)
     let targetRow = minRow;
-    const leftBound = item.left;
-    const rightBound = item.left + item.width;
-
-    while (hasOverlap(targetRow, leftBound, rightBound)) {
+    while (hasOverlap(targetRow, item.startMs, item.endMs)) {
       targetRow++;
     }
 
@@ -864,8 +893,8 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
       rowOccupancy[targetRow] = [];
     }
     rowOccupancy[targetRow].push({
-      left: leftBound,
-      right: rightBound,
+      startMs: item.startMs,
+      endMs: item.endMs,
       spanId: item.span.spanId,
     });
   }

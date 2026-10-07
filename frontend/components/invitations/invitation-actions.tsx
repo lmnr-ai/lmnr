@@ -31,13 +31,15 @@ export default function InvitationActions({
   };
 
   return (
-    <div className="flex gap-4 w-full justify-center mt-6">
-      <form action={handleAccept}>
-        <Button type="submit">Accept</Button>
-      </form>
-      <form action={handleDecline}>
-        <Button type="submit" variant="outline">
+    <div className="flex gap-2 w-full pt-2">
+      <form action={handleDecline} className="flex-1">
+        <Button type="submit" variant="outline" className="w-full">
           Decline
+        </Button>
+      </form>
+      <form action={handleAccept} className="flex-1">
+        <Button type="submit" className="w-full">
+          Accept
         </Button>
       </form>
     </div>

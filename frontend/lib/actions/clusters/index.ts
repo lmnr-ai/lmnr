@@ -3,30 +3,27 @@ import { z } from "zod/v4";
 import { TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 
-export type EventCluster = {
-  id: string;
-  name: string;
-  parentId: string | null;
-  level: number;
-  numChildrenClusters: number;
-  numEvents: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import { type EventCluster } from "./types";
 
-export const UNCLUSTERED_ID = "__unclustered__";
+export { type EventCluster, UNCLUSTERED_ID } from "./types";
 
 export const GetEventClustersSchema = z.object({
+  ...TimeRangeSchema.shape,
   projectId: z.guid(),
   signalId: z.guid(),
 });
 
-// QUESTION: wait is this a paginated query?
-// If not why not? It's paginated in the UI right?
 export async function getEventClusters(
   input: z.infer<typeof GetEventClustersSchema>
 ): Promise<{ items: EventCluster[]; totalEventCount: number; clusteredEventCount: number }> {
-  const { projectId, signalId } = GetEventClustersSchema.parse(input);
+  const { projectId, signalId, pastHours, startDate, endDate } = GetEventClustersSchema.parse(input);
+
+  const { timeClause, params: timeParams } = buildTimeRangeClauses({
+    timeColumn: "timestamp",
+    pastHours,
+    startTime: startDate,
+    endTime: endDate,
+  });
 
   const clustersQuery = `
     SELECT
@@ -41,6 +38,13 @@ export async function getEventClusters(
     FROM clusters
     WHERE signal_id = {signalId: UUID}
       AND level != 0
+      AND id IN (
+        SELECT DISTINCT cluster_id
+        FROM signal_events
+        ARRAY JOIN clusters AS cluster_id
+        WHERE signal_id = {signalId: UUID}
+          ${timeClause}
+      )
     ORDER BY num_signal_events DESC, level ASC, created_at ASC
   `;
 
@@ -48,6 +52,7 @@ export async function getEventClusters(
     SELECT count() as count
     FROM signal_events
     WHERE signal_id = {signalId: UUID}
+      ${timeClause}
   `;
 
   const unclusteredCountQuery = `
@@ -55,6 +60,7 @@ export async function getEventClusters(
     FROM signal_events
     WHERE signal_id = {signalId: UUID}
       AND empty(clusters)
+      ${timeClause}
   `;
 
   const [rows, countResult, unclusteredCountResult] = await Promise.all([
@@ -69,17 +75,17 @@ export async function getEventClusters(
       updatedAt: string;
     }>({
       query: clustersQuery,
-      parameters: { signalId },
+      parameters: { signalId, ...timeParams },
       projectId,
     }),
     executeQuery<{ count: number }>({
       query: countQuery,
-      parameters: { signalId },
+      parameters: { signalId, ...timeParams },
       projectId,
     }),
     executeQuery<{ count: number }>({
       query: unclusteredCountQuery,
-      parameters: { signalId },
+      parameters: { signalId, ...timeParams },
       projectId,
     }),
   ]);
@@ -128,8 +134,8 @@ interface TimeRangeClauseInput {
   pastHours: string | null | undefined;
   startTime: string | null | undefined;
   endTime: string | null | undefined;
-  intervalValue: number;
-  intervalUnit: "minute" | "hour" | "day";
+  intervalValue?: number;
+  intervalUnit?: "minute" | "hour" | "day";
 }
 
 interface TimeRangeClauses {
@@ -147,10 +153,12 @@ const buildTimeRangeClauses = ({
   intervalUnit,
 }: TimeRangeClauseInput): TimeRangeClauses => {
   const timeConditions: string[] = [];
-  const params: Record<string, unknown> = {
-    intervalValue,
-    intervalUnit,
-  };
+  const params: Record<string, unknown> = {};
+  const withFill = intervalValue !== undefined && intervalUnit !== undefined;
+  if (withFill) {
+    params.intervalValue = intervalValue;
+    params.intervalUnit = intervalUnit;
+  }
 
   let fillFrom: string | null = null;
   let fillTo: string | null = null;
@@ -158,18 +166,24 @@ const buildTimeRangeClauses = ({
   if (pastHours && !isNaN(parseFloat(pastHours))) {
     timeConditions.push(`${timeColumn} >= now() - INTERVAL {pastHours: UInt32} HOUR`);
     params.pastHours = parseInt(pastHours);
-    fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
-    fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    if (withFill) {
+      fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
   } else {
     if (startTime) {
       timeConditions.push(`${timeColumn} >= {startTime: String}`);
       params.startTime = startTime.replace("Z", "");
-      fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      if (withFill) {
+        fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      }
     }
     if (endTime) {
       timeConditions.push(`${timeColumn} <= {endTime: String}`);
       params.endTime = endTime.replace("Z", "");
-      fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      if (withFill) {
+        fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      }
     }
   }
 

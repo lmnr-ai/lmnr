@@ -1,27 +1,33 @@
 import "@/app/globals.css";
 import "@/app/scroll.css";
-
 import { type Metadata } from "next";
-import { getServerSession } from "next-auth";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
+import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
 import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
-import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
+import { manrope, sans, sansLanding } from "@/lib/fonts";
+import { description, ogImage, title } from "@/lib/metadata";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
   title: {
-    default: "Laminar - Open-source observability for long-running agents",
+    default: title,
     template: "%s | Laminar",
   },
-  description:
-    "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+  description,
+  // Orange icon in dev so a local tab is distinguishable from a prod one.
+  // Both live in public/ rather than app/: an app/favicon.ico is always
+  // prepended to metadata.icons and would win here (vercel/next.js#55767).
+  icons: {
+    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/favicon.ico",
+  },
   keywords: [
     "laminar",
     "evals",
@@ -47,28 +53,17 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar - Open-source observability for long-running agents",
-    description:
-      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
+    title,
+    description,
     siteName: "Laminar",
-    images: {
-      url: "/opengraph-image.png",
-      alt: "Laminar - Open-source observability for long-running agents",
-      width: 1200,
-      height: 630,
-    },
+    url: "https://laminar.sh",
+    images: [ogImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Laminar - Open-source observability for long-running agents",
-    description:
-      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
-    images: {
-      url: "/twitter-image.png",
-      alt: "Laminar - Open-source observability for long-running agents",
-      width: 1200,
-      height: 630,
-    },
+    title,
+    description,
+    images: [ogImage],
   },
 };
 
@@ -76,29 +71,28 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
 
   const posthogEnabled = featureFlags[Feature.POSTHOG];
-  const session = posthogEnabled ? await getServerSession(authOptions).catch(() => null) : null;
+  const session = posthogEnabled ? await getServerSession().catch(() => null) : null;
   const email = session?.user?.email ?? undefined;
 
-  const body = (
-    <body className="flex flex-col h-full">
-      <NuqsAdapter>
-        <div className="flex">
-          <div className="flex flex-col grow max-w-full min-h-screen">
-            <main className="z-10 flex flex-col grow">{children}</main>
-            <Toaster />
-          </div>
-        </div>
-      </NuqsAdapter>
-    </body>
-  );
-
   return (
-    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
-      <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
-          {body}
-        </PostHogProvider>
-      </FeatureFlagsProvider>
+    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
+      <body className="flex flex-col h-full">
+        <BasePathFetchShim />
+        <FeatureFlagsProvider flags={featureFlags}>
+          <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+            <TooltipProvider delayDuration={0}>
+              <NuqsAdapter>
+                <div className="flex">
+                  <div className="flex flex-col grow max-w-full min-h-screen">
+                    <main className="z-10 flex flex-col grow">{children}</main>
+                    <Toaster />
+                  </div>
+                </div>
+              </NuqsAdapter>
+            </TooltipProvider>
+          </PostHogProvider>
+        </FeatureFlagsProvider>
+      </body>
     </html>
   );
 }

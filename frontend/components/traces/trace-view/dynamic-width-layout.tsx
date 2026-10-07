@@ -7,7 +7,7 @@ import { computeLayout, type ResizablePanel, type Visible } from "@/components/t
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 
-import { type TraceViewPanels } from "./trace-view-content";
+import { type TraceViewPanels } from "./trace-view-panels";
 
 const enterExitTransition = { duration: 0.25, ease: "easeOut" } as const;
 const instantTransition = { duration: 0 } as const;
@@ -45,10 +45,7 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
     return () => observer.disconnect();
   }, [sidePanelRef, setMaxWidth]);
 
-  const visible = useMemo<Visible>(
-    () => ({ span: panels.showSpan, chat: panels.showChat }),
-    [panels.showSpan, panels.showChat]
-  );
+  const visible = useMemo<Visible>(() => ({ span: panels.showSpan }), [panels.showSpan]);
 
   const widths = useMemo(() => computeLayout(targets, visible, maxWidth), [targets, visible, maxWidth]);
 
@@ -57,11 +54,11 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
     [resizePanel, visible]
   );
 
-  const traceResize = usePanelResize("trace", dragPanel);
+  // Trace's left-edge handle lives at the side-panel level (TraceViewSidePanel) so it
+  // spans the full height including the header/chart area above this layout.
   const spanResize = usePanelResize("span", dragPanel);
-  const chatResize = usePanelResize("chat", dragPanel);
 
-  const isResizing = traceResize.isResizing || spanResize.isResizing || chatResize.isResizing;
+  const isResizing = spanResize.isResizing;
   const transition = !isResizing && layoutChangeSource === "visibility" ? enterExitTransition : instantTransition;
 
   return (
@@ -75,7 +72,6 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
           animate={{ width: widths.trace }}
           transition={transition}
         >
-          <LeftEdgeResizeHandle onMouseDown={traceResize.handleMouseDown} />
           {panels.tracePanel}
         </motion.div>
 
@@ -91,25 +87,8 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
               transition={transition}
             >
               <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.span }}>
-                <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
+                <LeftEdgeResizeHandle onPointerDown={spanResize.handlePointerDown} />
                 {panels.spanPanel}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Chat Panel */}
-          {panels.showChat && panels.chatPanel && (
-            <motion.div
-              key="chat-panel"
-              className="relative h-full flex-shrink-0 overflow-hidden"
-              initial={{ width: 0, opacity: 0.5 }}
-              animate={{ width: widths.chat, opacity: 1 }}
-              exit={{ width: 0, opacity: 0.5 }}
-              transition={transition}
-            >
-              <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.chat }}>
-                <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
-                {panels.chatPanel}
               </div>
             </motion.div>
           )}

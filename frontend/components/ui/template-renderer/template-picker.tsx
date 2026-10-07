@@ -1,7 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, ChevronDown, Loader2, PencilIcon, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type MouseEvent,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
 
@@ -22,10 +31,17 @@ import { swrFetcher } from "@/lib/api/fetch-api.ts";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { defaultTemplateValues, type ManageTemplateForm, manageTemplateSchema, type Template } from "./index";
+import {
+  defaultTemplateValues,
+  type ManageTemplateForm,
+  manageTemplateSchema,
+  type Template,
+  type TemplateScope,
+} from "./index";
+import { type ManageTemplateMode } from "./manage-template-mode";
 import { useTemplateRenderer } from "./template-renderer-store";
 
-export type ManageTemplateMode = "create" | "edit" | null;
+export type { ManageTemplateMode };
 
 interface TemplateInfo {
   id: string;
@@ -36,7 +52,11 @@ interface TemplatePickerContextValue {
   templates: TemplateInfo[] | undefined;
   selectedTemplate: Template | null;
   isLoadingTemplate: boolean;
-  selectTemplate: (templateId: string) => Promise<void>;
+  /** True while the manage dialog is open — selectedTemplate then reflects
+   *  unsaved draft form values, so consumers should hold off side effects. */
+  isManaging: boolean;
+  /** Loads a template into the form. Resolves `true` only when the fetch succeeded and hydrated. */
+  selectTemplate: (templateId: string) => Promise<boolean>;
   openCreate: () => void;
   openEdit: () => void;
 }
@@ -52,17 +72,29 @@ export const useTemplatePicker = () => {
 interface TemplatePickerProviderProps {
   presetKey: string | null;
   testData: string;
+  /** Which templates to list/create. "span" (default) renders single-span data;
+   *  "trace" templates carry a SQL WHERE filter and render spans of a trace. */
+  scope?: TemplateScope;
+  /** Trace whose span outline enriches the copied AI prompt (trace scope only). */
+  traceId?: string;
 }
 
 export const TemplatePickerProvider = ({
   presetKey,
   testData,
+  scope = "span",
+  traceId,
   children,
 }: PropsWithChildren<TemplatePickerProviderProps>) => {
-  const { projectId } = useParams();
+  const { projectId } = useParams<{ projectId?: string }>();
   const { toast } = useToast();
 
-  const { data: templates } = useSWR<TemplateInfo[]>(`/api/projects/${projectId}/render-templates`, swrFetcher);
+  // Shared pages have no projectId; fetching would 401 → sign-in via swrFetcher.
+  const templatesBaseUrl = projectId ? `/api/projects/${projectId}/render-templates` : null;
+  const { data: templates } = useSWR<TemplateInfo[]>(
+    templatesBaseUrl ? `${templatesBaseUrl}?type=${scope}` : null,
+    swrFetcher
+  );
 
   const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
@@ -70,8 +102,17 @@ export const TemplatePickerProvider = ({
     resolver: zodResolver(manageTemplateSchema),
     defaultValues: defaultTemplateValues,
   });
-  const { reset, getValues, control } = methods;
+  const { reset, getValues, setValue, control } = methods;
   const form = useWatch({ control });
+
+  // Keep the form's testData in sync with the live payload. In the trace view
+  // the data arrives async (and refetches when the WHERE filter changes), so a
+  // reset at select/hydration time captures a stale/empty value otherwise.
+  useEffect(() => {
+    if (getValues("testData") !== testData) {
+      setValue("testData", testData, { shouldDirty: false });
+    }
+  }, [testData, getValues, setValue]);
 
   const [manageMode, setManageMode] = useState<ManageTemplateMode>(null);
   const [backup, setBackup] = useState<ManageTemplateForm | null>(null);
@@ -79,8 +120,9 @@ export const TemplatePickerProvider = ({
 
   const fetchTemplate = useCallback(
     async (templateId: string): Promise<Template | null> => {
+      if (!templatesBaseUrl) return null;
       try {
-        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`);
+        const res = await fetch(`${templatesBaseUrl}/${templateId}`);
         if (!res.ok) {
           const err = await res.json().catch(() => null);
           throw new Error(err?.error ?? "Failed to fetch template");
@@ -95,7 +137,7 @@ export const TemplatePickerProvider = ({
         return null;
       }
     },
-    [projectId, toast]
+    [templatesBaseUrl, toast]
   );
 
   // Hydrate from persisted preset once templates load. `testData` omitted intentionally —
@@ -109,7 +151,7 @@ export const TemplatePickerProvider = ({
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(storedId);
-        if (full) reset({ ...full, testData });
+        if (full) reset({ ...full, scope, testData });
       } finally {
         setIsLoadingTemplate(false);
       }
@@ -119,26 +161,32 @@ export const TemplatePickerProvider = ({
   }, [presetKey, templates, getPresetTemplate, fetchTemplate, reset]);
 
   const selectTemplate = useCallback(
-    async (templateId: string) => {
+    async (templateId: string): Promise<boolean> => {
       const t = templates?.find((x) => x.id === templateId);
-      if (!t) return;
+      if (!t) return false;
       if (presetKey) setPresetTemplate(presetKey, templateId);
       setIsLoadingTemplate(true);
       try {
         const full = await fetchTemplate(templateId);
-        if (full) reset({ ...full, testData });
+        if (!full) return false;
+        reset({ ...full, scope, testData });
+        return true;
       } finally {
         setIsLoadingTemplate(false);
       }
     },
-    [templates, presetKey, setPresetTemplate, fetchTemplate, reset, testData]
+    [templates, presetKey, setPresetTemplate, fetchTemplate, reset, scope, testData]
   );
 
   const openCreate = useCallback(() => {
     setBackup(getValues());
-    reset({ ...defaultTemplateValues, testData });
+    reset({
+      ...defaultTemplateValues,
+      scope,
+      testData,
+    });
     setManageMode("create");
-  }, [getValues, reset, testData]);
+  }, [getValues, reset, scope, testData]);
 
   const openEdit = useCallback(() => {
     const current = getValues();
@@ -160,26 +208,33 @@ export const TemplatePickerProvider = ({
 
   const selectedTemplate = useMemo<Template | null>(() => {
     if (!form?.id || !form?.name || !form?.code) return null;
-    return { id: form.id, name: form.name, code: form.code };
-  }, [form?.id, form?.name, form?.code]);
+    return { id: form.id, name: form.name, code: form.code, scope: form.scope, whereClause: form.whereClause };
+  }, [form?.id, form?.name, form?.code, form?.scope, form?.whereClause]);
 
   const contextValue = useMemo<TemplatePickerContextValue>(
     () => ({
       templates,
       selectedTemplate,
       isLoadingTemplate,
+      isManaging: manageMode !== null,
       selectTemplate,
       openCreate,
       openEdit,
     }),
-    [templates, selectedTemplate, isLoadingTemplate, selectTemplate, openCreate, openEdit]
+    [templates, selectedTemplate, isLoadingTemplate, manageMode, selectTemplate, openCreate, openEdit]
   );
 
   return (
     <FormProvider {...methods}>
       <TemplatePickerContext.Provider value={contextValue}>
         {children}
-        <ManageTemplateDialog mode={manageMode} onCancel={cancelManage} onSaved={completeSave} />
+        <ManageTemplateDialog
+          mode={manageMode}
+          scope={scope}
+          traceId={traceId}
+          onCancel={cancelManage}
+          onSaved={completeSave}
+        />
       </TemplatePickerContext.Provider>
     </FormProvider>
   );
@@ -200,7 +255,7 @@ const GROUP_CLASS =
 const formatLabel = (m: string) => (m.toLowerCase() === "messages" ? "LLM Messages" : m);
 
 export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName }: TemplatePickerViewProps) => {
-  const { templates, selectedTemplate, selectTemplate, openCreate } = useTemplatePicker();
+  const { templates, selectedTemplate, selectTemplate, openCreate, openEdit } = useTemplatePicker();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -245,6 +300,23 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
     setOpen(false);
   }, [openCreate]);
 
+  // Editing a template must load it into the shared form first (the manage
+  // dialog reads it via useFormContext), so edit implies selecting it.
+  const handleEditTemplate = useCallback(
+    async (e: MouseEvent, id: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setOpen(false);
+      // Don't open edit on a failed load — fetchTemplate already toasted, and
+      // openEdit would otherwise snapshot stale/empty form values.
+      if (selectedTemplate?.id !== id && !(await selectTemplate(id))) {
+        return;
+      }
+      openEdit();
+    },
+    [selectedTemplate, selectTemplate, openEdit]
+  );
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -252,7 +324,7 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
           size="sm"
           variant="ghost"
           className={cn(
-            "h-5 gap-1 rounded-md border border-secondary-foreground/20 bg-muted px-1.5 text-[0.7rem] font-medium text-secondary-foreground hover:bg-muted",
+            "h-5 gap-1 bg-surface-up-2 px-1.5 text-xs font-medium text-secondary-foreground hover:bg-surface-up-4 active:bg-surface-up-5 data-[state=open]:bg-surface-up-5",
             triggerClassName
           )}
         >
@@ -303,10 +375,20 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
                         key={t.id}
                         value={`template:${t.id}`}
                         onSelect={() => handlePickTemplate(t.id)}
-                        className="text-xs"
+                        className="group text-xs"
                       >
                         <span className="flex-1 truncate">{t.name}</span>
-                        {active && <Check className="ml-2 size-3.5 shrink-0" />}
+                        <div className="ml-2 flex shrink-0 items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${t.name}`}
+                            onClick={(e) => handleEditTemplate(e, t.id)}
+                            className="inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-aria-selected:opacity-100 focus-visible:opacity-100"
+                          >
+                            <PencilIcon className="size-3" />
+                          </button>
+                          {active && <Check className="size-3.5" />}
+                        </div>
                       </CommandItem>
                     );
                   })
@@ -335,11 +417,11 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
+        className="gap-1 text-muted-foreground"
         onClick={openEdit}
         title="Edit template"
       >
-        <PencilIcon className="size-3.5" />
+        <PencilIcon data-icon="inline-start" className="size-3.5" />
         Edit template
       </Button>
     </div>
@@ -349,9 +431,10 @@ export const TemplatePickerActions = ({ className }: { className?: string }) => 
 interface TemplatePickerPreviewProps {
   data: string;
   className?: string;
+  onSelectSpan?: (spanId: string) => void;
 }
 
-export const TemplatePickerPreview = ({ data, className }: TemplatePickerPreviewProps) => {
+export const TemplatePickerPreview = ({ data, className, onSelectSpan }: TemplatePickerPreviewProps) => {
   const { selectedTemplate, openCreate, templates, isLoadingTemplate } = useTemplatePicker();
 
   if (isLoadingTemplate) {
@@ -371,12 +454,20 @@ export const TemplatePickerPreview = ({ data, className }: TemplatePickerPreview
             : "Create a template to render this content as a custom view."}
         </p>
         <Button variant="secondary" onClick={openCreate}>
-          <Plus className="mr-1.5 size-3.5" />
+          <Plus data-icon="inline-start" className="mr-1.5 size-3.5" />
           Template
         </Button>
       </div>
     );
   }
 
-  return <JsxRenderer className={cn("rounded-none", className)} code={selectedTemplate.code} data={data} autoHeight />;
+  return (
+    <JsxRenderer
+      className={cn("rounded-none", className)}
+      code={selectedTemplate.code}
+      data={data}
+      autoHeight
+      onSelectSpan={onSelectSpan}
+    />
+  );
 };

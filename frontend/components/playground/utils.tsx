@@ -1,124 +1,63 @@
 import { jsonSchema, tool } from "ai";
 import { get, pickBy } from "lodash";
-import { type ReactNode } from "react";
 
-import { type Provider, providers } from "@/components/playground/types";
-import {
-  IconAmazonBedrock,
-  IconAnthropic,
-  IconAzure,
-  IconGemini,
-  IconGoogle,
-  IconGroq,
-  IconMistral,
-  IconOpenAI,
-} from "@/components/ui/icons";
-import { EnvVars } from "@/lib/env/utils";
+import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
+import { type LlmProfileProvider } from "@/lib/actions/llm-profiles/schema";
+import { matchKnownModel, thinkingNamespace } from "@/lib/playground/providers";
 import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
 import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
 import { type ProviderOptions } from "@/lib/playground/types";
 import { type Span } from "@/lib/traces/types";
 
-export const providerIconMap: Record<Provider, ReactNode> = {
-  openai: <IconOpenAI />,
-  anthropic: <IconAnthropic />,
-  gemini: <IconGemini />,
-  groq: <IconGroq />,
-  mistral: <IconMistral />,
-  bedrock: <IconAmazonBedrock />,
-  "openai-azure": <IconAzure />,
-};
-
-export const providerNameMap: Record<Provider, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  gemini: "Gemini",
-  groq: "Groq",
-  mistral: "Mistral",
-  bedrock: "Amazon Bedrock",
-  "openai-azure": "Azure",
-};
-
-export const envVarsToIconMap: Record<EnvVars, ReactNode> = {
-  [EnvVars.OPENAI_API_KEY]: <IconOpenAI />,
-  [EnvVars.GEMINI_API_KEY]: <IconGemini />,
-  [EnvVars.GROQ_API_KEY]: <IconGroq />,
-  [EnvVars.ANTHROPIC_API_KEY]: <IconAnthropic />,
-  [EnvVars.MISTRAL_API_KEY]: <IconMistral />,
-  [EnvVars.OPENAI_AZURE_API_KEY]: <IconAzure />,
-  [EnvVars.OPENAI_AZUURE_DEPLOYMENT_NAME]: <IconAzure />,
-  [EnvVars.OPENAI_AZUURE_RESOURCE_ID]: <IconAzure />,
-  [EnvVars.AWS_REGION]: <IconAmazonBedrock />,
-  [EnvVars.AWS_ACCESS_KEY_ID]: <IconAmazonBedrock />,
-  [EnvVars.AWS_SECRET_ACCESS_KEY]: <IconAmazonBedrock />,
-  [EnvVars.GOOGLE_SEARCH_ENGINE_ID]: <IconGoogle />,
-  [EnvVars.GOOGLE_SEARCH_API_KEY]: <IconGoogle />,
-};
-
 export const defaultMaxTokens = 1024;
 export const defaultTemperature = 1;
 
-export const getDefaultThinkingModelProviderOptions = <P extends Provider, K extends string>(
-  value: `${P}:${K}`
+export const getDefaultThinkingModelProviderOptions = (
+  provider: LlmProfileProvider | undefined,
+  model: string
 ): ProviderOptions => {
-  const [provider] = value.split(":") as [P, K];
-  if (
-    [...anthropicThinkingModels, ...googleThinkingModels, ...openAIThinkingModels].find((m) => m === (value as string))
-  ) {
-    switch (provider) {
-      case "anthropic": {
-        const anthropicConfig =
-          anthropicProviderOptionsSettings[value as (typeof anthropicThinkingModels)[number]].thinking;
-        if (anthropicConfig.type === "effort") {
-          return {
-            anthropic: {
-              thinking: { type: "adaptive" },
-              effort: "medium",
-            },
-          };
-        }
-        return {
-          anthropic: {
-            thinking: {
-              type: "disabled",
-            },
-          },
-        };
+  switch (thinkingNamespace(provider)) {
+    case "anthropic": {
+      const known = matchKnownModel(anthropicThinkingModels, model);
+      if (!known) return {};
+      if (anthropicProviderOptionsSettings[known].thinking.type === "effort") {
+        return { anthropic: { thinking: { type: "adaptive" }, effort: "medium" } };
       }
-      case "gemini": {
-        const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
-        if (config.type === "level") {
-          const defaultLevel = config.levels.includes("medium") ? "medium" : config.levels[0];
-          return {
-            google: {
-              thinkingConfig: {
-                includeThoughts: false,
-                thinkingLevel: defaultLevel,
-              },
-            },
-          };
-        }
-        return {
-          google: {
-            thinkingConfig: {
-              includeThoughts: false,
-              thinkingBudget: config.min,
-            },
-          },
-        };
-      }
-      case "openai":
-        return {
-          openai: {
-            reasoningEffort: "low",
-          },
-        };
-      default:
-        return {};
+      return { anthropic: { thinking: { type: "disabled" } } };
     }
+    case "google": {
+      const known = matchKnownModel(googleThinkingModels, model);
+      if (!known) return {};
+      const config = googleProviderOptionsSettings[known].thinkingConfig;
+      if (config.type === "level") {
+        const defaultLevel = config.levels.includes("medium") ? "medium" : config.levels[0];
+        return { google: { thinkingConfig: { includeThoughts: false, thinkingLevel: defaultLevel } } };
+      }
+      return { google: { thinkingConfig: { includeThoughts: false, thinkingBudget: config.min } } };
+    }
+    case "openai":
+      return matchKnownModel(openAIThinkingModels, model) ? { openai: { reasoningEffort: "low" } } : {};
+    default:
+      return {};
   }
-  return {};
+};
+
+export type LlmRoute = { llmProfileId: string; llmModel: string };
+
+/**
+ * Profile/model pair to open a span in the playground on: the first profile
+ * listing the span's model verbatim (case-insensitive). Anything looser risks
+ * binding to a model the user did not choose, so otherwise they pick.
+ */
+export const pickLlmRoute = (profiles: LlmProfileOption[], model: string | undefined): LlmRoute | null => {
+  const needle = model?.trim().toLowerCase();
+  if (!needle) return null;
+  for (const profile of profiles) {
+    const listed = profile.models.find((m) => m.toLowerCase() === needle);
+    if (listed) return { llmProfileId: profile.id, llmModel: listed };
+  }
+  return null;
 };
 
 export const parseTools = (tools?: string) => {
@@ -269,19 +208,19 @@ export const parseToolsFromLLMRequest = (span: Span) => {
 };
 
 export const getPlaygroundConfig = (
-  span: Span
+  span: Span,
+  profiles: LlmProfileOption[]
 ): {
   tools?: string;
   toolChoice?: string;
-  modelId: string;
+  llmProfileId: string | null;
+  llmModel: string | null;
   maxTokens?: number;
   temperature?: number;
   outputSchema?: string;
 } => {
-  const model = get(span, ["attributes", "gen_ai.response.model"]) as string | undefined;
-
-  const existingModels = providers.flatMap((p) => p.models).map((p) => p.name);
-  const models = providers.flatMap((p) => p.models);
+  const model = (get(span, ["attributes", "gen_ai.response.model"]) ??
+    get(span, ["attributes", "gen_ai.request.model"])) as string | undefined;
 
   // TODO: unify this logic with the one in StatsShields
   const aiSdkTools = get(span, ["attributes", "ai.prompt.tools"]);
@@ -297,14 +236,11 @@ export const getPlaygroundConfig = (
 
   const outputSchema = get(span, ["attributes", "gen_ai.request.structured_output_schema"]) as string | undefined;
 
-  const referenceModel =
-    model &&
-    (existingModels.find((existingModel) => model === existingModel) ||
-      existingModels.filter((existingModel) => model.includes(existingModel)).sort((a, b) => b.length - a.length)[0]);
-  const foundModel = models.find((m) => m.name === referenceModel)?.id;
+  const route = pickLlmRoute(profiles, model);
 
   const result = {
-    modelId: foundModel ? foundModel : "openai:gpt-4o-mini",
+    llmProfileId: route?.llmProfileId ?? null,
+    llmModel: route?.llmModel ?? null,
     tools: parsedTools,
     toolChoice: parsedToolChoice || (parsedTools ? "auto" : undefined),
     maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"], defaultMaxTokens),

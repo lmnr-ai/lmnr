@@ -1,9 +1,11 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Endpoint};
 use tracing::instrument;
+
+use crate::env;
 
 use super::{
     doc_batch::build_json_doc_batch,
@@ -11,9 +13,6 @@ use super::{
         CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
     },
 };
-
-const DEFAULT_INGEST_ENDPOINT: &str = "http://localhost:7281";
-const DEFAULT_SEARCH_ENDPOINT: &str = "http://localhost:7280";
 
 #[derive(Clone)]
 pub struct QuickwitConfig {
@@ -24,10 +23,8 @@ pub struct QuickwitConfig {
 impl QuickwitConfig {
     pub fn from_env() -> Self {
         Self {
-            ingest_endpoint: env::var("QUICKWIT_INGEST_URL")
-                .unwrap_or(DEFAULT_INGEST_ENDPOINT.to_string()),
-            search_endpoint: env::var("QUICKWIT_SEARCH_URL")
-                .unwrap_or(DEFAULT_SEARCH_ENDPOINT.to_string()),
+            ingest_endpoint: env::quickwit::INGEST_URL.get(),
+            search_endpoint: env::quickwit::SEARCH_URL.get(),
         }
     }
 }
@@ -120,6 +117,25 @@ impl QuickwitClient {
         })
     }
 
+    /// Build without dialing. The stream indexer needs a client even when
+    /// Quickwit is down at boot: producer pods publish indexing jobs based on a
+    /// shared config flag, and an unread stream is deleted by retention — so the
+    /// reader must start regardless and let `reconnect()` heal the channel.
+    /// Errors only on a malformed endpoint (a config problem), never on an
+    /// unreachable one — that's the whole point.
+    pub fn connect_lazy(config: QuickwitConfig) -> anyhow::Result<Self> {
+        let channel = Endpoint::from_shared(config.ingest_endpoint.clone())?.connect_lazy();
+
+        Ok(Self {
+            inner: Arc::new(QuickwitClientInner {
+                ingest_endpoint: config.ingest_endpoint,
+                search_endpoint: config.search_endpoint,
+                ingest_client: Mutex::new(IngestServiceClient::new(channel)),
+                search_client: reqwest::Client::new(),
+            }),
+        })
+    }
+
     pub fn ingest_endpoint(&self) -> &str {
         &self.inner.ingest_endpoint
     }
@@ -199,4 +215,36 @@ async fn connect_channel(endpoint: &str) -> anyhow::Result<Channel> {
     Ok(Endpoint::from_shared(endpoint.to_string())?
         .connect()
         .await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The stream indexer reader is gated only on a config flag, so it must be
+    /// constructible while Quickwit is down — otherwise producer pods publish
+    /// indexing jobs into a stream with no reader and retention deletes them.
+    #[tokio::test]
+    async fn connect_lazy_succeeds_against_an_unreachable_endpoint() {
+        // Port 1 is reserved and never listening.
+        let client = QuickwitClient::connect_lazy(QuickwitConfig {
+            ingest_endpoint: "http://127.0.0.1:1".to_string(),
+            search_endpoint: "http://127.0.0.1:1".to_string(),
+        })
+        .expect("lazy connect must not dial");
+
+        assert_eq!(client.ingest_endpoint(), "http://127.0.0.1:1");
+    }
+
+    /// A malformed endpoint is a config error, not a reachability problem — it
+    /// must surface rather than yield a client that can never work.
+    #[tokio::test]
+    async fn connect_lazy_rejects_a_malformed_endpoint() {
+        let result = QuickwitClient::connect_lazy(QuickwitConfig {
+            ingest_endpoint: "not a url".to_string(),
+            search_endpoint: String::new(),
+        });
+
+        assert!(result.is_err());
+    }
 }

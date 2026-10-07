@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
 import FilterSelect, {
@@ -25,10 +24,6 @@ const booleanOptions: FilterSelectOption[] = [
 const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
 
 const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const tags = useAdvancedSearchContext((state) => state.tags);
 
   const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
@@ -50,10 +45,10 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
   const handleChange = useCallback(
     (newValue: string) => {
       updateTagValue(tagId, newValue);
-      submit(router, pathname, searchParams);
+      submit();
       mainInputRef.current?.focus();
     },
-    [updateTagValue, tagId, submit, router, pathname, searchParams, mainInputRef]
+    [updateTagValue, tagId, submit, mainInputRef]
   );
 
   if (!tag) return null;

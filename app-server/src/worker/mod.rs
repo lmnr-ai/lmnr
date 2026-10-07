@@ -1,25 +1,23 @@
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
+use backon::Retryable;
 use serde::{Serialize, de::DeserializeOwned};
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use uuid::Uuid;
 
 use crate::mq::{
     MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiver, MessageQueueReceiverTrait,
     MessageQueueTrait,
 };
+use crate::utils::retry;
 
 const DEFAULT_PREFETCH_COUNT: u16 = 128;
 
 /// Cap on the backoff between worker connect retries. Tunable so operators can
 /// slow the retry cadence when the broker is recovering from memory pressure.
 static CONNECT_BACKOFF_MAX_INTERVAL: LazyLock<Duration> = LazyLock::new(|| {
-    let secs = std::env::var("WORKER_CONNECT_BACKOFF_MAX_INTERVAL_SECS")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(10);
-    Duration::from_secs(secs)
+    Duration::from_secs(crate::env::workers::CONNECT_BACKOFF_MAX_INTERVAL_SECS.get())
 });
 
 /// Message handler trait - implement this to process messages
@@ -32,6 +30,12 @@ pub trait MessageHandler: Send + Sync + 'static {
     /// - `HandlerError`: Uses embedded requeue flag
     /// - Conversion from `anyhow::Error`: Defaults to reject without requeue
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError>;
+
+    /// Called just before a message is dropped for exceeding its delayed-retry
+    /// budget (see [`RetryConfig::max_attempts`]), so a handler can record the
+    /// work as permanently failed. The default drops it silently, which is what
+    /// the broker's delivery limit did before retries were delayed.
+    async fn on_retries_exhausted(&self, _message: Self::Message) {}
 }
 
 /// Error type for message handlers with requeue control
@@ -69,6 +73,26 @@ impl HandlerError {
 // Note: The #[from] on Permanent means anyhow::Error converts to Permanent by default
 // This is the safe default - requires explicit .transient() for retries
 
+/// Where a queue's transient failures go to wait, instead of being redelivered
+/// immediately.
+///
+/// The target is a consumer-less queue whose dead-letter exchange is the origin
+/// queue's own exchange: a failed message sits there for `delay_ms`, then the
+/// broker hands it back. Every message in one retry queue MUST use the same
+/// `delay_ms` — RabbitMQ expires messages only at the head of a queue, so a
+/// long-TTL message would hold up shorter ones behind it.
+#[derive(Clone, Copy)]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub struct RetryConfig {
+    pub exchange: &'static str,
+    pub routing_key: &'static str,
+    pub delay_ms: u64,
+    /// Delayed retries before the message is dropped. Replaces the quorum
+    /// queue's delivery limit, which stops counting once a message is
+    /// republished.
+    pub max_attempts: u32,
+}
+
 /// Queue configuration for a worker
 #[derive(Clone)]
 pub struct QueueConfig {
@@ -76,6 +100,8 @@ pub struct QueueConfig {
     pub exchange_name: &'static str,
     pub routing_key: &'static str,
     pub prefetch_count: u16,
+    /// `None` redelivers transient failures immediately.
+    pub retry: Option<RetryConfig>,
 }
 
 impl QueueConfig {
@@ -94,10 +120,7 @@ impl QueueConfig {
         routing_key: &'static str,
     ) -> Self {
         let env_key = format!("{}_PREFETCH_COUNT", queue_name.to_uppercase());
-        let prefetch_count = std::env::var(&env_key)
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_PREFETCH_COUNT);
+        let prefetch_count = crate::env::num_with_default(&env_key, DEFAULT_PREFETCH_COUNT);
 
         log::info!(
             "Queue '{}' prefetch_count={} (override via {})",
@@ -111,7 +134,15 @@ impl QueueConfig {
             exchange_name,
             routing_key,
             prefetch_count,
+            retry: None,
         }
+    }
+
+    /// Route this queue's transient failures through a delay queue.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub fn with_retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = Some(retry);
+        self
     }
 }
 
@@ -121,15 +152,23 @@ pub enum WorkerType {
     SpansIndexer,
     Notifications,
     NotificationDeliveries,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     Clustering,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    SignalJobSubmissionBatch,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    SignalJobPendingBatch,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobRealtime,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    SignalJobBackfill,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    SignalAdmission,
+    InputExtraction,
+    UserTaskRegex,
     Logs,
     Reports,
+    Checkpoints,
+    StaticPrompt,
+    SpVersioning,
+    UserTemplateVersioning,
+    SpRegexExtraction,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -139,24 +178,45 @@ impl std::fmt::Display for WorkerType {
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::NotificationDeliveries => write!(f, "notification_deliveries"),
             WorkerType::Clustering => write!(f, "clustering"),
-            WorkerType::SignalJobSubmissionBatch => {
-                write!(f, "signal_job_submission_batch")
-            }
-            WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
             WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
+            WorkerType::SignalJobBackfill => write!(f, "signal_job_backfill"),
+            WorkerType::SignalAdmission => write!(f, "signal_admission"),
+            WorkerType::InputExtraction => write!(f, "input_extraction"),
+            WorkerType::UserTaskRegex => write!(f, "user_task_regex"),
             WorkerType::Logs => write!(f, "logs"),
             WorkerType::Reports => write!(f, "reports"),
+            WorkerType::Checkpoints => write!(f, "checkpoints"),
+            WorkerType::StaticPrompt => write!(f, "static_prompt"),
+            WorkerType::SpVersioning => write!(f, "sp_versioning"),
+            WorkerType::UserTemplateVersioning => write!(f, "user_template_versioning"),
+            WorkerType::SpRegexExtraction => write!(f, "sp_regex_extraction"),
         }
     }
 }
 
-/// Queue worker that processes messages indefinitely
+/// What becomes of a delivery whose handler failed transiently.
+#[derive(Debug, PartialEq, Eq)]
+enum TransientOutcome {
+    /// Waiting in the retry queue; the original delivery is finished with.
+    Parked,
+    /// Handed straight back to the broker, undelayed.
+    RequeueNow,
+    /// Retry budget spent — discarded.
+    Drop,
+}
+
+/// Queue worker that processes messages until shutdown.
+///
+/// On `shutdown` it stops receiving but lets the message in progress finish and
+/// be acked, so its side effects (a ClickHouse write, a Slack/email send) aren't
+/// repeated by a redelivery.
 pub struct QueueWorker<H: MessageHandler> {
     id: Uuid,
     worker_type: WorkerType,
     handler: H,
     queue: Arc<MessageQueue>,
     config: QueueConfig,
+    shutdown: CancellationToken,
 }
 
 impl<H: MessageHandler> QueueWorker<H> {
@@ -165,6 +225,7 @@ impl<H: MessageHandler> QueueWorker<H> {
         handler: H,
         queue: Arc<MessageQueue>,
         config: QueueConfig,
+        shutdown: CancellationToken,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -172,6 +233,7 @@ impl<H: MessageHandler> QueueWorker<H> {
             handler,
             queue,
             config,
+            shutdown,
         }
     }
 
@@ -179,9 +241,9 @@ impl<H: MessageHandler> QueueWorker<H> {
         self.id
     }
 
-    /// Main processing loop - runs forever with internal retry
+    /// Main processing loop - runs until shutdown with internal retry
     pub async fn process(self: Arc<Self>) {
-        loop {
+        while !self.shutdown.is_cancelled() {
             if let Err(e) = self.process_inner().await {
                 log::error!(
                     "Worker {} ({:?}) failed: {:?}, reconnecting...",
@@ -190,12 +252,20 @@ impl<H: MessageHandler> QueueWorker<H> {
                     e
                 );
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::select! {
+                biased;
+                _ = self.shutdown.cancelled() => {}
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            }
         }
+        log::info!("Worker {} ({:?}) stopped", self.id, self.worker_type);
     }
 
     async fn process_inner(&self) -> anyhow::Result<()> {
-        let mut receiver: MessageQueueReceiver = self.connect().await?;
+        let mut receiver: MessageQueueReceiver = tokio::select! {
+            _ = self.shutdown.cancelled() => return Ok(()),
+            receiver = self.connect() => receiver?,
+        };
 
         log::info!(
             "Worker {} ({:?}) connected and ready to process messages",
@@ -203,28 +273,112 @@ impl<H: MessageHandler> QueueWorker<H> {
             self.worker_type
         );
 
-        while let Some(delivery) = receiver.receive().await {
-            let delivery = delivery?;
+        loop {
+            // Only the wait for the NEXT delivery races shutdown; the handler and
+            // ack below run outside the select, so a message in progress finishes.
+            let delivery = tokio::select! {
+                biased;
+                _ = self.shutdown.cancelled() => return Ok(()),
+                delivery = receiver.receive() => match delivery {
+                    Some(delivery) => delivery?,
+                    None => return Ok(()),
+                },
+            };
 
             let acker = delivery.acker();
+            let attempt = delivery.retry_attempt();
+            // Read before `data()` consumes the delivery.
+            let priority = delivery.priority();
             let data = delivery.data();
             let result = self.process_message(&data).await;
 
             match result {
                 Ok(()) => acker.ack().await?,
-                Err(handler_error) => acker.reject(handler_error.should_requeue()).await?,
+                Err(e) if e.should_requeue() => {
+                    match self.park_for_retry(&data, attempt, priority).await {
+                        TransientOutcome::Parked => acker.ack().await?,
+                        TransientOutcome::RequeueNow => acker.reject(true).await?,
+                        TransientOutcome::Drop => acker.reject(false).await?,
+                    }
+                }
+                Err(_) => acker.reject(false).await?,
             }
         }
+    }
 
-        Ok(())
+    /// Hold a transiently-failed message in the retry queue instead of having the
+    /// broker redeliver it at once, so the dependency that failed gets time to
+    /// recover. On a near-empty queue an immediate requeue comes straight back to
+    /// the same worker, which burns the whole retry budget in seconds.
+    ///
+    /// Falls back to an immediate requeue when the queue has no retry target, or
+    /// when parking the message fails — some transient causes ARE broker
+    /// failures, and the in-memory transport cannot delay at all.
+    ///
+    /// `priority` is echoed from the delivery rather than recomputed, which is
+    /// what keeps priority out of the `MessageHandler` API: only the publish site
+    /// knows how to rank a payload, and the worker sees opaque bytes. The
+    /// `RequeueNow` fallback below is the one path that cannot preserve it —
+    /// quorum queues requeue returned messages in return order, ignoring
+    /// priority — so a prioritized message that fails to park loses its rank for
+    /// that one redelivery, and regains it on the next republish by the handler.
+    async fn park_for_retry(
+        &self,
+        data: &[u8],
+        attempt: u32,
+        priority: Option<u8>,
+    ) -> TransientOutcome {
+        let Some(retry) = self.config.retry else {
+            return TransientOutcome::RequeueNow;
+        };
+
+        if attempt >= retry.max_attempts {
+            log::error!(
+                "Worker {} ({:?}) dropping a message from '{}' after {} delayed retries",
+                self.id,
+                self.worker_type,
+                self.config.queue_name,
+                attempt,
+            );
+            // Deserialization already succeeded once for this message, or it
+            // would have failed permanently instead of transiently.
+            if let Ok(message) = serde_json::from_slice::<H::Message>(data) {
+                self.handler.on_retries_exhausted(message).await;
+            }
+            return TransientOutcome::Drop;
+        }
+
+        match self
+            .queue
+            .publish_retry(
+                data,
+                retry.exchange,
+                retry.routing_key,
+                retry.delay_ms,
+                attempt + 1,
+                priority,
+            )
+            .await
+        {
+            Ok(()) => TransientOutcome::Parked,
+            Err(e) => {
+                log::warn!(
+                    "Worker {} ({:?}) could not park a failed message for retry, requeueing immediately: {:?}",
+                    self.id,
+                    self.worker_type,
+                    e
+                );
+                TransientOutcome::RequeueNow
+            }
+        }
     }
 
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_secs(1))
-            .with_max_interval(*CONNECT_BACKOFF_MAX_INTERVAL)
-            .with_max_elapsed_time(Some(Duration::from_secs(300)))
-            .build();
+        let backoff = retry::bounded_delay(
+            Duration::from_secs(1),
+            *CONNECT_BACKOFF_MAX_INTERVAL,
+            Duration::from_secs(300),
+        );
 
         let queue = self.queue.clone();
         let queue_name = self.config.queue_name;
@@ -234,23 +388,23 @@ impl<H: MessageHandler> QueueWorker<H> {
         let worker_id = self.id;
         let worker_type = self.worker_type;
 
-        backoff::future::retry(backoff, || {
+        (|| {
             let queue = queue.clone();
 
             async move {
                 queue
                     .get_receiver(queue_name, exchange, routing_key, prefetch_count)
                     .await
-                    .map_err(|e| {
-                        log::error!(
-                            "Worker {} ({:?}) failed to connect: {:?}",
-                            worker_id,
-                            worker_type,
-                            e
-                        );
-                        backoff::Error::transient(e)
-                    })
             }
+        })
+        .retry(backoff)
+        .notify(|e, _| {
+            log::error!(
+                "Worker {} ({:?}) failed to connect: {:?}",
+                worker_id,
+                worker_type,
+                e
+            )
         })
         .await
     }
@@ -285,11 +439,19 @@ impl<H: MessageHandler> QueueWorker<H> {
 /// Worker pool - simple spawning and tracking
 pub struct WorkerPool {
     queue: Arc<MessageQueue>,
+    shutdown: CancellationToken,
+    tasks: TaskTracker,
 }
 
 impl WorkerPool {
-    pub fn new(queue: Arc<MessageQueue>) -> Self {
-        Self { queue }
+    /// Workers stop on `shutdown`; `tasks` is what `main` waits on so the process
+    /// doesn't exit while one is still handling a message.
+    pub fn new(queue: Arc<MessageQueue>, shutdown: CancellationToken, tasks: TaskTracker) -> Self {
+        Self {
+            queue,
+            shutdown,
+            tasks,
+        }
     }
 
     /// Spawn N workers of a type
@@ -310,6 +472,7 @@ impl WorkerPool {
                 handler,
                 self.queue.clone(),
                 config.clone(),
+                self.shutdown.clone(),
             ));
 
             let worker_id = worker.id();
@@ -321,10 +484,204 @@ impl WorkerPool {
                 i
             );
 
-            // Spawn and forget - it runs forever
-            tokio::spawn(async move {
+            self.tasks.spawn(async move {
                 worker.process().await;
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mq::tokio_mpsc::TokioMpscQueue;
+    use serde::Deserialize;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    const TEST_QUEUE: &str = "test_queue";
+    const TEST_EXCHANGE: &str = "test_exchange";
+    const TEST_ROUTING_KEY: &str = "test_routing_key";
+    const TEST_RETRY_EXCHANGE: &str = "test_retry_exchange";
+    const TEST_RETRY_ROUTING_KEY: &str = "test_retry_routing_key";
+
+    #[derive(Serialize, Deserialize)]
+    struct TestMessage {
+        id: u32,
+    }
+
+    #[derive(Default)]
+    struct CountingHandler {
+        written_off: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl MessageHandler for CountingHandler {
+        type Message = TestMessage;
+
+        async fn handle(&self, _message: Self::Message) -> Result<(), HandlerError> {
+            Err(HandlerError::transient(anyhow::anyhow!("dependency down")))
+        }
+
+        async fn on_retries_exhausted(&self, _message: Self::Message) {
+            self.written_off.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn worker(retry: Option<RetryConfig>) -> QueueWorker<CountingHandler> {
+        let config = QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY);
+        let config = match retry {
+            Some(retry) => config.with_retry(retry),
+            None => config,
+        };
+
+        QueueWorker::new(
+            WorkerType::Logs,
+            CountingHandler::default(),
+            Arc::new(MessageQueue::TokioMpsc(TokioMpscQueue::new())),
+            config,
+            CancellationToken::new(),
+        )
+    }
+
+    fn retry_config(max_attempts: u32) -> RetryConfig {
+        RetryConfig {
+            exchange: TEST_RETRY_EXCHANGE,
+            routing_key: TEST_RETRY_ROUTING_KEY,
+            delay_ms: 30_000,
+            max_attempts,
+        }
+    }
+
+    fn payload() -> Vec<u8> {
+        serde_json::to_vec(&TestMessage { id: 1 }).unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_queue_without_a_retry_target_requeues_immediately() {
+        let worker = worker(None);
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 0, None).await,
+            TransientOutcome::RequeueNow
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn a_transport_that_cannot_delay_requeues_immediately() {
+        // The in-memory transport has no TTL and no dead-lettering, so parking
+        // must degrade to the pre-existing behavior rather than lose the message.
+        let worker = worker(Some(retry_config(40)));
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 0, None).await,
+            TransientOutcome::RequeueNow
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn a_message_at_its_attempt_cap_is_dropped_and_written_off() {
+        let worker = worker(Some(retry_config(3)));
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 3, None).await,
+            TransientOutcome::Drop
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn a_prioritized_message_at_its_cap_is_still_dropped() {
+        // The attempt cap outranks the priority: a high-priority message that has
+        // spent its budget must not keep coming back just because it sorts first.
+        let worker = worker(Some(retry_config(3)));
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 3, Some(8)).await,
+            TransientOutcome::Drop
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn the_cap_is_only_reached_by_a_message_that_carries_the_attempt_count() {
+        // A message one short of the cap still gets an attempt. It requeues here
+        // only because the in-memory transport can't park it; what matters is
+        // that the handler is not asked to write the run off.
+        let worker = worker(Some(retry_config(3)));
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 2, None).await,
+            TransientOutcome::RequeueNow
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
+    }
+
+    /// Handles slowly, so shutdown can land while a message is in progress.
+    struct SlowHandler {
+        started: Arc<tokio::sync::Notify>,
+        handled: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl MessageHandler for SlowHandler {
+        type Message = TestMessage;
+
+        async fn handle(&self, _message: Self::Message) -> Result<(), HandlerError> {
+            self.started.notify_one();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            self.handled.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    /// Shutdown must not cut a message short (its side effects would repeat on
+    /// redelivery), and must stop the worker taking new messages.
+    #[tokio::test]
+    async fn shutdown_finishes_the_message_in_progress_then_stops() {
+        let queue = TokioMpscQueue::new();
+        queue.register_queue(TEST_EXCHANGE, TEST_ROUTING_KEY);
+        let queue = Arc::new(MessageQueue::TokioMpsc(queue));
+        let started = Arc::new(tokio::sync::Notify::new());
+        let handled = Arc::new(AtomicUsize::new(0));
+        let shutdown = CancellationToken::new();
+        let worker = Arc::new(QueueWorker::new(
+            WorkerType::Logs,
+            SlowHandler {
+                started: started.clone(),
+                handled: handled.clone(),
+            },
+            queue.clone(),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            shutdown.clone(),
+        ));
+        let running = tokio::spawn(worker.process());
+
+        // The receiver registers asynchronously; retry until the publish lands.
+        while queue
+            .publish(&payload(), TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .is_err()
+        {
+            tokio::task::yield_now().await;
+        }
+        started.notified().await;
+
+        shutdown.cancel();
+        queue
+            .publish(&payload(), TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .unwrap();
+
+        tokio::time::timeout(Duration::from_secs(5), running)
+            .await
+            .expect("worker must stop after shutdown")
+            .unwrap();
+        assert_eq!(
+            handled.load(Ordering::SeqCst),
+            1,
+            "the message in progress completes; the one sent after shutdown is not taken"
+        );
     }
 }

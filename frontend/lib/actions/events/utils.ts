@@ -1,5 +1,6 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
@@ -8,6 +9,18 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { type EventRow } from "@/lib/events/types";
+
+import { type SignalEventSearchHit } from "./search";
+
+export function attachSnippets(items: EventRow[], hits: SignalEventSearchHit[]): EventRow[] {
+  const lookup = new Map(hits.map((h) => [h.id, h]));
+  return items.map((item) => {
+    const hit = lookup.get(item.id);
+    if (!hit) return item;
+    return { ...item, fieldSnippets: hit.fieldSnippets };
+  });
+}
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -21,6 +34,18 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         return {
           condition: `severity ${opSymbol} {${paramKey}:UInt8}`,
           params: { [paramKey]: parseInt(String(filter.value), 10) },
+        };
+      },
+    ],
+    // Needs an explicit processor: `defaultProcessor` treats every column it
+    // doesn't know about as a payload JSON field.
+    [
+      "signal_version",
+      (filter, paramKey) => {
+        const opSymbol = OperatorLabelMap[filter.operator];
+        return {
+          condition: `signal_version ${opSymbol} {${paramKey}:UInt32}`,
+          params: { [paramKey]: parseInt(String(filter.value), 10) || 0 },
         };
       },
     ],
@@ -52,10 +77,14 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
       };
     }
 
+    // extractString is unquoted, extractRaw keeps JSON quotes. `=` is OR (either
+    // form); `!=` must be AND or a quoted string satisfies extractRaw != value
+    // on every row and the filter becomes a no-op.
+    const join = filter.operator === Operator.Ne ? " AND " : " OR ";
     return {
       condition:
         `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
-        ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
+        `${join}simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
       params: {
         [`${paramKey}_key`]: fieldName,
         [`${paramKey}_val`]: String(value),
@@ -71,7 +100,48 @@ const eventsSelectColumns = [
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "payload",
   "severity",
+  // 0 = the event predates versioning; rendered as an em dash.
+  "signal_version signalVersion",
 ];
+
+/** Data type of a payload field being sorted on; drives the JSONExtract cast. */
+export type EventSortType = "number" | "boolean" | "string";
+
+// Payload field names are interpolated directly into the ORDER BY JSONExtract
+// call (params can't bind ORDER BY expressions cleanly), so the field name is
+// the SQL-injection boundary. This mirrors `search_signal_events` in
+// `app-server/src/search/signal_events.rs`: only strict identifiers pass, and
+// anything else silently drops back to the default timestamp ordering.
+const PAYLOAD_SORT_FIELD_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Resolve a sortable column id into a safe ClickHouse ORDER BY expression.
+ * Returns null for unknown / unsafe columns so the caller can fall back to the
+ * default ordering.
+ */
+const resolveEventsSortColumn = (sortBy: string, sortType?: EventSortType): string | null => {
+  if (sortBy === "timestamp" || sortBy === "severity") {
+    return sortBy;
+  }
+
+  if (sortBy.startsWith("payload:")) {
+    const fieldName = sortBy.slice("payload:".length);
+    if (!PAYLOAD_SORT_FIELD_RE.test(fieldName)) {
+      return null;
+    }
+
+    switch (sortType) {
+      case "number":
+        return `simpleJSONExtractFloat(payload, '${fieldName}')`;
+      case "boolean":
+        return `simpleJSONExtractBool(payload, '${fieldName}')`;
+      default:
+        return `simpleJSONExtractString(payload, '${fieldName}')`;
+    }
+  }
+
+  return null;
+};
 
 export interface BuildEventsQueryOptions {
   signalId: string;
@@ -82,8 +152,15 @@ export interface BuildEventsQueryOptions {
   endTime?: string;
   pastHours?: string;
   clusterFilter?: "unclustered" | string[];
+  /** Restrict results to this set of event ids (used for full-text search hydration). */
+  idFilter?: string[];
   // "signal_events_all" is used for the "emerging cluster" that includes L0 clusters
   table?: "signal_events" | "signal_events_all";
+  /** Column id to sort on ("timestamp" | "severity" | "payload:<field>"). */
+  sortBy?: string;
+  sortDirection?: "ASC" | "DESC";
+  /** Data type of the payload field being sorted on (ignored for native columns). */
+  sortType?: EventSortType;
 }
 
 function buildClusterConditions(
@@ -103,10 +180,46 @@ function buildClusterConditions(
   ];
 }
 
+function buildIdFilterConditions(idFilter: string[] | undefined): Array<{ condition: string; params: QueryParams }> {
+  if (!idFilter) return [];
+  return [
+    {
+      condition: "id IN {ids:Array(UUID)}",
+      params: { ids: idFilter },
+    },
+  ];
+}
+
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { signalId, filters, limit, offset, startTime, endTime, pastHours, clusterFilter, table } = options;
+  const {
+    signalId,
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    clusterFilter,
+    idFilter,
+    table,
+    sortBy,
+    sortDirection,
+    sortType,
+  } = options;
 
   const tableName = table ?? "signal_events";
+
+  const sortColumn = sortBy ? resolveEventsSortColumn(sortBy, sortType) : null;
+  // Order by the chosen column, then always fall back to `timestamp DESC` as a
+  // tiebreaker so offset pagination is stable on low-cardinality sorts (e.g. the
+  // 3-value severity enum): `signal_events` is a plain MergeTree, so without a
+  // secondary key ClickHouse may reorder ties between page fetches and duplicate
+  // / skip rows.
+  const orderBy: Array<{ column: string; direction: "ASC" | "DESC" }> = [];
+  if (sortColumn && sortColumn !== "timestamp") {
+    orderBy.push({ column: sortColumn, direction: sortDirection ?? "DESC" });
+  }
+  orderBy.push({ column: "timestamp", direction: sortColumn === "timestamp" ? (sortDirection ?? "DESC") : "DESC" });
 
   const customConditions: Array<{
     condition: string;
@@ -117,6 +230,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       params: { signalId },
     },
     ...buildClusterConditions(clusterFilter),
+    ...buildIdFilterConditions(idFilter),
   ];
 
   const queryOptions: SelectQueryOptions = {
@@ -137,12 +251,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
-    orderBy: [
-      {
-        column: "timestamp",
-        direction: "DESC",
-      },
-    ],
+    orderBy,
     pagination: {
       limit,
       offset,
@@ -155,7 +264,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { signalId, filters, startTime, endTime, pastHours, clusterFilter, table } = options;
+  const { signalId, filters, startTime, endTime, pastHours, clusterFilter, idFilter, table } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -166,6 +275,7 @@ export const buildEventsCountQueryWithParams = (
       params: { signalId },
     },
     ...buildClusterConditions(clusterFilter),
+    ...buildIdFilterConditions(idFilter),
   ];
 
   const queryOptions: SelectQueryOptions = {

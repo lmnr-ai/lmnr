@@ -1,9 +1,12 @@
 import { type Metadata } from "next";
-import { getServerSession } from "next-auth";
 
+import AnnouncementBanner from "@/components/landing/announcement-banner";
+import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import LandingHeader from "@/components/landing/header";
 import Pricing from "@/components/landing/pricing";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
+import { ogImage } from "@/lib/metadata";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -12,27 +15,28 @@ export const metadata: Metadata = {
     title: "Pricing - Laminar",
     description: "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
     url: "https://laminar.sh/pricing",
-    images: { url: "/opengraph-image.png", alt: "Laminar", width: 1200, height: 630 },
+    images: [ogImage],
   },
   twitter: {
     card: "summary_large_image",
     title: "Pricing - Laminar",
     description: "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
-    images: { url: "/twitter-image.png", alt: "Laminar", width: 1200, height: 630 },
+    images: [ogImage],
   },
 };
 
 export default async function PricingPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   return (
-    <>
+    <div className="bg-surface-150 flex flex-col w-full min-h-screen">
+      <AnnouncementBanner />
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding
-        className="bg-landing-surface-800"
+        className={cn("w-full mx-auto pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)}
       />
       <Pricing />
-    </>
+    </div>
   );
 }

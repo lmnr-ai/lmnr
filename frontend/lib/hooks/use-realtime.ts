@@ -11,14 +11,7 @@ interface UseRealtimeOptions {
   onError?: (error: Event) => void;
 }
 
-export function useRealtime({
-  key,
-  projectId,
-  eventHandlers,
-  enabled = true,
-  onConnect,
-  onError,
-}: UseRealtimeOptions) {
+export function useRealtime({ key, projectId, eventHandlers, enabled = true, onConnect, onError }: UseRealtimeOptions) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {

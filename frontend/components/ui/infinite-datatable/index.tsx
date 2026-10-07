@@ -1,59 +1,38 @@
 "use client";
 
 import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  DragOverlay,
-  type DragStartEvent,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
-import { arrayMove } from "@dnd-kit/sortable";
-import {
   getCoreRowModel,
   getExpandedRowModel,
   type RowData,
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useStore } from "zustand";
+import React, { type PropsWithChildren, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
-import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
-import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { useDataTableStore } from "./model/datatable-store.tsx";
+import { computeEffectiveOrder, useTableConfigStore } from "./model/table-config-store.tsx";
 import { type InfiniteDataTableProps } from "./model/types.ts";
-import { InfiniteDatatableBody } from "./ui/body.tsx";
-import { InfiniteDatatableHeader } from "./ui/header.tsx";
 import { SelectionPanel } from "./ui/selection-panel.tsx";
+import { VirtualizedScroll } from "./ui/virtualized-scroll.tsx";
 import { createCheckboxColumn, EMPTY_ARRAY } from "./utils.tsx";
 
 export function InfiniteDataTable<TData extends RowData>({
-  // Infinite scroll props
   hasMore,
   isFetching,
   isLoading,
   fetchNextPage,
   estimatedRowHeight = 41,
-  overscan = 50,
+  overscan = 15,
 
-  // Custom interaction props
   onRowClick,
+  onHoveredRowChange,
   focusedRowId,
   selectionPanel,
-  lockedColumns = EMPTY_ARRAY as string[],
-  disableHideColumn = false,
+  pinnedColumns,
+  pinnedLeftColumnIds,
 
-  // Styling
   className,
   childrenClassName,
   scrollContentClassName = "border rounded",
@@ -61,22 +40,22 @@ export function InfiniteDataTable<TData extends RowData>({
   loadingRow,
   children,
 
-  // Sort props
   sortBy,
   sortDirection,
   onSort,
 
-  // TableOptions props
   columns,
   data,
   state,
   enableRowSelection,
   onRowSelectionChange,
   getRowId,
-  error,
+  error: _error,
   getRowHref,
+  getRowClassName,
   loadMoreButton,
   hideSelectionPanel = false,
+  externalScrollElement,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -90,64 +69,28 @@ export function InfiniteDataTable<TData extends RowData>({
     [sortBy, sortDirection]
   );
 
-  const store = useDataTableStore();
-  const {
-    columnOrder,
-    setColumnOrder,
-    columnVisibility,
-    setColumnVisibility,
-    columnSizing,
-    setColumnSizing,
-    draggingColumnId,
-    setDraggingColumnId,
-  } = useStore(store, (state) => ({
-    columnOrder: state.columnOrder,
-    setColumnOrder: state.setColumnOrder,
-    columnVisibility: state.columnVisibility,
-    setColumnVisibility: state.setColumnVisibility,
-    columnSizing: state.columnSizing,
-    setColumnSizing: state.setColumnSizing,
-    draggingColumnId: state.draggingColumnId,
-    setDraggingColumnId: state.setDraggingColumnId,
-  }));
+  const availableIds = useMemo(() => finalColumns.map((c) => c.id!).filter(Boolean), [finalColumns]);
 
-  // Handle drag start
-  function handleDragStart(event: DragStartEvent) {
-    setDraggingColumnId(event.active.id as string);
-    // Get header position for DragOverlay
-    if (headerRef.current) {
-      const rect = headerRef.current.getBoundingClientRect();
-      setHeaderTop(rect.top);
-    }
-  }
+  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, columnSizing, setColumnSizing } =
+    useTableConfigStore(
+      (state) => ({
+        columnOrder: state.config.columnOrder,
+        setColumnOrder: state.setColumnOrder,
+        columnVisibility: state.config.columnVisibility,
+        setColumnVisibility: state.setColumnVisibility,
+        columnSizing: state.config.columnSizing,
+        setColumnSizing: state.setColumnSizing,
+      }),
+      shallow
+    );
 
-  // Reorder columns ONLY on drop (not during drag)
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    setDraggingColumnId(null);
-
-    if (active && over && active.id !== over.id) {
-      const oldIndex = columnOrder.indexOf(active.id as string);
-      const newIndex = columnOrder.indexOf(over.id as string);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        setColumnOrder(arrayMove(columnOrder, oldIndex, newIndex) as string[]);
-      }
-    }
-  }
-
-  const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 8, // Require 8px of movement before activating
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200, // 200ms delay for touch
-        tolerance: 5,
-      },
-    }),
-    useSensor(KeyboardSensor, {})
+  const orderPins = useMemo(
+    () => [...(pinnedColumns ?? []), ...(pinnedLeftColumnIds ?? [])],
+    [pinnedColumns, pinnedLeftColumnIds]
+  );
+  const effectiveColumnOrder = useMemo(
+    () => computeEffectiveOrder(columnOrder, availableIds, orderPins.length ? orderPins : (EMPTY_ARRAY as string[])),
+    [columnOrder, availableIds, orderPins]
   );
 
   const table = useReactTable<TData>({
@@ -186,7 +129,15 @@ export function InfiniteDataTable<TData extends RowData>({
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-    state: { ...state, columnVisibility, columnOrder, columnSizing, sorting },
+    enableColumnPinning: !!pinnedLeftColumnIds?.length,
+    state: {
+      ...state,
+      columnVisibility,
+      columnOrder: effectiveColumnOrder,
+      columnSizing,
+      sorting,
+      columnPinning: { left: pinnedLeftColumnIds ?? [] },
+    },
     onColumnSizingChange: (updater) => {
       const next = typeof updater === "function" ? updater(columnSizing) : updater;
       setColumnSizing(next);
@@ -195,71 +146,20 @@ export function InfiniteDataTable<TData extends RowData>({
     onColumnOrderChange: (order) => setColumnOrder(order as string[]),
   });
 
-  const { rows } = table.getRowModel();
-
-  const dndContextId = useId();
-
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-  const loadMoreRef = useRef<HTMLTableRowElement>(null);
-  const headerRef = useRef<HTMLTableSectionElement>(null);
-  const [headerTop, setHeaderTop] = useState<number>(0);
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => estimatedRowHeight,
-    overscan: overscan,
-    measureElement:
-      typeof window !== "undefined" && navigator.userAgent.indexOf("Firefox") === -1
-        ? (element) => element?.getBoundingClientRect().height
-        : undefined,
-  });
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
-
   const handleClearSelection = () => {
     table.toggleAllRowsSelected(false);
   };
 
-  const draggingHeader = useMemo(() => {
-    if (!draggingColumnId) return null;
-
-    const header = table.getHeaderGroups()[0]?.headers.find((h) => h.column.id === draggingColumnId);
-
-    return header ?? null;
-  }, [draggingColumnId, table]);
-
-  useEffect(() => {
-    if (loadMoreButton) return;
-
-    const loadMoreElement = loadMoreRef.current;
-    const scrollContainer = tableContainerRef.current;
-
-    if (!loadMoreElement || !scrollContainer) return;
-    if (!hasMore || isFetching || isLoading) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasMore && !isFetching) {
-          fetchNextPage();
-        }
-      },
-      {
-        root: scrollContainer,
-        rootMargin: "420px",
-        threshold: 0,
-      }
-    );
-
-    observer.observe(loadMoreElement);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton]);
-
   return (
-    <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
+    <div
+      className={cn(
+        "flex flex-col gap-2 relative w-full",
+        // Under an external scroller the table has to be free to grow past the
+        // viewport — that overflow is exactly what the ancestor scrolls.
+        externalScrollElement ? "overflow-visible" : "overflow-hidden",
+        className
+      )}
+    >
       {!hideSelectionPanel && (
         <SelectionPanel
           selectedRowIds={selectedRowIds}
@@ -268,75 +168,27 @@ export function InfiniteDataTable<TData extends RowData>({
         />
       )}
       {children && <div className={cn("flex flex-col gap-2 items-start", childrenClassName)}>{children}</div>}
-      <div
-        ref={tableContainerRef}
-        className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
-      >
-        <div className="size-full">
-          <DndContext
-            id={dndContextId}
-            collisionDetection={closestCenter}
-            modifiers={[restrictToHorizontalAxis]}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            sensors={sensors}
-          >
-            <Table
-              className="grid border-collapse border-spacing-0 rounded bg-secondary"
-              style={{
-                width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
-              }}
-            >
-              <InfiniteDatatableHeader
-                ref={headerRef}
-                table={table as any}
-                columnOrder={columnOrder}
-                onHideColumn={
-                  disableHideColumn
-                    ? undefined
-                    : (columnId) => {
-                        setColumnVisibility({ ...columnVisibility, [columnId]: false });
-                      }
-                }
-                lockedColumns={lockedColumns}
-              />
-              <InfiniteDatatableBody
-                table={table}
-                rowVirtualizer={rowVirtualizer}
-                virtualItems={virtualItems}
-                isLoading={isLoading}
-                isFetching={isFetching}
-                hasMore={hasMore}
-                onRowClick={onRowClick}
-                focusedRowId={focusedRowId}
-                loadMoreRef={loadMoreRef}
-                emptyRow={emptyRow}
-                loadingRow={loadingRow}
-                getRowHref={getRowHref}
-                loadMoreButton={loadMoreButton}
-                fetchNextPage={fetchNextPage}
-              />
-            </Table>
-            <DragOverlay
-              dropAnimation={null}
-              adjustScale={false}
-              style={{
-                top: `${headerTop}px`,
-                position: "fixed",
-                pointerEvents: "none",
-              }}
-            >
-              <DraggingTableHeadOverlay header={draggingHeader} />
-            </DragOverlay>
-          </DndContext>
-
-          {isFetching && !isLoading && !loadMoreButton && (
-            <div className="flex justify-center p-2 bg-secondary">
-              <Skeleton className="w-full h-8" />
-            </div>
-          )}
-        </div>
-      </div>
+      <VirtualizedScroll
+        table={table}
+        effectiveColumnOrder={effectiveColumnOrder}
+        setColumnOrder={setColumnOrder}
+        estimatedRowHeight={estimatedRowHeight}
+        overscan={overscan}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        isLoading={isLoading}
+        fetchNextPage={fetchNextPage}
+        onRowClick={onRowClick}
+        onHoveredRowChange={onHoveredRowChange}
+        focusedRowId={focusedRowId}
+        emptyRow={emptyRow}
+        loadingRow={loadingRow}
+        getRowHref={getRowHref}
+        getRowClassName={getRowClassName}
+        loadMoreButton={loadMoreButton}
+        scrollContentClassName={scrollContentClassName}
+        externalScrollElement={externalScrollElement}
+      />
     </div>
   );
 }

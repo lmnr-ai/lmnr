@@ -1,165 +1,60 @@
 "use client";
 
-import { Check, ExternalLink, Sparkles, X } from "lucide-react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 
-import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
-import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
-import { useTraceViewStore } from "@/components/traces/trace-view/store";
-import { Button } from "@/components/ui/button";
-import { type EventRow } from "@/lib/events/types";
+import { type TraceSignal } from "@/components/traces/trace-view/store/base";
+import { TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
-interface SignalTabProps {
-  signalId: string;
-  signalName: string;
-  prompt: string;
-  structuredOutput: Record<string, unknown>;
-  events: EventRow[];
-  traceId: string;
-}
+import { TOOLTIP_DELAY_MS } from "./constants";
+import SeverityIcon from "./severity-icon";
+import { worstSeverity } from "./utils";
 
-function parsePayload(payload: string): Record<string, unknown> {
-  try {
-    const result = JSON.parse(payload);
-    if (result == null || typeof result !== "object" || Array.isArray(result)) {
-      return {};
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
+/**
+ * The active tab as a step off the card, not `bg-gray-900` — a fixed near-black
+ * that ignores the surface ladder and reads as a hole punched in the header.
+ *
+ * Both variants on ours, and `data-[state=active]:` on the overrides, because
+ * `TabsTrigger`'s own rules are variant-qualified: `dark:data-[state=active]:bg-input/30`
+ * and `dark:text-muted-foreground` outrank any plain utility, and
+ * `data-[state=active]:shadow-sm` outranks a plain `shadow-none`. Match the
+ * variant or the rule never lands.
+ */
+const TAB = cn(
+  "h-5.5 w-full min-w-0 rounded-md px-2 text-[11px]",
+  "data-[state=active]:bg-surface-up-5 dark:data-[state=active]:bg-surface-up-5",
+  "data-[state=active]:text-foreground dark:data-[state=active]:text-foreground",
+  "data-[state=active]:shadow-none",
+  "text-secondary-foreground dark:text-secondary-foreground",
+  "hover:bg-surface-up-2 hover:text-foreground dark:hover:text-foreground",
+  // The active tab is already the painted one; lighting it further on hover
+  // would promise the click does something.
+  "data-[state=active]:hover:bg-surface-up-5"
+);
 
-function PayloadValue({
-  value,
-  field,
-  spanRefCallbacks,
-}: {
-  value: unknown;
-  field: SchemaField;
-  spanRefCallbacks?: SpanReferenceCallbacks;
-}) {
-  if (value === null || value === undefined) {
-    return <span className="text-muted-foreground">&mdash;</span>;
-  }
-
-  switch (field.type) {
-    case "boolean":
-      return (
-        <span className="inline-flex items-center gap-1.5">
-          {value ? <Check className="size-4 text-green-500" /> : <X className="size-4 text-muted-foreground" />}
-          <span className="text-secondary-foreground">{value ? "true" : "false"}</span>
-        </span>
-      );
-    case "enum":
-      return (
-        <span className="inline-flex items-center rounded-full border border-blue-400/20 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-          {String(value)}
-        </span>
-      );
-    case "number":
-      return <span className="tabular-nums">{String(value)}</span>;
-    case "string": {
-      const text = String(value);
-      if (spanRefCallbacks) {
-        const rendered = renderSpanReferences(text, spanRefCallbacks);
-        if (rendered) {
-          return <span className="whitespace-pre-wrap break-words text-secondary-foreground">{rendered}</span>;
-        }
-      }
-      return <span className="whitespace-pre-wrap break-words text-secondary-foreground">{text}</span>;
-    }
-  }
-}
-
-export default function SignalTab({ signalId, signalName, prompt, structuredOutput, events, traceId }: SignalTabProps) {
-  const { projectId } = useParams();
-  const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
-  const selectSpanById = useTraceViewStore((state) => state.selectSpanById);
-
-  const schemaFields = useMemo(() => jsonSchemaToSchemaFields(structuredOutput), [structuredOutput]);
-  const validFields = useMemo(() => schemaFields.filter((f) => f.name.trim()), [schemaFields]);
-
-  const resolveSpanId = useCallback(
-    async (sequentialId: string): Promise<string | null> => {
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          return data.spanId;
-        }
-      } catch (error) {
-        console.error("Error resolving span ID:", error);
-      }
-      return null;
-    },
-    [projectId, traceId]
+export default function SignalTab({ signal }: { signal: TraceSignal }) {
+  const trigger = (
+    <TabsTrigger value={signal.signalId} className={TAB}>
+      {/* The tab row replaces the header, so without this the severity glyph
+          disappears exactly when there are several severities to tell apart. */}
+      <span className="flex min-w-0 items-center justify-center gap-1.5">
+        {signal.events.length > 0 && <SeverityIcon bare severity={worstSeverity(signal)} />}
+        <span className="min-w-0 truncate">{signal.signalName}</span>
+      </span>
+    </TabsTrigger>
   );
 
-  const spanRefCallbacks = useMemo<SpanReferenceCallbacks>(
-    () => ({
-      resolveSpanId,
-      onSelectSpan: selectSpanById,
-    }),
-    [resolveSpanId, selectSpanById]
-  );
-
-  // Show the most recent event
-  const safeEvents = events ?? [];
-  const latestEvent = safeEvents[0];
-  const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
-
-  const handleOpenInChat = () => {
-    const signalDefinition = `### ${signalName}\n${prompt}`;
-    const eventPayload = latestEvent ? latestEvent.payload : "No events found";
-    openSignalInChat(signalDefinition, eventPayload);
-  };
-
+  // The trigger is a WRAPPER, not the tab: both primitives own a `data-state` and
+  // `Tabs.Trigger` spreads props after its own, so `asChild` would clobber it.
   return (
-    <div className="py-1.5 space-y-1.5">
-      {/* Action buttons */}
-      <div className="flex items-center justify-start">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
-            onClick={handleOpenInChat}
-          >
-            <Sparkles className="size-3.5 mr-1" />
-            Open in AI Chat
-          </Button>
-          <Button
-            variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
-            asChild
-          >
-            <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} target="_blank">
-              <ExternalLink className="size-3.5 mr-1" />
-              Open in Signals
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* Event payload */}
-      {!latestEvent ? (
-        <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">No events found</div>
-      ) : (
-        <>
-          {validFields.map((field) => (
-            <div key={field.name} className="rounded-md border border-blue-200/10 bg-blue-300/5 px-2 py-1.5">
-              <div className="text-xs text-blue-200/60 mb-0.5">{field.name}</div>
-              <div className="text-sm">
-                <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
+    <Tooltip delayDuration={TOOLTIP_DELAY_MS}>
+      <TooltipTrigger asChild>
+        <span className="flex min-w-0 flex-1">{trigger}</span>
+      </TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent side="bottom">{signal.signalName}</TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 }
