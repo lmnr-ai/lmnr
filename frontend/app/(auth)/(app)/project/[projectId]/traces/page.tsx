@@ -14,7 +14,8 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
   const params = await props.params;
   const projectId = params.projectId;
 
-  if (!(await projectHasTraces(projectId))) {
+  // Fail-open: on a failed lookup render the dashboard rather than the empty-state placeholder.
+  if ((await projectHasTraces(projectId)) === false) {
     return <TracesPagePlaceholder />;
   }
 

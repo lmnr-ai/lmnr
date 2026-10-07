@@ -7,7 +7,8 @@ import { sendProjectHasTracesEvent } from "@/lib/emails/automations";
 
 // `projects.has_traces` caches a potentially heavy ClickHouse lookup. It is only ever set to
 // true, so once a project has traces we never query ClickHouse for it again.
-export const projectHasTraces = async (projectId: string): Promise<boolean> => {
+// Returns null when the lookup failed, so each caller picks its own fallback.
+export const projectHasTraces = async (projectId: string): Promise<boolean | null> => {
   const cached = await db.query.projects
     .findFirst({ where: eq(projects.id, projectId) })
     .then((project) => project?.hasTraces)
@@ -30,10 +31,10 @@ export const projectHasTraces = async (projectId: string): Promise<boolean> => {
       projectId,
     });
   } catch (e) {
-    // Fail-open for this call only — do NOT cache, a transient ClickHouse error must not
-    // permanently mark an empty project as having traces.
+    // Never cache a failure — a transient ClickHouse error must not permanently mark an
+    // empty project as having traces.
     console.error(e);
-    return true;
+    return null;
   }
   if (!result) return false;
 

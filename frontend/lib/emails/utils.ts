@@ -62,7 +62,10 @@ export async function sendWelcomeEmail(email: string, projectId: string) {
   // Checked here because onboarding can finish after traces arrived but before anyone
   // opened the traces page, so the PROJECT_HAS_TRACES_EVENT would come too late.
   if (isFeatureEnabled(Feature.EMAIL_AUTOMATIONS)) {
-    await sendUserOnboardedEvent({ email, projectId, hasTraces: await projectHasTraces(projectId) });
+    // A failed lookup reports false: if traces do exist, the later PROJECT_HAS_TRACES_EVENT
+    // still ends the sequence, whereas true would end it for good.
+    const hasTraces = (await projectHasTraces(projectId)) === true;
+    await sendUserOnboardedEvent({ email, projectId, hasTraces });
   }
 }
 
