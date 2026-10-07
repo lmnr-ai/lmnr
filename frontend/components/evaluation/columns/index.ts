@@ -11,6 +11,11 @@ import { StatusCell } from "./status-cell";
 
 // -- Static column definitions --
 
+// Truncate by characters, not bytes: `substring` cuts mid-character (mojibake in the cell) and
+// yields fewer than 200 characters on non-ASCII values, which defeats the length-equals-threshold
+// check that makes a truncated cell hover-fetch its full value via `fullSql`.
+const truncatedSql = (column: string) => `substringUTF8(${column}, 1, 200)`;
+
 export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   {
     id: "id",
@@ -50,7 +55,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Data",
     enableSorting: false,
     meta: {
-      sql: "substring(data, 1, 200)",
+      sql: truncatedSql("data"),
       dataType: "string",
       filterable: false,
       comparable: false,
@@ -65,7 +70,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Target",
     enableSorting: false,
     meta: {
-      sql: "substring(target, 1, 200)",
+      sql: truncatedSql("target"),
       dataType: "string",
       filterable: false,
       comparable: false,
@@ -95,7 +100,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Output",
     enableSorting: false,
     meta: {
-      sql: "substring(executor_output, 1, 200)",
+      sql: truncatedSql("executor_output"),
       dataType: "string",
       filterable: false,
       comparable: false,

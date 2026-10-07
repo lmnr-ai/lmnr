@@ -27,9 +27,12 @@ const datapointSelectColumnsWithSubstring = [
   "id",
   "dataset_id as datasetId",
   "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
-  "substring(data, 1, 200) as data",
-  "substring(target, 1, 200) as target",
-  "substring(metadata, 1, 200) as metadata",
+  // Truncate by characters, not bytes: `substring` cuts mid-character (mojibake in the cell)
+  // and yields fewer than 200 characters on non-ASCII values, which defeats the
+  // length-equals-threshold check that makes the cell hover-fetch its full value.
+  "substringUTF8(data, 1, 200) as data",
+  "substringUTF8(target, 1, 200) as target",
+  "substringUTF8(metadata, 1, 200) as metadata",
 ];
 
 // The datapoints query always runs through the query-engine rewrite, which turns
@@ -40,7 +43,7 @@ const DATAPOINTS_TABLE = "dataset_datapoints";
  * key=value JSON filter over a datapoint column. The column is referenced
  * table-qualified (`dataset_datapoints.<col>`) so the WHERE clause reads the FULL
  * physical column — `data`/`target`/`metadata` are projected as
- * `substring(<col>,1,200) AS <col>`, and that SELECT alias would otherwise shadow a bare
+ * `substringUTF8(<col>,1,200) AS <col>`, and that SELECT alias would otherwise shadow a bare
  * `<col>` here and only match the first 200 chars. The qualifier resolves because the
  * rewrite aliases the view back to `dataset_datapoints`.
  */
