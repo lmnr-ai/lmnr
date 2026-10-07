@@ -15,6 +15,7 @@ import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspace
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+import { sendWorkspaceJoinedHasTracesEvent } from "@/lib/emails/automations";
 
 const INVITATION_EXPIRY_MINUTES = 10080; // 7 days
 
@@ -73,6 +74,8 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
       } catch (e) {
         console.error("Failed to subscribe member to workspace notifications:", e);
       }
+
+      await sendWorkspaceJoinedHasTracesEvent(workspaceId, session.user.email);
 
       // Joining a real team workspace supersedes any in-progress wizard — without
       // this clear, the (app) layout would bounce back to /onboarding.
