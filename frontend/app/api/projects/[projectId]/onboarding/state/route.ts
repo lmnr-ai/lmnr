@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   }
 }
 
-export async function DELETE() {
+export async function DELETE(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const session = await getServerSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -63,7 +63,8 @@ export async function DELETE() {
     // or finishOnboarding (called from both PlanStep free-tier branch and
     // PaidFinalize) would block navigation on `res.ok`.
     try {
-      await sendWelcomeEmail(session.user.email);
+      const { projectId } = await props.params;
+      await sendWelcomeEmail(session.user.email, projectId);
     } catch (e) {
       console.error("Failed to send welcome email:", e);
     }
