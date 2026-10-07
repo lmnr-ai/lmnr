@@ -1,4 +1,11 @@
-import { LogoBrowserUse, LogoKnot, LogoOpenHands, LogoPassionfroot, LogoRye, LogoVorflux } from "@/components/ui/icons";
+import {
+  LogoBrowserUse,
+  LogoKnot,
+  LogoMetaforms,
+  LogoOpenHands,
+  LogoPassionfroot,
+  LogoVorflux,
+} from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -18,7 +25,12 @@ const LOGOS = [
     className: "w-[90px] h-[22px] sm:w-28 sm:h-7",
     href: "https://www.all-hands.dev",
   },
-  { id: "rye", Component: LogoRye, className: "w-[51px] h-4 sm:w-16 sm:h-5", href: "https://rye.com" },
+  {
+    id: "metaforms",
+    Component: LogoMetaforms,
+    className: "w-[94px] h-3 sm:w-[125px] sm:h-4",
+    href: "https://www.metaforms.ai",
+  },
   {
     id: "vorflux",
     Component: LogoVorflux,
