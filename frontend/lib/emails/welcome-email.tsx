@@ -157,7 +157,7 @@ const text: CSSProperties = {
   fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
   fontSize: "14px",
   fontWeight: 400,
-  letterSpacing: "-0.28px",
+  letterSpacing: 0,
   lineHeight: "19px",
 };
 const intro: CSSProperties = { ...text, marginBottom: "28px" };
@@ -185,7 +185,7 @@ const action: CSSProperties = {
   fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
   fontSize: "14px",
   fontWeight: 500,
-  letterSpacing: "-0.28px",
+  letterSpacing: 0,
   lineHeight: "17px",
   textAlign: "center",
   textDecoration: "none",
