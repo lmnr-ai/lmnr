@@ -2,8 +2,6 @@ import { type ModelMessage } from "ai";
 import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
-import { isStorageUrl, urlToBase64 } from "@/lib/s3";
-
 // Native Vercel AI SDK message arrays, covering both vintages the SDK has
 // stored over time:
 //   - verbatim LanguageModel-level prompts / responses (LAM-1922): original
@@ -364,17 +362,6 @@ const toPlaygroundToolOutput = (output: unknown): PlaygroundToolOutput => {
   return { type: "text", value: typeof output === "string" ? output : JSON.stringify(output ?? null) };
 };
 
-const toPlaygroundImage = async (source: string): Promise<string> => {
-  if (isStorageUrl(source)) {
-    try {
-      return await urlToBase64(source);
-    } catch (error) {
-      console.error("Error downloading AI SDK image:", error);
-    }
-  }
-  return source;
-};
-
 export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[]): Promise<Message[]> =>
   Promise.all(
     messages.map(async (message): Promise<Message> => {
@@ -430,7 +417,7 @@ export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[])
           }
           case "image": {
             const source = normalizeMediaData(p.image);
-            if (source !== undefined) content.push({ type: "image", image: await toPlaygroundImage(source) });
+            if (source !== undefined) content.push({ type: "image", image: source });
             // Non-string image data can't render; surface the JSON so it isn't lost.
             else content.push({ type: "text", text: JSON.stringify(part) });
             break;
@@ -438,7 +425,7 @@ export const convertAiSdkToPlaygroundMessages = async (messages: AiSdkMessage[])
           case "file": {
             const imageSource = imageSourceFromFilePart(p);
             if (imageSource !== undefined) {
-              content.push({ type: "image", image: await toPlaygroundImage(imageSource) });
+              content.push({ type: "image", image: imageSource });
             } else {
               content.push({ type: "text", text: JSON.stringify(part) });
             }

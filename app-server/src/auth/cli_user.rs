@@ -319,8 +319,7 @@ pub async fn is_user_member_of_project(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
-    use ed25519_dalek::pkcs8::EncodePrivateKey;
+    use ed25519_compact::{KeyPair, Seed};
     use jsonwebtoken::{EncodingKey, Header, encode};
     use rand::Rng;
     use wiremock::matchers::{method, path};
@@ -329,22 +328,21 @@ mod tests {
     /// Build an `EncodingKey` + the OKP JWK JSON from a fresh Ed25519 keypair.
     /// Returns (EncodingKey, jwk_json) for the given kid.
     fn make_key(kid: &str) -> (EncodingKey, serde_json::Value) {
-        // Generate the 32-byte seed via the app's rand (0.9) to avoid the
-        // rand_core trait-version mismatch with ed25519-dalek's `generate`.
         let mut seed = [0u8; 32];
         rand::rng().fill_bytes(&mut seed);
-        let signing = SigningKey::from_bytes(&seed);
-        // jsonwebtoken signs from the PKCS#8 DER of the Ed25519 key.
-        let pkcs8 = signing
-            .to_pkcs8_der()
-            .expect("pkcs8 encode")
-            .as_bytes()
-            .to_vec();
+        let keypair = KeyPair::from_seed(Seed::new(seed));
+
+        // jsonwebtoken signs from the PKCS#8 DER of the Ed25519 key. RFC 8410 v1 is a fixed
+        // 16-byte prefix (version 0, OID 1.3.101.112, nested OCTET STRING) followed by the seed.
+        const PKCS8_V1_ED25519_PREFIX: [u8; 16] = [
+            0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
+            0x04, 0x20,
+        ];
+        let pkcs8 = [&PKCS8_V1_ED25519_PREFIX[..], &seed[..]].concat();
         let encoding = EncodingKey::from_ed_der(&pkcs8);
 
         // Build the OKP JWK from the public key's raw 32-byte x coordinate.
-        let verifying = signing.verifying_key();
-        let x = base64_url(verifying.as_bytes());
+        let x = base64_url(keypair.pk.as_ref());
         let jwk = serde_json::json!({
             "kty": "OKP",
             "crv": "Ed25519",

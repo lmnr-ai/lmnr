@@ -1,13 +1,13 @@
 "use client";
 
-import { Database, Radio, SquareArrowOutUpRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 
+import Announcements from "@/components/announcements";
+import OpenSourceCard from "@/components/project/sidebar/open-source-card.tsx";
+import UsageCard from "@/components/project/sidebar/usage-card.tsx";
 import { getSidebarMenus } from "@/components/project/utils.ts";
-import { Button } from "@/components/ui/button.tsx";
-import { Progress } from "@/components/ui/progress.tsx";
 import {
   SidebarContent,
   SidebarGroup,
@@ -18,87 +18,26 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
+import { type Announcement } from "@/lib/announcements/types";
 import { Feature } from "@/lib/features/features";
-import { cn } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 
-const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
-  const { settingsHref } = useProjectContext();
-  const {
-    gbLimit,
-    gbUsedThisMonth,
-    signalCostLimit: signalRunsLimit,
-    signalCostUsedThisMonth: signalRunsUsedThisMonth,
-  } = usageDetails;
-  const formatGB = (gb: number) => {
-    if (gb < 0.001) {
-      return `${(gb * 1024).toFixed(0)} MB`;
-    }
-    return `${gb.toFixed(1)} GB`;
-  };
+interface ProjectSidebarContentProps {
+  announcements: Announcement[];
+  details: ProjectDetails;
+  dismissedAnnouncementIds: string[];
+}
 
-  // Signal usage/limit are micro-USD (1e-6 USD); render as a dollar amount.
-  const formatSignalCost = (microUsd: number) =>
-    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const storagePercentage = gbLimit > 0 ? Math.min((gbUsedThisMonth / gbLimit) * 100, 100) : 0;
-  const runsPercentage = signalRunsLimit > 0 ? Math.min((signalRunsUsedThisMonth / signalRunsLimit) * 100, 100) : 0;
-
-  if (!open) return null;
-
-  return (
-    <div className="p-2 rounded-lg border bg-muted/30 text-xs flex flex-col gap-3">
-      <div className="text-muted-foreground font-medium">Free plan</div>
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1 text-muted-foreground">
-            <Database className="size-3.5" />
-            Data
-          </span>
-          <span className="font-medium text-secondary-foreground">
-            <span className="font-semibold">{formatGB(gbUsedThisMonth)}</span> / {formatGB(gbLimit)}
-          </span>
-        </div>
-        <Progress
-          value={storagePercentage}
-          className="h-1.5 border"
-          indicatorClassName={cn({ "bg-destructive": storagePercentage > 80 })}
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1 text-muted-foreground">
-            <Radio className="size-3.5" />
-            Signals
-          </span>
-          <span className="font-medium text-secondary-foreground">
-            <span className="font-semibold">{formatSignalCost(signalRunsUsedThisMonth)}</span> /{" "}
-            {formatSignalCost(signalRunsLimit)}
-          </span>
-        </div>
-        <Progress
-          value={runsPercentage}
-          className="h-1.5 border"
-          indicatorClassName={cn({ "bg-destructive": runsPercentage > 80 })}
-        />
-      </div>
-
-      <Link href={settingsHref("billing")}>
-        <Button className="w-full">
-          <span>Upgrade</span>
-          <SquareArrowOutUpRight className="ml-1 h-3.5 w-3.5" />
-        </Button>
-      </Link>
-    </div>
-  );
-};
-
-const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
+const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementIds }: ProjectSidebarContentProps) => {
   const pathname = usePathname();
   const featureFlags = useFeatureFlags();
   const options = useMemo(
-    () => getSidebarMenus(details.id).filter((m) => m.name !== "signals" || featureFlags[Feature.SIGNALS]),
+    () =>
+      getSidebarMenus(details.id).filter(
+        (m) =>
+          (m.name !== "signals" || featureFlags[Feature.SIGNALS]) && (m.name !== "home" || featureFlags[Feature.AGENT])
+      ),
     [details.id, featureFlags]
   );
   const { open, openMobile } = useSidebar();
@@ -122,13 +61,15 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && (open || openMobile) && (
-        <SidebarGroup className="mt-auto">
+      {((featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier) || featureFlags[Feature.LAMINAR_CLOUD]) && (
+        <SidebarGroup className={cn("mt-auto p-1", !(open || openMobile) && "hidden")}>
           <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <UsageDisplay usageDetails={details} open={open || openMobile} />
-              </SidebarMenuItem>
+            <SidebarMenu className="gap-2">
+              {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
+              {announcements.length > 0 && (
+                <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
+              )}
+              {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && <UsageCard usageDetails={details} />}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

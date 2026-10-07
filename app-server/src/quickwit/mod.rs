@@ -4,6 +4,7 @@ mod doc_batch;
 pub mod preprocess;
 pub mod producer;
 mod proto;
+pub mod stream_consumer;
 mod utils;
 
 use std::sync::LazyLock;

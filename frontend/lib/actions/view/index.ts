@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { FilterSchemaRelaxed } from "@/lib/actions/common/filters";
+import { FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 import { db } from "@/lib/db/drizzle";
 import { tableViews } from "@/lib/db/migrations/schema";
 

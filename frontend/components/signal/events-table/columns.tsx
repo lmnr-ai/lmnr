@@ -1,11 +1,10 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
-import { shallow } from "zustand/shallow";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
+import SignalVersion from "@/components/signal/signal-version";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { Badge } from "@/components/ui/badge";
@@ -86,13 +85,7 @@ function PayloadText({
   eventId: string;
   spanTypes?: Record<string, string>;
 }) {
-  const router = useRouter();
-  const pathName = usePathname();
-  const searchParams = useSearchParams();
-  const { setTraceId, setSpanId } = useSignalStoreContext(
-    (state) => ({ setTraceId: state.setTraceId, setSpanId: state.setSpanId }),
-    shallow
-  );
+  const [, setTraceParams] = useSignalTraceParams();
 
   const callbacks = useMemo<SpanReferenceCallbacks>(
     () => ({
@@ -100,21 +93,17 @@ function PayloadText({
       getSpanType: (uuid) => spanTypes?.[uuid] as SpanType | undefined,
       onSelectSpan: ({ traceId, spanId }) => {
         if (!traceId) return;
-        setTraceId(traceId);
-        setSpanId(spanId ?? null);
-
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("traceId", traceId);
-        params.set("eventId", eventId);
-        if (spanId) {
-          params.set("spanId", spanId);
-        } else {
-          params.delete("spanId");
-        }
-        router.replace(`${pathName}?${params.toString()}`);
+        void setTraceParams(
+          {
+            traceId,
+            eventId,
+            spanId: spanId ?? null,
+          },
+          { history: "replace" }
+        );
       },
     }),
-    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes, eventId]
+    [setTraceParams, spanTypes, eventId]
   );
 
   return <>{renderSpanReferences(text, callbacks) ?? text}</>;
@@ -206,7 +195,8 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
       return {
         name: field.name,
         key: `payload.${field.name}`,
-        dataType: "string",
+        dataType: "enum",
+        options: (field.enumValues ?? []).map((v) => ({ label: v, value: v })),
       };
     default:
       return {
@@ -278,6 +268,13 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
     size: 180,
     id: "traceId",
   },
+  {
+    accessorKey: "signalVersion",
+    header: "Version",
+    cell: (row) => <SignalVersion version={Number(row.getValue())} />,
+    size: 88,
+    id: "signalVersion",
+  },
 ];
 
 const staticFilters: ColumnFilter[] = [
@@ -306,11 +303,23 @@ const staticFilters: ColumnFilter[] = [
       { value: "2", label: "Critical" },
     ],
   },
+  {
+    name: "Version",
+    key: "signal_version",
+    dataType: "number",
+  },
 ];
+
+// Hidden by default, like Run ID on the runs table: only relevant once you're
+// comparing definitions.
+const defaultEventsColumnVisibility: Record<string, boolean> = {
+  signalVersion: false,
+};
 
 export function buildEventsColumns(schemaFields: SchemaField[]): {
   columns: ColumnDef<EventRow>[];
   columnOrder: string[];
+  columnVisibility: Record<string, boolean>;
   filters: ColumnFilter[];
 } {
   const validFields = schemaFields.filter((f) => f.name.trim());
@@ -319,9 +328,21 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", "severity", ...validFields.map((f) => `payload:${f.name}`), "traceId", "id"];
+  const columnOrder = [
+    "timestamp",
+    "severity",
+    ...validFields.map((f) => `payload:${f.name}`),
+    "traceId",
+    "id",
+    "signalVersion",
+  ];
 
   const filters = [...staticFilters, ...payloadFilters];
 
-  return { columns, columnOrder, filters };
+  return {
+    columns,
+    columnOrder,
+    columnVisibility: defaultEventsColumnVisibility,
+    filters,
+  };
 }

@@ -141,7 +141,7 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
               <p className="text-sm text-muted-foreground">Create a new query or select one from the sidebar</p>
             </div>
             <Button onClick={handleCreate} variant="secondaryLight" size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
+              <Plus data-icon="inline-start" className="w-4 h-4" />
               New Query
             </Button>
           </div>

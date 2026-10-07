@@ -722,6 +722,83 @@
       "when": 1782997824498,
       "tag": "0102_signals_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1782997824499,
+      "tag": "0103_agent_chat_session_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1785346058190,
+      "tag": "0104_cynical_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1786381209609,
+      "tag": "0105_signal_trigger_filters",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1786381210609,
+      "tag": "0106_workspace_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1786381211609,
+      "tag": "0107_signal_filters_includes",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1788533882565,
+      "tag": "0108_llm_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1788862914500,
+      "tag": "0109_lam_2211_signal_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1788878912686,
+      "tag": "0110_playgrounds_llm_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1789464523891,
+      "tag": "0111_llm_feature_routes",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1790864780430,
+      "tag": "0112_one_time_signal_credit",
+      "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1791191314458,
+      "tag": "0113_user_preferences",
+      "breakpoints": true
     }
   ]
 }

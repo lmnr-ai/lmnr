@@ -1,5 +1,6 @@
 import { type Metadata } from "next";
 
+import AnnouncementBanner from "@/components/landing/announcement-banner";
 import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import LandingHeader from "@/components/landing/header";
 import Pricing from "@/components/landing/pricing";
@@ -28,7 +29,8 @@ export default async function PricingPage() {
   const session = await getServerSession();
 
   return (
-    <div className="bg-surface-700 flex flex-col w-full min-h-screen">
+    <div className="bg-surface-150 flex flex-col w-full min-h-screen">
+      <AnnouncementBanner />
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding

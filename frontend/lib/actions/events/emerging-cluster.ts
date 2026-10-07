@@ -5,9 +5,8 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
-import { attachSnippets } from "./index";
 import { searchSignalEvents, type SignalEventSearchHit } from "./search";
-import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
+import { attachSnippets, buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -100,34 +99,4 @@ export async function getEventsByEmergingClusterPaginated(
     items: searchHits.length > 0 ? attachSnippets(rawItems, searchHits) : rawItems,
     count: countResult?.count || 0,
   };
-}
-
-export const GetEmergingClusterNameSchema = z.object({
-  projectId: z.guid(),
-  signalId: z.guid(),
-  emergingClusterId: z.guid(),
-});
-
-export async function getEmergingClusterName(
-  input: z.infer<typeof GetEmergingClusterNameSchema>
-): Promise<{ name: string } | null> {
-  const { projectId, signalId, emergingClusterId } = GetEmergingClusterNameSchema.parse(input);
-
-  const query = `
-    SELECT cluster_name AS name
-    FROM event_clusters_all
-    WHERE cluster_id = {emergingClusterId:UUID}
-      AND signal_id = {signalId:UUID}
-    LIMIT 1
-  `;
-
-  const rows = await executeQuery<{ name: string }>({
-    query,
-    parameters: { signalId, emergingClusterId },
-    projectId,
-  });
-
-  if (rows.length === 0) return null;
-
-  return { name: rows[0].name };
 }

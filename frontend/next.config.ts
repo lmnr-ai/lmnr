@@ -10,15 +10,9 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
 
 const nextConfig: NextConfig = {
   basePath,
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
-  },
-  experimental: {
-    turbopackFileSystemCacheForDev: true,
-    // Rewrites barrel imports from "recharts" into direct submodule imports at build
-    // time. Reshapes the chunk graph to avoid the Turbopack production interop split that
-    // left recharts' internal usePrefersReducedMotion unlinked ("(0, v.usePrefersReducedMotion) is not a function").
-    optimizePackageImports: ["recharts"],
   },
   reactStrictMode: false,
   logging: {
@@ -28,6 +22,14 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
   output: "standalone",
+  // Policy markdown is read with fs at request time, which the standalone
+  // file tracer can't see — without this the .md files are missing in the
+  // production image and /policies/* 500s.
+  outputFileTracingIncludes: {
+    // Key is a minimatch glob over route names; "[slug]" would parse as a
+    // character class, so match the whole segment with a wildcard.
+    "/policies/*": ["./lib/policies/content/*.md"],
+  },
   async rewrites() {
     // Forward LEGACY NextAuth genericOAuth callbacks to Better Auth's handler so
     // self-hosted Okta/Keycloak/Azure SSO keeps working with no IdP change (paired
@@ -93,6 +95,8 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // react-pdf's pdfjs reaches for the optional native `canvas` module: stub it out of the
+  // browser bundle, keep it external on the server.
   webpack: (config, { isServer }) => {
     config.resolve.alias["canvas"] = false;
 
@@ -103,6 +107,8 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+
+  // Only `dev` runs Turbopack; `build` passes --webpack, so both bundler blocks are live.
   turbopack: {
     resolveExtensions: [".ts", ".tsx", ".js", ".jsx", ".json", ".css", ".scss"],
   },
@@ -132,11 +138,14 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
     // side errors will fail.
     tunnelRoute: "/monitoring",
 
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
+    // Tree-shake Sentry logger statements to reduce bundle size.
     webpack: {
       treeshake: {
         removeDebugLogging: true,
       },
+    },
+    bundleSizeOptimizations: {
+      excludeDebugStatements: true,
     },
   });
 } else {

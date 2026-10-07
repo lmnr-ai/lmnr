@@ -1,11 +1,11 @@
 use anyhow::Result;
+use chacha20poly1305::{
+    Key, XChaCha20Poly1305, XNonce,
+    aead::{Aead, KeyInit, Payload},
+};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sodiumoxide::{
-    crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
-    hex,
-};
 use uuid::Uuid;
 
 use super::NotificationKind;
@@ -31,21 +31,27 @@ pub fn decode_slack_token(
     let key_hex = std::env::var(crate::env::secrets::SLACK_ENCRYPTION_KEY)
         .map_err(|_| anyhow::anyhow!("SLACK_ENCRYPTION_KEY environment variable is not set"))?;
 
-    let key = Key::from_slice(
-        hex::decode(key_hex)
-            .map_err(|e| anyhow::anyhow!("Failed to decode SLACK_ENCRYPTION_KEY hex: {:?}", e))?
-            .as_slice(),
-    )
-    .ok_or_else(|| anyhow::anyhow!("Invalid SLACK_ENCRYPTION_KEY"))?;
+    let key_bytes = hex::decode(key_hex)
+        .map_err(|e| anyhow::anyhow!("Failed to decode SLACK_ENCRYPTION_KEY hex: {:?}", e))?;
+    let key = Key::try_from(&key_bytes[..])
+        .map_err(|_| anyhow::anyhow!("Invalid SLACK_ENCRYPTION_KEY"))?;
+    let cipher = XChaCha20Poly1305::new(&key);
 
     let nonce_bytes = hex::decode(nonce_hex)
         .map_err(|e| anyhow::anyhow!("Failed to decode nonce hex: {:?}", e))?;
-    let nonce = Nonce::from_slice(&nonce_bytes).ok_or_else(|| anyhow::anyhow!("Invalid nonce"))?;
+    let nonce = XNonce::try_from(&nonce_bytes[..]).map_err(|_| anyhow::anyhow!("Invalid nonce"))?;
 
     let encrypted_bytes = hex::decode(encrypted_value)
         .map_err(|e| anyhow::anyhow!("Failed to decode encrypted value hex: {:?}", e))?;
 
-    let decrypted = open(&encrypted_bytes, Some(team_id.as_bytes()), &nonce, &key)
+    let decrypted = cipher
+        .decrypt(
+            &nonce,
+            Payload {
+                msg: &encrypted_bytes,
+                aad: team_id.as_bytes(),
+            },
+        )
         .map_err(|_| anyhow::anyhow!("Failed to decrypt Slack token"))?;
 
     String::from_utf8(decrypted)
@@ -252,6 +258,7 @@ pub async fn post_thread_message(
 /// context when the agent is first mentioned mid-thread. The caller persists each as a `user` turn
 /// (the agent's own replies are written live as `assistant`), so authorship isn't distinguished here.
 /// Best-effort — the caller treats a failure as "no backfill".
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn fetch_thread_replies(
     slack_client: &Client,
     token: &str,
@@ -307,6 +314,7 @@ pub async fn fetch_thread_replies(
 /// One backfilled thread message. Persisted as a `user` turn regardless of author (see
 /// `fetch_thread_replies`).
 #[derive(Debug, Clone)]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub struct ThreadMessage {
     pub text: String,
     pub ts: Option<String>,
@@ -490,6 +498,7 @@ mod tests {
     fn new_cluster_kind(cluster_name: &str, num_signal_events: u32) -> NotificationKind {
         NotificationKind::NewCluster {
             project_id: Uuid::nil(),
+            project_name: "Test Project".to_string(),
             signal_id: Uuid::nil(),
             signal_name: "Failure Detector".to_string(),
             cluster_id: Uuid::new_v4(),
@@ -499,6 +508,7 @@ mod tests {
             first_seen: Some("Jul 1, 2026".to_string()),
             last_seen: Some("Jul 6, 2026".to_string()),
             severity_counts: [1, 0, 2],
+            activity_buckets: vec![],
             example_events: vec![],
         }
     }
@@ -509,10 +519,7 @@ mod tests {
         let v = format_new_cluster_blocks(&[&kind]);
         let blocks = blocks_of(&v);
         // header names the signal, singular form
-        assert_eq!(
-            blocks[0]["text"]["text"],
-            "`Failure Detector`: New Cluster"
-        );
+        assert_eq!(blocks[0]["text"]["text"], "`Failure Detector`: New Cluster");
         // one cluster section with name, event count, seen dates, severity line
         let section = blocks[1]["text"]["text"].as_str().unwrap();
         assert!(section.contains("Bad args"));
@@ -524,10 +531,7 @@ mod tests {
         assert!(!section.contains("Warning"));
         // per-cluster actions block with a View Cluster button
         assert_eq!(blocks[2]["type"], "actions");
-        assert_eq!(
-            blocks[2]["elements"][0]["text"]["text"],
-            "View Cluster"
-        );
+        assert_eq!(blocks[2]["elements"][0]["text"]["text"], "View Cluster");
         // trailing context (signal + alert links) and divider
         let context = &blocks[blocks.len() - 2];
         assert_eq!(context["type"], "context");
@@ -577,6 +581,7 @@ mod tests {
                 project_name: "background-agent".to_string(),
                 project_id: Uuid::nil(),
                 signal_event_counts: counts,
+                signals: Vec::new(),
                 ai_summary: "Summary text".to_string(),
                 noteworthy_events: noteworthy,
             }],
@@ -655,6 +660,7 @@ mod tests {
                 project_name: format!("project-{}", i),
                 project_id: Uuid::nil(),
                 signal_event_counts: counts.clone(),
+                signals: Vec::new(),
                 ai_summary: "summary text".to_string(),
                 noteworthy_events: vec![event(2), event(1)],
             })

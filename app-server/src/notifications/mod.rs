@@ -148,6 +148,8 @@ pub enum NotificationKind {
     },
     NewCluster {
         project_id: Uuid,
+        #[serde(default)]
+        project_name: String,
         signal_id: Uuid,
         signal_name: String,
         cluster_id: Uuid,
@@ -164,6 +166,9 @@ pub enum NotificationKind {
         /// Event counts by severity: [info, warning, critical].
         #[serde(default)]
         severity_counts: [u64; 3],
+        /// Event counts in equal-width buckets from first_seen through last_seen.
+        #[serde(default)]
+        activity_buckets: Vec<u64>,
         #[serde(default)]
         example_events: Vec<ClusterExampleEvent>,
     },
@@ -176,6 +181,9 @@ pub enum NotificationKind {
         period_start: String,
         period_end: String,
         signal_event_counts: BTreeMap<String, u64>,
+        /// Per-signal chart and cluster data. Empty for legacy queued reports.
+        #[serde(default)]
+        signals: Vec<crate::reports::SignalReportData>,
         ai_summary: String,
         noteworthy_events: Vec<NoteworthyEvent>,
     },
@@ -205,13 +213,15 @@ pub enum NotificationKind {
     },
     /// A workspace has hit a hard usage limit. Unlike `UsageWarning` (a soft
     /// nudge), this means ingestion (bytes) or signal runs (signal_cost) are now
-    /// BLOCKED until the billing cycle resets. The email must convey that data
-    /// ingestion / signal runs have stopped until reset.
+    /// BLOCKED. Monthly data/custom limits resume after reset; a depleted
+    /// one-time Signals credit requires an upgrade instead.
     UsageHardLimit {
         workspace_name: String,
         usage_label: String,
         formatted_limit: String,
         usage_item: String,
+        #[serde(default)]
+        one_time_credit_exhausted: bool,
     },
 }
 

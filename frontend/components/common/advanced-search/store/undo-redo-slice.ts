@@ -1,22 +1,9 @@
-import { createFilterFromTag, type FilterTag, type FilterTagFocusState } from "../types";
-import type { SliceCreator } from "./types";
+import { createFilterFromTag, type FilterTagFocusState } from "../types";
+import type { SliceCreator, UndoRedoSlice } from "./types";
+
+export type { UndoRedoSlice, UndoSnapshot } from "./types";
 
 const MAX_UNDO_STACK = 50;
-
-export interface UndoSnapshot {
-  tags: FilterTag[];
-  inputValue: string;
-}
-
-export interface UndoRedoSlice {
-  undoStack: UndoSnapshot[];
-  redoStack: UndoSnapshot[];
-  pushUndoSnapshot: () => void;
-  undo: () => void;
-  redo: () => void;
-  canUndo: () => boolean;
-  canRedo: () => boolean;
-}
 
 export const createUndoRedoSlice: SliceCreator<UndoRedoSlice> = (
   set,

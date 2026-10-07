@@ -1,6 +1,5 @@
 import "react-grid-layout/css/styles.css";
 import "./styles.css";
-
 import { compact, debounce, isEqual, pick } from "lodash";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
@@ -8,7 +7,7 @@ import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layo
 import useSWR from "swr";
 
 import Chart from "@/components/dashboards/chart";
-import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
+import { type DashboardChart, dragHandleKey, GRID_COLS } from "@/components/dashboards/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
@@ -128,7 +127,7 @@ const GridLayout = () => {
       onLayoutChange={debouncedAutoSave}
       layouts={{ lg: layout, md: layout }}
       breakpoints={{ lg: 1200, md: 996 }}
-      cols={{ lg: 12, md: 12 }}
+      cols={{ lg: GRID_COLS, md: GRID_COLS }}
       rowHeight={36}
       isDraggable={true}
       isResizable={true}

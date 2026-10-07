@@ -70,7 +70,13 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   className="border-none bg-transparent p-0 focus-visible:ring-0 flex-1 h-fit rounded-none max-h-96"
                 />
                 {fields.length > 1 && (
-                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                  <Button
+                    aria-label="Remove message part"
+                    onClick={() => remove(index)}
+                    className={buttonClassName}
+                    variant="outline"
+                    size="icon"
+                  >
                     <X className="text-gray-400" size={12} />
                   </Button>
                 )}
@@ -123,7 +129,13 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   />
                 </div>
                 {fields.length > 1 && (
-                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                  <Button
+                    aria-label="Remove message part"
+                    onClick={() => remove(index)}
+                    className={buttonClassName}
+                    variant="outline"
+                    size="icon"
+                  >
                     <X className="text-gray-400" size={12} />
                   </Button>
                 )}
@@ -156,7 +168,13 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                   <ToolResultOutput parentIndex={parentIndex} index={index} output={part.output} />
                 </div>
                 {fields.length > 1 && (
-                  <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
+                  <Button
+                    aria-label="Remove message part"
+                    onClick={() => remove(index)}
+                    className={buttonClassName}
+                    variant="outline"
+                    size="icon"
+                  >
                     <X className="text-gray-400" size={12} />
                   </Button>
                 )}
@@ -181,6 +199,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                         onChange={handleFileSelect(onChange)}
                       />
                       <Button
+                        aria-label="Attach file"
                         onClick={() => fileInputRef.current?.click()}
                         size="icon"
                         variant="outline"
@@ -190,6 +209,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       </Button>
                       {fields.length > 1 && (
                         <Button
+                          aria-label="Remove message part"
                           onClick={() => remove(index)}
                           className={cn(buttonClassName, "ml-auto")}
                           variant="outline"

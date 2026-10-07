@@ -44,7 +44,7 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-foreground/80">
+        <Button aria-label="Expand" variant="ghost" size="icon" className="text-foreground/80">
           <Maximize className="h-3.5 w-3.5" />
         </Button>
       </SheetTrigger>
@@ -53,13 +53,15 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
           <DialogTitle className="hidden"></DialogTitle>
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex items-center gap-1">
-              <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              {sheetModes.length > 1 && (
+                <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              )}
               {sheetMode === "custom" && <TemplatePickerActions />}
             </div>
             <div className="flex items-center">
               <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
               <SheetClose asChild>
-                <Button variant="ghost" size="icon">
+                <Button aria-label="Collapse" variant="ghost" size="icon">
                   <Minimize className="h-4 w-4" />
                 </Button>
               </SheetClose>

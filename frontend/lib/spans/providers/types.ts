@@ -1,5 +1,4 @@
-import { type ParsedInput } from "@/lib/actions/sessions/parse-input";
-import { type ExtractedTool } from "@/lib/actions/spans/previews/tool-detection";
+import { type ExtractedTool, type ParsedInput } from "./message-types";
 
 /**
  * Canonical provider identifiers. Keep the list in sync with `PROVIDERS`

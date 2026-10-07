@@ -7,7 +7,7 @@ import { persist } from "zustand/middleware";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type CustomColumn } from "@/components/ui/columns-menu";
+import type { CustomColumn } from "@/components/ui/columns-menu/types";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 

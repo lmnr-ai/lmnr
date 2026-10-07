@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import { shallow } from "zustand/shallow";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 
@@ -31,14 +32,15 @@ function TracesContent() {
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
-  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
-    spanId: state.spanId,
-    traceId: state.traceId,
-    setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
-  }));
-
-  const showChatInitial = searchParams.get("chat") === "true";
+  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext(
+    (state) => ({
+      spanId: state.spanId,
+      traceId: state.traceId,
+      setTraceId: state.setTraceId,
+      setSpanId: state.setSpanId,
+    }),
+    shallow
+  );
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
@@ -46,7 +48,6 @@ function TracesContent() {
     params.delete("textSearch");
     params.delete("traceId");
     params.delete("spanId");
-    params.delete("chat");
     params.set("view", newView);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
@@ -70,7 +71,7 @@ function TracesContent() {
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
       <Tabs
-        className="flex flex-1 overflow-hidden gap-4"
+        className="flex flex-1 min-h-0 overflow-hidden gap-4"
         value={tracesTab}
         onValueChange={(value) => resetUrlParams(value)}
       >
@@ -102,12 +103,10 @@ function TracesContent() {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
-            params.delete("chat");
             router.push(`${pathName}?${params.toString()}`);
             setTraceId(null);
           }}
           traceId={traceId}
-          showChatInitial={showChatInitial}
           initialSearch={searchParams.get("search") ?? undefined}
         />
       )}

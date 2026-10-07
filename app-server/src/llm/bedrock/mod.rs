@@ -16,7 +16,9 @@ use serde_json::Value;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
-mod accumulator;
+// Bedrock's InvokeModel body IS the Anthropic Messages body, so the conversions
+// and the stream accumulator are shared with `llm::azure_anthropic` (Claude on Azure).
+pub(super) mod accumulator;
 use accumulator::BedrockStreamAccumulator;
 
 fn cache_control_ephemeral() -> Value {
@@ -41,24 +43,78 @@ pub struct BedrockClient {
     client: AwsBedrockClient,
 }
 
+/// Explicit Bedrock credentials (LLM profiles), bypassing the AWS default chain.
+pub(crate) enum BedrockCredentials {
+    AwsKeys {
+        access_key_id: String,
+        secret_access_key: String,
+    },
+    /// Bedrock API key, sent as `Authorization: Bearer`.
+    BearerToken(String),
+}
+
 impl BedrockClient {
     pub async fn new() -> ProviderResult<Self> {
         let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
-        // Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
-        // by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
-        // timeout. SDK auto-retries are disabled so all providers behave the same —
-        // the retry layer is owned by the caller.
+        let config =
+            Self::apply_timeouts(aws_sdk_bedrockruntime::config::Builder::from(&sdk_config))
+                .build();
+        Ok(Self {
+            client: AwsBedrockClient::from_conf(config),
+        })
+    }
+
+    /// Build from explicit values (LLM profiles) instead of the env/default chain.
+    pub(crate) fn from_credentials(region: &str, credentials: BedrockCredentials) -> Self {
+        Self {
+            client: AwsBedrockClient::from_conf(Self::config_builder(region, credentials).build()),
+        }
+    }
+
+    fn config_builder(
+        region: &str,
+        credentials: BedrockCredentials,
+    ) -> aws_sdk_bedrockruntime::config::Builder {
+        use aws_sdk_bedrockruntime::config::{BehaviorVersion, Credentials, Region, Token};
+        use aws_smithy_runtime_api::client::auth::http::HTTP_BEARER_AUTH_SCHEME_ID;
+
+        let builder = aws_sdk_bedrockruntime::config::Builder::new()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new(region.trim().to_string()));
+        let builder = match credentials {
+            BedrockCredentials::AwsKeys {
+                access_key_id,
+                secret_access_key,
+            } => builder.credentials_provider(Credentials::new(
+                access_key_id,
+                secret_access_key,
+                None,
+                None,
+                "llm_profile",
+            )),
+            // Bedrock advertises sigv4 first; the preference makes the bearer
+            // scheme win so the missing sigv4 identity is never an error.
+            BedrockCredentials::BearerToken(token) => builder
+                .bearer_token(Token::new(token, None))
+                .auth_scheme_preference([HTTP_BEARER_AUTH_SCHEME_ID]),
+        };
+        Self::apply_timeouts(builder)
+    }
+
+    /// Mirror the reqwest-based clients (openai/gemini): a single attempt bounded
+    /// by the shared LLM_HTTP_TIMEOUT_SECS request timeout plus a 10s connect
+    /// timeout. SDK auto-retries are disabled so all providers behave the same —
+    /// the retry layer is owned by the caller.
+    fn apply_timeouts(
+        builder: aws_sdk_bedrockruntime::config::Builder,
+    ) -> aws_sdk_bedrockruntime::config::Builder {
         let timeout_config = TimeoutConfig::builder()
             .operation_attempt_timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
             .connect_timeout(Duration::from_secs(10))
             .build();
-        let config = aws_sdk_bedrockruntime::config::Builder::from(&sdk_config)
+        builder
             .timeout_config(timeout_config)
             .retry_config(RetryConfig::disabled())
-            .build();
-        Ok(Self {
-            client: AwsBedrockClient::from_conf(config),
-        })
     }
 }
 
@@ -99,7 +155,7 @@ fn build_message_blocks(parts: &[ProviderPart]) -> Vec<Value> {
     blocks
 }
 
-fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
+pub(super) fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
     {
         let thinking_level = request
             .generation_config
@@ -141,7 +197,8 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             max_tokens
         };
 
-        // Build system blocks with cache_control on the last block
+        // Cache the final system block and the final block of the opening user
+        // turn, which form the stable prefixes reused across steps.
         let mut system_blocks: Vec<Value> = request
             .system_instruction
             .as_ref()
@@ -158,8 +215,7 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             last["cache_control"] = cache_control_ephemeral();
         }
 
-        // Build tool definitions with cache_control on the last tool
-        let mut tools: Vec<Value> = request
+        let tools: Vec<Value> = request
             .tools
             .as_ref()
             .map(|tool_groups| {
@@ -176,13 +232,7 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
                     .collect()
             })
             .unwrap_or_default();
-        if let Some(last) = tools.last_mut() {
-            if let Some(obj) = last.as_object_mut() {
-                obj.insert("cache_control".to_string(), cache_control_ephemeral());
-            }
-        }
 
-        // Build messages, placing cache_control on the last block of the first user message
         let mut messages: Vec<Value> = Vec::new();
         for (i, content) in request.contents.iter().enumerate() {
             let role = match content.role.as_deref().unwrap_or("user") {
@@ -197,10 +247,8 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
                 .unwrap_or_default();
 
             if i == 0 && role == "user" {
-                if let Some(last) = blocks.last_mut() {
-                    last.as_object_mut().map(|obj| {
-                        obj.insert("cache_control".to_string(), cache_control_ephemeral());
-                    });
+                if let Some(obj) = blocks.last_mut().and_then(Value::as_object_mut) {
+                    obj.insert("cache_control".to_string(), cache_control_ephemeral());
                 }
             }
 
@@ -243,6 +291,7 @@ fn build_request_body(model: &str, request: &ProviderRequest) -> ProviderResult<
             // the caller's level is forwarded only as a soft `effort` hint.
             body["thinking"] = serde_json::json!({
                 "type": "adaptive",
+                "display": "summarized"
             });
             // `effort` MUST be a sibling of `thinking` under `output_config` —
             // nesting it inside `thinking` triggers a Bedrock ValidationException.
@@ -295,11 +344,12 @@ fn parse_usage(usage_obj: Option<&Value>) -> ProviderUsageMetadata {
         ),
         cache_read_input_tokens: cache_read,
         cache_creation_input_tokens: cache_write,
+        reasoning_token_count: None,
     }
 }
 
 /// Parse a full (non-streaming) Anthropic `InvokeModel` response body into a `ProviderResponse`.
-fn parse_response_body(model: &str, resp_body: &Value) -> ProviderResponse {
+pub(super) fn parse_response_body(model: &str, resp_body: &Value) -> ProviderResponse {
     let mut provider_parts = Vec::new();
     if let Some(content) = resp_body.get("content").and_then(|c| c.as_array()) {
         for block in content {
@@ -392,7 +442,6 @@ impl LanguageModelClient for BedrockClient {
             .await
             .map_err(|e| {
                 let detail = format_sdk_error(&e);
-                log::error!("Failed to call AWS Bedrock InvokeModel. {detail}");
                 let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
                 ProviderError::ApiError {
                     status_code: status,
@@ -429,7 +478,6 @@ impl LanguageModelClient for BedrockClient {
             .await
             .map_err(|e| {
                 let detail = format_sdk_error(&e);
-                log::error!("Failed to call AWS Bedrock InvokeModelWithResponseStream. {detail}");
                 let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
                 ProviderError::ApiError {
                     status_code: status,
@@ -498,21 +546,67 @@ fn thinking_level_to_adaptive_effort(level: &super::models::ProviderThinkingLeve
 fn requires_adaptive_thinking(model: &str) -> bool {
     model.contains("claude-opus-4-7")
         || model.contains("claude-opus-4-8")
+        || model.contains("claude-opus-5")
         || model.contains("claude-sonnet-5")
 }
 
 /// False for models that deprecated the `temperature`/`top_p` sampling knobs
 /// and 400 when they're present ("`temperature` is deprecated for this model").
-/// Same generation as `requires_adaptive_thinking` (Claude 5.x / Opus 4.7+).
+/// Exactly the generation `requires_adaptive_thinking` covers (Claude 5.x /
+/// Opus 4.7+) — kept as one list so a new model can't be added to one and
+/// missed in the other.
 fn supports_sampling_params(model: &str) -> bool {
-    !(model.contains("claude-opus-4-7")
-        || model.contains("claude-opus-4-8")
-        || model.contains("claude-sonnet-5"))
+    !requires_adaptive_thinking(model)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::LlmRoute;
+
+    /// Only the final system and opening-user blocks receive breakpoints.
+    #[test]
+    fn only_system_and_the_opening_user_turn_carry_breakpoints() {
+        let text = |t: &str| ProviderPart {
+            text: Some(t.to_string()),
+            ..Default::default()
+        };
+        let request = ProviderRequest {
+            contents: vec![
+                ProviderContent {
+                    role: Some("user".to_string()),
+                    parts: Some(vec![text("<trace>…</trace>"), text("developer prompt")]),
+                },
+                ProviderContent {
+                    role: Some("model".to_string()),
+                    parts: Some(vec![text("…")]),
+                },
+            ],
+            system_instruction: Some(ProviderContent {
+                role: None,
+                parts: Some(vec![text("system")]),
+            }),
+            tools: Some(vec![crate::llm::models::ProviderTool {
+                function_declarations: vec![crate::llm::models::ProviderFunctionDeclaration {
+                    name: "grep".to_string(),
+                    description: "search".to_string(),
+                    parameters: serde_json::json!({"type": "object"}),
+                }],
+            }]),
+            generation_config: None,
+            service_tier: None,
+            route: LlmRoute::default(),
+        };
+
+        let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        assert!(body["tools"][0]["cache_control"].is_null());
+        let first = &body["messages"][0]["content"];
+        assert!(first[0]["cache_control"].is_null());
+        assert_eq!(first[1]["cache_control"]["type"], "ephemeral");
+        // Later turns are never cached — nothing follows them in the prefix.
+        assert!(body["messages"][1]["content"][0]["cache_control"].is_null());
+    }
 
     #[test]
     fn opus_4_7_under_any_bedrock_prefix_requires_adaptive() {
@@ -537,6 +631,18 @@ mod tests {
             "global.anthropic.claude-sonnet-5"
         ));
         assert!(requires_adaptive_thinking("claude-sonnet-5"));
+    }
+
+    #[test]
+    fn opus_5_requires_adaptive_and_drops_sampling_params() {
+        // The default Large model for bedrock and azure_anthropic — a miss here sends
+        // legacy `budget_tokens` and `temperature`, both 400s on Claude 5.x.
+        assert!(requires_adaptive_thinking("us.anthropic.claude-opus-5"));
+        assert!(requires_adaptive_thinking("claude-opus-5"));
+        assert!(!supports_sampling_params("us.anthropic.claude-opus-5"));
+        // Opus 4.5 predates the adaptive-only generation and keeps both.
+        assert!(!requires_adaptive_thinking("us.anthropic.claude-opus-4-5"));
+        assert!(supports_sampling_params("us.anthropic.claude-opus-4-5"));
     }
 
     #[test]
@@ -573,8 +679,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
         assert_eq!(body["thinking"]["type"], "adaptive");
@@ -596,8 +701,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-sonnet-5", &request).unwrap();
         assert!(body.get("temperature").is_none());
@@ -617,8 +721,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
-            provider: None,
-            model_size: None,
+            route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-sonnet-4-6", &request).unwrap();
         assert!(body["temperature"].is_number());
@@ -638,5 +741,59 @@ mod tests {
             "us.anthropic.claude-sonnet-4-6"
         ));
         assert!(!requires_adaptive_thinking("us.anthropic.claude-opus-4-6"));
+    }
+
+    async fn captured_authorization(credentials: BedrockCredentials) -> String {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "content": [{"type": "text", "text": "ok"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1}
+            })))
+            .mount(&server)
+            .await;
+
+        let config = BedrockClient::config_builder("us-east-1", credentials)
+            .endpoint_url(server.uri())
+            .build();
+        AwsBedrockClient::from_conf(config)
+            .invoke_model()
+            .model_id("m")
+            .body(Blob::new("{}"))
+            .send()
+            .await
+            .expect("mock invoke succeeds");
+
+        let requests = server.received_requests().await.unwrap();
+        requests[0]
+            .headers
+            .get("authorization")
+            .expect("authorization header present")
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn profile_bearer_token_is_sent_as_bearer_auth() {
+        let auth = captured_authorization(BedrockCredentials::BearerToken("tok-123".into())).await;
+        assert_eq!(auth, "Bearer tok-123");
+    }
+
+    #[tokio::test]
+    async fn profile_aws_keys_sign_with_sigv4() {
+        let auth = captured_authorization(BedrockCredentials::AwsKeys {
+            access_key_id: "AKIAEXAMPLE".into(),
+            secret_access_key: "secret".into(),
+        })
+        .await;
+        assert!(
+            auth.starts_with("AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE/"),
+            "{auth}"
+        );
+        assert!(auth.contains("/us-east-1/bedrock/aws4_request"), "{auth}");
     }
 }

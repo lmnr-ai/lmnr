@@ -1,5 +1,6 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
@@ -8,6 +9,18 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { type EventRow } from "@/lib/events/types";
+
+import { type SignalEventSearchHit } from "./search";
+
+export function attachSnippets(items: EventRow[], hits: SignalEventSearchHit[]): EventRow[] {
+  const lookup = new Map(hits.map((h) => [h.id, h]));
+  return items.map((item) => {
+    const hit = lookup.get(item.id);
+    if (!hit) return item;
+    return { ...item, fieldSnippets: hit.fieldSnippets };
+  });
+}
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -21,6 +34,18 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         return {
           condition: `severity ${opSymbol} {${paramKey}:UInt8}`,
           params: { [paramKey]: parseInt(String(filter.value), 10) },
+        };
+      },
+    ],
+    // Needs an explicit processor: `defaultProcessor` treats every column it
+    // doesn't know about as a payload JSON field.
+    [
+      "signal_version",
+      (filter, paramKey) => {
+        const opSymbol = OperatorLabelMap[filter.operator];
+        return {
+          condition: `signal_version ${opSymbol} {${paramKey}:UInt32}`,
+          params: { [paramKey]: parseInt(String(filter.value), 10) || 0 },
         };
       },
     ],
@@ -52,10 +77,14 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
       };
     }
 
+    // extractString is unquoted, extractRaw keeps JSON quotes. `=` is OR (either
+    // form); `!=` must be AND or a quoted string satisfies extractRaw != value
+    // on every row and the filter becomes a no-op.
+    const join = filter.operator === Operator.Ne ? " AND " : " OR ";
     return {
       condition:
         `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
-        ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
+        `${join}simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
       params: {
         [`${paramKey}_key`]: fieldName,
         [`${paramKey}_val`]: String(value),
@@ -71,6 +100,8 @@ const eventsSelectColumns = [
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "payload",
   "severity",
+  // 0 = the event predates versioning; rendered as an em dash.
+  "signal_version signalVersion",
 ];
 
 /** Data type of a payload field being sorted on; drives the JSONExtract cast. */

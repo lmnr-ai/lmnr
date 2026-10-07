@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
+import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { type CreateWorkspaceOptions, useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceStepProps extends CreateWorkspaceOptions {
@@ -19,6 +22,9 @@ interface WorkspaceStepProps extends CreateWorkspaceOptions {
 export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, onComplete }: WorkspaceStepProps) {
   const { control, watch } = useFormContext<OnboardingFormValues>();
   const { isSubmitting, createWorkspace, beginSubmitting } = useOnboardingActions();
+  const { companyName } = useOnboardingContext();
+  // Tracks whether a prefilled company name survived to submit.
+  const [nameEdited, setNameEdited] = useState(false);
 
   const workspaceName = watch("workspaceName");
   const projectName = watch("projectName");
@@ -27,6 +33,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
   const handleNext = async () => {
     const result = await createWorkspace({ isCloud });
     if (!result) return;
+    if (companyName) track("onboarding", "workspace_name_submitted", { kept_suggestion: !nameEdited });
     // Hold the loading state through onComplete's navigation so the button
     // can't be re-clicked while the next route mounts.
     beginSubmitting();
@@ -75,6 +82,10 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
               <>
                 <Input
                   {...field}
+                  onChange={(e) => {
+                    setNameEdited(true);
+                    field.onChange(e);
+                  }}
                   id="workspace-name"
                   placeholder="e.g. Acme Inc."
                   className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}

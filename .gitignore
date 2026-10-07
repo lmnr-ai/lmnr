@@ -9,3 +9,4 @@ target/
 .agent-team/
 .lmnr/
 .cursor/
+.agents/

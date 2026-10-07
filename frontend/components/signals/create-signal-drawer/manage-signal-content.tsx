@@ -12,17 +12,14 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import SignalFormFields from "./signal-form-fields";
-import { type ManageSignalForm } from "./types";
+import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 import useSubmitHandler from "./use-submit-handler";
-
-export type ManageSignalContentVariant = "sheet" | "panel";
 
 interface ManageSignalContentProps {
   variant: ManageSignalContentVariant;
   onClose?: () => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   onSubmitComplete: (data: ManageSignalForm) => void;
-  previousTriggerIds: string[];
   className?: string;
 }
 
@@ -31,7 +28,6 @@ export default function ManageSignalContent({
   onClose,
   onSuccess,
   onSubmitComplete,
-  previousTriggerIds,
   className,
 }: ManageSignalContentProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -55,7 +51,6 @@ export default function ManageSignalContent({
     onSubmitComplete,
     onSuccess,
     setIsLoading,
-    previousTriggerIds,
     setFormId,
     setFormTriggers,
   });

@@ -57,6 +57,48 @@ You will also need to properly configure the SDK, with `baseUrl` and correct por
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
+#### Upgrading existing self-hosted installations
+
+The ClickHouse configuration disables internal telemetry logs that are not useful
+for a single-node installation and retains query and error logs for three days.
+After pulling this change, recreate the ClickHouse container to apply the
+configuration. The examples below use `docker-compose.yml`; pass `-f` with the
+Compose file used by your deployment when it differs:
+
+```sh
+docker compose up -d --force-recreate clickhouse
+```
+
+Disabling a system log stops new writes but does not clear an existing table.
+To reclaim its disk space while preserving the table structure, truncate the
+disabled log tables after ClickHouse restarts:
+
+```sh
+docker compose exec -T clickhouse clickhouse-client --multiquery <<'SQL'
+TRUNCATE TABLE IF EXISTS system.trace_log;
+TRUNCATE TABLE IF EXISTS system.text_log;
+TRUNCATE TABLE IF EXISTS system.part_log;
+TRUNCATE TABLE IF EXISTS system.metric_log;
+TRUNCATE TABLE IF EXISTS system.asynchronous_metric_log;
+TRUNCATE TABLE IF EXISTS system.background_schedule_pool_log;
+TRUNCATE TABLE IF EXISTS system.query_metric_log;
+TRUNCATE TABLE IF EXISTS system.query_thread_log;
+TRUNCATE TABLE IF EXISTS system.query_views_log;
+TRUNCATE TABLE IF EXISTS system.session_log;
+TRUNCATE TABLE IF EXISTS system.crash_log;
+TRUNCATE TABLE IF EXISTS system.opentelemetry_span_log;
+TRUNCATE TABLE IF EXISTS system.zookeeper_log;
+TRUNCATE TABLE IF EXISTS system.blob_storage_log;
+TRUNCATE TABLE IF EXISTS system.processors_profile_log;
+TRUNCATE TABLE IF EXISTS system.asynchronous_insert_log;
+SQL
+```
+
+When ClickHouse applies the new TTL to an existing `query_log` or `error_log`,
+it may rename the previous table with a numeric suffix such as `query_log_0`.
+Inspect any suffixed tables before dropping them if you also want to reclaim
+their historical data.
+
 ### Configuring LLM provider (optional)
 
 Frontend AI features (chat-with-trace, SQL-with-AI) and server-side AI workers require an LLM provider. Configure one in your `.env` file at the repo root.
@@ -81,6 +123,17 @@ LLM_PROVIDER=bedrock
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
+
+# Option D: Azure AI Foundry. One resource serves three API shapes; pick the one
+# matching your deployment. Model ids are deployment names, so set LLM_MODEL_*
+# unless your deployments are named after the models.
+#   azure_chat_completions -> <resource>.services.ai.azure.com/openai/v1/chat/completions
+#   azure_responses        -> <resource>.services.ai.azure.com/openai/v1/responses
+#   azure_anthropic        -> <resource>.services.ai.azure.com/anthropic/v1/messages (Claude)
+LLM_PROVIDER=azure_chat_completions
+LLM_API_KEY=your_azure_key
+AZURE_RESOURCE_ID=your_resource_name   # or AZURE_BASE_URL for private endpoints
+# AZURE_API_VERSION=preview            # optional; only for resources that require it
 ```
 
 ### Custom Postgres schema (optional)

@@ -8,13 +8,13 @@
 use std::sync::Arc;
 
 use crate::cache::Cache;
+use crate::ch::traces::TraceAggregation;
 use crate::db::DB;
 use crate::db::spans::Span;
-use crate::db::trace::Trace;
 use crate::mq::MessageQueue;
 
 pub async fn check_and_push_signals(
-    _updated_traces: &[Trace],
+    _aggregations: &[TraceAggregation],
     _spans: &[Span],
     _db: Arc<DB>,
     _cache: Arc<Cache>,

@@ -7,12 +7,9 @@ import { type TagClass } from "@/lib/traces/types";
 
 import CreateTag from "./create-tag";
 import PickTag from "./pick-tag";
+import { type Tag } from "./types";
 
-export type Tag = {
-  id: string;
-  name: string;
-  color?: string;
-};
+export type { Tag };
 
 export interface TagsDropdownCallbacks {
   onAttach: (tagClassName: string) => Promise<void>;
@@ -23,6 +20,7 @@ export interface TagsDropdownCallbacks {
 interface TagsDropdownProps extends TagsDropdownCallbacks {
   tags: Tag[];
   tagClasses: TagClass[];
+  onOpenChange?: (open: boolean) => void;
 }
 
 const TagsDropdown = ({
@@ -32,19 +30,23 @@ const TagsDropdown = ({
   onAttach,
   onDetach,
   onCreateAndAttach,
+  onOpenChange,
 }: PropsWithChildren<TagsDropdownProps>) => {
   const [step, setStep] = useState<0 | 1>(0);
   const [query, setQuery] = useState("");
 
   return (
     <DropdownMenu
-      onOpenChange={() => {
-        setQuery("");
-        setStep(0);
+      onOpenChange={(open) => {
+        if (!open) {
+          setQuery("");
+          setStep(0);
+        }
+        onOpenChange?.(open);
       }}
     >
       {children}
-      <DropdownMenuContent className="max-h-96" side="bottom" align="start">
+      <DropdownMenuContent className="max-h-96" side="bottom" align="end">
         {step === 0 ? (
           <PickTag
             tags={tags}

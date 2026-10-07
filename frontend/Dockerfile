@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* pnpm-workspace.yaml* ./
-RUN npm i -g pnpm@latest-11
+# Keep in sync with .github/workflows/fe-build-check.yml.
+RUN npm i -g pnpm@12.8.1
 RUN pnpm i --frozen-lockfile
 
 
@@ -22,6 +23,10 @@ COPY . .
 ARG NEXT_PUBLIC_APP_VERSION
 ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 
+# Commit SHA used by Next.js for deployment skew protection.
+ARG NEXT_DEPLOYMENT_ID
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
+
 # Sub-path the app is served under (e.g. /lmnr), baked into next.config.ts at
 # build time. Empty => root-served. The frontend-ee-basepath image sets /lmnr.
 ARG NEXT_PUBLIC_BASE_PATH
@@ -33,6 +38,13 @@ ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
+
+# sharp 0.35 dropped `lib/index.js`, so @vercel/nft's hardcoded sharp special case
+# no longer fires; libvips reaches .next/standalone only via sharp's own
+# `require.resolve('@img/sharp-libvips-*/binary')` breadcrumb. Fail the build here
+# rather than 500 on the first next/image or /api/cluster-swatch request.
+RUN find .next/standalone -name 'libvips-cpp.so.*' | grep -q . \
+  || (echo "libvips missing from standalone trace - sharp would fail at runtime" && exit 1)
 
 # Production image, copy all the files and run next
 FROM base AS runner

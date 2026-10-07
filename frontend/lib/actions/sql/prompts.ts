@@ -55,6 +55,8 @@ LIMIT n
 Additional rules:
 - Only generate SELECT queries
 - Join relationships: spans.trace_id = traces.id, signal_events.trace_id = traces.id
+- For per-trace signal/cluster questions prefer traces.signal_events and traces.clusters over joining
+  signal_events: ARRAY JOIN signal_events AS e, ARRAY JOIN clusters AS c
 </task>
 
 <examples>

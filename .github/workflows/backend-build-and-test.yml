@@ -17,7 +17,7 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-app-server-pr-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-buildx-app-server-pr-${{ hashFiles('app-server/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-app-server-pr-
 
@@ -39,7 +39,7 @@ jobs:
         with:
           context: ./app-server
           push: false
-          platforms: linux/amd64
+          platforms: linux/arm64
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
           target: builder

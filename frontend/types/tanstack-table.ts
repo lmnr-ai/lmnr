@@ -17,6 +17,11 @@ declare module "@tanstack/react-table" {
       isShared: boolean;
       heatmapEnabled: boolean;
       scoreRanges: ScoreRanges;
+      // Resolved eval-score direction per score name (isHigherBetter). Drives
+      // delta colors + heatmap gradient. Absent name defaults to true.
+      scoreDirections?: Record<string, boolean>;
+      // Flip + persist a score's direction (from the header dropdown toggle).
+      onToggleScoreDirection?: (scoreName: string) => void;
     };
   }
 

@@ -61,6 +61,7 @@ impl From<GenerateContentResponse> for ProviderResponse {
                         .sum()
                 }),
                 cache_creation_input_tokens: None,
+                reasoning_token_count: u.thoughts_token_count,
             }),
             model_version: resp.model_version,
         }

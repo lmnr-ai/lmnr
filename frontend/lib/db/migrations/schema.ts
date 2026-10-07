@@ -17,6 +17,7 @@ import {
   uniqueIndex,
   primaryKey,
   pgEnum,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -142,6 +143,10 @@ export const signals = pgTable(
     structuredOutputSchema: jsonb("structured_output_schema").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     metadata: jsonb().default({}).notNull(),
+    // Newest `signal_versions.version` row.
+    version: integer().default(1).notNull(),
+    llmProfileId: uuid("llm_profile_id"),
+    llmModel: text("llm_model"),
   },
   (table) => [
     foreignKey({
@@ -149,7 +154,38 @@ export const signals = pgTable(
       foreignColumns: [projects.id],
       name: "signals_project_id_fkey",
     }).onDelete("cascade"),
+    // RESTRICT: a profile/model in use cannot be deleted; the UI surfaces "used by N signals".
+    foreignKey({
+      columns: [table.llmProfileId, table.llmModel],
+      foreignColumns: [llmProfileModels.profileId, llmProfileModels.name],
+      name: "signals_llm_profile_model_fkey",
+    }).onDelete("restrict"),
     unique("signals_project_id_name_key").on(table.projectId, table.name),
+    check("signals_llm_profile_pair_check", sql`(llm_profile_id IS NULL) = (llm_model IS NULL)`),
+  ]
+);
+
+export const signalVersions = pgTable(
+  "signal_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    version: integer().notNull(),
+    definition: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_versions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_versions_signal_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.signalId, table.version], name: "signal_versions_pkey" }),
   ]
 );
 
@@ -452,6 +488,7 @@ export const projects = pgTable(
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
     settings: jsonb().default({}).notNull(),
+    hasTraces: boolean("has_traces"),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
@@ -476,6 +513,7 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     emailVerified: boolean("email_verified").default(false).notNull(),
+    preferences: jsonb().default({}).notNull(),
   },
   (table) => [
     unique("users_email_key").on(table.email),
@@ -504,6 +542,8 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }).default(5_000_000),
+    settings: jsonb().default({}).notNull(),
   },
   (table) => [
     foreignKey({
@@ -511,6 +551,10 @@ export const workspaces = pgTable(
       foreignColumns: [subscriptionTiers.id],
       name: "workspaces_tier_id_fkey",
     }).onUpdate("cascade"),
+    check(
+      "workspaces_signal_credit_remaining_check",
+      sql`${table.signalCreditRemainingMicroUsd} IS NULL OR (${table.signalCreditRemainingMicroUsd} >= 0 AND ${table.signalCreditRemainingMicroUsd} <= 5000000)`
+    ),
   ]
 );
 
@@ -532,6 +576,92 @@ export const providerApiKeys = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+// Workspace-wide LLM credentials for self-hosted signal runs. `config` holds the
+// provider's non-secret fields; `secrets` is one AEAD blob ({nonce, value} hex,
+// AAD = profile id) holding every credential value.
+export const llmProfiles = pgTable(
+  "llm_profiles",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    name: text().notNull(),
+    provider: text().notNull(),
+    config: jsonb().default({}).notNull(),
+    secrets: jsonb().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "llm_profiles_workspace_id_fkey",
+    }).onDelete("cascade"),
+    unique("llm_profiles_workspace_id_name_key").on(table.workspaceId, table.name),
+    // Redundant with the PK; lets `llm_feature_routes` FK on (workspace_id, id)
+    // so a workspace route can only point at that workspace's own profile.
+    unique("llm_profiles_workspace_id_id_key").on(table.workspaceId, table.id),
+  ]
+);
+
+export const llmProfileModels = pgTable(
+  "llm_profile_models",
+  {
+    profileId: uuid("profile_id").notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.profileId, table.name], name: "llm_profile_models_pkey" }),
+    foreignKey({
+      columns: [table.profileId],
+      foreignColumns: [llmProfiles.id],
+      name: "llm_profile_models_profile_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+// Which profile+model each server-side LLM feature (signals, SQL generation,
+// agent, ...) runs on. `workspace_id IS NULL` rows are the global default and
+// may only reference profiles in the Laminar system workspace
+// (LLM_SYSTEM_WORKSPACE_ID). `feature_id` shares one string namespace with
+// `app-server/src/llm/features.rs` and `frontend/lib/ai/features.ts`;
+// `default` is the fallback for features without their own row.
+export const llmFeatureRoutes = pgTable(
+  "llm_feature_routes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id"),
+    featureId: text("feature_id").notNull(),
+    llmProfileId: uuid("llm_profile_id").notNull(),
+    modelName: text("model_name").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "llm_feature_routes_workspace_id_fkey",
+    }).onDelete("cascade"),
+    // MATCH SIMPLE: skipped for global (NULL workspace) rows, which the
+    // app-server checks against the system workspace instead.
+    foreignKey({
+      columns: [table.workspaceId, table.llmProfileId],
+      foreignColumns: [llmProfiles.workspaceId, llmProfiles.id],
+      name: "llm_feature_routes_workspace_profile_fkey",
+    }),
+    // RESTRICT: a routed model cannot be removed from its profile (nor the
+    // profile deleted) without re-pointing the route first.
+    foreignKey({
+      columns: [table.llmProfileId, table.modelName],
+      foreignColumns: [llmProfileModels.profileId, llmProfileModels.name],
+      name: "llm_feature_routes_profile_model_fkey",
+    }).onDelete("restrict"),
+    unique("llm_feature_routes_workspace_id_feature_id_key").on(table.workspaceId, table.featureId).nullsNotDistinct(),
   ]
 );
 
@@ -1044,6 +1174,8 @@ export const playgrounds = pgTable(
     providerOptions: jsonb("provider_options").default({}),
     toolChoice: jsonb("tool_choice").default("none"),
     tools: jsonb().default({}),
+    llmProfileId: uuid("llm_profile_id"),
+    llmModel: text("llm_model"),
   },
   (table) => [
     foreignKey({
@@ -1053,6 +1185,13 @@ export const playgrounds = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    // SET NULL: a playground outlives its model; the user just picks another one.
+    foreignKey({
+      columns: [table.llmProfileId, table.llmModel],
+      foreignColumns: [llmProfileModels.profileId, llmProfileModels.name],
+      name: "playgrounds_llm_profile_model_fkey",
+    }).onDelete("set null"),
+    check("playgrounds_llm_profile_pair_check", sql`(llm_profile_id IS NULL) = (llm_model IS NULL)`),
   ]
 );
 
@@ -1242,6 +1381,7 @@ export const signalTriggers = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     value: jsonb().notNull(),
+    filters: jsonb().default([]).notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     mode: smallint().default(0).notNull(),
@@ -1338,6 +1478,7 @@ export const chatSessions = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     userId: uuid("user_id"),
     traceId: uuid("trace_id"),
+    name: text("name"),
   },
   (table) => [
     uniqueIndex("chat_sessions_project_user_trace_key")

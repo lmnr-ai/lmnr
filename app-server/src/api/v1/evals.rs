@@ -63,11 +63,50 @@ pub async fn init_eval(
 
     // Push the eval block to the session live (scores fill in on next load).
     if let Some(session_id) = debugger::session_id_from_metadata(metadata.as_ref()) {
-        debugger::push_evaluation_block(pubsub.get_ref().as_ref(), &project_id, &session_id, &evaluation)
-            .await;
+        debugger::push_evaluation_block(
+            pubsub.get_ref().as_ref(),
+            &project_id,
+            &session_id,
+            &evaluation,
+        )
+        .await;
     }
 
     Ok(HttpResponse::Ok().json(evaluation))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateEvalRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<Value>,
+}
+
+/// Update an evaluation's name and/or metadata. `group_id` is immutable.
+/// Fields omitted from the request are left unchanged. Postgres-only:
+/// evaluation-level name/metadata are not duplicated into ClickHouse
+/// (`evaluation_datapoints.metadata` is per-datapoint).
+#[post("/evals/{eval_id}")]
+pub async fn update_eval(
+    eval_id: web::Path<Uuid>,
+    req: Json<UpdateEvalRequest>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let eval_id = eval_id.into_inner();
+    let req = req.into_inner();
+    let project_id = project_api_key.project_id;
+
+    let evaluation =
+        db::evaluations::update_evaluation(&db.pool, eval_id, project_id, &req.name, &req.metadata)
+            .await?;
+
+    match evaluation {
+        Some(evaluation) => Ok(HttpResponse::Ok().json(evaluation)),
+        None => Ok(HttpResponse::NotFound().json("Evaluation not found")),
+    }
 }
 
 #[derive(Deserialize)]

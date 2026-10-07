@@ -7,9 +7,13 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 // cheap row counts from system.tables.total_rows — no full scans, no FINAL, no
 // per-project iteration. Keep this in sync with query-engine's
 // _setup_default_tables() view registry.
+//
+// Counts are pre-merge row counts, so tables that fold rows (traces_agg's
+// per-batch partials, the ReplacingMergeTrees) read above their logical entity
+// count. Fine for a usage-magnitude signal.
 const VIEW_BACKING_TABLES: Record<string, string> = {
   spans_v0: "spans",
-  traces_v0: "traces_replacing",
+  traces_v0: "traces_agg",
   dataset_datapoints_v0: "dataset_datapoints",
   dataset_datapoint_versions_v0: "dataset_datapoints",
   evaluation_datapoints_v0: "evaluation_datapoints",
@@ -19,7 +23,7 @@ const VIEW_BACKING_TABLES: Record<string, string> = {
   labeling_queue_items_v0: "labeling_queue_items",
   clusters_v0: "signal_event_clusters",
   signal_events_all_v0: "signal_events",
-  event_clusters_all_v0: "events_to_clusters",
+  event_clusters_all_v0: "signal_event_summaries",
 };
 
 interface TableRow {
@@ -59,7 +63,6 @@ export const collectViewCounts = async (): Promise<Record<string, number>> => {
 export const collectFeatureFlags = (): Record<string, boolean> => {
   const flags: Feature[] = [
     Feature.SIGNALS,
-    Feature.CLUSTERING,
     Feature.AGENT,
     Feature.SLACK,
     Feature.GITHUB_AUTH,

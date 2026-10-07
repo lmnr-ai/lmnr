@@ -4,7 +4,8 @@ import { generateText } from "ai";
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { extractSystemMessageContent } from "@/lib/actions/spans/system-messages";
 import { executeQuery } from "@/lib/actions/sql";
-import { getLanguageModel } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 import { cache } from "@/lib/cache";
 
 const CACHE_PREFIX = "agent_name:";
@@ -12,11 +13,11 @@ const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export type AgentNamesResult = Record<string, string | null>;
 
-async function generateAgentName(systemPrompt: string): Promise<string | null> {
+async function generateAgentName(systemPrompt: string, projectId: string): Promise<string | null> {
   try {
     const { text } = await observe({ name: "generate-agent-name", metadata: { feature: "span-previews" } }, async () =>
       generateText({
-        model: getLanguageModel("small"),
+        model: await getLanguageModel(LlmFeature.SPAN_PREVIEW_AGENT_NAMES, projectId),
         system:
           "Given a system prompt for an AI agent, generate a short 1-2 word name that describes the agent's role or purpose. " +
           "Return ONLY the name, nothing else. Examples: 'Code Review', 'Web Search', 'Data Analyst', 'Summarizer', 'Router'.",
@@ -127,7 +128,7 @@ export async function resolveAgentNames(
     }
   }
 
-  const generated = await Promise.all(toGenerate.map((e) => generateAgentName(e.systemPrompt)));
+  const generated = await Promise.all(toGenerate.map((e) => generateAgentName(e.systemPrompt, projectId)));
 
   const savePromises: Promise<void>[] = [];
   for (let i = 0; i < toGenerate.length; i++) {

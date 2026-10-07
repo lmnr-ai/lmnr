@@ -48,9 +48,12 @@ pub fn fingerprint_user_message(input: &str) -> String {
     }
 
     // Collect tag names (ignoring "plain") into a sorted, deduplicated
-    // list, keeping opening/closing as a pair.  Tag order in the message
+    // list, keeping opening/closing as a pair. Tag order in the message
     // doesn't affect the cache key; "context,/context" and
     // "/context,context" are both normalised to "context,/context".
+    // Sorting + dedup also subsumes merging repeats of the same tag —
+    // `agent_thinking` twice collapses to one pair whether or not the
+    // occurrences were adjacent.
     let has_plain = deduped.iter().any(|s| s == "plain");
     let mut tag_names: Vec<String> = deduped
         .into_iter()
@@ -119,6 +122,27 @@ mod tests {
         assert_eq!(
             fingerprint_user_message("<outer><inner>x</inner></outer>"),
             "outer,/outer"
+        );
+        // Only the top-level tag is captured, empty nested body included.
+        assert_eq!(
+            fingerprint_user_message("<approach><method></method></approach>"),
+            "approach,/approach"
+        );
+    }
+
+    #[test]
+    fn fingerprint_merges_repeated_tags() {
+        // Consecutive repeats of one tag collapse to a single pair...
+        assert_eq!(
+            fingerprint_user_message(
+                "<agent_thinking>a</agent_thinking><agent_thinking>b</agent_thinking>"
+            ),
+            "agent_thinking,/agent_thinking"
+        );
+        // ...as do non-adjacent repeats, since names are sorted + deduped.
+        assert_eq!(
+            fingerprint_user_message("<a>1</a><b>2</b><a>3</a>"),
+            "a,/a,b,/b"
         );
     }
 

@@ -1,6 +1,9 @@
 //! Permissive parsing of LLM-span input messages: role normalization,
 //! message-array discovery across provider shapes, and text-part
-//! collection.
+//! collection. The output side no longer parses message shapes at all
+//! (LAM-1953 rework) — output extraction hashes the whole output array via
+//! the existing dedup pipeline instead of rendering text, so this module is
+//! input-only.
 
 use serde_json::Value;
 
@@ -39,23 +42,10 @@ pub fn normalize_role(msg: &Value) -> Role {
 // Message-array discovery & part collection
 // ---------------------------------------------------------------------------
 
-pub(super) fn find_messages_array(input: &Value) -> Option<&Vec<Value>> {
-    match input {
-        Value::Array(arr) => Some(arr),
-        Value::Object(map) => {
-            // `messages` covers OpenAI/Anthropic SDK wrappers, `contents`
-            // covers Gemini, `input` covers a few normalisers that wrap
-            // an inner array. First match wins.
-            for key in ["messages", "contents", "input"] {
-                if let Some(Value::Array(arr)) = map.get(key) {
-                    return Some(arr);
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
+// Canonical definition lives in `prompt_hash` — the lowest module that needs
+// it, since system-prompt extraction has to agree with user-task extraction on
+// what counts as a messages array.
+pub(super) use crate::traces::prompt_hash::find_messages_array;
 
 pub(super) fn collect_message_parts(msg: &Value) -> Vec<String> {
     // GenAI uses `parts:`; everyone else uses `content:`. A few payloads
@@ -115,4 +105,33 @@ pub(super) fn is_task_anchor_message(msg: &Value) -> bool {
         && collect_message_parts(msg)
             .iter()
             .any(|p| !p.trim().is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn normalize_role_folds_provider_aliases() {
+        assert_eq!(normalize_role(&json!({"role": "human"})), Role::User);
+        assert_eq!(normalize_role(&json!({"role": "ai"})), Role::Assistant);
+        assert_eq!(normalize_role(&json!({"role": "model"})), Role::Assistant);
+        assert_eq!(normalize_role(&json!({"role": "developer"})), Role::System);
+        assert_eq!(normalize_role(&json!({})), Role::Other);
+    }
+
+    #[test]
+    fn is_task_anchor_message_requires_user_role_and_nonempty_text() {
+        assert!(is_task_anchor_message(
+            &json!({"role": "user", "content": "hi"})
+        ));
+        assert!(!is_task_anchor_message(
+            &json!({"role": "user", "content": ""})
+        ));
+        assert!(!is_task_anchor_message(
+            &json!({"role": "assistant", "content": "hi"})
+        ));
+    }
 }

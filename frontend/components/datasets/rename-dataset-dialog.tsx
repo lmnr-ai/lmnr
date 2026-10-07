@@ -104,7 +104,7 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
           </div>
           <DialogFooter>
             <Button disabled={!newName.trim() || isLoading} onClick={handleRename}>
-              <Loader2 className={cn("mr-2 h-4 w-4", isLoading ? "animate-spin" : "hidden")} />
+              <Loader2 data-icon="inline-start" className={cn("mr-2 h-4 w-4", isLoading ? "animate-spin" : "hidden")} />
               Rename
             </Button>
           </DialogFooter>

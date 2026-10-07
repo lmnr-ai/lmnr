@@ -46,6 +46,28 @@ fn is_internal(metadata: &Metadata<'_>) -> bool {
     metadata.target().starts_with(INTERNAL_TRACING_TARGET)
 }
 
+/// Known-noisy error messages that stay `error`-level in logs but are never
+/// reported to Sentry: frequent, client-caused, and not actionable on our side.
+const SENTRY_SUPPRESSED_MESSAGES: &[&str] = &["invalid project API key"];
+
+/// `before_send` hook for [`sentry::ClientOptions`]: drops events whose message
+/// (or exception value) matches a suppressed pattern.
+pub fn sentry_before_send(
+    event: sentry::protocol::Event<'static>,
+) -> Option<sentry::protocol::Event<'static>> {
+    let suppressed = |s: &str| SENTRY_SUPPRESSED_MESSAGES.iter().any(|m| s.contains(m));
+    if event.message.as_deref().is_some_and(suppressed)
+        || event
+            .exception
+            .values
+            .iter()
+            .any(|e| e.value.as_deref().is_some_and(suppressed))
+    {
+        return None;
+    }
+    Some(event)
+}
+
 /// Sets up logging and the two OTEL trace trees (Sentry + internal).
 ///
 /// The trees are gated independently: `enable_sentry_tracing` (`Feature::Tracing`, requires a Sentry
@@ -61,12 +83,23 @@ pub fn setup_tracing_and_logging(
 ) -> (Option<SdkTracerProvider>, SharedIngestDeps) {
     // Built fresh per layer (`EnvFilter` isn't `Clone`); applied to both the fmt logger and the
     // Sentry OTEL layer so neither bridges TRACE/DEBUG library spans.
+    //
+    // The `clickhouse` crate emits its own `INFO`-level `clickhouse.insert`/`response` spans inside
+    // `insert_batch`, duplicating our own `#[instrument]`ed span in Sentry/logs. Their target-scoped
+    // directives win over the blanket `info` level regardless of order (`EnvFilter` picks the most
+    // specific target match), and survive a caller-supplied `RUST_LOG` too since they're appended
+    // after it.
     let build_env_filter = || {
-        if std::env::var(crate::env::observability::RUST_LOG).is_ok_and(|s| !s.is_empty()) {
-            EnvFilter::from_default_env()
-        } else {
-            EnvFilter::new("info")
-        }
+        let filter =
+            if std::env::var(crate::env::observability::RUST_LOG).is_ok_and(|s| !s.is_empty()) {
+                EnvFilter::from_default_env()
+            } else {
+                EnvFilter::new("info")
+            };
+        filter
+            .add_directive("clickhouse::insert_formatted=off".parse().unwrap())
+            .add_directive("clickhouse::response=off".parse().unwrap())
+            .add_directive("clickhouse::query=off".parse().unwrap())
     };
 
     let sentry_dsn_set =
@@ -149,4 +182,43 @@ pub fn setup_tracing_and_logging(
         .init();
 
     (internal_provider, ingest_deps)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sentry_before_send;
+
+    fn event_with_message(message: &str) -> sentry::protocol::Event<'static> {
+        sentry::protocol::Event {
+            message: Some(message.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_suppresses_invalid_project_api_key() {
+        // The auth middleware logs "Error validating project_token: invalid project API key".
+        let event = event_with_message("Error validating project_token: invalid project API key");
+        assert!(sentry_before_send(event).is_none());
+    }
+
+    #[test]
+    fn test_suppresses_invalid_project_api_key_exception() {
+        let mut event = sentry::protocol::Event::default();
+        event.exception.values.push(sentry::protocol::Exception {
+            ty: "Error".to_string(),
+            value: Some("invalid project API key".to_string()),
+            ..Default::default()
+        });
+        assert!(sentry_before_send(event).is_none());
+    }
+
+    #[test]
+    fn test_keeps_other_errors() {
+        let event = event_with_message("Error validating project_token: database timed out");
+        assert!(sentry_before_send(event).is_some());
+
+        let event = sentry::protocol::Event::default();
+        assert!(sentry_before_send(event).is_some());
+    }
 }

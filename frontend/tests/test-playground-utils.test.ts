@@ -1,8 +1,47 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { type ModelMessage } from "ai";
+
+import { pickLlmRoute } from "@/components/playground/utils";
+import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { type Message } from "@/lib/playground/types";
-import { parseSystemMessages, transformFromLegacy } from "@/lib/playground/utils";
+import { extractInstructions, parseSystemMessages, transformFromLegacy } from "@/lib/playground/utils";
+
+// ─── pickLlmRoute ──────────────────────────────────────────────────────────
+
+describe("pickLlmRoute", () => {
+  const profiles = [
+    { id: "p-openai", name: "OpenAI", provider: "openai_responses", models: ["o1", "gpt-4o", "gpt-4o-mini"] },
+    {
+      id: "p-bedrock",
+      name: "Bedrock",
+      provider: "bedrock",
+      models: ["anthropic.claude-3-5-sonnet-20241022-v1:0"],
+    },
+  ] as LlmProfileOption[];
+
+  it("matches a listed model verbatim, ignoring case and padding", () => {
+    assert.deepStrictEqual(pickLlmRoute(profiles, "gpt-4o"), { llmProfileId: "p-openai", llmModel: "gpt-4o" });
+    assert.deepStrictEqual(pickLlmRoute(profiles, " O1 "), { llmProfileId: "p-openai", llmModel: "o1" });
+    assert.deepStrictEqual(pickLlmRoute(profiles, "anthropic.claude-3-5-sonnet-20241022-v1:0"), {
+      llmProfileId: "p-bedrock",
+      llmModel: "anthropic.claude-3-5-sonnet-20241022-v1:0",
+    });
+  });
+
+  it("does not guess from partial overlap", () => {
+    assert.equal(pickLlmRoute(profiles, "gpt-4o-mini-2024-07-18"), null);
+    assert.equal(pickLlmRoute(profiles, "claude-3-5-sonnet-20241022-v1:0"), null);
+    assert.equal(pickLlmRoute(profiles, "0"), null);
+  });
+
+  it("returns null for empty or unknown ids", () => {
+    assert.equal(pickLlmRoute(profiles, undefined), null);
+    assert.equal(pickLlmRoute(profiles, "  "), null);
+    assert.equal(pickLlmRoute(profiles, "mistral-large"), null);
+  });
+});
 
 // ─── parseSystemMessages ───────────────────────────────────────────────────
 
@@ -72,6 +111,52 @@ describe("parseSystemMessages", () => {
     const result = parseSystemMessages(messages);
     assert.deepStrictEqual((result[0] as any).providerOptions, providerOptions);
     assert.deepStrictEqual((result[1] as any).providerOptions, providerOptions);
+  });
+});
+
+// ─── extractInstructions ───────────────────────────────────────────────────
+
+describe("extractInstructions", () => {
+  it("lifts a leading system message into instructions", () => {
+    const messages: ModelMessage[] = [
+      { role: "system", content: "You are a DOCX editing assistant." },
+      { role: "user", content: "Insert a citation paragraph." },
+    ];
+    const result = extractInstructions(messages);
+    assert.deepStrictEqual(result.instructions, [{ role: "system", content: "You are a DOCX editing assistant." }]);
+    assert.deepStrictEqual(result.messages, [{ role: "user", content: "Insert a citation paragraph." }]);
+    assert.equal(result.allowSystemInMessages, undefined);
+  });
+
+  it("lifts multiple system messages, preserving providerOptions", () => {
+    const providerOptions = { anthropic: { cacheControl: { type: "ephemeral" } } };
+    const messages: ModelMessage[] = [
+      { role: "system", content: "You are helpful.", providerOptions },
+      { role: "system", content: "Be brief." },
+      { role: "user", content: "Hi" },
+    ];
+    const result = extractInstructions(messages);
+    assert.deepStrictEqual(result.instructions, [
+      { role: "system", content: "You are helpful.", providerOptions },
+      { role: "system", content: "Be brief." },
+    ]);
+    assert.deepStrictEqual(result.messages, [{ role: "user", content: "Hi" }]);
+  });
+
+  it("leaves a prompt with no system messages unchanged", () => {
+    const messages: ModelMessage[] = [{ role: "user", content: "Hi" }];
+    const result = extractInstructions(messages);
+    assert.equal(result.instructions, undefined);
+    assert.deepStrictEqual(result.messages, messages);
+    assert.equal(result.allowSystemInMessages, undefined);
+  });
+
+  it("keeps a system-only prompt in messages and opts into allowSystemInMessages", () => {
+    const messages: ModelMessage[] = [{ role: "system", content: "You are helpful." }];
+    const result = extractInstructions(messages);
+    assert.equal(result.instructions, undefined);
+    assert.deepStrictEqual(result.messages, messages);
+    assert.equal(result.allowSystemInMessages, true);
   });
 });
 

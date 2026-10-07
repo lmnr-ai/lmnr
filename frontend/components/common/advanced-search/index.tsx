@@ -100,6 +100,15 @@ interface AdvancedSearchProps {
   value: AdvancedSearchValue;
   onChange: (next: AdvancedSearchValue) => void;
   storageKey?: string;
+  // Set false for consumers that build filters only and have no full-text
+  // backend (e.g. signal filters) — the typed query then just narrows the
+  // suggestion list instead of committing as `search`.
+  allowFreeTextSearch?: boolean;
+  // When set, a bare UUID typed into the search box pre-selects an
+  // exact-match filter suggestion on this column, so Enter applies it
+  // without an extra arrow-down. Explicitly picking full-text search (or
+  // blurring without selecting anything) still searches the raw value.
+  uuidFilterColumn?: string;
   options?: {
     // If provided, autocomplete won't fetch suggestions.
     suggestions?: Map<string, string[]>;
@@ -116,6 +125,8 @@ const AdvancedSearch = ({
   value,
   onChange,
   storageKey,
+  allowFreeTextSearch = true,
+  uuidFilterColumn,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
@@ -123,9 +134,11 @@ const AdvancedSearch = ({
     initialFilters={value.filters}
     initialSearch={value.search}
     onChange={onChange}
+    allowFreeTextSearch={allowFreeTextSearch}
     suggestions={suggestions}
     storageKey={storageKey}
     resource={resource}
+    uuidFilterColumn={uuidFilterColumn}
   >
     <AdvancedSearchInner
       resource={resource}

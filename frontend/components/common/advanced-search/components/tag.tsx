@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ import {
   getColumnFilter,
   type TagFocusPosition,
 } from "../types";
+import { displayFilterValue } from "../utils";
 import FilterSelect from "./select";
 
 interface FilterTagProps {
@@ -70,6 +72,14 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     dataType: tag.dataType ?? "string",
   };
   const dataType = columnFilter.dataType;
+
+  // Include operator + value so several filters on the SAME column get distinct
+  // remove-button names (e.g. "Remove metadata = foo filter"); fall back to the
+  // bare name while the tag is still being built and has no value yet.
+  const valueText = displayFilterValue(columnFilter, tag.value);
+  const removeLabel = valueText
+    ? `Remove ${columnFilter.name} ${OperatorLabelMap[tag.operator]} ${valueText} filter`
+    : `Remove ${columnFilter.name} filter`;
 
   const focusMainInput = useCallback(() => {
     mainInputRef.current?.focus();
@@ -256,7 +266,14 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         mode={focusState.type === "idle" ? "nav" : focusState.mode}
       />
 
-      <Button variant="ghost" ref={removeRef} onClick={handleRemove} className={removeButtonClassName} type="button">
+      <Button
+        variant="ghost"
+        ref={removeRef}
+        onClick={handleRemove}
+        className={removeButtonClassName}
+        type="button"
+        aria-label={removeLabel}
+      >
         <X className="w-3 h-3 text-secondary-foreground" />
       </Button>
     </div>

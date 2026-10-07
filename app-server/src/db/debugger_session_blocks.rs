@@ -5,7 +5,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::trace::Trace;
+use crate::ch::traces::TraceAggregation;
 
 pub const TRACE_BLOCK_TYPE: &str = "trace";
 pub const EVALUATION_BLOCK_TYPE: &str = "evaluation";
@@ -13,7 +13,7 @@ pub const EVALUATION_BLOCK_TYPE: &str = "evaluation";
 const SESSION_ID_METADATA_KEY: &str = "rollout.session_id";
 
 // `traces.type` DEFAULT (see `Into<u8> for TraceType` in `ch/spans.rs`).
-const DEFAULT_TRACE_TYPE: i16 = 0;
+const DEFAULT_TRACE_TYPE: u8 = 0;
 
 /// Deterministic block id: re-processing the same entity for the same session
 /// always lands on the same row, so ingest retries and repeated span flushes
@@ -33,11 +33,9 @@ pub fn evaluation_block_id(session_id: &Uuid, evaluation_id: &Uuid) -> Uuid {
 /// the entity happened, not when ingestion ran. The insert is gated on the
 /// session existing in the same project (sessions are registered explicitly),
 /// so an unregistered or cross-project session id is a silent no-op instead of
-/// an FK error. On conflict only `content` is refreshed (e.g. a live note
-/// update); `created_at` is written once at first insert and never overwritten,
-/// so a trace block keeps the original trace start_time and ordering stays
-/// stable across re-ingest / repeated span flushes.
-pub async fn upsert_block(
+/// an FK error. On conflict `content` is refreshed and `created_at` keeps the
+/// earliest seen, so ordering stays stable across re-ingest / repeated flushes.
+pub async fn upsert_session_block(
     pool: &PgPool,
     project_id: &Uuid,
     session_id: &Uuid,
@@ -51,7 +49,8 @@ pub async fn upsert_block(
         SELECT $1, $2, $3, $4, $5, $6
         WHERE EXISTS (SELECT 1 FROM debugger_sessions WHERE id = $3 AND project_id = $2)
         ON CONFLICT (id) DO UPDATE
-            SET content = EXCLUDED.content
+            SET content = EXCLUDED.content,
+                created_at = LEAST(debugger_session_blocks.created_at, EXCLUDED.created_at)
             WHERE debugger_session_blocks.project_id = $2
                 AND debugger_session_blocks.session_id = $3",
     )
@@ -69,10 +68,10 @@ pub async fn upsert_block(
 
 /// Append a standalone block to a session, returning the new block id.
 ///
-/// Unlike `upsert_block` (deterministic id keyed on a source trace / eval so
-/// re-ingest collapses onto one row), this mints a fresh `entity_id` per call
-/// so repeated notes append distinct blocks rather than overwriting. Like
-/// `upsert_block`, the insert is gated on the session existing in the same
+/// Unlike `upsert_session_block` (deterministic id keyed on a source trace /
+/// eval so re-ingest collapses onto one row), this mints a fresh `entity_id`
+/// per call so repeated notes append distinct blocks rather than overwriting.
+/// Like `upsert_session_block`, the insert is gated on the session existing in the same
 /// project via `WHERE EXISTS`; when it doesn't, no row is written and `None` is
 /// returned so the caller can surface a real 404.
 pub async fn insert_block(
@@ -140,37 +139,36 @@ fn session_id_from_metadata(metadata: Option<&Value>) -> Option<Uuid> {
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
-/// Upsert a `trace` block for every trace carrying the `rollout.session_id`
-/// metadata key. Best-effort: a failed upsert is logged and never fails ingest.
-pub async fn upsert_blocks_for_traces(pool: &PgPool, traces: &[Trace]) {
-    for trace in traces {
+/// Upsert a `trace` block for every trace whose per-batch span aggregation
+/// carries the `rollout.session_id` metadata key. Best-effort: a failed upsert
+/// is logged and never fails ingest.
+pub async fn upsert_blocks_for_traces(pool: &PgPool, aggregations: &[TraceAggregation]) {
+    for agg in aggregations {
         // Only DEFAULT traces become trace blocks (eval traces → evaluation blocks).
-        if trace.trace_type() != DEFAULT_TRACE_TYPE {
+        if agg.trace_type != DEFAULT_TRACE_TYPE {
             continue;
         }
 
-        let Some(session_id) = session_id_from_metadata(trace.metadata()) else {
+        let Some(session_id) = session_id_from_metadata(agg.metadata.as_ref()) else {
             continue;
         };
 
-        // Trace blocks are pure references — notes live only in standalone text
-        // blocks, not folded from trace `rollout.note` metadata.
-        let content = serde_json::json!({ "traceId": trace.id().to_string() });
+        let content = serde_json::json!({ "traceId": agg.trace_id.to_string() });
 
-        if let Err(e) = upsert_block(
+        if let Err(e) = upsert_session_block(
             pool,
-            &trace.project_id(),
+            &agg.project_id,
             &session_id,
             TRACE_BLOCK_TYPE,
-            &trace.id(),
+            &agg.trace_id,
             &content,
-            &trace.start_time().unwrap_or(Utc::now()),
+            &agg.start_time.unwrap_or_else(Utc::now),
         )
         .await
         {
             log::error!(
                 "Failed to upsert trace debugger session block. trace_id: {}, session_id: {}, error: {:?}",
-                trace.id(),
+                agg.trace_id,
                 session_id,
                 e
             );
@@ -194,7 +192,7 @@ pub async fn upsert_block_for_evaluation(
     // Eval blocks are pure references — notes live only in standalone text blocks.
     let content = serde_json::json!({ "evaluationId": evaluation_id.to_string() });
 
-    if let Err(e) = upsert_block(
+    if let Err(e) = upsert_session_block(
         pool,
         project_id,
         &session_id,

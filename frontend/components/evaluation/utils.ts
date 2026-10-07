@@ -107,10 +107,13 @@ const getColorByNormalizedValue = (normalized: number): RGBColor => {
   }
 };
 
-const getScoreBackgroundColor = (min: number, max: number, value: number): RGBColor => {
+const getScoreBackgroundColor = (min: number, max: number, value: number, isHigherBetter = true): RGBColor => {
   if (min === max) return SCORE_COLORS.gray;
 
-  return flow((val: number) => normalizeValue(min, max, val), getColorByNormalizedValue)(value);
+  // When lower is better, reflect the normalized position about the midpoint so
+  // the "good" end of the range maps to green regardless of magnitude.
+  const toColor = (n: number) => getColorByNormalizedValue(isHigherBetter ? n : 1 - n);
+  return flow((val: number) => normalizeValue(min, max, val), toColor)(value);
 };
 
 const hasSignificantRange = ({ min, max }: ScoreRange): boolean => {
@@ -149,10 +152,8 @@ export const mergeDatapointUpsertIntoRows = (
   return next;
 };
 
-/**
- * Merge a realtime `trace_update` payload into the row whose `traceId`
- * matches. No-op for rows that haven't been fetched yet.
- */
+// Accumulate a `trace_update` delta onto the matching row (no-op if not yet
+// fetched).
 export const mergeTraceUpdateIntoRows = (
   rows: EvalRow[],
   trace: Record<string, unknown> & { id: string }
@@ -160,27 +161,37 @@ export const mergeTraceUpdateIntoRows = (
   const idx = rows.findIndex((r) => r["traceId"] === trace.id);
   if (idx === -1) return rows;
 
-  const totalCost = Number(trace["totalCost"] ?? 0);
-  const inputCost = Number(trace["inputCost"] ?? 0);
-  const outputCost = Number(trace["outputCost"] ?? 0);
+  const prev = rows[idx];
+  const num = (key: string): number => Number(prev[key] ?? 0) + Number(trace[key] ?? 0);
+
+  const inputCost = num("inputCost");
+  const outputCost = num("outputCost");
+  const totalCost = num("totalCost");
   const sumCost = inputCost + outputCost;
   const cost = totalCost > 0 ? Math.max(sumCost, totalCost) : sumCost;
-  const startTime = trace["startTime"] as string | undefined;
-  const endTime = trace["endTime"] as string | undefined;
+
+  const startTime = minIso(prev["startTime"] as string | undefined, trace["startTime"] as string | undefined);
+  const endTime = maxIso(prev["endTime"] as string | undefined, trace["endTime"] as string | undefined);
   const duration = startTime && endTime ? (Date.parse(endTime) - Date.parse(startTime)) / 1000 : undefined;
+
+  const status =
+    prev["traceStatus"] === "error" || trace["status"] === "error" ? "error" : (trace["status"] ?? prev["traceStatus"]);
 
   const next = [...rows];
   next[idx] = {
-    ...next[idx],
+    ...prev,
     cost,
     inputCost,
     outputCost,
     totalCost,
-    inputTokens: trace["inputTokens"],
-    outputTokens: trace["outputTokens"],
-    totalTokens: trace["totalTokens"],
-    traceStatus: trace["status"],
-    topSpanId: trace["topSpanId"],
+    inputTokens: num("inputTokens"),
+    outputTokens: num("outputTokens"),
+    totalTokens: num("totalTokens"),
+    cacheReadInputTokens: num("cacheReadInputTokens"),
+    cacheCreationInputTokens: num("cacheCreationInputTokens"),
+    reasoningTokens: num("reasoningTokens"),
+    traceStatus: status,
+    topSpanId: trace["topSpanId"] ?? prev["topSpanId"],
     startTime,
     endTime,
     ...(duration != null ? { duration } : {}),
@@ -188,10 +199,23 @@ export const mergeTraceUpdateIntoRows = (
   return next;
 };
 
+const minIso = (a: string | undefined, b: string | undefined): string | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(b) < Date.parse(a) ? b : a;
+};
+
+const maxIso = (a: string | undefined, b: string | undefined): string | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(b) > Date.parse(a) ? b : a;
+};
+
 // rgb(...) string for the heatmap color, or null when the range is too narrow
 // to be meaningful — callers treat null as "render the plain number".
-export const getHeatmapColor = (value: number, { min, max }: ScoreRange): string | null => {
+// `isHigherBetter` (default true) inverts the gradient for lower-is-better scores.
+export const getHeatmapColor = (value: number, { min, max }: ScoreRange, isHigherBetter = true): string | null => {
   if (!shouldShowHeatmap({ min, max })) return null;
-  const [r, g, b] = getScoreBackgroundColor(min, max, value);
+  const [r, g, b] = getScoreBackgroundColor(min, max, value, isHigherBetter);
   return `rgb(${r}, ${g}, ${b})`;
 };

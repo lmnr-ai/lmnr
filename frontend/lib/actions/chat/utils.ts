@@ -1,5 +1,5 @@
 // Convert AI SDK message format to OpenAI format
-import { type JsonObject } from "@/lib/actions/chat/index.ts";
+import { type JsonObject } from "@/lib/actions/chat/types";
 
 export function convertToOpenAIFormat(message: any): any {
   const openAIMessage: any = {
@@ -94,7 +94,9 @@ export function convertToOpenAIFormat(message: any): any {
 }
 
 export interface SpanData {
+  /** Vendor family (`gen_ai.system`). */
   provider: string;
+  /** Bare model id as sent to the provider. */
   model: string;
   result: any;
   messages: any[];
@@ -116,8 +118,8 @@ export function createSpanAttributes(spanData: SpanData): Record<string, unknown
 
   const attributes: Record<string, unknown> = {
     "gen_ai.system": provider,
-    "gen_ai.request.model": model.split(":")[1],
-    "gen_ai.response.model": result.response?.modelId || model.split(":")[1],
+    "gen_ai.request.model": model,
+    "gen_ai.response.model": result.response?.modelId || model,
     "gen_ai.usage.input_tokens": result.usage.inputTokens,
     "gen_ai.usage.output_tokens": result.usage.outputTokens,
     "gen_ai.usage.prompt_tokens": result.usage.inputTokens, // Legacy support

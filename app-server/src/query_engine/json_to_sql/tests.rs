@@ -182,10 +182,7 @@ fn test_raw_sql_metric_without_alias_uses_default() {
     };
 
     let sql = convert(&q);
-    assert!(contains_ws(
-        &sql,
-        "(countIf(status = 'ERROR')) AS `value`"
-    ));
+    assert!(contains_ws(&sql, "(countIf(status = 'ERROR')) AS `value`"));
 }
 
 #[test]

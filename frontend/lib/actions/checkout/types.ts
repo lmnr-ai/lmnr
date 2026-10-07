@@ -5,9 +5,8 @@ export type TierConfigEntry = {
   overageMegabytesLookupKey: string;
   overageSignalCostLookupKey: string;
   includedBytes: number;
-  // Included signal budget in micro-USD (1e-6 USD). Signals are billed by the
-  // token cost the agent spends, so the allowance is a dollar amount stored as
-  // micro-USD to stay integer-safe. $15 Hobby, $50 Pro.
+  // Recurring Signals allowance in micro-USD. Self-serve tiers have no monthly
+  // allowance; the separate workspace sign-up credit is consumed only once.
   includedSignalCostMicroUsd: number;
 };
 
@@ -17,14 +16,14 @@ export const TIER_CONFIG = {
     overageMegabytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
     overageSignalCostLookupKey: "hobby_monthly_2026_06_overage_signal_cost",
     includedBytes: 3 * 1024 ** 3,
-    includedSignalCostMicroUsd: 15_000_000,
+    includedSignalCostMicroUsd: 0,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
     overageSignalCostLookupKey: "pro_monthly_2026_06_overage_signal_cost",
     includedBytes: 10 * 1024 ** 3,
-    includedSignalCostMicroUsd: 50_000_000,
+    includedSignalCostMicroUsd: 0,
   },
 } as const;
 
@@ -67,11 +66,12 @@ export const METER_EVENT_NAMES = {
 } as const;
 
 export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
-  // Base tiers
-  hobby_monthly_2026_02: "Hobby plan",
+  // Base tiers. "Starter" is the display name of the internal "hobby" tier;
+  // the Stripe lookup keys are immutable identifiers and keep the old name.
+  hobby_monthly_2026_02: "Starter plan",
   pro_monthly_2026_02: "Pro plan",
-  hobby_monthly_2025_04: "Hobby plan",
-  hobby_monthly_2026_02_legacy: "Hobby plan",
+  hobby_monthly_2025_04: "Starter plan",
+  hobby_monthly_2026_02_legacy: "Starter plan",
   pro_monthly_2025_04: "Pro plan",
   // Overage - bytes
   hobby_monthly_2026_03_overage_megabytes: "Data overage",

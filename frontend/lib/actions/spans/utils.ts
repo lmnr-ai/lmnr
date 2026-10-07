@@ -73,7 +73,7 @@ export const spansSelectColumns = [
   "model",
   "duration",
   // Dedup'd tool definitions, exposed as a virtual column by the
-  // `spans_v0` view (reconstructed from `deduped_content_dict`). The raw
+  // `spans_v0` view (reconstructed from the content-dedup dicts). The raw
   // `spans` table has no `tool_definitions` column — readers MUST go
   // through `executeQuery`, which routes the SQL through the query-engine
   // validator and rewrites `FROM spans` to `FROM spans_v0(project_id=...)`.
@@ -83,6 +83,24 @@ export const spansSelectColumns = [
   // the frontend's `extractToolsFromAttributes` is the fallback.
   "tool_definitions as toolDefinitions",
 ];
+
+// Cache-read / reasoning tokens live on dedicated `spans` columns (LAM-2217).
+// Select these alongside the attribute expression below — spans ingested before
+// that migration have 0 in the columns and carry the values only in
+// `attributes`, so readers resolve both via `resolveSpanTokenDetails`.
+export const spanTokenDetailColumns = [
+  "cache_read_input_tokens as cacheReadInputTokens",
+  "reasoning_tokens as reasoningTokens",
+];
+
+export const resolveSpanTokenDetails = (
+  row: { cacheReadInputTokens?: number | null; reasoningTokens?: number | null },
+  attributes: Record<string, any>
+): { cacheReadInputTokens: number; reasoningTokens: number } => ({
+  cacheReadInputTokens:
+    Number(row.cacheReadInputTokens) || Number(attributes["gen_ai.usage.cache_read_input_tokens"]) || 0,
+  reasoningTokens: Number(row.reasoningTokens) || Number(attributes["gen_ai.usage.reasoning_tokens"]) || 0,
+});
 
 // Subset of attribute keys actually consumed by the trace-view transcript/tree.
 // Used to avoid pulling the full `attributes` JSON blob (which can be huge for
@@ -96,6 +114,7 @@ export const TRACE_VIEW_ATTRIBUTE_KEYS = [
   "lmnr.association.properties.tags",
   "lmnr.association.properties.langgraph.nodes",
   "lmnr.association.properties.langgraph.edges",
+  // Fallback for spans ingested before the dedicated columns existed.
   "gen_ai.usage.cache_read_input_tokens",
   "gen_ai.usage.reasoning_tokens",
 ] as const;
@@ -296,14 +315,11 @@ export const transformSpanWithEvents = (
   parentRewiring: Map<string, string | undefined>
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
-  const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
-  const reasoningTokens = parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0;
 
   return {
     ...span,
     attributes: parsedAttributes,
-    cacheReadInputTokens,
-    reasoningTokens,
+    ...resolveSpanTokenDetails(span, parsedAttributes),
     parentSpanId: applyParentRewiring(span, parentRewiring),
     name: span.name,
     events: (span.events || []).map((event) => ({

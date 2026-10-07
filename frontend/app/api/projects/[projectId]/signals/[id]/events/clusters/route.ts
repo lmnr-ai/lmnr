@@ -3,8 +3,6 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { getEventClusters, GetEventClustersSchema } from "@/lib/actions/clusters";
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { hasClusteringAccessForProject } from "@/lib/actions/usage/utils";
-import { PAYWALL_CLUSTER_NAME } from "@/lib/features/clustering";
 
 export async function GET(
   req: NextRequest,
@@ -22,15 +20,10 @@ export async function GET(
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
     }
 
-    const [result, hasAccess] = await Promise.all([
-      getEventClusters({ ...parseResult.data, projectId, signalId }),
-      hasClusteringAccessForProject(projectId),
-    ]);
-
-    const items = hasAccess ? result.items : result.items.map((item) => ({ ...item, name: PAYWALL_CLUSTER_NAME }));
+    const result = await getEventClusters({ ...parseResult.data, projectId, signalId });
 
     return NextResponse.json({
-      items,
+      items: result.items,
       totalEventCount: result.totalEventCount,
       clusteredEventCount: result.clusteredEventCount,
     });

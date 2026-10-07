@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod/v4";
@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
+import { ascNameFold } from "@/lib/db/utils";
 
 const Body = z
   .object({
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
       .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
       .innerJoin(membersOfWorkspaces, and(eq(membersOfWorkspaces.workspaceId, workspaces.id)))
       .where(eq(membersOfWorkspaces.userId, userId))
-      .orderBy(asc(workspaces.name), asc(projects.name));
+      .orderBy(...ascNameFold(workspaces.name), ...ascNameFold(projects.name));
 
     if (userProjects.length === 0) {
       return NextResponse.json({ error: "no_projects" }, { status: 400 });

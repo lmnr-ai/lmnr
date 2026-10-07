@@ -83,7 +83,13 @@ impl InternalSpan {
     /// `None` leaves the span as whatever `info_span!` made it (a fresh root when `parent: None`).
     pub fn parent(self, parent: Option<SpanContextCarrier>) -> Self {
         if let Some(parent) = parent {
-            self.span.set_parent(parent.as_remote_context());
+            if let Err(e) = self.span.set_parent(parent.as_remote_context()) {
+                log::warn!(
+                    "Failed to set parent for internal span {:?}. Error: {:?}",
+                    self.span.id(),
+                    e
+                )
+            }
         }
         self
     }
@@ -159,17 +165,6 @@ impl InternalSpan {
         self
     }
 
-    /// Mark an LLM span as a provider batch submission: stamps the batch id plus the attributes
-    /// ingest keys batch pricing/filtering off. The caller still owns the `.batch` name suffix.
-    pub fn batch(self, provider_batch_id: &str) -> Self {
-        self.span
-            .set_attribute("signal.batch_id", provider_batch_id.to_string());
-        self.span.set_attribute("gen_ai.request.batch", true);
-        self.span
-            .set_attribute("lmnr.association.properties.tags", "batch".to_string());
-        self
-    }
-
     /// `lmnr.association.properties.session_id`; empty ids are skipped.
     pub fn session_id(self, session_id: &str) -> Self {
         if !session_id.is_empty() {
@@ -181,8 +176,28 @@ impl InternalSpan {
         self
     }
 
+    /// `lmnr.association.properties.user_id`; empty ids are skipped. Must be this exact key —
+    /// ingest's `Span::user_id()` reads it verbatim to populate the `user_id` column. Stamping it
+    /// through `metadata_str` instead lands it under `…properties.metadata.…` and never reaches the
+    /// column.
+    pub fn user_id(self, user_id: &str) -> Self {
+        if !user_id.is_empty() {
+            self.span
+                .set_attribute("lmnr.association.properties.user_id", user_id.to_string());
+        }
+        self
+    }
+
     pub fn metadata_str(self, key: &str, value: &str) -> Self {
         set_metadata_str(&self.span, key, value);
+        self
+    }
+
+    /// Numeric trace metadata (range-filterable in the trace UI). Like
+    /// [`Self::metadata_str`], the value must be uniform across the trace —
+    /// ingest keeps only one span's metadata per export batch.
+    pub fn metadata_i64(self, key: &str, value: i64) -> Self {
+        set_metadata_i64(&self.span, key, value);
         self
     }
 
@@ -210,15 +225,6 @@ pub fn set_output(span: &tracing::Span, output: &Value) {
 pub fn set_model(span: &tracing::Span, provider: &str, model: &str) {
     span.set_attribute("gen_ai.request.model", model.to_string());
     span.set_attribute("gen_ai.system", provider.to_string());
-}
-
-/// Post-build counterpart to [`InternalSpan::batch`] — used when the span is built before the
-/// provider `create_batch` call (to time submission latency) but batch-ness is only confirmed
-/// after the call returns with an id.
-pub fn set_batch(span: &tracing::Span, provider_batch_id: &str) {
-    span.set_attribute("signal.batch_id", provider_batch_id.to_string());
-    span.set_attribute("gen_ai.request.batch", true);
-    span.set_attribute("lmnr.association.properties.tags", "batch".to_string());
 }
 
 pub fn set_usage(

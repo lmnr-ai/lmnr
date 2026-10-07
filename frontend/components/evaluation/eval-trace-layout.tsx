@@ -8,6 +8,20 @@ const MIN_TABLE = 353; // magic number to match the width of buttons (add filter
 const MIN_TRACE = 360;
 const DEFAULT_TABLE = 420;
 const GAP = 16; // seam between the table and trace column
+const STORAGE_KEY = "evaluation-trace-table-width";
+
+const clampTable = (w: number, maxWidth: number) =>
+  Math.max(MIN_TABLE, Math.min(w, Math.max(MIN_TABLE, maxWidth - MIN_TRACE)));
+
+const readStoredTableWidth = (): number => {
+  if (typeof window === "undefined") return DEFAULT_TABLE;
+  try {
+    const parsed = parseInt(window.localStorage.getItem(STORAGE_KEY) ?? "", 10);
+    return Number.isFinite(parsed) && parsed >= MIN_TABLE ? parsed : DEFAULT_TABLE;
+  } catch {
+    return DEFAULT_TABLE;
+  }
+};
 
 interface EvalTraceLayoutProps {
   table: ReactNode;
@@ -19,7 +33,7 @@ interface EvalTraceLayoutProps {
 export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxWidth, setMaxWidth] = useState(0);
-  const [tableWidth, setTableWidth] = useState(DEFAULT_TABLE);
+  const [tableWidth, setTableWidth] = useState(readStoredTableWidth);
   // Drives the seam highlight while dragging — hover alone can't cover it since
   // the pointer routinely outruns the 8px strip mid-drag.
   const [isResizing, setIsResizing] = useState(false);
@@ -35,7 +49,7 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
   }, []);
 
   // Clamp so both panels keep their minimums as the viewport changes.
-  const clampedTable = Math.max(MIN_TABLE, Math.min(tableWidth, Math.max(MIN_TABLE, maxWidth - MIN_TRACE)));
+  const clampedTable = clampTable(tableWidth, maxWidth);
   const traceWidth = Math.max(0, maxWidth - clampedTable - GAP);
 
   // Tracks the in-flight drag's listeners so an unmount mid-drag can tear them down.
@@ -56,11 +70,18 @@ export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutP
       const { signal } = controller;
       setIsResizing(true);
       const onMove = (ev: PointerEvent) => {
-        const next = startWidth + (ev.clientX - startX);
-        setTableWidth(Math.max(MIN_TABLE, Math.min(next, Math.max(MIN_TABLE, maxWidth - MIN_TRACE))));
+        setTableWidth(clampTable(startWidth + (ev.clientX - startX), maxWidth));
       };
-      const onUp = () => {
+      const onUp = (ev: PointerEvent) => {
         setIsResizing(false);
+        try {
+          window.localStorage.setItem(
+            STORAGE_KEY,
+            String(Math.round(clampTable(startWidth + (ev.clientX - startX), maxWidth)))
+          );
+        } catch {
+          // ignore
+        }
         controller.abort();
         dragAbortRef.current = null;
       };

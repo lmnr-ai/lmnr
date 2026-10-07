@@ -184,22 +184,27 @@ export default function ViewsPicker({
   const selected = views?.find((v) => v.id === currentViewId) ?? null;
   const triggerLabel = selected?.name ?? DEFAULT_LABEL;
 
+  const canSaveCurrent = currentViewId !== null && !!onSaveCurrent;
+  // Quick save only applies to an existing view; on the default view saving
+  // goes through the dropdown's "Save as new view" item.
+  const showQuickSave = dirty && canSaveCurrent;
+
   return (
-    <>
+    <div className="flex items-center">
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="text-secondary-foreground gap-1 outline-0" disabled={isLoading}>
+          <Button
+            variant="outline"
+            className={cn("text-secondary-foreground gap-1 outline-0", showQuickSave && "rounded-r-none border-r-0")}
+            disabled={isLoading}
+          >
             <Layers2 className="size-3.5 shrink-0 opacity-70" />
             {isLoading ? (
               <Skeleton className="h-3.5 w-12" />
             ) : (
               <span className="truncate max-w-[180px]">{triggerLabel}</span>
             )}
-            {isSaving ? (
-              <Loader2 aria-label="Saving" className="size-3 shrink-0 animate-spin text-amber-500" />
-            ) : (
-              dirty && <span aria-label="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-amber-500" />
-            )}
+            {dirty && <span aria-label="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-amber-500" />}
             <ChevronDown className="size-3.5 shrink-0 opacity-60" />
           </Button>
         </DropdownMenuTrigger>
@@ -289,6 +294,19 @@ export default function ViewsPicker({
           {noMatches && <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>}
         </DropdownMenuContent>
       </DropdownMenu>
+      {showQuickSave && (
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Save changes"
+          title="Save changes"
+          className="rounded-l-none border-l text-muted-foreground hover:text-secondary-foreground outline-0"
+          disabled={isSaving}
+          onClick={onSaveCurrent}
+        >
+          {isSaving ? <Loader2 className="size-3.5 shrink-0 animate-spin" /> : <Save className="size-3.5 shrink-0" />}
+        </Button>
+      )}
       <Dialog
         open={pending?.action === "delete"}
         onOpenChange={(next) => {
@@ -324,6 +342,6 @@ export default function ViewsPicker({
         submitLabel="Rename"
         onSave={handleRename}
       />
-    </>
+    </div>
   );
 }

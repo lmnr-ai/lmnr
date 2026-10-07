@@ -4,10 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 
 import AddChartDropdown from "@/components/dashboards/add-chart-dropdown";
+import { DashboardRefreshProvider, useDashboardRefresh } from "@/components/dashboards/dashboard-refresh-context";
 import { DashboardSelectionProvider } from "@/components/dashboards/dashboard-selection-store";
 import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import GridLayout from "@/components/dashboards/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
 import { track } from "@/lib/posthog";
 
 import DateRangeFilter from "../ui/date-range-filter";
@@ -25,6 +27,7 @@ function DashboardContent() {
     signalId: s.signalId,
     closeTrace: s.closeTrace,
   }));
+  const { refresh } = useDashboardRefresh();
 
   const scrollToBottom = useCallback(() => {
     const viewport = scrollRef.current;
@@ -50,6 +53,7 @@ function DashboardContent() {
         <div className="h-12 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
+          <RefreshButton onClick={refresh} variant="outline" />
           <div className="ml-auto">
             <AddChartDropdown onChartCreated={scrollToBottom} />
           </div>
@@ -78,7 +82,9 @@ export default function Dashboard() {
   return (
     <DashboardTraceProvider>
       <DashboardSelectionProvider>
-        <DashboardContent />
+        <DashboardRefreshProvider>
+          <DashboardContent />
+        </DashboardRefreshProvider>
       </DashboardSelectionProvider>
     </DashboardTraceProvider>
   );

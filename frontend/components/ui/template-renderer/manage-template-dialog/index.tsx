@@ -10,7 +10,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
-import { type ManageTemplateMode } from "../template-picker";
+import { type ManageTemplateMode } from "../manage-template-mode";
 import { fetchRenderData } from "./fetch-render-data";
 import LeftColumn from "./left-column";
 import RightPanel from "./right-panel";

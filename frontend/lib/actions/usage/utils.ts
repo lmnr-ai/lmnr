@@ -9,9 +9,8 @@ import {
 } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaceHardLimitNotifications, workspaces } from "@/lib/db/migrations/schema";
-import { getHasClusteringAccess } from "@/lib/features/clustering";
 
-import type { UsageLimitType } from "./custom-usage-limits";
+import type { UsageLimitType } from "./types";
 
 export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean> => {
   const result = await db
@@ -22,19 +21,6 @@ export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean>
     .limit(1);
 
   return result.length > 0 && result[0].tierName.toLowerCase() === "free";
-};
-
-export const hasClusteringAccessForProject = async (projectId: string): Promise<boolean> => {
-  const result = await db
-    .select({ tierName: subscriptionTiers.name })
-    .from(projects)
-    .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
-    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-    .where(eq(projects.id, projectId))
-    .limit(1);
-
-  if (result.length === 0) return false;
-  return getHasClusteringAccess(result[0].tierName);
 };
 
 export const invalidateProjectCacheForWorkspace = async (workspaceId: string): Promise<void> => {
@@ -91,9 +77,8 @@ export const deleteHardLimitNotification = async (workspaceId: string, usageItem
 //
 // Current usage comes from `getWorkspaceUsage` (cache → ClickHouse), NOT the
 // `workspace_usage` table: those columns are only written on checkout/reset and are
-// not kept in sync with the enforcement caches, and `signal_cost` there isn't stored
-// in micro-USD. `getWorkspaceUsage` returns `totalSignalCostMicroUsd`, matching the
-// micro-USD unit of `signal_cost` limits, and `totalBytesIngested` for bytes limits.
+// not kept in sync with enforcement. `getWorkspaceUsage` returns uncredited
+// Signals cost in micro-USD and `totalBytesIngested` for bytes limits.
 export const clearHardLimitNotificationOnIncrease = async (
   workspaceId: string,
   usageItem: UsageLimitType,
@@ -127,7 +112,7 @@ export const clearHardLimitNotificationOnIncrease = async (
     return;
   }
 
-  const currentUsage = usageItem === "bytes" ? usage.totalBytesIngested : usage.totalSignalCostMicroUsd;
+  const currentUsage = usageItem === "bytes" ? usage.totalBytesIngested : usage.uncreditedSignalCostMicroUsd;
   if (newLimitValue > currentUsage) {
     await deleteHardLimitNotification(workspaceId, usageItem);
   }

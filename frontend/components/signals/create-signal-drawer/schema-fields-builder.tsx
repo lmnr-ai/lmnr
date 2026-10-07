@@ -27,7 +27,7 @@ export default function SchemaFieldsBuilder() {
               <TooltipTrigger asChild>
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-60">
+              <TooltipContent side="right" className="max-w-48">
                 <p>Define what gets extracted from each trace.</p>
               </TooltipContent>
             </Tooltip>

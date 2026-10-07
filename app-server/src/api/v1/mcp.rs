@@ -5,7 +5,10 @@ use bytes::Bytes;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::*,
+    model::{
+        CallToolResponse, CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions,
+        Implementation, ServerCapabilities, ServerConfig,
+    },
     schemars,
     service::{RequestContext, serve_directly},
     tool, tool_handler, tool_router,
@@ -15,6 +18,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    access_policy::{self, AccessPolicy, Actor},
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
@@ -75,9 +79,12 @@ scoped to your project — never filter on or reference a `project_id` column. O
 const MCP_SQL_EXTRAS: &str = r#"<joins>
 - spans.trace_id = traces.id
 - signal_events.trace_id = traces.id
+- trace_outputs.trace_id = traces.id
 - has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to
   (clusters.signal_id = signal_events.signal_id only scopes by signal — it is a many-to-many cross
   product, NOT an event-to-cluster match).
+- For per-trace signal/cluster questions prefer traces.signal_events and traces.clusters over joining
+  signal_events. ARRAY JOIN signal_events AS e, ARRAY JOIN clusters AS c.
 - Top-level clusters have parent_id = the nil UUID '00000000-0000-0000-0000-000000000000' (NOT SQL
   NULL): filter with parent_id = toUUID('00000000-0000-0000-0000-000000000000'), not IS NULL.
 </joins>
@@ -171,7 +178,7 @@ impl LaminarMcpServer {
         &self,
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<QuerySqlParams>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let project_id = context
             .extensions
             .get::<ProjectId>()
@@ -187,6 +194,7 @@ impl LaminarMcpServer {
             project_id,
             params.parameters,
             SqlQuerySource::Public,
+            self.policy(project_id).await,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),
@@ -195,10 +203,11 @@ impl LaminarMcpServer {
         )
         .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
+            Ok(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::to_string_pretty(&result).unwrap_or_default(),
-            )])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(e.to_string())])),
+            )])
+            .into()),
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(e.to_string())]).into()),
         }
     }
 
@@ -221,7 +230,7 @@ impl LaminarMcpServer {
         &self,
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<GetTraceContextParams>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let project_id = context
             .extensions
             .get::<ProjectId>()
@@ -232,11 +241,14 @@ impl LaminarMcpServer {
             .get_trace_context_for_mcp(project_id, params.trace_id)
             .await
         {
-            Ok(trace_str) => Ok(CallToolResult::success(vec![Content::text(trace_str)])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Ok(trace_str) => {
+                Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)]).into())
+            }
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to retrieve trace: {}",
                 e
-            ))])),
+            ))])
+            .into()),
         }
     }
 
@@ -245,7 +257,7 @@ impl LaminarMcpServer {
         &self,
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<AskAgentParams>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let project_id = context
             .extensions
             .get::<ProjectId>()
@@ -257,15 +269,29 @@ impl LaminarMcpServer {
             .await
         {
             Ok((answer, conversation_id)) => {
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{answer}\n\n---\nconversationId: {conversation_id}\n(Pass this `conversationId` to the next `ask_agent` call to continue this conversation.)"
-                ))]))
+                ))]).into())
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Agent failed: {}",
                 e
-            ))])),
+            ))]).into()),
         }
+    }
+}
+
+impl LaminarMcpServer {
+    /// Every MCP tool authenticates with a project API key, so every read
+    /// runs under the `ApiKey` actor's policy (docs/internal/rbac.md).
+    async fn policy(&self, project_id: Uuid) -> AccessPolicy {
+        access_policy::for_actor_or_masked(
+            &Actor::ApiKey,
+            project_id,
+            self.db.clone(),
+            self.cache.clone(),
+        )
+        .await
     }
 }
 
@@ -276,27 +302,33 @@ impl LaminarMcpServer {
         project_id: Uuid,
         trace_id: Uuid,
     ) -> anyhow::Result<String> {
-        use crate::signals::private::compression::{TraceCompressor, render};
+        use crate::signals::private::compression::{
+            CompressPlan, TraceCompressor, budget::BudgetConfig, render, shape,
+        };
         use crate::signals::private::spans::get_trace_ch_spans;
         use crate::traces::previews::PreviewExtractor;
 
-        let llm_client = self.llm_client.clone().ok_or_else(|| {
-            anyhow::anyhow!(
-                "LLM client unavailable; configure LLM_PROVIDER + credentials to use get_trace_context"
-            )
-        })?;
-
-        let spans = get_trace_ch_spans(self.clickhouse.clone(), project_id, trace_id).await?;
+        let spans = get_trace_ch_spans(
+            self.clickhouse.clone(),
+            project_id,
+            trace_id,
+            &self.policy(project_id).await,
+        )
+        .await?;
         if spans.is_empty() {
             return Ok(format!(
                 "No spans found for trace {trace_id}. Either the trace does not exist in this project or there are no spans in the trace."
             ));
         }
 
-        let extractor = Arc::new(PreviewExtractor::new());
-        let compressor = TraceCompressor::new(extractor, self.cache.clone(), llm_client);
+        // Every span, raw prompts.
+        let compressor = TraceCompressor::new(Arc::new(PreviewExtractor::new()));
+        let plan = CompressPlan {
+            budget: BudgetConfig::for_chat(),
+            ..CompressPlan::default()
+        };
         let compressed = compressor
-            .compress_for_chat(&spans, project_id, trace_id, None)
+            .compress(shape(&spans, trace_id), plan)
             .await
             .map_err(|e| anyhow::anyhow!("Trace compression failed: {}", e))?;
 
@@ -365,6 +397,7 @@ impl LaminarMcpServer {
             query_engine: self.query_engine.clone(),
             clickhouse_ro,
             http_client: self.http_client.clone(),
+            pubsub: None,
             internal_project_id,
             // Persist so a follow-up `ask_agent` with the same conversationId sees this turn.
             persist: Some(conversation_id.clone()),
@@ -372,6 +405,7 @@ impl LaminarMcpServer {
             system_note: None,
             source: AgentSource::Mcp,
             user_external_id: None,
+            policy: self.policy(project_id).await,
         };
 
         // Persistence mode: the agent loop loads prior history; send only the new user turn. `_rx` is
@@ -428,8 +462,8 @@ impl LaminarMcpServer {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for LaminarMcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")))
     }
 }
@@ -543,6 +577,7 @@ pub async fn method_not_allowed() -> HttpResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::Tool;
 
     /// Look up a tool's definition from the fully-built (description-injected) router.
     fn tool(name: &str) -> Tool {

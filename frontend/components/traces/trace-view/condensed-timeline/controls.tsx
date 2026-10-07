@@ -36,14 +36,14 @@ export default function Controls({
               <span>Cost heatmap</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
+          <TooltipContent>Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
-        <Button disabled={zoom >= MAX_ZOOM} className="size-5 min-w-5" variant="ghost" size="icon" onClick={onZoomIn}>
+        <Button disabled={zoom >= MAX_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomIn}>
           <Plus className="size-3" />
         </Button>
-        <Button disabled={zoom <= MIN_ZOOM} className="size-5 min-w-5" variant="ghost" size="icon" onClick={onZoomOut}>
+        <Button disabled={zoom <= MIN_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomOut}>
           <Minus className="size-3" />
         </Button>
       </div>

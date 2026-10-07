@@ -190,7 +190,10 @@ async function applyCachedKeys(
   );
 }
 
-async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
+async function generateKeysViaLlm(
+  projectId: string,
+  spans: ParsedSpan[]
+): Promise<{
   resolved: Record<string, string | null>;
   unresolved: ParsedSpan[];
   keysToSave: Array<{ fingerprint: string; key: string }>;
@@ -225,7 +228,7 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
     let generatedKeys: Array<string | null> = [];
     let llmError: string | null = null;
     try {
-      const raw = await generatePreviewKeys(structures);
+      const raw = await generatePreviewKeys(structures, projectId);
       generatedKeys = raw.slice(0, dedupedFingerprints.length);
     } catch (error) {
       llmError = error instanceof Error ? error.message : String(error);
@@ -424,7 +427,7 @@ export async function resolvePreviews(
           keyResolved = { ...keyResolved, ...heuristic };
         } else {
           path = "llm";
-          const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(uncached);
+          const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(projectId, uncached);
           llmResolvedCount = Object.keys(llmResolved).length;
           await saveRenderingKeys(projectId, keysToSave);
           const heuristic = applyHeuristicFallback(unresolved);

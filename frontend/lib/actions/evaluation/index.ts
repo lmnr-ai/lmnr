@@ -11,14 +11,15 @@ import {
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, type SqlActor } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { datasets, evaluations } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
+  type LinkedDataset,
 } from "@/lib/evaluation/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
@@ -76,25 +77,61 @@ export const RenameEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
-export const getEvaluationScoreNames = async ({
-  projectId,
-  evaluationId,
-}: {
-  projectId: string;
-  evaluationId: string;
-}): Promise<string[]> => {
-  const rows = await executeQuery<{ name: string }>({
-    query: `
+export const getEvaluationScoreNames = async (
+  {
+    projectId,
+    evaluationId,
+  }: {
+    projectId: string;
+    evaluationId: string;
+  },
+  options?: { actor?: SqlActor }
+): Promise<string[]> => {
+  const rows = await executeQuery<{ name: string }>(
+    {
+      query: `
       SELECT DISTINCT arrayJoin(JSONExtractKeys(scores)) AS name
       FROM evaluation_datapoints
       WHERE evaluation_id = {evaluationId:UUID}
         AND length(scores) > 0
       ORDER BY name
     `,
+      parameters: { evaluationId },
+      projectId,
+    },
+    { actor: options?.actor }
+  );
+  return rows.map((r) => r.name).filter(Boolean);
+};
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+// Distinct non-nil dataset ids on the eval's CH datapoints, named from Postgres.
+export const getEvaluationDatasets = async ({
+  projectId,
+  evaluationId,
+}: {
+  projectId: string;
+  evaluationId: string;
+}): Promise<LinkedDataset[]> => {
+  const rows = await executeQuery<{ dataset_id: string }>({
+    query: `
+      SELECT DISTINCT dataset_id
+      FROM evaluation_datapoints
+      WHERE evaluation_id = {evaluationId:UUID}
+    `,
     parameters: { evaluationId },
     projectId,
   });
-  return rows.map((r) => r.name).filter(Boolean);
+
+  const ids = [...new Set(rows.map((r) => r.dataset_id).filter((id) => id && id !== NIL_UUID))];
+  if (ids.length === 0) return [];
+
+  const found = await db.query.datasets.findMany({
+    where: and(eq(datasets.projectId, projectId), inArray(datasets.id, ids)),
+    columns: { id: true, name: true },
+  });
+  return found.map((d) => ({ id: d.id, name: d.name }));
 };
 
 export const getEvaluationDatapoints = async (

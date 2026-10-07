@@ -3,7 +3,6 @@
 // Import CSS at module level - these are safe for SSR
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-
 import { ChevronDown, ChevronUp, Maximize } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
@@ -172,7 +171,7 @@ export default function PdfRenderer({ url, base64, className }: PdfRendererProps
         </div>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button aria-label="Expand" variant="ghost" size="icon">
               <Maximize className="h-3.5 w-3.5" />
             </Button>
           </SheetTrigger>

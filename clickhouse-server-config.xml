@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <!-- Disable internal telemetry that adds storage and I/O overhead on single-node deployments. -->
+    <trace_log remove="1"/>
+    <text_log remove="1"/>
+    <part_log remove="1"/>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <background_schedule_pool_log remove="1"/>
+    <query_metric_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <query_views_log remove="1"/>
+    <session_log remove="1"/>
+    <crash_log remove="1"/>
+    <opentelemetry_span_log remove="1"/>
+    <zookeeper_log remove="1"/>
+    <blob_storage_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <asynchronous_insert_log remove="1"/>
+
+    <!-- Keep operator-facing logs for troubleshooting, but bound their disk usage. -->
+    <query_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </query_log>
+    <error_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </error_log>
+</clickhouse>

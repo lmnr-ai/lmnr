@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
->(({ className, children, asChild, ...props }, ref) => (
+  // viewportClassName targets the inner (scrolling) Viewport — needed for e.g.
+  // the scroll-fade-y mask, which must sit on the element that actually scrolls.
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & { viewportClassName?: string }
+>(({ className, children, asChild, viewportClassName, ...props }, ref) => (
   <ScrollAreaPrimitive.Root className={cn("relative overflow-hidden", className)} {...props}>
-    <ScrollAreaPrimitive.Viewport ref={ref} className="h-full w-full rounded-[inherit]">
+    <ScrollAreaPrimitive.Viewport ref={ref} className={cn("h-full w-full rounded-[inherit]", viewportClassName)}>
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

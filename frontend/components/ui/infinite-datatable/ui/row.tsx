@@ -1,6 +1,6 @@
 import { type RowData } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
-import { type MouseEvent, useCallback } from "react";
+import { memo, type MouseEvent, useCallback } from "react";
 
 import { TableRow } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -8,20 +8,22 @@ import { cn } from "@/lib/utils.ts";
 import { type InfiniteDataTableRowProps } from "../model/types.ts";
 import { InfiniteTableCell } from "./cell.tsx";
 
-export function InfiniteDatatableRow<TData extends RowData>({
+function InfiniteDatatableRowInner<TData extends RowData>({
   virtualRow,
   row,
-  rowVirtualizer,
   onRowClick,
   onHoveredRowChange,
   focusedRowId,
   href,
+  className,
+  measureElement,
+  isSelected,
+  cellRenderToken,
 }: InfiniteDataTableRowProps<TData>) {
   const router = useRouter();
 
   const handleOnClick = useCallback(
     (event: MouseEvent<HTMLTableRowElement>) => {
-      // handle meta key - opening link in new tab.
       if (href && (event.metaKey || event.ctrlKey)) {
         window.open(href, "_blank");
         return;
@@ -49,15 +51,16 @@ export function InfiniteDatatableRow<TData extends RowData>({
   return (
     <TableRow
       data-index={virtualRow.index}
-      ref={(node) => rowVirtualizer.measureElement(node)}
+      ref={measureElement}
       className={cn(
         "flex min-w-full border-b last:border-b-0 group/row relative",
         (!!onRowClick || !!href) && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
-        focusedRowId === row.id && "bg-muted"
+        focusedRowId === row.id && "bg-muted",
+        className
       )}
       key={row.id}
-      data-state={row.getIsSelected() && "selected"}
+      data-state={isSelected && "selected"}
       data-focused={focusedRowId === row.id || undefined}
       onClick={handleOnClick}
       onAuxClick={handleAuxClick}
@@ -72,10 +75,44 @@ export function InfiniteDatatableRow<TData extends RowData>({
         willChange: "transform",
       }}
     >
-      {row.getIsSelected() && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
+      {isSelected && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
       {row.getVisibleCells().map((cell) => (
-        <InfiniteTableCell key={cell.id} cell={cell} />
+        <InfiniteTableCell
+          key={cell.id}
+          cell={cell}
+          isSelected={isSelected}
+          size={cell.column.getSize()}
+          start={cell.column.getStart("left")}
+          isPinned={cell.column.getIsPinned() === "left"}
+          cellRenderToken={cellRenderToken}
+        />
       ))}
     </TableRow>
   );
 }
+
+function areRowPropsEqual<TData extends RowData>(
+  prev: InfiniteDataTableRowProps<TData>,
+  next: InfiniteDataTableRowProps<TData>
+) {
+  return (
+    prev.virtualRow.index === next.virtualRow.index &&
+    prev.virtualRow.start === next.virtualRow.start &&
+    prev.virtualRow.size === next.virtualRow.size &&
+    prev.row.id === next.row.id &&
+    prev.row.original === next.row.original &&
+    prev.isSelected === next.isSelected &&
+    prev.focusedRowId === next.focusedRowId &&
+    prev.href === next.href &&
+    prev.className === next.className &&
+    prev.columnSignature === next.columnSignature &&
+    prev.cellRenderToken === next.cellRenderToken &&
+    prev.onRowClick === next.onRowClick &&
+    prev.onHoveredRowChange === next.onHoveredRowChange
+  );
+}
+
+export const InfiniteDatatableRow = memo(
+  InfiniteDatatableRowInner,
+  areRowPropsEqual
+) as typeof InfiniteDatatableRowInner;

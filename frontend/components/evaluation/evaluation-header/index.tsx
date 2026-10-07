@@ -1,8 +1,9 @@
-import { ArrowRight, Download, Edit, Ellipsis, Trash } from "lucide-react";
+import { ArrowRight, Database, Download, Edit, Ellipsis, Trash } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { memo } from "react";
+import { memo } from "react";
 
+import { AgentHeaderToggle } from "@/components/agent";
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
@@ -16,23 +17,26 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
+import { type Evaluation as EvaluationType, type LinkedDataset } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
 interface EvaluationHeader {
   evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
+  datasets: LinkedDataset[];
 }
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
   const router = useRouter();
   const targetId = searchParams.get("targetId");
+  // All runs in this view share one group (queried by group_id server-side).
+  const groupId = evaluations[0]?.groupId;
 
   const handleChange = (value?: string) => {
     const params = new URLSearchParams(searchParams);
@@ -46,7 +50,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
 
   return (
     <div className="font-medium flex-none flex gap-2 items-center justify-between w-full h-12 pl-2.5 pr-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-1 min-w-0">
         <SidebarTrigger className="hover:bg-secondary size-7" />
         <Link
           href={`/project/${projectId}/evaluations`}
@@ -54,6 +58,17 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         >
           evaluations
         </Link>
+        {groupId && (
+          <>
+            <div className="text-secondary-foreground/40">/</div>
+            <Link
+              href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(groupId)}`}
+              className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground truncate min-w-0"
+            >
+              {groupId}
+            </Link>
+          </>
+        )}
         <div className="text-secondary-foreground/40">/</div>
         <div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
@@ -108,10 +123,10 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
           </Button>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="h-7 w-7 p-0">
+            <Button aria-label="More options" variant="secondary" className="h-7 w-7 p-0">
               <Ellipsis className="w-3" />
             </Button>
           </DropdownMenuTrigger>
@@ -122,6 +137,14 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
                 <span className="text-xs">Rename</span>
               </DropdownMenuItem>
             </RenameEvaluationDialog>
+            {datasets.map((dataset) => (
+              <DropdownMenuItem key={dataset.id} asChild>
+                <Link href={`/project/${projectId}/datasets/${dataset.id}`} target="_blank" rel="noopener noreferrer">
+                  <Database className="size-3.5" />
+                  <span className="text-xs truncate">{dataset.name}</span>
+                </Link>
+              </DropdownMenuItem>
+            ))}
             {DOWNLOAD_FORMATS.map((format) => (
               <DropdownMenuItem
                 key={format}
@@ -148,6 +171,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
         {typeof evaluationId === "string" && typeof projectId === "string" && (
           <ShareEvalButton evaluationId={evaluationId} projectId={projectId} />
         )}
+        <AgentHeaderToggle />
       </div>
     </div>
   );

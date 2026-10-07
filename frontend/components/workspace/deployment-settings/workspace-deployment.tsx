@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
+import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/types";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { track } from "@/lib/posthog";
@@ -31,7 +32,6 @@ import {
   WorkspaceTier,
 } from "@/lib/workspaces/types.ts";
 
-export type DeploymentManagementForm = Pick<WorkspaceDeploymentSettings, "publicKey" | "dataPlaneUrl" | "mode">;
 const DATA_PLANE_ADDON = "data-plane";
 
 interface WorkspaceDeploymentProps {

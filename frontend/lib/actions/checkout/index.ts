@@ -6,8 +6,10 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
+import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -49,7 +51,8 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
     expand: ["latest_invoice.lines"],
   });
 
-  const tierName = workspace.subscriptionTier.name.toLowerCase().trim() as PaidTier;
+  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const tierName = normalizeTier(workspace.subscriptionTier.name) as PaidTier;
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
@@ -197,7 +200,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     throw new Error("No active subscription found. Use the checkout page to subscribe.");
   }
 
-  const currentTierName = workspace[0].tierName.toLowerCase().trim();
+  const currentTierName = normalizeTier(workspace[0].tierName);
   if (currentTierName === newTier) {
     throw new Error(`Already on the ${newTier} tier`);
   }
@@ -227,12 +230,11 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  // `usage.totalSignalCostMicroUsd` and `includedSignalCostMicroUsd` are both
-  // in micro-USD. The Stripe signal-cost meter is priced per USD, so report the
-  // overage as a dollar amount (micro-USD / 1e6), rounded to 5 decimals.
-  const newSignalCostOverageMicroUsd = Math.max(
+  // Credited runs are excluded from the Stripe meter baseline.
+  const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
+    usage.uncreditedSignalCostMicroUsd,
     0,
-    usage.totalSignalCostMicroUsd - newTierConfig.includedSignalCostMicroUsd
+    newTierConfig.includedSignalCostMicroUsd
   );
   const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);
 

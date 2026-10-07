@@ -68,4 +68,45 @@ describe("reconcileConfig", () => {
     );
     assert.strictEqual(purged, false);
   });
+
+  it("preserves the saved order of namespaced dynamic columns absent from defaults", () => {
+    // Evaluations score columns (`score:*`) / signal-event payload columns
+    // (`payload:*`) arrive asynchronously and never appear in the static
+    // defaults, so purging them would drop the user's saved order on reload.
+    const { config } = reconcileConfig(
+      { columnOrder: ["name", "score:f1", "score:accuracy", "createdAt"] },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.deepStrictEqual(config.columnOrder, ["__row_selection", "name", "score:f1", "score:accuracy", "createdAt"]);
+  });
+
+  it("does not flag namespaced dynamic columns as purged drift", () => {
+    const { purged } = reconcileConfig(
+      { columnOrder: ["name", "score:accuracy", "createdAt"] },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.strictEqual(purged, false);
+  });
+
+  it("preserves visibility and sizing for namespaced dynamic columns", () => {
+    const { config } = reconcileConfig(
+      {
+        columnOrder: ["name", "score:accuracy"],
+        columnVisibility: { "score:accuracy": false },
+        columnSizing: { "score:accuracy": 200 },
+      },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.deepStrictEqual(config.columnVisibility, { "score:accuracy": false });
+    assert.deepStrictEqual(config.columnSizing, { "score:accuracy": 200 });
+  });
+
+  it("still purges unknown static (non-namespaced) columns as drift", () => {
+    const { config, purged } = reconcileConfig(
+      { columnOrder: ["name", "removedField", "createdAt"] },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.deepStrictEqual(config.columnOrder, ["__row_selection", "name", "createdAt"]);
+    assert.strictEqual(purged, true);
+  });
 });

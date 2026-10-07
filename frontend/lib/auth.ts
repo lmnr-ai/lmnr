@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -5,7 +7,6 @@ import { bearer } from "better-auth/plugins/bearer";
 import { deviceAuthorization } from "better-auth/plugins/device-authorization";
 import { genericOAuth, keycloak, microsoftEntraId, okta } from "better-auth/plugins/generic-oauth";
 import { jwt } from "better-auth/plugins/jwt";
-import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 
 import { localEmail } from "@/lib/auth-local-email";

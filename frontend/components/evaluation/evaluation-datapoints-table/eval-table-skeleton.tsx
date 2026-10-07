@@ -20,12 +20,12 @@ export default function EvalTableSkeleton() {
               Columns
             </Button>
             <Button className="gap-1 text-secondary-foreground" variant="outline" disabled>
-              <Layers2 className="h-3.5 w-3.5" />
+              <Layers2 data-icon="inline-start" className="h-3.5 w-3.5" />
               Default view
-              <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+              <ChevronDown data-icon="inline-end" className="size-3.5 shrink-0 opacity-60" />
             </Button>
 
-            <Button className="h-7 w-7" variant="outline" size="icon" disabled>
+            <Button aria-label="Settings" className="h-7 w-7" variant="outline" size="icon" disabled>
               <Settings className="h-4 w-4 text-secondary-foreground" />
             </Button>
           </div>

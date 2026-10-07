@@ -60,8 +60,8 @@ const buttonVariants = cva(
           "border border-destructive text-destructive shadow-sm hover:bg-destructive/90 hover:text-destructive-foreground",
         warning: "bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
         warningOutline: "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
-        outline: "border border-input bg-background hover:bg-accent",
-        outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
+        outline: "border bg-surface hover:bg-surface-up-2",
+        outlinePrimary: "border border-primary bg-surface hover:bg-primary/10 text-primary",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
         secondaryLight: "bg-secondary text-secondary-foreground hover:bg-secondary/60",
         ghost: "hover:text-accent-foreground/80",
@@ -75,6 +75,9 @@ const buttonVariants = cva(
         md: "h-8 rounded-md px-3 text-sm",
         lg: "h-10 rounded-md px-8",
         icon: "h-7 w-7",
+        // Smaller icon sizes the shadcn chat components (message-scroller, attachment) default to.
+        "icon-sm": "h-6 w-6",
+        "icon-xs": "h-5 w-5",
       },
     },
     defaultVariants: {

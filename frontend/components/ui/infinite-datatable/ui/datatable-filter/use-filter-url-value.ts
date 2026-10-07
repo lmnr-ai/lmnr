@@ -3,7 +3,7 @@
 import { parseAsArrayOf, parseAsString, useQueryStates } from "nuqs";
 import { useCallback, useMemo } from "react";
 
-import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 
 export function useFilterUrlValue(disabled: boolean): {
   filters: Filter[];

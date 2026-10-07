@@ -1,57 +1,77 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
-use super::OpenAIError;
 use super::accumulator::OpenAIStreamAccumulator;
 use super::conversions::{
     parse_openai_response, provider_request_to_openai_body, provider_request_to_openai_stream_body,
 };
-use crate::env;
+use super::{
+    OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult, build_http_config,
+    build_http_config_from, endpoint_url, send_openai_request,
+};
 use crate::llm::{
-    LanguageModelClient, ProviderResult, default_headers_from_env,
+    LanguageModelClient, ProviderResult,
     models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
     sse::accumulate_sse,
 };
-use serde_json::Value;
-use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
+/// OpenAI provider using the Chat Completions API (`/chat/completions`).
 #[derive(Clone)]
 pub struct OpenAIClient {
     client: reqwest::Client,
     api_key: String,
     api_base_url: String,
+    api_version: Option<String>,
+    flavor: OpenAIFlavor,
 }
-
-pub type OpenAIResult<T> = Result<T, OpenAIError>;
 
 impl OpenAIClient {
     pub fn new() -> OpenAIResult<Self> {
-        let api_key = std::env::var(env::llm::API_KEY)
-            .map_err(|_| OpenAIError::config("LLM_API_KEY environment variable not set"))?;
+        Self::with_flavor(OpenAIFlavor::OpenAI)
+    }
 
-        let raw_base_url = std::env::var(env::llm::BASE_URL)
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
-        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
-        let default_headers = default_headers_from_env().map_err(OpenAIError::config)?;
+    /// Azure over the same Chat Completions wire format; `model` is the
+    /// deployment name.
+    pub fn azure() -> OpenAIResult<Self> {
+        Self::with_flavor(OpenAIFlavor::Azure)
+    }
 
-        let client = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
-            .default_headers(default_headers)
-            .build()
-            .map_err(|e| OpenAIError::config(format!("Failed to build HTTP client: {}", e)))?;
+    fn with_flavor(flavor: OpenAIFlavor) -> OpenAIResult<Self> {
+        Ok(Self::from_http_config(build_http_config(flavor)?))
+    }
 
-        Ok(Self {
+    /// Build from explicit values (LLM profiles) instead of env.
+    pub(crate) fn from_config(config: OpenAIExplicitConfig) -> OpenAIResult<Self> {
+        Ok(Self::from_http_config(build_http_config_from(config)?))
+    }
+
+    fn from_http_config(config: OpenAIHttpConfig) -> Self {
+        let OpenAIHttpConfig {
             client,
             api_key,
             api_base_url,
-        })
+            api_version,
+            flavor,
+        } = config;
+        Self {
+            client,
+            api_key,
+            api_base_url,
+            api_version,
+            flavor,
+        }
     }
 
     pub fn api_base_url(&self) -> &str {
         &self.api_base_url
+    }
+
+    fn url(&self) -> String {
+        endpoint_url(
+            &self.api_base_url,
+            "/chat/completions",
+            self.api_version.as_deref(),
+        )
     }
 }
 
@@ -62,41 +82,13 @@ impl LanguageModelClient for OpenAIClient {
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
         let body = provider_request_to_openai_body(model, request);
+        let url = self.url();
 
-        let url = format!("{}/chat/completions", self.api_base_url);
-        let response = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(OpenAIError::from)?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            log::error!("OpenAI API error ({}): {}", status, error_text);
-            let message = serde_json::from_str::<serde_json::Value>(&error_text)
-                .ok()
-                .and_then(|v| {
-                    v.get("error")
-                        .and_then(|e| e.get("message"))
-                        .and_then(|m| m.as_str())
-                        .map(|s| s.to_string())
-                })
-                .unwrap_or(error_text);
-            return Err(OpenAIError::ApiError {
-                status_code: status.as_u16(),
-                message,
-            }
-            .into());
-        }
-
-        let response_text = response.text().await.map_err(OpenAIError::from)?;
+        let response =
+            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
+        let response_text = response.text().await.map_err(super::OpenAIError::from)?;
         let response_json: serde_json::Value =
-            serde_json::from_str(&response_text).map_err(OpenAIError::from)?;
+            serde_json::from_str(&response_text).map_err(super::OpenAIError::from)?;
 
         parse_openai_response(response_json).map_err(Into::into)
     }
@@ -108,44 +100,90 @@ impl LanguageModelClient for OpenAIClient {
         chunk_tx: &UnboundedSender<ProviderStreamChunk>,
     ) -> ProviderResult<ProviderResponse> {
         let body = provider_request_to_openai_stream_body(model, request);
+        let url = self.url();
 
-        let url = format!("{}/chat/completions", self.api_base_url);
-        let response = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(OpenAIError::from)?;
+        let response =
+            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
 
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            log::error!("OpenAI API error ({}): {}", status, error_text);
-            let message = serde_json::from_str::<Value>(&error_text)
-                .ok()
-                .and_then(|v| {
-                    v.get("error")
-                        .and_then(|e| e.get("message"))
-                        .and_then(|m| m.as_str())
-                        .map(|s| s.to_string())
-                })
-                .unwrap_or(error_text);
-            return Err(OpenAIError::ApiError {
-                status_code: status.as_u16(),
-                message,
-            }
-            .into());
-        }
-
-        accumulate_sse::<OpenAIStreamAccumulator, OpenAIError>(
+        accumulate_sse::<OpenAIStreamAccumulator, super::OpenAIError>(
             response.bytes_stream(),
             model,
             chunk_tx,
         )
         .await
         .map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::env;
+    use crate::llm::LlmRoute;
+    use crate::llm::models::{ProviderContent, ProviderPart};
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Azure resolves its endpoint and auth from env at construction time, so the
+    /// only way to cover that wiring is to set the vars.
+    #[tokio::test]
+    async fn azure_client_posts_to_v1_route_with_api_key_header() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/openai/v1/chat/completions"))
+            .and(header("api-key", "azure-test-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "choices": [{"message": {"role": "assistant", "content": "pong"}}],
+            })))
+            .mount(&server)
+            .await;
+
+        let client = crate::llm::with_env_vars(
+            &[
+                (env::llm::API_KEY, "azure-test-key"),
+                (env::llm::AZURE_BASE_URL, &server.uri()),
+            ],
+            || OpenAIClient::azure().unwrap(),
+        );
+
+        let request = ProviderRequest {
+            contents: vec![ProviderContent {
+                role: Some("user".to_string()),
+                parts: Some(vec![ProviderPart {
+                    text: Some("ping".to_string()),
+                    ..Default::default()
+                }]),
+            }],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+            service_tier: None,
+            route: LlmRoute::default(),
+        };
+        let response = client
+            .generate_content("my-deployment", &request)
+            .await
+            .unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        let body: serde_json::Value = requests[0].body_json().unwrap();
+        assert_eq!(body["model"], "my-deployment");
+        assert!(
+            requests[0].headers.get("authorization").is_none(),
+            "azure authenticates with api-key, not a bearer token"
+        );
+        assert_eq!(
+            response.candidates.unwrap()[0]
+                .content
+                .as_ref()
+                .unwrap()
+                .parts
+                .as_ref()
+                .unwrap()[0]
+                .text
+                .as_deref(),
+            Some("pong")
+        );
     }
 }

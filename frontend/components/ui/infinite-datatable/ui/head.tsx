@@ -89,8 +89,10 @@ export function InfiniteTableHead<TData extends RowData>({
         </div>
         <div
           className={cn(
-            "transition-opacity duration-150",
-            header.column.getIsSorted() ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            "shrink-0 overflow-hidden transition-opacity duration-150",
+            header.column.getIsSorted()
+              ? "w-auto opacity-100"
+              : "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100"
           )}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
@@ -109,10 +111,7 @@ export function InfiniteTableHead<TData extends RowData>({
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
-                >
+                <DropdownMenuContent align="end" className="relative z-50 min-w-32 overflow-hidden rounded-md border">
                   {header.column.getCanSort() && (
                     <>
                       <DropdownMenuItem

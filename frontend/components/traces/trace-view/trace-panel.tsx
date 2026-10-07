@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
-import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -153,14 +153,15 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                   <div className="flex items-center gap-1 min-w-0">
                     {hasBrowserSession && (
                       <Button
+                        variant="ghost"
+                        className={cn(
+                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
+                          browserSession && "text-primary hover:text-primary"
+                        )}
                         disabled={!trace}
-                        className={cn("h-6 px-1.5 text-xs overflow-hidden", {
-                          "border-primary text-primary": browserSession,
-                        })}
-                        variant="outline"
                         onClick={() => setBrowserSession(!browserSession)}
                       >
-                        <CirclePlay size={14} className="flex-shrink-0" />
+                        <CirclePlay data-icon="inline-start" size={14} className="flex-shrink-0" />
                         <span className="ml-1 truncate">Media</span>
                       </Button>
                     )}

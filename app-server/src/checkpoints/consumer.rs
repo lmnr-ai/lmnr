@@ -26,11 +26,11 @@ use crate::{
         Cache, CacheTrait,
         keys::{AGENT_CLASSIFY_LOCK_CACHE_KEY, AGENT_VERSION_HASH_CACHE_KEY},
     },
-    ch::deduped_content,
+    ch::unique_content,
     db::{DB, agents},
     llm::LlmClient,
-    mq::MessageQueue,
-    traces::metadata::publish_trace_metadata_patch,
+    mq::{MessageQueue, stream::StreamPublisher},
+    traces::{dedup, metadata::publish_trace_metadata_patch},
     worker::{HandlerError, MessageHandler},
 };
 
@@ -45,6 +45,10 @@ pub struct CheckpointsQueueMessage {
     pub project_id: Uuid,
     pub trace_id: Uuid,
     pub span_id: Uuid,
+    /// Empty when the span carried none; with `trace_id` it locates the
+    /// span's `unique_content` group (`traces::dedup::group_id`).
+    #[serde(default)]
+    pub session_id: String,
     pub system_prompt: String,
     pub tool_definitions_hash: String,
     pub model: String,
@@ -58,6 +62,7 @@ pub struct CheckpointsHandler {
     pub clickhouse: clickhouse::Client,
     pub llm_client: Option<Arc<LlmClient>>,
     pub queue: Arc<MessageQueue>,
+    pub spans_stream_publisher: Option<Arc<StreamPublisher>>,
 }
 
 #[async_trait]
@@ -201,9 +206,10 @@ impl CheckpointsHandler {
         let tool_definitions = if message.tool_definitions_hash.is_empty() {
             String::new()
         } else {
-            deduped_content::get_content_by_hash(
+            unique_content::get_content_by_hash(
                 &self.clickhouse,
                 message.project_id,
+                &dedup::group_id(&message.session_id, message.trace_id),
                 &message.tool_definitions_hash,
             )
             .await?
@@ -281,6 +287,7 @@ impl CheckpointsHandler {
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
+            self.spans_stream_publisher.clone(),
         )
         .await
         {
