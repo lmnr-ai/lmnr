@@ -56,6 +56,9 @@ pub const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY: &str = "workspace_deploy
 pub const DATA_PLANE_AUTH_TOKEN_CACHE_KEY: &str = "data_plane_auth_token";
 pub const REPORT_SCHEDULER_LOCK_CACHE_KEY: &str = "report_scheduler_lock";
 pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_check";
+/// Held for the whole sync interval and never released on success, so its
+/// expiry is the schedule shared by every replica.
+pub const MODEL_COSTS_SYNC_LOCK_CACHE_KEY: &str = "model_costs_sync_lock";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SAMPLING_FACTORS_CACHE_KEY: &str = "sampling_factors";
 pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";

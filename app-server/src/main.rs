@@ -1566,6 +1566,21 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
+        if is_feature_enabled(Feature::ModelCostsSync) {
+            log::info!("Model costs sync enabled - starting model costs sync");
+            let db_for_model_costs = db.clone();
+            let cache_for_model_costs = cache.clone();
+            let http_client_for_model_costs = http_client.clone();
+            runtime_handle.spawn(async move {
+                language_model::costs::sync::run_model_costs_sync(
+                    db_for_model_costs,
+                    cache_for_model_costs,
+                    http_client_for_model_costs,
+                )
+                .await;
+            });
+        }
+
         let worker_pool = Arc::new(WorkerPool::new(
             queue.clone(),
             shutdown.clone(),

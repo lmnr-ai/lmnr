@@ -52,6 +52,9 @@ pub enum Feature {
     /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
     /// (default true).
     Quickwit,
+    /// Periodic model-costs sync from the litellm price list. Self-hosted only:
+    /// Cloud runs the same job externally (lmnr-ai/model-costs).
+    ModelCostsSync,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -111,6 +114,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
         Feature::Quickwit => env::quickwit::ENABLED.get(),
+        Feature::ModelCostsSync => !env::connections::LAMINAR_CLOUD.get(),
     }
 }
 
