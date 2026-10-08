@@ -1,11 +1,4 @@
-import {
-  LogoBrowserUse,
-  LogoKnot,
-  LogoMetaforms,
-  LogoOpenHands,
-  LogoPassionfroot,
-  LogoVorflux,
-} from "@/components/ui/icons";
+import { LogoBrowserUse, LogoMetaforms, LogoOpenHands, LogoPassionfroot, LogoVorflux } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -43,18 +36,18 @@ const LOGOS = [
     className: "w-[90px] h-[22px] sm:w-28 sm:h-7",
     href: "https://www.passionfroot.me",
   },
-  { id: "knot", Component: LogoKnot, className: "w-[43px] h-4 sm:w-[54px] sm:h-5", href: "https://www.knotapi.com" },
 ];
 
+// Below md the 5 logos wrap 3 + 2; a 6-col grid with 2-col cells lets the second row start at col 2 and sit centered.
 const LogoStrip = ({ className }: Props) => (
-  <div className={cn("grid grid-cols-3 md:grid-cols-6 gap-1 sm:gap-2 w-full max-w-[960px]", className)}>
+  <div className={cn("grid grid-cols-6 md:grid-cols-5 gap-1 sm:gap-2 w-full max-w-[960px]", className)}>
     {LOGOS.map(({ id, Component, className: logoClassName, href }) => (
       <a
         key={id}
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="group flex items-center justify-center h-10 sm:h-13 rounded bg-surface-250 transition-colors hover:bg-surface-300"
+        className="group col-span-2 md:col-span-1 nth-4:col-start-2 md:nth-4:col-start-auto flex items-center justify-center h-10 sm:h-13 rounded bg-surface-250 transition-colors hover:bg-surface-300"
       >
         <Component className={cn("opacity-50 scale-90 transition-opacity group-hover:opacity-80", logoClassName)} />
       </a>
