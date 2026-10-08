@@ -57,6 +57,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# The runner starts with `node server.js` and never calls npm/npx; drop the npm CLI
+# bundled with the Node image so its dependencies don't ship in the final image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache
