@@ -8,6 +8,7 @@ import { useCallback, useMemo } from "react";
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { normalizeTimeRange } from "@/components/charts/time-series-chart/utils";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
+import { useDashboardLastRangeStore } from "@/components/dashboards/use-last-range";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 
@@ -45,6 +46,7 @@ export default function SelectionToolbar() {
     isDragging: s.isDragging,
     clearSelection: s.clearSelection,
   }));
+  const setLastRange = useDashboardLastRangeStore((s) => s.setLastRange);
 
   const normalized = useMemo(() => {
     if (!startLabel || !endLabel) return null;
@@ -54,12 +56,15 @@ export default function SelectionToolbar() {
   const applyTimeRange = useCallback(() => {
     if (!normalized) return;
     const params = new URLSearchParams(searchParams.toString());
+    const startDate = parseUtcTimestamp(normalized.start).toISOString();
+    const endDate = parseUtcTimestamp(normalized.end).toISOString();
     params.delete("pastHours");
-    params.set("startDate", parseUtcTimestamp(normalized.start).toISOString());
-    params.set("endDate", parseUtcTimestamp(normalized.end).toISOString());
+    params.set("startDate", startDate);
+    params.set("endDate", endDate);
     router.push(`${pathname}?${params.toString()}`);
+    setLastRange(String(projectId), { startDate, endDate });
     clearSelection();
-  }, [normalized, searchParams, pathname, router, clearSelection]);
+  }, [normalized, searchParams, pathname, router, setLastRange, projectId, clearSelection]);
 
   const openInTraces = useCallback(() => {
     if (!normalized || !projectId) return;
