@@ -116,14 +116,14 @@ export function azureAnthropicBaseUrl(rawBaseUrl: string): string {
 
 /** `createAzure` only appends `api-version` for `*.openai.azure.com` hosts. */
 export const appendApiVersion =
-  (apiVersion: string): typeof globalThis.fetch =>
+  (apiVersion: string, baseFetch: typeof globalThis.fetch = fetch): typeof globalThis.fetch =>
   (input, init) => {
     if (typeof input !== "string" && !(input instanceof URL)) {
-      return fetch(input, init);
+      return baseFetch(input, init);
     }
     const url = new URL(input);
     url.searchParams.set("api-version", apiVersion);
-    return fetch(url, init);
+    return baseFetch(url, init);
   };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -5,6 +5,9 @@ import { handleChatGeneration } from "@/lib/actions/chat";
 import { NotFoundError } from "@/lib/errors";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
+// Long reasoning-model calls in the playground; matches PLAYGROUND_LLM_TIMEOUT_MS.
+export const maxDuration = 600;
+
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
   try {
     const body = await req.json();

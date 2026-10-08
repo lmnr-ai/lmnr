@@ -13,6 +13,7 @@ import { z } from "zod/v4";
 import { parseTools } from "@/components/playground/utils";
 import { resolveProjectLlmProfile } from "@/lib/actions/llm-profiles/resolve";
 import { providerFamily } from "@/lib/actions/llm-profiles/schema";
+import { longRunningFetch } from "@/lib/ai/long-fetch";
 import { languageModelFromProfile } from "@/lib/ai/profile-model";
 import { extractInstructions } from "@/lib/playground/utils";
 
@@ -109,7 +110,9 @@ export async function generateChatResponse(
   } = params;
 
   const resolved = await resolveProjectLlmProfile({ projectId, profileId: llmProfileId, model: llmModel });
-  const model = languageModelFromProfile(resolved.profile, resolved.secrets, resolved.model);
+  const model = languageModelFromProfile(resolved.profile, resolved.secrets, resolved.model, {
+    fetch: longRunningFetch,
+  });
 
   if (providerOptions?.google?.thinkingConfig) {
     const tc = providerOptions.google.thinkingConfig as Record<string, unknown>;

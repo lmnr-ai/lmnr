@@ -20,23 +20,25 @@ const requireSecret = (value: string | undefined, label: string): string => {
 export function languageModelFromProfile(
   profile: LlmProfileConfig,
   secrets: LlmProfileSecrets,
-  model: string
+  model: string,
+  options: { fetch?: typeof globalThis.fetch } = {}
 ): LanguageModel {
   const apiKey = () => requireSecret(secrets.apiKey, "API key");
+  const fetchOpt = options.fetch ? { fetch: options.fetch } : {};
 
   switch (profile.provider) {
     case "openai_completions":
-      return createOpenAI({ apiKey: apiKey() }).chat(model);
+      return createOpenAI({ apiKey: apiKey(), ...fetchOpt }).chat(model);
     case "openai_responses":
-      return createOpenAI({ apiKey: apiKey() }).responses(model);
+      return createOpenAI({ apiKey: apiKey(), ...fetchOpt }).responses(model);
     case "anthropic":
-      return createAnthropic({ apiKey: apiKey() })(model);
+      return createAnthropic({ apiKey: apiKey(), ...fetchOpt })(model);
     case "gemini":
-      return createGoogleGenerativeAI({ apiKey: apiKey() })(model);
+      return createGoogleGenerativeAI({ apiKey: apiKey(), ...fetchOpt })(model);
     case "groq":
-      return createGroq({ apiKey: apiKey() })(model);
+      return createGroq({ apiKey: apiKey(), ...fetchOpt })(model);
     case "mistral":
-      return createMistral({ apiKey: apiKey() })(model);
+      return createMistral({ apiKey: apiKey(), ...fetchOpt })(model);
     case "bedrock": {
       const { region, auth } = profile.config;
       const bedrock =
@@ -45,14 +47,17 @@ export function languageModelFromProfile(
               region,
               accessKeyId: auth.accessKeyId,
               secretAccessKey: requireSecret(secrets.secretAccessKey, "AWS secret access key"),
+              ...fetchOpt,
             })
-          : createAmazonBedrock({ region, apiKey: requireSecret(secrets.token, "Bedrock bearer token") });
+          : createAmazonBedrock({ region, apiKey: requireSecret(secrets.token, "Bedrock bearer token"), ...fetchOpt });
       return bedrock(model);
     }
     case "azure_anthropic":
-      return createAnthropic({ apiKey: apiKey(), baseURL: azureAnthropicBaseUrl(azureEndpoint(profile.config)) })(
-        model
-      );
+      return createAnthropic({
+        apiKey: apiKey(),
+        baseURL: azureAnthropicBaseUrl(azureEndpoint(profile.config)),
+        ...fetchOpt,
+      })(model);
     case "azure_chat_completions":
     case "azure_responses": {
       const baseURL = azureOpenAIBaseUrl(azureEndpoint(profile.config));
@@ -61,7 +66,9 @@ export function languageModelFromProfile(
         apiKey: apiKey(),
         baseURL,
         ...(apiVersion ? { apiVersion } : {}),
-        ...(apiVersion && !isAzureOpenAIHost(baseURL) ? { fetch: appendApiVersion(apiVersion) } : {}),
+        ...(apiVersion && !isAzureOpenAIHost(baseURL)
+          ? { fetch: appendApiVersion(apiVersion, options.fetch) }
+          : fetchOpt),
       });
       return profile.provider === "azure_responses" ? azure(model) : azure.chat(model);
     }
@@ -71,7 +78,7 @@ export function languageModelFromProfile(
       for (const name of profile.config.headerNames) {
         headers[name] = requireSecret(secrets.headers?.[name], `value for header "${name}"`);
       }
-      const gateway = createOpenAI({ apiKey: apiKey(), baseURL: profile.config.baseUrl, headers });
+      const gateway = createOpenAI({ apiKey: apiKey(), baseURL: profile.config.baseUrl, headers, ...fetchOpt });
       if (profile.provider === "custom") return gateway.chat(model);
       // Gateways rarely persist responses, so multi-step calls must resend prior items, not `item_reference` ids.
       return wrapLanguageModel({
