@@ -162,6 +162,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             project_id,
             project_name,
             signal_id,
+            trace_id,
             event_name,
             severity,
             extracted_information,
@@ -186,6 +187,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                     &attributes,
                     project_id,
                     signal_id,
+                    trace_id,
                     *severity,
                     alert_name,
                     event_id.as_ref(),
@@ -294,9 +296,10 @@ fn render_alert_email(
     attributes: &serde_json::Value,
     project_id: &Uuid,
     signal_id: &Uuid,
+    trace_id: &Uuid,
     severity: u8,
     _alert_name: &str,
-    _event_id: Option<&Uuid>,
+    event_id: Option<&Uuid>,
 ) -> String {
     let mut rows = vec![(
         "Severity".to_string(),
@@ -331,12 +334,23 @@ fn render_alert_email(
         "signal_alert",
         "manage_preferences",
     );
-    let signal_link = format!(
-        "{}/project/{}/signals/{}",
-        frontend_url_email(),
-        project_id,
-        signal_id
-    );
+    let signal_link = match event_id {
+        Some(event_id) => format!(
+            "{}/project/{}/signals/{}?traceId={}&eventId={}",
+            frontend_url_email(),
+            project_id,
+            signal_id,
+            trace_id,
+            event_id
+        ),
+        None => format!(
+            "{}/project/{}/signals/{}?traceId={}",
+            frontend_url_email(),
+            project_id,
+            signal_id,
+            trace_id
+        ),
+    };
     let card = format!(
         r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}</div>"#,
         breadcrumb(&[project_name, event_name], &signal_link),
@@ -1002,6 +1016,27 @@ mod tests {
     }
 
     #[test]
+    fn signal_event_email_links_to_the_event_trace() {
+        let trace_id = Uuid::from_u128(2);
+        let event_id = Uuid::from_u128(3);
+        let event = NotificationKind::EventIdentification {
+            project_id: Uuid::nil(),
+            project_name: "laminar-agent".into(),
+            signal_id: Uuid::from_u128(1),
+            trace_id,
+            event_id: Some(event_id),
+            event_name: "Failure Detector".into(),
+            severity: 2,
+            extracted_information: None,
+            alert_name: "Critical failures".into(),
+        };
+
+        let html = format_email_batch(&[event], &Uuid::nil()).html;
+
+        assert!(html.contains(&format!("?traceId={trace_id}&eventId={event_id}")));
+    }
+
+    #[test]
     fn new_event_and_cluster_emails_omit_primary_action_button() {
         let event_html = render_alert_email(
             "Failure Detector",
@@ -1009,6 +1044,7 @@ mod tests {
             &serde_json::json!({ "failure": "timeout" }),
             &Uuid::nil(),
             &Uuid::from_u128(1),
+            &Uuid::from_u128(2),
             2,
             "Critical failures",
             None,
@@ -1088,6 +1124,7 @@ mod tests {
                 "empty": null,
                 "nested": { "status": "failed", "attempt": 2 }
             }),
+            &Uuid::nil(),
             &Uuid::nil(),
             &Uuid::nil(),
             1,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 
 import { type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
@@ -31,13 +31,11 @@ interface Props {
   traceId: string;
   validFields: SchemaField[];
   spanRefCallbacks?: SpanReferenceCallbacks;
-  highlighted?: boolean;
   /** Public shared trace: the findings render, the ways into the project don't. */
   readOnly?: boolean;
 }
 
-/** One event, with no card around it: a signal produces one event per trace in
- *  all but a handful of cases, so the box bordered the panel's only content. */
+/** One event, with no card around it: each signal evaluation produces one event. */
 export default function SignalEvent({
   event,
   projectId,
@@ -45,17 +43,9 @@ export default function SignalEvent({
   traceId,
   validFields,
   spanRefCallbacks,
-  highlighted,
   readOnly,
 }: Props) {
   const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
-
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (highlighted) {
-      ref.current?.scrollIntoView({ block: "nearest" });
-    }
-  }, [highlighted]);
 
   const clusterChips = event.leafClusters.map((cluster) => (
     <ClusterButton
@@ -80,12 +70,7 @@ export default function SignalEvent({
     );
 
   return (
-    <div
-      ref={ref}
-      // A deep-linked event still has to be findable, so the highlight is a rule
-      // down the left edge rather than a ring around a box that is no longer drawn.
-      className={cn("flex min-w-0 flex-col", highlighted && "border-l-2 border-border")}
-    >
+    <div className="flex min-w-0 flex-col">
       {/* Half the fields' inset, because a chip is a filled box with its own:
           6 + the chip's 6 puts the LABEL on 12, level with the field labels
           under it. The column keeps its one left edge; the text sits on it
