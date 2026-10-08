@@ -33,7 +33,7 @@ export interface SQLEditorProps {
 export default function SQLEditor({
   value,
   onChange,
-  placeholder = "Enter your SQL query...",
+  placeholder = "Enter a query, then ⌘ + Enter or Ctrl + Enter to run",
   editable = true,
   autoFocus = false,
   className = "size-full",
