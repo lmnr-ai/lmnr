@@ -158,7 +158,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
 | `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
-| `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
+| `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs, `model_costs` sync |
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
