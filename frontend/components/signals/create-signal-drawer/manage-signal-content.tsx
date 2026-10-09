@@ -12,6 +12,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import SignalFormFields from "./signal-form-fields";
+import TestButton from "./test-button";
 import { type ManageSignalContentVariant, type ManageSignalForm } from "./types";
 import useSubmitHandler from "./use-submit-handler";
 
@@ -75,7 +76,8 @@ export default function ManageSignalContent({
         <SignalFormFields variant={variant} isLoading={isLoading} showTemplates={!id} />
       </ScrollArea>
       <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
-        <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
+        <TestButton />
+        <Button className="w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
           <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
           {id ? "Save" : "Create"}
         </Button>
