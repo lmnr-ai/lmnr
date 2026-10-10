@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import useSWR from "swr";
 
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type SpanTag, type TagClass } from "@/lib/traces/types";
-import { swrFetcher } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
 

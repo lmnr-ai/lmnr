@@ -12,8 +12,8 @@ import {
   type TraceSignalClusterNode,
   type TraceSignalEvent,
 } from "@/components/traces/trace-view/store/base";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 /** Wire shape of both signal endpoints. `prompt` is absent on the shared one —
  *  nothing renders it, so the public route withholds it. */

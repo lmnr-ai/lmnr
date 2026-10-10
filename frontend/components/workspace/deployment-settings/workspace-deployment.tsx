@@ -22,9 +22,10 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { type DeploymentManagementForm } from "@/components/workspace/deployment-settings/types";
 import { useProjectContext } from "@/contexts/project-context";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils.ts";
 import {
   DeploymentType,
   type Workspace,

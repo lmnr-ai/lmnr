@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { useLastViewStore } from "./last-view-store";
 import { EMPTY_VIEW_PARAMS, paramsEqual, readParamsFromView, type ViewParams } from "./params";

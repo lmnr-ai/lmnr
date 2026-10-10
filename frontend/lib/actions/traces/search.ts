@@ -1,7 +1,7 @@
 import { resolveSqlActor } from "@/lib/actions/sql/actor";
+import { fetcherJSON } from "@/lib/api/backend";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
-import { fetcherJSON } from "@/lib/utils";
 
 export interface SnippetInfo {
   text: string;

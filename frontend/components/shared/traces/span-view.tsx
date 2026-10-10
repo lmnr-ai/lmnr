@@ -10,8 +10,8 @@ import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type Span } from "@/lib/traces/types";
-import { swrFetcher } from "@/lib/utils";
 
 interface SpanViewProps {
   spanId: string;

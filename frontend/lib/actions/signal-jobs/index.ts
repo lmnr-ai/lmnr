@@ -7,11 +7,11 @@ import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types.ts";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
+import { fetcherJSON } from "@/lib/api/backend";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { signalJobs } from "@/lib/db/migrations/schema";
-import { fetcherJSON } from "@/lib/utils";
 
 export const GetSignalJobsSchema = z.object({
   projectId: z.guid(),

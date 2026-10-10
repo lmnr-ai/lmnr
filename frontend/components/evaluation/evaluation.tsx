@@ -32,6 +32,7 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import {
   type EvalRow,
   type Evaluation as EvaluationType,
@@ -39,7 +40,6 @@ import {
   type LinkedDataset,
 } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
 

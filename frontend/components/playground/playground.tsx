@@ -13,10 +13,10 @@ import { getDefaultThinkingModelProviderOptions, type LlmRoute } from "@/compone
 import TraceView from "@/components/traces/trace-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Message, type Playground as PlaygroundType, type PlaygroundForm } from "@/lib/playground/types";
 import { transformFromLegacy } from "@/lib/playground/utils.ts";
-import { swrFetcher } from "@/lib/utils";
 
 import Header from "../ui/header";
 

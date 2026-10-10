@@ -6,7 +6,7 @@ import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { type WorkspaceUsageLimit } from "@/lib/actions/usage/custom-usage-limits";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import LimitRow from "./limit-row";
 

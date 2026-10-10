@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { type AlertFilterFormItem } from "../alert-filters-section";
 import { AlertForm } from "./alert-form";

@@ -7,7 +7,7 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionsResult } from "@/lib/actions/agents";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { SettingsSection, SettingsSectionHeader } from "../settings-section";
 import VersionCard from "./version-card";

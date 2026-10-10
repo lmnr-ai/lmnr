@@ -5,7 +5,8 @@ import { ChevronRight } from "lucide-react";
 import useSWR from "swr";
 
 import { type AgentListItem } from "@/lib/actions/agents";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { formatTimestamp } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 

@@ -5,8 +5,8 @@ import useSWR from "swr";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { type ExportJob } from "@/lib/actions/dataset-export-jobs";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";

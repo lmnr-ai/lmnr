@@ -8,7 +8,7 @@ import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
 import { type SignalRunStatsDataPoint } from "@/lib/actions/signal-runs/types";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 const chartConfig: TimeSeriesChartConfig = {
   eventCreated: {

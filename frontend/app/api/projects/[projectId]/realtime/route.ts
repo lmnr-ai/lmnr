@@ -1,4 +1,4 @@
-import { fetcherRealTime } from "@/lib/utils";
+import { fetcherRealTime } from "@/lib/api/backend";
 
 export async function GET(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;

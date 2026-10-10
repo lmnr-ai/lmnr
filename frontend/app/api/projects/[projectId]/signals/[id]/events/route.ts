@@ -1,16 +1,12 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getEventsPaginated, GetEventsPaginatedSchema } from "@/lib/actions/events";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const { projectId, id: signalId } = params;
+export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
+  const { projectId, id: signalId } = await ctx.params;
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
     GetEventsPaginatedSchema.omit({ projectId: true, signalId: true }),
@@ -29,16 +25,6 @@ export async function GET(
     return retentionError;
   }
 
-  try {
-    const result = await getEventsPaginated({ ...parseResult.data, projectId, signalId });
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch events." },
-      { status: 500 }
-    );
-  }
-}
+  const result = await getEventsPaginated({ ...parseResult.data, projectId, signalId });
+  return Response.json(result);
+});

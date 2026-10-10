@@ -8,7 +8,8 @@ import useSWR from "swr";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { cn } from "@/lib/utils";
 
 import RunCountBadge from "./run-count-badge";
 import type { EvaluationGroup } from "./types";

@@ -1,5 +1,5 @@
 import { type SnippetInfo } from "@/lib/actions/traces/search";
-import { fetcherJSON } from "@/lib/utils";
+import { fetcherJSON } from "@/lib/api/backend";
 
 export interface SignalEventSearchHit {
   id: string;

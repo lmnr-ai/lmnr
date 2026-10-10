@@ -16,10 +16,11 @@ import {
 } from "@/lib/actions/cluster-visualization-types";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ClusterIcicle from "./cluster-icicle";

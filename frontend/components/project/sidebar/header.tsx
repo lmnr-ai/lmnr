@@ -27,11 +27,12 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { tierDisplayName } from "@/lib/billing/tiers";
 import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { cn, swrFetcher } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils.ts";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types.ts";
 
 // Hierarchy left→right: [Workspaces] (parent) → [Projects in X] (child).

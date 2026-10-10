@@ -13,8 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ALERT_TYPE_LABELS, type AlertType, type AlertWithDetails } from "@/lib/actions/alerts/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import DeleteAlertDialog from "./delete-alert-dialog";
 import ManageAlertSheet from "./manage-alert-sheet";
