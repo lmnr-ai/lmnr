@@ -45,6 +45,7 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
         formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
         formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
         trace_id as traceId,
+        model,
         status,
         input,
         output,

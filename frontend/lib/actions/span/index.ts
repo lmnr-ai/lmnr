@@ -60,6 +60,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       trace_id as traceId,
+      model,
       status,
       input,
       output,
