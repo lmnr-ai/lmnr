@@ -26,30 +26,19 @@ use super::lock::{
 use super::metadata::extraction_outcome_value;
 use super::output::{OutputCandidate, process_trace_output_candidate};
 use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
-use super::regex::{
-    RegexTarget, Resolution, record_resolution, regex_target, try_apply_cached_regex,
-};
+use super::regex::{apply_known_regex, regex_target};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
 use crate::features::{Feature, is_feature_enabled};
 use crate::llm::llm_client_available;
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
-use crate::traces::sp_versioning::producer::VersionVerdicts;
+use crate::traces::sp_versioning::{
+    VersionKind,
+    producer::{VersionCandidate, resolve_and_publish},
+    window::SpanRef,
+};
 use crate::traces::spans::SpanAttributes;
-
-/// The span's system-prompt identity, threaded from the ingest producer. The
-/// agent hash is a key component of both regex cachings; the byte-identity hash
-/// is how the candidate looks its prompt's version up in the batch's
-/// [`VersionVerdicts`].
-#[derive(Debug, Clone, Copy)]
-pub struct SystemPromptIdentity<'a> {
-    /// First-sentence hash (NOT the skeleton hash stamped on
-    /// `lmnr.span.prompt_hash`): permutations of the system prompt's XML
-    /// scaffolding must not fork the user-regex cache key.
-    pub agent_hash: &'a str,
-    pub full_prompt_hash: &'a str,
-}
 
 /// Per-span input candidate captured inside `preprocess_for_queue`,
 /// BEFORE the dedup strip removes `span.input` — the only point where the
@@ -59,17 +48,17 @@ pub struct UserTaskCandidate {
     pub signposted_text: String,
     pub fingerprint: String,
     /// Whether the last turn follows assistant history — a key component of the
-    /// version-keyed cache (already encoded in `fingerprint` for the legacy one).
+    /// template-keyed cache (already encoded in `fingerprint` for the legacy one).
     pub has_history: bool,
-    /// First-sentence hash of the system prompt. `None` for LLM spans carrying
-    /// no system message, which can never have a version and so stay on the
-    /// legacy keying forever.
+    /// First-sentence hash of the system prompt (NOT the skeleton hash stamped
+    /// on `lmnr.span.prompt_hash`: permutations of the system prompt's XML
+    /// scaffolding must not fork the regex cache key). Partitions the
+    /// user-template window. `None` for LLM spans carrying no system message,
+    /// which stay on the legacy keying forever.
     pub prompt_hash: Option<String>,
-    /// Byte-identity hash of the system prompt; looks the resolved version up in
-    /// the batch's verdict map. `None` alongside `prompt_hash`.
-    pub full_prompt_hash: Option<String>,
     /// Full hash of the joined last-turn user parts; gates re-extraction
-    /// when a stronger challenger carries identical content.
+    /// when a stronger challenger carries identical content, and is the
+    /// user-template memo key.
     pub content_hash: String,
 }
 
@@ -103,7 +92,7 @@ fn rollout_session_id_from_attributes(attributes: &SpanAttributes) -> Option<Str
 
 pub fn capture_user_task_candidate(
     span: &Span,
-    system_prompt: Option<SystemPromptIdentity<'_>>,
+    agent_hash: Option<&str>,
 ) -> Option<UserTaskCandidate> {
     if !span.is_llm_span() {
         return None;
@@ -113,8 +102,7 @@ pub fn capture_user_task_candidate(
         signposted_text: prepared.signposted_text,
         fingerprint: prepared.fingerprint,
         has_history: prepared.has_history,
-        prompt_hash: system_prompt.map(|s| s.agent_hash.to_string()),
-        full_prompt_hash: system_prompt.map(|s| s.full_prompt_hash.to_string()),
+        prompt_hash: agent_hash.map(str::to_string),
         content_hash: prepared.content_hash,
     })
 }
@@ -130,8 +118,6 @@ struct InputContender {
     path: Vec<String>,
     rollout_session_id: Option<String>,
     span_id: Uuid,
-    /// The prompt version resolved inline by the sp-versioning producer, if any.
-    version_hash: Option<String>,
 }
 
 /// Producer-side extraction pipeline, run after the batch is published.
@@ -144,7 +130,6 @@ struct InputContender {
 pub async fn process_user_task_candidates(
     contexts: Vec<UserTaskSpanContext>,
     project_id: Uuid,
-    version_verdicts: VersionVerdicts,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -213,11 +198,6 @@ pub async fn process_user_task_candidates(
             span_id: span_key(ctx.span_id),
             content_hash,
         };
-        let version_hash = candidate
-            .full_prompt_hash
-            .as_deref()
-            .and_then(|hash| version_verdicts.get(hash))
-            .cloned();
         contenders
             .entry(ctx.trace_id)
             .or_default()
@@ -227,7 +207,6 @@ pub async fn process_user_task_candidates(
                 path: path.clone(),
                 rollout_session_id,
                 span_id: ctx.span_id,
-                version_hash,
             });
     }
 
@@ -451,46 +430,27 @@ async fn process_trace_inputs(
         // inline re-read below still catches a genuinely newer winner.
         write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
 
-        // A prompt whose version isn't minted yet has no cacheable key, so the
-        // inline fast path is skipped entirely and the worker owns the
+        // A template whose version isn't minted yet has no cacheable key, so
+        // the inline fast path is skipped entirely and the worker owns the
         // resolution (re-read, then a direct extraction).
+        let template_version =
+            resolve_template_version(&cache, &queue, project_id, trace_id, challenger).await;
         let target = regex_target(
             project_id,
             candidate.prompt_hash.as_deref(),
-            challenger.version_hash.as_deref(),
+            template_version.as_deref(),
             &candidate.fingerprint,
             candidate.has_history,
         );
-        let inline_result = match &target {
-            RegexTarget::Keyed { key, .. } => {
-                try_apply_cached_regex(
-                    &cache,
-                    key,
-                    &candidate.signposted_text,
-                    project_id,
-                    trace_id,
-                )
-                .await
-            }
-            RegexTarget::Unversioned => None,
-        };
-        // Recorded only for the versioned pipeline: the legacy keying serves
-        // prompts that can never have a version, so counting its hits would
-        // inflate the denominator of the fallback-rate metric.
-        if inline_result.is_some()
-            && let RegexTarget::Keyed {
-                version: Some(version),
-                ..
-            } = &target
-        {
-            record_resolution(
-                Resolution::Cached,
-                project_id,
-                trace_id,
-                Some(version),
-                candidate.has_history,
-            );
-        }
+        let inline_result = apply_known_regex(
+            &cache,
+            &target,
+            &candidate.signposted_text,
+            project_id,
+            trace_id,
+            candidate.has_history,
+        )
+        .await;
 
         if inline_result.is_some() {
             // Re-read the winner lock before the inline publish: a
@@ -543,8 +503,7 @@ async fn process_trace_inputs(
                     project_id,
                     span_id: Some(challenger.span_id),
                     prompt_hash: candidate.prompt_hash.clone(),
-                    full_prompt_hash: candidate.full_prompt_hash.clone(),
-                    version_hash: challenger.version_hash.clone(),
+                    version_hash: template_version,
                     has_history: candidate.has_history,
                     signposted_text: candidate.signposted_text.clone(),
                     fingerprint: candidate.fingerprint.clone(),
@@ -569,6 +528,32 @@ async fn process_trace_inputs(
     }
 
     write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
+}
+
+/// Version the winner's user template inline and publish it for
+/// classification, so the window keeps learning from every extraction. The
+/// window is partitioned by agent and turn position. Spans with no system
+/// prompt have no agent to partition by and stay unversioned (legacy keying).
+async fn resolve_template_version(
+    cache: &Cache,
+    queue: &MessageQueue,
+    project_id: Uuid,
+    trace_id: Uuid,
+    winner: &InputContender,
+) -> Option<String> {
+    let agent_hash = winner.candidate.prompt_hash.clone()?;
+    let candidate = VersionCandidate {
+        project_id,
+        agent_hash,
+        has_history: winner.candidate.has_history,
+        full_hash: winner.candidate.content_hash.clone(),
+        text: winner.candidate.signposted_text.clone(),
+        span_refs: vec![SpanRef {
+            trace_id,
+            span_id: winner.span_id,
+        }],
+    };
+    resolve_and_publish(cache, queue, VersionKind::UserTemplate, candidate).await
 }
 
 #[cfg(test)]
@@ -635,5 +620,84 @@ mod tests {
         // genuinely earlier step for the winning agent arrives late, and
         // that correction must publish.
         assert!(should_run_effect(&winner("h2"), Some("h1")));
+    }
+
+    // ---- resolve_template_version ---------------------------------------------
+
+    use crate::cache::in_memory::InMemoryCache;
+    use crate::mq::{
+        MessageQueueDeliveryTrait, MessageQueueReceiver, MessageQueueReceiverTrait,
+        MessageQueueTrait, tokio_mpsc::TokioMpscQueue,
+    };
+    use crate::traces::sp_versioning::consumer::SpVersioningMessage;
+
+    fn contender(agent_hash: Option<&str>) -> InputContender {
+        InputContender {
+            candidate: UserTaskCandidate {
+                signposted_text: "<task>\nfix the bug\n</task>".to_string(),
+                fingerprint: "task,/task".to_string(),
+                has_history: false,
+                prompt_hash: agent_hash.map(str::to_string),
+                content_hash: "contenthash".to_string(),
+            },
+            state: winner("contenthash"),
+            path: Vec::new(),
+            rollout_session_id: None,
+            span_id: Uuid::new_v4(),
+        }
+    }
+
+    async fn template_receiver(queue: &MessageQueue) -> MessageQueueReceiver {
+        let queues = VersionKind::UserTemplate.queues();
+        queue
+            .get_receiver(queues.queue, queues.exchange, queues.routing_key, 1)
+            .await
+            .unwrap()
+    }
+
+    async fn next_published(receiver: &mut MessageQueueReceiver) -> Option<SpVersioningMessage> {
+        let delivery =
+            tokio::time::timeout(std::time::Duration::from_millis(20), receiver.receive())
+                .await
+                .ok()??
+                .ok()?;
+        let mut batch: Vec<SpVersioningMessage> = serde_json::from_slice(&delivery.data()).ok()?;
+        batch.pop()
+    }
+
+    #[tokio::test]
+    async fn winner_template_is_published_for_classification() {
+        let cache = Cache::InMemory(InMemoryCache::new(None));
+        let queue = MessageQueue::TokioMpsc(TokioMpscQueue::new());
+        let mut receiver = template_receiver(&queue).await;
+        let winner = contender(Some("agent01"));
+        let trace_id = Uuid::new_v4();
+
+        let version =
+            resolve_template_version(&cache, &queue, Uuid::nil(), trace_id, &winner).await;
+        assert_eq!(version, None, "cold start: no live version yet");
+
+        let message = next_published(&mut receiver)
+            .await
+            .expect("an unresolved template is published");
+        assert_eq!(message.agent_hash, "agent01");
+        assert_eq!(message.full_prompt_hash, winner.candidate.content_hash);
+        assert_eq!(message.system_prompt, winner.candidate.signposted_text);
+        assert_eq!(message.span_refs.len(), 1);
+        assert_eq!(message.span_refs[0].trace_id, trace_id);
+        assert_eq!(message.span_refs[0].span_id, winner.span_id);
+    }
+
+    #[tokio::test]
+    async fn spans_without_a_system_prompt_are_not_versioned() {
+        let cache = Cache::InMemory(InMemoryCache::new(None));
+        let queue = MessageQueue::TokioMpsc(TokioMpscQueue::new());
+        let mut receiver = template_receiver(&queue).await;
+
+        let version =
+            resolve_template_version(&cache, &queue, Uuid::nil(), Uuid::nil(), &contender(None))
+                .await;
+        assert_eq!(version, None);
+        assert!(next_published(&mut receiver).await.is_none());
     }
 }

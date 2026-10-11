@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
 import { getNewestProjectId } from "@/lib/actions/projects";
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
@@ -64,6 +65,14 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
           .values({ userId, memberRole: "member", workspaceId })
           .onConflictDoNothing();
       });
+
+      // Best-effort: a subscribe failure must not skip the onboarding cleanup +
+      // redirect below, or the (app) layout would trap the now-member in the wizard.
+      try {
+        await subscribeMemberToWorkspaceNotifications(workspaceId, session.user.email);
+      } catch (e) {
+        console.error("Failed to subscribe member to workspace notifications:", e);
+      }
 
       // Joining a real team workspace supersedes any in-progress wizard — without
       // this clear, the (app) layout would bounce back to /onboarding.

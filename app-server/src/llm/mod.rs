@@ -1,6 +1,7 @@
 pub(crate) mod azure;
 pub mod azure_anthropic;
 pub mod bedrock;
+pub mod features;
 pub mod gemini;
 pub mod mock;
 pub mod models;
@@ -11,6 +12,7 @@ pub(crate) mod sse;
 
 pub use azure_anthropic::AzureAnthropicClient;
 pub use bedrock::BedrockClient;
+pub use features::{LlmFeature, LlmRoute};
 pub use gemini::GeminiClient;
 pub use mock::MockProviderClient;
 pub use models::*;
@@ -19,7 +21,6 @@ pub use openai_responses::OpenAIResponsesClient;
 
 use enum_dispatch::enum_dispatch;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 use tokio::sync::mpsc::UnboundedSender;
@@ -189,7 +190,7 @@ pub fn llm_client_available() -> bool {
 }
 
 /// Read and normalize `LLM_PROVIDER` (lowercased + trimmed). Empty string
-/// when unset; callers that require it should use [`resolve_provider_name`].
+/// when unset.
 pub fn llm_provider_env() -> String {
     std::env::var(env::llm::PROVIDER)
         .ok()
@@ -197,52 +198,85 @@ pub fn llm_provider_env() -> String {
         .unwrap_or_default()
 }
 
-/// Provider for the auxiliary "parsing" LLM calls
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub fn parsing_provider() -> Option<String> {
-    std::env::var(env::llm::PARSING_PROVIDER)
-        .ok()
-        .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty())
-}
-
 /// `LLM_API_KEY` is the single key shared by single-key providers (gemini,
-/// openai, azure_*). It belongs to whichever provider `LLM_PROVIDER` names —
-/// gemini and openai cannot both initialize from it.
+/// openai, azure_*). It belongs to whichever provider `LLM_PROVIDER` names.
 fn has_llm_api_key() -> bool {
     std::env::var(env::llm::API_KEY).is_ok_and(|v| !v.is_empty())
 }
 
-/// True when `LLM_PROVIDER` names the given Azure provider and both the key and an
-/// endpoint are set. All three share one resource, so only the name differs.
-fn has_azure_credentials(provider: &str) -> bool {
-    llm_provider_env() == provider && has_llm_api_key() && azure::has_endpoint()
-}
-
-/// True when `LLM_PROVIDER=gemini` and `LLM_API_KEY` is set.
-fn has_gemini_credentials() -> bool {
-    llm_provider_env() == "gemini" && has_llm_api_key()
-}
-
-/// True when `LLM_PROVIDER=openai` (Chat Completions) and `LLM_API_KEY` is set.
-fn has_openai_credentials() -> bool {
-    llm_provider_env() == "openai" && has_llm_api_key()
-}
-
-/// True when `LLM_PROVIDER=openai_responses` (Responses API) and `LLM_API_KEY`
-/// is set. Separate from `has_openai_credentials` since the two are distinct
-/// client impls registered under their own provider names.
-fn has_openai_responses_credentials() -> bool {
-    llm_provider_env() == "openai_responses" && has_llm_api_key()
-}
-
-/// Bedrock initializes whenever AWS creds are present, independent of
-/// `LLM_PROVIDER`. This preserves the cloud setup where gemini is primary
-/// and bedrock is a "sometimes pinned" secondary.
-fn has_bedrock_credentials() -> bool {
+fn has_aws_credentials() -> bool {
     std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok_and(|v| !v.is_empty())
         && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|v| !v.is_empty())
         && std::env::var(env::secrets::AWS_REGION).is_ok_and(|v| !v.is_empty())
+}
+
+/// Builds the client `LLM_PROVIDER` names from env credentials. `Ok(None)` when
+/// the name is unknown or its credentials are missing; `features::has_llm_provider`
+/// mirrors exactly these conditions.
+async fn env_provider_client(name: &str) -> ProviderResult<Option<ProviderClient>> {
+    let config_error = |what: &str, e: &dyn std::fmt::Display| {
+        ProviderError::ConfigError(format!("Failed to create {what}: {e}"))
+    };
+    let client = match name {
+        "gemini" if has_llm_api_key() => {
+            let client = GeminiClient::new().map_err(|e| config_error("Gemini client", &e))?;
+            log::info!("Initialized Gemini provider at {}", client.api_base_url());
+            ProviderClient::Gemini(client)
+        }
+        "bedrock" if has_aws_credentials() => {
+            let client = BedrockClient::new().await?;
+            log::info!("Initialized Bedrock provider");
+            ProviderClient::Bedrock(client)
+        }
+        "openai" if has_llm_api_key() => {
+            let client = OpenAIClient::new().map_err(|e| config_error("OpenAI client", &e))?;
+            log::info!(
+                "Initialized OpenAI provider (Chat Completions) at {}",
+                client.api_base_url()
+            );
+            ProviderClient::OpenAI(client)
+        }
+        "openai_responses" if has_llm_api_key() => {
+            let client = OpenAIResponsesClient::new()
+                .map_err(|e| config_error("OpenAI Responses client", &e))?;
+            log::info!(
+                "Initialized OpenAI provider (Responses API) at {}",
+                client.api_base_url()
+            );
+            ProviderClient::OpenAIResponses(client)
+        }
+        "azure_chat_completions" if has_llm_api_key() && azure::has_endpoint() => {
+            let client = OpenAIClient::azure().map_err(|e| config_error("Azure client", &e))?;
+            log::info!(
+                "Initialized Azure provider (Chat Completions) at {}",
+                client.api_base_url()
+            );
+            ProviderClient::OpenAI(client)
+        }
+        "azure_responses" if has_llm_api_key() && azure::has_endpoint() => {
+            let client = OpenAIResponsesClient::azure()
+                .map_err(|e| config_error("Azure Responses client", &e))?;
+            log::info!(
+                "Initialized Azure provider (Responses API) at {}",
+                client.api_base_url()
+            );
+            ProviderClient::OpenAIResponses(client)
+        }
+        "azure_anthropic" if has_llm_api_key() && azure::has_endpoint() => {
+            let client = AzureAnthropicClient::new()?;
+            log::info!(
+                "Initialized Azure provider (Anthropic Messages) at {}",
+                client.api_base_url()
+            );
+            ProviderClient::AzureAnthropic(client)
+        }
+        "mock" => {
+            log::info!("Initialized Mock provider");
+            ProviderClient::Mock(MockProviderClient::new())
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(client))
 }
 
 pub(crate) fn default_headers_from_env() -> Result<HeaderMap, String> {
@@ -277,18 +311,6 @@ fn parse_default_headers_json(raw_headers: &str) -> Result<HeaderMap, String> {
     }
 
     Ok(headers)
-}
-
-/// Resolve the primary provider name from `LLM_PROVIDER`. Required —
-/// returns `ConfigError` when missing/empty.
-pub(crate) fn resolve_provider_name() -> Result<String, ProviderError> {
-    let name = llm_provider_env();
-    if name.is_empty() {
-        return Err(ProviderError::ConfigError(
-            "LLM_PROVIDER environment variable is required".to_string(),
-        ));
-    }
-    Ok(name)
 }
 
 /// Build the span input value from a [`ProviderRequest`] by combining
@@ -407,10 +429,9 @@ mod tests {
     }
 }
 
-/// Resolve a model id for `(provider, size)`. When `provider` equals the
-/// `LLM_PROVIDER` env var, `LLM_MODEL_<SIZE>` overrides win; otherwise
-/// (cross-provider pinned calls) we use the hardcoded fallback table so
-/// users can't accidentally send e.g. a gemini model id to bedrock.
+/// Resolve a model id for `(provider, size)` on the env fallback path. When
+/// `provider` equals the `LLM_PROVIDER` env var, `LLM_MODEL_<SIZE>` overrides
+/// win; otherwise the hardcoded table applies.
 pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     if provider == llm_provider_env() {
         let env_key = match size {
@@ -455,20 +476,25 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     }
 }
 
-/// LLM client that holds all available provider clients and multiplexes
-/// requests based on optional `provider` and `model_size` fields on
-/// [`ProviderRequest`]. Callers never deal with provider resolution --
-/// they just call `generate_content(&request)`.
+/// Multiplexes every LLM call onto the client its [`LlmRoute`] resolves to:
+/// an explicit profile pin, an `llm_feature_routes` row, or the `LLM_PROVIDER`
+/// env client. Callers never deal with provider resolution — they just call
+/// `generate_content(&request)`.
 #[derive(Clone)]
 pub struct LlmClient {
-    providers: HashMap<String, Arc<ProviderClient>>,
-    /// `LLM_PROVIDER`. `None` only when the deployment runs signals purely on
-    /// LLM profiles (self-hosted, no env credentials).
-    default_provider: Option<String>,
+    /// The `LLM_PROVIDER` client: the fallback for features without a route.
+    /// `None` when `LLM_PROVIDER` is unset (routes/profiles only).
+    env_provider: Option<EnvProvider>,
+    /// `None` only in unit tests built with [`LlmClient::from_provider`].
     profiles: Option<Arc<profiles::LlmProfileStore>>,
 }
 
-/// Where a request's model + client come from after resolution.
+#[derive(Clone)]
+struct EnvProvider {
+    name: String,
+    client: Arc<ProviderClient>,
+}
+
 /// Model name and reported provider (a `model_costs` provider prefix) a request
 /// resolves to, as recorded on observability spans. Empty when unresolvable.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -477,6 +503,7 @@ pub struct ModelProvider {
     pub provider: String,
 }
 
+/// Where a request's model + client come from after resolution.
 enum Resolved {
     Env {
         client: Arc<ProviderClient>,
@@ -512,6 +539,35 @@ impl Resolved {
         }
     }
 
+    /// Same names as `LlmProfileProvider::reported_name`: the cost table's
+    /// provider prefixes, with the Responses clients folded into their family.
+    fn labels(self) -> ModelProvider {
+        match self {
+            Self::Profile {
+                model,
+                reported_provider,
+                ..
+            } => ModelProvider {
+                model,
+                provider: reported_provider.to_string(),
+            },
+            Self::Env {
+                model, provider, ..
+            } => {
+                let reported_provider = match provider.as_str() {
+                    "openai_responses" => "openai",
+                    "azure_chat_completions" | "azure_responses" => "azure",
+                    "azure_anthropic" => "azure_ai",
+                    other => other,
+                };
+                ModelProvider {
+                    model,
+                    provider: reported_provider.to_string(),
+                }
+            }
+        }
+    }
+
     /// Provider clients return errors without logging so direct callers (the
     /// profile "test connection" probe) stay silent; pipeline calls log here.
     /// Capacity errors we can't act on stay out of error monitoring: 503 is
@@ -537,179 +593,40 @@ impl Resolved {
 }
 
 impl LlmClient {
-    /// Builds every env-configured provider. When `profiles` is set and
-    /// `LLM_PROVIDER` is unset, construction still succeeds with zero env
-    /// providers: profile-routed requests work, env-routed ones fail per call.
-    pub async fn new(
-        profiles: Option<Arc<profiles::LlmProfileStore>>,
-    ) -> Result<Self, ProviderError> {
-        let default_provider = match resolve_provider_name() {
-            Ok(name) => Some(name),
-            Err(_) if profiles.is_some() => None,
-            Err(e) => return Err(e),
+    /// Builds the `LLM_PROVIDER` client when the var is set. With it unset,
+    /// construction still succeeds: routed requests work, unrouted ones fail per
+    /// call with a `ConfigError` naming the feature.
+    pub async fn new(profiles: Arc<profiles::LlmProfileStore>) -> Result<Self, ProviderError> {
+        let name = llm_provider_env();
+        let env_provider = if name.is_empty() {
+            log::info!("LLM_PROVIDER unset; LLM features run on feature routes and profiles only");
+            None
+        } else {
+            let client = env_provider_client(&name).await?.ok_or_else(|| {
+                ProviderError::ConfigError(format!(
+                    "LLM_PROVIDER='{name}' could not be initialized (missing credentials?)"
+                ))
+            })?;
+            Some(EnvProvider {
+                name,
+                client: Arc::new(client),
+            })
         };
-
-        let mut providers: HashMap<String, Arc<ProviderClient>> = HashMap::new();
-
-        if has_gemini_credentials() {
-            let client = GeminiClient::new().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create Gemini client: {e}"))
-            })?;
-            log::info!("Initialized Gemini provider at {}", client.api_base_url());
-            providers.insert(
-                "gemini".to_string(),
-                Arc::new(ProviderClient::Gemini(client)),
-            );
-        }
-
-        if has_bedrock_credentials() {
-            let client = BedrockClient::new().await?;
-            log::info!("Initialized Bedrock provider");
-            providers.insert(
-                "bedrock".to_string(),
-                Arc::new(ProviderClient::Bedrock(client)),
-            );
-        }
-
-        if has_openai_credentials() {
-            let client = OpenAIClient::new().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create OpenAI client: {e}"))
-            })?;
-            log::info!(
-                "Initialized OpenAI provider (Chat Completions) at {}",
-                client.api_base_url()
-            );
-            providers.insert(
-                "openai".to_string(),
-                Arc::new(ProviderClient::OpenAI(client)),
-            );
-        }
-
-        if has_openai_responses_credentials() {
-            let client = OpenAIResponsesClient::new().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create OpenAI Responses client: {e}"))
-            })?;
-            log::info!(
-                "Initialized OpenAI provider (Responses API) at {}",
-                client.api_base_url()
-            );
-            providers.insert(
-                "openai_responses".to_string(),
-                Arc::new(ProviderClient::OpenAIResponses(client)),
-            );
-        }
-
-        if has_azure_credentials("azure_chat_completions") {
-            let client = OpenAIClient::azure().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create Azure client: {e}"))
-            })?;
-            log::info!(
-                "Initialized Azure provider (Chat Completions) at {}",
-                client.api_base_url()
-            );
-            providers.insert(
-                "azure_chat_completions".to_string(),
-                Arc::new(ProviderClient::OpenAI(client)),
-            );
-        }
-
-        if has_azure_credentials("azure_responses") {
-            let client = OpenAIResponsesClient::azure().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create Azure Responses client: {e}"))
-            })?;
-            log::info!(
-                "Initialized Azure provider (Responses API) at {}",
-                client.api_base_url()
-            );
-            providers.insert(
-                "azure_responses".to_string(),
-                Arc::new(ProviderClient::OpenAIResponses(client)),
-            );
-        }
-
-        if has_azure_credentials("azure_anthropic") {
-            let client = AzureAnthropicClient::new()?;
-            log::info!(
-                "Initialized Azure provider (Anthropic Messages) at {}",
-                client.api_base_url()
-            );
-            providers.insert(
-                "azure_anthropic".to_string(),
-                Arc::new(ProviderClient::AzureAnthropic(client)),
-            );
-        }
-
-        if default_provider.as_deref() == Some("mock") {
-            let client = MockProviderClient::new();
-            log::info!("Initialized Mock provider");
-            providers.insert("mock".to_string(), Arc::new(ProviderClient::Mock(client)));
-        }
-
-        if let Some(name) = &default_provider
-            && !providers.contains_key(name)
-        {
-            return Err(ProviderError::ConfigError(format!(
-                "LLM_PROVIDER='{}' could not be initialized (missing credentials?)",
-                name
-            )));
-        }
-        if default_provider.is_none() {
-            log::info!("LLM_PROVIDER unset; signals run on workspace LLM profiles only");
-        }
-
         Ok(Self {
-            providers,
-            default_provider,
-            profiles,
+            env_provider,
+            profiles: Some(profiles),
         })
     }
 
-    /// Build an `LlmClient` directly from a `ProviderClient` for tests.
+    /// Build an `LlmClient` whose env provider is `client`, for tests.
     #[cfg(test)]
     pub fn from_provider(name: &str, client: ProviderClient) -> Self {
-        let mut providers = HashMap::new();
-        providers.insert(name.to_string(), Arc::new(client));
         Self {
-            providers,
-            default_provider: Some(name.to_string()),
+            env_provider: Some(EnvProvider {
+                name: name.to_string(),
+                client: Arc::new(client),
+            }),
             profiles: None,
-        }
-    }
-
-    /// Env-side resolution: the pinned `provider` when registered, else the
-    /// `LLM_PROVIDER` default. Errors when neither exists — on a profile-only
-    /// deployment that means the request forgot its `llm_profile` route.
-    fn resolve_env_provider(
-        &self,
-        request: &ProviderRequest,
-    ) -> Result<(String, Arc<ProviderClient>), ProviderError> {
-        let default = self.default_provider.as_deref();
-        let requested = request.provider.as_deref().or(default);
-        if let Some(name) = requested
-            && let Some(client) = self.providers.get(name)
-        {
-            return Ok((name.to_string(), client.clone()));
-        }
-        // Silent fallback. OSS deployments with a single registered
-        // provider will hit this on every cloud-pinned call (e.g.
-        // `provider: Some("bedrock")` while LLM_PROVIDER=openai),
-        // which is expected and not worth warning about.
-        if let Some(name) = default
-            && let Some(client) = self.providers.get(name)
-        {
-            return Ok((name.to_string(), client.clone()));
-        }
-        match default {
-            Some(default) => Err(ProviderError::ConfigError(format!(
-                "Provider '{}' not available and default '{}' also missing. Available: {:?}",
-                requested.unwrap_or(default),
-                default,
-                self.providers.keys().collect::<Vec<_>>()
-            ))),
-            None => Err(ProviderError::ConfigError(
-                "No LLM configured for this signal — select an LLM profile (LLM_PROVIDER is unset)"
-                    .to_string(),
-            )),
         }
     }
 
@@ -723,7 +640,7 @@ impl LlmClient {
         self.profile_store()?.resolve(route).await.map(|_| ())
     }
 
-    /// Profile name for labels; `None` when profiles are off or the row is gone.
+    /// Profile name for labels; `None` when the row is gone.
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub async fn describe_profile(&self, project_id: Uuid, profile_id: Uuid) -> Option<String> {
         let store = self.profiles.as_ref()?;
@@ -743,21 +660,44 @@ impl LlmClient {
     }
 
     async fn resolve(&self, request: &ProviderRequest) -> Result<Resolved, ProviderError> {
-        if let Some(route) = &request.llm_profile {
-            let resolved = self.profile_store()?.resolve(route).await?;
-            return Ok(Resolved::Profile {
-                client: resolved.client,
-                reported_provider: resolved.reported_provider,
-                model: route.model.clone(),
-            });
+        self.resolve_route(&request.route).await
+    }
+
+    async fn resolve_route(&self, route: &LlmRoute) -> Result<Resolved, ProviderError> {
+        match route {
+            LlmRoute::Profile(route) => {
+                let resolved = self.profile_store()?.resolve(route).await?;
+                Ok(Resolved::Profile {
+                    client: resolved.client,
+                    reported_provider: resolved.reported_provider,
+                    model: route.model.clone(),
+                })
+            }
+            LlmRoute::Feature {
+                feature,
+                project_id,
+            } => {
+                if let Some(store) = &self.profiles
+                    && let Some(resolved) = store.resolve_feature(*feature, *project_id).await?
+                {
+                    return Ok(Resolved::Profile {
+                        client: resolved.client,
+                        reported_provider: resolved.reported_provider,
+                        model: resolved.model,
+                    });
+                }
+                let env = self.env_provider.as_ref().ok_or_else(|| {
+                    ProviderError::ConfigError(format!(
+                        "No LLM configured for feature '{feature}': set LLM_PROVIDER or add an LLM feature route"
+                    ))
+                })?;
+                Ok(Resolved::Env {
+                    client: env.client.clone(),
+                    model: model_for_size(&env.name, feature.env_size()),
+                    provider: env.name.clone(),
+                })
+            }
         }
-        let (provider, client) = self.resolve_env_provider(request)?;
-        let size = request.model_size.unwrap_or(ModelSize::Medium);
-        Ok(Resolved::Env {
-            client,
-            model: model_for_size(&provider, size),
-            provider,
-        })
     }
 
     pub async fn generate_content(
@@ -792,31 +732,14 @@ impl LlmClient {
     /// request reports empty strings and the actual `generate_content`
     /// surfaces the error.
     pub async fn resolve_model_provider(&self, request: &ProviderRequest) -> ModelProvider {
-        match self.resolve(request).await {
-            Ok(Resolved::Profile {
-                model,
-                reported_provider,
-                ..
-            }) => ModelProvider {
-                model,
-                provider: reported_provider.to_string(),
-            },
-            Ok(Resolved::Env {
-                model, provider, ..
-            }) => {
-                // Same names as `LlmProfileProvider::reported_name`: the cost table's
-                // provider prefixes, with the Responses clients folded into their family.
-                let reported_provider = match provider.as_str() {
-                    "openai_responses" => "openai",
-                    "azure_chat_completions" | "azure_responses" => "azure",
-                    "azure_anthropic" => "azure_ai",
-                    other => other,
-                };
-                ModelProvider {
-                    model,
-                    provider: reported_provider.to_string(),
-                }
-            }
+        self.resolve_route_labels(&request.route).await
+    }
+
+    /// [`Self::resolve_model_provider`] for a route the caller has not wrapped
+    /// in a request yet (root spans that open before the first call).
+    pub async fn resolve_route_labels(&self, route: &LlmRoute) -> ModelProvider {
+        match self.resolve_route(route).await {
+            Ok(resolved) => resolved.labels(),
             Err(_) => ModelProvider::default(),
         }
     }
@@ -827,27 +750,11 @@ impl LlmClient {
         requests: Vec<ProviderRequestItem>,
         display_name: Option<String>,
     ) -> ProviderResult<ProviderBatchOperation> {
-        let resolved = match requests.first() {
-            Some(first) => self.resolve(&first.request).await?,
-            None => {
-                let empty = ProviderRequest {
-                    contents: Vec::new(),
-                    system_instruction: None,
-                    tools: None,
-                    generation_config: None,
-                    service_tier: None,
-                    provider: None,
-                    model_size: None,
-                    llm_profile: None,
-                };
-                let (provider, client) = self.resolve_env_provider(&empty)?;
-                Resolved::Env {
-                    client,
-                    model: model_for_size(&provider, ModelSize::Medium),
-                    provider,
-                }
-            }
-        };
+        let route = requests
+            .first()
+            .map(|first| first.request.route.clone())
+            .unwrap_or_default();
+        let resolved = self.resolve_route(&route).await?;
         resolved
             .client()
             .create_batch(resolved.model(), requests, display_name)
@@ -857,13 +764,10 @@ impl LlmClient {
     #[allow(dead_code)]
     pub async fn get_batch(&self, batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
         // TODO: Implement batch retrieval for all providers
-        let default = self
-            .default_provider
-            .as_deref()
+        let env = self
+            .env_provider
+            .as_ref()
             .ok_or_else(|| ProviderError::ConfigError("LLM_PROVIDER is unset".to_string()))?;
-        let client = self.providers.get(default).ok_or_else(|| {
-            ProviderError::ConfigError(format!("Provider '{default}' not available"))
-        })?;
-        client.get_batch(batch_name).await
+        env.client.get_batch(batch_name).await
     }
 }

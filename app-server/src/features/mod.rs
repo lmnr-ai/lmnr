@@ -43,15 +43,11 @@ pub enum Feature {
     /// while before summarization consumes it; needs BOTH switches on.
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalsVersionedPrompts,
-    /// User-task extraction keys its regexes by prompt version instead of the
-    /// legacy agent-hash + tag-fingerprint pair. Needs BOTH switches on, and
-    /// `InputExtraction` for the pipeline to run at all.
-    VersionedInputExtraction,
     RateLimiter,
     /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
     IngestionRateLimiter,
     /// Strip PII from span input/output via the pii-redactor gRPC service,
-    /// gated per project by the `projects.settings.removePii` toggle.
+    /// gated per project by `projects.settings.piiMode`.
     PiiRedaction,
     /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
     /// (default true).
@@ -85,14 +81,12 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::InternalTracing => {
             std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
         }
-        // Clustering still runs on env credentials only, so it must not follow
-        // `Signals` into the profile-backed (credential-less env) mode.
-        Feature::Clustering => has_llm_provider(),
-        // Self-hosted signals can route every call through a workspace LLM
-        // profile, so an env provider is only mandatory on Laminar Cloud.
-        Feature::Signals => has_llm_provider() || is_feature_enabled(Feature::SignalLlmProfiles),
+        Feature::Clustering => has_llm_backend(),
+        // Self-hosted signals can additionally pin a workspace LLM profile per
+        // signal, so they boot even with neither env provider nor system workspace.
+        Feature::Signals => has_llm_backend() || is_feature_enabled(Feature::SignalLlmProfiles),
         Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
-        Feature::InputExtraction => has_llm_provider(),
+        Feature::InputExtraction => has_llm_backend(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
@@ -103,17 +97,13 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             is_feature_enabled(Feature::SystemPromptVersioning)
                 && env::static_sp::SIGNALS_ENABLED.get()
         }
-        Feature::VersionedInputExtraction => {
-            is_feature_enabled(Feature::SystemPromptVersioning)
-                && env::static_sp::INPUT_EXTRACTION_ENABLED.get()
-        }
         Feature::RateLimiter => {
-            std::env::var(env::connections::REDIS_URL).is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
                 && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::HTTP_PERIOD_SECS).is_ok()
         }
         Feature::IngestionRateLimiter => {
-            std::env::var(env::connections::REDIS_URL).is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
                 && std::env::var(env::rate_limit::INGESTION_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::INGESTION_PERIOD_SECS).is_ok()
         }
@@ -124,8 +114,20 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
     }
 }
 
+/// An LLM-backed feature can run when calls have somewhere to go: the
+/// `LLM_PROVIDER` env client, or global `llm_feature_routes` rows backed by the
+/// system workspace's profiles (`LLM_SYSTEM_WORKSPACE_ID`).
+fn has_llm_backend() -> bool {
+    has_llm_provider() || has_system_workspace()
+}
+
+fn has_system_workspace() -> bool {
+    std::env::var(env::llm::SYSTEM_WORKSPACE_ID)
+        .is_ok_and(|s| s.trim().parse::<uuid::Uuid>().is_ok())
+}
+
 /// Mirrors the credential checks in `LlmClient::new` so LLM-backed
-/// feature flags are true exactly when the client would construct.
+/// feature flags are true exactly when the env client would construct.
 fn has_llm_provider() -> bool {
     let provider = std::env::var(env::llm::PROVIDER)
         .ok()

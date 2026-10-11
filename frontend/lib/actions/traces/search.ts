@@ -1,3 +1,4 @@
+import { resolveSqlActor } from "@/lib/actions/sql/actor";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
 import { fetcherJSON } from "@/lib/utils";
@@ -61,6 +62,8 @@ export const searchSpans = async ({
     // Pagination is currently disabled (defaults on app-server side): API paginates by traces, search engine by spans
     limit: 0,
     offset: 0,
+    // Server session, never a caller argument: app-server withholds snippets under a masking policy.
+    actor: await resolveSqlActor(),
   };
 
   try {

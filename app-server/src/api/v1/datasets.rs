@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{HttpResponse, delete, get, patch, post, web};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -21,6 +21,109 @@ use crate::{
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct DatasetNameRequest {
+    pub name: String,
+}
+
+#[post("/datasets")]
+pub async fn create_dataset(
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+    req: web::Json<DatasetNameRequest>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::create(&db, project_api_key.project_id, req.into_inner()).await)
+}
+
+#[get("/datasets/{dataset_id}")]
+pub async fn get_dataset(
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+    path: web::Path<Uuid>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::get(&db, project_api_key.project_id, path.into_inner()).await)
+}
+
+#[patch("/datasets/{dataset_id}")]
+pub async fn update_dataset(
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+    path: web::Path<Uuid>,
+    req: web::Json<DatasetNameRequest>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::update(
+        &db,
+        project_api_key.project_id,
+        path.into_inner(),
+        req.into_inner(),
+    )
+    .await)
+}
+
+#[delete("/datasets/{dataset_id}")]
+pub async fn delete_dataset(
+    db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
+    project_api_key: ProjectApiKey,
+    path: web::Path<Uuid>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::delete(
+        &db,
+        &clickhouse,
+        project_api_key.project_id,
+        path.into_inner(),
+    )
+    .await)
+}
+
+/// Auth-agnostic CRUD handlers shared by the project-key and CLI routes.
+pub mod handlers {
+    use actix_web::HttpResponse;
+    use uuid::Uuid;
+
+    use super::DatasetNameRequest;
+    use crate::{datasets::service, db::DB};
+
+    pub async fn create(db: &DB, project_id: Uuid, input: DatasetNameRequest) -> HttpResponse {
+        match service::create_dataset(&db.pool, project_id, input.name).await {
+            Ok(dataset) => HttpResponse::Created().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+
+    pub async fn get(db: &DB, project_id: Uuid, dataset_id: Uuid) -> HttpResponse {
+        match service::get_dataset(&db.pool, project_id, dataset_id).await {
+            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+
+    pub async fn update(
+        db: &DB,
+        project_id: Uuid,
+        dataset_id: Uuid,
+        input: DatasetNameRequest,
+    ) -> HttpResponse {
+        match service::update_dataset(&db.pool, project_id, dataset_id, input.name).await {
+            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+
+    pub async fn delete(
+        db: &DB,
+        clickhouse: &clickhouse::Client,
+        project_id: Uuid,
+        dataset_id: Uuid,
+    ) -> HttpResponse {
+        match service::delete_dataset(&db.pool, clickhouse, project_id, dataset_id).await {
+            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Err(error) => service::error_response(error),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct GetDatasetsRequest {
     #[serde(default)]
     pub id: Option<Uuid>,
@@ -29,7 +132,7 @@ pub(crate) struct GetDatasetsRequest {
 }
 
 #[get("/datasets")]
-async fn get_datasets(
+pub async fn get_datasets(
     db: web::Data<DB>,
     project_api_key: ProjectApiKey,
     req: web::Query<GetDatasetsRequest>,
@@ -53,7 +156,7 @@ pub(crate) struct GetDatapointsRequestParams {
 }
 
 #[get("/datasets/datapoints")]
-async fn get_datapoints(
+pub async fn get_datapoints(
     params: web::Query<GetDatapointsRequestParams>,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
@@ -72,6 +175,11 @@ async fn get_datapoints(
         }
     };
     let query = params.into_inner();
+    if query.limit <= 0 || query.limit > 1_000 || query.offset < 0 {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "limit must be between 1 and 1000 and offset must be non-negative"
+        })));
+    }
 
     match service::fetch_datapoints_page(
         project_id,
@@ -109,7 +217,7 @@ pub(crate) struct CreateDatapointsRequest {
 
 /// Create datapoints in a dataset
 #[post("/datasets/datapoints")]
-async fn create_datapoints(
+pub async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
@@ -185,7 +293,7 @@ pub(crate) fn create_datapoints_response(outcome: CreateDatapointsOutcome) -> Ht
 }
 
 #[get("/datasets/{dataset_id}/parquets/{idx}")]
-async fn get_parquet(
+pub async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,

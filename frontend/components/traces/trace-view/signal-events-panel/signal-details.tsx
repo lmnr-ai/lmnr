@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -12,11 +12,16 @@ import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import SignalEvent from "./signal-event";
 import { schemaFieldsToStructuredOutput } from "./utils";
 
+interface Props {
+  traceId: string;
+  signal: TraceSignal;
+  /** Public shared trace: the findings render, the ways into the project don't. */
+  readOnly?: boolean;
+}
+
 /** The per-signal body rendered inside a panel tab. */
-export default function SignalDetails({ traceId, signal }: { traceId: string; signal: TraceSignal }) {
+export default function SignalDetails({ traceId, signal, readOnly }: Props) {
   const { projectId } = useParams();
-  const searchParams = useSearchParams();
-  const highlightedEventId = searchParams.get("eventId");
   const { selectSpanById, spans } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
@@ -56,7 +61,7 @@ export default function SignalDetails({ traceId, signal }: { traceId: string; si
               traceId={traceId}
               validFields={validFields}
               spanRefCallbacks={spanRefCallbacks}
-              highlighted={event.id === highlightedEventId}
+              readOnly={readOnly}
             />
           ))}
         </div>

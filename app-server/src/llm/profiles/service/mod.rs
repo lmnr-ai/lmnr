@@ -17,19 +17,20 @@ use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys::LLM_PROFILE_CACHE_KEY};
 use crate::data_plane::crypto;
-use crate::db::{llm_profiles, projects};
+use crate::db::{llm_feature_routes, llm_profiles, projects};
 
 use super::{
     EncryptedSecrets, LlmProfile, LlmProfileProvider, ProfileConfig, ProfileSecrets,
     build::decrypt_secrets,
 };
 
+mod provider_fields;
 mod secrets;
 mod validate;
 
 pub use secrets::SecretsPresence;
 use secrets::{assert_secrets_complete, merge_secrets, presence, prune_secrets};
-use validate::{normalize_config, validate_models, validate_name, validate_secret_values};
+use validate::{normalize_config, validate_models, validate_name, validate_secrets};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CrudError {
@@ -39,9 +40,14 @@ pub enum CrudError {
     DuplicateName(String),
     #[error("LLM profile not found")]
     NotFound,
-    /// A delete or model removal blocked by the RESTRICT FK from `signals`.
+    /// A delete or model removal blocked by the RESTRICT FKs from `signals`
+    /// or `llm_feature_routes`.
     #[error("{0}")]
     InUse(String),
+    /// Server-side setup the operator must fix (e.g. a malformed
+    /// `AEAD_SECRET_KEY`); the message names the problem, never a secret.
+    #[error("{0}")]
+    Misconfigured(String),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -53,6 +59,10 @@ pub fn error_response(e: CrudError) -> HttpResponse {
             HttpResponse::Conflict().json(json!({ "error": e.to_string() }))
         }
         e @ CrudError::NotFound => HttpResponse::NotFound().json(json!({ "error": e.to_string() })),
+        CrudError::Misconfigured(m) => {
+            log::error!("LLM profile crud error: {m}");
+            HttpResponse::InternalServerError().json(json!({ "error": m }))
+        }
         CrudError::Internal(err) => {
             log::error!("LLM profile crud error: {err:?}");
             HttpResponse::InternalServerError().json(json!({ "error": "Internal server error" }))
@@ -164,7 +174,7 @@ pub async fn create_llm_profile(
     let name = validate_name(&input.name)?;
     let models = validate_models(input.models)?;
     let config = normalize_config(input.provider, input.config)?;
-    validate_secret_values(&input.secrets)?;
+    validate_secrets(input.provider, &config, &input.secrets)?;
     let secrets = prune_secrets(input.provider, &config, input.secrets);
     assert_secrets_complete(input.provider, &config, &secrets)?;
 
@@ -215,7 +225,7 @@ pub async fn update_llm_profile(
         (None, None) => existing.config.clone(),
     };
 
-    validate_secret_values(&input.secrets)?;
+    validate_secrets(provider, &config, &input.secrets)?;
     let stored = decrypt_stored(&existing)?;
     let secrets = prune_secrets(provider, &config, merge_secrets(stored, input.secrets));
     assert_secrets_complete(provider, &config, &secrets)?;
@@ -257,7 +267,7 @@ pub async fn update_llm_profile(
             .await
             .map_err(|e| match pg_code(&e).as_deref() {
                 Some(PG_FK_VIOLATION) => CrudError::InUse(
-                    "A removed model is used by a signal and cannot be dropped from this profile"
+                    "A removed model is used by a signal or an LLM feature route and cannot be dropped from this profile"
                         .to_string(),
                 ),
                 _ => internal(e),
@@ -290,13 +300,23 @@ pub async fn delete_llm_profile(
             "This profile is used by {count} signal{plural} and cannot be deleted."
         )));
     }
+    let routed = llm_feature_routes::feature_ids_using_profile(pool, profile_id)
+        .await
+        .map_err(CrudError::Internal)?;
+    if !routed.is_empty() {
+        return Err(CrudError::InUse(format!(
+            "This profile is the LLM feature route for {} and cannot be deleted.",
+            routed.join(", ")
+        )));
+    }
 
-    // The RESTRICT FK is the backstop for a signal created between the count and the delete.
+    // The RESTRICT FKs are the backstop for a reference created between the checks and the delete.
     let found = llm_profiles::delete_llm_profile(pool, workspace_id, profile_id)
         .await
         .map_err(|e| match pg_code(&e).as_deref() {
             Some(PG_FK_VIOLATION) => CrudError::InUse(
-                "This profile is used by a signal and cannot be deleted.".to_string(),
+                "This profile is used by a signal or an LLM feature route and cannot be deleted."
+                    .to_string(),
             ),
             _ => internal(e),
         })?;
@@ -320,7 +340,7 @@ pub async fn probe_llm_profile(
         return Err(CrudError::Validation("model is required".to_string()));
     }
     let config = normalize_config(input.provider, input.config)?;
-    validate_secret_values(&input.secrets)?;
+    validate_secrets(input.provider, &config, &input.secrets)?;
 
     let stored = match input.profile_id {
         Some(profile_id) => {
@@ -372,7 +392,7 @@ fn describe(profile: LlmProfile) -> Result<LlmProfileResponse, CrudError> {
 }
 
 fn decrypt_stored(profile: &LlmProfile) -> Result<ProfileSecrets, CrudError> {
-    decrypt_secrets(profile).map_err(|e| CrudError::Internal(anyhow::anyhow!("{e}")))
+    decrypt_secrets(profile).map_err(|e| CrudError::Misconfigured(e.to_string()))
 }
 
 async fn invalidate(cache: &Cache, workspace_id: Uuid, profile_id: Uuid) {
@@ -383,6 +403,7 @@ async fn invalidate(cache: &Cache, workspace_id: Uuid, profile_id: Uuid) {
 }
 
 fn encrypt_secrets(id: Uuid, secrets: &ProfileSecrets) -> Result<EncryptedSecrets, CrudError> {
+    crypto::check_key().map_err(|e| CrudError::Misconfigured(e.to_string()))?;
     let raw = serde_json::to_string(secrets).map_err(internal)?;
     let (nonce, value) = crypto::encrypt(&id.to_string(), &raw).map_err(CrudError::Internal)?;
     Ok(EncryptedSecrets { nonce, value })

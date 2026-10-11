@@ -1,11 +1,12 @@
-//! Per-agent window of recent distinct system prompts (v2 pipeline).
+//! Per-partition window of recent distinct texts of one [`VersionKind`]
+//! (`partition` is [`VersionKind::partition`] of the text's agent).
 //!
 //! Split across two key spaces, because they have opposite access patterns:
 //!
-//! * **the window blob** (`(project, agent_hash)`) — entry metadata only, and
-//!   every field on it mutates (`seen_count`, `labeled`, the entry list).
+//! * **the window blob** (`(kind, project, partition)`) — entry metadata only,
+//!   and every field on it mutates (`seen_count`, `labeled`, the entry list).
 //!   Read-modify-written on every message.
-//! * **one line-hash key per entry** (`(project, agent_hash, full_prompt_hash)`)
+//! * **one line-hash key per entry** (`(kind, project, partition, full_prompt_hash)`)
 //!   — immutable once written, and read only when the full algorithm runs (a
 //!   few percent of messages). Raw prompt text is never stored; bodies are
 //!   refetched from ClickHouse when a mint needs agent samples.
@@ -25,10 +26,9 @@ use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::keys::{SYSTEM_PROMPT_WINDOW_CACHE_KEY, SYSTEM_PROMPT_WINDOW_LINES_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 
-use super::similarity;
+use super::{VersionKind, similarity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpanRef {
@@ -68,16 +68,20 @@ impl WindowEntry {
     }
 }
 
-pub fn window_cache_key(project_id: Uuid, agent_hash: &str) -> String {
-    format!("{SYSTEM_PROMPT_WINDOW_CACHE_KEY}:{project_id}:{agent_hash}")
+pub fn window_cache_key(kind: VersionKind, project_id: Uuid, partition: &str) -> String {
+    format!("{}:{project_id}:{partition}", kind.keys().window)
 }
 
 pub fn window_lines_cache_key(
+    kind: VersionKind,
     project_id: Uuid,
-    agent_hash: &str,
+    partition: &str,
     full_prompt_hash: &str,
 ) -> String {
-    format!("{SYSTEM_PROMPT_WINDOW_LINES_CACHE_KEY}:{project_id}:{agent_hash}:{full_prompt_hash}")
+    format!(
+        "{}:{project_id}:{partition}:{full_prompt_hash}",
+        kind.keys().window_lines
+    )
 }
 
 /// Line hashes for every window entry, aligned with the window by index.
@@ -114,13 +118,14 @@ pub async fn save_window(
 /// whereas a key with no entry is inert and expires on its own.
 pub async fn save_entry_lines(
     cache: &Cache,
+    kind: VersionKind,
     project_id: Uuid,
-    agent_hash: &str,
+    partition: &str,
     full_prompt_hash: &str,
     line_hashes: &[u64],
     ttl_seconds: u64,
 ) -> anyhow::Result<()> {
-    let key = window_lines_cache_key(project_id, agent_hash, full_prompt_hash);
+    let key = window_lines_cache_key(kind, project_id, partition, full_prompt_hash);
     cache
         .insert_with_ttl(&key, line_hashes, ttl_seconds)
         .await
@@ -132,12 +137,13 @@ pub async fn save_entry_lines(
 /// no payload, which is the point — the hot path must not rewrite them.
 pub async fn touch_entry_lines(
     cache: &Cache,
+    kind: VersionKind,
     project_id: Uuid,
-    agent_hash: &str,
+    partition: &str,
     full_prompt_hash: &str,
     ttl_seconds: u64,
 ) {
-    let key = window_lines_cache_key(project_id, agent_hash, full_prompt_hash);
+    let key = window_lines_cache_key(kind, project_id, partition, full_prompt_hash);
     if let Err(e) = cache.set_ttl(&key, ttl_seconds).await {
         log::warn!("[SP_VERSIONING] Failed to refresh window lines {key}: {e:?}");
     }
@@ -152,15 +158,16 @@ pub async fn touch_entry_lines(
 /// one round-trip per entry on the consumer path.
 pub async fn remove_entry_lines(
     cache: &Cache,
+    kind: VersionKind,
     project_id: Uuid,
-    agent_hash: &str,
+    partition: &str,
     full_prompt_hashes: &[String],
 ) {
     join_all(
         full_prompt_hashes
             .iter()
             .map(|full_prompt_hash| async move {
-                let key = window_lines_cache_key(project_id, agent_hash, full_prompt_hash);
+                let key = window_lines_cache_key(kind, project_id, partition, full_prompt_hash);
                 if let Err(e) = cache.remove(&key).await {
                     log::warn!(
                         "[SP_VERSIONING] Failed to remove evicted window lines {key}: {e:?}"
@@ -180,8 +187,9 @@ pub async fn remove_entry_lines(
 /// prompt missing from the cluster is a worse intersection, not a wrong one.
 pub async fn load_window_lines(
     cache: &Cache,
+    kind: VersionKind,
     project_id: Uuid,
-    agent_hash: &str,
+    partition: &str,
     window: &[WindowEntry],
     target_idx: usize,
     target_lines: &[u64],
@@ -191,7 +199,7 @@ pub async fn load_window_lines(
             if idx == target_idx {
                 return None;
             }
-            let key = window_lines_cache_key(project_id, agent_hash, &entry.full_prompt_hash);
+            let key = window_lines_cache_key(kind, project_id, partition, &entry.full_prompt_hash);
             match cache.get::<Vec<u64>>(&key).await {
                 Ok(lines) => lines.filter(|l| !l.is_empty()),
                 Err(e) => {

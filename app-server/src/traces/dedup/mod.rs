@@ -38,6 +38,7 @@ use crate::{
 pub type ContentHash = [u8; 32];
 
 const SEEN_TTL_SECONDS: u64 = 3600;
+const STAMP_BATCH_SIZE: usize = 1000;
 
 /// Locality group of a span's deduped content. Mirrors the view-side
 /// `if(session_id != '', session_id, toString(trace_id))` exactly — both sides
@@ -160,9 +161,12 @@ impl SeenMarks {
         self.keys.push(trace_new_key(project_id, trace_id, hash));
     }
 
+    /// Best-effort: a failed chunk only costs its keys a redundant insert later.
+    #[tracing::instrument(skip_all, fields(keys_count = self.keys.len()))]
     pub async fn stamp(&self, cache: &Cache) {
-        for key in &self.keys {
-            let _ = cache.insert_with_ttl(key, "1", SEEN_TTL_SECONDS).await;
+        for chunk in self.keys.chunks(STAMP_BATCH_SIZE) {
+            let entries: Vec<(&str, &str)> = chunk.iter().map(|k| (k.as_str(), "1")).collect();
+            let _ = cache.batch_insert_with_ttl(&entries, SEEN_TTL_SECONDS).await;
         }
     }
 }
@@ -188,12 +192,12 @@ impl SharedContentBatch {
         if !self.keys.insert((project_id, group_id.to_string(), hash)) {
             return 0;
         }
-        self.rows.push(CHUniqueContent {
+        self.rows.push(CHUniqueContent::new(
             project_id,
-            group_id: group_id.to_string(),
-            content_hash: hash,
-            content: content.to_string(),
-        });
+            group_id.to_string(),
+            hash,
+            content.to_string(),
+        ));
         content.len()
     }
 
@@ -214,9 +218,13 @@ impl SharedContentBatch {
         &mut self.rows
     }
 
-    pub fn storage_marks(&self, marks: &mut SeenMarks) {
-        for row in &self.rows {
-            marks.storage(row.project_id, &row.group_id, &row.content_hash);
+    /// `skip(row_index)` withholds the mark: an unmarked row is a storage
+    /// miss for the next occurrence and gets re-inserted.
+    pub fn storage_marks(&self, marks: &mut SeenMarks, skip: impl Fn(usize) -> bool) {
+        for (i, row) in self.rows.iter().enumerate() {
+            if !skip(i) {
+                marks.storage(row.project_id, &row.group_id, &row.content_hash);
+            }
         }
     }
 }
@@ -283,8 +291,12 @@ mod tests {
         assert_eq!(batch.len(), 2);
 
         let mut marks = SeenMarks::default();
-        batch.storage_marks(&mut marks);
+        batch.storage_marks(&mut marks, |_| false);
         assert_eq!(marks.keys.len(), 2);
         assert!(marks.keys[0].starts_with("s2:"));
+
+        let mut marks = SeenMarks::default();
+        batch.storage_marks(&mut marks, |i| i == 0);
+        assert_eq!(marks.keys.len(), 1);
     }
 }

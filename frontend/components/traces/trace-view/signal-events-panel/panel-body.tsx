@@ -25,12 +25,14 @@ import SignalTab from "./signal-tab";
 interface Props {
   traceId: string;
   onClose: () => void;
+  /** Public shared trace: the findings render, the ways into the project don't. */
+  readOnly?: boolean;
 }
 
 const MIN_BODY_HEIGHT = 120;
 const MAX_BODY_HEIGHT = 320;
 
-export default function PanelBody({ traceId, onClose }: Props) {
+export default function PanelBody({ traceId, onClose, readOnly }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [bodyHeight, setBodyHeight] = useState<number | null>(null);
   const resizedRef = useRef(false);
@@ -155,8 +157,10 @@ export default function PanelBody({ traceId, onClose }: Props) {
                 </TabsList>
               )}
               {/* An icon, not a worded button: it is feature-flagged and usually
-                  absent, and a second label would outweigh the signal's own name. */}
-              {featureFlags[Feature.AGENT] && (
+                  absent, and a second label would outweigh the signal's own name.
+                  Read-only hides it outright — the agent column is mounted by the
+                  project layout, so on a shared trace the button does nothing. */}
+              {featureFlags[Feature.AGENT] && !readOnly && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -198,7 +202,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
                   value={signal.signalId}
                   className="m-0 outline-none data-[state=inactive]:hidden"
                 >
-                  <SignalDetails traceId={traceId} signal={signal} />
+                  <SignalDetails traceId={traceId} signal={signal} readOnly={readOnly} />
                 </TabsContent>
               ))}
             </div>

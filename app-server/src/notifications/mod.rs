@@ -213,13 +213,15 @@ pub enum NotificationKind {
     },
     /// A workspace has hit a hard usage limit. Unlike `UsageWarning` (a soft
     /// nudge), this means ingestion (bytes) or signal runs (signal_cost) are now
-    /// BLOCKED until the billing cycle resets. The email must convey that data
-    /// ingestion / signal runs have stopped until reset.
+    /// BLOCKED. Monthly data/custom limits resume after reset; a depleted
+    /// one-time Signals credit requires an upgrade instead.
     UsageHardLimit {
         workspace_name: String,
         usage_label: String,
         formatted_limit: String,
         usage_item: String,
+        #[serde(default)]
+        one_time_credit_exhausted: bool,
     },
 }
 

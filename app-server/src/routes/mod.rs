@@ -1,5 +1,4 @@
 pub mod error;
-#[cfg(feature = "signals")]
 pub mod llm_profiles;
 pub mod probes;
 pub mod realtime;

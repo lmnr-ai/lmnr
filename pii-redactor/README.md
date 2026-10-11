@@ -1,7 +1,9 @@
 # pii-redactor
 
-CPU-only gRPC service that takes a list of texts and returns the same list
-with PII redacted.
+CPU-only gRPC service that takes a list of stringified-JSON texts and returns
+each one re-serialized together with the byte ranges of the PII it found.
+Callers (app-server at ingest, ClickHouse at read time) splice
+`[REDACTED_<LABEL>]` over those ranges.
 
 It loads any HuggingFace token-classification model exported to ONNX:
 
@@ -46,23 +48,40 @@ service PiiRedactorService {
 message RedactRequest {
     // Each entry MUST be a stringified JSON value. The service walks the
     // tree, recursively parses string leaves whose content is itself
-    // stringified JSON, redacts PII from string values, and returns each
-    // entry re-serialized as a JSON string with the same structure.
+    // stringified JSON, detects PII in string values, and returns each
+    // entry re-serialized as a compact JSON string with the same structure.
     repeated string texts = 1;
-    optional string placeholder_format = 2;  // default "[REDACTED_{LABEL}]"
     // Object-key names whose VALUES should be skipped (structural metadata,
     // not content). Applied at every nesting level. If empty, a built-in
     // default list is used (see `DEFAULT_SKIP_KEYS` in `src/json_walker.rs`).
     repeated string skip_keys = 3;
 }
 
+message Mask {
+    uint32 start = 1;   // byte offset into RedactedText.text, inclusive
+    uint32 end = 2;     // exclusive; both always on UTF-8 char boundaries
+    string label = 3;   // model base label, e.g. "private_email"
+}
+
+message RedactedText {
+    string text = 1;          // canonical compact re-serialization, unredacted
+    repeated Mask masks = 2;  // sorted, non-overlapping
+}
+
 message RedactResponse {
-    repeated string texts = 1;
+    repeated RedactedText results = 2;  // one per request text, same order
 }
 ```
 
-`{LABEL}` is substituted with the base label uppercased
-(e.g. `PRIVATE_EMAIL`, `PRIVATE_PERSON`, `SECRET`, `ACCOUNT_NUMBER`).
+The service never rewrites text. `text` is the compact `serde_json`
+serialization of the (recursively parsed) input, and `masks` are byte ranges
+into exactly that string — a mask over an entity containing `"` or a newline
+covers the *escaped* bytes, and a mask inside a stringified-JSON leaf covers
+the doubly-escaped bytes, so splicing at any level yields valid JSON. Store
+`text` verbatim if you keep the masks; any re-serialization or character
+filtering shifts the offsets. The conventional placeholder is
+`[REDACTED_<LABEL>]` with the label uppercased (e.g. `PRIVATE_EMAIL`,
+`PRIVATE_PERSON`, `SECRET`, `ACCOUNT_NUMBER`).
 
 ### How redaction works
 
@@ -87,10 +106,13 @@ destroys its accuracy, so the service pre-processes each input:
 7. **Merge** spans across windows, then **route** each span back to its
    originating leaf via byte offsets recorded during rendering. Spans
    landing in key-prefix or separator regions are silently discarded.
-8. **Re-serialise** the JSON tree (object key order preserved). Originally
-   stringified JSON wrappers are re-stringified inside-out.
+8. **Re-serialise** the JSON tree compactly (object key order preserved),
+   escaping each string leaf piecewise at span boundaries and recording the
+   output cursor between pieces — those cursors are the masks. Originally
+   stringified JSON wrappers are serialized inside-out the same way, so
+   their masks are translated through every escaping layer.
 
-Object keys are never redacted. Numbers, booleans, and nulls pass through.
+Object keys are never masked. Numbers, booleans, and nulls pass through.
 
 ## Performance knobs
 
@@ -304,15 +326,25 @@ grpcurl -plaintext \
   localhost:8910 pii_redactor.PiiRedactorService/Redact
 ```
 
-Expected output (labels depend on the model):
+Expected output (labels and exact offsets depend on the model):
 
 ```json
 {
-  "texts": [
-    "{\"content\":\"Hi, my name is[REDACTED_PRIVATE_PERSON] and my email is[REDACTED_PRIVATE_EMAIL]. Call me at[REDACTED_PRIVATE_PHONE].\"}"
+  "results": [
+    {
+      "text": "{\"content\":\"Hi, my name is Jane Doe and my email is jane@example.com. Call me at +1-415-555-0123.\"}",
+      "masks": [
+        { "start": 27, "end": 35, "label": "private_person" },
+        { "start": 52, "end": 68, "label": "private_email" },
+        { "start": 81, "end": 96, "label": "private_phone" }
+      ]
+    }
   ]
 }
 ```
+
+Splicing `[REDACTED_<LABEL>]` over each mask gives
+`{"content":"Hi, my name is [REDACTED_PRIVATE_PERSON] and my email is [REDACTED_PRIVATE_EMAIL]. Call me at [REDACTED_PRIVATE_PHONE]."}`.
 
 ### grpcurl — nested Anthropic-style tool_result
 
@@ -332,13 +364,18 @@ grpcurl -plaintext \
   localhost:8910 pii_redactor.PiiRedactorService/Redact
 ```
 
-Expected output — `account_id` gets `[REDACTED_SECRET]` because the model
-sees the `account_id:` key as PII context; structural keys are untouched:
+Expected output — `account_id` is masked as `secret` because the model sees
+the `account_id:` key as PII context; structural keys are untouched. The
+mask covers the value inside the stringified inner JSON, i.e. the
+doubly-escaped bytes of `text`:
 
 ```json
 {
-  "texts": [
-    "{\"content\":[{\"content\":[{\"text\":\"{\\\"account_id\\\":\\\"[REDACTED_SECRET]\\\"}\",\"type\":\"text\"}],\"tool_use_id\":\"toolu_bdrk_01K8\",\"type\":\"tool_result\"}],\"role\":\"user\"}"
+  "results": [
+    {
+      "text": "{\"content\":[{\"content\":[{\"text\":\"{\\\"account_id\\\":\\\"apn_1KhW56n\\\"}\",\"type\":\"text\"}],\"tool_use_id\":\"toolu_bdrk_01K8\",\"type\":\"tool_result\"}],\"role\":\"user\"}",
+      "masks": [{ "start": 51, "end": 62, "label": "secret" }]
+    }
   ]
 }
 ```
@@ -382,8 +419,14 @@ payloads = [
 resp = stub.Redact(pii_redactor_pb2.RedactRequest(
     texts=[json.dumps(p) for p in payloads],
 ))
-for raw in resp.texts:
-    print(json.loads(raw))  # back to dict, structurally identical
+for r in resp.results:
+    raw = r.text.encode()  # masks are BYTE offsets
+    out, cursor = bytearray(), 0
+    for m in r.masks:
+        out += raw[cursor:m.start] + f"[REDACTED_{m.label.upper()}]".encode()
+        cursor = m.end
+    out += raw[cursor:]
+    print(json.loads(out))  # back to dict, structurally identical
 ```
 
 ### Smoke test that the service comes up

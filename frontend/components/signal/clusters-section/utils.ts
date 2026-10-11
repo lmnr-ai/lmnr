@@ -1,4 +1,4 @@
-import { type EventCluster } from "@/lib/actions/clusters";
+import { type EventCluster } from "@/lib/actions/clusters/types";
 
 export interface ClusterNode extends EventCluster {
   children: ClusterNode[];

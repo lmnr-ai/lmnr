@@ -46,7 +46,7 @@ export function TracesTableControls({
 }: TracesTableControlsProps) {
   return (
     <>
-      <div className="flex flex-1 w-full h-full gap-2">
+      <div className="flex w-full flex-wrap gap-2">
         <DataTableFilter columns={allFilters} filters={filters} onFiltersChange={onFiltersChange} />
         <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />

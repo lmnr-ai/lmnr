@@ -1,14 +1,19 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import OnboardingWizard, { type OnboardingInitialValues } from "@/components/onboarding";
+import AwaitCompanyName from "@/components/onboarding/await-company-name";
+import OnboardingLoading from "@/components/onboarding/onboarding-loading";
 import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getOnboardingState } from "@/lib/actions/onboarding";
+import { getCachedCompanyName } from "@/lib/actions/onboarding/company-name";
 import { resolveResume } from "@/lib/actions/onboarding/resolve-resume";
 import { loadOnboardingResumeDefaults, type OnboardingResumeDefaults } from "@/lib/actions/onboarding/resume-defaults";
 import { countWorkspaceMemberships } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
+import { orgDomainFromEmail } from "@/lib/email-domain";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
@@ -29,8 +34,11 @@ const EMPTY_DEFAULTS: OnboardingFormValues = {
   currentTier: "free",
 };
 
-function buildDefaults(resumeDefaults: OnboardingResumeDefaults | null): OnboardingFormValues {
-  if (!resumeDefaults) return EMPTY_DEFAULTS;
+function buildDefaults(
+  resumeDefaults: OnboardingResumeDefaults | null,
+  companyName: string | null
+): OnboardingFormValues {
+  if (!resumeDefaults) return { ...EMPTY_DEFAULTS, workspaceName: companyName ?? "" };
   return {
     ...EMPTY_DEFAULTS,
     workspaceName: resumeDefaults.workspaceName ?? EMPTY_DEFAULTS.workspaceName,
@@ -68,29 +76,48 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     return redirect("/projects");
   }
 
-  const resumeDefaults = resume.point
-    ? await loadOnboardingResumeDefaults({
-        workspaceId: resume.point.workspaceId,
-        projectId: resume.point.projectId,
-      })
-    : null;
+  const orgDomain = orgDomainFromEmail(user.email);
+  const lookupDomain = orgDomain && isFeatureEnabled(Feature.ONBOARDING_COMPANY_NAME) ? orgDomain : null;
+  const [resumeDefaults, cachedName] = await Promise.all([
+    resume.point
+      ? loadOnboardingResumeDefaults({
+          workspaceId: resume.point.workspaceId,
+          projectId: resume.point.projectId,
+        })
+      : null,
+    lookupDomain ? getCachedCompanyName(lookupDomain) : undefined,
+  ]);
 
-  const initial: OnboardingInitialValues = {
-    workspaceId: resume.point?.workspaceId ?? null,
-    projectId: resume.point?.projectId ?? null,
-    step: resume.point?.step ?? 0,
-    defaultValues: buildDefaults(resumeDefaults),
+  const renderWizard = (companyName: string | null) => {
+    const initial: OnboardingInitialValues = {
+      workspaceId: resume.point?.workspaceId ?? null,
+      projectId: resume.point?.projectId ?? null,
+      step: resume.point?.step ?? 0,
+      defaultValues: buildDefaults(resumeDefaults, companyName),
+      companyName,
+    };
+    return (
+      <OnboardingWizard
+        initial={initial}
+        slackClientId={process.env.SLACK_CLIENT_ID}
+        slackRedirectUri={process.env.SLACK_REDIRECT_URL}
+      />
+    );
   };
+
+  // Cached name: render at once. First visit for a domain: stream a loading step while the LLM answers.
+  const content =
+    lookupDomain && !resume.point && !cachedName ? (
+      <Suspense fallback={<OnboardingLoading />}>
+        <AwaitCompanyName domain={lookupDomain}>{renderWizard}</AwaitCompanyName>
+      </Suspense>
+    ) : (
+      renderWizard(cachedName?.name ?? null)
+    );
 
   return (
     <UserContextProvider user={user}>
-      <div className="flex flex-col min-h-screen w-full bg-surface-150">
-        <OnboardingWizard
-          initial={initial}
-          slackClientId={process.env.SLACK_CLIENT_ID}
-          slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-        />
-      </div>
+      <div className="flex flex-col min-h-screen w-full bg-surface-150">{content}</div>
     </UserContextProvider>
   );
 }

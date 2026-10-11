@@ -223,7 +223,7 @@ const SharedSettings = ({
           <>
             <SettingsSectionHeader title="Security" description="Control how this project handles sensitive data." />
             <div className="flex flex-col gap-8">
-              <PiiRedaction />
+              <PiiRedaction currentUserRole={currentUserRole} />
             </div>
           </>
         );

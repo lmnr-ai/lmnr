@@ -12,12 +12,14 @@ where
     T: Buf,
 {
     Ingest { payload: T },
+    Commit,
 }
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
 enum DocCommandCode {
     IngestV1 = 0,
+    CommitV1 = 1,
 }
 
 impl<T> DocCommand<T>
@@ -37,6 +39,10 @@ where
                     written += len;
                 }
                 written
+            }
+            DocCommand::Commit => {
+                buf.put_u8(DocCommandCode::CommitV1 as u8);
+                1
             }
         }
     }
@@ -62,6 +68,11 @@ impl DocBatchBuilder {
         self.doc_lengths.push(len as u32);
     }
 
+    fn commit(&mut self) {
+        let len = DocCommand::Commit::<Bytes>.write(&mut self.doc_buffer);
+        self.doc_lengths.push(len as u32);
+    }
+
     fn build(self) -> DocBatch {
         DocBatch {
             index_id: self.index_id,
@@ -74,6 +85,7 @@ impl DocBatchBuilder {
 pub fn build_json_doc_batch<T: Serialize>(
     index_id: &str,
     docs: &[T],
+    commit: bool,
 ) -> serde_json::Result<DocBatch> {
     let mut builder = DocBatchBuilder::new(index_id);
 
@@ -82,5 +94,35 @@ pub fn build_json_doc_batch<T: Serialize>(
         builder.ingest_doc(Bytes::from(payload));
     }
 
+    if commit {
+        builder.commit();
+    }
+
     Ok(builder.build())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commit_flag_controls_trailing_commit_command() {
+        let docs = [serde_json::json!({"a": 1}), serde_json::json!({"b": 2})];
+
+        let committed = build_json_doc_batch("idx", &docs, true).unwrap();
+        assert_eq!(committed.doc_lengths.len(), 3);
+        assert_eq!(*committed.doc_lengths.last().unwrap(), 1);
+        assert_eq!(
+            *committed.doc_buffer.last().unwrap(),
+            DocCommandCode::CommitV1 as u8
+        );
+
+        let uncommitted = build_json_doc_batch("idx", &docs, false).unwrap();
+        assert_eq!(uncommitted.doc_lengths.len(), 2);
+        assert_eq!(*uncommitted.doc_buffer.last().unwrap(), b'}');
+        assert_eq!(
+            committed.doc_buffer[..committed.doc_buffer.len() - 1],
+            uncommitted.doc_buffer[..]
+        );
+    }
 }

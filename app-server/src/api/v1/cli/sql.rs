@@ -3,6 +3,7 @@ use std::sync::Arc;
 use actix_web::{HttpResponse, get, post, web};
 
 use crate::{
+    access_policy::Actor,
     api::v1::sql::{SqlQueryRequest, SqlRateLimiter, handle_sql_query},
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -29,8 +30,9 @@ pub async fn get_sql_schema(_auth: CliProjectAuth) -> ResponseResult {
 }
 
 /// `POST /v1/cli/sql/query` — CLI twin of `/v1/sql/query`. Delegates to the
-/// shared `handle_sql_query` (rate limit + span + response); differs only in
-/// auth (`CliProjectAuth` user token vs project API key).
+/// shared `handle_sql_query` (rate limit + policy + span + response); differs
+/// only in auth (`CliProjectAuth` user token vs project API key) and hence in
+/// the actor.
 #[post("query")]
 pub async fn execute_sql_query(
     auth: CliProjectAuth,
@@ -44,6 +46,7 @@ pub async fn execute_sql_query(
 ) -> ResponseResult {
     handle_sql_query(
         auth.project_id,
+        Actor::Cli,
         req,
         limiter,
         db,

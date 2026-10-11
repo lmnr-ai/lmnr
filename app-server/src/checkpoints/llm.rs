@@ -46,6 +46,12 @@ impl CheckpointRoot {
         }
     }
 
+    /// The customer project whose span produced this checkpoint; the LLM
+    /// feature routes resolve against its workspace.
+    pub fn origin_project_id(&self) -> Uuid {
+        self.origin_project_id
+    }
+
     fn span(&self) -> Option<&tracing::Span> {
         self.span
             .get_or_init(|| {

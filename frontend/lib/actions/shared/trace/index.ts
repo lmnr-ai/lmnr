@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { sharedTraces } from "@/lib/db/migrations/schema";
 
@@ -41,8 +41,9 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   const projectId = sharedTrace.projectId;
 
-  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
-    query: `
+  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>(
+    {
+      query: `
         SELECT
           id,
           formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
@@ -68,11 +69,13 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         WHERE id = {traceId: UUID}
         LIMIT 1
       `,
-    projectId,
-    parameters: {
-      traceId,
+      projectId,
+      parameters: {
+        traceId,
+      },
     },
-  });
+    { actor: SHARED_ACTOR }
+  );
 
   if (!trace) {
     return undefined;

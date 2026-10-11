@@ -15,11 +15,9 @@ use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 use crate::engine::{Engine, EngineConfig};
-use crate::json_walker::{apply_spans_and_serialize, build_skip_keys, walk_and_render};
+use crate::json_walker::{build_skip_keys, serialize_with_masks, walk_and_render};
 use crate::proto::pii_redactor_service_server::{PiiRedactorService, PiiRedactorServiceServer};
-use crate::proto::{RedactRequest, RedactResponse};
-
-const DEFAULT_PLACEHOLDER: &str = "[REDACTED_{LABEL}]";
+use crate::proto::{Mask, RedactRequest, RedactResponse, RedactedText};
 
 #[derive(Debug, Parser)]
 #[command(version, about = "PII redaction gRPC service")]
@@ -101,11 +99,6 @@ impl PiiRedactorService for GrpcServer {
                 self.max_texts_per_request
             )));
         }
-        let placeholder = req
-            .placeholder_format
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| DEFAULT_PLACEHOLDER.to_string());
-
         let skip_keys = build_skip_keys(&req.skip_keys);
 
         // Stage 1: parse + walk + render each input. Reject any text whose
@@ -114,12 +107,12 @@ impl PiiRedactorService for GrpcServer {
         let mut walked = Vec::with_capacity(req.texts.len());
         let mut rendered = Vec::with_capacity(req.texts.len());
         for (i, text) in req.texts.into_iter().enumerate() {
-            let w = walk_and_render(&text, &skip_keys).map_err(|e| {
-                Status::invalid_argument(format!("texts[{i}]: {e:#}"))
-            })?;
-            let tokens = self.engine.count_tokens(&w.rendered).map_err(|e| {
-                Status::internal(format!("texts[{i}]: counting tokens: {e:#}"))
-            })?;
+            let w = walk_and_render(&text, &skip_keys)
+                .map_err(|e| Status::invalid_argument(format!("texts[{i}]: {e:#}")))?;
+            let tokens = self
+                .engine
+                .count_tokens(&w.rendered)
+                .map_err(|e| Status::internal(format!("texts[{i}]: counting tokens: {e:#}")))?;
             if tokens > self.max_tokens_per_text {
                 return Err(Status::resource_exhausted(format!(
                     "texts[{i}]: rendered content is {tokens} tokens, exceeds PII_MAX_TOKENS_PER_TEXT ({})",
@@ -139,16 +132,29 @@ impl PiiRedactorService for GrpcServer {
             .await
             .map_err(|e| Status::internal(format!("detect failed: {e:#}")))?;
 
-        // Stage 3: route spans → leaves → rewrite tree → serialize.
-        let mut out_texts = Vec::with_capacity(walked.len());
-        for (i, (w, spans)) in walked.into_iter().zip(all_spans.into_iter()).enumerate() {
-            let s = apply_spans_and_serialize(w, spans, &placeholder).map_err(|e| {
-                Status::internal(format!("texts[{i}]: serializing redacted output: {e:#}"))
-            })?;
-            out_texts.push(s);
-        }
+        // Stage 3: route spans → leaves → serialize with the spans reported
+        // as byte ranges of the output. Offsets fit u32 because the request
+        // is bounded by PII_MAX_TOKENS_PER_TEXT.
+        let results = walked
+            .into_iter()
+            .zip(all_spans)
+            .map(|(w, spans)| {
+                let (text, masks) = serialize_with_masks(w, spans);
+                RedactedText {
+                    text,
+                    masks: masks
+                        .into_iter()
+                        .map(|m| Mask {
+                            start: m.start as u32,
+                            end: m.end as u32,
+                            label: m.label,
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
 
-        Ok(Response::new(RedactResponse { texts: out_texts }))
+        Ok(Response::new(RedactResponse { results }))
     }
 }
 

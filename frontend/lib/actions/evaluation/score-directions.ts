@@ -2,7 +2,9 @@ import { observe } from "@lmnr-ai/lmnr";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel, isAiProviderConfigured } from "@/lib/ai/model";
+import { getLanguageModel } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
+import { isAiProviderConfigured } from "@/lib/ai/model";
 import { cache, SCORE_DIRECTION_CACHE_KEY } from "@/lib/cache";
 
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
@@ -31,14 +33,15 @@ const ClassificationSchema = z.object({
 
 // One LLM call classifying every uncached name. Case-insensitive match back to
 // the requested names. Any name the model omits stays unresolved (caller
-// defaults it to true). Fails soft: returns {} on any error.
+// defaults it to true). Fails soft: returns {} on any error. App-wide, so the
+// feature route is the global one — no project to scope it by.
 async function classifyDirections(names: string[]): Promise<Record<string, boolean>> {
   try {
     const { output } = await observe(
       { name: "classify-score-directions", metadata: { feature: "eval-score-direction" } },
       async () =>
         generateText({
-          model: getLanguageModel("small"),
+          model: await getLanguageModel(LlmFeature.EVALUATION_SCORE_DIRECTIONS),
           output: Output.object({ schema: ClassificationSchema }),
           system:
             "You classify evaluation metric names by their preferred direction. " +

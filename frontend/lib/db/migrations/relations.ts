@@ -58,6 +58,7 @@ import {
   traces,
   llmProfiles,
   llmProfileModels,
+  llmFeatureRoutes,
 } from "./schema";
 
 export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
@@ -71,6 +72,17 @@ export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
 export const llmProfileModelsRelations = relations(llmProfileModels, ({ one }) => ({
   profile: one(llmProfiles, {
     fields: [llmProfileModels.profileId],
+    references: [llmProfiles.id],
+  }),
+}));
+
+export const llmFeatureRoutesRelations = relations(llmFeatureRoutes, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [llmFeatureRoutes.workspaceId],
+    references: [workspaces.id],
+  }),
+  profile: one(llmProfiles, {
+    fields: [llmFeatureRoutes.llmProfileId],
     references: [llmProfiles.id],
   }),
 }));

@@ -21,7 +21,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import {
   ALERT_TARGET_TYPE,
   ALERT_TYPE,
@@ -33,7 +32,6 @@ import {
 import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
-import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -75,9 +73,6 @@ export function AlertForm({
 }: AlertFormProps) {
   const isEditMode = !!alert;
   const hasSlackIntegration = !!integrationId;
-  const featureFlags = useFeatureFlags();
-  const clusteringEnabled = featureFlags[Feature.CLUSTERING];
-
   const [isTesting, setIsTesting] = useState(false);
   const [dateRange, setDateRange] = useState<{ pastHours?: string; startDate?: string; endDate?: string }>({
     pastHours: "168",
@@ -310,8 +305,7 @@ export function AlertForm({
           data.type === ALERT_TYPE.SIGNAL_EVENT
             ? {
                 severities: Array.from(new Set(data.severities)).sort((a, b) => a - b),
-                // Force skipSimilar off without clustering so a stale form value can't leak through.
-                skipSimilar: clusteringEnabled ? data.skipSimilar : false,
+                skipSimilar: data.skipSimilar,
                 ...disabledMeta,
               }
             : { ...disabledMeta };
@@ -393,7 +387,6 @@ export function AlertForm({
       isEditMode,
       alert,
       onOpenChange,
-      clusteringEnabled,
       previousFilterIds,
     ]
   );
@@ -540,7 +533,7 @@ export function AlertForm({
               />
             )}
 
-            {selectedSignal && clusteringEnabled && (
+            {selectedSignal && (
               <AlertSection title="Trigger" description="Choose the activity that fires this alert.">
                 <Controller
                   name="type"
@@ -638,24 +631,22 @@ export function AlertForm({
 
                     <AlertFiltersSection schema={selectedSignalDetails?.structuredOutput} />
 
-                    {clusteringEnabled && (
-                      <Controller
-                        name="skipSimilar"
-                        control={control}
-                        render={({ field }) => (
-                          <div className="flex items-center justify-between rounded-md border p-3">
-                            <div className="pr-3">
-                              <p className="text-sm font-medium">Skip notifications for similar events</p>
-                              <p className="text-xs text-muted-foreground">
-                                When enabled, only the first event in a group of semantically similar events will
-                                trigger a notification. Subsequent events in the same group are ignored.
-                              </p>
-                            </div>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    <Controller
+                      name="skipSimilar"
+                      control={control}
+                      render={({ field }) => (
+                        <div className="flex items-center justify-between rounded-md border p-3">
+                          <div className="pr-3">
+                            <p className="text-sm font-medium">Skip notifications for similar events</p>
+                            <p className="text-xs text-muted-foreground">
+                              When enabled, only the first event in a group of semantically similar events will trigger
+                              a notification. Subsequent events in the same group are ignored.
+                            </p>
                           </div>
-                        )}
-                      />
-                    )}
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </div>
+                      )}
+                    />
                   </AlertSection>
                 )}
 

@@ -8,13 +8,7 @@ import {
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
 import { preservePrivacyModeOnDowngrade } from "@/lib/actions/workspace/settings";
-import {
-  cache,
-  WORKSPACE_BYTES_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
-  WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY,
-} from "@/lib/cache";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   subscriptionTiers,
@@ -177,16 +171,9 @@ export const getIdFromStripeObject = (stripeObject: string | { id: string } | nu
 // This function updates the cache used on the backend,
 // but since Stripe as a feature assumes production, we assume
 // shared Redis cache as well.
-const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boolean, hasSignalRuns: boolean) => {
+const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boolean, _hasSignalRuns: boolean) => {
   if (hasBytes) {
     await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  }
-  if (hasSignalRuns) {
-    await Promise.all([
-      cache.remove(`${WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
-      cache.remove(`${WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
-      cache.remove(`${WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:${workspaceId}`),
-    ]);
   }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };
@@ -322,15 +309,18 @@ export const handleInvoiceFinalized = async (
         ...(hasSignalRuns ? { signalCost: 0 } : {}),
       },
     });
+  const nextResetTime = sql`date_trunc('day', ${resetDate})`;
   await db
     .update(workspaces)
-    .set({ resetTime: sql`date_trunc('day', ${resetDate})` })
+    .set({
+      resetTime: sql`GREATEST(${workspaces.resetTime}, ${nextResetTime})`,
+    })
     .where(eq(workspaces.id, workspaceId));
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
-// Extra overage warnings fired on Hobby only, above the included allowance, so users
-// accumulating a large overage bill are nudged before it grows further. The signal
+// Extra overage warnings fired on Hobby so users accumulating a large overage
+// bill are nudged before it grows further. The signal
 // threshold is in micro-USD (1e-6 USD): $100
 const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
@@ -360,15 +350,6 @@ const insertNewTierUsageWarnings = async ({
           eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedBytes)
         )
       );
-    await db
-      .delete(workspaceUsageWarnings)
-      .where(
-        and(
-          eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "signal_cost"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalCostMicroUsd)
-        )
-      );
   }
 
   const values = [
@@ -376,11 +357,6 @@ const insertNewTierUsageWarnings = async ({
       workspaceId,
       usageItem: "bytes",
       limitValue: newTierConfig.includedBytes,
-    },
-    {
-      workspaceId,
-      usageItem: "signal_cost",
-      limitValue: newTierConfig.includedSignalCostMicroUsd,
     },
   ];
   if (newTierName === "hobby") {
@@ -439,16 +415,10 @@ const upsertDefaultTierUsageLimits = async ({
   currentTierName?: PaidTier;
 }) => {
   // Preserve user overrides: only clear the default when it still matches a known Hobby
-  // default. TIER_CONFIG["hobby"].includedSignalCostMicroUsd covers workspaces whose default
-  // was written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD.
-  // Looked up here (not accepted from the caller) so the cleanup does not silently skip when
-  // the caller forgets to pass currentTierConfig.
+  // default. Looked up here (not accepted from the caller) so the cleanup does
+  // not silently skip when the caller forgets to pass currentTierConfig.
   if (currentTierName === "hobby" && newTierName !== "hobby") {
     const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD];
-    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalCostMicroUsd;
-    if (!clearableValues.includes(legacyHobbyDefault)) {
-      clearableValues.push(legacyHobbyDefault);
-    }
     const deleted = await db
       .delete(workspaceUsageLimits)
       .where(

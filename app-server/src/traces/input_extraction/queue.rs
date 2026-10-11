@@ -20,7 +20,7 @@ pub const INPUT_EXTRACTION_ROUTING_KEY: &str = "input_extraction_routing_key";
 pub struct InputExtractionMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    /// The winning span. Lets the worker resolve the prompt's version from
+    /// The winning span. Lets the worker resolve the template's version from
     /// ClickHouse when the memo has expired.
     #[serde(default)]
     pub span_id: Option<Uuid>,
@@ -28,13 +28,9 @@ pub struct InputExtractionMessage {
     /// regex cachings. `None` for LLM spans with no system message.
     #[serde(default)]
     pub prompt_hash: Option<String>,
-    /// Byte-identity hash of the system prompt — the worker's memo lookup key
-    /// when the producer couldn't resolve a version inline.
-    #[serde(default)]
-    pub full_prompt_hash: Option<String>,
-    /// Version resolved inline by the producer. `None` means the worker re-reads
-    /// (memo, then ClickHouse) before deciding between a cached regex and a
-    /// direct extraction.
+    /// User-template version resolved inline by the producer. `None` means the
+    /// worker re-reads (memo, then ClickHouse) before deciding between a cached
+    /// regex and a direct extraction.
     #[serde(default)]
     pub version_hash: Option<String>,
     /// Whether the last turn follows assistant history — a key component of the
@@ -49,7 +45,8 @@ pub struct InputExtractionMessage {
     pub fingerprint: String,
     /// Winning-candidate snapshot at enqueue time; the consumer drops the
     /// message when the current lock's published winner strictly beats it
-    /// (a later batch superseded this candidate).
+    /// (a later batch superseded this candidate). Its `content_hash` is also
+    /// the user-template memo key.
     #[serde(default)]
     pub winner_state: Option<WinnerState>,
     /// Winning span's rollout session id, for debugger-channel routing.

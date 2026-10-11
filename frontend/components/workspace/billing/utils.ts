@@ -32,8 +32,14 @@ const buildInfo = (tier: TierKey): TierInfo => {
       name: CENTRAL_TIERS[tier].name,
       price: formatPrice(tier),
       priceSubtext,
-      features: ["Custom limits", "On-premise", formatProjectsAndSeats(tier), formatSupport(tier)],
-      subfeatures: [null, null, null, null],
+      features: [
+        "Custom limits",
+        `${formatSignalsCount(tier)} one-time Signals credit`,
+        "On-premise",
+        formatProjectsAndSeats(tier),
+        formatSupport(tier),
+      ],
+      subfeatures: [null, null, null, null, null],
     };
   }
 
@@ -44,7 +50,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
     priceSubtext,
     features: [
       `${formatDataIncluded(tier)} data`,
-      `${formatSignalsCount(tier)} in Signals`,
+      `${formatSignalsCount(tier)} one-time Signals credit`,
       retentionLabel(tier),
       formatProjectsAndSeats(tier),
       formatSupport(tier),

@@ -9,7 +9,11 @@ use super::{
     ContentHash, SeenMarks, SharedContentBatch, content_hash, is_seen, span_group_id,
     storage_seen_key, trace_new_key,
 };
-use crate::{cache::Cache, db::spans::Span, utils::sanitize_string};
+use crate::{
+    cache::Cache,
+    db::spans::Span,
+    utils::{estimate_json_size, sanitize_string},
+};
 
 /// Producer's verdict for one message array, on two independent axes.
 /// `trace_new_indices` are the positions this trace hasn't seen yet (search);
@@ -18,6 +22,9 @@ use crate::{cache::Cache, db::spans::Span, utils::sanitize_string};
 /// change mid-trace (late session adopt, expired hint), so a trace-seen hash
 /// may still be missing under the current group. `contents` carries the JSON
 /// for every position in either list; everything else rides as hashes only.
+/// `size_bytes` is the whole array's raw JSON size: the producer strips the
+/// field off the span, so this is all the consumer has for
+/// `original_size_bytes`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDedup {
     pub hashes: Vec<ContentHash>,
@@ -27,6 +34,8 @@ pub struct MessageDedup {
     pub storage_miss_indices: Vec<u16>,
     #[serde(default)]
     pub contents: BTreeMap<u16, String>,
+    #[serde(default)]
+    pub size_bytes: usize,
 }
 
 /// Producer-side: hash each message and consult both Redis axes. `None` when
@@ -86,6 +95,7 @@ pub async fn build_message_dedup(
         trace_new_indices,
         storage_miss_indices,
         contents,
+        size_bytes: items.iter().map(estimate_json_size).sum(),
     })
 }
 
@@ -163,13 +173,23 @@ impl MessageBatch {
     }
 
     /// Trace-new marks for every position this batch recorded as a first
-    /// occurrence, storage hit or not.
-    pub fn trace_new_marks(&self, spans: &[&Span], marks: &mut SeenMarks) {
-        for ((span, hashes), positions) in spans
+    /// occurrence, storage hit or not. `skip(i)` leaves batch entry `i`
+    /// unstamped so its messages are trace-new again on the next span.
+    pub fn trace_new_marks(
+        &self,
+        spans: &[&Span],
+        marks: &mut SeenMarks,
+        skip: impl Fn(usize) -> bool,
+    ) {
+        for (i, ((span, hashes), positions)) in spans
             .iter()
             .zip(&self.span_hashes)
             .zip(&self.span_new_indices)
+            .enumerate()
         {
+            if skip(i) {
+                continue;
+            }
             for &pos in positions {
                 if let Some(hash) = hashes.get(pos as usize) {
                     marks.trace_new(span.project_id, span.trace_id, hash);
@@ -227,6 +247,7 @@ mod tests {
             trace_new_indices: vec![0],
             storage_miss_indices: vec![],
             contents: BTreeMap::from([(0, "{}".to_string())]),
+            size_bytes: 4,
         };
         let back: MessageDedup =
             serde_json::from_str(&serde_json::to_string(&dedup).unwrap()).unwrap();
@@ -392,8 +413,12 @@ mod tests {
         assert!(batch.span_trace_new_contents[0][0].contains("you are helpful"));
 
         let mut marks = SeenMarks::default();
-        batch.trace_new_marks(&[&span], &mut marks);
+        batch.trace_new_marks(&[&span], &mut marks, |_| false);
         assert!(!marks.is_empty());
+
+        let mut skipped = SeenMarks::default();
+        batch.trace_new_marks(&[&span], &mut skipped, |_| true);
+        assert!(skipped.is_empty(), "a skipped entry stamps nothing");
     }
 
     #[test]
@@ -406,6 +431,7 @@ mod tests {
             trace_new_indices: vec![0],
             storage_miss_indices: vec![0],
             contents: BTreeMap::from([(0, msg.to_string())]),
+            size_bytes: 0,
         };
         let a = llm_span(project_id, trace_id, json!([msg]));
         let b = a.clone();
@@ -429,6 +455,7 @@ mod tests {
             trace_new_indices: vec![0],
             storage_miss_indices: vec![0],
             contents: BTreeMap::new(),
+            size_bytes: 0,
         };
         let span = llm_span(Uuid::new_v4(), Uuid::new_v4(), json!([msg]));
 

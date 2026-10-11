@@ -28,15 +28,17 @@
 
 use std::sync::Arc;
 
-use super::generate::{GenerationVerdict, call_llm, extraction_provider};
+use uuid::Uuid;
+
+use super::generate::{GenerationVerdict, call_llm};
 use super::regex::{ApplyRegexResult, apply_regex, apply_result_to_json};
 use super::self_tracing::{self, SpanBuilder, SpanScope};
-use crate::llm::LlmClient;
 use crate::llm::models::{
-    ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
+    ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
     ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderThinkingConfig,
     ProviderThinkingLevel, ProviderTool,
 };
+use crate::llm::{LlmClient, LlmFeature, LlmRoute};
 
 /// Total LLM-call budget per run (initial call + probe round-trips). Higher than
 /// the single-sample pipeline's: reconciling several samples legitimately takes
@@ -218,7 +220,7 @@ pub async fn generate_extraction_regex_multi(
     let mut verified: Option<String> = None;
 
     for _ in 0..MAX_LLM_CALLS {
-        let request = build_request(contents.clone());
+        let request = build_request(contents.clone(), scope.source_project_id);
         let response = call_llm(llm_client, &request, scope, GENERATE_SPAN_NAME).await?;
 
         let model_content = response
@@ -333,7 +335,7 @@ fn probe_samples_traced(pattern: &str, samples: &[String], scope: &SpanScope) ->
     verdict
 }
 
-fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
+fn build_request(contents: Vec<ProviderContent>, project_id: Uuid) -> ProviderRequest {
     let regex_param = serde_json::json!({
         "type": "object",
         "properties": {
@@ -377,9 +379,10 @@ fn build_request(contents: Vec<ProviderContent>) -> ProviderRequest {
             ..Default::default()
         }),
         service_tier: None,
-        provider: Some(extraction_provider()),
-        model_size: Some(ModelSize::Medium),
-        llm_profile: None,
+        route: LlmRoute::feature(
+            LlmFeature::InputExtractionRegexGenerationMulti,
+            Some(project_id),
+        ),
     }
 }
 

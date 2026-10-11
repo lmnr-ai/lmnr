@@ -9,7 +9,7 @@ import {
   resolveSpanTokenDetails,
   spanTokenDetailColumns,
 } from "@/lib/actions/spans/utils.ts";
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 import { tryParseJson } from "@/lib/utils";
@@ -30,8 +30,9 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
     }
-  >({
-    query: `
+  >(
+    {
+      query: `
       SELECT
         span_id as spanId,
         parent_span_id as parentSpanId,
@@ -56,11 +57,13 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
       WHERE trace_id = {traceId: UUID}
       ORDER BY start_time ASC
     `,
-    parameters: {
-      traceId,
+      parameters: {
+        traceId,
+      },
+      projectId: sharedTrace.projectId,
     },
-    projectId: sharedTrace.projectId,
-  });
+    { actor: SHARED_ACTOR }
+  );
 
   if (spans.length === 0) {
     return [];

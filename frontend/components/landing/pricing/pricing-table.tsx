@@ -13,7 +13,7 @@ import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIER_COLUMNS } fr
 // ancestor breaks page-relative sticky, so mobile trades it for the scroll.
 export default function PricingTable() {
   return (
-    <div className="w-full overflow-x-auto md:overflow-visible">
+    <div className="w-full overflow-x-auto px-6 md:overflow-visible md:px-0">
       <div
         className="grid min-w-[760px] w-full"
         style={{ gridTemplateColumns: `1.4fr repeat(${TIER_COLUMNS.length}, 1fr)` }}
@@ -79,6 +79,18 @@ function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
 
 function FeatureCell({ value }: { value: FeatureValue }) {
   if (value === true) return <Check className="size-4 text-foreground-50" strokeWidth={2.5} />;
-  if (value === false || value === null) return <Minus className="size-4 text-foreground-500" />;
-  return <span>{value}</span>;
+  if (value === false || value === null || value === "—") {
+    return <Minus className="size-4 text-foreground-500" />;
+  }
+  if (typeof value === "object") {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className={cn("whitespace-pre-line", value.muted && "text-foreground-500", value.small && "text-xs")}>
+          {value.label}
+        </span>
+        {value.detail && <span className="text-xs text-foreground-500">{value.detail}</span>}
+      </div>
+    );
+  }
+  return <span className="whitespace-pre-line">{value}</span>;
 }

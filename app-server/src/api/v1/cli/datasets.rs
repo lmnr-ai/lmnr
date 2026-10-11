@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{HttpResponse, delete, get, patch, post, web};
 
 use crate::{
     api::v1::datasets::{
-        CreateDatapointsRequest, GetDatapointsRequestParams, GetDatasetsRequest,
-        create_datapoints_response,
+        CreateDatapointsRequest, DatasetNameRequest, GetDatapointsRequestParams,
+        GetDatasetsRequest, create_datapoints_response, handlers,
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -19,6 +19,44 @@ use crate::{
 // CLI user-token twins of the `/v1/datasets` handlers. Thin: same request types
 // and the same `datasets::service` functions as the project-API-key handlers;
 // only the auth extractor (`CliProjectAuth`) differs.
+
+#[post("/datasets")]
+pub async fn create_dataset(
+    auth: CliProjectAuth,
+    req: web::Json<DatasetNameRequest>,
+    db: web::Data<DB>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::create(&db, auth.project_id, req.into_inner()).await)
+}
+
+#[get("/datasets/{dataset_id}")]
+pub async fn get_dataset(
+    auth: CliProjectAuth,
+    path: web::Path<uuid::Uuid>,
+    db: web::Data<DB>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::get(&db, auth.project_id, path.into_inner()).await)
+}
+
+#[patch("/datasets/{dataset_id}")]
+pub async fn update_dataset(
+    auth: CliProjectAuth,
+    path: web::Path<uuid::Uuid>,
+    req: web::Json<DatasetNameRequest>,
+    db: web::Data<DB>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::update(&db, auth.project_id, path.into_inner(), req.into_inner()).await)
+}
+
+#[delete("/datasets/{dataset_id}")]
+pub async fn delete_dataset(
+    auth: CliProjectAuth,
+    path: web::Path<uuid::Uuid>,
+    db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> actix_web::Result<HttpResponse> {
+    Ok(handlers::delete(&db, &clickhouse, auth.project_id, path.into_inner()).await)
+}
 
 /// `GET /v1/cli/datasets`
 #[get("/datasets")]
@@ -55,6 +93,11 @@ pub async fn get_datapoints(
         }
     };
     let query = params.into_inner();
+    if query.limit <= 0 || query.limit > 1_000 || query.offset < 0 {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "limit must be between 1 and 1000 and offset must be non-negative"
+        })));
+    }
 
     match service::fetch_datapoints_page(
         auth.project_id,

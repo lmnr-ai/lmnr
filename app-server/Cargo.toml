@@ -68,7 +68,7 @@ redis = {version = "1.6.0", features = ["tokio-comp", "tokio-rustls-comp"]}
 regex = "1.12.3"
 reqwest = {version = "0.13.4", features = ["json", "stream"]}
 resend-rs = "0.32.1"
-rmcp = {version = "1", features = ["server"]}
+rmcp = {version = "3.3", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.49, opentelemetry = 0.32
 sentry = {version = "0.49.1", features = ["opentelemetry", "tracing"]}
@@ -89,6 +89,7 @@ tikv-jemallocator = {version = "0.6.1", features = ["unprefixed_malloc_on_suppor
 tokenizers = {version = "0.23.1", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
+tokio-util = {version = "0.7.19", features = ["rt"]}
 tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
 tracing = {version = "0.1.44", features = ["attributes"]}
@@ -102,6 +103,8 @@ url = "2.5"
 uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 # Stream record body compression (mq/stream/encoding.rs).
 zstd = "0.13"
+grep-regex = "0.1.14"
+grep-matcher = "0.1.9"
 
 [build-dependencies]
 tonic-prost-build = "0.14"

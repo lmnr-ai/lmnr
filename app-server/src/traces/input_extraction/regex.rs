@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::generate::{GenerationVerdict, generate_extraction_regex};
 use super::input::split_signposts_and_rejoin;
 use super::self_tracing::{self, SpanBuilder, SpanScope};
-use crate::cache::keys::{USER_TASK_REGEX_CACHE_KEY, USER_TASK_VERSION_REGEX_CACHE_KEY};
+use crate::cache::keys::{USER_TASK_REGEX_CACHE_KEY, USER_TASK_TEMPLATE_REGEX_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
 
@@ -190,69 +190,64 @@ pub fn regex_cache_key(project_id: Uuid, prompt_hash: Option<&str>, fingerprint:
     format!("{USER_TASK_REGEX_CACHE_KEY}:{project_id}:{h}:{fp_hash}")
 }
 
-/// Version-keyed regex cache key. The prompt VERSION replaces the user-message
-/// tag fingerprint, so a change to the system prompt's static part — not the
-/// noisier variation in the user message's tag set — is what regenerates the
-/// regex. `agent_hash` stays in the key because `version_hash` is only 32 bits
-/// (`sp_versioning::similarity::version_hash` truncates to 8 hex chars), and
-/// `has_history` stays because a first turn and a follow-up carry different
-/// layouts.
-pub fn versioned_regex_cache_key(
+/// Template-keyed regex cache key: the user template's VERSION (see
+/// `sp_versioning::VersionKind::UserTemplate`) identifies the layout the regex
+/// was generated for. `agent_hash` stays in the key because `version_hash` is
+/// only 32 bits (`sp_versioning::similarity::version_hash` truncates to 8 hex
+/// chars), and `has_history` stays because a first turn and a follow-up carry
+/// different layouts.
+pub fn template_regex_cache_key(
     project_id: Uuid,
     agent_hash: &str,
-    version_hash: &str,
+    template_version: &str,
     has_history: bool,
 ) -> String {
     let history = if has_history { "h" } else { "n" };
     format!(
-        "{USER_TASK_VERSION_REGEX_CACHE_KEY}:{project_id}:{agent_hash}:{version_hash}:{history}"
+        "{USER_TASK_TEMPLATE_REGEX_CACHE_KEY}:{project_id}:{agent_hash}:{template_version}:{history}"
     )
 }
 
-/// The regex cache lookup a candidate resolves to.
+/// How a candidate's regex is found.
 pub enum RegexTarget {
-    /// A key that may hold a regex. `version` is `Some` on the version-keyed
-    /// path and `None` for the legacy buckets.
+    /// A key that may hold a regex. `version` is the user-template version on
+    /// the template-keyed path and `None` for the legacy buckets.
     Keyed {
         key: String,
         version: Option<String>,
     },
-    /// The prompt has no live version, so nothing can be cached against it and
-    /// extraction is a one-shot direct LLM call.
+    /// The template has no live version yet, so nothing can be cached against
+    /// it and extraction is a one-shot direct LLM call.
     Unversioned,
 }
 
-/// Pick the cache key for a candidate. With `VersionedInputExtraction` off this
-/// is always the legacy agent-hash + tag-fingerprint key.
+/// Pick the regex target for a candidate. The middle case is why this is an
+/// enum: a span with NO system message has no agent to partition the template
+/// window by, so it keeps the legacy agent-hash + tag-fingerprint keying
+/// permanently rather than paying an LLM call every trace forever; a template
+/// whose version simply hasn't been minted yet gets no key at all, because the
+/// two keyings hold regexes generated under different cohort definitions and
+/// must never read each other's entries.
 ///
-/// With it on there are three cases, and the middle one is the reason this
-/// returns an enum: a span with NO system message can never have a version, so
-/// it keeps the legacy keying permanently rather than paying an LLM call every
-/// trace forever; a span whose version simply hasn't been minted yet gets no key
-/// at all, because the two keyings hold regexes generated under different
-/// cohort definitions and must never read each other's entries.
+/// The empty (fully dynamic) version is keyed like any other: an empty
+/// intersection also arises when a cluster mixes template shapes, so "take the
+/// whole turn" is left to the regex agent, which submits the passthrough only
+/// when its samples really carry no scaffolding.
 pub fn regex_target(
     project_id: Uuid,
     agent_hash: Option<&str>,
-    version_hash: Option<&str>,
+    template_version: Option<&str>,
     fingerprint: &str,
     has_history: bool,
 ) -> RegexTarget {
-    let legacy = || RegexTarget::Keyed {
-        key: regex_cache_key(project_id, agent_hash, fingerprint),
-        version: None,
-    };
-    if !crate::features::is_feature_enabled(crate::features::Feature::VersionedInputExtraction) {
-        return legacy();
-    }
-    match (agent_hash, version_hash) {
-        (Some(agent), Some(version)) => RegexTarget::Keyed {
-            key: versioned_regex_cache_key(project_id, agent, version, has_history),
-            version: Some(version.to_string()),
-        },
+    match (agent_hash, template_version) {
         (None, _) => RegexTarget::Keyed {
             key: regex_cache_key(project_id, None, fingerprint),
             version: None,
+        },
+        (Some(agent), Some(version)) => RegexTarget::Keyed {
+            key: template_regex_cache_key(project_id, agent, version, has_history),
+            version: Some(version.to_string()),
         },
         (Some(_), None) => RegexTarget::Unversioned,
     }
@@ -267,20 +262,27 @@ pub fn regex_target(
 pub enum Resolution {
     /// A cached regex for the resolved version was applied.
     Cached,
+    /// The version had no regex yet; a sibling version's regex extracted, and
+    /// was used provisionally instead of an LLM call (`inherit.rs`).
+    Inherited,
     /// The version resolved but carried no regex yet, so a direct LLM
     /// extraction ran. Should trend to zero as cohorts accumulate samples.
     Fallback,
-    /// No live version for this prompt — a cold-start agent, or an LLM span with
-    /// no system message at all (permanent for those).
+    /// No live version for this template yet (a cold-start agent).
     NoVersion,
+    /// A direct extraction was due, but the same text was extracted minutes
+    /// ago and its result was reused.
+    DirectCached,
 }
 
 impl Resolution {
     fn as_str(self) -> &'static str {
         match self {
             Resolution::Cached => "cached",
+            Resolution::Inherited => "inherited",
             Resolution::Fallback => "fallback",
             Resolution::NoVersion => "no_version",
+            Resolution::DirectCached => "direct_cached",
         }
     }
 }
@@ -305,13 +307,42 @@ pub fn record_resolution(
     );
 }
 
+/// Resolve a target with a cached regex, and record the resolution on the
+/// template-keyed path. `None` means nothing usable without an LLM call: a
+/// cache miss, a stale entry, or an unversioned template. Legacy hits are not
+/// recorded: they serve prompts that can never have a version, so counting
+/// them would inflate the denominator of the fallback-rate metric.
+pub async fn apply_known_regex(
+    cache: &Arc<Cache>,
+    target: &RegexTarget,
+    signposted_text: &str,
+    project_id: Uuid,
+    trace_id: Uuid,
+    has_history: bool,
+) -> Option<ApplyRegexResult> {
+    let RegexTarget::Keyed { key, version } = target else {
+        return None;
+    };
+    let result = try_apply_cached_regex(cache, key, signposted_text, project_id, trace_id).await?;
+    if let Some(version) = version {
+        record_resolution(
+            Resolution::Cached,
+            project_id,
+            trace_id,
+            Some(version),
+            has_history,
+        );
+    }
+    Some(result)
+}
+
 /// Consult the regex cache and apply on hit. `None` means "no
 /// usable cached regex" — either a true miss or a stale entry that no
 /// longer matches (removed so the consumer regenerates). Emits no
 /// internal (`lmnr::internal`) spans — self-tracing only follows actual
 /// LLM generation runs — but every application, hit or stale, emits the
 /// external-observability application span.
-pub async fn try_apply_cached_regex(
+async fn try_apply_cached_regex(
     cache: &Arc<Cache>,
     key: &str,
     signposted_text: &str,
@@ -391,41 +422,95 @@ mod tests {
 
     // ---- apply_regex --------------------------------------------------------
 
-    /// The two keyings must never collide: a version-keyed entry and a legacy
+    /// The two keyings must never collide: a template-keyed entry and a legacy
     /// entry for the same agent hold regexes generated under different cohort
     /// definitions.
     #[test]
-    fn version_and_legacy_keys_never_collide() {
+    fn template_and_legacy_keys_never_collide() {
         let project_id = Uuid::new_v4();
-        let versioned = versioned_regex_cache_key(project_id, "agent01", "deadbeef", false);
+        let templated = template_regex_cache_key(project_id, "agent01", "deadbeef", false);
         let legacy = regex_cache_key(project_id, Some("agent01"), "plain");
-        assert_ne!(versioned, legacy);
-        assert!(versioned.starts_with(USER_TASK_VERSION_REGEX_CACHE_KEY));
+        assert_ne!(templated, legacy);
+        assert!(templated.starts_with(USER_TASK_TEMPLATE_REGEX_CACHE_KEY));
         assert!(legacy.starts_with(USER_TASK_REGEX_CACHE_KEY));
     }
 
     #[test]
-    fn version_key_forks_on_every_component() {
+    fn template_key_forks_on_every_component() {
         let project_id = Uuid::new_v4();
-        let base = versioned_regex_cache_key(project_id, "agent01", "deadbeef", false);
+        let base = template_regex_cache_key(project_id, "agent01", "deadbeef", false);
         // has_history: a first turn and a follow-up carry different layouts.
         assert_ne!(
             base,
-            versioned_regex_cache_key(project_id, "agent01", "deadbeef", true)
+            template_regex_cache_key(project_id, "agent01", "deadbeef", true)
         );
         // A new version is the whole point — it regenerates the regex.
         assert_ne!(
             base,
-            versioned_regex_cache_key(project_id, "agent01", "cafebabe", false)
+            template_regex_cache_key(project_id, "agent01", "cafebabe", false)
         );
         // The agent hash is in the key because `version_hash` is only 32 bits.
         assert_ne!(
             base,
-            versioned_regex_cache_key(project_id, "agent02", "deadbeef", false)
+            template_regex_cache_key(project_id, "agent02", "deadbeef", false)
         );
         assert_ne!(
             base,
-            versioned_regex_cache_key(Uuid::new_v4(), "agent01", "deadbeef", false)
+            template_regex_cache_key(Uuid::new_v4(), "agent01", "deadbeef", false)
+        );
+    }
+
+    // ---- regex_target ---------------------------------------------------------
+
+    #[test]
+    fn regex_target_covers_every_case() {
+        let pid = Uuid::nil();
+        match regex_target(pid, Some("agent01"), Some("deadbeef"), "plain", true) {
+            RegexTarget::Keyed { key, version } => {
+                assert_eq!(
+                    key,
+                    template_regex_cache_key(pid, "agent01", "deadbeef", true)
+                );
+                assert_eq!(version.as_deref(), Some("deadbeef"));
+            }
+            _ => panic!("a versioned template is template-keyed"),
+        }
+        // The empty version is an ordinary cohort, never an implied passthrough.
+        let empty = crate::traces::sp_versioning::similarity::empty_version_hash();
+        assert!(matches!(
+            regex_target(pid, Some("agent01"), Some(&empty), "plain", false),
+            RegexTarget::Keyed { version: Some(version), .. } if version == empty
+        ));
+        assert!(matches!(
+            regex_target(pid, Some("agent01"), None, "plain", false),
+            RegexTarget::Unversioned
+        ));
+        // No system prompt: legacy keying, whatever the version says.
+        match regex_target(pid, None, Some("deadbeef"), "plain", false) {
+            RegexTarget::Keyed { key, version } => {
+                assert_eq!(key, regex_cache_key(pid, None, "plain"));
+                assert_eq!(version, None);
+            }
+            _ => panic!("no agent hash stays on the legacy key"),
+        }
+    }
+
+    #[tokio::test]
+    async fn unversioned_target_needs_an_llm_call() {
+        let cache = Arc::new(Cache::InMemory(
+            crate::cache::in_memory::InMemoryCache::new(None),
+        ));
+        assert!(
+            apply_known_regex(
+                &cache,
+                &RegexTarget::Unversioned,
+                "text",
+                Uuid::nil(),
+                Uuid::nil(),
+                false
+            )
+            .await
+            .is_none()
         );
     }
 

@@ -29,9 +29,12 @@ pub fn provider_request_to_responses_body(
         append_content_as_items(content, &mut input)?;
     }
 
+    // Responses defaults `store` to true, which retains every request (trace
+    // contents included) server-side; Chat Completions does not.
     let mut body = json!({
         "model": model,
         "input": input,
+        "store": false,
     });
 
     if let Some(sys) = request.system_instruction.as_ref() {
@@ -46,11 +49,14 @@ pub fn provider_request_to_responses_body(
             .iter()
             .flat_map(|t| &t.function_declarations)
             .map(|f| {
+                // Responses defaults function tools to strict, which makes every
+                // property required; optional arguments must stay optional.
                 json!({
                     "type": "function",
                     "name": f.name,
                     "description": f.description,
                     "parameters": f.parameters,
+                    "strict": false,
                 })
             })
             .collect();
@@ -393,6 +399,7 @@ fn parse_responses_usage(usage: &Value) -> ProviderUsageMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::LlmRoute;
     use crate::llm::models::{
         ProviderContent, ProviderFunctionCall, ProviderFunctionDeclaration,
         ProviderFunctionResponse, ProviderGenerationConfig, ProviderPart, ProviderRequest,
@@ -448,9 +455,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
-            provider: None,
-            model_size: None,
-            llm_profile: None,
+            route: LlmRoute::default(),
         }
     }
 
@@ -468,6 +473,7 @@ mod tests {
         assert_eq!(input[0]["role"], "user");
         assert_eq!(input[0]["content"], "Hello");
         assert_eq!(body["model"], "gpt-5");
+        assert_eq!(body["store"], false);
     }
 
     #[test]
@@ -526,6 +532,8 @@ mod tests {
         assert_eq!(tools[0]["type"], "function");
         assert_eq!(tools[0]["name"], "lookup");
         assert_eq!(tools[0]["parameters"]["type"], "object");
+        assert_eq!(tools[0]["strict"], false);
+        assert_eq!(body["store"], false);
         // Responses allows reasoning + tools together.
         assert_eq!(body["reasoning"]["effort"], "high");
         assert_eq!(body["reasoning"]["summary"], "auto");

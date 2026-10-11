@@ -1,4 +1,4 @@
-import { executeQuery } from "@/lib/actions/sql";
+import { executeQuery, type SqlActor } from "@/lib/actions/sql";
 
 export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
 
@@ -21,7 +21,8 @@ export async function fetchSpanData(
   spanTypes: Record<string, string>,
   startDate?: string,
   endDate?: string,
-  inputSpanIds?: string[]
+  inputSpanIds?: string[],
+  actor?: SqlActor
 ): Promise<{
   regularSpans: Array<{ spanId: string; data: string; name: string }>;
   inputSpanRows: InputSpanRow[];
@@ -36,9 +37,10 @@ export async function fetchSpanData(
 
   const [regularSpans, inputSpanRows] = await Promise.all([
     previewSpanIds.length > 0
-      ? executeQuery<{ spanId: string; data: string; name: string }>({
-          projectId,
-          query: `
+      ? executeQuery<{ spanId: string; data: string; name: string }>(
+          {
+            projectId,
+            query: `
             SELECT
               span_id as spanId,
               if(span_type = 'TOOL', input, output) as data,
@@ -49,14 +51,17 @@ export async function fetchSpanData(
               AND span_type IN ('LLM', 'CACHED', 'TOOL', 'EXECUTOR', 'EVALUATOR')
               ${timeClause}
           `,
-          parameters: { ...baseParams, spanIds: previewSpanIds },
-        })
+            parameters: { ...baseParams, spanIds: previewSpanIds },
+          },
+          { actor }
+        )
       : ([] as Array<{ spanId: string; data: string; name: string }>),
 
     inputSpanIdList.length > 0
-      ? executeQuery<InputSpanRow>({
-          projectId,
-          query: `
+      ? executeQuery<InputSpanRow>(
+          {
+            projectId,
+            query: `
             SELECT
               span_id as spanId,
               arr[1] as firstMessage,
@@ -71,8 +76,10 @@ export async function fetchSpanData(
                 ${timeClause}
             )
           `,
-          parameters: { ...baseParams, spanIds: inputSpanIdList },
-        })
+            parameters: { ...baseParams, spanIds: inputSpanIdList },
+          },
+          { actor }
+        )
       : ([] as InputSpanRow[]),
   ]);
 

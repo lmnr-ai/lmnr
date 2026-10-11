@@ -3,7 +3,7 @@
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
-import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 
 import { type ClusterNode } from "./utils";

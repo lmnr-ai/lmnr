@@ -18,10 +18,9 @@ use super::tool::{
     LabeledRegex, REGEX_TOOL_NAME, RegexToolInput, patterns, regex_tool, run_regex_tool,
 };
 use crate::instrumentation::spans::{self, InternalSpan, SpanContextCarrier, SpanType};
-use crate::llm::models::ModelSize;
 use crate::llm::{
-    self, LlmClient, ModelProvider, ProviderContent, ProviderError, ProviderGenerationConfig,
-    ProviderPart, ProviderRequest,
+    self, LlmClient, LlmFeature, LlmRoute, ModelProvider, ProviderContent, ProviderError,
+    ProviderGenerationConfig, ProviderPart, ProviderRequest,
 };
 use crate::utils::retry;
 
@@ -47,13 +46,10 @@ const LLM_RETRY_MAX_ELAPSED: Duration = Duration::from_secs(600);
 /// saw zero function calls and every retry produced an empty answer.
 const MAX_OUTPUT_TOKENS: i32 = 32_000;
 
+/// Loop knobs. The model comes from the `static_prompt_extraction` LLM feature
+/// route (resolved for the source project), not from here.
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
-    /// Provider override on the request (e.g. `"bedrock"`, `"gemini"`);
-    /// `None` uses the default `LLM_PROVIDER`. Defaults from
-    /// `SP_EXTRACTION_LLM_PROVIDER` (see `ExtractionConfig::default`).
-    pub provider: Option<String>,
-    pub model_size: Option<ModelSize>,
     pub max_steps: usize,
     pub include_diff: bool,
 }
@@ -61,22 +57,10 @@ pub struct ExtractionConfig {
 impl Default for ExtractionConfig {
     fn default() -> Self {
         Self {
-            provider: extraction_provider(),
-            model_size: Some(ModelSize::Medium),
             max_steps: MAX_STEPS,
             include_diff: true,
         }
     }
-}
-
-/// Provider override from `SP_EXTRACTION_LLM_PROVIDER`. Unset/empty ⇒
-/// `None` (uses the default `LLM_PROVIDER`).
-fn extraction_provider() -> Option<String> {
-    // `mod env` shadows `std::env`, hence the fully-qualified read.
-    std::env::var(crate::env::static_sp::SP_EXTRACTION_LLM_PROVIDER)
-        .ok()
-        .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty())
 }
 
 /// Internal self-tracing routing for an extraction run. With `project_id: None`
@@ -250,9 +234,10 @@ async fn run_agent_loop(
                 ..Default::default()
             }),
             service_tier: None,
-            provider: config.provider.clone(),
-            model_size: config.model_size,
-            llm_profile: None,
+            route: LlmRoute::feature(
+                LlmFeature::StaticPromptExtraction,
+                tracing_ctx.source_project_id,
+            ),
         };
 
         let ModelProvider { model, provider } = llm_client.resolve_model_provider(&request).await;

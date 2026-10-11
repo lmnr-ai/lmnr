@@ -239,7 +239,7 @@ export const approveDeviceWithProject = async (
   //    installs without email config are unaffected.
   if (sendWelcome && session.user.email && isFeatureEnabled(Feature.SEND_EMAIL)) {
     try {
-      await sendWelcomeEmail(session.user.email);
+      await sendWelcomeEmail(session.user.email, targetProjectId);
     } catch {
       // Best-effort — sendWelcomeEmail logs Resend errors itself; never block approval.
     }

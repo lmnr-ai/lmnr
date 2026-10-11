@@ -4,20 +4,18 @@ use anyhow::Result;
 use chrono::{DateTime, Months, Utc};
 use uuid::Uuid;
 
+#[cfg(feature = "signals")]
+use crate::ch::limits::{WorkspaceSignalTokens, get_workspace_signal_tokens_by_project_ids};
+
 use crate::{
     cache::{
         Cache, CacheTrait,
         keys::{
             HARD_LIMIT_NOTIFIED_CACHE_KEY, PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+            WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
-    ch::limits::{
-        WorkspaceSignalTokens, complete_months_elapsed,
-        get_workspace_bytes_ingested_by_project_ids, get_workspace_signal_tokens_by_project_ids,
-    },
+    ch::limits::{complete_months_elapsed, get_workspace_bytes_ingested_by_project_ids},
     db::{
         self, DB,
         projects::{ProjectWithWorkspaceBillingInfo, WorkspaceTierName},
@@ -29,6 +27,8 @@ use crate::{
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+#[cfg(feature = "signals")]
+const SIGNALS_SIGNUP_CREDIT_MICRO_USD: i64 = 5_000_000;
 
 /// TTL for cached usage warnings per workspace. The cache is explicitly cleared
 /// by the frontend whenever warnings are added or removed, so a long TTL is fine.
@@ -55,17 +55,6 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
         return Some(project_info.bytes_limit);
     }
     project_info.custom_bytes_limit
-}
-
-/// Returns the effective signal cost hard limit (micro-USD) for a workspace, or None if no limit should be enforced.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-fn get_effective_signal_cost_limit_micro_usd(
-    project_info: &ProjectWithWorkspaceBillingInfo,
-) -> Option<i64> {
-    if project_info.tier_name.is_free() {
-        return Some(project_info.signal_cost_included_micro_usd);
-    }
-    project_info.signal_cost_hard_limit_micro_usd
 }
 
 /// Compute the start of the current billing period from workspace reset_time.
@@ -188,34 +177,56 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         }
     };
 
-    let effective_limit = match get_effective_signal_cost_limit_micro_usd(&project_info) {
-        Some(limit) => limit,
-        None => return Ok(false),
-    };
+    let is_free = project_info.tier_name.is_free();
+    let effective_limit = project_info.signal_cost_hard_limit_micro_usd;
+    if !is_free && effective_limit.is_none() {
+        return Ok(false);
+    }
 
     let workspace_id = project_info.workspace_id;
+    if is_free {
+        let persisted_credit =
+            db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
+        let remaining_credit = persisted_credit.unwrap_or(0);
+        let credit_exhausted = remaining_credit == 0;
+        log::debug!(
+            "Workspace Signals credit check: {} micro-USD remaining",
+            remaining_credit,
+        );
+        if credit_exhausted {
+            check_notify_hard_limit(
+                db,
+                cache,
+                queue,
+                workspace_id,
+                project_info.reset_time,
+                UsageItem::SignalCredit,
+                SIGNALS_SIGNUP_CREDIT_MICRO_USD - remaining_credit,
+                persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
+            )
+            .await;
+        }
+        return Ok(credit_exhausted);
+    }
 
-    let (input_tokens, cache_read_tokens, output_tokens) = get_workspace_signal_tokens_cached(
-        &clickhouse,
-        cache.clone(),
-        workspace_id,
-        &project_info.workspace_project_ids,
-        project_info.reset_time,
-        project_id,
-    )
-    .await;
-
-    // Tokens are stored raw; price into micro-USD here so the hard limit
-    // compares against the same unit as `effective_limit` (also micro-USD).
-    // Priced at the workspace's tier rate (Pro discounted) so the cost matches
-    // what the workspace is actually billed.
-    let signal_cost = crate::utils::signal_token_cost_micro_usd(
+    let billing_start = current_billing_period_start(project_info.reset_time);
+    let WorkspaceSignalTokens {
         input_tokens,
         cache_read_tokens,
         output_tokens,
-        &project_info.tier_name,
-    ) as i64;
+    } = get_workspace_signal_tokens_by_project_ids(
+        clickhouse,
+        project_info.workspace_project_ids.clone(),
+        billing_start,
+    )
+    .await?;
 
+    // Tokens are stored raw; price into micro-USD here so the hard limit
+    // compares against the same unit as `effective_limit` (also micro-USD).
+    let signal_cost =
+        crate::utils::signal_token_cost_micro_usd(input_tokens, cache_read_tokens, output_tokens)
+            as i64;
+    let effective_limit = effective_limit.expect("paid workspace limit checked above");
     log::debug!(
         "Workspace signal cost check: {}/{} micro-USD",
         signal_cost,
@@ -223,7 +234,8 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     );
 
     // See get_workspace_bytes_limit_exceeded: enforcement is the only path that
-    // notifies when usage is already over the cap. Dedup via the DB last_notified_at.
+    // notifies when usage is already over a user-configured cap. Dedup via the
+    // DB last_notified_at.
     check_notify_hard_limit(
         db,
         cache,
@@ -237,103 +249,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     .await;
 
     Ok(signal_cost >= effective_limit)
-}
-
-/// Read the workspace's accumulated signal `(input_tokens, cache_read_tokens,
-/// output_tokens)` from the three token cache keys, reseeding all from
-/// ClickHouse on a miss.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-async fn get_workspace_signal_tokens_cached(
-    clickhouse: &clickhouse::Client,
-    cache: Arc<Cache>,
-    workspace_id: Uuid,
-    workspace_project_ids: &[Uuid],
-    reset_time: DateTime<Utc>,
-    project_id: Uuid,
-) -> (u64, u64, u64) {
-    let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let cache_read_key =
-        format!("{WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let output_key = format!("{WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-
-    let cached_input = cache.get::<i64>(&input_key).await.ok().flatten();
-    let cached_cache_read = cache.get::<i64>(&cache_read_key).await.ok().flatten();
-    let cached_output = cache.get::<i64>(&output_key).await.ok().flatten();
-
-    if let (Some(input), Some(cache_read), Some(output)) =
-        (cached_input, cached_cache_read, cached_output)
-    {
-        return (
-            input.max(0) as u64,
-            cache_read.max(0) as u64,
-            output.max(0) as u64,
-        );
-    }
-
-    // Any key missing - recompute all from ClickHouse and seed them.
-    let tokens = match get_workspace_signal_tokens_by_project_ids(
-        clickhouse.clone(),
-        workspace_project_ids.to_vec(),
-        reset_time,
-    )
-    .await
-    {
-        Ok(tokens) => tokens,
-        Err(e) => {
-            log::error!(
-                "Failed to get workspace signal tokens for project [{}]: {:?}",
-                project_id,
-                e
-            );
-            WorkspaceSignalTokens::default()
-        }
-    };
-    let WorkspaceSignalTokens {
-        input_tokens,
-        cache_read_tokens,
-        output_tokens,
-    } = tokens;
-
-    if let Err(e) = cache
-        .insert_with_ttl::<i64>(&input_key, input_tokens as i64, WORKSPACE_USAGE_TTL_SECONDS)
-        .await
-    {
-        log::error!(
-            "Failed to insert workspace signal input tokens cache for project [{}]: {:?}",
-            project_id,
-            e
-        );
-    }
-    if let Err(e) = cache
-        .insert_with_ttl::<i64>(
-            &cache_read_key,
-            cache_read_tokens as i64,
-            WORKSPACE_USAGE_TTL_SECONDS,
-        )
-        .await
-    {
-        log::error!(
-            "Failed to insert workspace signal cache-read tokens cache for project [{}]: {:?}",
-            project_id,
-            e
-        );
-    }
-    if let Err(e) = cache
-        .insert_with_ttl::<i64>(
-            &output_key,
-            output_tokens as i64,
-            WORKSPACE_USAGE_TTL_SECONDS,
-        )
-        .await
-    {
-        log::error!(
-            "Failed to insert workspace signal output tokens cache for project [{}]: {:?}",
-            project_id,
-            e
-        );
-    }
-
-    (input_tokens, cache_read_tokens, output_tokens)
 }
 
 pub async fn update_workspace_bytes_ingested(
@@ -449,22 +364,16 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-/// Add `input_tokens`/`cache_read_tokens`/`output_tokens` of newly-billed
-/// signal usage to the workspace's running token totals and fire any soft-limit
-/// warnings the derived micro-USD cost crosses. Cache reads are a subset of
-/// input tokens and are billed cheaper at compare time. Tokens are stored raw
-/// (mirroring how step counts used to be pushed); cost is derived from them at
-/// compare time.
+/// Re-read uncredited Signals usage after a completed run and fire any
+/// soft-limit warnings the derived micro-USD cost crosses. This billing value
+/// is derived from per-run credit decisions and is not cached.
 #[cfg(feature = "signals")]
-pub async fn update_workspace_signal_tokens(
+pub async fn check_workspace_signal_usage(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     project_id: Uuid,
-    input_tokens: u64,
-    cache_read_tokens: u64,
-    output_tokens: u64,
 ) -> Result<()> {
     let project_info = match get_workspace_info_for_project_id(
         db.clone(),
@@ -496,143 +405,35 @@ pub async fn update_workspace_signal_tokens(
     };
 
     let workspace_id = project_info.workspace_id;
-    // Capture before `workspace_project_ids` is moved into the ClickHouse query below.
-    let effective_signal_cost_limit = get_effective_signal_cost_limit_micro_usd(&project_info);
-
-    let input_key = format!("{WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let cache_read_key =
-        format!("{WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-    let output_key = format!("{WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY}:{workspace_id}");
-
-    let cached_input = cache.get::<i64>(&input_key).await.ok().flatten();
-    let cached_cache_read = cache.get::<i64>(&cache_read_key).await.ok().flatten();
-    let cached_output = cache.get::<i64>(&output_key).await.ok().flatten();
-
-    let (total_input, total_cache_read, total_output) = if let (Some(_), Some(_), Some(_)) =
-        (cached_input, cached_cache_read, cached_output)
-    {
-        // All keys present - atomically bump each by this batch's tokens.
-        // Roll back already-applied bumps on a later failure so the three
-        // accumulators don't desync (which would skew the derived cost until
-        // the next reseed/TTL). The batch is already in ClickHouse, so a
-        // later reseed restores the true total. Best-effort: if a rollback
-        // itself fails, the 24h TTL still bounds the skew.
-        let new_input = match cache.increment(&input_key, input_tokens as i64).await {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!(
-                    "Failed to increment workspace signal input tokens cache for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                return Ok(());
-            }
-        };
-        let new_cache_read = match cache
-            .increment(&cache_read_key, cache_read_tokens as i64)
-            .await
-        {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!(
-                    "Failed to increment workspace signal cache-read tokens cache for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                if let Err(e) = cache.increment(&input_key, -(input_tokens as i64)).await {
-                    log::error!(
-                        "Failed to roll back workspace signal input tokens cache for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                }
-                return Ok(());
-            }
-        };
-        let new_output = match cache.increment(&output_key, output_tokens as i64).await {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!(
-                    "Failed to increment workspace signal output tokens cache for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                if let Err(e) = cache.increment(&input_key, -(input_tokens as i64)).await {
-                    log::error!(
-                        "Failed to roll back workspace signal input tokens cache for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                }
-                if let Err(e) = cache
-                    .increment(&cache_read_key, -(cache_read_tokens as i64))
-                    .await
-                {
-                    log::error!(
-                        "Failed to roll back workspace signal cache-read tokens cache for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                }
-                return Ok(());
-            }
-        };
-        (
-            new_input.max(0) as u64,
-            new_cache_read.max(0) as u64,
-            new_output.max(0) as u64,
-        )
+    let billing_start = if project_info.tier_name.is_free() {
+        project_info.reset_time
     } else {
-        // Cache miss on at least one key - reseed all from ClickHouse.
-        // We do not add the current batch, because Clickhouse likely has
-        // already ingested this payload. Even if it didn't, it's safer to
-        // underestimate so soft limits aren't silently skipped and hard
-        // limits aren't hit prematurely.
-        let WorkspaceSignalTokens {
-            input_tokens: input,
-            cache_read_tokens: cache_read,
-            output_tokens: output,
-        } = match get_workspace_signal_tokens_by_project_ids(
-            clickhouse,
-            project_info.workspace_project_ids,
-            project_info.reset_time,
-        )
-        .await
-        {
-            Ok(tokens) => tokens,
-            Err(e) => {
-                log::error!(
-                    "Failed to get workspace signal tokens for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                WorkspaceSignalTokens::default()
-            }
-        };
-        cache
-            .insert_with_ttl::<i64>(&input_key, input as i64, WORKSPACE_USAGE_TTL_SECONDS)
-            .await?;
-        cache
-            .insert_with_ttl::<i64>(
-                &cache_read_key,
-                cache_read as i64,
-                WORKSPACE_USAGE_TTL_SECONDS,
-            )
-            .await?;
-        cache
-            .insert_with_ttl::<i64>(&output_key, output as i64, WORKSPACE_USAGE_TTL_SECONDS)
-            .await?;
-        (input, cache_read, output)
+        current_billing_period_start(project_info.reset_time)
     };
-
-    // Soft limits are denominated in micro-USD; derive cost from the running
-    // token totals at the workspace's tier rate (Pro discounted).
-    let current_cost = crate::utils::signal_token_cost_micro_usd(
-        total_input,
-        total_cache_read,
-        total_output,
-        &project_info.tier_name,
-    ) as i64;
+    let WorkspaceSignalTokens {
+        input_tokens,
+        cache_read_tokens,
+        output_tokens,
+    } = match get_workspace_signal_tokens_by_project_ids(
+        clickhouse,
+        project_info.workspace_project_ids,
+        billing_start,
+    )
+    .await
+    {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            log::error!(
+                "Failed to get workspace signal tokens for project [{}]: {:?}",
+                project_id,
+                e
+            );
+            return Ok(());
+        }
+    };
+    let current_cost =
+        crate::utils::signal_token_cost_micro_usd(input_tokens, cache_read_tokens, output_tokens)
+            as i64;
 
     check_soft_limits(
         db.clone(),
@@ -646,17 +447,36 @@ pub async fn update_workspace_signal_tokens(
     )
     .await;
 
-    check_notify_hard_limit(
-        db,
-        cache,
-        queue,
-        workspace_id,
-        project_info.reset_time,
-        UsageItem::SignalCost,
-        current_cost,
-        effective_signal_cost_limit,
-    )
-    .await;
+    if project_info.tier_name.is_free() {
+        let persisted_credit =
+            db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
+        let remaining_credit = persisted_credit.unwrap_or(0);
+        if remaining_credit == 0 || current_cost >= remaining_credit {
+            check_notify_hard_limit(
+                db,
+                cache,
+                queue,
+                workspace_id,
+                project_info.reset_time,
+                UsageItem::SignalCredit,
+                current_cost,
+                persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
+            )
+            .await;
+        }
+    } else {
+        check_notify_hard_limit(
+            db,
+            cache,
+            queue,
+            workspace_id,
+            project_info.reset_time,
+            UsageItem::SignalCost,
+            current_cost,
+            project_info.signal_cost_hard_limit_micro_usd,
+        )
+        .await;
+    }
 
     Ok(())
 }
@@ -744,7 +564,10 @@ async fn send_soft_limit_notification(
 
     let tier_included = match usage_item {
         UsageItem::Bytes => tier_name.included_bytes(),
-        UsageItem::SignalCost => tier_name.included_signal_cost_micro_usd(),
+        // Signals no longer has a recurring tier allowance. The one-time
+        // workspace credit is reconciled separately and is never represented
+        // by a monthly warning row.
+        UsageItem::SignalCost | UsageItem::SignalCredit => None,
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
     let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
@@ -802,13 +625,9 @@ async fn send_soft_limit_notification(
     }
 }
 
-/// Check the hard limit against the current usage value and, the first time the
-/// workspace crosses it this billing cycle, enqueue a notification telling owners
-/// that the metered activity (data ingestion / signal runs) is now blocked until
-/// the cycle resets. Dedup mirrors soft warnings exactly: a `last_notified_at`
-/// timestamp (in `workspace_hard_limit_notifications`) is compared against the
-/// billing-period start, so we email once per crossing per cycle rather than on
-/// every blocked batch.
+/// Check the hard limit and enqueue a notification the first time it is reached.
+/// Recurring limits deduplicate per billing cycle; the one-time Signals credit
+/// deduplicates permanently under its own usage-item key.
 async fn check_notify_hard_limit(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -819,11 +638,15 @@ async fn check_notify_hard_limit(
     current_value: i64,
     effective_limit: Option<i64>,
 ) {
+    let one_time_credit_exhausted = usage_item == UsageItem::SignalCredit;
     let limit = match effective_limit {
         Some(l) => l,
         None => return,
     };
-    if current_value < limit {
+    if one_time_credit_exhausted && limit == 0 {
+        return;
+    }
+    if !one_time_credit_exhausted && current_value < limit {
         return;
     }
 
@@ -836,15 +659,15 @@ async fn check_notify_hard_limit(
     // caching "not notified" would widen the duplicate-enqueue race window from
     // milliseconds to the cache TTL, past what the consumer-side send lock covers.
     if let Ok(Some(t)) = cache.get::<DateTime<Utc>>(&cache_key).await {
-        if t >= billing_start {
+        if one_time_credit_exhausted || t >= billing_start {
             return;
         }
     }
 
     match usage_warnings::get_hard_limit_last_notified_at(&db.pool, workspace_id, &usage_item).await
     {
-        Ok(Some(t)) if t >= billing_start => {
-            // Already notified this billing cycle; seed the cache so subsequent
+        Ok(Some(t)) if one_time_credit_exhausted || t >= billing_start => {
+            // Already notified for this one-time event or billing cycle; seed the cache so subsequent
             // blocked requests skip the DB read.
             if let Err(e) = cache
                 .insert_with_ttl(&cache_key, t, HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS)
@@ -894,6 +717,7 @@ async fn check_notify_hard_limit(
             usage_label,
             formatted_limit,
             usage_item: usage_item.to_string(),
+            one_time_credit_exhausted,
         }],
     };
 
@@ -952,7 +776,7 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
             };
             ("Data ingestion".to_string(), formatted)
         }
-        UsageItem::SignalCost => {
+        UsageItem::SignalCost | UsageItem::SignalCredit => {
             // limit_value is in micro-USD (1e-6 USD); render as dollars.
             let dollars = limit_value as f64 / 1_000_000.0;
             ("Signals cost".to_string(), format!("${:.2}", dollars))

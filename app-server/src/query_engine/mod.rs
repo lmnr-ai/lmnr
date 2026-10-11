@@ -11,6 +11,7 @@ mod sql_to_json;
 use anyhow::Result;
 use uuid::Uuid;
 
+use crate::access_policy::AccessPolicy;
 use types::QueryStructure;
 use validator::QueryValidator;
 
@@ -30,15 +31,20 @@ impl QueryEngine {
         Self::default()
     }
 
+    /// `policy` is baked into the rewritten SQL as the `policy` argument of
+    /// the `_v1` views, so the validated query carries the caller's
+    /// restrictions wherever it is executed (including export jobs).
     pub async fn validate_query(
         &self,
         query: String,
         project_id: Uuid,
+        policy: &AccessPolicy,
     ) -> Result<QueryEngineValidationResult> {
-        match self
-            .validator
-            .validate_and_secure_query(&query, &project_id.to_string())
-        {
+        match self.validator.validate_and_secure_query(
+            &query,
+            &project_id.to_string(),
+            &policy.to_view_arg(),
+        ) {
             Ok(validated_query) => Ok(QueryEngineValidationResult::Success { validated_query }),
             Err(error) => Ok(QueryEngineValidationResult::Error { error }),
         }

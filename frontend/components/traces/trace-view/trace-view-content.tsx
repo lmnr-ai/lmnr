@@ -339,12 +339,10 @@ export default function TraceViewContent({
 
   // Chat is no longer a panel inside the trace layout — it's the page-level agent column (see the
   // project layout). The trace drawer just reflows within the space left of it.
-  const showSpan = spanPanelOpen || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
-
   const panels: TraceViewPanels = {
     tracePanel,
     spanPanel,
-    showSpan,
+    showSpan: spanPanelOpen,
   };
 
   return isNil(sidePanelRef) ? (

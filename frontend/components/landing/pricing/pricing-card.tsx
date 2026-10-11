@@ -70,7 +70,10 @@ export default function PricingCard({
         <LandingButton
           variant={isAccent ? "solid" : "outline"}
           size="sm"
-          className={cn("w-full", isAccent && "bg-white text-primary-400 border border-white/40 hover:bg-white/90")}
+          className={cn(
+            "h-10 w-full md:h-auto",
+            isAccent && "bg-white text-primary-400 border border-white/40 hover:bg-white/90"
+          )}
         >
           {ctaLabel}
         </LandingButton>

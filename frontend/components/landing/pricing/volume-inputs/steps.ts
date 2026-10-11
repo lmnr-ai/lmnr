@@ -3,12 +3,12 @@
 // and how big one is. ./index lays them out as the multiplication they are.
 export const RUN_STEPS = [
   100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000,
-  5_000_000, 10_000_000,
+  5_000_000, 10_000_000, 50_000_000, 100_000_000,
 ];
 
-export const TOKENS_PER_RUN_STEPS = [
-  1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000,
-];
+// Signal estimates have measured buckets through 1M tokens. Keep 1M as the
+// slider ceiling rather than extrapolating the open-ended 1M+ bucket.
+export const TOKENS_PER_RUN_STEPS = [1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
 
 // 1,000 runs of 100K tokens = 100M tokens/mo, a small production agent.
 export const DEFAULT_RUNS_IDX = 3;

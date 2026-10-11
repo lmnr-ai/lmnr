@@ -42,8 +42,9 @@ const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-// Inner component that has access to SpanSearchContext
-const SpanViewTabs = ({
+// Inner component that has access to SpanSearchContext. Exported so the public
+// shared-trace span view renders the exact same tab set instead of a copy.
+export const SpanViewTabs = ({
   span,
   searchRef,
   searchOpen,

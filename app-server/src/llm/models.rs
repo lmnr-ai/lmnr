@@ -33,14 +33,10 @@ pub struct ProviderRequest {
     /// other providers ignore it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provider: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_size: Option<ModelSize>,
-    /// Workspace LLM profile + pinned model. Takes precedence over
-    /// `provider`/`model_size`, which are only consulted for env routing.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub llm_profile: Option<super::profiles::LlmProfileRoute>,
+    /// Which provider client and model serve this request. Defaults to the
+    /// `default` feature with no workspace scope.
+    #[serde(default)]
+    pub route: super::features::LlmRoute,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

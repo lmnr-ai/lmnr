@@ -14,8 +14,11 @@ static XML_TAG_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(\w+)[\
 
 // Matches the Claude Code billing header, e.g.
 // `x-anthropic-billing-header: cc_version=2.1.104.8ec; cc_entrypoint=sdk-ts; cch=00000;`
+// Trailing spaces/tabs go with it — SDKs emit the header as its own content
+// block, and the separator the join leaves behind would otherwise sit at the
+// head of the line that carries the prompt's real opening text.
 static CLAUDE_CODE_BILLING_HEADER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"x-anthropic-billing-header:(?:\s*[A-Za-z_][A-Za-z0-9_]*=[^\s;]*;)+").unwrap()
+    Regex::new(r"x-anthropic-billing-header:(?:\s*[A-Za-z_][A-Za-z0-9_]*=[^\s;]*;)+[ \t]*").unwrap()
 });
 
 pub fn strip_claude_code_billing_header(text: &str) -> Cow<'_, str> {
@@ -112,6 +115,13 @@ fn sorted_tag_names(text: &str) -> Vec<String> {
 /// shapes we ingest. Returns `None` if the message is not a system message or
 /// carries no extractable text. Shared by [`extract_system_message`] (array
 /// scan) and per-message callers that already hold a single message.
+///
+/// Volatile client/SDK version headers are stripped HERE, at the one seam every
+/// consumer goes through, so the hashes, the versioning pipeline's line hashes
+/// and the regex extractor's refetched samples all see the same bytes. Stripping
+/// only inside [`prompt_hashes`] keeps agent identity stable but leaves the
+/// header in the text that sp_versioning hashes line-wise, where an SDK bump
+/// mutates a line the cluster had agreed was static and mints a new version.
 pub fn extract_system_text(msg: &Value) -> Option<String> {
     if msg.get("role").and_then(|r| r.as_str()) != Some("system") {
         return None;
@@ -146,6 +156,7 @@ pub fn extract_system_text(msg: &Value) -> Option<String> {
                 .map(|s| s.to_string())
         })
         .unwrap_or_default();
+    let sys_text = strip_claude_code_billing_header(&sys_text).into_owned();
     (!sys_text.is_empty()).then_some(sys_text)
 }
 
@@ -534,6 +545,53 @@ Do not fabricate data.
         let (sys_text, remaining) = extract_system_message(&input).unwrap();
         assert_eq!(sys_text, "You are a safety-focused agent.");
         assert_eq!(remaining.as_array().unwrap().len(), 1);
+    }
+
+    /// SDKs send the billing header as its own content block, so the join glues
+    /// a volatile `cc_version` onto the line carrying the prompt's opening text.
+    #[test]
+    fn test_extract_system_text_strips_billing_header() {
+        let msg = serde_json::json!({
+            "role": "system",
+            "content": [
+                {"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.139.97f; cc_entrypoint=sdk-py;"},
+                {"type": "text", "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."}
+            ]
+        });
+        assert_eq!(
+            extract_system_text(&msg).unwrap(),
+            "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+        );
+    }
+
+    /// Byte-identical extraction across SDK releases is what keeps
+    /// `full_prompt_hash` and sp_versioning's per-line hashes stable: the header
+    /// shares a line with static instruction text, so a version bump would
+    /// otherwise mutate a line the cluster had agreed was static.
+    #[test]
+    fn test_extracted_text_identical_across_cc_versions() {
+        let input = |version: &str| {
+            serde_json::json!([
+                {"role": "system", "content": [
+                    {"type": "text", "text": format!("x-anthropic-billing-header: cc_version={version}; cc_entrypoint=sdk-py;")},
+                    {"type": "text", "text": "You are a Claude agent.\n<rules>be brief</rules>"}
+                ]},
+                {"role": "user", "content": "hi"}
+            ])
+        };
+        let (old_sdk, _) = extract_system_message(&input("2.1.139.97f")).unwrap();
+        let (new_sdk, _) = extract_system_message(&input("2.2.0.1")).unwrap();
+        assert_eq!(old_sdk, new_sdk);
+        assert!(!old_sdk.contains("x-anthropic-billing-header"));
+    }
+
+    #[test]
+    fn test_extract_system_text_none_when_only_billing_header() {
+        let msg = serde_json::json!({
+            "role": "system",
+            "content": "x-anthropic-billing-header: cc_version=2.1.139.97f; cc_entrypoint=sdk-py;"
+        });
+        assert!(extract_system_text(&msg).is_none());
     }
 
     #[test]
