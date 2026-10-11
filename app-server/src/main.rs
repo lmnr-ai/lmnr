@@ -258,6 +258,8 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("HTTP payload limit: {}", http_payload_limit);
 
+    let atif_payload_limit: usize = env::server::ATIF_PAYLOAD_LIMIT.get();
+
     let grpc_payload_limit: usize = env::server::GRPC_PAYLOAD_LIMIT.get();
 
     log::info!("GRPC payload limit: {}", grpc_payload_limit);
@@ -2650,6 +2652,12 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/spans")
                                     .wrap(project_ingestion_auth.clone())
                                     .service(api::v1::spans::create_spans),
+                            )
+                            .service(
+                                web::scope("/v1/atif")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .app_data(PayloadConfig::new(atif_payload_limit))
+                                    .service(api::v1::atif::ingest_trajectory),
                             )
                             .service(
                                 web::scope("/v1/logs")
