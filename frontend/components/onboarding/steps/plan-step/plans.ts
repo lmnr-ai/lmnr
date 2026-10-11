@@ -6,6 +6,7 @@ import {
   formatPrice,
   formatProjects,
   formatSeats,
+  formatSignalsCount,
   formatSupport,
   TIERS,
 } from "@/lib/billing/tiers";
@@ -39,6 +40,7 @@ const buildPlan = (tier: OnboardingTier): PlanOption => {
       isPaid
         ? { label: `${formatDataIncluded(tier)} ingested data`, sub: `then ${formatDataOverage(tier)}` }
         : { label: `${formatDataIncluded(tier)} ingested data`, sub: "no overage" },
+      { label: `${formatSignalsCount(tier)} one-time Signals credit` },
       { label: retentionLabel(tier) },
       { label: formatProjects(tier) },
       { label: formatSeats(tier) },
