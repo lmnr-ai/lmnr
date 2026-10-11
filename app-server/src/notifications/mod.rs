@@ -67,6 +67,7 @@ pub enum NotificationDefinitionType {
     Report,
     UsageWarning,
     UsageHardLimit,
+    SignalEmptyTrace,
 }
 
 impl std::fmt::Display for NotificationDefinitionType {
@@ -76,6 +77,7 @@ impl std::fmt::Display for NotificationDefinitionType {
             Self::Report => f.write_str("REPORT"),
             Self::UsageWarning => f.write_str("USAGE_WARNING"),
             Self::UsageHardLimit => f.write_str("USAGE_HARD_LIMIT"),
+            Self::SignalEmptyTrace => f.write_str("SIGNAL_EMPTY_TRACE"),
         }
     }
 }
@@ -222,6 +224,18 @@ pub enum NotificationKind {
         usage_item: String,
         #[serde(default)]
         one_time_credit_exhausted: bool,
+    },
+    /// A signal skipped a trace that had no LLM content to evaluate. Sent to
+    /// workspace owners once per signal, so setup problems surface without
+    /// becoming noise.
+    SignalEmptyTrace {
+        project_id: Uuid,
+        project_name: String,
+        signal_id: Uuid,
+        signal_name: String,
+        trace_id: Uuid,
+        /// Human-readable cause, e.g. "it has no LLM spans".
+        reason: String,
     },
 }
 
@@ -373,6 +387,7 @@ impl MessageHandler for NotificationHandler {
                 NotificationKind::EventIdentification { project_id, .. } => *project_id,
                 NotificationKind::NewCluster { project_id, .. } => *project_id,
                 NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                NotificationKind::SignalEmptyTrace { project_id, .. } => *project_id,
                 NotificationKind::UsageWarning { .. } => Uuid::nil(),
                 NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
             };
@@ -544,8 +559,10 @@ impl NotificationHandler {
                     .collect())
             }
             NotificationDefinitionType::UsageWarning
-            | NotificationDefinitionType::UsageHardLimit => {
-                // Usage warnings and hard limits both go to workspace owners via email.
+            | NotificationDefinitionType::UsageHardLimit
+            | NotificationDefinitionType::SignalEmptyTrace => {
+                // Usage and empty-trace warnings have no configured targets: they go to
+                // workspace owners via email.
                 let owner_emails = crate::db::usage_warnings::get_workspace_owner_emails(
                     &self.db.pool,
                     message.workspace_id,
