@@ -54,7 +54,7 @@ pub struct ParentSpan {
 pub struct ConvertOptions {
     pub project_id: Uuid,
     pub trace_id: Uuid,
-    /// Without a parent the trajectory gets its own root span.
+    /// The trajectory span nests under this, else it is the trace's root.
     pub parent: Option<ParentSpan>,
     pub session_id: Option<String>,
     pub user_id: Option<String>,
@@ -254,22 +254,18 @@ pub fn convert_trajectory(
         .map(|(start, _)| start)
         .unwrap_or(received_at_ns);
 
-    match &options.parent {
-        Some(parent) => {
-            let placement = Placement {
-                parent_span_id: Some(parent.span_id),
-                path: parent.path.clone(),
-                ids_path: parent.ids_path.clone(),
-            };
-            let level = converter.level(trajectory, ROOT_SCOPE.to_string(), 0, placement, None);
-            converter.emit_steps(&level, base_ns);
-            let metadata = converter.metadata_attributes();
-            if let Some(first) = converter.spans.first_mut() {
-                first.span.attributes.raw_attributes.extend(metadata);
-            }
-        }
-        None => converter.emit_root(trajectory, base_ns),
-    }
+    // The parent span is the caller's, so the trajectory-level attributes
+    // need a span of our own under it.
+    let top = options
+        .parent
+        .as_ref()
+        .map(|parent| Placement {
+            parent_span_id: Some(parent.span_id),
+            path: parent.path.clone(),
+            ids_path: parent.ids_path.clone(),
+        })
+        .unwrap_or_default();
+    converter.emit_root(trajectory, top, base_ns);
 
     ConvertedTrajectory {
         spans: converter.spans,
@@ -319,10 +315,9 @@ impl<'t, 'o> Converter<'o> {
         }
     }
 
-    fn emit_root(&mut self, trajectory: &'t Trajectory, base_ns: i64) {
+    fn emit_root(&mut self, trajectory: &'t Trajectory, top: Placement, base_ns: i64) {
         let span_id = self.span_id(ROOT_SCOPE);
         let name = trajectory.agent.name.clone().unwrap_or("agent".to_string());
-        let top = Placement::default();
         let level = self.level(
             trajectory,
             ROOT_SCOPE.to_string(),
@@ -1349,7 +1344,7 @@ mod tests {
     }
 
     #[test]
-    fn nests_under_a_parent_span_without_a_root() {
+    fn nests_the_trajectory_span_under_a_parent() {
         let parent_id = Uuid::from_u128(0xBEEF);
         let grandparent_id = Uuid::from_u128(0xCAFE);
         let mut metadata = Map::new();
@@ -1366,23 +1361,36 @@ mod tests {
             ..options()
         };
         let spans = convert(basic(), &options);
-        assert_eq!(spans.len(), 3);
+        assert_eq!(spans.len(), 4);
+        let root = &spans[0];
+        assert_eq!(root.name, "terminus-2");
+        assert_eq!(root.parent_span_id, Some(parent_id));
         assert!(
-            spans
+            spans[1..]
                 .iter()
-                .all(|span| span.parent_span_id == Some(parent_id))
+                .all(|span| span.parent_span_id == Some(root.span_id))
         );
-        assert!(named(&spans, "terminus-2").is_empty());
+        assert_eq!(attr(root, "atif.session_id"), Some(&json!("run-1")));
+        assert_eq!(
+            attr(root, "lmnr.association.properties.metadata.task"),
+            Some(&json!("hello-world"))
+        );
         let llm = named(&spans, "claude-sonnet-4-5")[0];
         assert_eq!(
             attr(llm, SPAN_PATH),
-            Some(&json!(["trial", "agent", "claude-sonnet-4-5"]))
+            Some(&json!([
+                "trial",
+                "agent",
+                "terminus-2",
+                "claude-sonnet-4-5"
+            ]))
         );
         assert_eq!(
             attr(llm, SPAN_IDS_PATH),
             Some(&json!([
                 grandparent_id.to_string(),
                 parent_id.to_string(),
+                root.span_id.to_string(),
                 llm.span_id.to_string()
             ]))
         );
@@ -1390,10 +1398,6 @@ mod tests {
             attr(span, "lmnr.association.properties.session_id") == Some(&json!("sess"))
                 && attr(span, "lmnr.association.properties.user_id") == Some(&json!("user"))
         }));
-        assert_eq!(
-            attr(&spans[0], "lmnr.association.properties.metadata.task"),
-            Some(&json!("hello-world"))
-        );
         // Ids are derived from the parent, so a retry reproduces them.
         let again = convert(basic(), &options);
         assert_eq!(
