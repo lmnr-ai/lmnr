@@ -81,7 +81,7 @@ services:
       retries: 5
 
   quickwit:
-    image: quickwit/quickwit:v0.8.2
+    image: quickwit/quickwit:v0.9.1
     pull_policy: always
     ports:
       - "7280:7280" # REST API and UI
