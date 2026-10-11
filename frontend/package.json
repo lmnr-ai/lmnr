@@ -142,7 +142,7 @@
     "resend": "^6.26.0",
     "rrweb": "2.0.0-alpha.20",
     "rrweb-player": "2.0.0-alpha.20",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "streamdown": "^2.1.0",
     "stripe": "^20.3.1",
     "swr": "^2.3.6",
