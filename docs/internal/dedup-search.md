@@ -35,6 +35,12 @@
 - Consumer-side `MessageBatch::build` is bounds-checked against malformed verdicts (`get(..)` + `continue`), so a corrupt dedup skips entries instead of panicking the whole flush.
 - Quickwit indexing reads the pre-built `span_trace_new_contents` (aligned with the batch) rather than projecting indices onto `span.input`, which is `None` on the producer path.
 
+## Quickwit index configs and commit cadence
+
+- `initializeQuickwitIndexes` (`frontend/lib/quickwit/migrations.ts`) POSTs missing indexes and PUTs existing ones (Quickwit ≥ 0.9) only when a subset compare of the YAML (+ env overrides) against the live `index_config` finds drift; a rejected PUT is logged and the other indexes still run. The compare treats `fast: true` as equal to 0.9's normalized `{ normalizer: "raw" }`.
+- Per-index commit timeout: `QUICKWIT_<INDEX_ID>_COMMIT_TIMEOUT_SECS` (index id upper-cased, non-alphanumerics → `_`, e.g. `QUICKWIT_SPANS_V2_COMMIT_TIMEOUT_SECS`); unset means Quickwit's default 60s, so unsetting reverts the index. App-server's `QUICKWIT_FORCE_COMMIT` (default `true`) appends a commit to every gRPC DocBatch; set `false` to let `commit_timeout_secs` decide.
+- **A PUT replaces every config section.** Index settings tweaked by hand outside the YAML/env are reverted on the next boot that detects drift.
+
 ## Quickwit indexing of LLM spans
 
 - Quickwit only indexes the **new** subset of an LLM span's input — the messages this span was first to introduce in its trace. Older repeated history is searchable via the earlier span that introduced it. `MessageBatch::span_new_indices` (0-based positions inside `span_hashes[i]`) drives this; `QuickwitIndexedSpan::from_span` indexes the resulting array. Non-LLM spans / non-array input fall through to raw `span.input`.

@@ -8,22 +8,28 @@ import { join } from "path";
 
 const QUICKWIT_SEARCH_URL = process.env.QUICKWIT_SEARCH_URL || "http://localhost:7280";
 
+// Quickwit's own default; drift is checked against it when no override is set,
+// so unsetting the env var reverts a previously overridden index.
+const QUICKWIT_DEFAULT_COMMIT_TIMEOUT_SECS = 60;
+
 interface QuickwitIndex {
   index_id: string;
   index_uri: string;
 }
 
 /**
- * Check if an index exists in Quickwit
+ * Fetch an index's metadata, or null if the index doesn't exist
  */
-async function indexExists(indexId: string): Promise<boolean> {
-  try {
-    const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes/${indexId}`);
-    return response.ok;
-  } catch (error) {
-    // If index doesn't exist, Quickwit returns 404
-    return false;
+async function getIndex(indexId: string): Promise<any | null> {
+  const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes/${indexId}`);
+  if (response.status === 404) {
+    return null;
   }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to get index ${indexId}: ${response.status} ${errorText}`);
+  }
+  return await response.json();
 }
 
 /**
@@ -45,19 +51,33 @@ async function createIndex(indexConfig: any): Promise<void> {
 }
 
 /**
- * List all existing indexes
+ * Replace an existing index's config (Quickwit >= 0.9). Every section is
+ * replaced, so settings absent from `indexConfig` revert to Quickwit defaults.
+ */
+async function updateIndex(indexConfig: any): Promise<void> {
+  const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes/${indexConfig.index_id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(indexConfig),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update index ${indexConfig.index_id}: ${response.status} ${errorText}`);
+  }
+}
+
+/**
+ * List all existing indexes. Throws if Quickwit is unreachable.
  */
 async function listIndexes(): Promise<QuickwitIndex[]> {
-  try {
-    const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes`);
-    if (!response.ok) {
-      throw new Error(`Failed to list indexes: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to list Quickwit indexes:", error);
-    return [];
+  const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes`);
+  if (!response.ok) {
+    throw new Error(`Failed to list indexes: ${response.status}`);
   }
+  return await response.json();
 }
 
 /**
@@ -68,6 +88,79 @@ async function loadIndexConfig(filePath: string): Promise<any> {
 
   const yaml = await import("yaml");
   return yaml.parse(content);
+}
+
+/**
+ * e.g. spans_v2 -> QUICKWIT_SPANS_V2_COMMIT_TIMEOUT_SECS
+ */
+function commitTimeoutEnvName(indexId: string): string {
+  return `QUICKWIT_${indexId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_COMMIT_TIMEOUT_SECS`;
+}
+
+function applyEnvOverrides(indexConfig: any): any {
+  const envName = commitTimeoutEnvName(indexConfig.index_id);
+  const raw = process.env[envName]?.trim();
+  if (!raw) {
+    return indexConfig;
+  }
+
+  const commitTimeoutSecs = Number(raw);
+  if (!Number.isInteger(commitTimeoutSecs) || commitTimeoutSecs <= 0) {
+    console.warn(`Ignoring ${envName}="${raw}": expected a positive integer`);
+    return indexConfig;
+  }
+
+  return {
+    ...indexConfig,
+    indexing_settings: { ...indexConfig.indexing_settings, commit_timeout_secs: commitTimeoutSecs },
+  };
+}
+
+/**
+ * True if any leaf of `desired` differs from the same path in `current`.
+ * Keys absent from `desired` are ignored, since Quickwit fills in defaults.
+ */
+function isSubsetMismatch(desired: any, current: any): boolean {
+  if (Array.isArray(desired)) {
+    return (
+      !Array.isArray(current) ||
+      desired.length !== current.length ||
+      desired.some((item, i) => isSubsetMismatch(item, current[i]))
+    );
+  }
+  if (desired !== null && typeof desired === "object") {
+    if (current === null || typeof current !== "object" || Array.isArray(current)) {
+      return true;
+    }
+    return Object.keys(desired).some(
+      (key) =>
+        !(key === "fast" && isFastRawAlias(desired[key], current[key])) && isSubsetMismatch(desired[key], current[key])
+    );
+  }
+  return desired !== current;
+}
+
+// Quickwit echoes `fast: true` on text/json fields back as `{ normalizer: "raw" }`.
+function isFastRawAlias(desired: any, current: any): boolean {
+  return (
+    desired === true &&
+    current !== null &&
+    typeof current === "object" &&
+    current.normalizer === "raw" &&
+    Object.keys(current).length === 1
+  );
+}
+
+function needsUpdate(desired: any, current: any): boolean {
+  const { version: _version, ...rest } = desired;
+  const target = {
+    ...rest,
+    indexing_settings: {
+      commit_timeout_secs: QUICKWIT_DEFAULT_COMMIT_TIMEOUT_SECS,
+      ...rest.indexing_settings,
+    },
+  };
+  return isSubsetMismatch(target, current.index_config);
 }
 
 /**
@@ -101,31 +194,47 @@ export async function initializeQuickwitIndexes(): Promise<void> {
     const existingIndexes = await listIndexes();
     console.log(`Found ${existingIndexes.length} existing Quickwit index(es)`);
 
+    const failedIndexes: string[] = [];
+
     // Process each index config file
     for (const configFile of configFiles) {
       const configPath = join(indexesDir, configFile);
-      const indexConfig = await loadIndexConfig(configPath);
-      const indexId = indexConfig.index_id;
+      const loadedConfig = await loadIndexConfig(configPath);
+      const indexId = loadedConfig.index_id;
 
       if (!indexId) {
         console.warn(`Skipping ${configFile}: missing index_id`);
         continue;
       }
 
-      const exists = await indexExists(indexId);
+      // A rejected PUT (e.g. a mapping change Quickwit disallows) must not
+      // block the remaining indexes.
+      try {
+        const indexConfig = applyEnvOverrides(loadedConfig);
+        const current = await getIndex(indexId);
 
-      if (exists) {
-        // It's not possible to change most of the index configuration after
-        // it's created.
-        console.log(`✓ Index "${indexId}" already exists, skipping`);
-      } else {
-        console.log(`Creating index "${indexId}"...`);
-        await createIndex(indexConfig);
-        console.log(`✓ Index "${indexId}" created successfully`);
+        if (!current) {
+          console.log(`Creating index "${indexId}"...`);
+          await createIndex(indexConfig);
+          console.log(`✓ Index "${indexId}" created successfully`);
+        } else if (needsUpdate(indexConfig, current)) {
+          console.log(`Updating index "${indexId}"...`);
+          await updateIndex(indexConfig);
+          console.log(`✓ Index "${indexId}" updated`);
+        } else {
+          console.log(`✓ Index "${indexId}" up to date`);
+        }
+      } catch (error) {
+        console.error(`Failed to initialize Quickwit index "${indexId}":`, error);
+        failedIndexes.push(indexId);
       }
     }
 
-    console.log("✓ Quickwit indexes initialized successfully");
+    if (failedIndexes.length > 0) {
+      console.warn(`Quickwit indexes initialized with failures: ${failedIndexes.join(", ")}`);
+    } else {
+      console.log("✓ Quickwit indexes initialized successfully");
+    }
   } catch (error) {
     console.error("Failed to initialize Quickwit indexes:", error);
     throw error;
