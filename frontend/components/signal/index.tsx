@@ -127,6 +127,9 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
           onClose={() => {
             void setTraceParams({ traceId: null, spanId: null, eventId: null });
           }}
+          onNavigateToTrace={(nextTraceId) => {
+            void setTraceParams({ traceId: nextTraceId, spanId: null, eventId: null });
+          }}
           traceId={traceId}
           initialSignalId={signal.id}
         />

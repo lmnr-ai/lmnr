@@ -27,6 +27,7 @@ import { HeaderIconButton } from "./header-icon-button";
 import { HeaderLinkButton } from "./header-link-button";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
+import { useSessionPosition } from "./use-session-position";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
@@ -96,6 +97,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const sessionId = trace?.sessionId;
   const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
+  const sessionPosition = useSessionPosition(projectId, hasSession ? sessionId : undefined, trace?.id);
 
   const handleOpenSession = useCallback(() => {
     if (!hasSession) return;
@@ -200,6 +202,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               <HeaderLinkButton
                 icon={<Layers size={14} className="flex-shrink-0" />}
                 label={sessionId}
+                badge={
+                  sessionPosition && (
+                    <span className="ml-1.5 shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {sessionPosition.index}/{sessionPosition.total}
+                      {sessionPosition.truncated && "+"}
+                    </span>
+                  )
+                }
                 tooltip="Open session in a new tab"
                 onClick={handleOpenSession}
                 className="max-w-56"

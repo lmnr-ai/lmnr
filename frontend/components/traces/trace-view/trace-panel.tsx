@@ -28,9 +28,17 @@ interface TracePanelProps {
   handleSpanSelect: (span?: TraceViewSpan) => void;
   fetchSpans: (search: string, filters: Filter[]) => void;
   isLoading: boolean;
+  onNavigateToTrace?: (traceId: string) => void;
 }
 
-export default function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
+export default function TracePanel({
+  traceId,
+  handleClose,
+  handleSpanSelect,
+  fetchSpans,
+  isLoading,
+  onNavigateToTrace,
+}: TracePanelProps) {
   const {
     trace,
     spans,
@@ -171,7 +179,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
               </div>
               {tab === "transcript" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <Transcript onSpanSelect={handleSpanSelect} />
+                  <Transcript onSpanSelect={handleSpanSelect} onNavigateToTrace={onNavigateToTrace} />
                 </div>
               )}
               {tab === "tree" && (

@@ -13,9 +13,10 @@ interface HeaderLinkButtonProps {
   tooltip: string;
   onClick: () => void;
   className?: string;
+  badge?: ReactNode;
 }
 
-export const HeaderLinkButton = ({ icon, label, tooltip, onClick, className }: HeaderLinkButtonProps) => (
+export const HeaderLinkButton = ({ icon, label, tooltip, onClick, className, badge }: HeaderLinkButtonProps) => (
   <Tooltip delayDuration={400}>
     <TooltipTrigger asChild>
       <Button
@@ -26,6 +27,7 @@ export const HeaderLinkButton = ({ icon, label, tooltip, onClick, className }: H
       >
         {icon}
         <span className="truncate ml-1">{label}</span>
+        {badge}
         <ArrowUpRight size={12} className="ml-1 flex-shrink-0" />
       </Button>
     </TooltipTrigger>

@@ -21,10 +21,11 @@ function DashboardContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const isNewChart = searchParams.get("newChart") === "1";
-  const { traceId, spanId, signalId, closeTrace } = useDashboardTraceStore((s) => ({
+  const { traceId, spanId, signalId, openTrace, closeTrace } = useDashboardTraceStore((s) => ({
     traceId: s.traceId,
     spanId: s.spanId,
     signalId: s.signalId,
+    openTrace: s.openTrace,
     closeTrace: s.closeTrace,
   }));
   const { refresh } = useDashboardRefresh();
@@ -72,6 +73,7 @@ function DashboardContent() {
           spanId={spanId ?? undefined}
           initialSignalId={signalId ?? undefined}
           onClose={closeTrace}
+          onNavigateToTrace={openTrace}
         />
       )}
     </>

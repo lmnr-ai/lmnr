@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import TraceView from "@/components/traces/trace-view";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -8,6 +8,8 @@ import Header from "@/components/ui/header";
 
 const Trace = ({ trace }: { trace: TraceViewTrace }) => {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { projectId } = useParams<{ projectId: string }>();
   const initialSearch = searchParams.get("search") ?? undefined;
 
   return (
@@ -18,6 +20,7 @@ const Trace = ({ trace }: { trace: TraceViewTrace }) => {
         <TraceView
           propsTrace={trace}
           onClose={() => {}}
+          onNavigateToTrace={(traceId) => router.push(`/project/${projectId}/traces/${traceId}`)}
           traceId={trace.id}
           isAlwaysSelectSpan
           initialSearch={initialSearch}

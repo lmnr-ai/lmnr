@@ -162,6 +162,111 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
   return { items };
 }
 
+export const GetSessionTraceNeighborsSchema = GetSessionTracesSchema.extend({
+  traceId: z.guid(),
+  startTime: z.iso.datetime({ offset: true, local: true }),
+});
+
+export type SessionTraceNeighbor = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  topSpanName: string | null;
+  agentInputPreview: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+  cacheReadInputTokens: number;
+};
+
+// Neighbors are searched only this far from the current trace: an unbounded session_id lookup scans the whole
+// project, too costly to pay on every trace open. A gap wider than this hides the card.
+const SESSION_NEIGHBOR_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const sessionNeighborSelect = `
+  SELECT
+    id,
+    formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+    formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+    top_span_name as topSpanName,
+    leftUTF8(agent_input, 300) as agentInputPreview,
+    input_tokens as inputTokens,
+    output_tokens as outputTokens,
+    total_cost as totalCost,
+    cache_read_input_tokens as cacheReadInputTokens
+  FROM traces
+  WHERE session_id = {sessionId: String}
+    AND trace_type = 'DEFAULT'
+    AND id != {traceId: UUID}
+`;
+
+export async function getSessionTraceNeighbors(
+  input: z.infer<typeof GetSessionTraceNeighborsSchema>
+): Promise<{ prev: SessionTraceNeighbor | null; next: SessionTraceNeighbor | null }> {
+  const { projectId, sessionId, traceId, startTime } = GetSessionTraceNeighborsSchema.parse(input);
+
+  const anchorMs = new Date(startTime).getTime();
+  const toParam = (ms: number) => new Date(ms).toISOString().replace("Z", "");
+  const parameters = {
+    sessionId,
+    traceId,
+    anchor: toParam(anchorMs),
+    windowStart: toParam(anchorMs - SESSION_NEIGHBOR_WINDOW_MS),
+    windowEnd: toParam(anchorMs + SESSION_NEIGHBOR_WINDOW_MS),
+  };
+
+  const [prev, next] = await Promise.all([
+    executeQuery<SessionTraceNeighbor>({
+      query: `${sessionNeighborSelect}
+        AND start_time >= {windowStart: String}
+        AND start_time <= {anchor: String}
+      ORDER BY start_time DESC
+      LIMIT 1`,
+      parameters,
+      projectId,
+    }),
+    executeQuery<SessionTraceNeighbor>({
+      query: `${sessionNeighborSelect}
+        AND start_time > {anchor: String}
+        AND start_time <= {windowEnd: String}
+      ORDER BY start_time ASC
+      LIMIT 1`,
+      parameters,
+      projectId,
+    }),
+  ]);
+
+  return { prev: prev[0] ?? null, next: next[0] ?? null };
+}
+
+const SESSION_TRACE_IDS_LIMIT = 1000;
+
+// Ordered ids behind the trace header's "n / total" badge. A session can span any time range, so this is
+// unbounded and scans the project like the session page does; the client fetches it once per session.
+export async function getSessionTraceIds(
+  input: z.infer<typeof GetSessionTracesSchema>
+): Promise<{ ids: string[]; truncated: boolean }> {
+  const { projectId, sessionId } = GetSessionTracesSchema.parse(input);
+
+  const rows = await executeQuery<{ id: string }>({
+    query: `
+      SELECT id
+      FROM traces
+      WHERE session_id = {sessionId: String}
+        AND trace_type = 'DEFAULT'
+      ORDER BY start_time ASC
+      LIMIT {limit: UInt32}
+    `,
+    parameters: { sessionId, limit: SESSION_TRACE_IDS_LIMIT + 1 },
+    projectId,
+  });
+
+  return {
+    ids: rows.slice(0, SESSION_TRACE_IDS_LIMIT).map((r) => r.id),
+    truncated: rows.length > SESSION_TRACE_IDS_LIMIT,
+  };
+}
+
 export async function deleteSessions(input: z.infer<typeof DeleteSessionsSchema>) {
   const { projectId, sessionIds } = DeleteSessionsSchema.parse(input);
 

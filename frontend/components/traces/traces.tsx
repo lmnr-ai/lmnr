@@ -68,6 +68,18 @@ function TracesContent() {
     [setSpanId, setTraceId]
   );
 
+  const handleNavigateToTrace = useCallback(
+    (nextTraceId: string) => {
+      const params = new URLSearchParams(searchParams);
+      params.delete("spanId");
+      params.set("traceId", nextTraceId);
+      router.push(`${pathName}?${params.toString()}`);
+      setSpanId(null);
+      setTraceId(nextTraceId);
+    },
+    [pathName, router, searchParams, setSpanId, setTraceId]
+  );
+
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
       <Tabs
@@ -107,6 +119,7 @@ function TracesContent() {
             setTraceId(null);
           }}
           traceId={traceId}
+          onNavigateToTrace={handleNavigateToTrace}
           initialSearch={searchParams.get("search") ?? undefined}
         />
       )}

@@ -23,6 +23,8 @@ export interface TraceViewContentProps {
   propsTrace?: TraceViewTrace;
   // Omit to hide the close button entirely (e.g. an always-open panel).
   onClose?: () => void;
+  // Swaps the displayed trace in place (session navigator). Omit where the host can't.
+  onNavigateToTrace?: (traceId: string) => void;
   isAlwaysSelectSpan?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
@@ -32,6 +34,7 @@ export default function TraceViewContent({
   traceId,
   spanId,
   onClose,
+  onNavigateToTrace,
   propsTrace,
   isAlwaysSelectSpan,
   sidePanelRef,
@@ -300,6 +303,7 @@ export default function TraceViewContent({
       handleSpanSelect={handleSpanSelect}
       fetchSpans={fetchSpans}
       isLoading={isLoading}
+      onNavigateToTrace={onNavigateToTrace}
     />
   );
 

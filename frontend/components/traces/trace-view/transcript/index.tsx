@@ -11,6 +11,8 @@ import {
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
 import { TranscriptRow, type TranscriptRowData } from "@/components/traces/trace-view/transcript/item/transcript-row";
+import { SessionNeighborCard } from "@/components/traces/trace-view/transcript/session-neighbors/session-neighbor-card";
+import { useSessionNeighbors } from "@/components/traces/trace-view/transcript/session-neighbors/use-session-neighbors";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import {
   filterToViewport,
@@ -24,9 +26,11 @@ import { cn } from "@/lib/utils.ts";
 interface TranscriptProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
+  // Omit to hide the previous/next-trace-in-session cards (the host can't swap traces).
+  onNavigateToTrace?: (traceId: string) => void;
 }
 
-type FlatRow = TranscriptRowData;
+type FlatRow = TranscriptRowData | { type: "session-prev" } | { type: "session-next" };
 
 const isGroupChildType = (type: FlatRow["type"]): boolean => type === "group-span" || type === "group-input";
 
@@ -51,7 +55,7 @@ function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   }
 }
 
-const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
+const Transcript = ({ onSpanSelect, isShared = false, onNavigateToTrace }: TranscriptProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
@@ -118,8 +122,21 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   const userInput = trace?.agentInput ?? null;
   const hasUserInput = !!userInput;
 
+  const neighbors = useSessionNeighbors({
+    projectId,
+    traceId: trace?.id,
+    sessionId: trace?.sessionId,
+    startTime: trace?.startTime,
+    enabled: !!onNavigateToTrace && !isShared,
+  });
+  const hasPrev = !!neighbors?.prev;
+  const hasNext = !!neighbors?.next;
+
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];
+    if (hasPrev) {
+      rows.push({ type: "session-prev" });
+    }
     if (hasUserInput) {
       rows.push({ type: "user-input" });
     }
@@ -134,8 +151,11 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
         rows.push(entry);
       }
     }
+    if (hasNext) {
+      rows.push({ type: "session-next" });
+    }
     return rows;
-  }, [transcriptEntries, transcriptExpandedGroups, hasUserInput]);
+  }, [transcriptEntries, transcriptExpandedGroups, hasUserInput, hasPrev, hasNext]);
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
@@ -447,6 +467,31 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           {items.map((virtualRow) => {
             const row = flatRows[virtualRow.index];
             if (!row) return null;
+            if (row.type === "session-prev" || row.type === "session-next") {
+              const neighbor = row.type === "session-prev" ? neighbors?.prev : neighbors?.next;
+              if (!neighbor || !trace || !onNavigateToTrace) return null;
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <SessionNeighborCard
+                    direction={row.type === "session-prev" ? "prev" : "next"}
+                    neighbor={neighbor}
+                    currentStartTime={trace.startTime}
+                    onNavigate={onNavigateToTrace}
+                  />
+                </div>
+              );
+            }
             const nextRow = flatRows[virtualRow.index + 1];
             const isGroupChild = row.type === "group-span" || row.type === "group-input";
             const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
