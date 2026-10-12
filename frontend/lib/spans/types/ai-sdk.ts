@@ -142,7 +142,7 @@ const isPartLike = (value: unknown): boolean =>
 
 // Legacy SDK versions JSON-stringified assistant `content`; decode it back,
 // but only when it's genuinely a parts array.
-const maybeParseStringifiedParts = (value: unknown): unknown => {
+export const maybeParseStringifiedParts = (value: unknown): unknown => {
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
   if (!trimmed.startsWith("[")) return value;
