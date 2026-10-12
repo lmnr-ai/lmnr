@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { computeEffectiveOrder, reconcileConfig } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { normalizeViewConfig } from "@/components/ui/infinite-datatable/views/normalize";
+import { EMPTY_VIEW_PARAMS } from "@/components/ui/infinite-datatable/views/params";
 
 describe("computeEffectiveOrder", () => {
   it("returns available ids in input order when no persisted state", () => {
@@ -108,5 +110,38 @@ describe("reconcileConfig", () => {
     );
     assert.deepStrictEqual(config.columnOrder, ["__row_selection", "name", "createdAt"]);
     assert.strictEqual(purged, true);
+  });
+});
+
+describe("normalizeViewConfig column visibility", () => {
+  const params = EMPTY_VIEW_PARAMS;
+  const defaults = {
+    columnOrder: ["__row_selection", "status", "data", "output"],
+    columnVisibility: { output: false },
+  };
+  const toConfig = (columnVisibility: Record<string, boolean>) => ({
+    customColumns: [],
+    columnOrder: ["__row_selection", "status", "data", "output"],
+    columnVisibility,
+    columnSizing: {},
+  });
+
+  it("keeps explicit `true` entries and strips system ids", () => {
+    const out = normalizeViewConfig(toConfig({ __row_selection: true, output: true, data: false }), params);
+    assert.deepStrictEqual(out.columnVisibility, { output: true, data: false });
+  });
+
+  it("persists an empty visibility map instead of dropping it", () => {
+    assert.deepStrictEqual(normalizeViewConfig(toConfig({}), params).columnVisibility, {});
+  });
+
+  it("round-trips an all-visible view over defaults that hide columns", () => {
+    const saved = normalizeViewConfig(toConfig({ output: true }), params);
+    assert.strictEqual(reconcileConfig(saved, defaults).config.columnVisibility.output, true);
+  });
+
+  it("round-trips a cleared visibility map without re-applying hidden defaults", () => {
+    const saved = normalizeViewConfig(toConfig({}), params);
+    assert.notStrictEqual(reconcileConfig(saved, defaults).config.columnVisibility.output, false);
   });
 });
