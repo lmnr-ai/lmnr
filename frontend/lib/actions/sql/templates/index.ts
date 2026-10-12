@@ -11,12 +11,19 @@ export const CreateSqlTemplateSchema = z.object({
   query: z.string(),
 });
 
-export const UpdateSqlTemplateSchema = z.object({
-  projectId: z.guid(),
-  templateId: z.guid(),
-  name: z.string().min(1, "Template name is required"),
-  query: z.string(),
-});
+// Name and query are updated by different UI paths (inline rename vs. editor autosave) that race
+// each other, so each PUT carries only the field it owns — a rename that also had to send a query
+// would write back whatever stale copy of it the caller happened to hold.
+export const UpdateSqlTemplateSchema = z
+  .object({
+    projectId: z.guid(),
+    templateId: z.guid(),
+    name: z.string().min(1, "Template name is required").optional(),
+    query: z.string().optional(),
+  })
+  .refine((input) => input.name !== undefined || input.query !== undefined, {
+    message: "Either name or query is required",
+  });
 
 export const DeleteSqlTemplateSchema = z.object({
   projectId: z.guid(),
@@ -66,8 +73,8 @@ export async function updateSqlTemplate(input: z.infer<typeof UpdateSqlTemplateS
   const [result] = await db
     .update(sqlTemplates)
     .set({
-      name,
-      query,
+      ...(name !== undefined && { name }),
+      ...(query !== undefined && { query }),
     })
     .where(and(eq(sqlTemplates.id, templateId), eq(sqlTemplates.projectId, projectId)))
     .returning();

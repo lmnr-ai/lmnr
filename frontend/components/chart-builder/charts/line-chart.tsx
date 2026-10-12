@@ -12,7 +12,7 @@ import {
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { formatMetricValue } from "./format-value";
+import ChartTotal from "./chart-total";
 import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 export type CategoricalChartFunc = (nextState: MouseHandlerDataParam, event: React.SyntheticEvent) => void;
@@ -51,17 +51,13 @@ const LineChart = ({
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
   const { displayValue, totalMax } = useMemo(
-    () => calculateDisplayValue(data, keys, displayMode),
+    () => calculateDisplayValue(data, keys, displayMode === "none" ? "total" : displayMode),
     [data, keys, displayMode]
   );
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {displayValue !== null && (
-        <span className="font-medium text-2xl mb-2 truncate min-h-fit">
-          {formatMetricValue(displayValue, metricColumn)}
-        </span>
-      )}
+      <ChartTotal value={displayValue ?? 0} metricColumn={metricColumn} visible={displayMode !== "none"} />
       <ChartContainer config={chartConfig} className="aspect-auto flex-1 min-h-0 w-full">
         <RechartsLineChart
           data={data}
