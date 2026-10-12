@@ -62,6 +62,10 @@ describe("OpenCode V2 messages", () => {
     assert.strictEqual(parseOpenCodeMessages([{ role: "user", content: [{ type: "text", text: "hi" }] }]), null);
     const aiSdk = [{ role: "assistant", content: [{ type: "tool-call", toolCallId: "c", toolName: "t", input: {} }] }];
     assert.deepStrictEqual(processMessages(aiSdk).messages, parseAiSdkMessages(aiSdk));
+    const aiSdkV4 = [
+      { role: "tool", content: [{ type: "tool-result", toolCallId: "c", toolName: "t", result: "ok" }] },
+    ];
+    assert.strictEqual(parseOpenCodeMessages(aiSdkV4), null);
   });
 
   it("works with the provider adapter", () => {

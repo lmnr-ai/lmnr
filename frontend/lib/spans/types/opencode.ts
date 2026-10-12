@@ -51,10 +51,9 @@ const OpenCodeMessageSchema = z.object({
 export type OpenCodeMessage = z.infer<typeof OpenCodeMessageSchema>;
 type GenericMessage = Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] };
 
-// Parts no other format emits; AI SDK tool calls use `toolCallId` instead of `id`.
-const isOpenCodePart = (part: { type?: string; id?: unknown; result?: unknown; media?: { source?: unknown } }) =>
-  (part?.type === "tool-call" && typeof part.id === "string") ||
-  (part?.type === "tool-result" && part.result !== undefined) ||
+// Parts no other format emits; AI SDK tool parts use `toolCallId` instead of `id`.
+const isOpenCodePart = (part: { type?: string; id?: unknown; media?: { source?: unknown } }) =>
+  ((part?.type === "tool-call" || part?.type === "tool-result") && typeof part.id === "string") ||
   (part?.type === "media" && part.media?.source !== undefined);
 
 export const matchOpenCodeMessages = (data: unknown): OpenCodeMessage[] | null => {
