@@ -14,7 +14,7 @@ use super::utils::{
     build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
     md_links_to_html_escaped, with_utm,
 };
-use crate::{env::notifications::RESEND_SIGNAL_EMPTY_TRACE_TEMPLATE, reports::ReportData};
+use crate::reports::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
@@ -292,7 +292,6 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             signal_id,
             signal_name,
             trace_id,
-            reason,
         } => EmailContent {
             from: ALERT_FROM_EMAIL.to_string(),
             subject: signal_notification_subject(
@@ -306,7 +305,6 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 signal_id,
                 signal_name,
                 trace_id,
-                reason,
             ),
         },
     }
@@ -314,14 +312,17 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
 
 // ── Signal empty-trace email ──
 
-/// Variables for the Resend template named by `RESEND_SIGNAL_EMPTY_TRACE_TEMPLATE`.
+/// Resend-hosted template (alias) for the signal empty-trace warning. It lives
+/// in the Laminar Resend account; a deployment sending through another account
+/// gets a 404 for it, which drops the warning.
+const SIGNAL_EMPTY_TRACE_TEMPLATE: &str = "signal-empty-trace";
+
 fn signal_empty_trace_email_body(
     project_id: &Uuid,
     project_name: &str,
     signal_id: &Uuid,
     signal_name: &str,
     trace_id: &Uuid,
-    reason: &str,
 ) -> EmailBody {
     let base = frontend_url_email();
     let trace_url = with_utm(
@@ -339,7 +340,6 @@ fn signal_empty_trace_email_body(
     let variables = [
         ("PROJECT_NAME", project_name),
         ("SIGNAL_NAME", signal_name),
-        ("REASON", reason),
         ("TRACE_URL", trace_url.as_str()),
         ("SIGNAL_URL", signal_url.as_str()),
     ]
@@ -347,7 +347,7 @@ fn signal_empty_trace_email_body(
     .map(|(key, value)| (key.to_string(), serde_json::Value::from(html_escape(value))))
     .collect();
     EmailBody::Template {
-        id: RESEND_SIGNAL_EMPTY_TRACE_TEMPLATE.get(),
+        id: SIGNAL_EMPTY_TRACE_TEMPLATE.to_string(),
         variables,
     }
 }
@@ -1363,7 +1363,6 @@ mod tests {
             signal_id: Uuid::from_u128(3),
             signal_name: "Refunds <beta>".into(),
             trace_id,
-            reason: "none of its LLM spans recorded an output".into(),
         };
 
         let content = format_email_batch(&[kind], &Uuid::nil());

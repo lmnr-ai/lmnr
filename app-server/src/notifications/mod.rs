@@ -234,8 +234,6 @@ pub enum NotificationKind {
         signal_id: Uuid,
         signal_name: String,
         trace_id: Uuid,
-        /// Human-readable cause, e.g. "it has no LLM spans".
-        reason: String,
     },
 }
 
