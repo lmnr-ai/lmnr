@@ -53,8 +53,9 @@ async function createIndex(indexConfig: any): Promise<void> {
 /**
  * Replace an existing index's config (Quickwit >= 0.9). Every section is
  * replaced, so settings absent from `indexConfig` revert to Quickwit defaults.
+ * Returns false on Quickwit < 0.9, which has no PUT route and answers 405.
  */
-async function updateIndex(indexConfig: any): Promise<void> {
+async function updateIndex(indexConfig: any): Promise<boolean> {
   const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes/${indexConfig.index_id}`, {
     method: "PUT",
     headers: {
@@ -63,10 +64,14 @@ async function updateIndex(indexConfig: any): Promise<void> {
     body: JSON.stringify(indexConfig),
   });
 
+  if (response.status === 405) {
+    return false;
+  }
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to update index ${indexConfig.index_id}: ${response.status} ${errorText}`);
   }
+  return true;
 }
 
 /**
@@ -218,9 +223,11 @@ export async function initializeQuickwitIndexes(): Promise<void> {
           await createIndex(indexConfig);
           console.log(`✓ Index "${indexId}" created successfully`);
         } else if (needsUpdate(indexConfig, current)) {
-          console.log(`Updating index "${indexId}"...`);
-          await updateIndex(indexConfig);
-          console.log(`✓ Index "${indexId}" updated`);
+          if (await updateIndex(indexConfig)) {
+            console.log(`✓ Index "${indexId}" updated`);
+          } else {
+            console.warn(`Index "${indexId}" differs from config but Quickwit < 0.9 can't update indexes; skipping`);
+          }
         } else {
           console.log(`✓ Index "${indexId}" up to date`);
         }
