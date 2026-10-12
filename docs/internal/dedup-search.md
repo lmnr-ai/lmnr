@@ -37,7 +37,7 @@
 
 ## Quickwit index configs and commit cadence
 
-- `initializeQuickwitIndexes` (`frontend/lib/quickwit/migrations.ts`) POSTs missing indexes and PUTs existing ones (Quickwit ≥ 0.9) only when a subset compare of the YAML (+ env overrides) against the live `index_config` finds drift; a rejected PUT is logged and the other indexes still run. The compare treats `fast: true` as equal to 0.9's normalized `{ normalizer: "raw" }`.
+- `initializeQuickwitIndexes` (`frontend/lib/quickwit/migrations.ts`) POSTs missing indexes and PUTs existing ones (Quickwit ≥ 0.9) only when a subset compare of the YAML (+ env overrides) against the live `index_config` finds drift; a rejected PUT is logged and the other indexes still run. Quickwit 0.8 has no PUT route (405): drift is logged as a warning and skipped, so on 0.8 env overrides only take effect when an index is created. The compare treats `fast: true` as equal to 0.9's normalized `{ normalizer: "raw" }`.
 - Per-index commit timeout: `QUICKWIT_<INDEX_ID>_COMMIT_TIMEOUT_SECS` (index id upper-cased, non-alphanumerics → `_`, e.g. `QUICKWIT_SPANS_V2_COMMIT_TIMEOUT_SECS`); unset means Quickwit's default 60s, so unsetting reverts the index. App-server's `QUICKWIT_FORCE_COMMIT` (default `true`) appends a commit to every gRPC DocBatch; set `false` to let `commit_timeout_secs` decide.
 - **A PUT replaces every config section.** Index settings tweaked by hand outside the YAML/env are reverted on the next boot that detects drift.
 
