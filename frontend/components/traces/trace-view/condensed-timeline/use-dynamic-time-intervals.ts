@@ -97,6 +97,33 @@ function computeDynamicTimeMarkers(
   return markers;
 }
 
+interface AnimationFrameScheduler {
+  schedule: () => void;
+  cancel: () => void;
+}
+
+export function createAnimationFrameScheduler(
+  callback: () => void,
+  requestFrame: (callback: FrameRequestCallback) => number = requestAnimationFrame,
+  cancelFrame: (handle: number) => void = cancelAnimationFrame
+): AnimationFrameScheduler {
+  let frame: number | null = null;
+  return {
+    schedule: () => {
+      if (frame !== null) return;
+      frame = requestFrame(() => {
+        frame = null;
+        callback();
+      });
+    },
+    cancel: () => {
+      if (frame === null) return;
+      cancelFrame(frame);
+      frame = null;
+    },
+  };
+}
+
 interface UseDynamicTimeIntervalsResult {
   markers: TimeMarker[];
   setContainerRef: (node: HTMLDivElement | null) => void;
@@ -130,9 +157,16 @@ export function useDynamicTimeIntervals({
     useCallback(
       (onStoreChange) => {
         if (!container) return () => {};
-        const observer = new ResizeObserver(onStoreChange);
+        // React updates inside ResizeObserver delivery can resize descendants and
+        // make the browser defer notifications with a loop warning. Publishing on
+        // the next frame also coalesces every intermediate split-pane width.
+        const scheduler = createAnimationFrameScheduler(onStoreChange);
+        const observer = new ResizeObserver(scheduler.schedule);
         observer.observe(container);
-        return () => observer.disconnect();
+        return () => {
+          observer.disconnect();
+          scheduler.cancel();
+        };
       },
       [container]
     ),
