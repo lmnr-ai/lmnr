@@ -108,7 +108,6 @@
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.40.0",
     "github-slugger": "^2.0.0",
-    "gray-matter": "^4.0.3",
     "ioredis": "^6.0.0",
     "json-2-csv": "^5.5.11",
     "jsonwebtoken": "^9.0.3",
