@@ -407,7 +407,6 @@ dependencies = [
  "opentelemetry_sdk",
  "ort",
  "prost",
- "prost-build",
  "rabbitmq-stream-client",
  "rand 0.10.2",
  "rayon",

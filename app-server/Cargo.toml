@@ -107,7 +107,6 @@ grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
 
 [build-dependencies]
-prost-build = "0.14"
 tonic-prost-build = "0.14"
 
 [dev-dependencies]
