@@ -58,7 +58,7 @@ export default function StepShell({
 
   return (
     <div className="relative h-svh w-full flex items-stretch md:items-center justify-center py-4 md:py-6 lg:py-8 overflow-hidden">
-      <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 md:gap-6 xl:gap-8 md:h-[40rem] xl:h-[44rem] 2xl:h-[48rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-7rem)]">
+      <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 md:gap-6 xl:gap-8 md:h-[42rem] xl:h-[46rem] 2xl:h-[50rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-4rem)]">
         <div className="flex items-center justify-between gap-3 px-4 shrink-0">
           <Image
             alt="Laminar logo"
@@ -89,14 +89,15 @@ export default function StepShell({
         )}
         <div className={cn("flex-1 min-h-0 flex flex-col", className)}>
           <div className="flex flex-col gap-2 pt-2 pb-1 xl:pt-3 xl:pb-2 px-4 shrink-0">
-            <h1 className="text-xl md:text-2xl 2xl:text-3xl font-semibold tracking-tight text-secondary-foreground">
+            <h1 className="font-sans-landing text-[24px] font-[500] text-white whitespace-pre-line leading-tight tracking-[-0.015em]">
               {title}
             </h1>
-            {description && <p className="text-sm 2xl:text-base text-secondary-foreground">{description}</p>}
+            {description && <p className="text-sm text-secondary-foreground">{description}</p>}
           </div>
           <ScrollArea
             className={cn(
-              "flex-1 min-h-0 px-4 py-4 sm:py-6 xl:py-8",
+              // Radix wraps content in `display: table`, which grows to fit content instead of wrapping it.
+              "flex-1 min-h-0 px-4 py-4 sm:py-6 xl:py-8 [&>[data-radix-scroll-area-viewport]>div]:!block",
               centerContent && "[&>[data-radix-scroll-area-viewport]>div]:!h-full"
             )}
           >
