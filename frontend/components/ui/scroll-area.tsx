@@ -9,17 +9,13 @@ const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
   // viewportClassName targets the inner (scrolling) Viewport — needed for e.g.
   // the scroll-fade-y mask, which must sit on the element that actually scrolls.
-  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & {
-    viewportClassName?: string;
-    scrollbars?: "vertical" | "horizontal" | "both";
-  }
->(({ className, children, asChild, viewportClassName, scrollbars = "vertical", ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & { viewportClassName?: string }
+>(({ className, children, asChild, viewportClassName, ...props }, ref) => (
   <ScrollAreaPrimitive.Root className={cn("relative overflow-hidden", className)} {...props}>
     <ScrollAreaPrimitive.Viewport ref={ref} className={cn("h-full w-full rounded-[inherit]", viewportClassName)}>
       {children}
     </ScrollAreaPrimitive.Viewport>
-    {(scrollbars === "vertical" || scrollbars === "both") && <ScrollBar />}
-    {(scrollbars === "horizontal" || scrollbars === "both") && <ScrollBar orientation="horizontal" />}
+    <ScrollBar />
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>
 ));

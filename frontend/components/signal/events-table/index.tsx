@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
@@ -12,7 +12,6 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 
 import { buildEventsColumns } from "./columns";
@@ -23,9 +22,6 @@ function PureEventsTable() {
   const pathName = usePathname();
   const router = useRouter();
   const refetchRef = useRef<() => void>(() => {});
-  // State, not a ref: the virtualizer lives further down the tree and has to
-  // re-measure once this element exists.
-  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
@@ -74,9 +70,8 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <ScrollArea ref={setScroller} className="min-h-0 flex-1" viewportClassName="px-4 pb-4" scrollbars="both">
+    <div className="flex min-h-0 flex-1 overflow-hidden px-4 pb-4">
       <EventsTableContents
-        externalScrollElement={scroller}
         refetchRef={refetchRef}
         columns={columns}
         projectId={params.projectId}
@@ -110,7 +105,7 @@ function PureEventsTable() {
           onRefresh={handleRefresh}
         />
       </EventsTableContents>
-    </ScrollArea>
+    </div>
   );
 }
 
