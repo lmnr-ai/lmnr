@@ -19,6 +19,7 @@ import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { getDismissedAnnouncementIds, getAnnouncements } from "@/lib/announcements/server";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { cn } from "@/lib/utils";
 
 const projectSidebarCookieName = "project-sidebar-state";
 
@@ -57,25 +58,32 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
           {announcementsEnabled && <AnnouncementDetailsDialog />}
-          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
+          <div className="fixed inset-0 flex overflow-clip">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar
                 dismissedAnnouncementIds={dismissedAnnouncementIds}
                 details={projectDetails}
                 announcements={announcements}
               />
-              <SidebarInset className="relative flex h-[calc(100%-8px)]! flex-1 flex-col overflow-hidden border-l border-t md:rounded-tl-lg">
-                <div className="flex min-h-0 flex-1">
-                  {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
+              <SidebarInset className="relative flex flex-col md:pt-2 overflow-hidden bg-sidebar">
+                <div
+                  className={cn(
+                    "flex flex-1 flex-col md:border-l md:border-y md:rounded-tl-lg bg-background overflow-hidden",
+                    { "md:rounded-bl-lg": isFeatureEnabled(Feature.AGENT) }
+                  )}
+                >
+                  <div className="flex min-h-0 flex-1">
+                    {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
                       space left of the agent column, rather than under it. */}
-                  <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-                    <NotificationPanel />
-                    {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                    {children}
-                    {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+                    <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+                      <NotificationPanel />
+                      {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                      {children}
+                      {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+                    </div>
+                    {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
+                    {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
                   </div>
-                  {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
-                  {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
                 </div>
                 {isFeatureEnabled(Feature.AGENT) && <ProjectBottomBar />}
               </SidebarInset>

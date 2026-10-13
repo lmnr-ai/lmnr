@@ -5,10 +5,15 @@ import { usePathname } from "next/navigation";
 import { useLaminarAgentStore } from "@/components/agent";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils";
 
-export default function ProjectBottomBar() {
+interface Props {
+  className?: string;
+}
+
+export default function ProjectBottomBar({ className }: Props) {
   const pathname = usePathname();
-  const agentOpen = useLaminarAgentStore((state) => state.viewMode === "open");
+  const isAgentOpen = useLaminarAgentStore((state) => state.viewMode === "open");
   const openAgent = useLaminarAgentStore((state) => state.open);
   const collapseAgent = useLaminarAgentStore((state) => state.collapse);
 
@@ -17,15 +22,16 @@ export default function ProjectBottomBar() {
   }
 
   return (
-    <div className="flex h-8 shrink-0 items-center justify-end border-t bg-background px-1">
+    <div className={cn("flex h-7 shrink-0 items-center justify-end px-3", className)}>
       <Button
         type="button"
-        variant={agentOpen ? "secondaryLight" : "ghost"}
+        variant="ghost"
         size="sm"
         icon="sparkles"
-        aria-expanded={agentOpen}
+        aria-expanded={isAgentOpen}
+        className={cn("hover:bg-surface-up-4 active:bg-surface-up-6", { "bg-surface-up-6": isAgentOpen })}
         onClick={() => {
-          if (agentOpen) {
+          if (isAgentOpen) {
             collapseAgent();
             return;
           }
