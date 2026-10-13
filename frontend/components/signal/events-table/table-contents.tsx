@@ -63,8 +63,6 @@ export interface EventsTableContentsProps {
   selectedClusterIds: string[];
   isUnclusteredFilter: boolean;
   emergingClusterId: string | null;
-  /** The page-level scroller; see `InfiniteDataTableProps.externalScrollElement`. */
-  externalScrollElement: HTMLElement | null;
 }
 
 export const EventsTableContents = memo(function EventsTableContents({
@@ -86,7 +84,6 @@ export const EventsTableContents = memo(function EventsTableContents({
   selectedClusterIds,
   isUnclusteredFilter,
   emergingClusterId,
-  externalScrollElement,
 }: PropsWithChildren<EventsTableContentsProps>) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -246,9 +243,7 @@ export const EventsTableContents = memo(function EventsTableContents({
 
   return (
     <InfiniteDataTable<EventRow>
-      className="w-full min-w-max"
-      childrenClassName="sticky left-0 z-10 w-[100cqw]"
-      externalScrollElement={externalScrollElement}
+      className="w-full"
       columns={columns}
       data={events}
       onRowClick={handleRowClick}
