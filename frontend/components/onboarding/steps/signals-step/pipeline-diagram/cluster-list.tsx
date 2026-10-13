@@ -1,7 +1,9 @@
 import WarningIcon from "@/components/onboarding/steps/signals-step/pipeline-diagram/warning-icon";
 import { cn } from "@/lib/utils";
 
-const CLUSTER_COUNT = 4;
+// One colour per cluster so they read as distinct categories, unlike the uniform events.
+const CLUSTER_COLORS = ["text-red-400", "text-amber-400", "text-violet-400", "text-emerald-400"];
+const CLUSTER_COUNT = CLUSTER_COLORS.length;
 // Cluster each arriving event lands in, interleaved so all counts climb together.
 // Final tallies match the design: 2 / 5 / 8 / 3.
 const ASSIGNMENTS = [2, 1, 2, 3, 0, 2, 1, 2, 3, 1, 2, 0, 2, 1, 3, 2, 1, 2];
@@ -28,7 +30,7 @@ export default function ClusterList({ classified }: ClusterListProps) {
       {counts.map((count, i) => (
         <div key={i} className="flex min-h-0 flex-1">
           <div className="flex w-7 items-center justify-center bg-surface-400">
-            <WarningIcon className="text-foreground-500" />
+            <WarningIcon className={CLUSTER_COLORS[i]} markClassName="fill-surface-400" />
           </div>
           <div
             className={cn(

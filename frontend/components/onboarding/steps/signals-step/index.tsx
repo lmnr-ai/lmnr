@@ -31,7 +31,22 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
       stepIndex={stepIndex}
       totalSteps={totalSteps}
       title="Set up signals"
-      description="[don't forget to add that we have custom model to process it] A Signal analyzes every agent trace to catch logical errors, hallucinations, user frustration, etc. You can change or add Signals anytime."
+      description={
+        <>
+          With signals you can analyze every agent trace to catch logical errors, hallucinations, user frustration, etc.
+          Signals are powered by{" "}
+          <a
+            href="https://laminar.sh/blog/flow-1"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white hover:underline"
+          >
+            flow-1
+          </a>
+          , our custom model optimized for high quality trace analysis at very low cost. You can edit or create custom
+          Signals anytime.
+        </>
+      }
       onNext={handleNext}
       nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}
@@ -50,7 +65,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
           };
 
           return (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
               {ONBOARDING_SIGNALS.map((signal) => (
                 <SignalCard
                   key={signal.name}
