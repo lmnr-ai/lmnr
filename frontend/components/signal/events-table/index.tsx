@@ -75,7 +75,7 @@ function PureEventsTable() {
   return (
     <div
       ref={setScroller}
-      className="mx-4 min-h-0 min-w-0 flex-1 overflow-auto rounded-t styled-scrollbar [container-type:inline-size] [scrollbar-color:auto]! [&::-webkit-scrollbar]:w-0!"
+      className="mx-4 min-h-0 min-w-0 flex-1 overflow-auto rounded-t no-scrollbar [container-type:inline-size]"
     >
       <EventsTableContents
         externalScrollElement={scroller}
