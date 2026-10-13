@@ -29,8 +29,8 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
     <StepShell
       stepIndex={stepIndex}
       totalSteps={totalSteps}
-      title="Set up your first Signal"
-      description="A Signal watches every agent trace for a behavior you describe in plain text. Laminar groups recurring cases into patterns you can investigate and notifies you when a new one shows up. We recommend starting with the Failure Detector. You can change or add Signals anytime."
+      title="Set up signals"
+      description="[don't forget to add that we have custom model to process it] A Signal analyzes every agent trace to catch logical errors, hallucinations, user frustration, etc. You can change or add Signals anytime."
       onNext={handleNext}
       nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}

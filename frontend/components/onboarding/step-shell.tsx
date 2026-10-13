@@ -89,10 +89,10 @@ export default function StepShell({
         )}
         <div className={cn("flex-1 min-h-0 flex flex-col", className)}>
           <div className="flex flex-col gap-2 pt-2 pb-1 xl:pt-3 xl:pb-2 px-4 shrink-0">
-            <h1 className="text-xl md:text-2xl 2xl:text-3xl font-semibold tracking-tight text-secondary-foreground">
+            <h1 className="font-sans-landing text-[24px] font-[500] text-white whitespace-pre-line leading-tight tracking-[-0.015em]">
               {title}
             </h1>
-            {description && <p className="text-sm 2xl:text-base text-secondary-foreground">{description}</p>}
+            {description && <p className="text-sm text-secondary-foreground">{description}</p>}
           </div>
           <ScrollArea
             className={cn(
