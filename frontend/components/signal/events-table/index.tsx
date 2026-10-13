@@ -74,7 +74,7 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <ScrollArea ref={setScroller} className="min-h-0 flex-1" viewportClassName="px-4 pb-4">
+    <ScrollArea ref={setScroller} className="min-h-0 flex-1" viewportClassName="px-4 pb-4" scrollbars="both">
       <EventsTableContents
         externalScrollElement={scroller}
         refetchRef={refetchRef}
