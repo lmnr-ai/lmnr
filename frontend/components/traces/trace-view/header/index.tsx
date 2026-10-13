@@ -1,23 +1,20 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
+import { ChevronsRight, Layers, Maximize, Radio, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
 import { memo, useCallback, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useLaminarAgentStore } from "@/components/agent";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { Button } from "@/components/ui/button";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
-import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -53,10 +50,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { project } = useProjectContext();
-  const featureFlags = useFeatureFlags();
-  const agentOpen = useLaminarAgentStore((s) => s.viewMode === "open");
-  const openAgent = useLaminarAgentStore((s) => s.open);
-  const collapseAgent = useLaminarAgentStore((s) => s.collapse);
   const [isSearchAnimating, setIsSearchAnimating] = useState(false);
 
   const {
@@ -161,23 +154,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 label={`Signals (${signalCount})`}
                 active={signalsPanelOpen}
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-              />
-            </span>
-          )}
-          {featureFlags[Feature.AGENT] && spans.length > 0 && (
-            <span className={HEADER_ITEM_CLS}>
-              <HeaderIconButton
-                icon={<Sparkles className={cn({ "text-primary": agentOpen })} size={14} />}
-                label="Chat"
-                active={agentOpen}
-                onClick={() => {
-                  if (agentOpen) {
-                    collapseAgent();
-                  } else {
-                    track("sessions", "agent_panel_opened", { surface: "trace_header" });
-                    openAgent();
-                  }
-                }}
               />
             </span>
           )}

@@ -7,6 +7,7 @@ import AnnouncementDetailsDialog from "@/components/announcements/details-dialog
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
+import ProjectBottomBar from "@/components/project/bottom-bar";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -63,17 +64,20 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                 details={projectDetails}
                 announcements={announcements}
               />
-              <SidebarInset className="relative flex flex-row h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-                {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
-                    space left of the agent column, rather than under it. */}
-                <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <NotificationPanel />
-                  {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                  {children}
-                  {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+              <SidebarInset className="relative flex h-[calc(100%-8px)]! flex-1 flex-col overflow-hidden border-l border-t md:rounded-tl-lg">
+                <div className="flex min-h-0 flex-1">
+                  {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
+                      space left of the agent column, rather than under it. */}
+                  <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+                    <NotificationPanel />
+                    {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                    {children}
+                    {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+                  </div>
+                  {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
+                  {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
                 </div>
-                {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
-                {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
+                {isFeatureEnabled(Feature.AGENT) && <ProjectBottomBar />}
               </SidebarInset>
             </SidebarProvider>
           </div>
