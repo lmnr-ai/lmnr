@@ -54,8 +54,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
       title="Welcome to Laminar"
       description={
         <>
-          Let&apos;s start by creating your first workspace and project.
-          <br />
+          Let&apos;s start by creating your first workspace and project.{" "}
           {isCloud &&
             "Workspaces manage your team and billing. Projects hold your traces, signals, and evaluations. You can rename\n" +
               "          either anytime."}
