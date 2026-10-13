@@ -282,11 +282,11 @@ export function VirtualizedScroll<TData extends RowData>({
     <div
       ref={setOwnScrollElement}
       className={cn(
-        "flex relative min-w-0 max-w-full bg-secondary",
-        // With an external vertical scroller, this element only owns horizontal
-        // overflow. Its unconstrained height still grows with the virtualized rows,
-        // so the ancestor remains the vertical scrollport.
-        externalScrollElement ? "overflow-x-auto styled-scrollbar" : "overflow-auto styled-scrollbar",
+        "flex relative bg-secondary",
+        // `overflow-auto` here is what makes the table its own scrollport. Under an
+        // external scroller it has to stay visible, or the table clips itself at
+        // whatever height it happens to have and the ancestor gets nothing to scroll.
+        externalScrollElement ? "overflow-visible" : "overflow-auto styled-scrollbar",
         scrollContentClassName
       )}
     >
