@@ -154,9 +154,9 @@ export function InfiniteDataTable<TData extends RowData>({
     <div
       className={cn(
         "flex flex-col gap-2 relative w-full",
-        // Under an external scroller the table has to be free to grow past the
-        // viewport — that overflow is exactly what the ancestor scrolls.
-        externalScrollElement ? "overflow-visible" : "overflow-hidden",
+        // Inline containment prevents wide columns from expanding Radix's viewport
+        // wrapper; the table body owns horizontal overflow instead.
+        externalScrollElement ? "min-w-0 max-w-full overflow-visible [contain:inline-size]" : "overflow-hidden",
         className
       )}
     >
