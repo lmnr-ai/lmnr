@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 
+import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/components/onboarding/types";
 import { db } from "@/lib/db/drizzle";
 import { signals, slackIntegrations, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -41,7 +42,8 @@ async function loadWorkspaceContext(workspaceId: string) {
 
 async function loadSelectedTemplateNames(projectId: string): Promise<string[]> {
   const rows = await db.select({ name: signals.name }).from(signals).where(eq(signals.projectId, projectId));
-  return rows.map((r) => r.name);
+  // Nothing is seeded before the Signals step now, so a resume before it starts from the defaults.
+  return rows.length > 0 ? rows.map((r) => r.name) : [...DEFAULT_SELECTED_TEMPLATE_NAMES];
 }
 
 async function loadSlackConnected(workspaceId: string): Promise<boolean> {

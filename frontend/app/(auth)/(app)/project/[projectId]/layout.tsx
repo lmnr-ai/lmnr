@@ -7,6 +7,7 @@ import AnnouncementDetailsDialog from "@/components/announcements/details-dialog
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
+import FreePlanSignalsBanner from "@/components/project/free-plan-signals-banner";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -69,6 +70,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                 <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
                   <NotificationPanel />
                   {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                  <FreePlanSignalsBanner />
                   {children}
                   {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
                 </div>

@@ -29,9 +29,10 @@ interface SignalsStepProps {
   stepIndex: number;
   totalSteps: number;
   onAdvance: () => void;
+  onBack?: () => void;
 }
 
-export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: SignalsStepProps) {
+export default function SignalsStep({ stepIndex, totalSteps, onAdvance, onBack }: SignalsStepProps) {
   const { control, watch } = useFormContext<OnboardingFormValues>();
   const { isSubmitting, saveSignals } = useOnboardingActions();
   const selectedCount = watch("selectedTemplateNames")?.length ?? 0;
@@ -47,6 +48,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
       title="Set up your first Signal"
       description="A Signal watches every agent trace for a behavior you describe in plain text. Laminar groups recurring cases into patterns you can investigate and notifies you when a new one shows up. Pick a template to start."
       onNext={handleNext}
+      onBack={onBack}
       nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}
     >

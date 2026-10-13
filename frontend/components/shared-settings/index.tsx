@@ -51,7 +51,7 @@ import WorkspaceSettings from "@/components/workspace/workspace-settings";
 import WorkspaceUsers from "@/components/workspace/workspace-users";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type SettingsSection } from "@/contexts/project-context";
-import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
+import { type SubscriptionDetails, type UpcomingInvoiceInfo, type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { Feature } from "@/lib/features/features";
@@ -68,6 +68,8 @@ interface SharedSettingsProps {
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
   canManageBilling: boolean;
+  trialEligible: boolean;
+  trial: ActiveTrialInfo | null;
   slackClientId?: string;
   slackRedirectUri?: string;
   slackBrokerEnabled?: boolean;
@@ -104,6 +106,8 @@ const SharedSettings = ({
   subscription,
   upcomingInvoice,
   canManageBilling,
+  trialEligible,
+  trial,
   slackClientId,
   slackRedirectUri,
   slackBrokerEnabled,
@@ -164,7 +168,7 @@ const SharedSettings = ({
     switch (activeSection) {
       // Workspace sections
       case "usage":
-        return <WorkspaceUsage workspaceStats={workspaceStats} workspace={workspace} isOwner={isOwner} />;
+        return <WorkspaceUsage workspaceStats={workspaceStats} workspace={workspace} isOwner={isOwner} trial={trial} />;
       case "team":
         return (
           <WorkspaceUsers
@@ -201,6 +205,7 @@ const SharedSettings = ({
             canManageBilling={canManageBilling}
             subscription={subscription}
             upcomingInvoice={upcomingInvoice}
+            trialEligible={trialEligible}
           />
         );
       case "workspace-general":

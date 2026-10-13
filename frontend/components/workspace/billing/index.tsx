@@ -10,7 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkspaceAddons from "@/components/workspace/billing/addons";
 import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";
+import StartTrialButton from "@/components/workspace/billing/start-trial-button";
 import SwitchTierDialog from "@/components/workspace/billing/switch-tier-dialog";
+import TrialActions from "@/components/workspace/billing/trial-actions";
 import {
   formatCurrency,
   formatDate,
@@ -36,6 +38,7 @@ interface WorkspaceBillingProps {
   canManageBilling: boolean;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
+  trialEligible: boolean;
 }
 
 function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInvoiceInfo }) {
@@ -132,6 +135,7 @@ export default function WorkspaceBilling({
   canManageBilling,
   subscription,
   upcomingInvoice,
+  trialEligible,
 }: WorkspaceBillingProps) {
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +221,21 @@ export default function WorkspaceBilling({
       );
     }
 
+    if (isFree && tierKey === "hobby" && trialEligible) {
+      return (
+        <div className="flex flex-col gap-1.5">
+          <StartTrialButton workspaceId={workspace.id} onError={setError} />
+          <Link
+            href={`/checkout?lookupKey=${TIER_CONFIG.hobby.lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
+            className="text-xs text-center text-muted-foreground hover:text-foreground"
+            onClick={() => track("billing", "upgrade_clicked", { from_tier: currentTierKey, to_tier: tierKey })}
+          >
+            or subscribe now
+          </Link>
+        </div>
+      );
+    }
+
     if (isFree) {
       return (
         <Link
@@ -270,10 +289,16 @@ export default function WorkspaceBilling({
                 <span
                   className={cn(
                     "text-xs px-2 py-0.5 rounded-md font-medium",
-                    subscription.cancelAtPeriodEnd ? "bg-yellow-500/10 text-yellow-500" : "bg-primary/10 text-primary"
+                    subscription.cancelAtPeriodEnd || subscription.trialEnd
+                      ? "bg-yellow-500/10 text-yellow-500"
+                      : "bg-primary/10 text-primary"
                   )}
                 >
-                  {subscription.cancelAtPeriodEnd ? "Cancels at period end" : subscription.status}
+                  {subscription.cancelAtPeriodEnd
+                    ? "Cancels at period end"
+                    : subscription.trialEnd
+                      ? "Free trial"
+                      : subscription.status}
                 </span>
               </div>
             </CardHeader>
@@ -291,7 +316,15 @@ export default function WorkspaceBilling({
               {subscription.cancelAtPeriodEnd && (
                 <p className="text-sm text-yellow-500">Access until {formatDate(subscription.currentPeriodEnd)}</p>
               )}
-              {!subscription.cancelAtPeriodEnd && isOwner && (
+              {subscription.trialEnd && (
+                <TrialActions
+                  workspaceId={workspace.id}
+                  trialEnd={subscription.trialEnd}
+                  hasPaymentMethod={subscription.hasPaymentMethod}
+                  onError={setError}
+                />
+              )}
+              {!subscription.cancelAtPeriodEnd && !subscription.trialEnd && isOwner && (
                 <div className="pt-2 flex gap-2">
                   <Button
                     className="bg-secondary"

@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type UsageBreakdown, type WorkspaceStats } from "@/lib/actions/usage/types";
 import { TIERS } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
@@ -17,6 +18,7 @@ import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 import LimitsSettings from "./limits";
 import UsageMeterCard from "./meter";
 import PlanOverview from "./plan-overview";
+import TrialUsageNotice from "./trial-usage-notice";
 import { dataStatRows, signalStatRows } from "./usage-stats";
 import {
   buildUsageModel,
@@ -37,9 +39,10 @@ interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats | null;
   workspace: Workspace;
   isOwner: boolean;
+  trial: ActiveTrialInfo | null;
 }
 
-export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, trial }: WorkspaceUsageProps) {
   useEffect(() => {
     track("usage", "page_viewed");
   }, []);
@@ -73,13 +76,14 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
     <>
       <SettingsSectionHeader title="Usage" description="Monitor your workspace usage" />
 
-      {isPaid && bill && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
+      {trial && <TrialUsageNotice trial={trial} />}
+      {isPaid && bill && !trial && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
 
       <SettingsSection>
-        {!(isPaid && bill) && (
+        {!(isPaid && bill && !trial) && (
           <p className="text-sm text-muted-foreground">
             {tier === "free"
-              ? `${cycleLabel}. The Free plan is never billed — data stops once the included amount is used up, and Signals once the one-time credit is.`
+              ? `${cycleLabel}. The Free plan is never billed. Data stops once the included amount is used up, and Signals aren't included.`
               : cycleLabel}
           </p>
         )}

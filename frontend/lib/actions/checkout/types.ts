@@ -29,6 +29,8 @@ export const TIER_CONFIG = {
 
 export type PaidTier = keyof typeof TIER_CONFIG;
 
+export const TRIAL_DAYS = 14;
+
 export const DATAPLANE_ADDON_LOOKUP_KEY = "pro_monthly_2026_02_addon_dataplane";
 
 /**
@@ -101,6 +103,14 @@ export interface SubscriptionDetails {
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;
   stripeCustomerId: string;
+  // Set only while the subscription is a Starter trial (unix seconds).
+  trialEnd: number | null;
+  hasPaymentMethod: boolean;
+}
+
+export interface ActiveTrialInfo {
+  endsAt: string;
+  hasPaymentMethod: boolean;
 }
 
 export interface UpcomingInvoiceInfo {

@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
-import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { type OnboardingFormValues, stepIndexOf } from "@/components/onboarding/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
@@ -18,7 +18,9 @@ interface UseOnboardingActions {
   createWorkspace: (options?: CreateWorkspaceOptions) => Promise<{ workspaceId: string; projectId: string } | null>;
   saveSignals: () => Promise<boolean>;
   saveSlack: () => Promise<boolean>;
-  savePlan: () => Promise<boolean>;
+  savePlan: (isPaid: boolean) => Promise<boolean>;
+  saveInvite: (emails: string[]) => Promise<boolean>;
+  startTrial: () => Promise<boolean>;
   finishOnboarding: () => Promise<boolean>;
   beginSubmitting: () => void;
   endSubmitting: () => void;
@@ -92,7 +94,7 @@ export function useOnboardingActions(): UseOnboardingActions {
 
         // Cookie only matters when more wizard steps follow.
         if (isCloud) {
-          const persisted = await persistOnboardingStep(projectId, 1);
+          const persisted = await persistOnboardingStep(projectId, stepIndexOf("plan"));
           if (!persisted) {
             errorToast("Couldn't save your progress", "Please try again.");
             return null;
@@ -121,7 +123,7 @@ export function useOnboardingActions(): UseOnboardingActions {
         errorToast("Couldn't save your signals", "Please try again.");
         return false;
       }
-      const persisted = await persistOnboardingStep(projectId, 2);
+      const persisted = await persistOnboardingStep(projectId, stepIndexOf("slack"));
       if (!persisted) {
         errorToast("Couldn't save your progress", "Please try again.");
         return false;
@@ -141,7 +143,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
     setIsSubmitting(true);
     try {
-      const persisted = await persistOnboardingStep(projectId, 3);
+      const persisted = await persistOnboardingStep(projectId, stepIndexOf("connect"));
       if (!persisted) {
         errorToast("Couldn't save your progress", "Please try again.");
         return false;
@@ -153,22 +155,84 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
   }, [form, resources, errorToast]);
 
-  const savePlan = useCallback(async (): Promise<boolean> => {
-    const projectId = resources.projectId;
-    if (!projectId) return true;
+  const savePlan = useCallback(
+    async (isPaid: boolean): Promise<boolean> => {
+      const projectId = resources.projectId;
+      if (!projectId) return true;
+      setIsSubmitting(true);
+      try {
+        const persisted = await persistOnboardingStep(projectId, stepIndexOf(isPaid ? "invite" : "connect"));
+        if (!persisted) {
+          errorToast("Couldn't save your progress", "Please try again.");
+          return false;
+        }
+        track("onboarding", "plan_step_completed", { tier: form.getValues("selectedTier") });
+        return true;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [form, resources.projectId, errorToast]
+  );
+
+  // Best-effort per email: one bad address shouldn't block the rest or the wizard.
+  const saveInvite = useCallback(
+    async (emails: string[]): Promise<boolean> => {
+      const { workspaceId, projectId } = resources;
+      if (!workspaceId || !projectId) return true;
+      setIsSubmitting(true);
+      try {
+        const results = await Promise.all(
+          emails.map(async (email) => {
+            try {
+              const res = await fetch(`/api/workspaces/${workspaceId}/invite`, jsonRequest("POST", { email }));
+              if (res.ok) return null;
+              const err = await res.json().catch(() => null);
+              return `${email}: ${err?.error ?? "failed to invite"}`;
+            } catch {
+              return `${email}: failed to invite`;
+            }
+          })
+        );
+        const failures = results.filter((r): r is string => r !== null);
+        if (failures.length > 0) {
+          errorToast("Some invites weren't sent", failures.join("\n"));
+        }
+        const persisted = await persistOnboardingStep(projectId, stepIndexOf("signals"));
+        if (!persisted) {
+          errorToast("Couldn't save your progress", "Please try again.");
+          return false;
+        }
+        track("onboarding", "team_invited", { count: emails.length - failures.length });
+        return true;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [resources, errorToast]
+  );
+
+  const startTrial = useCallback(async (): Promise<boolean> => {
+    const workspaceId = resources.workspaceId;
+    if (!workspaceId) return false;
     setIsSubmitting(true);
     try {
-      const persisted = await persistOnboardingStep(projectId, 4);
-      if (!persisted) {
-        errorToast("Couldn't save your progress", "Please try again.");
+      const res = await fetch(`/api/workspaces/${workspaceId}/subscription/trial`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        errorToast("Couldn't start your free trial", err?.error ?? "Please try again.");
         return false;
       }
-      track("onboarding", "plan_step_completed", { tier: form.getValues("selectedTier") });
+      form.setValue("currentTier", "hobby");
+      track("onboarding", "trial_started");
       return true;
+    } catch {
+      errorToast("Couldn't start your free trial", "Please try again.");
+      return false;
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, resources.projectId, errorToast]);
+  }, [form, resources.workspaceId, errorToast]);
 
   const finishOnboarding = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
@@ -199,6 +263,8 @@ export function useOnboardingActions(): UseOnboardingActions {
     saveSignals,
     saveSlack,
     savePlan,
+    saveInvite,
+    startTrial,
     finishOnboarding,
     beginSubmitting,
     endSubmitting,

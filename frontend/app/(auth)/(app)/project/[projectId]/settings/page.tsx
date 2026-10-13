@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import SharedSettings from "@/components/shared-settings";
 import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
+import { getActiveTrial, isStarterTrialEligible } from "@/lib/actions/checkout/trial";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getApiKeys } from "@/lib/actions/project-api-keys";
 import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
@@ -68,6 +69,8 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   let subscription = null;
   let upcomingInvoice = null;
 
+  const trialEligible = canManageBilling && !isPaidTier && (await isStarterTrialEligible(workspaceId, user.id));
+
   if (canManageBilling && isPaidTier) {
     try {
       [subscription, upcomingInvoice] = await Promise.all([
@@ -78,6 +81,11 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
       console.error("Error fetching subscription details:", error);
     }
   }
+
+  const activeTrial = isPaidTier ? await getActiveTrial(workspaceId) : undefined;
+  const trial = activeTrial
+    ? { endsAt: activeTrial.endsAt, hasPaymentMethod: subscription?.hasPaymentMethod ?? false }
+    : null;
 
   return (
     <SharedSettings
@@ -91,6 +99,8 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
       subscription={subscription}
       upcomingInvoice={upcomingInvoice}
       canManageBilling={canManageBilling}
+      trialEligible={trialEligible}
+      trial={trial}
       slackClientId={process.env.SLACK_CLIENT_ID}
       slackRedirectUri={process.env.SLACK_REDIRECT_URL}
       slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}

@@ -86,6 +86,10 @@ pub enum CrudError {
     DuplicateName(String),
     #[error("Signal not found")]
     SignalNotFound,
+    #[error(
+        "Signals aren't included in the Free plan. Upgrade to Starter or Pro to create signals."
+    )]
+    FreePlan,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -109,6 +113,9 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
         }
         e @ CrudError::SignalNotFound => {
             HttpResponse::NotFound().json(json!({ "error": e.to_string() }))
+        }
+        e @ CrudError::FreePlan => {
+            HttpResponse::Forbidden().json(json!({ "error": e.to_string() }))
         }
         CrudError::Internal(err) => {
             log::error!("signal crud error: {err:?}");
@@ -445,6 +452,9 @@ pub async fn create_signal(
     mut input: SignalInput,
     clustering_enabled: bool,
 ) -> Result<SignalResponse, CrudError> {
+    if crate::db::projects::is_project_on_free_tier(pool, project_id).await? {
+        return Err(CrudError::FreePlan);
+    }
     validate_signal_input(&mut input)?;
 
     let trigger = input

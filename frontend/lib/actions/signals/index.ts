@@ -7,6 +7,7 @@ import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/fi
 import { PaginationFiltersSchema, SortSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSignalDefinition, mintSignalVersion } from "@/lib/actions/signal-versions";
 import { executeQuery } from "@/lib/actions/sql";
+import { assertProjectHasSignals } from "@/lib/actions/usage/plan-gates";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -283,6 +284,7 @@ const newestTrigger = async (tx: Transaction, projectId: string, signalId: strin
 // failure can't leave the project with half-applied template changes.
 export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignalsSchema>) {
   const { projectId, templateNames, subscriberEmail } = SetTemplateSignalsSchema.parse(input);
+  if (templateNames.length > 0) await assertProjectHasSignals(projectId);
 
   const templatesByName = new Map(signalTemplates.map((t) => [t.name, t]));
   const selected = new Set(templateNames.filter((n) => templatesByName.has(n)));
@@ -662,6 +664,7 @@ export async function createSignal(
     llmProfileId,
     llmModel,
   } = CreateSignalSchema.parse(input);
+  await assertProjectHasSignals(projectId);
 
   if (requireLlmProfile && llmProfileId === undefined && isFeatureEnabled(Feature.SIGNAL_LLM_PROFILES)) {
     throw llmProfileError("llmProfileId", "Select an LLM profile and a model");

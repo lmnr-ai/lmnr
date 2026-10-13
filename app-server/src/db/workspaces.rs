@@ -42,6 +42,20 @@ pub async fn get_workspace(
     Ok(workspace)
 }
 
+/// Free-tier workspaces get no Slack deliveries; self-hosted tiers never match.
+pub async fn is_workspace_on_free_tier(pool: &PgPool, workspace_id: Uuid) -> Result<bool> {
+    let is_free = sqlx::query_scalar::<_, bool>(
+        "SELECT LOWER(TRIM(subscription_tiers.name)) = 'free'
+         FROM workspaces
+         JOIN subscription_tiers ON subscription_tiers.id = workspaces.tier_id
+         WHERE workspaces.id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(is_free.unwrap_or(false))
+}
+
 /// `members_of_workspaces.member_role` (`owner` | `admin` | `member`) for the
 /// user in the workspace; `None` when the user is not a member.
 pub async fn get_member_role(

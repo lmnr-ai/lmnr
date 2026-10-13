@@ -4,7 +4,7 @@ import {
   formatDataOverage,
   formatPrice,
   formatProjectsAndSeats,
-  formatSignalsCount,
+  formatSignalsCreditLabel,
   formatSignalsOverage,
   formatSupport,
   type Tier,
@@ -34,7 +34,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
       priceSubtext,
       features: [
         "Custom limits",
-        `${formatSignalsCount(tier)} one-time Signals credit`,
+        formatSignalsCreditLabel(tier),
         "On-premise",
         formatProjectsAndSeats(tier),
         formatSupport(tier),
@@ -50,7 +50,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
     priceSubtext,
     features: [
       `${formatDataIncluded(tier)} data`,
-      `${formatSignalsCount(tier)} one-time Signals credit`,
+      formatSignalsCreditLabel(tier),
       retentionLabel(tier),
       formatProjectsAndSeats(tier),
       formatSupport(tier),

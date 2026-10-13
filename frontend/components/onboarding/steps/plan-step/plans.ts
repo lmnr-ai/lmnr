@@ -6,7 +6,7 @@ import {
   formatPrice,
   formatProjects,
   formatSeats,
-  formatSignalsCount,
+  formatSignalsCreditLabel,
   formatSignalsOverage,
   formatSupport,
   TIERS,
@@ -42,8 +42,8 @@ const buildPlan = (tier: OnboardingTier): PlanOption => {
         ? { label: `${formatDataIncluded(tier)} ingested data`, sub: `then ${formatDataOverage(tier)}` }
         : { label: `${formatDataIncluded(tier)} ingested data`, sub: "no overage" },
       isPaid
-        ? { label: `${formatSignalsCount(tier)} one-time Signals credit`, sub: `then ${formatSignalsOverage(tier)}` }
-        : { label: `${formatSignalsCount(tier)} one-time Signals credit`, sub: "no overage" },
+        ? { label: formatSignalsCreditLabel(tier), sub: `then ${formatSignalsOverage(tier)}` }
+        : { label: formatSignalsCreditLabel(tier) },
       { label: retentionLabel(tier) },
       { label: formatProjects(tier) },
       { label: formatSeats(tier) },

@@ -3,22 +3,27 @@
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { OnboardingProvider } from "@/components/onboarding/context";
 import ConnectStep from "@/components/onboarding/steps/connect-step";
+import InviteStep from "@/components/onboarding/steps/invite-step";
 import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
-import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
+import {
+  ONBOARDING_STEPS,
+  type OnboardingFormValues,
+  type OnboardingStep,
+  stepIndexOf,
+  visibleOnboardingSteps,
+} from "@/components/onboarding/types";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-
-const TOTAL_STEPS = ONBOARDING_STEPS.length;
 
 export interface OnboardingInitialValues {
   workspaceId: string | null;
@@ -27,6 +32,8 @@ export interface OnboardingInitialValues {
   defaultValues: OnboardingFormValues;
   // Recognized company name from the work-email domain; null when unknown.
   companyName: string | null;
+  // The Starter card offers a no-card free trial instead of checkout.
+  trialAvailable: boolean;
 }
 
 interface OnboardingWizardProps {
@@ -85,6 +92,7 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
         companyName={initial.companyName}
+        trialAvailable={initial.trialAvailable}
         initialResources={{ workspaceId: initial.workspaceId, projectId: initial.projectId }}
       >
         <WizardSteps initialStep={initial.step} />
@@ -103,7 +111,7 @@ function WizardSteps({ initialStep }: { initialStep: number }) {
   // Stripe lands back here with ?upgraded=true — return to the plan step to
   // confirm payment, then the user continues to the connect step.
   if (searchParams.get("upgraded") === "true") {
-    return <WizardStepsInner initialStep={3} paymentSuccess />;
+    return <WizardStepsInner initialStep={stepIndexOf("plan")} paymentSuccess />;
   }
   return <WizardStepsInner initialStep={initialStep} />;
 }
@@ -128,31 +136,46 @@ const STEP_MOTION_STYLE = { willChange: "opacity" } as const;
 const STEP_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 
 function WizardStepsInner({ initialStep, paymentSuccess }: { initialStep: number; paymentSuccess?: boolean }) {
-  const [stepIndex, setStepIndex] = useState(initialStep);
-  const advance = useCallback(() => setStepIndex((i) => Math.min(TOTAL_STEPS - 1, i + 1)), []);
-  const back = useCallback(() => setStepIndex((i) => Math.max(0, i - 1)), []);
+  const form = useFormContext<OnboardingFormValues>();
+  const [step, setStep] = useState<OnboardingStep>(ONBOARDING_STEPS[initialStep] ?? "workspace");
+  // A Stripe return can beat the webhook, so a confirmed payment counts as paid before the tier flips.
+  // The step count also follows the plan picked but not yet committed, so it doesn't jump after the plan step.
+  const showsPaidSteps =
+    paymentSuccess || form.watch("currentTier") !== "free" || form.watch("selectedTier") !== "free";
+  const steps = visibleOnboardingSteps(showsPaidSteps);
+  const position = Math.max(0, steps.indexOf(step));
+
+  // Read the tier at call time: starting a trial sets it right before advancing.
+  const move = useCallback(
+    (delta: 1 | -1) =>
+      setStep((current) => {
+        const list = visibleOnboardingSteps(paymentSuccess || form.getValues("currentTier") !== "free");
+        const index = list.indexOf(current);
+        if (index === -1) return "connect";
+        return list[Math.min(list.length - 1, Math.max(0, index + delta))];
+      }),
+    [form, paymentSuccess]
+  );
+  const advance = useCallback(() => move(1), [move]);
+  const back = useCallback(() => move(-1), [move]);
 
   const renderStep = () => {
-    switch (stepIndex) {
-      case 0:
-        return <WorkspaceStep stepIndex={0} totalSteps={TOTAL_STEPS} isCloud onComplete={advance} />;
-      case 1:
-        // No back button: workspace+project creation in step 0 is irreversible.
-        return <SignalsStep stepIndex={1} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
-      case 2:
-        return <SlackStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
-      case 3:
-        return (
-          <PlanStep
-            stepIndex={3}
-            totalSteps={TOTAL_STEPS}
-            onBack={back}
-            onAdvance={advance}
-            paymentSuccess={paymentSuccess}
-          />
-        );
-      case 4:
-        return <ConnectStep onBack={back} />;
+    const shared = { stepIndex: position, totalSteps: steps.length };
+    switch (step) {
+      case "workspace":
+        return <WorkspaceStep {...shared} isCloud onComplete={advance} />;
+      case "plan":
+        // No back button: workspace+project creation in the previous step is irreversible.
+        return <PlanStep {...shared} onAdvance={advance} paymentSuccess={paymentSuccess} />;
+      case "invite":
+        // No back button: the plan (trial or payment) is already committed.
+        return <InviteStep {...shared} onAdvance={advance} />;
+      case "signals":
+        return <SignalsStep {...shared} onAdvance={advance} onBack={back} />;
+      case "slack":
+        return <SlackStep {...shared} onAdvance={advance} onBack={back} />;
+      case "connect":
+        return <ConnectStep {...shared} onBack={back} />;
       default:
         return null;
     }
@@ -160,7 +183,7 @@ function WizardStepsInner({ initialStep, paymentSuccess }: { initialStep: number
 
   return (
     <motion.div
-      key={stepIndex}
+      key={step}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={STEP_TRANSITION}

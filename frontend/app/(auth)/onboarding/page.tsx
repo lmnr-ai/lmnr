@@ -7,6 +7,7 @@ import AwaitCompanyName from "@/components/onboarding/await-company-name";
 import OnboardingLoading from "@/components/onboarding/onboarding-loading";
 import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
 import { UserContextProvider } from "@/contexts/user-context";
+import { isStarterTrialEligible } from "@/lib/actions/checkout/trial";
 import { getOnboardingState } from "@/lib/actions/onboarding";
 import { getCachedCompanyName } from "@/lib/actions/onboarding/company-name";
 import { resolveResume } from "@/lib/actions/onboarding/resolve-resume";
@@ -49,6 +50,10 @@ function buildDefaults(
   };
 }
 
+// Starter is preselected while its free trial is on offer; a workspace already past Free keeps its tier.
+const preselectTrial = (values: OnboardingFormValues, trialAvailable: boolean): OnboardingFormValues =>
+  trialAvailable && values.currentTier === "free" ? { ...values, selectedTier: "hobby" } : values;
+
 export default async function OnboardingPage(props: OnboardingPageProps) {
   const session = await getServerSession();
   const user = session!.user;
@@ -78,7 +83,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   const orgDomain = orgDomainFromEmail(user.email);
   const lookupDomain = orgDomain && isFeatureEnabled(Feature.ONBOARDING_COMPANY_NAME) ? orgDomain : null;
-  const [resumeDefaults, cachedName] = await Promise.all([
+  const [resumeDefaults, cachedName, trialAvailable] = await Promise.all([
     resume.point
       ? loadOnboardingResumeDefaults({
           workspaceId: resume.point.workspaceId,
@@ -86,6 +91,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
         })
       : null,
     lookupDomain ? getCachedCompanyName(lookupDomain) : undefined,
+    isStarterTrialEligible(resume.point?.workspaceId ?? null, user.id),
   ]);
 
   const renderWizard = (companyName: string | null) => {
@@ -93,8 +99,9 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
       workspaceId: resume.point?.workspaceId ?? null,
       projectId: resume.point?.projectId ?? null,
       step: resume.point?.step ?? 0,
-      defaultValues: buildDefaults(resumeDefaults, companyName),
+      defaultValues: preselectTrial(buildDefaults(resumeDefaults, companyName), trialAvailable),
       companyName,
+      trialAvailable,
     };
     return (
       <OnboardingWizard

@@ -6,6 +6,7 @@ import {
   formatProjects,
   formatSeats,
   formatSignalsCount,
+  formatSignalsCreditLabel,
   formatSignalsOverageShort,
   formatSupport,
   type Tier,
@@ -120,7 +121,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       tierRow(
         "Signals",
         (tier) => {
-          if (tier === "free") return { label: "No Signals beyond\none-time credits", muted: true, small: true };
+          if (tier === "free") return { label: "Not included", muted: true, small: true };
           const label = formatSignalsOverageShort(tier);
           if (tier === "enterprise") return label;
           return {
@@ -192,7 +193,7 @@ interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: `${formatSignalsCount("free")} one-time Signals credit` },
+    { label: formatSignalsCreditLabel("free") },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -200,7 +201,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
-    { label: `${formatSignalsCount("hobby")} one-time Signals credit` },
+    { label: formatSignalsCreditLabel("hobby") },
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
@@ -208,7 +209,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: `${formatSignalsCount("pro")} one-time Signals credit` },
+    { label: formatSignalsCreditLabel("pro") },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

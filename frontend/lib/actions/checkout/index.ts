@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
+import { subscriptionHasPaymentMethod } from "@/lib/actions/checkout/trial";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
@@ -59,14 +60,18 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
   const invoice = typeof subscription.latest_invoice === "string" ? null : subscription.latest_invoice;
   const subscriptionLine = invoice?.lines.data.find((l) => l.parent?.type === "subscription_item_details");
 
+  const isTrialing = subscription.status === "trialing";
+
   return {
     subscriptionId: subscription.id,
     status: subscription.status,
     currentTier: tierName,
-    currentPeriodStart: subscriptionLine?.period.start ?? 0,
-    currentPeriodEnd: subscriptionLine?.period.end ?? 0,
+    currentPeriodStart: (isTrialing ? subscription.trial_start : subscriptionLine?.period.start) ?? 0,
+    currentPeriodEnd: (isTrialing ? subscription.trial_end : subscriptionLine?.period.end) ?? 0,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
     stripeCustomerId,
+    trialEnd: isTrialing ? subscription.trial_end : null,
+    hasPaymentMethod: isTrialing ? await subscriptionHasPaymentMethod(subscription) : true,
   };
 }
 
@@ -132,6 +137,19 @@ export const cancelSubscription = async (
   }
 
   const s = stripe();
+
+  // A trial has nothing paid to run out: cancel now. The deleted webhook then moves the workspace to
+  // Free and ends the trial in one place, the same path as an expiry.
+  const current = await s.subscriptions.retrieve(workspace[0].subscriptionId);
+  if (current.status === "trialing") {
+    await s.subscriptions.cancel(current.id, {
+      cancellation_details: {
+        feedback: cancellationReason as Stripe.Subscription.CancellationDetails.Feedback,
+        comment: cancellationComment,
+      },
+    });
+    return { cancelAt: Math.floor(Date.now() / 1000), upcomingInvoice: null };
+  }
 
   await s.subscriptions.update(workspace[0].subscriptionId, {
     cancel_at_period_end: true,
@@ -258,6 +276,24 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
 
   if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {
     throw new Error("Could not resolve new tier prices in Stripe");
+  }
+
+  // Switching during a trial ends it: without this the subscription would stay free on the new tier.
+  // The trialing → active webhook then attaches overage prices and resets the usage baseline.
+  if (subscription.status === "trialing") {
+    if (!(await subscriptionHasPaymentMethod(subscription))) {
+      throw new Error("Add a payment method before switching plans during the trial.");
+    }
+    await s.subscriptions.update(workspace[0].subscriptionId, {
+      items: [
+        ...subscription.items.data.map((item) => ({ id: item.id, deleted: true as const })),
+        { price: newFlatPrice.id, quantity: 1 },
+      ],
+      trial_end: "now",
+      proration_behavior: "none",
+    });
+    await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
+    return;
   }
 
   // Separate old items by billing type so each can be handled with the correct proration.

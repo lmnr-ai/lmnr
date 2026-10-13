@@ -1,14 +1,11 @@
-import { eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import Stripe from "stripe";
 
+import { getOrCreateStripeCustomer } from "@/lib/actions/checkout/customer";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
-import { getUserSubscriptionInfo } from "@/lib/actions/checkout/webhook";
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
-import { db } from "@/lib/db/drizzle";
-import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
   title: "Checkout - Laminar",
@@ -30,43 +27,11 @@ export default async function CheckoutPage(props: {
   // Session enforced by the (auth) layout; non-null here.
   const userSession = (await getServerSession())!;
 
-  const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
-
   const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-  const customerId =
-    existingStripeCustomer?.stripeCustomerId ||
-    (
-      await s.customers.create({
-        email: userSession.user.email!,
-      })
-    ).id;
-
-  const userId =
-    existingStripeCustomer?.userId ??
-    (
-      await db.query.users.findFirst({
-        where: eq(users.email, userSession.user.email!),
-      })
-    )?.id;
+  const { customerId, userId } = await getOrCreateStripeCustomer(userSession.user.email!);
 
   if (!userId) {
     redirect(await getWorkspaceSettingsPath(workspaceId!, "billing"));
-  }
-
-  if (!existingStripeCustomer?.stripeCustomerId) {
-    await db
-      .insert(userSubscriptionInfo)
-      .values({
-        userId,
-        stripeCustomerId: customerId,
-      })
-      .onConflictDoUpdate({
-        target: userSubscriptionInfo.userId,
-        set: {
-          stripeCustomerId: customerId,
-        },
-      });
   }
 
   const billingSettingsPath = await getWorkspaceSettingsPath(workspaceId!, "billing");

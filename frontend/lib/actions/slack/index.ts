@@ -2,6 +2,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { SlackOauthResponseSchema } from "@/lib/actions/slack/types";
+import { assertWorkspaceHasSlack } from "@/lib/actions/usage/plan-gates";
 import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { alertTargets, reportTargets, slackIntegrations } from "@/lib/db/migrations/schema";
@@ -120,6 +121,7 @@ async function persistSlackIntegration(input: {
 
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
   const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+  await assertWorkspaceHasSlack(workspaceId);
 
   const redirectUri = process.env.SLACK_REDIRECT_URL;
   if (!redirectUri) {
@@ -169,6 +171,7 @@ export async function redeemBrokeredSlackToken(input: { claim: string; workspace
   }
 
   const { token, teamId, teamName, workspaceId } = BrokerRedeemResponseSchema.parse(await response.json());
+  await assertWorkspaceHasSlack(workspaceId);
 
   // The claim is bound at /cb to the workspace the flow was started for. The
   // caller's URL workspaceId is attacker-controllable (it rides the public
@@ -343,6 +346,7 @@ export async function getSlackChannels(workspaceId: string): Promise<GetSlackCha
 
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
   const { workspaceId, channelId, eventName } = SendTestNotificationSchema.parse(input);
+  await assertWorkspaceHasSlack(workspaceId);
 
   const integration = await getIntegrationWithToken(workspaceId);
 
