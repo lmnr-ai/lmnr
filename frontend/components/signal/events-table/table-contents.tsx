@@ -247,7 +247,7 @@ export const EventsTableContents = memo(function EventsTableContents({
   return (
     <InfiniteDataTable<EventRow>
       className="w-full min-w-max"
-      childrenClassName="sticky left-0 z-10 w-[100cqw]"
+      childrenClassName="sticky left-0 z-30 w-[100cqw]"
       externalScrollElement={externalScrollElement}
       columns={columns}
       data={events}
