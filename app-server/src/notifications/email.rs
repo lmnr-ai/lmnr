@@ -5,7 +5,7 @@
 //! contains multiple notifications (e.g. a report with per-project entries),
 //! they are combined into a single email.
 
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range};
 
 use uuid::Uuid;
 
@@ -24,7 +24,23 @@ const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 pub struct EmailContent {
     pub from: String,
     pub subject: String,
-    pub html: String,
+    pub body: EmailBody,
+}
+
+pub enum EmailBody {
+    Html(String),
+    /// Rendered by a published Resend template. Resend substitutes variables
+    /// verbatim, so values are HTML-escaped before they get here.
+    Template {
+        id: String,
+        variables: HashMap<String, serde_json::Value>,
+    },
+}
+
+impl Default for EmailBody {
+    fn default() -> Self {
+        Self::Html(String::new())
+    }
 }
 
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
@@ -181,7 +197,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                     event_name,
                     &format!("{} event", severity_label),
                 ),
-                html: render_alert_email(
+                body: EmailBody::Html(render_alert_email(
                     event_name,
                     project_name,
                     &attributes,
@@ -191,7 +207,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                     *severity,
                     alert_name,
                     event_id.as_ref(),
-                ),
+                )),
             }
         }
         NotificationKind::NewCluster {
@@ -212,7 +228,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
                 subject: signal_notification_subject(project_name, signal_name, &wording),
-                html: render_new_cluster_email(&clusters),
+                body: EmailBody::Html(render_new_cluster_email(&clusters)),
             }
         }
         NotificationKind::SignalsReport { .. } => {
@@ -221,7 +237,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             EmailContent {
                 from: REPORT_FROM_EMAIL.to_string(),
                 subject: title,
-                html: render_report_email(&report_data),
+                body: EmailBody::Html(render_report_email(&report_data)),
             }
         }
         NotificationKind::UsageWarning {
@@ -238,7 +254,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 "Usage warning: {} reached {} \u{2013} {}",
                 usage_label, formatted_limit, workspace_name
             ),
-            html: render_usage_warning_email(
+            body: EmailBody::Html(render_usage_warning_email(
                 workspace_name,
                 *workspace_id,
                 usage_item,
@@ -247,7 +263,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 *at_tier_included_allowance,
                 tier_display_name,
                 *overage_billable,
-            ),
+            )),
         },
         NotificationKind::UsageHardLimit {
             workspace_name,
@@ -261,15 +277,78 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 "Usage limit reached: {} \u{2013} {}",
                 usage_label, workspace_name
             ),
-            html: render_usage_hard_limit_email(
+            body: EmailBody::Html(render_usage_hard_limit_email(
                 workspace_name,
                 *workspace_id,
                 usage_item,
                 formatted_limit,
                 usage_label,
                 *one_time_credit_exhausted,
+            )),
+        },
+        NotificationKind::SignalEmptyTrace {
+            project_id,
+            project_name,
+            signal_id,
+            signal_name,
+            trace_id,
+        } => EmailContent {
+            from: ALERT_FROM_EMAIL.to_string(),
+            subject: signal_notification_subject(
+                project_name,
+                signal_name,
+                "skipped an empty trace",
+            ),
+            body: signal_empty_trace_email_body(
+                project_id,
+                project_name,
+                signal_id,
+                signal_name,
+                trace_id,
             ),
         },
+    }
+}
+
+// ── Signal empty-trace email ──
+
+/// Resend-hosted template (alias) for the signal empty-trace warning. It lives
+/// in the Laminar Resend account; a deployment sending through another account
+/// gets a 404 for it, which drops the warning.
+const SIGNAL_EMPTY_TRACE_TEMPLATE: &str = "signal-empty-trace";
+
+fn signal_empty_trace_email_body(
+    project_id: &Uuid,
+    project_name: &str,
+    signal_id: &Uuid,
+    signal_name: &str,
+    trace_id: &Uuid,
+) -> EmailBody {
+    let base = frontend_url_email();
+    let trace_url = with_utm(
+        &format!("{base}/project/{project_id}/traces/{trace_id}"),
+        "email",
+        "signal_empty_trace",
+        "view_trace",
+    );
+    let signal_url = with_utm(
+        &format!("{base}/project/{project_id}/signals/{signal_id}"),
+        "email",
+        "signal_empty_trace",
+        "view_signal",
+    );
+    let variables = [
+        ("PROJECT_NAME", project_name),
+        ("SIGNAL_NAME", signal_name),
+        ("TRACE_URL", trace_url.as_str()),
+        ("SIGNAL_URL", signal_url.as_str()),
+    ]
+    .into_iter()
+    .map(|(key, value)| (key.to_string(), serde_json::Value::from(html_escape(value))))
+    .collect();
+    EmailBody::Template {
+        id: SIGNAL_EMPTY_TRACE_TEMPLATE.to_string(),
+        variables,
     }
 }
 
@@ -1031,7 +1110,9 @@ mod tests {
             alert_name: "Critical failures".into(),
         };
 
-        let html = format_email_batch(&[event], &Uuid::nil()).html;
+        let EmailBody::Html(html) = format_email_batch(&[event], &Uuid::nil()).body else {
+            panic!("signal event emails are rendered inline");
+        };
 
         assert!(html.contains(&format!("?traceId={trace_id}&eventId={event_id}")));
     }
@@ -1270,5 +1351,34 @@ mod tests {
         assert!(!html.contains("<svg"));
         assert!(!html.contains("data:image"));
         assert!(html.contains("A &amp; B"));
+    }
+
+    #[test]
+    fn signal_empty_trace_email_uses_template_with_escaped_variables() {
+        let project_id = Uuid::from_u128(1);
+        let trace_id = Uuid::from_u128(2);
+        let kind = NotificationKind::SignalEmptyTrace {
+            project_id,
+            project_name: "laminar-agent".into(),
+            signal_id: Uuid::from_u128(3),
+            signal_name: "Refunds <beta>".into(),
+            trace_id,
+        };
+
+        let content = format_email_batch(&[kind], &Uuid::nil());
+
+        assert_eq!(content.from, ALERT_FROM_EMAIL);
+        assert_eq!(
+            content.subject,
+            "laminar-agent / Refunds <beta> - skipped an empty trace"
+        );
+        let EmailBody::Template { id, variables } = content.body else {
+            panic!("empty-trace emails are rendered by the Resend template");
+        };
+        assert_eq!(id, "signal-empty-trace");
+        assert_eq!(variables["SIGNAL_NAME"], "Refunds &lt;beta&gt;");
+        let trace_url = variables["TRACE_URL"].as_str().unwrap();
+        assert!(trace_url.contains(&format!("/project/{project_id}/traces/{trace_id}?")));
+        assert!(trace_url.contains("&amp;utm_medium=notification"));
     }
 }

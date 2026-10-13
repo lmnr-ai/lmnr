@@ -74,6 +74,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 COPY --from=builder --chown=nextjs:nodejs /app/lib/db/migrations ./lib/db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/lib/clickhouse/migrations ./lib/clickhouse/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/lib/quickwit/indexes ./lib/quickwit/indexes
 
 USER nextjs
 

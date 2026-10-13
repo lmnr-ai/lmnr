@@ -62,8 +62,8 @@ pub fn decode_slack_token(
 ///
 /// All notifications in the batch are expected to be of the same kind.
 /// Reports are rendered by combining per-project data into a single message.
-/// Alerts use the first (and only) notification. Usage warnings and hard limits
-/// are email-only and never reach the Slack formatter.
+/// Alerts use the first (and only) notification. Usage warnings, hard limits and
+/// empty-trace warnings are email-only and never reach the Slack formatter.
 pub fn format_message_blocks_batch(
     notifications: &[NotificationKind],
     workspace_id: Uuid,
@@ -111,11 +111,11 @@ pub fn format_message_blocks_batch(
                 .expect("SignalsReport batch must contain at least one report");
             format_report_blocks(&title, &report_data)
         }
-        // Usage warnings and hard limits are delivered by email only (fetch_targets never
-        // resolves a Slack target for either), so these arms are unreachable in practice.
-        NotificationKind::UsageWarning { .. } | NotificationKind::UsageHardLimit { .. } => {
-            json!([])
-        }
+        // Delivered by email only (fetch_targets never resolves a Slack target for
+        // these), so these arms are unreachable in practice.
+        NotificationKind::UsageWarning { .. }
+        | NotificationKind::UsageHardLimit { .. }
+        | NotificationKind::SignalEmptyTrace { .. } => json!([]),
     }
 }
 

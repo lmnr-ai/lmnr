@@ -4,7 +4,15 @@ import { type ExtractedTool, type ParsedInput } from "./message-types";
  * Canonical provider identifiers. Keep the list in sync with `PROVIDERS`
  * in `./index.ts` — adding a new adapter means extending both.
  */
-export type ProviderHint = "openai" | "openai-responses" | "anthropic" | "gemini" | "langchain" | "gen-ai" | "unknown";
+export type ProviderHint =
+  | "openai"
+  | "openai-responses"
+  | "anthropic"
+  | "gemini"
+  | "langchain"
+  | "gen-ai"
+  | "opencode"
+  | "unknown";
 
 /**
  * A provider adapter encapsulates everything we need to know about a

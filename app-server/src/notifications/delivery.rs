@@ -10,11 +10,15 @@ use std::time::Duration;
 use async_trait::async_trait;
 use backon::Retryable;
 use resend_rs::Resend;
-use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
+use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions, EmailTemplate};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{NotificationKind, TargetType, email, slack};
+use super::{
+    NotificationKind, TargetType,
+    email::{self, EmailBody},
+    slack,
+};
 use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
@@ -120,6 +124,7 @@ impl MessageHandler for NotificationDeliveryHandler {
                         NotificationKind::EventIdentification { project_id, .. } => *project_id,
                         NotificationKind::NewCluster { project_id, .. } => *project_id,
                         NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                        NotificationKind::SignalEmptyTrace { project_id, .. } => *project_id,
                         NotificationKind::UsageWarning { .. } => Uuid::nil(),
                         NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
                     };
@@ -221,8 +226,9 @@ impl NotificationDeliveryHandler {
     }
 
     /// Format and send an email combining all notifications in the batch.
-    /// Returns `Ok(Some(html))` with the raw email HTML on success,
-    /// `Ok(None)` if delivery was skipped.
+    /// Returns `Ok(Some(raw_message))` on success — the email HTML, or the
+    /// template id and variables for template-rendered emails — and `Ok(None)`
+    /// if delivery was skipped.
     async fn handle_email(
         &self,
         message: &NotificationDeliveryMessage,
@@ -242,17 +248,28 @@ impl NotificationDeliveryHandler {
 
         let content = email::format_email_batch(&message.notifications, &message.workspace_id);
 
-        let mut email_opts =
-            CreateEmailBaseOptions::new(&content.from, [recipient.as_str()], &content.subject)
-                .with_html(&content.html);
-
-        // Attach inline logo for all notification emails.
-        email_opts = email_opts.with_attachment(
-            CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
-                .with_filename("logo.png")
-                .with_content_type("image/png")
-                .with_content_id(LAMINAR_LOGO_CID),
-        );
+        let email_opts =
+            CreateEmailBaseOptions::new(&content.from, [recipient.as_str()], &content.subject);
+        let (email_opts, raw_message) = match content.body {
+            // Inline-rendered emails reference the logo by content id.
+            EmailBody::Html(html) => (
+                email_opts.with_html(&html).with_attachment(
+                    CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
+                        .with_filename("logo.png")
+                        .with_content_type("image/png")
+                        .with_content_id(LAMINAR_LOGO_CID),
+                ),
+                html,
+            ),
+            EmailBody::Template { id, variables } => {
+                let raw_message =
+                    serde_json::json!({ "template": id, "variables": variables }).to_string();
+                (
+                    email_opts.with_template(EmailTemplate::new(&id).with_variables(variables)),
+                    raw_message,
+                )
+            }
+        };
 
         match send_email_with_retry(&resend, email_opts).await {
             Ok(response) => {
@@ -261,6 +278,14 @@ impl NotificationDeliveryHandler {
                     message.notifications.len(),
                     response.id
                 );
+            }
+            // The emails endpoint itself always exists, so a 404 is a missing
+            // template; retrying cannot fix it.
+            Err(resend_rs::Error::Resend(e)) if e.status_code == 404 => {
+                return Err(HandlerError::permanent(anyhow::anyhow!(
+                    "Failed to send email, Resend template not found: {}",
+                    e
+                )));
             }
             Err(e) => {
                 log::error!("[NotificationDelivery] Failed to send email: {:?}", e);
@@ -271,7 +296,7 @@ impl NotificationDeliveryHandler {
             }
         }
 
-        Ok(Some(content.html))
+        Ok(Some(raw_message))
     }
 }
 
