@@ -1,0 +1,45 @@
+import WarningIcon from "@/components/onboarding/steps/signals-step/pipeline-diagram/warning-icon";
+import { cn } from "@/lib/utils";
+
+const CLUSTER_COUNT = 4;
+// Cluster each arriving event lands in, interleaved so all counts climb together.
+// Final tallies match the design: 2 / 5 / 8 / 3.
+const ASSIGNMENTS = [2, 1, 2, 3, 0, 2, 1, 2, 3, 1, 2, 0, 2, 1, 3, 2, 1, 2];
+// Fraction of an arrival during which the cluster that just grew stays highlighted.
+const HIGHLIGHT_WINDOW = 0.6;
+
+export const CLASSIFIED_EVENT_COUNT = ASSIGNMENTS.length;
+
+interface ClusterListProps {
+  // Fractional number of events classified so far; may exceed the total.
+  classified: number;
+}
+
+export default function ClusterList({ classified }: ClusterListProps) {
+  const arrived = Math.floor(classified);
+  const counts = Array<number>(CLUSTER_COUNT).fill(0);
+  ASSIGNMENTS.slice(0, arrived).forEach((cluster) => counts[cluster]++);
+  // `classified` runs past the total so the final highlight clears like the rest.
+  const highlighting = arrived > 0 && arrived <= ASSIGNMENTS.length && classified - arrived < HIGHLIGHT_WINDOW;
+  const justLanded = highlighting ? ASSIGNMENTS[arrived - 1] : null;
+
+  return (
+    <div className="flex h-30 w-14 flex-col gap-0.5">
+      {counts.map((count, i) => (
+        <div key={i} className="flex min-h-0 flex-1">
+          <div className="flex w-7 items-center justify-center bg-surface-400">
+            <WarningIcon className="text-foreground-500" />
+          </div>
+          <div
+            className={cn(
+              "flex w-7 items-center justify-center bg-surface-350 text-base tabular-nums transition-colors duration-200",
+              justLanded === i ? "text-white" : "text-foreground-300"
+            )}
+          >
+            {count > 0 ? count : "-"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
