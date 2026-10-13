@@ -49,9 +49,6 @@ function buildDefaults(
   };
 }
 
-// TODO: remove — dev-only override so /onboarding never redirects away.
-const FORCE_SHOW_ONBOARDING = true;
-
 export default async function OnboardingPage(props: OnboardingPageProps) {
   const session = await getServerSession();
   const user = session!.user;
@@ -64,27 +61,18 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
   ]);
 
   // OSS never writes the cookie — any cookie here is from the old multi-step build.
-  // TODO: remove FORCE_SHOW_ONBOARDING
-  if (!FORCE_SHOW_ONBOARDING && !isFeatureEnabled(Feature.LAMINAR_CLOUD) && saved && saved.userId === user.id) {
+  if (!isFeatureEnabled(Feature.LAMINAR_CLOUD) && saved && saved.userId === user.id) {
     return redirect("/api/onboarding?to=/projects");
   }
 
-  // TODO: remove FORCE_SHOW_ONBOARDING
-  if (!FORCE_SHOW_ONBOARDING && resume.stale && workspaceCount > 0) {
+  if (resume.stale && workspaceCount > 0) {
     return redirect("/api/onboarding?to=/projects");
   }
 
   const returningFromSlack = searchParams?.slack !== undefined;
   // Stripe lands here with ?upgraded=true; let PaidFinalize own the DELETE + nav.
   const returningFromStripe = searchParams?.upgraded === "true";
-  // TODO: remove FORCE_SHOW_ONBOARDING
-  if (
-    !FORCE_SHOW_ONBOARDING &&
-    workspaceCount > 0 &&
-    !resume.inProgress &&
-    !returningFromSlack &&
-    !returningFromStripe
-  ) {
+  if (workspaceCount > 0 && !resume.inProgress && !returningFromSlack && !returningFromStripe) {
     return redirect("/projects");
   }
 
