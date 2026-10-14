@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, type MotionValue, useTransform } from "framer-motion";
+import { memo } from "react";
 
 import WarningMark from "../warning-mark";
 
@@ -36,4 +37,4 @@ const PatternGridCell = ({ appearanceThreshold, color, revealProgress, revision,
   );
 };
 
-export default PatternGridCell;
+export default memo(PatternGridCell);

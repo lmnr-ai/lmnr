@@ -10,12 +10,12 @@ const DEFAULT_COLUMN_COUNT = 80;
 const MAX_CELL_COUNT = 5000;
 const PALETTE = ["#2e2e2e", "#494949"] as const;
 const SHAPE_COUNT = 3;
-const VARIANT_COUNT = PALETTE.length * SHAPE_COUNT;
 const RESAMPLE_PERIOD_MS = 100;
 const RESAMPLE_PROBABILITY = 0.04;
 
 interface Cell {
-  colorIndex: number;
+  /** Uniform in [0, 1); the cell is bright when it falls under its row's bright chance. */
+  colorSeed: number;
   revision: number;
   shape: number;
 }
@@ -27,37 +27,42 @@ const hash = (value: number) => {
   return (result ^ (result >>> 14)) >>> 0;
 };
 
-const toCell = (variant: number, revision: number): Cell => ({
-  colorIndex: variant % PALETTE.length,
-  revision,
-  shape: Math.floor(variant / PALETTE.length),
-});
+const toUnit = (value: number) => value / 0x100000000;
 
 const createInitialCells = () =>
-  Array.from({ length: MAX_CELL_COUNT }, (_, index) => toCell(hash(index) % VARIANT_COUNT, 0));
+  Array.from({ length: MAX_CELL_COUNT }, (_, index) => ({
+    colorSeed: toUnit(hash(index + 0x2c1b3c6d)),
+    revision: 0,
+    shape: hash(index) % SHAPE_COUNT,
+  }));
 
-// Always picks a different shape/color so every resample is visible.
+// Always picks a different shape so every resample is visible.
 const resampleCell = (cell: Cell): Cell => {
-  const currentVariant = cell.shape * PALETTE.length + cell.colorIndex;
-  let nextVariant = Math.floor(Math.random() * (VARIANT_COUNT - 1));
-  if (nextVariant >= currentVariant) nextVariant += 1;
-  return toCell(nextVariant, cell.revision + 1);
+  let shape = Math.floor(Math.random() * (SHAPE_COUNT - 1));
+  if (shape >= cell.shape) shape += 1;
+  return { colorSeed: Math.random(), revision: cell.revision + 1, shape };
 };
+
+// rowBias 0 is an even 50/50 everywhere; 1 makes the top row all dark and the bottom row all bright.
+const brightChance = (row: number, rowCount: number, rowBias: number) =>
+  0.5 + rowBias * (row / Math.max(1, rowCount - 1) - 0.5);
 
 interface Props {
   backgroundColor?: string;
   /** Seconds for the cells to pop in once the grid scrolls into view. */
   revealDuration: number;
+  rowBias?: number;
   rowCount: number;
 }
 
-const PatternGrid = ({ backgroundColor = "transparent", revealDuration, rowCount }: Props) => {
+const PatternGrid = ({ backgroundColor = "transparent", revealDuration, rowBias = 0, rowCount }: Props) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const [columnCount, setColumnCount] = useState(DEFAULT_COLUMN_COUNT);
   const [cells, setCells] = useState(createInitialCells);
   // Time-based, not scroll-linked, so a fast scroll to the bottom still sees the whole reveal.
   const revealProgress = useMotionValue(0);
   const isInView = useInView(gridRef, { once: true });
+  const isVisible = useInView(gridRef);
 
   useEffect(() => {
     if (!isInView) return;
@@ -76,15 +81,24 @@ const PatternGrid = ({ backgroundColor = "transparent", revealDuration, rowCount
     return () => observer.disconnect();
   }, []);
 
+  const visibleCellCount = Math.min(MAX_CELL_COUNT, columnCount * rowCount);
+
   useEffect(() => {
-    if (!isInView) return;
+    if (!isVisible) return;
     const interval = window.setInterval(() => {
-      setCells((current) => current.map((cell) => (Math.random() < RESAMPLE_PROBABILITY ? resampleCell(cell) : cell)));
+      // Only the resampled indexes get new objects, so memoised cells skip the rest.
+      setCells((current) => {
+        const next = current.slice();
+        const resampleCount = Math.round(visibleCellCount * RESAMPLE_PROBABILITY);
+        for (let i = 0; i < resampleCount; i++) {
+          const index = Math.floor(Math.random() * visibleCellCount);
+          next[index] = resampleCell(next[index]);
+        }
+        return next;
+      });
     }, RESAMPLE_PERIOD_MS);
     return () => window.clearInterval(interval);
-  }, [isInView]);
-
-  const visibleCellCount = Math.min(MAX_CELL_COUNT, columnCount * rowCount);
+  }, [isVisible, visibleCellCount]);
 
   return (
     <div
@@ -101,7 +115,7 @@ const PatternGrid = ({ backgroundColor = "transparent", revealDuration, rowCount
           <PatternGridCell
             key={index}
             appearanceThreshold={1 - (hash(index + 0x51f15e) + 1) / 0x100000000}
-            color={PALETTE[cell.colorIndex]}
+            color={PALETTE[cell.colorSeed < brightChance(Math.floor(index / columnCount), rowCount, rowBias) ? 1 : 0]}
             revealProgress={revealProgress}
             revision={cell.revision}
             shape={cell.shape}

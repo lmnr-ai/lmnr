@@ -9,7 +9,7 @@ const GridFooter = () => (
       <Footer contentPaddingBottom={80} />
     </div>
     <div className="relative w-full overflow-hidden">
-      <PatternGrid backgroundColor="var(--color-surface-150)" revealDuration={1.5} rowCount={15} />
+      <PatternGrid backgroundColor="var(--color-surface-150)" revealDuration={1.5} rowBias={1} rowCount={15} />
     </div>
   </footer>
 );
