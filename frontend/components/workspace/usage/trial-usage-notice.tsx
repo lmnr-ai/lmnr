@@ -16,7 +16,7 @@ export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) 
         <span className="font-medium">Starter free trial until {endsOn}</span>
         <span className="text-secondary-foreground">
           {trial.convertsToPaid
-            ? `Usage stops at the included 3 GB of data and the $5 Signals credit until Starter starts on ${endsOn}. Subscribe now in Billing to start it today.`
+            ? `Usage stops at the included 3 GB of data and the $5 Signals credit until Starter starts on ${endsOn}. Start it today from Billing.`
             : "You won't be billed. Usage stops at the included 3 GB of data and the $5 Signals credit."}
         </span>
       </div>

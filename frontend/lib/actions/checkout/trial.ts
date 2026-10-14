@@ -29,7 +29,6 @@ const StartTrialSchema = z.object({ workspaceId: z.guid() });
 const TrialPaymentSchema = z.object({
   workspaceId: z.guid(),
   returnUrl: z.url(),
-  endTrialNow: z.boolean().default(false),
 });
 
 // Marks Checkout sessions created by getTrialPaymentUrl for the checkout.session.completed handler.
@@ -197,50 +196,34 @@ const requireTrialSubscription = async (workspaceId: string): Promise<Stripe.Sub
   return subscription;
 };
 
-// Saves a card on the trial; with `endTrialNow` the trial also ends once it is saved.
-const createTrialPaymentSession = async (
-  subscription: Stripe.Subscription,
-  { workspaceId, returnUrl, endTrialNow }: z.output<typeof TrialPaymentSchema>
-): Promise<string> => {
+// Stripe setup-mode Checkout: saves a card on the trial, which then converts at trial end.
+export const getTrialPaymentUrl = async (input: z.input<typeof TrialPaymentSchema>): Promise<string> => {
+  const { workspaceId, returnUrl } = TrialPaymentSchema.parse(input);
+  const subscription = await requireTrialSubscription(workspaceId);
   const session = await stripe().checkout.sessions.create({
     mode: "setup",
     currency: "usd",
     customer: getIdFromStripeObject(subscription.customer),
-    metadata: {
-      type: TRIAL_PAYMENT_SESSION_TYPE,
-      workspaceId,
-      subscriptionId: subscription.id,
-      endTrialNow: String(endTrialNow),
-    },
+    metadata: { type: TRIAL_PAYMENT_SESSION_TYPE, workspaceId, subscriptionId: subscription.id },
     success_url: returnUrl,
     cancel_url: returnUrl,
   });
   return session.url!;
 };
 
-export const getTrialPaymentUrl = async (input: z.input<typeof TrialPaymentSchema>): Promise<string> => {
-  const parsed = TrialPaymentSchema.parse(input);
-  return createTrialPaymentSession(await requireTrialSubscription(parsed.workspaceId), parsed);
-};
-
-// "Cancel trial": Stripe cancels at trial_end and the deleted webhook moves the workspace to Free.
+// "Cancel subscription": Stripe cancels at trial_end and the deleted webhook moves the workspace to Free.
 export const setTrialContinues = async (workspaceId: string, continues: boolean): Promise<void> => {
   const subscription = await requireTrialSubscription(workspaceId);
   await stripe().subscriptions.update(subscription.id, { cancel_at_period_end: !continues });
 };
 
-// Without a card on file, returns a setup Checkout URL that ends the trial once the card is saved.
-export const startStarterNow = async (input: {
-  workspaceId: string;
-  returnUrl: string;
-}): Promise<{ url: string | null }> => {
-  const parsed = TrialPaymentSchema.parse({ ...input, endTrialNow: true });
-  const subscription = await requireTrialSubscription(parsed.workspaceId);
+// Ends the trial today; Stripe invoices and the conversion webhook runs.
+export const startStarterNow = async (workspaceId: string): Promise<void> => {
+  const subscription = await requireTrialSubscription(workspaceId);
   if (!(await subscriptionHasPaymentMethod(subscription))) {
-    return { url: await createTrialPaymentSession(subscription, parsed) };
+    throw new Error("Add a payment method first.");
   }
   await stripe().subscriptions.update(subscription.id, { trial_end: "now", cancel_at_period_end: false });
-  return { url: null };
 };
 
 export const handleTrialPaymentSessionCompleted = async (session: Stripe.Checkout.Session) => {
@@ -257,11 +240,10 @@ export const handleTrialPaymentSessionCompleted = async (session: Stripe.Checkou
   if (customerId) {
     await s.customers.update(customerId, { invoice_settings: { default_payment_method: paymentMethodId } });
   }
-  // Adding a card also undoes an earlier "Cancel trial".
+  // Adding a card also undoes an earlier "Cancel subscription".
   await s.subscriptions.update(subscriptionId, {
     default_payment_method: paymentMethodId,
     cancel_at_period_end: false,
-    ...(session.metadata?.endTrialNow === "true" ? { trial_end: "now" as const } : {}),
   });
 };
 
@@ -285,7 +267,7 @@ export const handleTrialConversion = async (
 };
 
 // Fires 3 days before the end, or right away when a trial is cut short. Only trials that won't
-// convert on their own (no card, or "Cancel trial") get the reminder.
+// convert on their own (no card, or "Cancel subscription") get the reminder.
 export const handleTrialWillEnd = async (subscription: Stripe.Subscription) => {
   const workspaceId = subscription.metadata?.workspaceId;
   if (subscription.status !== "trialing" || !workspaceId || !subscription.trial_end) return;

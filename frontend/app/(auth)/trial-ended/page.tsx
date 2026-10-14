@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { type Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import TrialEndedActions from "@/components/trial-ended/trial-ended-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { countWorkspaceMemberships } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, users, workspaces } from "@/lib/db/migrations/schema";
@@ -30,13 +30,14 @@ export default async function TrialEndedPage(props: { searchParams: Promise<{ wo
     notFound();
   }
 
-  const [workspace, owners] = await Promise.all([
+  const [workspace, owners, openWorkspaceCount] = await Promise.all([
     db.query.workspaces.findFirst({ where: eq(workspaces.id, workspaceId), columns: { name: true } }),
     db
       .select({ name: users.name, email: users.email })
       .from(membersOfWorkspaces)
       .innerJoin(users, eq(users.id, membersOfWorkspaces.userId))
       .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.memberRole, "owner"))),
+    countWorkspaceMemberships(session.user.id),
   ]);
 
   return (
@@ -60,9 +61,7 @@ export default async function TrialEndedPage(props: { searchParams: Promise<{ wo
               ))}
             </div>
           )}
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/projects">Go to my workspaces</Link>
-          </Button>
+          <TrialEndedActions hasOpenWorkspace={openWorkspaceCount > 0} />
         </CardContent>
       </Card>
     </div>

@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { get, head } from "lodash";
 import { FolderOpen } from "lucide-react";
 import { type Metadata } from "next";
@@ -11,6 +11,7 @@ import { getNewestProjectId } from "@/lib/actions/projects";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { getLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { getServerSession } from "@/lib/auth-session";
+import { notTrialLocked } from "@/lib/authorization/trial-lock";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -41,7 +42,7 @@ export default async function ProjectsPage() {
     .select({ workspaceId: membersOfWorkspaces.workspaceId })
     .from(membersOfWorkspaces)
     .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
-    .where(eq(membersOfWorkspaces.userId, user.id))
+    .where(and(eq(membersOfWorkspaces.userId, user.id), notTrialLocked))
     .orderBy(desc(workspaces.createdAt));
 
   if (workspaceLists.length === 0) {

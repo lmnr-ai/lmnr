@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { getServerSession } from "@/lib/auth-session";
+import { notTrialLocked } from "@/lib/authorization/trial-lock";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { AuthorizationError } from "@/lib/errors";
@@ -42,6 +43,6 @@ export const countWorkspaceMemberships = async (userId: string): Promise<number>
   const [{ count }] = await db
     .select({ count: sql`count(*)`.mapWith(Number) })
     .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.userId, userId));
+    .where(and(eq(membersOfWorkspaces.userId, userId), notTrialLocked));
   return count;
 };

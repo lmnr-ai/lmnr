@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { isNil } from "lodash";
 import { notFound, redirect } from "next/navigation";
 
@@ -12,15 +12,7 @@ import {
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
 
-// A workspace that fell back to Free after a trial or paid plan (subscription_id is never cleared)
-// is owner-only until it upgrades again: Free has a single seat.
-const trialLocked = sql`(${membersOfWorkspaces.memberRole} <> 'owner' AND EXISTS (
-  SELECT 1 FROM workspaces w
-  JOIN subscription_tiers st ON st.id = w.tier_id
-  WHERE w.id = ${membersOfWorkspaces.workspaceId}
-    AND w.subscription_id IS NOT NULL
-    AND lower(trim(st.name)) = 'free'))`;
-const notTrialLocked = sql`NOT ${trialLocked}`;
+import { notTrialLocked, trialLocked } from "./trial-lock";
 
 // A member blocked only by the trial lock is sent to /trial-ended instead of a 404.
 const redirectIfTrialLocked = async (userId: string, target: { workspaceId: string } | { projectId: string }) => {

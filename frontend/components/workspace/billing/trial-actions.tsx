@@ -16,11 +16,11 @@ interface TrialActionsProps {
   onError: (error: string) => void;
 }
 
-type PendingAction = "add-card" | "subscribe" | "stop" | "keep" | null;
+type PendingAction = "add-card" | "start" | "stop" | "keep" | null;
 
 const TRACK_EVENTS: Record<Exclude<PendingAction, null>, string> = {
   "add-card": "trial_add_card_clicked",
-  subscribe: "trial_subscribe_now_clicked",
+  start: "trial_start_now_clicked",
   stop: "trial_stop_clicked",
   keep: "trial_keep_clicked",
 };
@@ -45,18 +45,17 @@ export default function TrialActions({
   const [pending, setPending] = useState<PendingAction>(null);
   const trialUrl = `/api/workspaces/${workspaceId}/subscription/trial`;
 
-  // A URL means Stripe needs a card first; "end" returns null when it used the card on file.
-  const postForUrl = async (path: "payment" | "end", fallbackError: string) => {
+  const openCardSetup = async () => {
     const res = await request(
-      `${trialUrl}/${path}`,
+      `${trialUrl}/payment`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ returnUrl: window.location.href }),
       },
-      fallbackError
+      "Failed to open payment setup"
     );
-    return ((await res.json()) as { url: string | null }).url;
+    window.location.href = ((await res.json()) as { url: string }).url;
   };
 
   const setContinues = (continues: boolean) =>
@@ -70,17 +69,14 @@ export default function TrialActions({
     setPending(action);
     try {
       track("billing", TRACK_EVENTS[action]);
-      let url: string | null = null;
       if (action === "add-card") {
-        url = await postForUrl("payment", "Failed to open payment setup");
-      } else if (action === "subscribe") {
-        url = await postForUrl("end", "Failed to start the subscription");
+        await openCardSetup();
+        return;
+      }
+      if (action === "start") {
+        await request(`${trialUrl}/end`, { method: "POST" }, "Failed to start Starter");
       } else {
         await setContinues(action === "keep");
-      }
-      if (url) {
-        window.location.href = url;
-        return;
       }
       router.refresh();
       setPending(null);
@@ -103,9 +99,9 @@ export default function TrialActions({
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-secondary-foreground">
-          Your trial ends on {endsOn} and won{"'"}t continue. The workspace moves to Free and nothing is charged.
+          Subscription cancelled. Your trial runs until {endsOn}, then the workspace moves to Free. Nothing is charged.
         </p>
-        <div className="flex gap-2">{button("keep", "Keep Starter")}</div>
+        <div className="flex gap-2">{button("keep", "Keep subscription")}</div>
       </div>
     );
   }
@@ -118,9 +114,14 @@ export default function TrialActions({
           : `Your trial ends on ${endsOn}. Add a payment method to keep Starter, otherwise the workspace moves to Free.`}
       </p>
       <div className="flex gap-2">
-        {!hasPaymentMethod && button("add-card", "Add payment method")}
-        {button("subscribe", "Subscribe now", "outline")}
-        {hasPaymentMethod && button("stop", "Cancel trial", "ghost")}
+        {hasPaymentMethod ? (
+          <>
+            {button("start", "Start now", "outline")}
+            {button("stop", "Cancel subscription", "ghost")}
+          </>
+        ) : (
+          button("add-card", "Add payment method")
+        )}
       </div>
     </div>
   );

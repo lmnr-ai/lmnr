@@ -75,7 +75,9 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, tri
   const dates = `${formatDay(cycle.start)} – ${formatDay(cycle.end)}`;
   const countdown = `${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
   const cycleRange = `${dates} · resets in ${countdown}`;
-  const cycleLabel = trial ? `Trial ${dates} · ends in ${countdown}` : `Billing cycle ${cycleRange}`;
+  const cycleLabel = trial
+    ? `Trial ${dates} · ends in ${countdown}`
+    : `${tier === "free" ? "Usage period" : "Billing cycle"} ${cycleRange}`;
 
   return (
     <>

@@ -133,7 +133,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     const credit = await getSignalCreditState(workspaceId, 0);
     if (credit.remainingMicroUsd === 0) {
       throw new Error(
-        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Subscribe now in Billing to start Starter and keep Signals running.`
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Start Starter from Billing to keep Signals running.`
       );
     }
     return;
