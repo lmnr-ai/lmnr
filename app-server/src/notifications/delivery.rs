@@ -168,17 +168,6 @@ impl NotificationDeliveryHandler {
         &self,
         message: &NotificationDeliveryMessage,
     ) -> Result<Option<String>, HandlerError> {
-        // Slack alerts are a paid feature: a Free workspace keeps its integration but gets no deliveries.
-        let is_free =
-            crate::db::workspaces::is_workspace_on_free_tier(&self.db.pool, message.workspace_id)
-                .await
-                .map_err(|e| {
-                    HandlerError::transient(anyhow::anyhow!("Failed to read workspace tier: {}", e))
-                })?;
-        if is_free {
-            return Ok(None);
-        }
-
         let (Some(channel_id), Some(integration_id)) =
             (&message.target.channel_id, message.target.integration_id)
         else {
@@ -203,6 +192,11 @@ impl NotificationDeliveryHandler {
             );
             return Ok(None);
         };
+
+        // Slack is a paid feature: a Free workspace keeps its integration but gets no deliveries.
+        if integration.free_tier {
+            return Ok(None);
+        }
 
         let decrypted_token = slack::decode_slack_token(
             &integration.team_id,

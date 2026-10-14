@@ -427,7 +427,7 @@ pub async fn check_workspace_signal_usage(
         output_tokens,
     } = match get_workspace_signal_tokens_by_project_ids(
         clickhouse,
-        project_info.workspace_project_ids,
+        project_info.workspace_project_ids.clone(),
         billing_start,
     )
     .await

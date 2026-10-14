@@ -5,7 +5,7 @@
 //! (`value` / `filters` / `mode`) — so the evaluator and the drawer are untouched.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -17,8 +17,9 @@ use crate::cache::keys::SIGNAL_TRIGGERS_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::db::signal_triggers::{TriggerPatch, TriggerRow};
 use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate, SignalVersionRow};
-use crate::db::{llm_profiles, projects, signal_triggers, signals};
+use crate::db::{DB, llm_profiles, projects, signal_triggers, signals};
 use crate::features::{Feature, is_feature_enabled};
+use crate::utils::limits::get_workspace_info_for_project_id;
 
 /// Search/sort silently drop non-identifier field names.
 static FIELD_NAME_RE: LazyLock<Regex> =
@@ -445,17 +446,19 @@ pub struct SignalInput {
 }
 
 pub async fn create_signal(
-    pool: &PgPool,
-    cache: &Cache,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
     project_id: Uuid,
     subscriber_email: Option<&str>,
     mut input: SignalInput,
     clustering_enabled: bool,
 ) -> Result<SignalResponse, CrudError> {
-    if crate::db::projects::is_project_on_free_tier(pool, project_id).await? {
+    let billing = get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+    if billing.is_some_and(|b| b.tier_name.is_free()) {
         return Err(CrudError::FreePlan);
     }
     validate_signal_input(&mut input)?;
+    let pool = &db.pool;
 
     let trigger = input
         .trigger
@@ -483,7 +486,7 @@ pub async fn create_signal(
     )
     .await?;
 
-    invalidate_trigger_cache(cache, project_id).await;
+    invalidate_trigger_cache(&cache, project_id).await;
 
     let profile_name = llm_profile_name(pool, &signal).await?;
     Ok(SignalResponse::new(signal, Some(trigger_row), profile_name))

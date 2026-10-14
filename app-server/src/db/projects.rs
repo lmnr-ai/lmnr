@@ -233,21 +233,6 @@ pub struct ProjectInfo {
     pub name: String,
 }
 
-/// The Free tier has no Signals; self-hosted tiers (e.g. "unlimited") never match.
-pub async fn is_project_on_free_tier(pool: &PgPool, project_id: Uuid) -> anyhow::Result<bool> {
-    let is_free = sqlx::query_scalar::<_, bool>(
-        "SELECT LOWER(TRIM(subscription_tiers.name)) = 'free'
-         FROM projects
-         JOIN workspaces ON workspaces.id = projects.workspace_id
-         JOIN subscription_tiers ON subscription_tiers.id = workspaces.tier_id
-         WHERE projects.id = $1",
-    )
-    .bind(project_id)
-    .fetch_optional(pool)
-    .await?;
-    Ok(is_free.unwrap_or(false))
-}
-
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_signal_credit_remaining(
     pool: &PgPool,
