@@ -7,9 +7,12 @@ const OVERHANG = 4000;
 
 interface DotGridProps {
   rows: number;
+  /** Bleed past both sides of the parent so the dots reach the viewport edges. */
+  overhang?: boolean;
 }
 
-export default function DotGrid({ rows }: DotGridProps) {
+export default function DotGrid({ rows, overhang = true }: DotGridProps) {
+  const bleed = overhang ? OVERHANG : 0;
   const patternId = `dot-grid-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   return (
@@ -17,7 +20,7 @@ export default function DotGrid({ rows }: DotGridProps) {
       data-dot-grid
       aria-hidden="true"
       className="pointer-events-none absolute top-0"
-      style={{ left: -OVERHANG, width: `calc(100% + ${OVERHANG * 2}px)`, height: rows * CELL }}
+      style={{ left: -bleed, width: `calc(100% + ${bleed * 2}px)`, height: rows * CELL }}
     >
       <defs>
         <pattern id={patternId} patternUnits="userSpaceOnUse" width={CELL} height={CELL}>

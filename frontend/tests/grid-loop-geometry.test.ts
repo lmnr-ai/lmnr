@@ -68,11 +68,16 @@ const assertOnEdge = (p: Point, r: Rect, edge: Edge, label: string) => {
   assert.ok(ok, `${label}: (${p.x}, ${p.y}) not on ${edge} edge of ${JSON.stringify(r)}`);
 };
 
-for (const cols of [44, 47, 50]) {
-  describe(`grid loop layout (cols=${cols})`, () => {
-    const layout = getGridLoopLayout(cols);
+for (const [cols, compact] of [
+  [44, false],
+  [47, false],
+  [50, false],
+  [44, true],
+] as const) {
+  describe(`grid loop layout (cols=${cols}, compact=${compact})`, () => {
+    const layout = getGridLoopLayout(cols, compact);
     const width = cols * CELL;
-    const height = ROWS * CELL;
+    const height = (compact ? ROWS - 1 : ROWS) * CELL;
     const rects: Array<[string, Rect]> = [
       ...Object.entries(layout.nodes),
       ...Object.entries(layout.boxes),

@@ -26,7 +26,7 @@ const Hero = ({ className, hasSession }: Props) => (
     <AnnouncementBanner />
     <Header hasSession={hasSession} className={cn("w-full pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)} isIncludePadding />
 
-    <div className="flex w-full shrink-0 flex-col items-center justify-start gap-[80px] px-3 pt-[100px] pb-2 sm:px-6 lg:px-0">
+    <div className="flex w-full shrink-0 flex-col items-center justify-start gap-[44px] md:gap-[56px] px-3 pt-[72px] md:pt-[100px] pb-2 sm:px-6 lg:px-0">
       <div className={cn("flex flex-col items-start gap-8 w-full", LANDING_COLUMN_MAX_W)}>
         <div className="flex flex-col items-start gap-4">
           <h1 className={cn(mainTitle, "tracking-[-0.015em]")}>
