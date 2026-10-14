@@ -3,7 +3,6 @@ import type { CSSProperties } from "react";
 
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
-export const WELCOME_BANNER_CID = "welcome-banner-background";
 const GET_STARTED_URL = "https://lmnr.ai/docs/getting-started";
 
 export default function WelcomeEmail() {
@@ -18,7 +17,7 @@ export default function WelcomeEmail() {
           <table className="welcome-banner" role="presentation" cellPadding="0" cellSpacing="0" style={bannerTable}>
             <tbody>
               <tr>
-                <td {...{ background: `cid:${WELCOME_BANNER_CID}` }} style={banner}>
+                <td style={banner}>
                   <Img src={`cid:${LAMINAR_LOGO_CID}`} alt="Laminar" width="76" height="13" style={logo} />
                   <Text style={heading}>Welcome to Laminar!</Text>
                 </td>
@@ -130,10 +129,6 @@ const banner: CSSProperties = {
   padding: "16px 20px 12px",
   borderRadius: "8px",
   backgroundColor: "#252526",
-  backgroundImage: `url('cid:${WELCOME_BANNER_CID}')`,
-  backgroundPosition: "center",
-  backgroundSize: "cover",
-  backgroundRepeat: "no-repeat",
 };
 const logo: CSSProperties = { display: "block", width: "76px", height: "13px" };
 const heading: CSSProperties = {
