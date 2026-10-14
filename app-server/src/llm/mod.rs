@@ -651,6 +651,17 @@ impl LlmClient {
             .map(|p| p.name)
     }
 
+    /// The global route for `feature` only, with no fallback of any kind.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub async fn resolve_global_feature_only(
+        &self,
+        feature: LlmFeature,
+    ) -> Result<Option<profiles::ResolvedFeature>, ProviderError> {
+        self.profile_store()?
+            .resolve_global_feature_only(feature)
+            .await
+    }
+
     fn profile_store(&self) -> Result<&Arc<profiles::LlmProfileStore>, ProviderError> {
         self.profiles.as_ref().ok_or_else(|| {
             ProviderError::ConfigError(

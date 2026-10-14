@@ -1517,8 +1517,9 @@ fn main() -> anyhow::Result<()> {
     // Shared by every LLM-backed feature — gate on the union of their flags,
     // not on any single feature, so the flags' conditions can diverge later
     // without silently killing the others' client.
-    let llm_client_needed =
-        is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
+    let llm_client_needed = is_feature_enabled(Feature::Signals)
+        || is_feature_enabled(Feature::InputExtraction)
+        || is_feature_enabled(Feature::SignalsGateway);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         let llm_profile_store = Arc::new(llm::profiles::LlmProfileStore::new(
@@ -2528,7 +2529,10 @@ fn main() -> anyhow::Result<()> {
                                         StatusCode::BAD_REQUEST,
                                         |res: dev::ServiceResponse| {
                                             let path = res.request().path();
-                                            if path.ends_with("/sql/query") {
+                                            // Caller-caused 400s on these routes are routine; keep them out of Sentry.
+                                            if path.ends_with("/sql/query")
+                                                || path.ends_with("/chat/completions")
+                                            {
                                                 log::warn!(
                                                     "Bad request: {:?}",
                                                     res.response().body()
@@ -2687,7 +2691,18 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
-                            )
+                            );
+                        // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
+                        #[cfg(feature = "signals")]
+                        let app = app.service(
+                            web::scope("/v1/chat")
+                                .wrap(project_auth.clone())
+                                .app_data(PayloadConfig::new(
+                                    crate::env::private::signals::GATEWAY_PAYLOAD_LIMIT.get(),
+                                ))
+                                .service(crate::signals::private::gateway::chat_completions),
+                        );
+                        let app = app
                             // CLI user-token surface: list_projects takes
                             // CliUserAuth, the rest take CliProjectAuth.
                             .service(cli_scope)

@@ -31,6 +31,9 @@ pub enum LlmFeature {
     CheckpointsClassifier,
     CheckpointsSystemPrompt,
     Reports,
+    /// Upstream of the hosted signals gateway (`/v1/chat/completions`). Only its
+    /// own global row counts: no `default` row and no env fallback.
+    SignalsGateway,
 }
 
 impl LlmFeature {
@@ -53,6 +56,7 @@ impl LlmFeature {
             LlmFeature::CheckpointsClassifier => "checkpoints_classifier",
             LlmFeature::CheckpointsSystemPrompt => "checkpoints_system_prompt",
             LlmFeature::Reports => "reports",
+            LlmFeature::SignalsGateway => "signals_gateway",
         }
     }
 
@@ -72,7 +76,8 @@ impl LlmFeature {
             | LlmFeature::InputExtractionRegexGenerationMulti
             | LlmFeature::StaticPromptExtraction
             | LlmFeature::AgentChat
-            | LlmFeature::Reports => ModelSize::Medium,
+            | LlmFeature::Reports
+            | LlmFeature::SignalsGateway => ModelSize::Medium,
         }
     }
 }
@@ -121,7 +126,7 @@ impl Default for LlmRoute {
 mod tests {
     use super::*;
 
-    const ALL: [LlmFeature; 14] = [
+    const ALL: [LlmFeature; 15] = [
         LlmFeature::Default,
         LlmFeature::Signals,
         LlmFeature::SignalsPromptSummarization,
@@ -136,6 +141,7 @@ mod tests {
         LlmFeature::CheckpointsClassifier,
         LlmFeature::CheckpointsSystemPrompt,
         LlmFeature::Reports,
+        LlmFeature::SignalsGateway,
     ];
 
     /// The DB key (`as_str`) and the wire form (serde) must be the same string.

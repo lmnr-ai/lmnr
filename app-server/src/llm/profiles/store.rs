@@ -190,7 +190,36 @@ impl LlmProfileStore {
         let Some(target) = self.lookup_route(workspace_id, feature).await? else {
             return Ok(None);
         };
+        self.resolve_target(feature, target).await.map(Some)
+    }
 
+    /// Only the global row for `feature` itself: no workspace rows, no `default`
+    /// row, no env fallback. For callers that must never borrow another
+    /// feature's model. `Ok(None)` means the row does not exist.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub async fn resolve_global_feature_only(
+        &self,
+        feature: LlmFeature,
+    ) -> ProviderResult<Option<ResolvedFeature>> {
+        let own = match self.cached_route(RouteScope::Global, feature).await {
+            Some(own) => own,
+            None => {
+                self.load_scope_routes(RouteScope::Global, feature)
+                    .await?
+                    .own
+            }
+        };
+        let Some(target) = own.into_target() else {
+            return Ok(None);
+        };
+        self.resolve_target(feature, target).await.map(Some)
+    }
+
+    async fn resolve_target(
+        &self,
+        feature: LlmFeature,
+        target: FeatureRouteTarget,
+    ) -> ProviderResult<ResolvedFeature> {
         let profile = self
             .get_profile_cached(target.profile_workspace_id, target.profile_id)
             .await
@@ -214,11 +243,11 @@ impl LlmProfileStore {
         }
 
         let client = self.client_for(&profile)?;
-        Ok(Some(ResolvedFeature {
+        Ok(ResolvedFeature {
             client,
             reported_provider: profile.provider.reported_name(),
             model: target.model,
-        }))
+        })
     }
 
     /// The workspace's answer wins over the global one. Two scopes at most, so
