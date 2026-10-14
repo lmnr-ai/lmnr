@@ -110,7 +110,7 @@ export interface SubscriptionDetails {
 
 export interface ActiveTrialInfo {
   endsAt: string;
-  hasPaymentMethod: boolean;
+  convertsToPaid: boolean;
 }
 
 export interface UpcomingInvoiceInfo {

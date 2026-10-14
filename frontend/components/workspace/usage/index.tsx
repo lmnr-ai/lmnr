@@ -52,10 +52,13 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, tri
     swrFetcher
   );
 
-  const model = useMemo(() => buildUsageModel(workspaceStats, breakdown), [workspaceStats, breakdown]);
+  const model = useMemo(
+    () => buildUsageModel(workspaceStats, breakdown, trial?.endsAt),
+    [workspaceStats, breakdown, trial?.endsAt]
+  );
   const { tier, cycle, bill } = model;
   const isPaid = tier === "hobby" || tier === "pro";
-  const daysLeft = Math.ceil(cycle.remainingDays);
+  const daysLeft = cycle.remainingDays;
 
   // On error, render empty charts rather than an endless skeleton.
   const days = breakdown?.days ?? (error ? NO_DAYS : undefined);
@@ -69,8 +72,10 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, tri
     [days]
   );
 
-  const cycleRange = `${formatDay(cycle.start)} – ${formatDay(cycle.end)} · resets in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
-  const cycleLabel = `Billing cycle ${cycleRange}`;
+  const dates = `${formatDay(cycle.start)} – ${formatDay(cycle.end)}`;
+  const countdown = `${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
+  const cycleRange = `${dates} · resets in ${countdown}`;
+  const cycleLabel = trial ? `Trial ${dates} · ends in ${countdown}` : `Billing cycle ${cycleRange}`;
 
   return (
     <>

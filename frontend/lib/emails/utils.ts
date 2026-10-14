@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { eq } from "drizzle-orm";
+
 import { projectHasTraces } from "@/lib/actions/project/has-traces";
+import { db } from "@/lib/db/drizzle";
+import { projects, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { sendUserOnboardedEvent } from "./automations";
@@ -9,7 +13,6 @@ import { RESEND } from "./client";
 import PaymentFailedEmail from "./payment-failed-email";
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
-import TrialEndedEmail from "./trial-ended-email";
 import TrialEndingEmail from "./trial-ending-email";
 import WelcomeEmail, { WELCOME_BANNER_CID } from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
@@ -26,6 +29,9 @@ const billingPortalUrl = (workspaceId: string) =>
 // Lands on Stripe setup Checkout while the trial runs, else on the workspace billing tab.
 const trialPaymentUrl = (workspaceId: string) =>
   `https://lmnr.ai/checkout/trial-payment?workspaceId=${encodeURIComponent(workspaceId)}`;
+
+const formatEmailDate = (date: Date) =>
+  date.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
 
 const laminarLogoAttachment = async () => ({
   content: await readFile(path.join(process.cwd(), "public", "laminar-logo-sm.png")),
@@ -50,13 +56,22 @@ interface InvoiceEmailArgs {
 // (USER_ONBOARDED_EVENT) nudges them until that project receives its first trace.
 export async function sendWelcomeEmail(email: string, projectId: string) {
   const from = "Robert from Laminar <robert@mail.lmnr.ai>";
-  const subject = "Welcome to Laminar!";
+  const [workspace] = await db
+    .select({ id: workspaces.id, trialEndsAt: workspaces.trialEndsAt })
+    .from(projects)
+    .innerJoin(workspaces, eq(workspaces.id, projects.workspaceId))
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const trial = workspace?.trialEndsAt
+    ? { endsOn: formatEmailDate(new Date(workspace.trialEndsAt)), addPaymentUrl: trialPaymentUrl(workspace.id) }
+    : undefined;
+  const subject = trial ? "Welcome to Laminar! Your Starter trial has started" : "Welcome to Laminar!";
 
   const { data, error } = await RESEND.emails.send({
     from,
     to: [email],
     subject,
-    react: WelcomeEmail(),
+    react: WelcomeEmail({ trial }),
     attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
@@ -131,44 +146,25 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
   if (error) console.log(error);
 }
 
-interface TrialEmailArgs {
-  to: string[];
-  workspaceId: string;
-  workspaceName: string;
-}
-
 export async function sendTrialEndingEmail({
   to,
   workspaceId,
   workspaceName,
   endsAt,
-  hasPaymentMethod,
-}: TrialEmailArgs & { endsAt: Date; hasPaymentMethod: boolean }) {
+}: {
+  to: string[];
+  workspaceId: string;
+  workspaceName: string;
+  endsAt: Date;
+}) {
   if (!isFeatureEnabled(Feature.SEND_EMAIL) || to.length === 0) return;
 
-  const endsOn = endsAt.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  const endsOn = formatEmailDate(endsAt);
   const { error } = await RESEND.emails.send({
     from: "Laminar team <founders@lmnr.ai>",
     to,
-    subject: hasPaymentMethod
-      ? `Your Laminar Starter plan for ${workspaceName} starts on ${endsOn}`
-      : `Your Laminar Starter trial for ${workspaceName} ends on ${endsOn}`,
-    react: TrialEndingEmail({ workspaceName, endsOn, hasPaymentMethod, addPaymentUrl: trialPaymentUrl(workspaceId) }),
-    attachments: [await laminarLogoAttachment()],
-  });
-
-  if (error) console.error(error);
-}
-
-export async function sendTrialEndedEmail({ to, workspaceId, workspaceName }: TrialEmailArgs) {
-  if (!isFeatureEnabled(Feature.SEND_EMAIL) || to.length === 0) return;
-
-  const { error } = await RESEND.emails.send({
-    from: "Laminar team <founders@lmnr.ai>",
-    to,
-    subject: `Your Laminar Starter trial for ${workspaceName} has ended`,
-    react: TrialEndedEmail({ workspaceName, upgradeUrl: trialPaymentUrl(workspaceId) }),
-    attachments: [await laminarLogoAttachment()],
+    subject: `Your Laminar Starter trial for ${workspaceName} ends on ${endsOn}`,
+    react: TrialEndingEmail({ workspaceName, endsOn, addPaymentUrl: trialPaymentUrl(workspaceId) }),
   });
 
   if (error) console.error(error);

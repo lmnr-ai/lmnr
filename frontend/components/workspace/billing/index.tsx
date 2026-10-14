@@ -294,10 +294,10 @@ export default function WorkspaceBilling({
                       : "bg-primary/10 text-primary"
                   )}
                 >
-                  {subscription.cancelAtPeriodEnd
-                    ? "Cancels at period end"
-                    : subscription.trialEnd
-                      ? "Free trial"
+                  {subscription.trialEnd
+                    ? "Free trial"
+                    : subscription.cancelAtPeriodEnd
+                      ? "Cancels at period end"
                       : subscription.status}
                 </span>
               </div>
@@ -313,7 +313,7 @@ export default function WorkspaceBilling({
               <div className="text-sm text-secondary-foreground">
                 {formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}
               </div>
-              {subscription.cancelAtPeriodEnd && (
+              {subscription.cancelAtPeriodEnd && !subscription.trialEnd && (
                 <p className="text-sm text-yellow-500">Access until {formatDate(subscription.currentPeriodEnd)}</p>
               )}
               {subscription.trialEnd && (
@@ -321,6 +321,7 @@ export default function WorkspaceBilling({
                   workspaceId={workspace.id}
                   trialEnd={subscription.trialEnd}
                   hasPaymentMethod={subscription.hasPaymentMethod}
+                  cancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
                   onError={setError}
                 />
               )}

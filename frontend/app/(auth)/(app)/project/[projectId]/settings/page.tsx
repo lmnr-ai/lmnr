@@ -84,7 +84,10 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
 
   const activeTrial = isPaidTier ? await getActiveTrial(workspaceId) : undefined;
   const trial = activeTrial
-    ? { endsAt: activeTrial.endsAt, hasPaymentMethod: subscription?.hasPaymentMethod ?? false }
+    ? {
+        endsAt: activeTrial.endsAt,
+        convertsToPaid: !!subscription?.hasPaymentMethod && !subscription.cancelAtPeriodEnd,
+      }
     : null;
 
   return (

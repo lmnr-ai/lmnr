@@ -12,69 +12,115 @@ interface TrialActionsProps {
   workspaceId: string;
   trialEnd: number;
   hasPaymentMethod: boolean;
+  cancelAtPeriodEnd: boolean;
   onError: (error: string) => void;
 }
 
-type PendingAction = "add-card" | "subscribe" | null;
+type PendingAction = "add-card" | "subscribe" | "stop" | "keep" | null;
 
-export default function TrialActions({ workspaceId, trialEnd, hasPaymentMethod, onError }: TrialActionsProps) {
+const TRACK_EVENTS: Record<Exclude<PendingAction, null>, string> = {
+  "add-card": "trial_add_card_clicked",
+  subscribe: "trial_subscribe_now_clicked",
+  stop: "trial_stop_clicked",
+  keep: "trial_keep_clicked",
+};
+
+const request = async (url: string, init: RequestInit, fallbackError: string) => {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error ?? fallbackError);
+  }
+  return res;
+};
+
+export default function TrialActions({
+  workspaceId,
+  trialEnd,
+  hasPaymentMethod,
+  cancelAtPeriodEnd,
+  onError,
+}: TrialActionsProps) {
   const router = useRouter();
   const [pending, setPending] = useState<PendingAction>(null);
+  const trialUrl = `/api/workspaces/${workspaceId}/subscription/trial`;
 
-  // Card step goes through Stripe setup Checkout; with a card on file "Subscribe now" just ends the trial.
-  const openCardSetup = async (endTrialNow: boolean) => {
-    const res = await fetch(`/api/workspaces/${workspaceId}/subscription/trial/payment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ returnUrl: window.location.href, endTrialNow }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.error ?? "Failed to open payment setup");
-    }
-    const { url } = (await res.json()) as { url: string };
-    window.location.href = url;
+  // A URL means Stripe needs a card first; "end" returns null when it used the card on file.
+  const postForUrl = async (path: "payment" | "end", fallbackError: string) => {
+    const res = await request(
+      `${trialUrl}/${path}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnUrl: window.location.href }),
+      },
+      fallbackError
+    );
+    return ((await res.json()) as { url: string | null }).url;
   };
+
+  const setContinues = (continues: boolean) =>
+    request(
+      trialUrl,
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ continues }) },
+      "Failed to update the trial"
+    );
 
   const run = async (action: Exclude<PendingAction, null>) => {
     setPending(action);
     try {
-      track("billing", action === "add-card" ? "trial_add_card_clicked" : "trial_subscribe_now_clicked");
-      if (action === "subscribe" && hasPaymentMethod) {
-        const res = await fetch(`/api/workspaces/${workspaceId}/subscription/trial/end`, { method: "POST" });
-        if (!res.ok) {
-          const err = await res.json().catch(() => null);
-          throw new Error(err?.error ?? "Failed to start the subscription");
-        }
-        router.refresh();
-        setPending(null);
+      track("billing", TRACK_EVENTS[action]);
+      let url: string | null = null;
+      if (action === "add-card") {
+        url = await postForUrl("payment", "Failed to open payment setup");
+      } else if (action === "subscribe") {
+        url = await postForUrl("end", "Failed to start the subscription");
+      } else {
+        await setContinues(action === "keep");
+      }
+      if (url) {
+        window.location.href = url;
         return;
       }
-      await openCardSetup(action === "subscribe");
+      router.refresh();
+      setPending(null);
     } catch (e) {
       onError(e instanceof Error ? e.message : "Something went wrong");
       setPending(null);
     }
   };
 
+  const button = (action: Exclude<PendingAction, null>, label: string, variant?: "outline" | "ghost") => (
+    <Button variant={variant} onClick={() => run(action)} disabled={pending !== null}>
+      {pending === action && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
+      {label}
+    </Button>
+  );
+
+  const endsOn = formatDate(trialEnd);
+
+  if (cancelAtPeriodEnd) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-secondary-foreground">
+          Your trial ends on {endsOn} and won{"'"}t continue. The workspace moves to Free and nothing is charged.
+        </p>
+        <div className="flex gap-2">{button("keep", "Keep Starter")}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-secondary-foreground">
         {hasPaymentMethod
-          ? `Your card is on file. Starter starts on ${formatDate(trialEnd)}.`
-          : `Your trial ends on ${formatDate(trialEnd)}. Add a payment method to keep Starter, otherwise the workspace moves to Free.`}
+          ? `Your card is on file. Starter starts on ${endsOn}.`
+          : `Your trial ends on ${endsOn}. Add a payment method to keep Starter, otherwise the workspace moves to Free.`}
       </p>
       <div className="flex gap-2">
-        {!hasPaymentMethod && (
-          <Button onClick={() => run("add-card")} disabled={pending !== null}>
-            {pending === "add-card" && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
-            Add payment method
-          </Button>
-        )}
-        <Button variant="outline" onClick={() => run("subscribe")} disabled={pending !== null}>
-          {pending === "subscribe" && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
-          Subscribe now
-        </Button>
+        {!hasPaymentMethod && button("add-card", "Add payment method")}
+        {button("subscribe", "Subscribe now", "outline")}
+        {hasPaymentMethod && button("stop", "Cancel trial", "ghost")}
       </div>
     </div>
   );

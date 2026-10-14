@@ -5,8 +5,7 @@ import { type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 const formatEndDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-// A trial never bills usage: with no card it is capped at the Starter allowance, and with a card
-// on file billing only starts when the trial ends.
+// A trial never bills usage: it stays capped at the Starter allowance until Starter starts.
 export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) {
   const endsOn = formatEndDate(trial.endsAt);
 
@@ -16,9 +15,9 @@ export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) 
       <div className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Starter free trial until {endsOn}</span>
         <span className="text-secondary-foreground">
-          {trial.hasPaymentMethod
-            ? `You won't be billed for usage during the trial. Starter billing starts on ${endsOn}.`
-            : "You won't be billed: there's no card on file. Usage stops at the included 3 GB of data and the $5 Signals credit until you add a payment method."}
+          {trial.convertsToPaid
+            ? `Usage stops at the included 3 GB of data and the $5 Signals credit until Starter starts on ${endsOn}. Subscribe now in Billing to start it today.`
+            : "You won't be billed. Usage stops at the included 3 GB of data and the $5 Signals credit."}
         </span>
       </div>
     </div>

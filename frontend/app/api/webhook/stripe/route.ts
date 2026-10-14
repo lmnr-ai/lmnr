@@ -7,7 +7,6 @@ import {
   endTrial,
   handleTrialWillEnd,
   syncTrialEndFromSubscription,
-  trialOutcomeOnDelete,
   TRIAL_PAYMENT_SESSION_TYPE,
 } from "@/lib/actions/checkout/trial";
 import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
@@ -219,7 +218,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       await handleSubscriptionChange(event, true);
       const workspaceId = event.data.object.metadata?.workspaceId;
       // No-op unless this was a still-running trial (Stripe cancels card-less trials at the end).
-      if (workspaceId) await endTrial(workspaceId, trialOutcomeOnDelete(event.data.object));
+      if (workspaceId) await endTrial(workspaceId, "canceled");
       break;
     }
     case "customer.subscription.created":
