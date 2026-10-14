@@ -10,6 +10,12 @@ import { AgentTab } from "@/components/traces/placeholder/agent-tab";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
+// The CLI flow opens extra tabs that land on this step. Serializing their finishes means
+// later DELETEs arrive after the cookie is cleared, so the server skips the welcome email.
+// navigator.locks is missing outside secure contexts (plain-HTTP self-hosted).
+const withFinishLock = (projectId: string, finish: () => Promise<boolean>): Promise<boolean> =>
+  navigator.locks ? navigator.locks.request(`lmnr:onboarding-finish:${projectId}`, finish) : finish();
+
 interface ConnectStepProps {
   stepIndex: number;
   totalSteps: number;
@@ -34,7 +40,7 @@ export default function ConnectStep({ stepIndex, totalSteps, onBack }: ConnectSt
       }
       // Only record completion once the cookie is actually cleared — a failed
       // DELETE leaves the user pinned to /onboarding, so it isn't "completed".
-      if (await finishOnboarding()) {
+      if (await withFinishLock(projectId, finishOnboarding)) {
         track("onboarding", "connect_step_completed", { skipped });
         beginSubmitting();
         router.replace(`/project/${projectId}/traces?onboarding=true`);

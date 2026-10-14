@@ -39,11 +39,14 @@ export async function DELETE(_request: NextRequest, props: { params: Promise<{ p
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Repeat DELETEs (other tabs, retries) arrive without the cookie and must not re-send the
+  // welcome email. OSS never sets the cookie and calls this only to send the email.
+  const saved = await getOnboardingState();
+  const isFirstFinish = !isFeatureEnabled(Feature.LAMINAR_CLOUD) || saved?.userId === session.user.id;
   await clearOnboardingState();
-  if (isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
+  if (isFirstFinish && isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
     // Cookie is already cleared; an email failure must NOT propagate to a 500
-    // or finishOnboarding (called from both PlanStep free-tier branch and
-    // PaidFinalize) would block navigation on `res.ok`.
+    // or finishOnboarding would block navigation on `res.ok`.
     try {
       const { projectId } = await props.params;
       await sendWelcomeEmail(session.user.email, projectId);

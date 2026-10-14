@@ -126,7 +126,6 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     to: [email],
     subject,
     react: WorkspaceInviteEmail({ workspaceName, inviteLink }),
-    attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
   });
 
   if (error) console.log(error);
