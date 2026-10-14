@@ -3,6 +3,8 @@ export type OnboardingTier = "free" | "hobby" | "pro";
 export interface OnboardingFormValues {
   workspaceName: string;
   projectName: string;
+  // Queued until the plan commit; dropped if the user stays on Free.
+  invites: string[];
   selectedTemplateNames: string[];
   slackConnected: boolean;
   selectedTier: OnboardingTier;
@@ -10,14 +12,14 @@ export interface OnboardingFormValues {
   currentTier: OnboardingTier;
 }
 
-// Persisted (resume cookie) as an index into this list, so only append or keep positions stable.
-export const ONBOARDING_STEPS = ["workspace", "plan", "invite", "signals", "slack", "connect"] as const;
+// Everything up to "plan" is a browser-side draft; the plan step commits it in one server call.
+export const ONBOARDING_STEPS = ["workspace", "invite", "signals", "plan", "slack", "connect"] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
-export const stepIndexOf = (step: OnboardingStep): number => ONBOARDING_STEPS.indexOf(step);
+export const DRAFT_STEPS: readonly OnboardingStep[] = ["workspace", "invite", "signals", "plan"];
 
-// Team, Signals and Slack need a paid plan or trial, so Free skips straight from plan to connect.
-const FREE_STEPS: readonly OnboardingStep[] = ["workspace", "plan", "connect"];
+// Slack needs a paid plan or trial (and connects immediately via OAuth), so Free skips it.
+const FREE_STEPS: readonly OnboardingStep[] = ONBOARDING_STEPS.filter((step) => step !== "slack");
 export const visibleOnboardingSteps = (isPaid: boolean): readonly OnboardingStep[] =>
   isPaid ? ONBOARDING_STEPS : FREE_STEPS;
 

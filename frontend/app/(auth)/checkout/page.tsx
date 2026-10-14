@@ -19,9 +19,8 @@ export default async function CheckoutPage(props: {
   const lookupKey = (searchParams?.lookupKey as string) ?? TIER_CONFIG.hobby.lookupKey;
   const workspaceId = searchParams?.workspaceId as string | undefined;
   const workspaceName = searchParams?.workspaceName as string | undefined;
-  // Caller-controlled landing target. The onboarding wizard sets this so it
-  // can run its own finalize path (DELETE cookie + go to project); in-app
-  // upgrade flows (workspace billing) omit it and keep the legacy behavior.
+  // Caller-controlled landing target. Onboarding returns through a route that confirms the
+  // session and applies the queued invites and signals; in-app upgrades go to billing.
   const returnTo = searchParams?.returnTo as string | undefined;
 
   // Session enforced by the (auth) layout; non-null here.
@@ -40,7 +39,7 @@ export default async function CheckoutPage(props: {
   const billingSeparator = billingSettingsPath.includes("?") ? "&" : "?";
   const successUrl =
     returnTo === "onboarding"
-      ? `${process.env.NEXT_PUBLIC_URL}/onboarding?upgraded=true&sessionId={CHECKOUT_SESSION_ID}`
+      ? `${process.env.NEXT_PUBLIC_URL}/api/onboarding/checkout-return?sessionId={CHECKOUT_SESSION_ID}`
       : `${process.env.NEXT_PUBLIC_URL}${billingSettingsPath}${billingSeparator}sessionId={CHECKOUT_SESSION_ID}`;
   const cancelUrl =
     returnTo === "onboarding"

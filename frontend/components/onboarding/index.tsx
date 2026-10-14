@@ -12,13 +12,8 @@ import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
-import {
-  ONBOARDING_STEPS,
-  type OnboardingFormValues,
-  type OnboardingStep,
-  stepIndexOf,
-  visibleOnboardingSteps,
-} from "@/components/onboarding/types";
+import { type OnboardingFormValues, type OnboardingStep, visibleOnboardingSteps } from "@/components/onboarding/types";
+import { useOnboardingDraft } from "@/components/onboarding/use-onboarding-draft";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
@@ -28,7 +23,7 @@ import { track } from "@/lib/posthog";
 export interface OnboardingInitialValues {
   workspaceId: string | null;
   projectId: string | null;
-  step: number;
+  step: OnboardingStep;
   defaultValues: OnboardingFormValues;
   // Recognized company name from the work-email domain; null when unknown.
   companyName: string | null;
@@ -101,17 +96,11 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
   );
 }
 
-function WizardSteps({ initialStep }: { initialStep: number }) {
-  const searchParams = useSearchParams();
+function WizardSteps({ initialStep }: { initialStep: OnboardingStep }) {
   const flags = useFeatureFlags();
-  // OSS collapses to a single workspace+project step; Stripe return is cloud-only.
+  // OSS collapses to a single workspace+project step.
   if (!flags[Feature.LAMINAR_CLOUD]) {
     return <OssWorkspaceOnly />;
-  }
-  // Stripe lands back here with ?upgraded=true — return to the plan step to
-  // confirm payment, then the user continues to the connect step.
-  if (searchParams.get("upgraded") === "true") {
-    return <WizardStepsInner initialStep={stepIndexOf("plan")} paymentSuccess />;
   }
   return <WizardStepsInner initialStep={initialStep} />;
 }
@@ -122,7 +111,9 @@ function OssWorkspaceOnly() {
     <WorkspaceStep
       stepIndex={0}
       totalSteps={1}
-      onComplete={async ({ projectId }) => {
+      onComplete={async (result) => {
+        if (!result) return;
+        const { projectId } = result;
         // OSS has no cookie to clear; this DELETE is fire-and-forget purely to
         // fire the welcome email when SEND_EMAIL is on. Different semantics from
         await fetch(`/api/projects/${projectId}/onboarding/state`, { method: "DELETE" }).catch(() => null);
@@ -135,26 +126,25 @@ function OssWorkspaceOnly() {
 const STEP_MOTION_STYLE = { willChange: "opacity" } as const;
 const STEP_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 
-function WizardStepsInner({ initialStep, paymentSuccess }: { initialStep: number; paymentSuccess?: boolean }) {
+function WizardStepsInner({ initialStep }: { initialStep: OnboardingStep }) {
   const form = useFormContext<OnboardingFormValues>();
-  const [step, setStep] = useState<OnboardingStep>(ONBOARDING_STEPS[initialStep] ?? "workspace");
-  // A Stripe return can beat the webhook, so a confirmed payment counts as paid before the tier flips.
-  // The step count also follows the plan picked but not yet committed, so it doesn't jump after the plan step.
-  const showsPaidSteps =
-    paymentSuccess || form.watch("currentTier") !== "free" || form.watch("selectedTier") !== "free";
+  const [step, setStep] = useState<OnboardingStep>(initialStep);
+  useOnboardingDraft(step);
+  // The count follows the plan picked but not yet committed, so it doesn't jump after the plan step.
+  const showsPaidSteps = form.watch("currentTier") !== "free" || form.watch("selectedTier") !== "free";
   const steps = visibleOnboardingSteps(showsPaidSteps);
   const position = Math.max(0, steps.indexOf(step));
 
-  // Read the tier at call time: starting a trial sets it right before advancing.
+  // Read the tier at call time: the plan commit sets it right before advancing.
   const move = useCallback(
     (delta: 1 | -1) =>
       setStep((current) => {
-        const list = visibleOnboardingSteps(paymentSuccess || form.getValues("currentTier") !== "free");
+        const list = visibleOnboardingSteps(form.getValues("currentTier") !== "free");
         const index = list.indexOf(current);
         if (index === -1) return "connect";
         return list[Math.min(list.length - 1, Math.max(0, index + delta))];
       }),
-    [form, paymentSuccess]
+    [form]
   );
   const advance = useCallback(() => move(1), [move]);
   const back = useCallback(() => move(-1), [move]);
@@ -164,16 +154,16 @@ function WizardStepsInner({ initialStep, paymentSuccess }: { initialStep: number
     switch (step) {
       case "workspace":
         return <WorkspaceStep {...shared} isCloud onComplete={advance} />;
-      case "plan":
-        // No back button: workspace+project creation in the previous step is irreversible.
-        return <PlanStep {...shared} onAdvance={advance} paymentSuccess={paymentSuccess} />;
+      // Nothing is written before the plan commit, so the draft steps can always go back.
       case "invite":
-        // No back button: the plan (trial or payment) is already committed.
-        return <InviteStep {...shared} onAdvance={advance} />;
+        return <InviteStep {...shared} onAdvance={advance} onBack={back} />;
       case "signals":
         return <SignalsStep {...shared} onAdvance={advance} onBack={back} />;
+      case "plan":
+        return <PlanStep {...shared} onAdvance={advance} onBack={back} />;
       case "slack":
-        return <SlackStep {...shared} onAdvance={advance} onBack={back} />;
+        // No back button: the plan is committed.
+        return <SlackStep {...shared} onAdvance={advance} />;
       case "connect":
         return <ConnectStep {...shared} onBack={back} />;
       default:

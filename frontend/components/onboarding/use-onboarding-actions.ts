@@ -4,23 +4,20 @@ import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
-import { type OnboardingFormValues, stepIndexOf } from "@/components/onboarding/types";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { type CommitOnboardingResult } from "@/lib/actions/onboarding/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
-export interface CreateWorkspaceOptions {
-  // Cloud-only: server-side seed defaults + write resume cookie. OSS leaves off.
-  isCloud?: boolean;
-}
+// "trial" also continues a workspace that is already paid; "checkout" returns a Stripe URL.
+export type CommitPlan = { plan: "trial" } | { plan: "free" } | { plan: "checkout"; checkoutTier: "hobby" | "pro" };
 
 interface UseOnboardingActions {
   isSubmitting: boolean;
-  createWorkspace: (options?: CreateWorkspaceOptions) => Promise<{ workspaceId: string; projectId: string } | null>;
-  saveSignals: () => Promise<boolean>;
+  // Self-hosted only: creates the workspace immediately (no plan step).
+  createWorkspace: () => Promise<{ workspaceId: string; projectId: string } | null>;
+  commitPlan: (choice: CommitPlan) => Promise<CommitOnboardingResult | null>;
   saveSlack: () => Promise<boolean>;
-  savePlan: (isPaid: boolean) => Promise<boolean>;
-  saveInvite: (emails: string[]) => Promise<boolean>;
-  startTrial: () => Promise<boolean>;
   finishOnboarding: () => Promise<boolean>;
   beginSubmitting: () => void;
   endSubmitting: () => void;
@@ -41,9 +38,6 @@ const requestOk = async (input: string, init?: RequestInit): Promise<boolean> =>
   }
 };
 
-const persistOnboardingStep = (projectId: string, step: number) =>
-  requestOk(`/api/projects/${projectId}/onboarding/state`, jsonRequest("POST", { step }));
-
 export function useOnboardingActions(): UseOnboardingActions {
   const { resources, setResources } = useOnboardingContext();
   const { toast } = useToast();
@@ -55,184 +49,98 @@ export function useOnboardingActions(): UseOnboardingActions {
     [toast]
   );
 
-  const createWorkspace = useCallback(
-    async ({ isCloud = false }: CreateWorkspaceOptions = {}) => {
-      if (!(await form.trigger(["workspaceName", "projectName"]))) return null;
+  const createWorkspace = useCallback(async () => {
+    if (!(await form.trigger(["workspaceName", "projectName"]))) return null;
 
+    setIsSubmitting(true);
+    try {
+      const { workspaceName, projectName } = form.getValues();
+      const res = await fetch(
+        "/api/workspaces",
+        jsonRequest("POST", { name: workspaceName.trim(), projectName: projectName.trim() })
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        errorToast(err?.error ?? "Failed to create workspace");
+        return null;
+      }
+      const json = (await res.json()) as { id: string; projectId?: string };
+      if (!json.projectId) {
+        errorToast("Workspace created without a project");
+        return null;
+      }
+      track("onboarding", "first_project_created");
+      setResources({ workspaceId: json.id, projectId: json.projectId });
+      return { workspaceId: json.id, projectId: json.projectId };
+    } catch {
+      errorToast("Something went wrong");
+      return null;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, setResources, errorToast]);
+
+  // One server call creates (or reuses) the workspace and, for a trial, starts it and applies the
+  // queued invites and signals.
+  const commitPlan = useCallback(
+    async (choice: CommitPlan): Promise<CommitOnboardingResult | null> => {
+      const { workspaceName, projectName, invites, selectedTemplateNames } = form.getValues();
       setIsSubmitting(true);
       try {
-        let workspaceId = resources.workspaceId;
-        let projectId = resources.projectId;
-
-        // Skip server-side creation on retry, but still re-attempt the cookie write below.
-        if (!workspaceId || !projectId) {
-          const { workspaceName, projectName } = form.getValues();
-          const res = await fetch(
-            "/api/workspaces",
-            jsonRequest("POST", {
-              name: workspaceName.trim(),
-              projectName: projectName.trim(),
-              // Server-side: seed Failure Detector signal + email targets on default reports.
-              isFirstProject: isCloud,
-            })
-          );
-          if (!res.ok) {
-            const err = await res.json().catch(() => null);
-            errorToast(err?.error ?? "Failed to create workspace");
-            return null;
-          }
-          const json = (await res.json()) as { id: string; projectId?: string };
-          if (!json.projectId) {
-            errorToast("Workspace created without a project");
-            return null;
-          }
-          track("onboarding", "first_project_created");
-          workspaceId = json.id;
-          projectId = json.projectId;
-          setResources({ workspaceId, projectId });
+        const res = await fetch(
+          "/api/onboarding/commit",
+          jsonRequest("POST", {
+            workspaceName: workspaceName.trim(),
+            projectName: projectName.trim(),
+            invites,
+            templateNames: selectedTemplateNames,
+            ...choice,
+          })
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          errorToast("Couldn't set up your workspace", err?.error ?? "Please try again.");
+          return null;
         }
-
-        // Cookie only matters when more wizard steps follow.
-        if (isCloud) {
-          const persisted = await persistOnboardingStep(projectId, stepIndexOf("plan"));
-          if (!persisted) {
-            errorToast("Couldn't save your progress", "Please try again.");
-            return null;
-          }
+        const result = (await res.json()) as CommitOnboardingResult;
+        setResources({ workspaceId: result.workspaceId, projectId: result.projectId });
+        if (result.next === "slack") form.setValue("currentTier", form.getValues("selectedTier"));
+        if (result.failedInvites.length > 0) {
+          errorToast("Some invites weren't sent", result.failedInvites.join(", "));
         }
-        return { workspaceId, projectId };
+        track("onboarding", "plan_committed", {
+          plan: choice.plan,
+          tier: form.getValues("selectedTier"),
+          invites: invites.length,
+          signals: selectedTemplateNames.length,
+        });
+        return result;
       } catch {
-        errorToast("Something went wrong");
+        errorToast("Couldn't set up your workspace", "Please try again.");
         return null;
       } finally {
         setIsSubmitting(false);
       }
     },
-    [form, resources.projectId, resources.workspaceId, setResources, errorToast]
+    [form, setResources, errorToast]
   );
-
-  const saveSignals = useCallback(async (): Promise<boolean> => {
-    const projectId = resources.projectId;
-    if (!projectId) return true;
-
-    const templateNames = form.getValues("selectedTemplateNames");
-    setIsSubmitting(true);
-    try {
-      const ok = await requestOk(`/api/projects/${projectId}/signals`, jsonRequest("PUT", { templateNames }));
-      if (!ok) {
-        errorToast("Couldn't save your signals", "Please try again.");
-        return false;
-      }
-      const persisted = await persistOnboardingStep(projectId, stepIndexOf("slack"));
-      if (!persisted) {
-        errorToast("Couldn't save your progress", "Please try again.");
-        return false;
-      }
-      track("onboarding", "signals_selected", { count: templateNames.length });
-      return true;
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [form, resources.projectId, errorToast]);
 
   const saveSlack = useCallback(async (): Promise<boolean> => {
     const { projectId } = resources;
-    if (!projectId) {
-      track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
-      return true;
-    }
+    track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
+    if (!projectId) return true;
     setIsSubmitting(true);
     try {
-      const persisted = await persistOnboardingStep(projectId, stepIndexOf("connect"));
-      if (!persisted) {
-        errorToast("Couldn't save your progress", "Please try again.");
-        return false;
-      }
-      track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
-      return true;
+      const persisted = await requestOk(
+        `/api/projects/${projectId}/onboarding/state`,
+        jsonRequest("POST", { step: "connect" })
+      );
+      if (!persisted) errorToast("Couldn't save your progress", "Please try again.");
+      return persisted;
     } finally {
       setIsSubmitting(false);
     }
   }, [form, resources, errorToast]);
-
-  const savePlan = useCallback(
-    async (isPaid: boolean): Promise<boolean> => {
-      const projectId = resources.projectId;
-      if (!projectId) return true;
-      setIsSubmitting(true);
-      try {
-        const persisted = await persistOnboardingStep(projectId, stepIndexOf(isPaid ? "invite" : "connect"));
-        if (!persisted) {
-          errorToast("Couldn't save your progress", "Please try again.");
-          return false;
-        }
-        track("onboarding", "plan_step_completed", { tier: form.getValues("selectedTier") });
-        return true;
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [form, resources.projectId, errorToast]
-  );
-
-  // Best-effort per email: one bad address shouldn't block the rest or the wizard.
-  const saveInvite = useCallback(
-    async (emails: string[]): Promise<boolean> => {
-      const { workspaceId, projectId } = resources;
-      if (!workspaceId || !projectId) return true;
-      setIsSubmitting(true);
-      try {
-        const results = await Promise.all(
-          emails.map(async (email) => {
-            try {
-              const res = await fetch(`/api/workspaces/${workspaceId}/invite`, jsonRequest("POST", { email }));
-              if (res.ok) return null;
-              const err = await res.json().catch(() => null);
-              return `${email}: ${err?.error ?? "failed to invite"}`;
-            } catch {
-              return `${email}: failed to invite`;
-            }
-          })
-        );
-        const failures = results.filter((r): r is string => r !== null);
-        if (failures.length > 0) {
-          errorToast("Some invites weren't sent", failures.join("\n"));
-        }
-        const persisted = await persistOnboardingStep(projectId, stepIndexOf("signals"));
-        if (!persisted) {
-          errorToast("Couldn't save your progress", "Please try again.");
-          return false;
-        }
-        track("onboarding", "team_invited", { count: emails.length - failures.length });
-        return true;
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [resources, errorToast]
-  );
-
-  const startTrial = useCallback(async (): Promise<boolean> => {
-    const workspaceId = resources.workspaceId;
-    if (!workspaceId) return false;
-    setIsSubmitting(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/subscription/trial`, { method: "POST" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        errorToast("Couldn't start your free trial", err?.error ?? "Please try again.");
-        return false;
-      }
-      form.setValue("currentTier", "hobby");
-      track("onboarding", "trial_started");
-      return true;
-    } catch {
-      errorToast("Couldn't start your free trial", "Please try again.");
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [form, resources.workspaceId, errorToast]);
 
   const finishOnboarding = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
@@ -260,11 +168,8 @@ export function useOnboardingActions(): UseOnboardingActions {
   return {
     isSubmitting,
     createWorkspace,
-    saveSignals,
+    commitPlan,
     saveSlack,
-    savePlan,
-    saveInvite,
-    startTrial,
     finishOnboarding,
     beginSubmitting,
     endSubmitting,

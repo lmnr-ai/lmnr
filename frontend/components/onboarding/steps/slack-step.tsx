@@ -20,7 +20,7 @@ interface SlackStepProps {
   stepIndex: number;
   totalSteps: number;
   onAdvance: () => void;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: SlackStepProps) {

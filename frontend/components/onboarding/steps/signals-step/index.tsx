@@ -7,7 +7,7 @@ import { ONBOARDING_SIGNALS } from "@/components/onboarding/steps/signals-step/c
 import PipelineDiagram from "@/components/onboarding/steps/signals-step/pipeline-diagram";
 import SignalCard from "@/components/onboarding/steps/signals-step/signal-card";
 import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
-import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
+import { track } from "@/lib/posthog";
 
 const RECOMMENDED: ReadonlySet<string> = new Set(DEFAULT_SELECTED_TEMPLATE_NAMES);
 
@@ -20,11 +20,12 @@ interface SignalsStepProps {
 
 export default function SignalsStep({ stepIndex, totalSteps, onAdvance, onBack }: SignalsStepProps) {
   const { control, watch } = useFormContext<OnboardingFormValues>();
-  const { isSubmitting, saveSignals } = useOnboardingActions();
   const selectedCount = watch("selectedTemplateNames")?.length ?? 0;
 
-  const handleNext = async () => {
-    if (await saveSignals()) onAdvance();
+  // Only records the choice; the signals are created when a trial or paid plan starts.
+  const handleNext = () => {
+    track("onboarding", "signals_selected", { count: selectedCount });
+    onAdvance();
   };
 
   return (
@@ -51,7 +52,6 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance, onBack }
       onNext={handleNext}
       onBack={onBack}
       nextDisabled={selectedCount === 0}
-      isSubmitting={isSubmitting}
     >
       <PipelineDiagram />
       <Controller
