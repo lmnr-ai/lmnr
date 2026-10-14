@@ -2,7 +2,7 @@
 
 import { motion, type MotionValue, useTransform } from "framer-motion";
 
-import WarningMark from "./warning-mark";
+import WarningMark from "../warning-mark";
 
 interface Props {
   appearanceThreshold: number;
