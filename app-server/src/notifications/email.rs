@@ -128,7 +128,7 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
 fn data_row(label: &str, value: &str, stacked: bool) -> String {
     if stacked {
         format!(
-            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td align="left" style="padding:7px 10px 2px;font-size:14px;color:{};text-align:left">{}</td></tr><tr><td align="left" style="padding:2px 10px 7px;font-size:14px;color:{};text-align:left">{}</td></tr></table>"#,
+            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td align="left" style="padding:7px 10px 2px;font-size:14px;color:{};text-align:left">{}</td></tr><tr><td align="left" style="padding:2px 10px 7px;font-size:14px;color:{};text-align:left;white-space:pre-line">{}</td></tr></table>"#,
             ROW,
             MUTED,
             html_escape(label),
