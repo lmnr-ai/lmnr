@@ -7,6 +7,7 @@ import AnnouncementBanner from "../announcement-banner";
 import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
 import CopySetupButton from "./copy-setup-button";
+import GridLoop from "./grid-loop";
 import LogoStrip from "./logo-strip";
 
 /** Apache-2.0, on the repo's own licence tab. */
@@ -78,6 +79,7 @@ const Hero = ({ className, hasSession }: Props) => (
         </div>
       </div>
 
+      <GridLoop />
       <LogoStrip className={LANDING_COLUMN_MAX_W} />
     </div>
   </div>
