@@ -1,7 +1,5 @@
-import Image from "next/image";
+import { Check, X } from "lucide-react";
 
-import check from "@/assets/landing/hero/eval-check.svg";
-import x from "@/assets/landing/hero/eval-x.svg";
 import { cn } from "@/lib/utils";
 
 import WarningMark from "../../warning-mark";
@@ -61,10 +59,16 @@ export const IssueCell = ({ index }: CellProps) => {
 
 export const EvalCell = ({ index }: CellProps) => {
   const passed = EVAL_RESULTS[index % EVAL_RESULTS.length] === 1;
+  const Icon = passed ? Check : X;
 
   return (
     <div className={cn(cellClass, passed ? "bg-surface-350" : "bg-surface-300")}>
-      <Image src={passed ? check : x} alt="" className="size-[10px]" />
+      <Icon
+        aria-hidden="true"
+        className={cn("size-[10px]", passed ? "text-[#1B845E]" : "text-[#DA495A]")}
+        strokeWidth={1.5}
+        absoluteStrokeWidth
+      />
     </div>
   );
 };
