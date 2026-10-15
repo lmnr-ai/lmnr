@@ -2697,9 +2697,6 @@ fn main() -> anyhow::Result<()> {
                         let app = app.service(
                             web::scope("/v1/chat")
                                 .wrap(project_auth.clone())
-                                .app_data(PayloadConfig::new(
-                                    crate::env::private::signals::GATEWAY_PAYLOAD_LIMIT.get(),
-                                ))
                                 .service(crate::signals::private::gateway::chat_completions),
                         );
                         let app = app
