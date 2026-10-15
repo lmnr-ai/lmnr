@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
-import { DRAFT_STEPS, type OnboardingFormValues, type OnboardingStep } from "@/components/onboarding/types";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { type DraftOnboardingStep, DRAFT_STEPS, type OnboardingStep } from "@/lib/actions/onboarding/types";
 
 // Saves the pre-commit answers whenever the draft step changes, so a refresh or a closed tab
 // resumes on the same step. Best-effort: a failed save only costs the resume point. Stops once the
@@ -15,7 +16,7 @@ export function useOnboardingDraft(step: OnboardingStep) {
   const committed = resources.workspaceId !== null;
 
   useEffect(() => {
-    if (committed || !DRAFT_STEPS.includes(step)) return;
+    if (committed || !DRAFT_STEPS.includes(step as DraftOnboardingStep)) return;
 
     const { workspaceName, projectName, invites, selectedTemplateNames } = form.getValues();
     fetch("/api/onboarding/draft", {

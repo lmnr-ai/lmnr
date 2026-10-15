@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/components/onboarding/types";
+import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/lib/actions/onboarding/types";
 import { db } from "@/lib/db/drizzle";
 import { signals, slackIntegrations, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 

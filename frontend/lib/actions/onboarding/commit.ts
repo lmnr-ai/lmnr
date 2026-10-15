@@ -7,9 +7,9 @@ import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { clearOnboardingDraft, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
 import {
   type CommitOnboardingResult,
-  MAX_ONBOARDING_INVITES,
   ONBOARDING_COOKIE_VERSION,
   type OnboardingPending,
+  OnboardingPendingSchema,
   type OnboardingState,
 } from "@/lib/actions/onboarding/types";
 import { setTemplateSignals } from "@/lib/actions/signals";
@@ -20,13 +20,11 @@ import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 
-export const CommitOnboardingSchema = z.object({
+export const CommitOnboardingSchema = OnboardingPendingSchema.extend({
   workspaceName: z.string().trim().min(1),
   projectName: z.string().trim().min(1),
-  invites: z.array(z.email()).max(MAX_ONBOARDING_INVITES),
-  templateNames: z.array(z.string()).max(50),
-  // "trial" also covers a workspace that is already paid (e.g. its checkout webhook won the race).
-  plan: z.enum(["trial", "free", "checkout"]),
+  // "continue": the workspace is already paid (e.g. its checkout webhook won the race).
+  plan: z.enum(["trial", "continue", "free", "checkout"]),
   checkoutTier: z.enum(["hobby", "pro"]).optional(),
 });
 
@@ -118,7 +116,9 @@ export const commitOnboarding = async (
     return { workspaceId, projectId, next: "checkout", checkoutUrl: `/checkout?${sp}`, failedInvites: [] };
   }
 
+  // A retry after the trial already started finds the workspace off Free and skips straight on.
   if (await isFreeTierWorkspace(workspaceId)) {
+    if (plan === "continue") throw new Error("This workspace isn't on a paid plan yet.");
     await startStarterTrial({ workspaceId });
   }
   const failedInvites = await applyOnboardingSelections({
