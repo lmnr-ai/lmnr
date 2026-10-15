@@ -2,7 +2,12 @@ import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";
-import { backtickEscape, type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
+import {
+  backtickEscape,
+  type QueryParams,
+  type QueryResult,
+  splitJsonKeyValueFilter,
+} from "@/lib/actions/common/query-builder";
 
 // -- Types --
 
@@ -63,7 +68,7 @@ function buildFilterConditions(
 
     // JSON template filter (e.g. metadata)
     if (filterSql.includes("{KEY:")) {
-      const [key, val] = String(filter.value).split("=", 2);
+      const [key, val] = splitJsonKeyValueFilter(filter.value);
       if (key && val) {
         const condition = filterSql
           .replace(/\{KEY:String\}/g, `{${paramKey}_key:String}`)
