@@ -90,7 +90,8 @@ export const getWorkspaceOwnerEmails = async (workspaceId: string): Promise<stri
 
 export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>): Promise<{ endsAt: string }> => {
   const { workspaceId } = StartTrialSchema.parse(input);
-  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+  // Owner only: eligibility is one trial per owner, and the trial bills the caller's Stripe customer.
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
   const session = (await getServerSession())!;
   if (!(await isStarterTrialEligible(workspaceId, session.user.id))) {

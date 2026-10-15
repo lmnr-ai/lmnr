@@ -69,7 +69,11 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   let subscription = null;
   let upcomingInvoice = null;
 
-  const trialEligible = canManageBilling && !isPaidTier && (await isStarterTrialEligible(workspaceId, user.id));
+  const trialEligible =
+    canManageBilling &&
+    currentUserRole === "owner" &&
+    !isPaidTier &&
+    (await isStarterTrialEligible(workspaceId, user.id));
 
   if (canManageBilling && isPaidTier) {
     try {
