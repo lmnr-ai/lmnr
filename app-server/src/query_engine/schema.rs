@@ -67,7 +67,10 @@ const ENUMS: &[(&str, &[&str])] = &[
         "signal_run_status",
         &["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
     ),
-    ("signal_run_mode", &["BATCH", "REALTIME", "UNKNOWN"]),
+    (
+        "signal_run_mode",
+        &["BATCH", "REALTIME", "GATEWAY", "UNKNOWN"],
+    ),
 ];
 
 /// Every column holding a big stringified payload ends its description with the same sentence:
@@ -466,7 +469,7 @@ const TABLES: &[Table] = &[
             col(
                 "mode",
                 "String (enum signal_run_mode)",
-                "'BATCH' (historical backfill) or 'REALTIME'",
+                "'BATCH' (historical backfill), 'REALTIME' or 'GATEWAY' (signals gateway call)",
             ),
             col("event_id", "UUID", "Id of the produced event"),
             col("error_message", "String", "Error message if the run failed"),

@@ -150,7 +150,6 @@ async function deleteProjectDataFromClickHouse(
     // keeps it from reporting a failure after that.
     "default.events_to_clusters",
     "default.signal_event_summaries",
-    "default.signal_gateway_usage",
     "default.system_prompt_versions",
     "default.system_prompt_version_defs",
     "default.user_template_versions",

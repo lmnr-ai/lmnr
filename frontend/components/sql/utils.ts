@@ -33,7 +33,7 @@ export const enumValues = {
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
   status: ["success", "error"],
   signal_run_status: ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "UNKNOWN"],
-  signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
+  signal_run_mode: ["BATCH", "REALTIME", "GATEWAY", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type EnumType = keyof typeof enumValues;
@@ -336,7 +336,8 @@ export const tableSchemas: Record<string, TableSchema> = {
         name: "mode",
         type: "String",
         enumType: "signal_run_mode",
-        description: "Mode of the signal run. 'BATCH' for historical backfill, 'REALTIME' for live triggers",
+        description:
+          "Mode of the signal run. 'BATCH' for historical backfill, 'REALTIME' for live triggers, 'GATEWAY' for a signals gateway call",
       },
       { name: "event_id", type: "UUID", description: "Unique identifier for the event" },
       { name: "error_message", type: "String", description: "Error message if the run failed" },
