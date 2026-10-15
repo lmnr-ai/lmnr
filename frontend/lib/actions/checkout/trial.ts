@@ -187,6 +187,13 @@ export const getTrialSubscription = async (workspaceId: string): Promise<Stripe.
   return stripe().subscriptions.retrieve(trial.subscriptionId);
 };
 
+// Readable by any member, unlike getSubscriptionDetails: the sidebar trial card shows it to everyone.
+export const trialConvertsToPaid = async (workspaceId: string): Promise<boolean | null> => {
+  const subscription = await getTrialSubscription(workspaceId);
+  if (!subscription) return null;
+  return !subscription.cancel_at_period_end && (await subscriptionHasPaymentMethod(subscription));
+};
+
 const requireTrialSubscription = async (workspaceId: string): Promise<Stripe.Subscription> => {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
   const subscription = await getTrialSubscription(workspaceId);

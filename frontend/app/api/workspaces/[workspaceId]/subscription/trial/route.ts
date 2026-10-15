@@ -1,9 +1,22 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, z, ZodError } from "zod/v4";
 
-import { setTrialContinues, startStarterTrial } from "@/lib/actions/checkout/trial";
+import { setTrialContinues, startStarterTrial, trialConvertsToPaid } from "@/lib/actions/checkout/trial";
 
 type Params = { params: Promise<{ workspaceId: string }> };
+
+export async function GET(_req: NextRequest, props: Params): Promise<Response> {
+  const { workspaceId } = await props.params;
+
+  try {
+    return Response.json({ convertsToPaid: await trialConvertsToPaid(workspaceId) });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to load the trial." },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(_req: NextRequest, props: Params): Promise<Response> {
   const { workspaceId } = await props.params;
