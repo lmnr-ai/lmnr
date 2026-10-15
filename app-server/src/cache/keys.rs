@@ -65,6 +65,8 @@ pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
 /// across usage items, so the lock is keyed `…:{workspace_id}:{usage_item}` to
 /// avoid a bytes notification suppressing a concurrent signal-cost one.
 pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
+/// Per-alert throttle for signal-event notifications, keyed `…:{alert_id}`.
+pub const ALERT_SEND_LOCK_KEY: &str = "alert_send_lock";
 /// Short-lived cache of `workspace_hard_limit_notifications.last_notified_at`
 /// per `(workspace_id, usage_item)`, so over-limit workspaces don't hit
 /// Postgres on every blocked ingestion request. The frontend evicts this key
