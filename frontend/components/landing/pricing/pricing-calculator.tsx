@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from "react";
 
 import { ElevatedSurface } from "@/components/ui/surface";
-import { type Tier, TIER_ORDER, TIERS } from "@/lib/billing/tiers";
+import { type Tier, TIER_ORDER, tierIncludesSignals, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
@@ -29,7 +29,7 @@ const ENTERPRISE_BILL_THRESHOLD_USD = 2500;
 /** One metered line of one tier's column: what the bill picks up, and the
  *  usage that produced it. */
 interface UsageCell {
-  /** "$5.00", "Included", "Not available", or "Custom". */
+  /** "$5.00", "Included", "Not included", "Not available", or "Custom". */
   charge: string;
   /** "1.1 GB / 3 GB". Absent on Enterprise, which has no numbers to show. */
   detail?: string;
@@ -60,9 +60,8 @@ const usageCell = (used: string, included: string, over: number, overageRate: nu
   return { charge: cost > 0 ? `$${formatDollars(cost)}` : "Included", detail };
 };
 
-const signalUsageCell = (costUsd: number, overageAllowed: boolean): UsageCell => ({
-  charge: overageAllowed ? (costUsd > 0 ? `$${formatDollars(costUsd)}` : "Included") : "Not available",
-  detail: overageAllowed ? undefined : "after one-time credit",
+const signalUsageCell = (costUsd: number, included: boolean): UsageCell => ({
+  charge: included ? (costUsd > 0 ? `$${formatDollars(costUsd)}` : "Included") : "Not included",
 });
 
 const CUSTOM_CELL: UsageCell = { charge: "Custom" };
@@ -85,16 +84,14 @@ function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierE
   }
 
   const dataOver = Math.max(0, dataGB - t.includedBytesGB);
-  const signalOver = Math.max(0, signalCostUsd - t.includedSignalCostUsd);
-  // Signals overage is already priced in dollars, so its "rate" is 1 per dollar
-  // — the tier either bills the excess or it does not.
-  const signalOverageRate = t.dataOverageRatePerGB > 0 ? 1 : 0;
+  const signalsIncluded = tierIncludesSignals(tier);
+  const signalOver = signalsIncluded ? Math.max(0, signalCostUsd - t.includedSignalCostUsd) : 0;
 
   const data = usageCell(formatDataSize(dataGB), formatDataSize(t.includedBytesGB), dataOver, t.dataOverageRatePerGB);
-  const signals = signalUsageCell(signalCostUsd, signalOverageRate > 0);
+  const signals = signalUsageCell(signalCostUsd, signalsIncluded);
 
-  const totalUsd = t.basePriceMonthly + dataOver * t.dataOverageRatePerGB + signalOver * signalOverageRate;
-  const available = data.charge !== "Not available" && signals.charge !== "Not available";
+  const totalUsd = t.basePriceMonthly + dataOver * t.dataOverageRatePerGB + signalOver;
+  const available = data.charge !== "Not available" && (signalsIncluded || signalCostUsd === 0);
 
   return {
     name: t.name,
