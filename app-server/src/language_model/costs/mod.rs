@@ -19,6 +19,7 @@ static SNAPSHOT_SUFFIX_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"-\d{4}-?\d{2}-?\d{2}$").unwrap());
 
 mod cost_calculator;
+pub mod sync;
 #[cfg(test)]
 mod tests;
 
