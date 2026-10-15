@@ -1,21 +1,19 @@
 "use client";
 
 import { differenceInCalendarDays, format } from "date-fns";
-import { ArrowUpRight, Check } from "lucide-react";
+import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
-import { Progress } from "@/components/ui/progress.tsx";
 import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
 import { useProjectContext } from "@/contexts/project-context";
-import { TRIAL_DAYS } from "@/lib/actions/checkout/types";
 import { TIER_RETENTION } from "@/lib/billing/retention";
 import { TIERS } from "@/lib/billing/tiers";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 const KEPT_ON_STARTER = [
   `${TIERS.hobby.includedBytesGB} GB of data a month (Free has ${TIERS.free.includedBytesGB} GB)`,
@@ -36,9 +34,11 @@ const daysLeftLabel = (daysLeft: number) => {
 interface TrialCardProps {
   workspaceId: string;
   trialEndsAt: string;
+  // TEMP: forces a variant so both can be previewed side by side.
+  urgent?: boolean;
 }
 
-export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) {
+export default function TrialCard({ workspaceId, trialEndsAt, urgent: urgentOverride }: TrialCardProps) {
   const { settingsHref } = useProjectContext();
   const { data } = useSWR<{ convertsToPaid: boolean | null }>(
     `/api/workspaces/${workspaceId}/subscription/trial`,
@@ -55,26 +55,25 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
 
   const endsAt = new Date(trialEndsAt);
   const daysLeft = differenceInCalendarDays(endsAt, new Date());
-  const endsOn = format(endsAt, "MMMM d 'at' h:mm a");
+  const urgent = urgentOverride ?? daysLeft <= 3;
 
   return (
     <SidebarMenuItem>
       <Popover onOpenChange={(open) => open && track("billing", "trial_sidebar_card_opened")}>
         <PopoverTrigger asChild>
-          <button className="flex w-full flex-col gap-1.5 rounded-lg bg-surface-200 p-2 text-left text-xs hover:bg-surface-300">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Starter trial</span>
-              <span className="font-medium text-secondary-foreground">{daysLeftLabel(daysLeft)}</span>
-            </div>
-            <Progress
-              value={(Math.min(Math.max(daysLeft, 0), TRIAL_DAYS) / TRIAL_DAYS) * 100}
-              className="mx-0.5 h-1 w-[calc(100%-4px)] border-0 bg-[#2f2f32]"
-              indicatorClassName="bg-primary-400"
-            />
+          <button
+            className={cn(
+              "group flex w-full items-center gap-1 rounded-lg p-2 text-left text-xs transition-colors",
+              urgent ? "bg-primary/10 hover:bg-primary/15" : "bg-surface-200 hover:bg-surface-300"
+            )}
+          >
+            <span className={cn("flex-1", urgent ? "text-foreground" : "text-muted-foreground")}>Starter trial</span>
+            <span className="font-medium text-primary-300">{daysLeftLabel(daysLeft)}</span>
+            <ChevronRight className="size-3.5 text-primary-300 transition-transform group-hover:translate-x-0.5" />
           </button>
         </PopoverTrigger>
         <PopoverContent side="right" align="end" className="flex w-80 flex-col gap-3 text-sm">
-          <span className="font-medium">Your Starter trial ends on {endsOn}</span>
+          <span className="font-medium">Your Starter trial ends on {format(endsAt, "MMMM d")}</span>
           {convertsToPaid ? (
             <span className="text-secondary-foreground">
               Starter starts then at ${TIERS.hobby.basePriceMonthly}/month on your saved card.
