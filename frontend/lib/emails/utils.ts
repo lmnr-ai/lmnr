@@ -160,6 +160,7 @@ export async function sendTrialEndingEmail({
     to,
     subject: `Your Laminar Starter trial for ${workspaceName} ends on ${endsOn}`,
     react: TrialEndingEmail({ workspaceName, endsOn, addPaymentUrl: trialPaymentUrl(workspaceId) }),
+    attachments: [await laminarLogoAttachment()],
   });
 
   if (error) console.error(error);
