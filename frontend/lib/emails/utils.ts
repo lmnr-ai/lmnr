@@ -14,7 +14,7 @@ import PaymentFailedEmail from "./payment-failed-email";
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
 import TrialEndingEmail from "./trial-ending-email";
-import WelcomeEmail, { WELCOME_BANNER_CID } from "./welcome-email";
+import WelcomeEmail from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
 
 // Hardcoded to the production top-level domain because all Laminar transactional
@@ -37,12 +37,6 @@ const laminarLogoAttachment = async () => ({
   content: await readFile(path.join(process.cwd(), "public", "laminar-logo-sm.png")),
   filename: "laminar-logo-sm.png",
   contentId: LAMINAR_LOGO_CID,
-});
-
-const welcomeBannerAttachment = async () => ({
-  content: await readFile(path.join(process.cwd(), "public", "welcome-banner-background.png")),
-  filename: "welcome-banner-background.png",
-  contentId: WELCOME_BANNER_CID,
 });
 
 interface InvoiceEmailArgs {
@@ -72,7 +66,7 @@ export async function sendWelcomeEmail(email: string, projectId: string) {
     to: [email],
     subject,
     react: WelcomeEmail({ trial }),
-    attachments: [await laminarLogoAttachment(), await welcomeBannerAttachment()],
+    attachments: [await laminarLogoAttachment()],
   });
 
   if (error) {
@@ -141,6 +135,7 @@ export async function sendInvitationEmail(email: string, workspaceName: string, 
     to: [email],
     subject,
     react: WorkspaceInviteEmail({ workspaceName, inviteLink }),
+    attachments: [await laminarLogoAttachment()],
   });
 
   if (error) console.log(error);
