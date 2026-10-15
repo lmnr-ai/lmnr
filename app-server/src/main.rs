@@ -2529,10 +2529,7 @@ fn main() -> anyhow::Result<()> {
                                         StatusCode::BAD_REQUEST,
                                         |res: dev::ServiceResponse| {
                                             let path = res.request().path();
-                                            // Caller-caused 400s on these routes are routine; keep them out of Sentry.
-                                            if path.ends_with("/sql/query")
-                                                || path.ends_with("/chat/completions")
-                                            {
+                                            if path.ends_with("/sql/query") {
                                                 log::warn!(
                                                     "Bad request: {:?}",
                                                     res.response().body()
