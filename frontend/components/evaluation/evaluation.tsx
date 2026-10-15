@@ -12,6 +12,11 @@ import { useReportAgentContextName } from "@/components/agent";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
+import {
+  createDebouncedEvaluationRefetch,
+  createEvaluationRealtimeHandlers,
+  shouldMergeEvaluationRealtimeLocally,
+} from "@/components/evaluation/realtime-query-state";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
@@ -23,12 +28,7 @@ import {
   useEvalStore,
 } from "@/components/evaluation/store";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
-import {
-  type EvaluationStatsPayload,
-  flattenScores,
-  mergeDatapointUpsertIntoRows,
-  mergeTraceUpdateIntoRows,
-} from "@/components/evaluation/utils";
+import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -169,6 +169,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     isFetching,
     isLoading: isLoadingDatapoints,
     fetchNextPage,
+    refetch: refetchDatapoints,
     updateData,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
@@ -203,36 +204,51 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   );
   useEffect(() => () => debouncedRevalidateStats.cancel(), [debouncedRevalidateStats]);
 
+  const mergeRealtimeLocally = useMemo(
+    () =>
+      shouldMergeEvaluationRealtimeLocally({
+        isComparison,
+        search,
+        filter,
+        sortBy,
+        sortDirection,
+      }),
+    [isComparison, search, filter, sortBy, sortDirection]
+  );
+  const debouncedRefetchDatapoints = useMemo(
+    () => createDebouncedEvaluationRefetch(refetchDatapoints),
+    [refetchDatapoints]
+  );
+  const realtimeQueryStateKey = useMemo(
+    () => JSON.stringify({ evaluationId, targetId, isComparison, search, filter, sortBy, sortDirection }),
+    [evaluationId, targetId, isComparison, search, filter, sortBy, sortDirection]
+  );
+
+  // A pending event from the old query must never refetch using stale query
+  // semantics after a filter/search/sort change. This also cancels on unmount.
+  useEffect(() => {
+    debouncedRefetchDatapoints.cancel();
+    return () => debouncedRefetchDatapoints.cancel();
+  }, [debouncedRefetchDatapoints, realtimeQueryStateKey]);
+
   const realtimeHandlers = useMemo(
-    () => ({
-      datapoint_upsert: (event: MessageEvent) => {
-        if (targetId) return;
-        try {
-          const payload = JSON.parse(event.data) as { datapoints?: Array<EvalRow & { id: string }> };
-          payload.datapoints?.forEach((incoming) => {
-            const flattened = flattenScores(incoming["scores"]);
-            updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
-            if (Object.keys(flattened).length === 0) return;
-            Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
-            debouncedRevalidateStats();
-          });
-        } catch (e) {
-          console.warn("Failed to parse realtime datapoint_upsert:", e);
-        }
-      },
-      trace_update: (event: MessageEvent) => {
-        if (targetId) return;
-        try {
-          const payload = JSON.parse(event.data) as {
-            traces?: Array<Record<string, unknown> & { id: string }>;
-          };
-          payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace)));
-        } catch (e) {
-          console.warn("Failed to parse realtime trace_update:", e);
-        }
-      },
-    }),
-    [updateData, addScoreName, debouncedRevalidateStats, targetId]
+    () =>
+      createEvaluationRealtimeHandlers({
+        isComparison,
+        mergeLocally: mergeRealtimeLocally,
+        updateData,
+        addScoreName,
+        revalidateStats: debouncedRevalidateStats,
+        scheduleRefetch: debouncedRefetchDatapoints.schedule,
+      }),
+    [
+      isComparison,
+      mergeRealtimeLocally,
+      updateData,
+      addScoreName,
+      debouncedRevalidateStats,
+      debouncedRefetchDatapoints.schedule,
+    ]
   );
 
   useRealtime({
