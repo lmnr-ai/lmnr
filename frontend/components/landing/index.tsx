@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W } from "./class-names";
-import Footer from "./footer";
+import GridFooter from "./footer/grid-footer";
 import Hero from "./hero";
 import AskInSlack from "./sections/ask-in-slack";
 import BuiltForProduction from "./sections/built-for-production";
@@ -63,7 +63,7 @@ const Landing = ({ className, hasSession }: Props) => (
         <CTA />
       </div>
     </div>
-    <Footer />
+    <GridFooter />
   </div>
 );
 
