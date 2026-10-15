@@ -31,8 +31,8 @@ pub enum LlmFeature {
     CheckpointsClassifier,
     CheckpointsSystemPrompt,
     Reports,
-    /// Upstream of the hosted signals gateway (`/v1/chat/completions`). Only its
-    /// own global row counts: no `default` row and no env fallback.
+    /// Upstream of the hosted signals gateway (`/v1/chat/completions`). Resolved
+    /// with global rows only; must land on a Chat Completions client.
     SignalsGateway,
 }
 

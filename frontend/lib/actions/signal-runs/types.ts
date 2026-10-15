@@ -36,7 +36,7 @@ export type SignalRun = {
   status: SignalRunStatus;
   eventId: string;
   updatedAt: string;
-  mode: "BATCH" | "REALTIME" | "GATEWAY" | "UNKNOWN";
+  mode: "BATCH" | "REALTIME" | "UNKNOWN";
   inputTokens: number;
   cacheReadTokens: number;
   outputTokens: number;

@@ -651,15 +651,16 @@ impl LlmClient {
             .map(|p| p.name)
     }
 
-    /// The global route for `feature` only, with no fallback of any kind.
+    /// The client and labels `route` resolves to, without firing a call. For
+    /// callers that send their own request body (the signals gateway).
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    pub async fn resolve_global_feature_only(
+    pub(crate) async fn resolve_route_client(
         &self,
-        feature: LlmFeature,
-    ) -> Result<Option<profiles::ResolvedFeature>, ProviderError> {
-        self.profile_store()?
-            .resolve_global_feature_only(feature)
-            .await
+        route: &LlmRoute,
+    ) -> ProviderResult<(Arc<ProviderClient>, ModelProvider)> {
+        let resolved = self.resolve_route(route).await?;
+        let client = resolved.client().clone();
+        Ok((client, resolved.labels()))
     }
 
     fn profile_store(&self) -> Result<&Arc<profiles::LlmProfileStore>, ProviderError> {
