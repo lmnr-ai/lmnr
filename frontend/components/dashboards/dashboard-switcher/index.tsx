@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import DashboardNameDialog from "./dashboard-name-dialog";
@@ -35,40 +36,47 @@ const DashboardSwitcher = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-7 px-2 gap-1 text-sm font-medium max-w-64">
-            <span className="truncate">{current.name}</span>
+            <span className="truncate text-base">{current.name}</span>
             <ChevronsUpDown className="size-3.5 text-muted-foreground shrink-0" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-60">
-          <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Dashboards</DropdownMenuLabel>
-          <div className="max-h-72 overflow-y-auto">
-            {dashboards.map((dashboard) => (
-              <DropdownMenuItem key={dashboard.id} asChild className="cursor-pointer">
-                <Link href={getDashboardHref(dashboard.id)}>
-                  <Check className={dashboard.id === current.id ? "size-3.5" : "size-3.5 invisible"} />
-                  <span className="truncate flex-1">{dashboard.name}</span>
-                  <span className="text-xs text-muted-foreground">{dashboard.chartCount}</span>
-                </Link>
-              </DropdownMenuItem>
-            ))}
+        <DropdownMenuContent align="start" className="w-60 rounded-lg p-0">
+          <div className="p-1">
+            <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
+              Dashboards
+            </DropdownMenuLabel>
+            <ScrollArea className="max-h-72 [&>div]:max-h-72 [&>div>div]:block!">
+              {dashboards.map((dashboard) => (
+                <DropdownMenuItem key={dashboard.id} asChild className="cursor-pointer">
+                  <Link href={getDashboardHref(dashboard.id)}>
+                    <Check className={dashboard.id === current.id ? "size-3.5" : "size-3.5 invisible"} />
+                    <span className="truncate flex-1">{dashboard.name}</span>
+                    <span className="tabular-nums text-muted-foreground">{dashboard.chartCount}</span>
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </ScrollArea>
           </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="cursor-pointer" onSelect={() => setDialog("create")}>
-            <Plus className="size-3.5" />
-            New dashboard
-          </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer" onSelect={() => setDialog("rename")}>
-            <Pen className="size-3.5" />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer text-destructive focus:text-destructive"
-            disabled={dashboards.length <= 1}
-            onSelect={() => setDialog("delete")}
-          >
-            <Trash2 className="size-3.5" />
-            Delete
-          </DropdownMenuItem>
+          <DropdownMenuSeparator className="m-0" />
+          <div className="p-1">
+            <DropdownMenuItem className="cursor-pointer" onSelect={() => setDialog("create")}>
+              <Plus className="size-3.5" />
+              New dashboard
+            </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onSelect={() => setDialog("rename")}>
+              <Pen className="size-3.5" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              className="cursor-pointer"
+              disabled={dashboards.length <= 1}
+              onSelect={() => setDialog("delete")}
+            >
+              <Trash2 className="size-3.5" />
+              Delete
+            </DropdownMenuItem>
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
       <DashboardNameDialog
@@ -90,7 +98,7 @@ const DashboardSwitcher = () => {
         open={dialog === "delete"}
         onOpenChange={(open) => setDialog(open ? "delete" : null)}
         title={`Delete "${current.name}"?`}
-        description={`This permanently deletes the dashboard and its ${current.chartCount} chart(s).`}
+        description={`This permanently deletes the dashboard and its ${current.chartCount} ${current.chartCount === 1 ? "chart" : "charts"}.`}
         confirmText="Delete"
         onConfirm={() => deleteDashboard(current.id)}
       />

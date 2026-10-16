@@ -182,12 +182,12 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
               }}
               className="cursor-pointer"
             >
-              <Pen className="h-3.5 w-3.5 mr-1 text-inherit" />
+              <Pen className="size-3.5" />
               Rename
             </DropdownMenuItem>
             <Link passHref href={`/project/${projectId}/dashboards/${dashboardId}/charts/${id}`}>
               <DropdownMenuItem className="cursor-pointer">
-                <Edit className="h-3.5 w-3.5 mr-1 text-inherit" />
+                <Edit className="size-3.5" />
                 Edit
               </DropdownMenuItem>
             </Link>
@@ -198,7 +198,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
               }}
               className="cursor-pointer"
             >
-              <Copy className="h-3.5 w-3.5 mr-1 text-inherit" />
+              <Copy className="size-3.5" />
               Duplicate
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -206,9 +206,10 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
                 e.stopPropagation();
                 handleDeleteChart();
               }}
-              className="cursor-pointer text-destructive focus:text-destructive"
+              variant="destructive"
+              className="cursor-pointer"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-1 text-inherit" />
+              <Trash2 className="size-3.5" />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>

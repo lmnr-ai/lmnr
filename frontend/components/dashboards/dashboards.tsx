@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 
 import AddChartDropdown from "@/components/dashboards/add-chart-dropdown";
@@ -11,7 +11,9 @@ import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/das
 import GridLayout from "@/components/dashboards/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
+import { LAST_DASHBOARD_ID, LAST_ID_COOKIE_MAX_AGE } from "@/lib/cookies";
 import { track } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
@@ -20,6 +22,7 @@ import { ScrollArea } from "../ui/scroll-area";
 
 function DashboardContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
   const searchParams = useSearchParams();
   const isNewChart = searchParams.get("newChart") === "1";
   const { traceId, spanId, signalId, closeTrace } = useDashboardTraceStore((s) => ({
@@ -40,6 +43,12 @@ function DashboardContent() {
   useEffect(() => {
     track("dashboards", "page_viewed");
   }, []);
+
+  // Read by the `/dashboards` redirect to reopen the last-visited dashboard.
+  useEffect(() => {
+    const path = withBasePath(`/project/${projectId}/dashboards`);
+    document.cookie = `${LAST_DASHBOARD_ID}=${dashboardId};path=${path};max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+  }, [projectId, dashboardId]);
 
   useEffect(() => {
     if (isNewChart) {

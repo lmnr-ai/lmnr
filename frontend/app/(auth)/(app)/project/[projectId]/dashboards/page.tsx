@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
+import { getDashboard, getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
+import { LAST_DASHBOARD_ID } from "@/lib/cookies";
 
 export default async function DashboardsPage(props: {
   params: Promise<{ projectId: string }>;
@@ -9,7 +11,11 @@ export default async function DashboardsPage(props: {
   const { projectId } = await props.params;
   const searchParams = await props.searchParams;
 
-  const dashboard = await getOrCreateDefaultDashboard({ projectId });
+  // The last-visited dashboard may have been deleted since; fall back to the default.
+  const lastDashboardId = (await cookies()).get(LAST_DASHBOARD_ID)?.value;
+  const dashboard =
+    (lastDashboardId && (await getDashboard({ projectId, dashboardId: lastDashboardId }))) ||
+    (await getOrCreateDefaultDashboard({ projectId }));
 
   // Keep date range / grouping from bookmarked `/dashboards?...` links.
   const query = new URLSearchParams();

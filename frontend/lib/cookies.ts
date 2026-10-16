@@ -9,3 +9,6 @@
 export const LAST_PROJECT_ID = "last-project-id";
 export const LAST_WORKSPACE_ID = "last-workspace-id";
 export const LAST_ID_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+// Path-scoped to `/project/<id>/dashboards`, so each project keeps its own value
+// and the cookie isn't sent on unrelated requests.
+export const LAST_DASHBOARD_ID = "last-dashboard-id";
