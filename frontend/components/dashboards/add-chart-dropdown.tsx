@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/dashboards/chart-presets";
-import { getChartsUrl } from "@/components/dashboards/types";
+import { getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,6 +29,7 @@ const TABLE_FILTERS: { label: string; value: PresetTable }[] = [
 const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) => {
   const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
   const chartsUrl = getChartsUrl(projectId, dashboardId);
+  const dashboardsUrl = getDashboardsUrl(projectId);
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -59,14 +60,16 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
           return;
         }
 
-        await mutate(chartsUrl);
+        // The switcher's chart counts come from the dashboards list, so it has
+        // to be revalidated alongside the charts themselves.
+        await Promise.all([mutate(chartsUrl), mutate(dashboardsUrl)]);
         setOpen(false);
         requestAnimationFrame(() => onChartCreated?.());
       } catch {
         toast({ variant: "destructive", title: "Something went wrong" });
       }
     },
-    [chartsUrl, mutate, toast, onChartCreated]
+    [chartsUrl, mutate, dashboardsUrl, toast, onChartCreated]
   );
 
   return (

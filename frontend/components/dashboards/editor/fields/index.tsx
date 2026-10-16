@@ -7,7 +7,7 @@ import { useSWRConfig } from "swr";
 import { ChartType, type DisplayMode, resolveDisplayMode } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { injectIdMetrics } from "@/components/dashboards/editor/utils";
-import { type DashboardChart, getChartsUrl } from "@/components/dashboards/types";
+import { type DashboardChart, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -126,6 +126,12 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         },
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
+
+      if (!id) {
+        // A new chart changes the switcher's chart count, which is served by
+        // the dashboards list.
+        await mutate(getDashboardsUrl(projectId));
+      }
 
       track("dashboards", id ? "chart_updated" : "chart_created", { chart_type: chart.settings.config?.type });
       toast({ title: `Successfully ${id ? "updated" : "created"} chart` });

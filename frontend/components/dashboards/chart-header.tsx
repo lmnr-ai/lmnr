@@ -3,7 +3,7 @@ import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { type DashboardChart, dragHandleKey, getChartsUrl } from "@/components/dashboards/types";
+import { type DashboardChart, dragHandleKey, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -48,6 +48,9 @@ const updateChart = async (chartsUrl: string, id: string, name: string) => {
 
 const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => {
   const chartsUrl = getChartsUrl(projectId, dashboardId);
+  // The switcher's chart counts come from the dashboards list, so adding or
+  // removing a chart has to revalidate it alongside the charts themselves.
+  const dashboardsUrl = getDashboardsUrl(projectId);
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -67,6 +70,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
           optimisticData: (currentData) => (currentData || []).filter((item) => item.id !== id),
         }
       );
+      await mutate(dashboardsUrl);
       track("dashboards", "chart_deleted");
     } catch (e) {
       toast({
@@ -74,14 +78,14 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
         variant: "destructive",
       });
     }
-  }, [chartsUrl, id, mutate, toast]);
+  }, [chartsUrl, dashboardsUrl, id, mutate, toast]);
 
   const handleDuplicateChart = useCallback(async () => {
     try {
       await duplicateChart(chartsUrl, id);
       // Refetch rather than appending the new chart: duplicating also shifts the
       // siblings it displaced, so the server holds the only complete layout.
-      await mutate(chartsUrl);
+      await Promise.all([mutate(chartsUrl), mutate(dashboardsUrl)]);
       track("dashboards", "chart_duplicated");
     } catch (e) {
       toast({
@@ -89,7 +93,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
         variant: "destructive",
       });
     }
-  }, [chartsUrl, id, mutate, toast]);
+  }, [chartsUrl, dashboardsUrl, id, mutate, toast]);
 
   const handleUpdateChart = useCallback(
     async (newName: string) => {
