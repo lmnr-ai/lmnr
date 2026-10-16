@@ -131,7 +131,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         },
         "Signals are billed by the tokens used by Signals agent on your traces, not on your agent's tokens directly. Use the pricing calculator for an estimate based on your specific needs."
       ),
-      tierRow("Retention", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
+      tierRow("Data access", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
       tierRow("Projects", (t) => TIERS[t].projects),
       tierRow("Seats", (t) => TIERS[t].seats),
       {
@@ -181,9 +181,10 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
   },
 ];
 
-interface CardFeature {
+export interface CardFeature {
   label: string;
   subfeature?: string;
+  excluded?: boolean;
 }
 
 // Free uses "X GB data" (no overage); paid uses "X GB data included" + a
@@ -193,6 +194,7 @@ interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
+    { label: "No Signals", excluded: true },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },

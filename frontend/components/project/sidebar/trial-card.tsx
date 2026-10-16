@@ -17,7 +17,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 
 const KEPT_ON_STARTER = [
   `${TIERS.hobby.includedBytesGB} GB of data a month (Free has ${TIERS.free.includedBytesGB} GB)`,
-  `${TIER_RETENTION.hobby.durationPlural} of retention (Free has ${TIER_RETENTION.free.durationPlural})`,
+  `${TIER_RETENTION.hobby.durationPlural} of data access (Free has ${TIER_RETENTION.free.durationPlural})`,
   "Signals and clusters",
   "Slack notifications",
   "Unlimited projects and teammates",

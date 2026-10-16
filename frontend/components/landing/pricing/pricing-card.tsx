@@ -1,18 +1,18 @@
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
 import { microLabel } from "../class-names";
 import LandingButton from "../landing-button";
+import { type CardFeature } from "./tier-data";
 
 export interface PricingCardProps {
   className?: string;
   title: string;
   price: string;
   priceSuffix?: string;
-  features: string[];
-  subfeatures?: (string | null)[];
+  features: CardFeature[];
   isAccent?: boolean;
   ctaLabel: string;
   ctaHref: string;
@@ -27,7 +27,6 @@ export default function PricingCard({
   price,
   priceSuffix,
   features,
-  subfeatures,
   isAccent = false,
   ctaLabel,
   ctaHref,
@@ -54,17 +53,22 @@ export default function PricingCard({
         </p>
       </div>
       <div className="flex flex-col gap-2 flex-1">
-        {features.map((feature, index) => (
-          <div key={index} className="flex flex-col gap-0.5">
-            <div className="flex items-start gap-1.5">
-              <Check className={cn("size-3.5 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
-              <p className={cn("text-base leading-6", featureColor)}>{feature}</p>
+        {features.map((feature) => {
+          const Icon = feature.excluded ? X : Check;
+          return (
+            <div key={feature.label} className="flex flex-col gap-0.5">
+              <div className="flex items-start gap-1.5">
+                <Icon className={cn("size-3.5 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
+                <p className={cn("text-base leading-6", feature.excluded ? suffixColor : featureColor)}>
+                  {feature.label}
+                </p>
+              </div>
+              {feature.subfeature && (
+                <p className={cn(microLabel, "text-sm ml-[20px]", isAccent && "text-white/70")}>{feature.subfeature}</p>
+              )}
             </div>
-            {subfeatures && subfeatures[index] && (
-              <p className={cn(microLabel, "text-sm ml-[20px]", isAccent && "text-white/70")}>{subfeatures[index]}</p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
       <Link href={ctaHref} className="w-full">
         <LandingButton

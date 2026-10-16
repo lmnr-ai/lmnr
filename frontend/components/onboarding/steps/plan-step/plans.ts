@@ -1,5 +1,5 @@
 import { type OnboardingFormValues } from "@/components/onboarding/types";
-import { TIER_RETENTION } from "@/lib/billing/retention";
+import { retentionLabel } from "@/lib/billing/retention";
 import {
   formatDataIncluded,
   formatDataOverage,
@@ -43,7 +43,7 @@ const buildPlan = (tier: OnboardingTier): PlanOption => {
         ? { label: `${formatDataIncluded(tier)} ingested data`, sub: `then ${formatDataOverage(tier)}` }
         : { label: `${formatDataIncluded(tier)} ingested data`, sub: "no overage" },
       tierIncludesSignals(tier) ? { label: formatSignalsCreditLabel(tier) } : { label: "No Signals", excluded: true },
-      { label: `${TIER_RETENTION[tier].duration} access` },
+      { label: retentionLabel(tier) },
       { label: formatProjects(tier) },
       { label: formatSeats(tier) },
       { label: formatSupport(tier) },
