@@ -139,6 +139,47 @@ async fn is_seen(cache: &Cache, key: &str) -> bool {
     cache.exists(key).await.unwrap_or(false)
 }
 
+/// Seen keys claimed by earlier spans of the same MQ message. Redis marks are
+/// only stamped after the consumer flush, so without this every span of one
+/// publish ships the full content of every message it shares with its
+/// siblings — O(n²) for a completed trajectory where each LLM span repeats
+/// the whole history.
+///
+/// Only sound when every span of the publish reaches ClickHouse: a claimed
+/// hash rides later spans as hash-only, relying on the claiming span's row
+/// landing in the same flush (`SharedContentBatch`). OTLP batches can carry
+/// non-recordable spans (`should_record_to_clickhouse`), so they stay
+/// [`BatchSeen::per_span`].
+pub struct BatchSeen {
+    keys: Option<HashSet<String>>,
+}
+
+impl BatchSeen {
+    pub fn per_span() -> Self {
+        Self { keys: None }
+    }
+
+    pub fn across_spans() -> Self {
+        Self {
+            keys: Some(HashSet::new()),
+        }
+    }
+
+    fn contains(&self, key: &str) -> bool {
+        self.keys.as_ref().is_some_and(|keys| keys.contains(key))
+    }
+
+    fn claim(&mut self, key: String) {
+        if let Some(keys) = self.keys.as_mut() {
+            keys.insert(key);
+        }
+    }
+}
+
+async fn is_seen_or_claimed(cache: &Cache, batch_seen: &BatchSeen, key: &str) -> bool {
+    batch_seen.contains(key) || is_seen(cache, key).await
+}
+
 /// Redis stamps for one consumer flush. Stamped only after both backing tables
 /// are durable: `s2:` keys are backed by `unique_content`, `tn:` keys by
 /// `spans.*_new_message_indices`, and a key without its row would make later
@@ -166,7 +207,9 @@ impl SeenMarks {
     pub async fn stamp(&self, cache: &Cache) {
         for chunk in self.keys.chunks(STAMP_BATCH_SIZE) {
             let entries: Vec<(&str, &str)> = chunk.iter().map(|k| (k.as_str(), "1")).collect();
-            let _ = cache.batch_insert_with_ttl(&entries, SEEN_TTL_SECONDS).await;
+            let _ = cache
+                .batch_insert_with_ttl(&entries, SEEN_TTL_SECONDS)
+                .await;
         }
     }
 }

@@ -1,3 +1,4 @@
+pub mod atif;
 pub mod consumer;
 pub mod data_plane_consumer;
 pub mod dedup;

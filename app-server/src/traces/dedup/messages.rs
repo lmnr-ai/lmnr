@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    ContentHash, SeenMarks, SharedContentBatch, content_hash, is_seen, span_group_id,
-    storage_seen_key, trace_new_key,
+    BatchSeen, ContentHash, SeenMarks, SharedContentBatch, content_hash, is_seen_or_claimed,
+    span_group_id, storage_seen_key, trace_new_key,
 };
 use crate::{
     cache::Cache,
@@ -41,10 +41,13 @@ pub struct MessageDedup {
 /// Producer-side: hash each message and consult both Redis axes. `None` when
 /// the span isn't an LLM span or `value` isn't a non-empty array — an empty
 /// `Some([])` keeps its wire shape so `CHSpan.input/output` round-trips as `[]`.
+/// A key claimed in `batch_seen` by an earlier span of the publish reads as
+/// seen; this span claims every key it carries content for.
 pub async fn build_message_dedup(
     span: &Span,
     value: Option<&Value>,
     cache: &Cache,
+    batch_seen: &mut BatchSeen,
 ) -> Option<MessageDedup> {
     if !span.is_llm_span() {
         return None;
@@ -75,8 +78,10 @@ pub async fn build_message_dedup(
         // one an earlier span in this trace stored the hash under.
         let trace_key = trace_new_key(span.project_id, span.trace_id, &hash);
         let storage_key = storage_seen_key(span.project_id, &group_id, &hash);
-        let (trace_seen, storage_seen) =
-            tokio::join!(is_seen(cache, &trace_key), is_seen(cache, &storage_key));
+        let (trace_seen, storage_seen) = tokio::join!(
+            is_seen_or_claimed(cache, batch_seen, &trace_key),
+            is_seen_or_claimed(cache, batch_seen, &storage_key)
+        );
         if !trace_seen {
             trace_new_indices.push(pos);
         }
@@ -88,6 +93,8 @@ pub async fn build_message_dedup(
             // byte-identical to the non-dedup path; only the hash is canonical.
             contents.insert(pos, sanitize_string(&item.to_string()));
         }
+        batch_seen.claim(trace_key);
+        batch_seen.claim(storage_key);
     }
 
     Some(MessageDedup {
@@ -267,9 +274,14 @@ mod tests {
     async fn returns_none_for_empty_input_array() {
         let span = llm_span(Uuid::new_v4(), Uuid::new_v4(), json!([]));
         assert!(
-            build_message_dedup(&span, span.input.as_ref(), &make_cache())
-                .await
-                .is_none()
+            build_message_dedup(
+                &span,
+                span.input.as_ref(),
+                &make_cache(),
+                &mut BatchSeen::per_span()
+            )
+            .await
+            .is_none()
         );
     }
 
@@ -280,9 +292,14 @@ mod tests {
             Uuid::new_v4(),
             json!([{"role": "user", "content": "hi"}]),
         );
-        let dedup = build_message_dedup(&span, span.input.as_ref(), &make_cache())
-            .await
-            .unwrap();
+        let dedup = build_message_dedup(
+            &span,
+            span.input.as_ref(),
+            &make_cache(),
+            &mut BatchSeen::per_span(),
+        )
+        .await
+        .unwrap();
         assert_eq!(dedup.hashes.len(), 1);
         assert_eq!(dedup.trace_new_indices, vec![0]);
         assert_eq!(dedup.storage_miss_indices, vec![0]);
@@ -300,9 +317,14 @@ mod tests {
         mark_seen(&cache, &storage_seen_key(project_id, "sess", &hash)).await;
 
         let span = session_span(project_id, Uuid::new_v4(), "sess", json!([msg]));
-        let dedup = build_message_dedup(&span, span.input.as_ref(), &cache)
-            .await
-            .unwrap();
+        let dedup = build_message_dedup(
+            &span,
+            span.input.as_ref(),
+            &cache,
+            &mut BatchSeen::per_span(),
+        )
+        .await
+        .unwrap();
         assert_eq!(dedup.trace_new_indices, vec![0]);
         assert!(dedup.storage_miss_indices.is_empty());
         assert_eq!(dedup.contents.len(), 1);
@@ -319,9 +341,14 @@ mod tests {
         mark_seen(&cache, &storage_seen_key(project_id, "other", &hash)).await;
 
         let span = llm_span(project_id, Uuid::new_v4(), json!([msg]));
-        let dedup = build_message_dedup(&span, span.input.as_ref(), &cache)
-            .await
-            .unwrap();
+        let dedup = build_message_dedup(
+            &span,
+            span.input.as_ref(),
+            &cache,
+            &mut BatchSeen::per_span(),
+        )
+        .await
+        .unwrap();
         assert_eq!(dedup.storage_miss_indices, vec![0]);
     }
 
@@ -340,9 +367,14 @@ mod tests {
         .await;
 
         let span = llm_span(project_id, trace_id, json!([msg.clone(), msg]));
-        let dedup = build_message_dedup(&span, span.input.as_ref(), &cache)
-            .await
-            .unwrap();
+        let dedup = build_message_dedup(
+            &span,
+            span.input.as_ref(),
+            &cache,
+            &mut BatchSeen::per_span(),
+        )
+        .await
+        .unwrap();
         assert_eq!(dedup.hashes.len(), 2);
         assert!(dedup.trace_new_indices.is_empty());
         assert!(dedup.storage_miss_indices.is_empty());
@@ -368,9 +400,14 @@ mod tests {
         .await;
 
         let span = session_span(project_id, trace_id, "sess", json!([msg]));
-        let dedup = build_message_dedup(&span, span.input.as_ref(), &cache)
-            .await
-            .unwrap();
+        let dedup = build_message_dedup(
+            &span,
+            span.input.as_ref(),
+            &cache,
+            &mut BatchSeen::per_span(),
+        )
+        .await
+        .unwrap();
         assert!(dedup.trace_new_indices.is_empty());
         assert_eq!(dedup.storage_miss_indices, vec![0]);
         assert!(dedup.contents[&0].contains("\"hi\""));
@@ -401,9 +438,14 @@ mod tests {
         .await;
 
         let span = llm_span(project_id, trace_id, json!([msg]));
-        let dedup = build_message_dedup(&span, span.input.as_ref(), &cache)
-            .await
-            .unwrap();
+        let dedup = build_message_dedup(
+            &span,
+            span.input.as_ref(),
+            &cache,
+            &mut BatchSeen::per_span(),
+        )
+        .await
+        .unwrap();
 
         let mut shared = SharedContentBatch::default();
         let batch = MessageBatch::build(&[&span], &[Some(dedup)], &mut shared);

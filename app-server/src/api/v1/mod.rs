@@ -1,3 +1,4 @@
+pub mod atif;
 pub mod browser_sessions;
 pub mod cli;
 pub mod datasets;
