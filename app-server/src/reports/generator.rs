@@ -109,14 +109,15 @@ async fn process_report_trigger(
         .map(|w| w.name)
         .unwrap_or_else(|| "Unknown Workspace".to_string());
 
-    // Get all projects for this workspace
-    let projects = get_projects_for_workspace(&db.pool, &workspace_id)
+    // Get all projects for this workspace that are not excluded from the report
+    let mut projects = get_projects_for_workspace(&db.pool, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
+    projects.retain(|project| !message.excluded_project_ids.contains(&project.id));
 
     if projects.is_empty() {
         log::info!(
-            "[Reports Generator] No projects found for workspace {}",
+            "[Reports Generator] No included projects found for workspace {}",
             workspace_id
         );
         return Ok(());
