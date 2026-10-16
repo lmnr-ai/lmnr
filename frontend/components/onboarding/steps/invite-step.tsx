@@ -15,13 +15,12 @@ interface InviteStepProps {
   stepIndex: number;
   totalSteps: number;
   onAdvance: () => void;
-  onBack: () => void;
 }
 
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 // Only queues addresses; the invites go out when a trial or paid plan starts at the plan step.
-export default function InviteStep({ stepIndex, totalSteps, onAdvance, onBack }: InviteStepProps) {
+export default function InviteStep({ stepIndex, totalSteps, onAdvance }: InviteStepProps) {
   const { watch, setValue, getValues } = useFormContext<OnboardingFormValues>();
   const [draft, setDraft] = useState("");
   const emails = watch("invites");
@@ -50,7 +49,6 @@ export default function InviteStep({ stepIndex, totalSteps, onAdvance, onBack }:
       title="Invite your team"
       description="Add teammates to your workspace. You can also invite them later from workspace settings."
       onNext={handleNext}
-      onBack={onBack}
       nextLabel={emails.length > 0 || canAdd ? "Continue" : "Skip for now"}
     >
       <form onSubmit={addDraft} className="flex gap-2">

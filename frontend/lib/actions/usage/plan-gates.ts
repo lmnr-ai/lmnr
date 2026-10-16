@@ -7,7 +7,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 export const FREE_PLAN_SIGNALS_ERROR =
   "Signals aren't included in the Free plan. Upgrade to Starter or Pro to use Signals.";
 export const FREE_PLAN_SLACK_ERROR =
-  "Slack alerts aren't included in the Free plan. Upgrade to Starter or Pro to connect Slack.";
+  "Slack alerts aren't included in the Free plan. Upgrade to Starter or Pro to get Slack alerts.";
 
 // Raw name compare, not normalizeTier: self-hosted tiers like "unlimited" must not count as Free.
 const isFreeTierName = (name: string | undefined) => name?.trim().toLowerCase() === "free";

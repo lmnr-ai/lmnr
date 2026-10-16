@@ -121,7 +121,6 @@ async function persistSlackIntegration(input: {
 
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
   const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
-  await assertWorkspaceHasSlack(workspaceId);
 
   const redirectUri = process.env.SLACK_REDIRECT_URL;
   if (!redirectUri) {
@@ -171,7 +170,6 @@ export async function redeemBrokeredSlackToken(input: { claim: string; workspace
   }
 
   const { token, teamId, teamName, workspaceId } = BrokerRedeemResponseSchema.parse(await response.json());
-  await assertWorkspaceHasSlack(workspaceId);
 
   // The claim is bound at /cb to the workspace the flow was started for. The
   // caller's URL workspaceId is attacker-controllable (it rides the public

@@ -12,11 +12,11 @@ import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
-import { type OnboardingFormValues, visibleOnboardingSteps } from "@/components/onboarding/types";
-import { useOnboardingDraft } from "@/components/onboarding/use-onboarding-draft";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { useOnboardingProgress } from "@/components/onboarding/use-onboarding-progress";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
-import { type OnboardingStep } from "@/lib/actions/onboarding/types";
+import { ONBOARDING_STEPS, type OnboardingStep } from "@/lib/actions/onboarding/types";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -130,43 +130,38 @@ const STEP_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 function WizardStepsInner({ initialStep }: { initialStep: OnboardingStep }) {
   const form = useFormContext<OnboardingFormValues>();
   const [step, setStep] = useState<OnboardingStep>(initialStep);
-  useOnboardingDraft(step);
-  // The count follows the plan picked but not yet committed, so it doesn't jump after the plan step.
-  const showsPaidSteps = form.watch("currentTier") !== "free" || form.watch("selectedTier") !== "free";
-  const steps = visibleOnboardingSteps(showsPaidSteps);
-  const position = Math.max(0, steps.indexOf(step));
+  useOnboardingProgress(step);
+  const position = Math.max(0, ONBOARDING_STEPS.indexOf(step));
+  const onFree = form.watch("currentTier") === "free";
 
-  // Read the tier at call time: the plan commit sets it right before advancing.
   const move = useCallback(
     (delta: 1 | -1) =>
       setStep((current) => {
-        const list = visibleOnboardingSteps(form.getValues("currentTier") !== "free");
-        const index = list.indexOf(current);
-        if (index === -1) return "connect";
-        return list[Math.min(list.length - 1, Math.max(0, index + delta))];
+        const index = ONBOARDING_STEPS.indexOf(current);
+        return ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length - 1, Math.max(0, index + delta))];
       }),
-    [form]
+    []
   );
   const advance = useCallback(() => move(1), [move]);
   const back = useCallback(() => move(-1), [move]);
 
   const renderStep = () => {
-    const shared = { stepIndex: position, totalSteps: steps.length };
+    const shared = { stepIndex: position, totalSteps: ONBOARDING_STEPS.length };
     switch (step) {
       case "workspace":
         return <WorkspaceStep {...shared} isCloud onComplete={advance} />;
-      // Nothing is written before the plan commit, so the draft steps can always go back.
+      // No back to the workspace step: the workspace already exists (renamed in settings).
       case "invite":
-        return <InviteStep {...shared} onAdvance={advance} onBack={back} />;
+        return <InviteStep {...shared} onAdvance={advance} />;
       case "signals":
         return <SignalsStep {...shared} onAdvance={advance} onBack={back} />;
+      case "slack":
+        return <SlackStep {...shared} onAdvance={advance} onBack={back} />;
       case "plan":
         return <PlanStep {...shared} onAdvance={advance} onBack={back} />;
-      case "slack":
-        // No back button: the plan is committed.
-        return <SlackStep {...shared} onAdvance={advance} />;
+      // A paid plan has applied the invites and signals, so only Free can go back and pick again.
       case "connect":
-        return <ConnectStep {...shared} onBack={back} />;
+        return <ConnectStep {...shared} onBack={onFree ? back : undefined} />;
       default:
         return null;
     }

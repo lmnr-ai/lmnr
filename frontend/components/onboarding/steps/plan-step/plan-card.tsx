@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, X } from "lucide-react";
 
 import { type PlanOption } from "@/components/onboarding/steps/plan-step/plans";
 import { cn } from "@/lib/utils";
@@ -85,8 +85,14 @@ export default function PlanCard({
         {plan.features.map((f) => (
           <li key={f.label} className="flex flex-col gap-0.5">
             <div className="flex items-start gap-2">
-              <Check className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-300" strokeWidth={2.5} />
-              <span className="text-sm text-foreground-200">{f.label}</span>
+              {f.excluded ? (
+                <X className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-400" strokeWidth={2.5} />
+              ) : (
+                <Check className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-300" strokeWidth={2.5} />
+              )}
+              <span className={cn("text-sm", f.excluded ? "text-foreground-400" : "text-foreground-200")}>
+                {f.label}
+              </span>
             </div>
             {f.sub && <span className="text-xs text-foreground-400 ml-[22px] 2xl:ml-[24px]">{f.sub}</span>}
           </li>

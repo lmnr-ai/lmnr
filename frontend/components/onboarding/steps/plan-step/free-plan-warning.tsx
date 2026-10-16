@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { Info } from "lucide-react";
 
 interface FreePlanWarningProps {
   inviteCount: number;
@@ -9,19 +9,16 @@ interface FreePlanWarningProps {
 export default function FreePlanWarning({ inviteCount, signalCount }: FreePlanWarningProps) {
   if (inviteCount === 0 && signalCount === 0) return null;
 
-  const dropped = [
-    inviteCount > 0 ? `${inviteCount} ${inviteCount === 1 ? "invite won't be sent" : "invites won't be sent"}` : null,
-    signalCount > 0
-      ? `${signalCount} ${signalCount === 1 ? "signal won't be set up" : "signals won't be set up"}`
-      : null,
+  const kept = [
+    inviteCount > 0 ? `${inviteCount} ${inviteCount === 1 ? "teammate" : "teammates"}` : null,
+    signalCount > 0 ? `${signalCount} ${signalCount === 1 ? "signal" : "signals"}` : null,
   ].filter(Boolean);
 
   return (
-    <div className="flex items-start gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/5 px-4 py-3">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-yellow-500" />
-      <span className="text-sm text-secondary-foreground">
-        The Free plan includes one seat and no Signals: your {dropped.join(" and your ")}. Start the free trial to keep
-        them.
+    <div className="flex items-start gap-2 px-1">
+      <Info className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <span className="text-[13px] text-muted-foreground">
+        The Free plan includes one seat and no Signals. Start the free trial to keep your {kept.join(" and ")}.
       </span>
     </div>
   );

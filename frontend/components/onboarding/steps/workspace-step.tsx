@@ -15,14 +15,14 @@ import { cn } from "@/lib/utils";
 interface WorkspaceStepProps {
   stepIndex: number;
   totalSteps: number;
-  // Cloud only collects the names here (the plan step creates the workspace); OSS creates it now.
+  // Cloud also starts the onboarding cookie that later steps resume from.
   isCloud?: boolean;
   onComplete: (result?: { workspaceId: string; projectId: string }) => void;
 }
 
 export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, onComplete }: WorkspaceStepProps) {
-  const { control, watch, trigger } = useFormContext<OnboardingFormValues>();
-  const { isSubmitting, createWorkspace, beginSubmitting } = useOnboardingActions();
+  const { control, watch } = useFormContext<OnboardingFormValues>();
+  const { isSubmitting, createWorkspace, startOnboarding, beginSubmitting } = useOnboardingActions();
   const { companyName } = useOnboardingContext();
   // Tracks whether a prefilled company name survived to submit.
   const [nameEdited, setNameEdited] = useState(false);
@@ -33,7 +33,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
 
   const handleNext = async () => {
     if (isCloud) {
-      if (!(await trigger(["workspaceName", "projectName"]))) return;
+      if (!(await startOnboarding())) return;
       if (companyName) track("onboarding", "workspace_name_submitted", { kept_suggestion: !nameEdited });
       onComplete();
       return;

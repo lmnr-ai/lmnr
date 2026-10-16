@@ -3,10 +3,11 @@ import Stripe from "stripe";
 
 import {
   handleTrialConversion,
+  handleTrialDeleted,
   handleTrialPaymentSessionCompleted,
-  endTrial,
   handleTrialWillEnd,
   syncTrialEndFromSubscription,
+  trackTrialStarted,
   TRIAL_PAYMENT_SESSION_TYPE,
 } from "@/lib/actions/checkout/trial";
 import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
@@ -214,17 +215,15 @@ export async function POST(req: NextRequest): Promise<Response> {
       await handleInvoiceFinalized(workspaceId, hasBytesOverage, hasSignalRunsOverage, resetTime);
       break;
     }
-    case "customer.subscription.deleted": {
+    case "customer.subscription.deleted":
       await handleSubscriptionChange(event, true);
-      const workspaceId = event.data.object.metadata?.workspaceId;
-      // No-op unless this was a still-running trial (Stripe cancels card-less trials at the end).
-      if (workspaceId) await endTrial(workspaceId, "canceled");
+      await handleTrialDeleted(event.data.object);
       break;
-    }
     case "customer.subscription.created":
       await handleSubscriptionChange(event);
       await syncTrialEndFromSubscription(event.data.object);
       await addOveragePricesToSubscription(event.data.object);
+      await trackTrialStarted(event.data.object);
       break;
     case "customer.subscription.updated": {
       await handleSubscriptionChange(event);

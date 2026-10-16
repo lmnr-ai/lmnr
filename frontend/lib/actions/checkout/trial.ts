@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 import { getOrCreateStripeCustomer } from "@/lib/actions/checkout/customer";
 import { stripe } from "@/lib/actions/checkout/stripe";
+import { captureTrialEvent, type TrialSource } from "@/lib/actions/checkout/trial-analytics";
 import {
   getIdFromStripeObject,
   handleInvoiceFinalized,
@@ -24,7 +25,10 @@ import { TIER_CONFIG, TRIAL_DAYS } from "./types";
 // "canceled" also covers an expiry: both put the workspace back on Free.
 type TrialOutcome = "converted" | "canceled";
 
-const StartTrialSchema = z.object({ workspaceId: z.guid() });
+const StartTrialSchema = z.object({
+  workspaceId: z.guid(),
+  source: z.enum(["onboarding", "billing"] satisfies TrialSource[]),
+});
 
 const TrialPaymentSchema = z.object({
   workspaceId: z.guid(),
@@ -89,7 +93,7 @@ export const getWorkspaceOwnerEmails = async (workspaceId: string): Promise<stri
 };
 
 export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>): Promise<{ endsAt: string }> => {
-  const { workspaceId } = StartTrialSchema.parse(input);
+  const { workspaceId, source } = StartTrialSchema.parse(input);
   // Owner only: eligibility is one trial per owner, and the trial bills the caller's Stripe customer.
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
@@ -116,7 +120,7 @@ export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>)
       trial_period_days: TRIAL_DAYS,
       trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
       payment_settings: { save_default_payment_method: "on_subscription" },
-      metadata: { workspaceId, workspaceName: workspace.name, type: "workspace" },
+      metadata: { workspaceId, workspaceName: workspace.name, type: "workspace", trialSource: source },
     },
     { idempotencyKey: `starter-trial-${workspaceId}` }
   );
@@ -154,6 +158,15 @@ export const endTrial = async (workspaceId: string, outcome: TrialOutcome): Prom
   return true;
 };
 
+export const trackTrialStarted = async (subscription: Stripe.Subscription) => {
+  if (subscription.status !== "trialing" || !subscription.trial_end) return;
+  captureTrialEvent(subscription, "started", {
+    // Absent on trials created outside the app (the backfill script, the Stripe dashboard).
+    source: subscription.metadata?.trialSource ?? "other",
+    trial_ends_at: new Date(subscription.trial_end * 1000).toISOString(),
+  });
+};
+
 // The webhook is the source of truth for the end date: it covers a crash between creating the
 // subscription and saving the date in startStarterTrial, and a trial_end changed in Stripe.
 export const syncTrialEndFromSubscription = async (subscription: Stripe.Subscription) => {
@@ -186,6 +199,13 @@ export const getTrialSubscription = async (workspaceId: string): Promise<Stripe.
   const trial = await getActiveTrial(workspaceId);
   if (!trial) return null;
   return stripe().subscriptions.retrieve(trial.subscriptionId);
+};
+
+// Readable by any member, unlike getSubscriptionDetails: the sidebar trial card shows it to everyone.
+export const trialConvertsToPaid = async (workspaceId: string): Promise<boolean | null> => {
+  const subscription = await getTrialSubscription(workspaceId);
+  if (!subscription) return null;
+  return !subscription.cancel_at_period_end && (await subscriptionHasPaymentMethod(subscription));
 };
 
 const requireTrialSubscription = async (workspaceId: string): Promise<Stripe.Subscription> => {
@@ -242,10 +262,11 @@ export const handleTrialPaymentSessionCompleted = async (session: Stripe.Checkou
     await s.customers.update(customerId, { invoice_settings: { default_payment_method: paymentMethodId } });
   }
   // Adding a card also undoes an earlier "Cancel subscription".
-  await s.subscriptions.update(subscriptionId, {
+  const subscription = await s.subscriptions.update(subscriptionId, {
     default_payment_method: paymentMethodId,
     cancel_at_period_end: false,
   });
+  captureTrialEvent(subscription, "card_added");
 };
 
 // An active subscription on a still-trialing workspace has converted, whether straight from
@@ -264,7 +285,26 @@ export const handleTrialConversion = async (
   // The first paid invoice carries only the flat price, so invoice.finalized never resets usage for it.
   const periodStart = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
   await handleInvoiceFinalized(workspaceId, true, true, periodStart);
-  await endTrial(workspaceId, "converted");
+  if (await endTrial(workspaceId, "converted")) {
+    const trialDays =
+      subscription.trial_start && subscription.trial_end
+        ? Math.round((subscription.trial_end - subscription.trial_start) / 86400)
+        : null;
+    // Fewer days than TRIAL_DAYS means the owner clicked Start now.
+    captureTrialEvent(subscription, "converted", { trial_days: trialDays });
+  }
+};
+
+// No-op unless this was a still-running trial (Stripe cancels card-less trials at the end).
+export const handleTrialDeleted = async (subscription: Stripe.Subscription) => {
+  const workspaceId = subscription.metadata?.workspaceId;
+  if (!workspaceId || !(await endTrial(workspaceId, "canceled"))) return;
+  const reason = subscription.cancel_at_period_end
+    ? "canceled"
+    : subscription.cancellation_details?.reason === "payment_failed"
+      ? "payment_failed"
+      : "expired";
+  captureTrialEvent(subscription, "ended", { reason });
 };
 
 // Fires 3 days before the end, or right away when a trial is cut short. Only trials that won't

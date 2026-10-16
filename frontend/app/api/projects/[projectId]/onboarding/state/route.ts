@@ -1,15 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod/v4";
 
 import { clearOnboardingState, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
+import { OnboardingProgressSchema } from "@/lib/actions/onboarding/types";
 import { getServerSession } from "@/lib/auth-session";
 import { sendWelcomeEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-
-// Only post-commit moves are persisted here; the plan step commits through /api/onboarding/commit.
-const StateSchema = z.object({
-  step: z.enum(["slack", "connect"]),
-});
 
 export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const session = await getServerSession();
@@ -18,13 +13,18 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   }
   try {
     const { projectId } = await props.params;
-    const { step } = StateSchema.parse(await request.json());
+    const { step, pending } = OnboardingProgressSchema.parse(await request.json());
 
     const existing = await getOnboardingState();
     if (!existing || existing.userId !== session.user.id || existing.projectId !== projectId) {
       return NextResponse.json({ error: "No onboarding in progress for this project" }, { status: 404 });
     }
-    await setOnboardingState({ ...existing, step });
+    // A trial or paid plan already applied the queued choices; a late save from another tab or a slow
+    // request must not move it back before the plan, where Continue would apply them again.
+    if (existing.step === "connect" && !existing.pending) {
+      return NextResponse.json({ error: "The plan is already set up" }, { status: 409 });
+    }
+    await setOnboardingState({ ...existing, step, pending });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(
