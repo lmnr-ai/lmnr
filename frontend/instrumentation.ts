@@ -378,11 +378,16 @@ export async function register() {
       // on its status record: the copy INNER JOINs traces_agg for each trace's
       // start_time, and that record is absent on every boot when REDIS_URL is
       // unset, so reading it back would defer the copy forever.
+      //
+      // The clusters rebuild (migration 69 table swap) goes last: the backfill
+      // above reads signal_event_clusters, and the swap must not race it.
       void (async () => {
         const { startTracesAggBackfill } = await import("@/lib/clickhouse/scripts/backfill-traces-agg.ts");
         const { startSignalClustersBackfill } = await import("@/lib/clickhouse/scripts/backfill-signal-clusters.ts");
+        const { startSignalClustersRebuild } = await import("@/lib/clickhouse/scripts/rebuild-signal-clusters.ts");
         const tracesAggComplete = await startTracesAggBackfill();
         await startSignalClustersBackfill(tracesAggComplete);
+        await startSignalClustersRebuild();
       })().catch((error) => console.error("Failed to run ClickHouse backfills:", error));
 
       // Seed default signals for projects that don't have any. Same path as

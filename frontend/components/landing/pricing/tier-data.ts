@@ -6,6 +6,7 @@ import {
   formatProjects,
   formatSeats,
   formatSignalsCount,
+  formatSignalsCreditLabel,
   formatSignalsOverageShort,
   formatSupport,
   type Tier,
@@ -71,7 +72,7 @@ export const TIER_COLUMNS: PricingColumn[] = PRICING_COLUMNS.map((c) => ({
 export const RECOMMENDED_TIER: TierId = "hobby";
 
 // `false` / `null` cells render as an em-dash via the table renderer.
-export type FeatureValue = string | boolean | null;
+export type FeatureValue = string | boolean | null | { label: string; muted?: true; small?: true; detail?: string };
 
 interface FeatureRow {
   label: string;
@@ -108,17 +109,29 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     rows: [
       tierRow("Data included", formatDataIncluded),
       tierRow("Data overage rate", formatDataOverage),
-      tierRow("Signals credits included", formatSignalsCount),
+      tierRow(
+        "One-time Signals credits",
+        (tier) => (tier === "enterprise" ? "Custom" : formatSignalsCount(tier)),
+        "One-time Signals credit on sign-up"
+      ),
       // Comparison table is column-constrained, use the short per-1M-token form
       // instead of the verbose rate the cards use. The tooltip is load-bearing:
       // a per-1M-token rate on a page about the reader's own agent reads as
       // their token count unless it says otherwise.
       tierRow(
-        "Signals overage rate",
-        formatSignalsOverageShort,
-        "Signals run Laminar's own agent over your traces, so this rate is billed on the tokens that agent spends, not on your agent's tokens. Laminar compresses each trace first, so it typically works out to about 10% of your agent's token count."
+        "Signals",
+        (tier) => {
+          if (tier === "free") return { label: "Not included", muted: true, small: true };
+          const label = formatSignalsOverageShort(tier);
+          if (tier === "enterprise") return label;
+          return {
+            label,
+            detail: "Billed by tokens used by our Signals to analyze your traces, not your agent's tokens directly.",
+          };
+        },
+        "Signals are billed by the tokens used by Signals agent on your traces, not on your agent's tokens directly. Use the pricing calculator for an estimate based on your specific needs."
       ),
-      tierRow("Retention", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
+      tierRow("Data access", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
       tierRow("Projects", (t) => TIERS[t].projects),
       tierRow("Seats", (t) => TIERS[t].seats),
       {
@@ -153,6 +166,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { label: "SOC 2 Type II", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "HIPAA", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "Server-side PII Removal", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "DPA", values: { free: false, hobby: false, pro: true, enterprise: true } },
     ],
   },
   {
@@ -167,9 +181,10 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
   },
 ];
 
-interface CardFeature {
+export interface CardFeature {
   label: string;
   subfeature?: string;
+  excluded?: boolean;
 }
 
 // Free uses "X GB data" (no overage); paid uses "X GB data included" + a
@@ -179,7 +194,7 @@ interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: `${formatSignalsCount("free")} in Signals credits` },
+    { label: "No Signals", excluded: true },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -187,7 +202,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
-    { label: `${formatSignalsCount("hobby")} in Signals credits` },
+    { label: formatSignalsCreditLabel("hobby") },
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
@@ -195,7 +210,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: `${formatSignalsCount("pro")} in Signals credits` },
+    { label: formatSignalsCreditLabel("pro") },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

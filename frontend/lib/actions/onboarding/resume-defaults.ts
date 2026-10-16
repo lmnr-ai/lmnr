@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
 
+import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/lib/actions/onboarding/types";
+import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { signals, slackIntegrations, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -17,11 +19,9 @@ interface Input {
   projectId: string;
 }
 
-const TIERS: ReadonlySet<OnboardingTier> = new Set(["free", "hobby", "pro"]);
-
 const asTier = (raw: string | null | undefined): OnboardingTier => {
-  const candidate = (raw ?? "free").toLowerCase() as OnboardingTier;
-  return TIERS.has(candidate) ? candidate : "free";
+  const tier = normalizeTier(raw ?? "free");
+  return tier === "hobby" || tier === "pro" ? tier : "free";
 };
 
 // workspaceName ships into Stripe as subscription metadata via the plan step,
@@ -41,7 +41,8 @@ async function loadWorkspaceContext(workspaceId: string) {
 
 async function loadSelectedTemplateNames(projectId: string): Promise<string[]> {
   const rows = await db.select({ name: signals.name }).from(signals).where(eq(signals.projectId, projectId));
-  return rows.map((r) => r.name);
+  // Nothing is seeded before the Signals step now, so a resume before it starts from the defaults.
+  return rows.length > 0 ? rows.map((r) => r.name) : [...DEFAULT_SELECTED_TEMPLATE_NAMES];
 }
 
 async function loadSlackConnected(workspaceId: string): Promise<boolean> {

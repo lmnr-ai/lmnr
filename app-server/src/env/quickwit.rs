@@ -9,3 +9,6 @@ pub const ENABLED: BoolEnv = BoolEnv::new("QUICKWIT_ENABLED", true);
 pub const SPANS_INDEX_ID: StringEnv = StringEnv::new("QUICKWIT_SPANS_INDEX_ID", "spans_v2");
 pub const INGEST_URL: StringEnv = StringEnv::new("QUICKWIT_INGEST_URL", "http://localhost:7281");
 pub const SEARCH_URL: StringEnv = StringEnv::new("QUICKWIT_SEARCH_URL", "http://localhost:7280");
+/// Append a commit to every ingested doc batch. When false, the index's
+/// `commit_timeout_secs` decides when a split is committed.
+pub const FORCE_COMMIT: BoolEnv = BoolEnv::new("QUICKWIT_FORCE_COMMIT", true);

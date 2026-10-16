@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W } from "./class-names";
-import Footer from "./footer";
+import GridFooter from "./footer/grid-footer";
 import Hero from "./hero";
 import AskInSlack from "./sections/ask-in-slack";
 import BuiltForProduction from "./sections/built-for-production";
@@ -13,6 +13,7 @@ import CTA from "./sections/cta";
 import DidMyFixWork from "./sections/did-my-fix-work";
 import Divider from "./sections/divider";
 import FeaturesForEveryStep from "./sections/features-for-every-step";
+import FlowOne from "./sections/flow-one";
 import HasThisIssue from "./sections/has-this-issue";
 import OpenSource from "./sections/open-source";
 import Quote from "./sections/quote";
@@ -45,6 +46,7 @@ const Landing = ({ className, hasSession }: Props) => (
         <div className="md:hidden w-full">
           <HasThisIssue />
         </div>
+        <FlowOne />
         <AskInSlack />
         <ClaudeFixMyAgent />
         <DidMyFixWork />
@@ -61,7 +63,7 @@ const Landing = ({ className, hasSession }: Props) => (
         <CTA />
       </div>
     </div>
-    <Footer />
+    <GridFooter />
   </div>
 );
 

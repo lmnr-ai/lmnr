@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
-import { buildPath, type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
+import { type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
 import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -169,19 +168,6 @@ const ClustersCard = ({
     [selectedClusterId, isLeaf, displayId]
   );
 
-  const breadcrumb = useMemo(
-    () => (selectedClusterId ? buildPath(DATASET.clusterTree, selectedClusterId) : []),
-    [selectedClusterId]
-  );
-
-  const navigateToBreadcrumb = useCallback(
-    (index: number) => {
-      if (index < 0) setSelectedClusterId(null);
-      else setSelectedClusterId(breadcrumb[index].id);
-    },
-    [breadcrumb]
-  );
-
   // Pinned from the final data so the axis doesn't step up while bars stream in.
   const yAxisMax = useMemo(() => {
     const ids = new Set(chartClusters.map((c) => c.id));
@@ -246,11 +232,6 @@ const ClustersCard = ({
         style={{ width: CLUSTERS_CARD_COL_W }}
         className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
       >
-        <ClusterBreadcrumb
-          breadcrumb={breadcrumb}
-          selectedClusterId={selectedClusterId}
-          onNavigateToBreadcrumb={navigateToBreadcrumb}
-        />
         <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
         <div style={{ height: COL_CHART_CARD_H }} className="flex rounded-md border bg-secondary overflow-hidden">
           {chart}
@@ -264,11 +245,6 @@ const ClustersCard = ({
       style={{ width: CLUSTERS_CARD_W }}
       className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
     >
-      <ClusterBreadcrumb
-        breadcrumb={breadcrumb}
-        selectedClusterId={selectedClusterId}
-        onNavigateToBreadcrumb={navigateToBreadcrumb}
-      />
       <div className="flex h-[230px] rounded-md border bg-secondary overflow-hidden">
         <div className="w-[250px] md:w-[300px] shrink-0 overflow-hidden">{list}</div>
         {chart}

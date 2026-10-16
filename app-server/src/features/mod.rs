@@ -25,6 +25,9 @@ pub enum Feature {
     /// Signals route their LLM calls through a profile. Self-hosted only: cloud
     /// signals keep running on Laminar's internal keys.
     SignalLlmProfiles,
+    /// Hosted signals gateway (`/v1/chat/completions`) that self-hosted
+    /// deployments can point a signals LLM profile at. Cloud only.
+    SignalsGateway,
     /// Ingestion-time user-task extraction (LAM-1880). Shares the
     /// LLM-provider condition with `Signals` but stays a separate flag —
     /// features are fine-grained so gating can diverge later.
@@ -43,10 +46,6 @@ pub enum Feature {
     /// while before summarization consumes it; needs BOTH switches on.
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalsVersionedPrompts,
-    /// User-task extraction keys its regexes by prompt version instead of the
-    /// legacy agent-hash + tag-fingerprint pair. Needs BOTH switches on, and
-    /// `InputExtraction` for the pipeline to run at all.
-    VersionedInputExtraction,
     RateLimiter,
     /// Per-project data-ingestion rate limit (gRPC + HTTP OTLP traces).
     IngestionRateLimiter,
@@ -90,6 +89,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         // signal, so they boot even with neither env provider nor system workspace.
         Feature::Signals => has_llm_backend() || is_feature_enabled(Feature::SignalLlmProfiles),
         Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
+        Feature::SignalsGateway => env::connections::LAMINAR_CLOUD.get(),
         Feature::InputExtraction => has_llm_backend(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
@@ -101,17 +101,13 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             is_feature_enabled(Feature::SystemPromptVersioning)
                 && env::static_sp::SIGNALS_ENABLED.get()
         }
-        Feature::VersionedInputExtraction => {
-            is_feature_enabled(Feature::SystemPromptVersioning)
-                && env::static_sp::INPUT_EXTRACTION_ENABLED.get()
-        }
         Feature::RateLimiter => {
-            std::env::var(env::connections::REDIS_URL).is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
                 && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::HTTP_PERIOD_SECS).is_ok()
         }
         Feature::IngestionRateLimiter => {
-            std::env::var(env::connections::REDIS_URL).is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok_and(|s| !s.is_empty())
                 && std::env::var(env::rate_limit::INGESTION_LIMIT).is_ok()
                 && std::env::var(env::rate_limit::INGESTION_PERIOD_SECS).is_ok()
         }

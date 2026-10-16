@@ -110,13 +110,13 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_cost_included_micro_usd: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
     /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub signal_cost_hard_limit_micro_usd: Option<i64>,
+    pub trialing: bool,
     /// `projects.settings` JSONB, opaque to the SQL row binding (we hand it
     /// to serde_json on the way into the typed `ProjectWithWorkspaceBillingInfo`).
     #[serde(default)]
@@ -164,20 +164,6 @@ impl WorkspaceTierName {
         }
     }
 
-    /// Signal cost included in this tier's monthly plan, in micro-USD (1e-6
-    /// USD). Signals are billed by the token cost the agent spends, so the
-    /// included allowance is a dollar amount: $5 Free, $15 Hobby, $50 Pro.
-    /// Must stay in sync with `TIER_CONFIG.includedSignalCostMicroUsd` in the
-    /// frontend and the `subscription_tiers.signal_cost_included_micro_usd` DB column.
-    pub fn included_signal_cost_micro_usd(&self) -> Option<i64> {
-        match self {
-            Self::Free => Some(5_000_000),
-            Self::Hobby => Some(15_000_000),
-            Self::Pro => Some(50_000_000),
-            Self::Other => None,
-        }
-    }
-
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Free => "Free",
@@ -198,13 +184,15 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_cost_included_micro_usd: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
     /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub signal_cost_hard_limit_micro_usd: Option<i64>,
+    /// Card-less Starter trial: capped like Free, since overage could never be billed.
+    #[serde(default)]
+    pub trialing: bool,
     /// Typed view of `projects.settings`. Unknown keys are tolerated;
     /// missing keys fall back to the field's `Default` impl.
     #[serde(default)]
@@ -231,9 +219,9 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             reset_time: self.reset_time,
             workspace_project_ids: self.workspace_project_ids,
             bytes_limit: self.bytes_limit,
-            signal_cost_included_micro_usd: self.signal_cost_included_micro_usd,
             custom_bytes_limit: self.custom_bytes_limit,
             signal_cost_hard_limit_micro_usd: self.signal_cost_hard_limit_micro_usd,
+            trialing: self.trialing,
             settings,
         }
     }
@@ -243,6 +231,58 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
 pub struct ProjectInfo {
     pub id: Uuid,
     pub name: String,
+}
+
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_signal_credit_remaining(
+    pool: &PgPool,
+    workspace_id: Uuid,
+) -> anyhow::Result<Option<i64>> {
+    let remaining = sqlx::query_scalar(
+        "SELECT signal_credit_remaining_micro_usd FROM workspaces WHERE id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(remaining)
+}
+
+/// Consume a completed run's cost from its workspace's one-time credit.
+/// Returns true when credit remains after the deduction.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn apply_signal_credit(
+    pool: &PgPool,
+    project_id: Uuid,
+    cost_micro_usd: i64,
+) -> anyhow::Result<bool> {
+    if cost_micro_usd <= 0 {
+        return Ok(false);
+    }
+
+    let credit_applied = sqlx::query_scalar(
+        r#"
+        UPDATE workspaces
+        SET signal_credit_remaining_micro_usd = GREATEST(
+            signal_credit_remaining_micro_usd - $2,
+            0
+        )
+        WHERE id = (
+            SELECT workspace_id
+            FROM projects
+            WHERE id = $1
+        )
+          AND signal_credit_remaining_micro_usd > 0
+        RETURNING signal_credit_remaining_micro_usd > 0
+        "#,
+    )
+    .bind(project_id)
+    .bind(cost_micro_usd)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or(false);
+
+    Ok(credit_applied)
 }
 
 pub async fn get_projects_for_workspace(
@@ -325,10 +365,15 @@ pub async fn project_has_member(
     project_id: &Uuid,
 ) -> anyhow::Result<bool> {
     let exists = sqlx::query_scalar::<_, bool>(
+        // Same owner-only lock as the frontend membership checks: a Free workspace that had
+        // a subscription (trial or paid plan ended) admits only its owners.
         "SELECT EXISTS (
             SELECT 1 FROM projects p
             JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
+            JOIN workspaces w ON w.id = p.workspace_id
+            JOIN subscription_tiers st ON st.id = w.tier_id
             WHERE p.id = $1 AND m.user_id = $2
+                AND (m.member_role = 'owner' OR w.subscription_id IS NULL OR LOWER(TRIM(st.name)) <> 'free')
         )",
     )
     .bind(project_id)
@@ -362,7 +407,9 @@ pub async fn get_projects_for_user(
          FROM projects p
          JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
          JOIN workspaces w ON w.id = p.workspace_id
+         JOIN subscription_tiers st ON st.id = w.tier_id
          WHERE m.user_id = $1
+             AND (m.member_role = 'owner' OR w.subscription_id IS NULL OR LOWER(TRIM(st.name)) <> 'free')
          -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
          ORDER BY lower(w.name), w.name, lower(p.name), p.name
          LIMIT 1000",
@@ -394,9 +441,9 @@ pub async fn get_project_and_workspace_billing_info(
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
             subscription_tiers.bytes_ingested as bytes_limit,
-            subscription_tiers.signal_cost_included_micro_usd as signal_cost_included_micro_usd,
             wul_bytes.limit_value as custom_bytes_limit,
             wul_signal_cost.limit_value as signal_cost_hard_limit_micro_usd,
+            workspaces.trial_ends_at IS NOT NULL as trialing,
             projects.settings
         FROM
             projects

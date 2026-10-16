@@ -1,13 +1,10 @@
-import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { buildTimeRangeWithFill, buildWhereClause, type QueryParams } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
-import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { signalTokenCostMicroUsd } from "@/lib/billing/tiers";
 
 import { getClustersByEventIds } from "./clusters";
 import {
@@ -43,24 +40,11 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
     pastHours,
   });
 
-  const [rows, tierRows] = await Promise.all([
-    executeQuery<Omit<SignalRunRow, "costMicroUsd" | "clusters">>({
-      query: mainQuery,
-      parameters: mainParams,
-      projectId,
-    }),
-    db
-      .select({ tierName: subscriptionTiers.name })
-      .from(projects)
-      .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
-      .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-      .where(eq(projects.id, projectId))
-      .limit(1),
-  ]);
-
-  // Price each run at the workspace's tier rate (Pro discounted) so the
-  // displayed cost matches metered usage.
-  const tier = normalizeTier(tierRows[0]?.tierName ?? "free");
+  const rows = await executeQuery<Omit<SignalRunRow, "costMicroUsd" | "clusters">>({
+    query: mainQuery,
+    parameters: mainParams,
+    projectId,
+  });
 
   // Resolved for the fetched page only, so pagination stays a single-table scan.
   const clusters = await getClustersByEventIds({
@@ -74,8 +58,7 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
     costMicroUsd: signalTokenCostMicroUsd(
       Number(row.inputTokens),
       Number(row.cacheReadTokens),
-      Number(row.outputTokens),
-      tier
+      Number(row.outputTokens)
     ),
     clusters: clusters[row.eventId] ?? [],
   }));

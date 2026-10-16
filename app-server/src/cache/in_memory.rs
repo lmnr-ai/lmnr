@@ -70,6 +70,22 @@ impl CacheTrait for InMemoryCache {
         Ok(())
     }
 
+    async fn batch_insert_with_ttl<T>(
+        &self,
+        entries: &[(&str, T)],
+        seconds: u64,
+    ) -> Result<(), CacheError>
+    where
+        T: Serialize + Sync,
+    {
+        for (key, value) in entries {
+            let bytes = serde_json::to_vec(value).map_err(|e| CacheError::SerDeError(e))?;
+            self.cache.insert(String::from(*key), bytes).await;
+            self.set_ttl(key, seconds).await?;
+        }
+        Ok(())
+    }
+
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
         // Note: This is not truly atomic for in-memory cache, but should be fine for dev/testing.
         // Production should use Redis where increment is atomic.

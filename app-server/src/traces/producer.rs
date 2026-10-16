@@ -35,7 +35,6 @@ use crate::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
     traces::{
-        input_extraction::SystemPromptIdentity,
         prompt_hash::{extract_system_message, prompt_hashes},
         sp_versioning::{
             producer::{StaticPromptCandidate, publish_static_prompt_candidates},
@@ -47,7 +46,7 @@ use crate::{
 
 /// System prompt of an LLM span with its hashes: the skeleton (naive
 /// signature), the first-sentence agent identity, and the byte-identity hash
-/// (memo key for classification, verdict-map key for the user-task regex).
+/// (memo key for classification).
 struct SystemPromptVerdict {
     skeleton_hash: String,
     agent_hash: String,
@@ -115,10 +114,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     // prompt's XML scaffolding don't re-trigger regex generation.
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(
         span,
-        system_prompt.as_ref().map(|sp| SystemPromptIdentity {
-            agent_hash: &sp.agent_hash,
-            full_prompt_hash: &sp.full_prompt_hash,
-        }),
+        system_prompt.as_ref().map(|sp| sp.agent_hash.as_str()),
     );
 
     // Session first: every verdict below keys storage by the span's group.
@@ -280,12 +276,7 @@ pub async fn publish_span_messages(
     // Static-prompt extraction candidates ride a separate queue and are
     // best-effort — only after the span publish succeeded, so a rejected
     // batch doesn't feed the accumulator with spans that were never stored.
-    // The returned verdicts are the versions this call resolved inline; the
-    // user-task hook below keys its regex cache on them, which is why the
-    // subset match runs on the ingest path at all.
-    let version_verdicts =
-        publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone())
-            .await;
+    publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone()).await;
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.
@@ -311,7 +302,6 @@ pub async fn publish_span_messages(
     crate::traces::input_extraction::process_user_task_candidates(
         contexts,
         project_id,
-        version_verdicts,
         queue,
         db,
         cache,

@@ -10,6 +10,7 @@ import { LANDING_COLUMN_MAX_W } from "../class-names";
 
 interface Props {
   className?: string;
+  contentPaddingBottom?: number;
 }
 
 interface FooterLink {
@@ -96,7 +97,7 @@ const FooterColumn = ({
   </div>
 );
 
-const Footer = ({ className }: Props) => (
+const Footer = ({ className, contentPaddingBottom }: Props) => (
   <div className={cn("flex flex-col items-center w-full", className)}>
     <div
       className={cn(
@@ -106,6 +107,7 @@ const Footer = ({ className }: Props) => (
         "pt-16 pb-20",
         "px-6 lg:px-0"
       )}
+      style={{ paddingBottom: contentPaddingBottom }}
     >
       {/* Desktop */}
       <div className="hidden xl:flex gap-[80px] items-start w-full">

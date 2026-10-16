@@ -5,12 +5,7 @@ import { cn } from "@/lib/utils";
 
 // Card is a surface one step above its context; shadow is a plain Tailwind utility (decoupled).
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <ElevatedSurface
-    ref={ref}
-    offset={1}
-    className={cn("rounded-xl border text-card-foreground shadow-sm", className)}
-    {...props}
-  />
+  <ElevatedSurface ref={ref} offset={1} className={cn("rounded-xl border shadow-sm", className)} {...props} />
 ));
 Card.displayName = "Card";
 

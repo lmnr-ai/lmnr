@@ -19,6 +19,7 @@ const AskInSlack = () => (
       <p className={bodyMedium}>
         Laminar notifies you about new failures and clusters in Slack.
         <br className="hidden md:block" />
+        {` `}
         Mention Laminar to ask anything about your traces.
       </p>
       <LearnMoreLink

@@ -100,8 +100,13 @@ export function InfiniteDatatableBody<TData extends RowData>({
               />
             );
           })}
+          {/* Span every column so horizontal scrolling cannot hide the pagination sentinel. */}
           {!loadMoreButton && !isLoading && hasMore && (
-            <tr className="absolute border-b-0 bottom-0" ref={loadMoreRef} />
+            <tr
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 left-0 h-px w-full border-b-0"
+              ref={loadMoreRef}
+            />
           )}
           {loadMoreButton && hasMore && (
             <tr

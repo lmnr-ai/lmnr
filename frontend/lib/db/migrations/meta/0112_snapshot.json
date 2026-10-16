@@ -1,5 +1,5 @@
 {
-  "id": "f84fdb4f-89ad-41cc-9c1e-91c301b1d0d7",
+  "id": "fb9e1cba-a6cd-4624-957f-2e249732067a",
   "prevId": "4648fbcb-aa2a-4556-b7a0-d23abf8b9fdd",
   "version": "7",
   "dialect": "postgresql",
@@ -953,119 +953,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "dashboard_id": {
-          "name": "dashboard_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
         }
       },
-      "indexes": {
-        "dashboard_charts_dashboard_id_idx": {
-          "name": "dashboard_charts_dashboard_id_idx",
-          "columns": [
-            {
-              "expression": "dashboard_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "uuid_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "dashboard_charts_project_id_fkey": {
           "name": "dashboard_charts_project_id_fkey",
           "tableFrom": "dashboard_charts",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "dashboard_charts_dashboard_id_fkey": {
-          "name": "dashboard_charts_dashboard_id_fkey",
-          "tableFrom": "dashboard_charts",
-          "tableTo": "dashboards",
-          "columnsFrom": [
-            "dashboard_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.dashboards": {
-      "name": "dashboards",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dashboards_project_id_idx": {
-          "name": "dashboards_project_id_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "uuid_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dashboards_project_id_fkey": {
-          "name": "dashboards_project_id_fkey",
-          "tableFrom": "dashboards",
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
@@ -5764,6 +5658,13 @@
           "notNull": true,
           "default": "now()"
         },
+        "signal_credit_remaining_micro_usd": {
+          "name": "signal_credit_remaining_micro_usd",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 5000000
+        },
         "settings": {
           "name": "settings",
           "type": "jsonb",
@@ -5791,7 +5692,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "workspaces_signal_credit_remaining_check": {
+          "name": "workspaces_signal_credit_remaining_check",
+          "value": "\"workspaces\".\"signal_credit_remaining_micro_usd\" IS NULL OR (\"workspaces\".\"signal_credit_remaining_micro_usd\" >= 0 AND \"workspaces\".\"signal_credit_remaining_micro_usd\" <= 5000000)"
+        }
+      },
       "isRLSEnabled": false
     }
   },

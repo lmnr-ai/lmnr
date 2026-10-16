@@ -4,10 +4,10 @@ import {
   formatDataOverage,
   formatPrice,
   formatProjectsAndSeats,
-  formatSignalsCount,
-  formatSignalsOverage,
+  formatSignalsCreditLabel,
   formatSupport,
   type Tier,
+  tierIncludesSignals,
   TIER_ORDER,
   TIERS as CENTRAL_TIERS,
 } from "@/lib/billing/tiers";
@@ -32,30 +32,31 @@ const buildInfo = (tier: TierKey): TierInfo => {
       name: CENTRAL_TIERS[tier].name,
       price: formatPrice(tier),
       priceSubtext,
-      features: ["Custom limits", "On-premise", formatProjectsAndSeats(tier), formatSupport(tier)],
-      subfeatures: [null, null, null, null],
+      features: [
+        "Custom limits",
+        formatSignalsCreditLabel(tier),
+        "On-premise",
+        formatProjectsAndSeats(tier),
+        formatSupport(tier),
+      ],
+      subfeatures: [null, null, null, null, null],
     };
   }
 
   const hasOverage = CENTRAL_TIERS[tier].dataOverageRatePerGB > 0;
+  const rows: [string, string | null][] = [
+    [`${formatDataIncluded(tier)} data`, hasOverage ? formatDataOverage(tier) : null],
+    ...(tierIncludesSignals(tier) ? [[formatSignalsCreditLabel(tier), null] as [string, null]] : []),
+    [retentionLabel(tier), null],
+    [formatProjectsAndSeats(tier), null],
+    [formatSupport(tier), null],
+  ];
   return {
     name: CENTRAL_TIERS[tier].name,
     price: formatPrice(tier),
     priceSubtext,
-    features: [
-      `${formatDataIncluded(tier)} data`,
-      `${formatSignalsCount(tier)} in Signals`,
-      retentionLabel(tier),
-      formatProjectsAndSeats(tier),
-      formatSupport(tier),
-    ],
-    subfeatures: [
-      hasOverage ? formatDataOverage(tier) : null,
-      hasOverage ? formatSignalsOverage(tier) : null,
-      null,
-      null,
-      null,
-    ],
+    features: rows.map(([feature]) => feature),
+    subfeatures: rows.map(([, subfeature]) => subfeature),
   };
 };
 

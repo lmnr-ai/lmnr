@@ -25,7 +25,7 @@ const RunnableNode = memo(({ data }: RunnableNodeProps) => {
         "shadow-md rounded-lg border-2 border-blue-400/70 bg-gray-50 flex flex-col justify-center p-3 overflow-hidden",
         {
           "border-blue-400/70 bg-gray-50": isAgent,
-          "border-[#E3A008]": isTool,
+          "border-tool": isTool,
         }
       )}
       style={{
@@ -47,9 +47,7 @@ const RunnableNode = memo(({ data }: RunnableNodeProps) => {
           </div>
         )}
         {isTool && (
-          <div
-            className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-[#E3A008]", className)}
-          >
+          <div className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-tool", className)}>
             <Bolt className="w-4 h-4" />
           </div>
         )}

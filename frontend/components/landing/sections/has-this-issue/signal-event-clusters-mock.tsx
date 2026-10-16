@@ -20,7 +20,7 @@ const FRAME_H = 540;
 
 // Seeds so the first paint is close before anything is measured. Both are
 // replaced by real measurements within a frame.
-const CLUSTERS_CARD_H_ESTIMATE = 292;
+const CLUSTERS_CARD_H_ESTIMATE = 268;
 const PILL_H_ESTIMATE = 28;
 
 /** Act 2 disarms this far BELOW its arming point, not at it — otherwise a

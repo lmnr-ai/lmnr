@@ -4,6 +4,7 @@ import { genAIAdapter } from "./gen-ai";
 import { langchainAdapter } from "./langchain";
 import { openaiAdapter } from "./openai";
 import { openaiResponsesAdapter } from "./openai-responses";
+import { opencodeAdapter } from "./opencode";
 import { type ProviderAdapter, type ProviderHint } from "./types";
 
 export { type ProviderAdapter, type ProviderHint } from "./types";
@@ -28,6 +29,7 @@ export { type ProviderAdapter, type ProviderHint } from "./types";
  */
 export const PROVIDERS: readonly ProviderAdapter[] = [
   genAIAdapter,
+  opencodeAdapter,
   openaiAdapter,
   openaiResponsesAdapter,
   anthropicAdapter,

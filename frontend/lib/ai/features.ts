@@ -9,6 +9,7 @@ import type { ModelTier } from "./model";
  */
 export enum LlmFeature {
   EVALUATION_SCORE_DIRECTIONS = "evaluation_score_directions",
+  ONBOARDING_COMPANY_NAME = "onboarding_company_name",
   RENDER_TEMPLATE_GENERATION = "render_template_generation",
   SESSION_PROMPT_EXTRACTION = "session_prompt_extraction",
   SPAN_PREVIEW_AGENT_NAMES = "span_preview_agent_names",
@@ -19,6 +20,7 @@ export enum LlmFeature {
 /** Env-provider tier used when no route applies to the feature. */
 export const LLM_FEATURE_ENV_TIER: Record<LlmFeature, ModelTier> = {
   [LlmFeature.EVALUATION_SCORE_DIRECTIONS]: "small",
+  [LlmFeature.ONBOARDING_COMPANY_NAME]: "small",
   [LlmFeature.RENDER_TEMPLATE_GENERATION]: "medium",
   [LlmFeature.SESSION_PROMPT_EXTRACTION]: "small",
   [LlmFeature.SPAN_PREVIEW_AGENT_NAMES]: "small",

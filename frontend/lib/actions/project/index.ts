@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { getSignalCreditState } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -139,6 +140,10 @@ async function deleteProjectDataFromClickHouse(
     "default.notification_deliveries",
     "default.signal_events",
     "default.signal_event_clusters",
+    // Left by rebuild-signal-clusters.ts until dropped by hand; it copies from
+    // them into signal_event_clusters, so they are purged like it.
+    "default.signal_event_clusters_v2",
+    "default.old_unpartitioned_signal_event_clusters",
     "default.signal_runs",
     "default.signal_run_messages",
     // Dropped by backfill-signal-clusters.ts once it finishes; the filter below
@@ -147,6 +152,8 @@ async function deleteProjectDataFromClickHouse(
     "default.signal_event_summaries",
     "default.system_prompt_versions",
     "default.system_prompt_version_defs",
+    "default.user_template_versions",
+    "default.user_template_version_defs",
   ];
 
   // An absent table would otherwise report a false failure on every deletion.
@@ -253,9 +260,11 @@ export interface ProjectDetails {
   gbUsedThisMonth: number;
   gbLimit: number;
   signalCostUsedThisMonth: number;
-  signalCostLimit: number;
+  signalCreditGrantedMicroUsd: number;
+  signalCreditRemainingMicroUsd: number;
   logRetentionDays: number;
   isFreeTier: boolean;
+  trialEndsAt: string | null;
   settings: ProjectSettings;
 }
 
@@ -282,6 +291,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       id: workspaces.id,
       tierId: workspaces.tierId,
+      trialEndsAt: workspaces.trialEndsAt,
     })
     .from(workspaces)
     .where(eq(workspaces.id, project.workspaceId))
@@ -296,7 +306,6 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       name: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
-      signalCostLimit: subscriptionTiers.signalCostIncludedMicroUsd,
       logRetentionDays: subscriptionTiers.logRetentionDays,
     })
     .from(subscriptionTiers)
@@ -311,7 +320,6 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
-  const signalCostLimit = Number(tier.signalCostLimit);
 
   if (!isFreeTier) {
     return {
@@ -322,9 +330,11 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
-      signalCostLimit,
       signalCostUsedThisMonth: 0,
+      signalCreditGrantedMicroUsd: 0,
+      signalCreditRemainingMicroUsd: 0,
       isFreeTier,
+      trialEndsAt: workspace.trialEndsAt,
       settings,
     };
   }
@@ -332,6 +342,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
   const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
+  const signalCredit = await getSignalCreditState(project.workspaceId, usageResult.creditedSignalCostMicroUsd);
 
   return {
     id: project.id,
@@ -341,8 +352,10 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     gbUsedThisMonth,
     gbLimit,
     signalCostUsedThisMonth,
-    signalCostLimit,
+    signalCreditGrantedMicroUsd: signalCredit.grantedMicroUsd,
+    signalCreditRemainingMicroUsd: signalCredit.remainingMicroUsd,
     isFreeTier,
+    trialEndsAt: workspace.trialEndsAt,
     settings,
   };
 };

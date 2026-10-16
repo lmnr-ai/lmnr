@@ -8,6 +8,7 @@ import { type CategoricalChartFunc, type ChartDragHandlers } from "@/components/
 import { ChartType, type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
+import { useDashboardRefresh } from "@/components/dashboards/dashboard-refresh-context";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import SelectionToolbar from "@/components/dashboards/selection-toolbar";
@@ -45,6 +46,7 @@ const Chart = ({ chart }: ChartProps) => {
   const [tableIsFetching, setTableIsFetching] = useState(false);
   const tablePageRef = useRef(0);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
+  const { refreshKey } = useDashboardRefresh();
   const { toast } = useToast();
   const { mutate: swrMutate } = useSWRConfig();
   const isTable = settings.config.type === ChartType.Table;
@@ -186,9 +188,10 @@ const Chart = ({ chart }: ChartProps) => {
     }
   }, [tableIsFetching, tableHasMore, timeParameters, fetchTablePage]);
 
+  // refreshKey re-runs the fetch on a manual dashboard refresh.
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, refreshKey]);
 
   const supportsSelection = settings.config.type === ChartType.LineChart || settings.config.type === ChartType.BarChart;
 

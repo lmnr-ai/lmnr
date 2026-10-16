@@ -7,11 +7,12 @@ use uuid::Uuid;
 
 use crate::cache::{
     Cache, CacheTrait,
-    keys::{HARD_LIMIT_SEND_LOCK_KEY, USAGE_WARNING_SEND_LOCK_KEY},
+    keys::{ALERT_SEND_LOCK_KEY, HARD_LIMIT_SEND_LOCK_KEY, USAGE_WARNING_SEND_LOCK_KEY},
 };
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
+use crate::env::notifications::ALERT_SEND_LOCK_TTL_SECONDS;
 use crate::mq::utils::mq_max_payload;
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::reports::NoteworthyEvent;
@@ -67,6 +68,7 @@ pub enum NotificationDefinitionType {
     Report,
     UsageWarning,
     UsageHardLimit,
+    SignalEmptyTrace,
 }
 
 impl std::fmt::Display for NotificationDefinitionType {
@@ -76,6 +78,7 @@ impl std::fmt::Display for NotificationDefinitionType {
             Self::Report => f.write_str("REPORT"),
             Self::UsageWarning => f.write_str("USAGE_WARNING"),
             Self::UsageHardLimit => f.write_str("USAGE_HARD_LIMIT"),
+            Self::SignalEmptyTrace => f.write_str("SIGNAL_EMPTY_TRACE"),
         }
     }
 }
@@ -213,13 +216,25 @@ pub enum NotificationKind {
     },
     /// A workspace has hit a hard usage limit. Unlike `UsageWarning` (a soft
     /// nudge), this means ingestion (bytes) or signal runs (signal_cost) are now
-    /// BLOCKED until the billing cycle resets. The email must convey that data
-    /// ingestion / signal runs have stopped until reset.
+    /// BLOCKED. Monthly data/custom limits resume after reset; a depleted
+    /// one-time Signals credit requires an upgrade instead.
     UsageHardLimit {
         workspace_name: String,
         usage_label: String,
         formatted_limit: String,
         usage_item: String,
+        #[serde(default)]
+        one_time_credit_exhausted: bool,
+    },
+    /// A signal skipped a trace that had no LLM content to evaluate. Sent to
+    /// workspace owners once per signal, so setup problems surface without
+    /// becoming noise.
+    SignalEmptyTrace {
+        project_id: Uuid,
+        project_name: String,
+        signal_id: Uuid,
+        signal_name: String,
+        trace_id: Uuid,
     },
 }
 
@@ -277,25 +292,46 @@ pub async fn push_to_notification_queue(
 /// stamp takes effect.
 const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
 
-/// Race-guard lock key for a usage notification message, or `None` if the
-/// definition type needs no send lock. Usage warnings key on `definition_id`
-/// (the warning row); hard limits share `definition_id` (= workspace_id) across
-/// usage items, so they additionally key on the usage item to keep the bytes and
-/// signal-cost notifications from suppressing one another.
-fn usage_send_lock_key(message: &NotificationMessage) -> Option<String> {
+/// Send lock `(key, ttl_seconds)` for a notification message, or `None` if the
+/// message needs no send lock. While the lock is held, further messages with
+/// the same key are dropped.
+///
+/// - Usage warnings key on `definition_id` (the warning row); hard limits share
+///   `definition_id` (= workspace_id) across usage items, so they additionally
+///   key on the usage item to keep the bytes and signal-cost notifications from
+///   suppressing one another.
+/// - Signal-event alerts key on `definition_id` (the alert) to throttle a noisy
+///   signal to one notification per alert per TTL. New-cluster alerts are
+///   already rare and digested, so they are not throttled.
+fn send_lock(message: &NotificationMessage) -> Option<(String, u64)> {
     match message.definition_type {
-        NotificationDefinitionType::UsageWarning => Some(format!(
-            "{}:{}",
-            USAGE_WARNING_SEND_LOCK_KEY, message.definition_id
+        NotificationDefinitionType::UsageWarning => Some((
+            format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id),
+            USAGE_WARNING_SEND_LOCK_TTL_SECONDS,
         )),
         NotificationDefinitionType::UsageHardLimit => {
             let usage_item = message.notifications.iter().find_map(|kind| match kind {
                 NotificationKind::UsageHardLimit { usage_item, .. } => Some(usage_item.as_str()),
                 _ => None,
             })?;
-            Some(format!(
-                "{}:{}:{}",
-                HARD_LIMIT_SEND_LOCK_KEY, message.definition_id, usage_item
+            Some((
+                format!(
+                    "{}:{}:{}",
+                    HARD_LIMIT_SEND_LOCK_KEY, message.definition_id, usage_item
+                ),
+                USAGE_WARNING_SEND_LOCK_TTL_SECONDS,
+            ))
+        }
+        NotificationDefinitionType::Alert
+            if message
+                .notifications
+                .iter()
+                .any(|kind| matches!(kind, NotificationKind::EventIdentification { .. })) =>
+        {
+            Some((
+                format!("{}:{}", ALERT_SEND_LOCK_KEY, message.definition_id),
+                // Redis rejects `SET … EX 0`.
+                ALERT_SEND_LOCK_TTL_SECONDS.get().max(1),
             ))
         }
         _ => None,
@@ -330,28 +366,25 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        // For usage notifications, acquire a dedup lock. Multiple ingestion
-        // workers can race through check_soft_limits / check_notify_hard_limit and
-        // enqueue duplicate NotificationMessages for the same definition before
-        // the DB last_notified_at stamp takes effect.
-        let send_lock_key = usage_send_lock_key(&message);
-        if let Some(lock_key) = &send_lock_key {
-            match self
-                .cache
-                .try_acquire_lock(lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
-                .await
-            {
+        // Usage notifications: multiple ingestion workers can race through
+        // check_soft_limits / check_notify_hard_limit and enqueue duplicate
+        // NotificationMessages before the DB last_notified_at stamp takes effect.
+        // Signal-event alerts: a noisy signal would otherwise send one
+        // notification per matching event.
+        let send_lock = send_lock(&message);
+        if let Some((lock_key, ttl_seconds)) = &send_lock {
+            match self.cache.try_acquire_lock(lock_key, *ttl_seconds).await {
                 Ok(true) => {} // Lock acquired – proceed.
                 Ok(false) => {
                     log::debug!(
-                        "[Notifications] Usage send lock held for [{}], skipping",
+                        "[Notifications] Send lock held for [{}], skipping",
                         lock_key
                     );
                     return Ok(());
                 }
                 Err(e) => {
                     return Err(HandlerError::Transient(anyhow::anyhow!(
-                        "Cache error acquiring usage notification lock: {}",
+                        "Cache error acquiring notification send lock: {}",
                         e
                     )));
                 }
@@ -371,6 +404,7 @@ impl MessageHandler for NotificationHandler {
                 NotificationKind::EventIdentification { project_id, .. } => *project_id,
                 NotificationKind::NewCluster { project_id, .. } => *project_id,
                 NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                NotificationKind::SignalEmptyTrace { project_id, .. } => *project_id,
                 NotificationKind::UsageWarning { .. } => Uuid::nil(),
                 NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
             };
@@ -410,7 +444,16 @@ impl MessageHandler for NotificationHandler {
         }
 
         // 2. Fetch targets based on definition_type.
-        let targets = self.fetch_targets(&message).await?;
+        let targets = match self.fetch_targets(&message).await {
+            Ok(targets) => targets,
+            Err(e) => {
+                // Same as a total fan-out failure below: free the lock for the retry.
+                if let Some((lock_key, _)) = &send_lock {
+                    let _ = self.cache.release_lock(lock_key).await;
+                }
+                return Err(e);
+            }
+        };
 
         if targets.is_empty() {
             log::info!(
@@ -464,10 +507,10 @@ impl MessageHandler for NotificationHandler {
         }
 
         if failures == total {
-            // Release the usage dedup lock so the requeued message can re-acquire
-            // it on retry. Without this, the lock's TTL would cause the retry to
+            // Release the send lock so the requeued message can re-acquire it on
+            // retry. Without this, the lock's TTL would cause the retry to
             // silently skip, permanently losing the notification.
-            if let Some(lock_key) = &send_lock_key {
+            if let Some((lock_key, _)) = &send_lock {
                 let _ = self.cache.release_lock(lock_key).await;
             }
             return Err(HandlerError::transient(anyhow::anyhow!(
@@ -542,8 +585,10 @@ impl NotificationHandler {
                     .collect())
             }
             NotificationDefinitionType::UsageWarning
-            | NotificationDefinitionType::UsageHardLimit => {
-                // Usage warnings and hard limits both go to workspace owners via email.
+            | NotificationDefinitionType::UsageHardLimit
+            | NotificationDefinitionType::SignalEmptyTrace => {
+                // Usage and empty-trace warnings have no configured targets: they go to
+                // workspace owners via email.
                 let owner_emails = crate::db::usage_warnings::get_workspace_owner_emails(
                     &self.db.pool,
                     message.workspace_id,
@@ -563,5 +608,94 @@ impl NotificationHandler {
                     .collect())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn message(
+        definition_type: NotificationDefinitionType,
+        notifications: Vec<NotificationKind>,
+    ) -> NotificationMessage {
+        NotificationMessage {
+            definition_type,
+            definition_id: Uuid::from_u128(1),
+            workspace_id: Uuid::from_u128(2),
+            project_id: Some(Uuid::from_u128(3)),
+            notifications,
+        }
+    }
+
+    fn event() -> NotificationKind {
+        NotificationKind::EventIdentification {
+            project_id: Uuid::from_u128(3),
+            project_name: String::new(),
+            signal_id: Uuid::from_u128(4),
+            trace_id: Uuid::from_u128(5),
+            event_id: None,
+            event_name: "event".to_string(),
+            severity: 2,
+            extracted_information: None,
+            alert_name: "alert".to_string(),
+        }
+    }
+
+    fn cluster() -> NotificationKind {
+        NotificationKind::NewCluster {
+            project_id: Uuid::from_u128(3),
+            project_name: String::new(),
+            signal_id: Uuid::from_u128(4),
+            signal_name: "signal".to_string(),
+            cluster_id: Uuid::from_u128(6),
+            cluster_name: "cluster".to_string(),
+            num_signal_events: 1,
+            alert_name: "alert".to_string(),
+            first_seen: None,
+            last_seen: None,
+            severity_counts: [0; 3],
+            activity_buckets: Vec::new(),
+            example_events: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn signal_event_alerts_lock_per_alert() {
+        let (key, ttl_seconds) =
+            send_lock(&message(NotificationDefinitionType::Alert, vec![event()])).unwrap();
+        assert_eq!(
+            key,
+            format!("{}:{}", ALERT_SEND_LOCK_KEY, Uuid::from_u128(1))
+        );
+        assert_eq!(ttl_seconds, ALERT_SEND_LOCK_TTL_SECONDS.get().max(1));
+    }
+
+    #[test]
+    fn new_cluster_alerts_are_not_throttled() {
+        assert!(send_lock(&message(NotificationDefinitionType::Alert, vec![cluster()])).is_none());
+    }
+
+    #[test]
+    fn reports_and_empty_trace_warnings_have_no_send_lock() {
+        assert!(send_lock(&message(NotificationDefinitionType::Report, vec![])).is_none());
+        assert!(
+            send_lock(&message(
+                NotificationDefinitionType::SignalEmptyTrace,
+                vec![]
+            ))
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn usage_warnings_keep_their_lock() {
+        let (key, ttl_seconds) =
+            send_lock(&message(NotificationDefinitionType::UsageWarning, vec![])).unwrap();
+        assert_eq!(
+            key,
+            format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, Uuid::from_u128(1))
+        );
+        assert_eq!(ttl_seconds, USAGE_WARNING_SEND_LOCK_TTL_SECONDS);
     }
 }

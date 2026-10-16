@@ -117,6 +117,38 @@ impl CacheTrait for RedisCache {
         Ok(())
     }
 
+    async fn batch_insert_with_ttl<T>(
+        &self,
+        entries: &[(&str, T)],
+        seconds: u64,
+    ) -> Result<(), CacheError>
+    where
+        T: Serialize + Sync,
+    {
+        if entries.is_empty() {
+            return Ok(());
+        }
+
+        let mut pipe = redis::pipe();
+        for (key, value) in entries {
+            let bytes = serde_json::to_vec(value).map_err(|e| {
+                log::error!("Serialization error: {}", e);
+                CacheError::SerDeError(e)
+            })?;
+            pipe.set_ex(*key, bytes, seconds).ignore();
+        }
+
+        let _: () = pipe
+            .query_async(&mut self.connection.current_clone())
+            .await
+            .map_err(|e| {
+                self.on_error("batch_set_ex", &e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+
+        Ok(())
+    }
+
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
         // Redis INCRBY creates the key (starting from 0) if it doesn't exist.
         // Callers needing miss-vs-hit semantics should get() first.
