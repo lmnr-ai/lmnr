@@ -105,9 +105,12 @@ export function buildToolNameMap(result: ProcessedMessages): Map<string, string>
   return map;
 }
 
+// `index` locates the message within `result`; `parentIndex` is its position in the rendered list, which
+// differs when several segments are concatenated (Overview) and keys per-part presets and search order.
 export function renderMessageContent(
   result: ProcessedMessages,
   index: number,
+  parentIndex: number,
   presetKey: string,
   toolNameMap?: Map<string, string>
 ) {
@@ -116,7 +119,7 @@ export function renderMessageContent(
     case "openai":
       return (
         <OpenAIContentParts
-          parentIndex={index}
+          parentIndex={parentIndex}
           presetKey={presetKey}
           message={result.messages[index]}
           toolNameMap={map}
@@ -125,7 +128,7 @@ export function renderMessageContent(
     case "openai-responses":
       return (
         <OpenAIResponsesContentParts
-          parentIndex={index}
+          parentIndex={parentIndex}
           presetKey={presetKey}
           message={result.messages[index]}
           toolNameMap={map}
@@ -134,7 +137,7 @@ export function renderMessageContent(
     case "anthropic":
       return (
         <AnthropicContentParts
-          parentIndex={index}
+          parentIndex={parentIndex}
           presetKey={presetKey}
           message={result.messages[index]}
           toolNameMap={map}
@@ -143,16 +146,16 @@ export function renderMessageContent(
     case "langchain":
       return (
         <LangChainContentParts
-          parentIndex={index}
+          parentIndex={parentIndex}
           presetKey={presetKey}
           message={result.messages[index]}
           toolNameMap={map}
         />
       );
     case "gemini":
-      return <GeminiContentParts parentIndex={index} presetKey={presetKey} message={result.messages[index]} />;
+      return <GeminiContentParts parentIndex={parentIndex} presetKey={presetKey} message={result.messages[index]} />;
     case "generic":
-      return <ContentParts parentIndex={index} presetKey={presetKey} message={result.messages[index]} />;
+      return <ContentParts parentIndex={parentIndex} presetKey={presetKey} message={result.messages[index]} />;
   }
 }
 
@@ -393,7 +396,7 @@ function PureMessages({
                       stickyHeader={false}
                       defaultExpanded={defaultExpanded || (expandFromIndex != null && messageIndex >= expandFromIndex)}
                     >
-                      {renderMessageContent(entry.segment, entry.localIndex, presetKey, toolNameMap)}
+                      {renderMessageContent(entry.segment, entry.localIndex, messageIndex, presetKey, toolNameMap)}
                     </MessageWrapper>
                   </div>
                 );
