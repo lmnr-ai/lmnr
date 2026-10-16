@@ -163,7 +163,7 @@ const resolveDefaultProject = async (
   // default signals here. Best-effort for the same reason as the seed.
   try {
     if (await isStarterTrialEligible(workspaceId, userId)) {
-      await startStarterTrial({ workspaceId });
+      await startStarterTrial({ workspaceId, source: "cli" });
       await setTemplateSignals({
         projectId,
         templateNames: [...DEFAULT_SELECTED_TEMPLATE_NAMES],

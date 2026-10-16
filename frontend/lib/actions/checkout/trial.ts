@@ -27,7 +27,7 @@ type TrialOutcome = "converted" | "canceled";
 
 const StartTrialSchema = z.object({
   workspaceId: z.guid(),
-  source: z.enum(["onboarding", "billing"] satisfies TrialSource[]),
+  source: z.enum(["onboarding", "billing", "cli"] satisfies TrialSource[]),
 });
 
 const TrialPaymentSchema = z.object({

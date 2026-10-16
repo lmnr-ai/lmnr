@@ -2,7 +2,7 @@ import type Stripe from "stripe";
 
 import PostHogClient from "@/lib/posthog/server";
 
-export type TrialSource = "onboarding" | "billing";
+export type TrialSource = "onboarding" | "billing" | "cli";
 
 type TrialEvent = "started" | "card_added" | "converted" | "ended";
 
