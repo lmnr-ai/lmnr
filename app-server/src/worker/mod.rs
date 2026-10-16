@@ -636,6 +636,66 @@ mod tests {
         }
     }
 
+    struct RetryOnceHandler {
+        attempts: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl MessageHandler for RetryOnceHandler {
+        type Message = TestMessage;
+
+        async fn handle(&self, _message: Self::Message) -> Result<(), HandlerError> {
+            if self.attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                Err(HandlerError::transient(anyhow::anyhow!(
+                    "temporary failure"
+                )))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn transient_failure_is_retried_by_the_in_memory_transport() {
+        let queue = TokioMpscQueue::new();
+        queue.register_queue(TEST_EXCHANGE, TEST_ROUTING_KEY);
+        let queue = Arc::new(MessageQueue::TokioMpsc(queue));
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let shutdown = CancellationToken::new();
+        let worker = Arc::new(QueueWorker::new(
+            WorkerType::Logs,
+            RetryOnceHandler {
+                attempts: attempts.clone(),
+            },
+            queue.clone(),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            shutdown.clone(),
+        ));
+        let running = tokio::spawn(worker.process());
+
+        while queue
+            .publish(&payload(), TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .is_err()
+        {
+            tokio::task::yield_now().await;
+        }
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while attempts.load(Ordering::SeqCst) < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the redelivered message should succeed on its second attempt");
+
+        shutdown.cancel();
+        tokio::time::timeout(Duration::from_secs(5), running)
+            .await
+            .expect("worker must stop after shutdown")
+            .unwrap();
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
     /// Shutdown must not cut a message short (its side effects would repeat on
     /// redelivery), and must stop the worker taking new messages.
     #[tokio::test]
