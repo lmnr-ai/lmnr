@@ -17,7 +17,7 @@ export default function CommandBlockBody({ command }: { command: CommandBlockCon
     <>
       {command.command === "sql query" ? <SqlQueryCommand command={command} /> : <GenericCommand command={command} />}
       {command.stderr !== undefined && command.stderr.length > 0 && (
-        <div className="border-t border-[rgba(232,232,232,0.1)]">
+        <div className="border-t border-foreground-100/10">
           <SectionLabel>stderr</SectionLabel>
           <CommandOutput output={command.stderr} failed={failed} />
         </div>

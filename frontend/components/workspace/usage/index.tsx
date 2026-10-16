@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type UsageBreakdown, type WorkspaceStats } from "@/lib/actions/usage/types";
 import { TIERS } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
@@ -17,6 +18,7 @@ import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 import LimitsSettings from "./limits";
 import UsageMeterCard from "./meter";
 import PlanOverview from "./plan-overview";
+import TrialUsageNotice from "./trial-usage-notice";
 import { dataStatRows, signalStatRows } from "./usage-stats";
 import {
   buildUsageModel,
@@ -37,9 +39,10 @@ interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats | null;
   workspace: Workspace;
   isOwner: boolean;
+  trial: ActiveTrialInfo | null;
 }
 
-export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, trial }: WorkspaceUsageProps) {
   useEffect(() => {
     track("usage", "page_viewed");
   }, []);
@@ -49,33 +52,45 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
     swrFetcher
   );
 
-  const model = useMemo(() => buildUsageModel(workspaceStats, breakdown), [workspaceStats, breakdown]);
+  const model = useMemo(
+    () => buildUsageModel(workspaceStats, breakdown, trial?.endsAt),
+    [workspaceStats, breakdown, trial?.endsAt]
+  );
   const { tier, cycle, bill } = model;
   const isPaid = tier === "hobby" || tier === "pro";
-  const daysLeft = Math.ceil(cycle.remainingDays);
+  const daysLeft = cycle.remainingDays;
 
   // On error, render empty charts rather than an endless skeleton.
   const days = breakdown?.days ?? (error ? NO_DAYS : undefined);
-  const dataDays = useMemo(() => days?.map((d) => ({ date: d.date, value: d.bytes / GB_IN_BYTES })), [days]);
+  const dataDays = useMemo(
+    () =>
+      days?.map((d) => ({ date: d.date, value: d.bytes / GB_IN_BYTES, compressed: d.compressedBytes / GB_IN_BYTES })),
+    [days]
+  );
   const signalDays = useMemo(
     () => days?.map((d) => ({ date: d.date, value: d.signalCostMicroUsd / 1_000_000 })),
     [days]
   );
 
-  const cycleRange = `${formatDay(cycle.start)} – ${formatDay(cycle.end)} · resets in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
-  const cycleLabel = `Billing cycle ${cycleRange}`;
+  const dates = `${formatDay(cycle.start)} – ${formatDay(cycle.end)}`;
+  const countdown = `${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
+  const cycleRange = `${dates} · resets in ${countdown}`;
+  const cycleLabel = trial
+    ? `Trial ${dates} · ends in ${countdown}`
+    : `${tier === "free" ? "Usage period" : "Billing cycle"} ${cycleRange}`;
 
   return (
     <>
       <SettingsSectionHeader title="Usage" description="Monitor your workspace usage" />
 
-      {isPaid && bill && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
+      {trial && <TrialUsageNotice trial={trial} />}
+      {isPaid && bill && !trial && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
 
       <SettingsSection>
-        {!(isPaid && bill) && (
+        {!(isPaid && bill && !trial) && (
           <p className="text-sm text-muted-foreground">
             {tier === "free"
-              ? `${cycleLabel}. The Free plan is never billed — data stops once the included amount is used up, and Signals once the one-time credit is.`
+              ? `${cycleLabel}. The Free plan is never billed. Data stops once the included amount is used up, and Signals aren't included.`
               : cycleLabel}
           </p>
         )}
@@ -89,7 +104,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
             color={DATA_COLOR}
             format={formatGB}
             formatTick={formatGBTick}
-            stats={dataStatRows(dataDays, formatGB)}
+            stats={dataStatRows(dataDays, formatGB, model.compression)}
           />
           <UsageMeterCard
             title="Signals usage"

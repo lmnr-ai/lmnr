@@ -513,6 +513,7 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     emailVerified: boolean("email_verified").default(false).notNull(),
+    preferences: jsonb().default({}).notNull(),
   },
   (table) => [
     unique("users_email_key").on(table.email),
@@ -543,6 +544,7 @@ export const workspaces = pgTable(
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }).default(5_000_000),
     settings: jsonb().default({}).notNull(),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     foreignKey({
@@ -1247,6 +1249,24 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   signalCostIncludedMicroUsd: bigint("signal_cost_included_micro_usd", { mode: "number" }).default(0).notNull(),
 });
 
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    index("dashboards_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dashboards_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const dashboardCharts = pgTable(
   "dashboard_charts",
   {
@@ -1256,12 +1276,19 @@ export const dashboardCharts = pgTable(
     query: text().notNull(),
     settings: jsonb().notNull(),
     projectId: uuid("project_id").notNull(),
+    dashboardId: uuid("dashboard_id").notNull(),
   },
   (table) => [
+    index("dashboard_charts_dashboard_id_idx").using("btree", table.dashboardId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "dashboard_charts_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.dashboardId],
+      foreignColumns: [dashboards.id],
+      name: "dashboard_charts_dashboard_id_fkey",
     }).onDelete("cascade"),
   ]
 );

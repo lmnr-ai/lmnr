@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -22,8 +22,6 @@ interface Props {
 /** The per-signal body rendered inside a panel tab. */
 export default function SignalDetails({ traceId, signal, readOnly }: Props) {
   const { projectId } = useParams();
-  const searchParams = useSearchParams();
-  const highlightedEventId = searchParams.get("eventId");
   const { selectSpanById, spans } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
@@ -63,7 +61,6 @@ export default function SignalDetails({ traceId, signal, readOnly }: Props) {
               traceId={traceId}
               validFields={validFields}
               spanRefCallbacks={spanRefCallbacks}
-              highlighted={event.id === highlightedEventId}
               readOnly={readOnly}
             />
           ))}

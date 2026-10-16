@@ -10,17 +10,25 @@ import {
   defaultSignalsColumnVisibility,
   RESOURCE,
 } from "@/components/signals/constants";
-import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
+import SignalsFreePlanPlaceholder from "@/components/signals/free-plan-placeholder";
 import { SignalsTableContents } from "@/components/signals/table-contents";
 import { SignalsTableControls } from "@/components/signals/table-controls";
 import { type DateRangeValue } from "@/components/ui/date-range-filter/store";
 import Header from "@/components/ui/header.tsx";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context";
+import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 
 export default function Signals() {
   const { projectId } = useParams();
+  const { project } = useProjectContext();
+  const featureFlags = useFeatureFlags();
+
+  if (featureFlags[Feature.SUBSCRIPTION] && project?.isFreeTier) return <SignalsFreePlanPlaceholder />;
+
   return (
     <InfiniteDataTableProvider
       uniqueKey="id"
@@ -69,12 +77,7 @@ function SignalsContent() {
 
   return (
     <>
-      <Header path="signals">
-        <SignalsBannerInfoButton />
-      </Header>
-      <div className="px-4">
-        <SignalsBanner onCreateSignal={() => setIsDialogOpen(true)} />
-      </div>
+      <Header path="signals" />
       <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
           <SignalsTableContents

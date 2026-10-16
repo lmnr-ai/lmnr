@@ -31,6 +31,7 @@ pnpm test           # Run tests (tsx --test tests/**/*.test.ts)
 pnpm build          # Production build
 ```
 
+- The sandbox's global pnpm is v10 but the lockfile is written by pnpm 11 (`frontend/Dockerfile`). `pnpm add` on v10 rewrites hundreds of `(supports-color@…)` peer suffixes. Add deps with `npx -y pnpm@11 add <pkg> --lockfile-only`, then `pnpm install --frozen-lockfile` to sync `node_modules`.
 - Format only the files you changed: `npx oxfmt --write <files>`. `prettier` is present in `node_modules` (transitive dep) but is NOT the project formatter — running it reformats files oxfmt then flags in the pre-commit hook.
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
 - `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
@@ -157,14 +158,14 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
 | `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
-| `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
+| `docs/internal/billing.md` | Tiers, Starter free trial, usage warnings/hard limits, signal cost metering, custom model costs |
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
 | `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |
 | `docs/internal/debugger.md` | Debugger replay cache, debugger session blocks/timeline |
-| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, evaluations page, dashboards |
+| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, saved views, evaluations page, dashboards |
 | `docs/internal/frontend-trace-view.md` | Trace view, span rendering/message parsing, ContentRenderer, rrweb replay |
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |

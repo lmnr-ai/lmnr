@@ -1,4 +1,4 @@
-import { addMonths } from "date-fns";
+import { addMonths, differenceInCalendarDays } from "date-fns";
 
 import { type Tier, TIERS } from "@/lib/billing/tiers";
 
@@ -7,13 +7,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface BillingCycle {
   start: Date;
   end: Date;
+  // Calendar days, so a DST change inside the cycle doesn't add one.
   remainingDays: number;
 }
 
-export const billingCycle = (cycleStart: Date, now: Date = new Date()): BillingCycle => {
-  const end = addMonths(cycleStart, 1);
-  return { start: cycleStart, end, remainingDays: Math.max((end.getTime() - now.getTime()) / DAY_MS, 0) };
-};
+export const billingCycle = (
+  cycleStart: Date,
+  now: Date = new Date(),
+  end: Date = addMonths(cycleStart, 1)
+): BillingCycle => ({
+  start: cycleStart,
+  end,
+  remainingDays: Math.max(differenceInCalendarDays(end, now), 0),
+});
 
 export interface BillEstimate {
   baseUsd: number;
@@ -51,15 +57,19 @@ export interface DailyPoint {
   date: string;
   value: number | null;
   total: number | null;
+  compressed?: number | null;
 }
 
 // Padded to cycle end so the x-axis always spans the whole cycle.
-export const buildDailySeries = (days: { date: string; value: number }[], cycle: BillingCycle): DailyPoint[] => {
+export const buildDailySeries = (
+  days: { date: string; value: number; compressed?: number }[],
+  cycle: BillingCycle
+): DailyPoint[] => {
   const points: DailyPoint[] = [];
   let running = 0;
   for (const d of days) {
     running += d.value;
-    points.push({ date: d.date, value: d.value, total: running });
+    points.push({ date: d.date, value: d.value, total: running, compressed: d.compressed });
   }
 
   const lastDate = days.length > 0 ? Date.parse(`${days[days.length - 1].date}T00:00:00Z`) : cycle.start.getTime();

@@ -53,7 +53,7 @@ export const EvaluationCard = ({
   return (
     <div
       id={evalAnchorId(evaluation.id)}
-      className="group scroll-mt-4 overflow-hidden rounded-lg border border-[rgba(232,232,232,0.1)] bg-surface-100"
+      className="group scroll-mt-4 overflow-hidden rounded-lg border border-foreground-100/10 bg-surface-100"
     >
       {/* The collapse toggle is a full-cover button rendered BEHIND the header
           content, so the open-eval Link can be a sibling (not an anchor nested

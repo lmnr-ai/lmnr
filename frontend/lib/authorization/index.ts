@@ -3,9 +3,66 @@ import { isNil } from "lodash";
 import { notFound, redirect } from "next/navigation";
 
 import { getServerSession } from "@/lib/auth-session";
-import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache.ts";
+import {
+  cache,
+  CLI_PROJECT_MEMBERSHIP_CACHE_KEY,
+  PROJECT_MEMBER_CACHE_KEY,
+  WORKSPACE_MEMBER_CACHE_KEY,
+} from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
+
+import { notTrialLocked, trialLocked } from "./trial-lock";
+
+// A member blocked only by the trial lock is sent to /trial-ended instead of a 404.
+const redirectIfTrialLocked = async (userId: string, target: { workspaceId: string } | { projectId: string }) => {
+  const rows =
+    "workspaceId" in target
+      ? await db
+          .select({ workspaceId: membersOfWorkspaces.workspaceId })
+          .from(membersOfWorkspaces)
+          .where(
+            and(
+              eq(membersOfWorkspaces.workspaceId, target.workspaceId),
+              eq(membersOfWorkspaces.userId, userId),
+              trialLocked
+            )
+          )
+          .limit(1)
+      : await db
+          .select({ workspaceId: membersOfWorkspaces.workspaceId })
+          .from(membersOfWorkspaces)
+          .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
+          .where(and(eq(projects.id, target.projectId), eq(membersOfWorkspaces.userId, userId), trialLocked))
+          .limit(1);
+  if (rows.length > 0) {
+    redirect(`/trial-ended?workspaceId=${rows[0].workspaceId}`);
+  }
+};
+
+// Membership results are cached for 30 days; call this whenever the trial lock may have changed.
+export const invalidateWorkspaceMemberAccessCache = async (workspaceId: string) => {
+  try {
+    const [members, workspaceProjects] = await Promise.all([
+      db
+        .select({ userId: membersOfWorkspaces.userId })
+        .from(membersOfWorkspaces)
+        .where(eq(membersOfWorkspaces.workspaceId, workspaceId)),
+      db.select({ id: projects.id }).from(projects).where(eq(projects.workspaceId, workspaceId)),
+    ]);
+    await Promise.all(
+      members.flatMap(({ userId }) => [
+        cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId)),
+        ...workspaceProjects.flatMap((p) => [
+          cache.remove(PROJECT_MEMBER_CACHE_KEY(p.id, userId)),
+          cache.remove(CLI_PROJECT_MEMBERSHIP_CACHE_KEY(userId, p.id)),
+        ]),
+      ])
+    );
+  } catch (e) {
+    console.error(`Failed to invalidate member access cache for workspace ${workspaceId}`, e);
+  }
+};
 
 export async function requireWorkspaceAccess(workspaceId: string) {
   const session = await getServerSession();
@@ -15,19 +72,30 @@ export async function requireWorkspaceAccess(workspaceId: string) {
 
   const cacheKey = WORKSPACE_MEMBER_CACHE_KEY(workspaceId, session.user.id);
 
+  let cached: boolean | null = null;
   try {
-    const cached = await cache.get<boolean>(cacheKey);
-    if (!isNil(cached)) {
-      return cached ? session : notFound();
-    }
+    cached = await cache.get<boolean>(cacheKey);
   } catch (e) {
     console.error("Error getting entry from cache", e);
+  }
+  if (cached === true) {
+    return session;
+  }
+  if (cached === false) {
+    await redirectIfTrialLocked(session.user.id, { workspaceId });
+    return notFound();
   }
 
   const results = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, session.user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(membersOfWorkspaces.userId, session.user.id),
+        eq(membersOfWorkspaces.workspaceId, workspaceId),
+        notTrialLocked
+      )
+    )
     .limit(1);
 
   const isMember = results?.length > 0;
@@ -40,6 +108,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
   }
 
   if (!isMember) {
+    await redirectIfTrialLocked(session.user.id, { workspaceId });
     return notFound();
   }
 
@@ -54,20 +123,25 @@ export async function requireProjectAccess(projectId: string) {
 
   const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, session?.user?.id);
 
+  let cached: boolean | null = null;
   try {
-    const cached = await cache.get<boolean>(cacheKey);
-    if (!isNil(cached)) {
-      return cached ? session : notFound();
-    }
+    cached = await cache.get<boolean>(cacheKey);
   } catch (e) {
     console.error("Error getting entry from cache", e);
+  }
+  if (cached === true) {
+    return session;
+  }
+  if (cached === false) {
+    await redirectIfTrialLocked(session.user.id, { projectId });
+    return notFound();
   }
 
   const results = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
-    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id)))
+    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id), notTrialLocked))
     .limit(1);
 
   const isMember = results?.length > 0;
@@ -80,6 +154,7 @@ export async function requireProjectAccess(projectId: string) {
   }
 
   if (!isMember) {
+    await redirectIfTrialLocked(session.user.id, { projectId });
     return notFound();
   }
 
@@ -103,7 +178,7 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
-    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, userId)))
+    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, userId), notTrialLocked))
     .limit(1);
 
   const isMember = result.length > 0;
@@ -131,7 +206,9 @@ export const isUserMemberOfWorkspace = async (workspaceId: string, userId: strin
   const result = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)))
+    .where(
+      and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId), notTrialLocked)
+    )
     .limit(1);
 
   const isMember = result.length > 0;

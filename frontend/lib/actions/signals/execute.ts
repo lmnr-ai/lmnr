@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import { assertProjectHasSignals } from "@/lib/actions/usage/plan-gates";
+
 const ExecuteSignalSchema = z.object({
   projectId: z.guid(),
   traceId: z.guid(),
@@ -37,6 +39,7 @@ export type SignalTestResult = z.infer<typeof SignalTestResultSchema>;
 
 export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>): Promise<SignalTestResult> => {
   const { projectId, traceId, signal, llmProfileId, model } = ExecuteSignalSchema.parse(input);
+  await assertProjectHasSignals(projectId);
 
   // Inline definition (not `signalId`) so unsaved form edits are what gets tested.
   const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/signal-test`, {

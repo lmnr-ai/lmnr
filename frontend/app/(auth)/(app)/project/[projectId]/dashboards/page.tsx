@@ -1,11 +1,27 @@
-import { type Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-import Dashboard from "@/components/dashboards/dashboards";
+import { getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
+import { LAST_DASHBOARD_ID } from "@/lib/cookies";
 
-export const metadata: Metadata = {
-  title: "Dashboards",
-};
+export default async function DashboardsPage(props: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { projectId } = await props.params;
+  const searchParams = await props.searchParams;
 
-export default async function DashboardPage() {
-  return <Dashboard />;
+  const dashboard = await getOrCreateDefaultDashboard({
+    projectId,
+    preferredId: (await cookies()).get(LAST_DASHBOARD_ID)?.value,
+  });
+
+  // Keep date range / grouping from bookmarked `/dashboards?...` links.
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    for (const v of [value ?? []].flat()) query.append(key, v);
+  }
+  const search = query.size > 0 ? `?${query}` : "";
+
+  redirect(`/project/${projectId}/dashboards/${dashboard.id}${search}`);
 }

@@ -1,32 +1,46 @@
 "use client";
 
+import { useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
+import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
-import { type CreateWorkspaceOptions, useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
-interface WorkspaceStepProps extends CreateWorkspaceOptions {
+interface WorkspaceStepProps {
   stepIndex: number;
   totalSteps: number;
-  // Cloud bumps the step index; OSS routes to /projects.
-  onComplete: (result: { workspaceId: string; projectId: string }) => void;
+  // Cloud also starts the onboarding cookie that later steps resume from.
+  isCloud?: boolean;
+  onComplete: (result?: { workspaceId: string; projectId: string }) => void;
 }
 
 export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, onComplete }: WorkspaceStepProps) {
   const { control, watch } = useFormContext<OnboardingFormValues>();
-  const { isSubmitting, createWorkspace, beginSubmitting } = useOnboardingActions();
+  const { isSubmitting, createWorkspace, startOnboarding, beginSubmitting } = useOnboardingActions();
+  const { companyName } = useOnboardingContext();
+  // Tracks whether a prefilled company name survived to submit.
+  const [nameEdited, setNameEdited] = useState(false);
 
   const workspaceName = watch("workspaceName");
   const projectName = watch("projectName");
   const nextDisabled = !workspaceName?.trim() || !projectName?.trim();
 
   const handleNext = async () => {
-    const result = await createWorkspace({ isCloud });
+    if (isCloud) {
+      if (!(await startOnboarding())) return;
+      if (companyName) track("onboarding", "workspace_name_submitted", { kept_suggestion: !nameEdited });
+      onComplete();
+      return;
+    }
+    const result = await createWorkspace();
     if (!result) return;
+    if (companyName) track("onboarding", "workspace_name_submitted", { kept_suggestion: !nameEdited });
     // Hold the loading state through onComplete's navigation so the button
     // can't be re-clicked while the next route mounts.
     beginSubmitting();
@@ -47,8 +61,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
       title="Welcome to Laminar"
       description={
         <>
-          Let&apos;s start by creating your first workspace and project.
-          <br />
+          Let&apos;s start by creating your first workspace and project.{" "}
           {isCloud &&
             "Workspaces manage your team and billing. Projects hold your traces, signals, and evaluations. You can rename\n" +
               "          either anytime."}
@@ -57,7 +70,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
       onNext={handleNext}
       nextDisabled={nextDisabled}
       isSubmitting={isSubmitting}
-      nextLabel="Create workspace and project"
+      nextLabel={isCloud ? "Continue" : "Create workspace and project"}
     >
       <div className="flex flex-col flex-1 gap-3" onKeyDown={handleKeyDown}>
         <div className="flex flex-col gap-1.5">
@@ -75,6 +88,10 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
               <>
                 <Input
                   {...field}
+                  onChange={(e) => {
+                    setNameEdited(true);
+                    field.onChange(e);
+                  }}
                   id="workspace-name"
                   placeholder="e.g. Acme Inc."
                   className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}

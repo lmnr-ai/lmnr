@@ -651,6 +651,18 @@ impl LlmClient {
             .map(|p| p.name)
     }
 
+    /// The client and labels `route` resolves to, without firing a call. For
+    /// callers that send their own request body (the signals gateway).
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub(crate) async fn resolve_route_client(
+        &self,
+        route: &LlmRoute,
+    ) -> ProviderResult<(Arc<ProviderClient>, ModelProvider)> {
+        let resolved = self.resolve_route(route).await?;
+        let client = resolved.client().clone();
+        Ok((client, resolved.labels()))
+    }
+
     fn profile_store(&self) -> Result<&Arc<profiles::LlmProfileStore>, ProviderError> {
         self.profiles.as_ref().ok_or_else(|| {
             ProviderError::ConfigError(

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, X } from "lucide-react";
 
 import { type PlanOption } from "@/components/onboarding/steps/plan-step/plans";
 import { cn } from "@/lib/utils";
@@ -11,13 +11,22 @@ interface PlanCardProps {
   onSelect: () => void;
   disabled?: boolean;
   isCurrent?: boolean;
+  // Set when this plan starts as a free trial; shown as a badge and in the price line.
+  trialDays?: number;
 }
 
 // Styled to match the regular (non-accent) pricing-page tier columns: a flat
 // surface-250 panel, no border, no divider under the price, landing fonts.
 // Selection uses an INSET ring (drawn inside the box) so the ScrollArea's overflow
 // can't clip it the way an outset ring/border at the grid edge would be.
-export default function PlanCard({ plan, selected, onSelect, disabled = false, isCurrent = false }: PlanCardProps) {
+export default function PlanCard({
+  plan,
+  selected,
+  onSelect,
+  disabled = false,
+  isCurrent = false,
+  trialDays,
+}: PlanCardProps) {
   return (
     <button
       type="button"
@@ -32,7 +41,7 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
-      {plan.highlight && !selected && !disabled && (
+      {plan.highlight && !trialDays && !selected && !disabled && (
         <span className="absolute -top-2 right-3 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] 2xl:text-xs font-medium text-primary-foreground shadow-sm">
           <Sparkles className="h-2.5 w-2.5 2xl:h-3 2xl:w-3" />
           Most popular
@@ -40,33 +49,50 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       )}
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm xl:text-base 2xl:text-lg text-white">{plan.name}</span>
-        {isCurrent ? (
+        <span className="flex items-center gap-2 text-sm xl:text-base 2xl:text-lg text-white">
+          {plan.name}
+          {trialDays && (
+            <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full border border-primary text-primary font-medium whitespace-nowrap">
+              {trialDays}-day trial
+            </span>
+          )}
+        </span>
+        {isCurrent && (
           <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-surface-400 text-white font-medium">
             Current
           </span>
-        ) : (
-          selected && (
-            <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">
-              Selected
-            </span>
-          )
         )}
       </div>
 
       <p className="flex items-baseline gap-1">
         <span className="font-sans-landing font-medium text-2xl xl:text-3xl 2xl:text-4xl leading-none text-white tracking-[-0.02em]">
-          {plan.price}
+          {trialDays ? "$0" : plan.price}
         </span>
-        <span className="text-xs 2xl:text-sm text-foreground-400">{plan.priceSubtext}</span>
+        <span className="text-xs 2xl:text-sm text-foreground-400">
+          {trialDays ? `for ${trialDays} days` : plan.priceSubtext}
+        </span>
       </p>
+      {trialDays && (
+        <div className="-mt-1 flex flex-col text-xs 2xl:text-sm">
+          <span className="text-foreground-400">
+            then {plan.price} {plan.priceSubtext}
+          </span>
+          <span className="font-medium text-primary">No credit card needed</span>
+        </div>
+      )}
 
       <ul className="flex flex-col gap-1.5 2xl:gap-2 flex-1">
         {plan.features.map((f) => (
           <li key={f.label} className="flex flex-col gap-0.5">
             <div className="flex items-start gap-2">
-              <Check className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-300" strokeWidth={2.5} />
-              <span className="text-sm text-foreground-200">{f.label}</span>
+              {f.excluded ? (
+                <X className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-400" strokeWidth={2.5} />
+              ) : (
+                <Check className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-300" strokeWidth={2.5} />
+              )}
+              <span className={cn("text-sm", f.excluded ? "text-foreground-400" : "text-foreground-200")}>
+                {f.label}
+              </span>
             </div>
             {f.sub && <span className="text-xs text-foreground-400 ml-[22px] 2xl:ml-[24px]">{f.sub}</span>}
           </li>

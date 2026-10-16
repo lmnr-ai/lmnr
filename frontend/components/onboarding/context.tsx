@@ -5,6 +5,9 @@ import { createContext, type PropsWithChildren, use, useMemo, useState } from "r
 export interface OnboardingConfig {
   slackClientId?: string;
   slackRedirectUri?: string;
+  // Resolved server-side before first paint; null when the company wasn't recognized.
+  companyName?: string | null;
+  trialAvailable?: boolean;
 }
 
 export interface OnboardingResources {
@@ -26,14 +29,23 @@ interface OnboardingProviderProps extends OnboardingConfig {
 export function OnboardingProvider({
   slackClientId,
   slackRedirectUri,
+  companyName = null,
+  trialAvailable = false,
   initialResources,
   children,
 }: PropsWithChildren<OnboardingProviderProps>) {
   const [resources, setResources] = useState<OnboardingResources>(initialResources);
 
   const value = useMemo<OnboardingContextValue>(
-    () => ({ slackClientId, slackRedirectUri, resources, setResources }),
-    [slackClientId, slackRedirectUri, resources]
+    () => ({
+      slackClientId,
+      slackRedirectUri,
+      companyName,
+      trialAvailable,
+      resources,
+      setResources,
+    }),
+    [slackClientId, slackRedirectUri, companyName, trialAvailable, resources]
   );
 
   return <OnboardingContext value={value}>{children}</OnboardingContext>;

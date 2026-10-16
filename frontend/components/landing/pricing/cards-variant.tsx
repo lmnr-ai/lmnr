@@ -7,22 +7,18 @@ import { CARD_FEATURES, RECOMMENDED_TIER, TIER_COLUMNS } from "./tier-data";
 export default function CardsVariant() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full">
-      {TIER_COLUMNS.map((tier) => {
-        const features = CARD_FEATURES[tier.id];
-        return (
-          <PricingCard
-            key={tier.id}
-            title={tier.name}
-            price={tier.price}
-            priceSuffix={tier.priceSuffix}
-            features={features.map((f) => f.label)}
-            subfeatures={features.map((f) => f.subfeature ?? null)}
-            isAccent={tier.id === RECOMMENDED_TIER}
-            ctaLabel={tier.ctaLabel}
-            ctaHref={tier.ctaHref}
-          />
-        );
-      })}
+      {TIER_COLUMNS.map((tier) => (
+        <PricingCard
+          key={tier.id}
+          title={tier.name}
+          price={tier.price}
+          priceSuffix={tier.priceSuffix}
+          features={CARD_FEATURES[tier.id]}
+          isAccent={tier.id === RECOMMENDED_TIER}
+          ctaLabel={tier.ctaLabel}
+          ctaHref={tier.ctaHref}
+        />
+      ))}
     </div>
   );
 }

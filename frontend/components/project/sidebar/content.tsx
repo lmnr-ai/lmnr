@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 
+import Announcements from "@/components/announcements";
 import OpenSourceCard from "@/components/project/sidebar/open-source-card.tsx";
+import TrialCard from "@/components/project/sidebar/trial-card.tsx";
 import UsageCard from "@/components/project/sidebar/usage-card.tsx";
 import { getSidebarMenus } from "@/components/project/utils.ts";
 import {
@@ -18,9 +20,17 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ProjectDetails } from "@/lib/actions/project";
+import { type Announcement } from "@/lib/announcements/types";
 import { Feature } from "@/lib/features/features";
+import { cn } from "@/lib/utils";
 
-const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
+interface ProjectSidebarContentProps {
+  announcements: Announcement[];
+  details: ProjectDetails;
+  dismissedAnnouncementIds: string[];
+}
+
+const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementIds }: ProjectSidebarContentProps) => {
   const pathname = usePathname();
   const featureFlags = useFeatureFlags();
   const options = useMemo(
@@ -32,6 +42,8 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
     [details.id, featureFlags]
   );
   const { open, openMobile } = useSidebar();
+  const showUsage = featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier;
+  const showTrial = featureFlags[Feature.SUBSCRIPTION] && !!details.trialEndsAt;
 
   return (
     <SidebarContent>
@@ -52,17 +64,20 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {(open || openMobile) &&
-        ((featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier) || featureFlags[Feature.LAMINAR_CLOUD]) && (
-          <SidebarGroup className="mt-auto p-1">
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
-                {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
-                {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && <UsageCard usageDetails={details} />}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+      {(showUsage || showTrial || featureFlags[Feature.LAMINAR_CLOUD]) && (
+        <SidebarGroup className={cn("mt-auto p-1", !(open || openMobile) && "hidden")}>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-2">
+              {showTrial && <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} />}
+              {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
+              {announcements.length > 0 && (
+                <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
+              )}
+              {showUsage && <UsageCard usageDetails={details} />}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
     </SidebarContent>
   );
 };

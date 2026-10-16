@@ -169,9 +169,14 @@ export const formatDataOverage = (tier: Tier): string => {
   return rate === 0 ? "—" : `${formatGBRate(rate)} / GB`;
 };
 
-// Every newly created workspace receives the same one-time Signals credit,
-// independently of its subscription tier.
-export const formatSignalsCount = (_tier: Tier): string => `$${SIGNALS_SIGNUP_CREDIT_USD}`;
+// Free has no Signals (nor Slack alerts or clustering); paid tiers and trials get the one-time credit.
+export const tierIncludesSignals = (tier: Tier): boolean => tier !== "free";
+
+export const formatSignalsCount = (tier: Tier): string =>
+  tierIncludesSignals(tier) ? `$${SIGNALS_SIGNUP_CREDIT_USD}` : "—";
+
+export const formatSignalsCreditLabel = (tier: Tier): string =>
+  tierIncludesSignals(tier) ? `${formatSignalsCount(tier)} one-time Signals credit` : "No Signals or Slack alerts";
 
 // Signals usage after the one-time sign-up credit is billed at per-million-token rates.
 // Cached input is listed separately because it is a subset of input charged at

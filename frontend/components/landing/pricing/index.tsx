@@ -72,10 +72,10 @@ export default function Pricing() {
 
   return (
     <div className="flex flex-col w-full overflow-x-clip">
-      <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[180px] pb-[72px] md:pb-[120px]">
+      <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-12 md:pt-[180px] pb-[72px] md:pb-[120px]">
         <div className={cn("flex flex-col items-center w-full max-w-[1100px]")}>
           {/* Tier cards */}
-          <div className="w-full mb-[160px]">
+          <div className="w-full mb-20 md:mb-[160px]">
             <CardsVariant />
           </div>
 
@@ -83,12 +83,12 @@ export default function Pricing() {
               tiers side by side, but capped short of the page: past ~800px the
               gap between a row's label and its last column stops being
               scannable. */}
-          <div className="w-full max-w-[800px] mb-[240px]">
+          <div className="w-full max-w-[800px] mb-20 md:mb-[240px]">
             <PricingCalculator />
           </div>
 
           {/* Detailed comparison table */}
-          <div className="-mx-6 mb-[160px] w-[calc(100%+3rem)] md:mx-0 md:w-full">
+          <div className="-mx-6 mb-20 md:mb-[160px] w-[calc(100%+3rem)] md:mx-0 md:w-full">
             <PricingTable />
           </div>
 
@@ -97,13 +97,13 @@ export default function Pricing() {
           </div>
 
           {/* FAQ — constrained to the landing column */}
-          <div className={cn("w-full mt-[160px] flex flex-col gap-10", LANDING_COLUMN_MAX_W)}>
+          <div className={cn("w-full mt-20 md:mt-[160px] flex flex-col gap-10", LANDING_COLUMN_MAX_W)}>
             <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
             <Accordion type="single" collapsible className="w-full">
               {faqItems.map((item) => (
                 <AccordionItem key={item.id} value={item.id} className="border-surface-300">
                   <AccordionTrigger
-                    className={cn("text-white text-lg leading-6 py-6")}
+                    className={cn("text-white text-lg leading-6 py-6 text-left gap-4")}
                     onClick={() => handleQuestionClick(item.question)}
                   >
                     {item.question}

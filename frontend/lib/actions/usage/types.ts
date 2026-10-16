@@ -27,6 +27,7 @@ export type StorageStats = {
 export type UsageDay = {
   date: string; // YYYY-MM-DD (UTC)
   bytes: number;
+  compressedBytes: number;
   signalCostMicroUsd: number;
   signalRuns: number;
 };

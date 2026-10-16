@@ -26,12 +26,12 @@ export default function SqlQueryCommand({ command }: { command: CommandBlockCont
   const failed = command.exitCode !== undefined && command.exitCode !== 0;
 
   return (
-    <div className="flex flex-col border-t border-[rgba(232,232,232,0.1)]">
+    <div className="flex flex-col border-t border-foreground-100/10">
       <SectionLabel>query</SectionLabel>
       <div className="max-h-80 overflow-auto">
         <SQLEditor value={sqlText} editable={false} className="text-xs" />
       </div>
-      <div className="border-t border-[rgba(232,232,232,0.1)]">
+      <div className="border-t border-foreground-100/10">
         <SectionLabel>stdout</SectionLabel>
         <CommandOutput output={command.output} failed={failed} />
       </div>

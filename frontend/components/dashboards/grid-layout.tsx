@@ -7,28 +7,24 @@ import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layo
 import useSWR from "swr";
 
 import Chart from "@/components/dashboards/chart";
-import { type DashboardChart, dragHandleKey, GRID_COLS } from "@/components/dashboards/types";
+import { type DashboardChart, dragHandleKey, getChartsUrl, GRID_COLS } from "@/components/dashboards/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-const updateLayout = (updates: any, projectId: string) => {
-  fetch(`/api/projects/${projectId}/dashboard-charts`, {
+const updateLayout = (updates: any, chartsUrl: string) => {
+  fetch(chartsUrl, {
     method: "PATCH",
     body: JSON.stringify({ updates }),
   });
 };
 
 const GridLayout = () => {
-  const { projectId } = useParams();
-  const {
-    data = [],
-    isLoading,
-    mutate,
-    error,
-  } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`, swrFetcher);
+  const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
+  const chartsUrl = getChartsUrl(projectId, dashboardId);
+  const { data = [], isLoading, mutate, error } = useSWR<DashboardChart[]>(chartsUrl, swrFetcher);
 
   const { toast } = useToast();
 
@@ -91,7 +87,7 @@ const GridLayout = () => {
         try {
           await mutate(
             async () => {
-              updateLayout(updates, projectId as string);
+              updateLayout(updates, chartsUrl);
               return optimisticData;
             },
             {
@@ -106,7 +102,7 @@ const GridLayout = () => {
         }
       }
     },
-    [data, mutate, projectId]
+    [chartsUrl, data, mutate]
   );
 
   const debouncedAutoSave = useMemo(() => debounce(onLayoutChange, 500), [onLayoutChange]);
@@ -120,6 +116,15 @@ const GridLayout = () => {
       </div>
     );
   }
+  if (data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-1 py-24 text-sm text-muted-foreground">
+        <span>This dashboard has no charts yet.</span>
+        <span>Use the Chart button to add one.</span>
+      </div>
+    );
+  }
+
   return (
     <ResponsiveGridLayout
       className="layout"

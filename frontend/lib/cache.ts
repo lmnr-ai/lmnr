@@ -250,11 +250,15 @@ export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deploymen
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";
 // Must stay in sync with `HARD_LIMIT_NOTIFIED_CACHE_KEY` in `app-server/src/cache/keys.rs`
 export const HARD_LIMIT_NOTIFIED_CACHE_KEY = "hard_limit_notified";
+export const ONBOARDING_COMPANY_NAME_CACHE_KEY = "onboarding_company_name";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;
 
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
+// Must stay in sync with `PROJECT_MEMBERSHIP_CACHE_KEY` in `app-server/src/cache/keys.rs` (CLI user routes).
+export const CLI_PROJECT_MEMBERSHIP_CACHE_KEY = (userId: string, projectId: string) =>
+  `project_membership:${userId}:${projectId}`;
 
 // Must stay in sync with `MEMBER_ROLE_CACHE_KEY` in `app-server/src/cache/keys.rs`.
 // The app-server caches a member's role to derive its read policy; remove the
