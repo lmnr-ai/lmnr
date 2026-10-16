@@ -22,6 +22,10 @@ const DashboardSchema = z.object({
   dashboardId: z.guid(),
 });
 
+const DefaultDashboardSchema = ProjectSchema.extend({
+  preferredId: z.string().optional(),
+});
+
 const CreateDashboardSchema = z.object({
   projectId: z.guid(),
   name: z.string().trim().min(1, "Name is required"),
@@ -65,11 +69,16 @@ export const getDashboard = async (input: z.infer<typeof DashboardSchema>) => {
   return dashboard as Omit<Dashboard, "chartCount"> | undefined;
 };
 
-// The oldest dashboard is the project's landing one. Projects without any get
-// one on first visit; the advisory lock stops two concurrent visits from each
-// creating a default.
-export const getOrCreateDefaultDashboard = async (input: z.infer<typeof ProjectSchema>) => {
-  const { projectId } = ProjectSchema.parse(input);
+// The oldest dashboard is the project's landing one, unless `preferredId` (e.g. the
+// last-visited one) still exists. Projects without any get one on first visit; the
+// advisory lock stops two concurrent visits from each creating a default.
+export const getOrCreateDefaultDashboard = async (input: z.infer<typeof DefaultDashboardSchema>) => {
+  const { projectId, preferredId } = DefaultDashboardSchema.parse(input);
+
+  if (preferredId) {
+    const preferred = await getDashboard({ projectId, dashboardId: preferredId });
+    if (preferred) return preferred;
+  }
 
   return await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`dashboards:${projectId}`}))`);
