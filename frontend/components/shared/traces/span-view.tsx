@@ -4,6 +4,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
+import { useSharedTraceApiBase } from "@/components/shared/traces/shared-api-base";
 import { SpanControls } from "@/components/traces/span-controls";
 import { SpanViewTabs } from "@/components/traces/span-view";
 import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
@@ -23,7 +24,8 @@ interface SpanViewProps {
 // fetched from the shared endpoint with project-scoped actions stripped.
 export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const { data: span, isLoading, error } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
+  const sharedApiBase = useSharedTraceApiBase();
+  const { data: span, isLoading, error } = useSWR<Span>(`${sharedApiBase}/${traceId}/spans/${spanId}`, swrFetcher);
 
   const searchRef = useRef<HTMLInputElement>(null);
 
