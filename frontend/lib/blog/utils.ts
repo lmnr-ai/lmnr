@@ -40,6 +40,16 @@ const fetchStrapiPosts = async (params: URLSearchParams): Promise<StrapiPost[]> 
   return json.data;
 };
 
+// First markdown or <img> figure that is a real URL. Inline `data:` SVGs are skipped — some
+// posts embed 80KB+ figures that way, and they'd be shipped once per card on the list page.
+const firstContentImage = (content: string): string | undefined => {
+  const match = content.match(
+    /!\[[^\]]*\]\(((?:https?:\/\/|\/uploads\/)[^)\s]+)|<img[^>]+src="((?:https?:\/\/|\/uploads\/)[^"]+)"/
+  );
+  const src = match?.[1] ?? match?.[2];
+  return src ? normalizeUploadUrls(src) : undefined;
+};
+
 const mapStrapiPost = (post: StrapiPost): BlogListItem => {
   const data = {
     title: post.title,
@@ -53,7 +63,7 @@ const mapStrapiPost = (post: StrapiPost): BlogListItem => {
     excerpt: post.description ?? undefined,
     tags: post.tags ?? undefined,
   };
-  return { ...data, slug: post.slug, data };
+  return { ...data, slug: post.slug, data, cover: data.image ?? firstContentImage(post.content) };
 };
 
 export const getBlogPosts = async ({
