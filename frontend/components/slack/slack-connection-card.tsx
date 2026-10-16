@@ -25,9 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
-import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -71,10 +69,7 @@ export default function SlackConnectionCard({
   hideSettingsLink,
 }: SlackConnectionCardProps) {
   const searchParams = useSearchParams();
-  const { settingsHref, project } = useProjectContext();
-  const flags = useFeatureFlags();
-  // Slack alerts need a paid plan; a Free workspace can't connect (an existing connection stays).
-  const slackLockedOnFree = !!flags[Feature.SUBSCRIPTION] && !!project?.isFreeTier;
+  const { settingsHref } = useProjectContext();
   const { data: slackIntegration, isLoading, mutate } = useSlackIntegration(workspaceId, !disabled);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -193,10 +188,6 @@ export default function SlackConnectionCard({
               </DropdownMenuContent>
             </DropdownMenu>
           </>
-        ) : slackLockedOnFree ? (
-          <Link href={settingsHref("billing")} className="text-xs text-muted-foreground hover:text-foreground">
-            Upgrade to connect Slack
-          </Link>
         ) : (
           <SlackConnectButton
             workspaceId={workspaceId}

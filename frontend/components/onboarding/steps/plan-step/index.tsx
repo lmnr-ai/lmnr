@@ -22,8 +22,7 @@ interface PlanStepProps {
   onBack: () => void;
 }
 
-// Commits the whole draft: creates the workspace, starts the trial or checkout, and applies the
-// queued invites and signals (dropped on Free).
+// Commits the plan: starts the trial or checkout and applies the queued invites and signals (not on Free).
 export default function PlanStep({ stepIndex, totalSteps, onAdvance, onBack }: PlanStepProps) {
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
   const { trialAvailable } = useOnboardingContext();
@@ -96,18 +95,6 @@ export default function PlanStep({ stepIndex, totalSteps, onAdvance, onBack }: P
       onBack={alreadyOnPaidTier ? undefined : onBack}
       nextLabel={nextLabel()}
       isSubmitting={isSubmitting}
-      secondaryAction={
-        startsTrial ? (
-          <button
-            type="button"
-            onClick={() => commit({ plan: "checkout", checkoutTier: "hobby" })}
-            disabled={isSubmitting}
-            className="text-xs text-foreground-400 hover:text-foreground-200 disabled:opacity-50"
-          >
-            Subscribe without a trial
-          </button>
-        ) : undefined
-      }
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:gap-4 2xl:gap-5">
         {PLANS.map((plan) => {

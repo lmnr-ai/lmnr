@@ -68,11 +68,7 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
         <SidebarGroup className={cn("mt-auto p-1", !(open || openMobile) && "hidden")}>
           <SidebarGroupContent>
             <SidebarMenu className="gap-2">
-              {/* TEMP: both trial card variants for comparison. */}
-              {showTrial && (
-                <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} urgent={false} />
-              )}
-              {showTrial && <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} urgent />}
+              {showTrial && <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} />}
               {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
               {announcements.length > 0 && (
                 <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />

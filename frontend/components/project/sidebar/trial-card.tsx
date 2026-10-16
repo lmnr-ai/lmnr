@@ -34,11 +34,9 @@ const daysLeftLabel = (daysLeft: number) => {
 interface TrialCardProps {
   workspaceId: string;
   trialEndsAt: string;
-  // TEMP: forces a variant so both can be previewed side by side.
-  urgent?: boolean;
 }
 
-export default function TrialCard({ workspaceId, trialEndsAt, urgent: urgentOverride }: TrialCardProps) {
+export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) {
   const { settingsHref } = useProjectContext();
   const { data } = useSWR<{ convertsToPaid: boolean | null }>(
     `/api/workspaces/${workspaceId}/subscription/trial`,
@@ -55,7 +53,7 @@ export default function TrialCard({ workspaceId, trialEndsAt, urgent: urgentOver
 
   const endsAt = new Date(trialEndsAt);
   const daysLeft = differenceInCalendarDays(endsAt, new Date());
-  const urgent = urgentOverride ?? daysLeft <= 3;
+  const urgent = daysLeft <= 3;
 
   return (
     <SidebarMenuItem>

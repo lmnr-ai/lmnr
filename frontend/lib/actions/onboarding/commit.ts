@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { confirmCheckoutSession } from "@/lib/actions/checkout/confirm";
 import { startStarterTrial } from "@/lib/actions/checkout/trial";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
-import { clearOnboardingDraft, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
+import { getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
 import {
   type CommitOnboardingResult,
   MAX_ONBOARDING_INVITES,
@@ -18,11 +18,14 @@ import { inviteUserToWorkspace } from "@/lib/actions/workspace/invite";
 import { createWorkspace } from "@/lib/actions/workspaces";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, workspaces } from "@/lib/db/migrations/schema";
+
+export const StartOnboardingSchema = z.object({
+  workspaceName: z.string().trim().min(1).max(200),
+  projectName: z.string().trim().min(1).max(200),
+});
 
 export const CommitOnboardingSchema = z.object({
-  workspaceName: z.string().trim().min(1),
-  projectName: z.string().trim().min(1),
   invites: z.array(z.email()).max(MAX_ONBOARDING_INVITES),
   templateNames: z.array(z.string()).max(50),
   // "trial" also covers a workspace that is already paid (e.g. its checkout webhook won the race).
@@ -30,26 +33,40 @@ export const CommitOnboardingSchema = z.object({
   checkoutTier: z.enum(["hobby", "pro"]).optional(),
 });
 
-// A cancelled checkout or a failed trial leaves the committed workspace in the cookie; a retry
-// reuses it instead of creating a second one.
-const ensureWorkspace = async (
-  userId: string,
-  existing: OnboardingState | null,
-  names: { workspaceName: string; projectName: string }
-): Promise<{ workspaceId: string; projectId: string }> => {
-  if (existing?.userId === userId) {
-    const membership = await db.query.membersOfWorkspaces.findFirst({
-      where: and(eq(membersOfWorkspaces.workspaceId, existing.workspaceId), eq(membersOfWorkspaces.userId, userId)),
-      columns: { id: true },
-    });
-    if (membership) return { workspaceId: existing.workspaceId, projectId: existing.projectId };
-  }
-  const created = await createWorkspace({
-    name: names.workspaceName,
-    projectName: names.projectName,
-    isFirstProject: true,
+const isOwnOnboarding = async (state: OnboardingState | null, userId: string): Promise<boolean> => {
+  if (state?.userId !== userId) return false;
+  const membership = await db.query.membersOfWorkspaces.findFirst({
+    where: and(eq(membersOfWorkspaces.workspaceId, state.workspaceId), eq(membersOfWorkspaces.userId, userId)),
+    columns: { id: true },
   });
-  return { workspaceId: created.id, projectId: created.projectId! };
+  return !!membership;
+};
+
+// Creates the workspace and project after the first step. A repeat submit (double click, a second
+// tab) reuses the one already in the cookie.
+export const startOnboarding = async (
+  input: z.infer<typeof StartOnboardingSchema>
+): Promise<{ workspaceId: string; projectId: string }> => {
+  const session = await getServerSession();
+  if (!session?.user) throw new Error("Unauthorized");
+  const { workspaceName, projectName } = StartOnboardingSchema.parse(input);
+
+  const existing = await getOnboardingState();
+  if (existing && (await isOwnOnboarding(existing, session.user.id))) {
+    return { workspaceId: existing.workspaceId, projectId: existing.projectId };
+  }
+  const created = await createWorkspace({ name: workspaceName, projectName, isFirstProject: true });
+  const workspaceId = created.id;
+  const projectId = created.projectId!;
+  await setOnboardingState({
+    v: ONBOARDING_COOKIE_VERSION,
+    userId: session.user.id,
+    workspaceId,
+    projectId,
+    step: "invite",
+    startedAt: Date.now(),
+  });
+  return { workspaceId, projectId };
 };
 
 // Invites are best-effort per address; a failure is reported, never blocks the rest.
@@ -88,32 +105,32 @@ export const commitOnboarding = async (
 ): Promise<CommitOnboardingResult> => {
   const session = await getServerSession();
   if (!session?.user) throw new Error("Unauthorized");
-  const { workspaceName, projectName, invites, templateNames, plan, checkoutTier } =
-    CommitOnboardingSchema.parse(input);
+  const { invites, templateNames, plan, checkoutTier } = CommitOnboardingSchema.parse(input);
 
-  const existing = await getOnboardingState();
-  const { workspaceId, projectId } = await ensureWorkspace(session.user.id, existing, { workspaceName, projectName });
-  const base = {
-    v: ONBOARDING_COOKIE_VERSION,
-    userId: session.user.id,
-    workspaceId,
-    projectId,
-    startedAt: existing?.userId === session.user.id ? existing.startedAt : Date.now(),
-  };
-  await clearOnboardingDraft();
+  const state = await getOnboardingState();
+  if (!state || !(await isOwnOnboarding(state, session.user.id))) {
+    throw new Error("No onboarding in progress. Please refresh and try again.");
+  }
+  const { workspaceId, projectId } = state;
+  const pending = { invites, templateNames };
 
-  // Free has one seat and no Signals, so the queued invites and templates are dropped.
+  // Free has one seat and no Signals, so the queued invites and templates aren't applied. They stay
+  // pending in case the user goes back and starts the trial.
   if (plan === "free") {
-    await setOnboardingState({ ...base, step: "connect" });
+    await setOnboardingState({ ...state, step: "connect", pending });
     return { workspaceId, projectId, next: "connect", failedInvites: [] };
   }
 
   // Saved before anything that can fail, so a retry or the Stripe return still has the choices.
-  const pending = { invites, templateNames };
-  await setOnboardingState({ ...base, step: "plan", pending });
+  await setOnboardingState({ ...state, step: "plan", pending });
 
   if (plan === "checkout") {
     const lookupKey = TIER_CONFIG[checkoutTier ?? "hobby"].lookupKey;
+    const workspace = await db.query.workspaces.findFirst({
+      where: eq(workspaces.id, workspaceId),
+      columns: { name: true },
+    });
+    const workspaceName = workspace?.name ?? "";
     const sp = new URLSearchParams({ lookupKey, workspaceId, workspaceName, returnTo: "onboarding" });
     return { workspaceId, projectId, next: "checkout", checkoutUrl: `/checkout?${sp}`, failedInvites: [] };
   }
@@ -127,8 +144,9 @@ export const commitOnboarding = async (
     pending,
     userEmail: session.user.email,
   });
-  await setOnboardingState({ ...base, step: "slack" });
-  return { workspaceId, projectId, next: "slack", failedInvites };
+  const { pending: _applied, ...rest } = state;
+  await setOnboardingState({ ...rest, step: "connect" });
+  return { workspaceId, projectId, next: "connect", failedInvites };
 };
 
 // Stripe's success_url for onboarding checkouts. Applies the plan, then the queued choices.
@@ -150,5 +168,5 @@ export const completeOnboardingCheckout = async (sessionId: string): Promise<voi
     });
   }
   const { pending: _consumed, ...rest } = state;
-  await setOnboardingState({ ...rest, step: "slack" });
+  await setOnboardingState({ ...rest, step: "connect" });
 };

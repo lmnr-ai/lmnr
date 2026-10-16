@@ -8,11 +8,11 @@ import OnboardingLoading from "@/components/onboarding/onboarding-loading";
 import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
 import { UserContextProvider } from "@/contexts/user-context";
 import { isStarterTrialEligible } from "@/lib/actions/checkout/trial";
-import { getOnboardingDraft, getOnboardingState } from "@/lib/actions/onboarding";
+import { getOnboardingState } from "@/lib/actions/onboarding";
 import { getCachedCompanyName } from "@/lib/actions/onboarding/company-name";
 import { resolveResume } from "@/lib/actions/onboarding/resolve-resume";
 import { loadOnboardingResumeDefaults, type OnboardingResumeDefaults } from "@/lib/actions/onboarding/resume-defaults";
-import { type OnboardingDraft, type OnboardingPending } from "@/lib/actions/onboarding/types";
+import { type OnboardingPending } from "@/lib/actions/onboarding/types";
 import { countWorkspaceMemberships } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
 import { orgDomainFromEmail } from "@/lib/email-domain";
@@ -37,11 +37,9 @@ const EMPTY_DEFAULTS: OnboardingFormValues = {
   currentTier: "free",
 };
 
-// Committed (server cookie) beats draft (browser cookie) beats a fresh start.
 function buildDefaults(
   resumeDefaults: OnboardingResumeDefaults | null,
   pending: OnboardingPending | undefined,
-  draft: OnboardingDraft | null,
   companyName: string | null
 ): OnboardingFormValues {
   if (resumeDefaults) {
@@ -53,15 +51,6 @@ function buildDefaults(
       slackConnected: resumeDefaults.slackConnected,
       selectedTier: resumeDefaults.selectedTier,
       currentTier: resumeDefaults.selectedTier,
-    };
-  }
-  if (draft) {
-    return {
-      ...EMPTY_DEFAULTS,
-      workspaceName: draft.workspaceName,
-      projectName: draft.projectName,
-      invites: draft.invites,
-      selectedTemplateNames: draft.templateNames,
     };
   }
   return { ...EMPTY_DEFAULTS, workspaceName: companyName ?? "" };
@@ -95,8 +84,6 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
   if (workspaceCount > 0 && !resume.inProgress && !returningFromSlack) {
     return redirect("/projects");
   }
-  // A draft only matters before anything is committed.
-  const draft = resume.point ? null : await getOnboardingDraft(user.id);
 
   const orgDomain = orgDomainFromEmail(user.email);
   const lookupDomain = orgDomain && isFeatureEnabled(Feature.ONBOARDING_COMPANY_NAME) ? orgDomain : null;
@@ -115,11 +102,12 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     const initial: OnboardingInitialValues = {
       workspaceId: resume.point?.workspaceId ?? null,
       projectId: resume.point?.projectId ?? null,
-      step: resume.point?.step ?? draft?.step ?? "workspace",
-      defaultValues: preselectTrial(
-        buildDefaults(resumeDefaults, resume.point?.pending, draft, companyName),
-        trialAvailable
-      ),
+      // The Slack OAuth return lands back on the Slack step even if its progress save lost the race.
+      step:
+        returningFromSlack && resume.point && resume.point.step !== "connect"
+          ? "slack"
+          : (resume.point?.step ?? "workspace"),
+      defaultValues: preselectTrial(buildDefaults(resumeDefaults, resume.point?.pending, companyName), trialAvailable),
       companyName,
       trialAvailable,
     };
@@ -134,7 +122,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   // Cached name: render at once. First visit for a domain: stream a loading step while the LLM answers.
   const content =
-    lookupDomain && !resume.point && !draft && !cachedName ? (
+    lookupDomain && !resume.point && !cachedName ? (
       <Suspense fallback={<OnboardingLoading />}>
         <AwaitCompanyName domain={lookupDomain}>{renderWizard}</AwaitCompanyName>
       </Suspense>
