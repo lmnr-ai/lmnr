@@ -54,7 +54,8 @@ export default function PlanStep({ stepIndex, totalSteps, onAdvance, onBack }: P
 
   const handleNext = () => {
     if (!subscriptionEnabled || selectedTier === "free") return commit({ plan: "free" });
-    if (alreadyOnPaidTier || startsTrial) return commit({ plan: "trial" });
+    if (alreadyOnPaidTier) return commit({ plan: "continue" });
+    if (startsTrial) return commit({ plan: "trial" });
     return commit({ plan: "checkout", checkoutTier: selectedTier });
   };
 

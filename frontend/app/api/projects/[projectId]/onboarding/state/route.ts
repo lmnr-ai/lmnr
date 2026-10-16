@@ -1,21 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod/v4";
 
 import { clearOnboardingState, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
-import { MAX_ONBOARDING_INVITES } from "@/lib/actions/onboarding/types";
+import { OnboardingProgressSchema } from "@/lib/actions/onboarding/types";
 import { getServerSession } from "@/lib/auth-session";
 import { sendWelcomeEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-
-// Saves the resume point and the queued choices on every step change; the plan step commits
-// through /api/onboarding/commit.
-const StateSchema = z.object({
-  step: z.enum(["invite", "signals", "slack", "plan"]),
-  pending: z.object({
-    invites: z.array(z.email()).max(MAX_ONBOARDING_INVITES),
-    templateNames: z.array(z.string().max(200)).max(50),
-  }),
-});
 
 export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const session = await getServerSession();
@@ -24,7 +13,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   }
   try {
     const { projectId } = await props.params;
-    const { step, pending } = StateSchema.parse(await request.json());
+    const { step, pending } = OnboardingProgressSchema.parse(await request.json());
 
     const existing = await getOnboardingState();
     if (!existing || existing.userId !== session.user.id || existing.projectId !== projectId) {

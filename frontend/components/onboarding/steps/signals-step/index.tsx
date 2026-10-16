@@ -6,7 +6,8 @@ import StepShell from "@/components/onboarding/step-shell";
 import { ONBOARDING_SIGNALS } from "@/components/onboarding/steps/signals-step/constants";
 import PipelineDiagram from "@/components/onboarding/steps/signals-step/pipeline-diagram";
 import SignalCard from "@/components/onboarding/steps/signals-step/signal-card";
-import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/lib/actions/onboarding/types";
 import { track } from "@/lib/posthog";
 
 const RECOMMENDED: ReadonlySet<string> = new Set(DEFAULT_SELECTED_TEMPLATE_NAMES);

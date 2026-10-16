@@ -4,9 +4,8 @@ import { useEffect } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
-import { type OnboardingFormValues, type OnboardingStep } from "@/components/onboarding/types";
-
-const SAVED_STEPS: readonly OnboardingStep[] = ["invite", "signals", "slack", "plan"];
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { type OnboardingStep, PROGRESS_STEPS } from "@/lib/actions/onboarding/types";
 
 // Saves the step and the queued choices on every step change, so a refresh, a closed tab or the
 // Slack OAuth round trip resumes on the same step. Best-effort: a failed save only costs the resume
@@ -16,7 +15,7 @@ export function useOnboardingProgress(step: OnboardingStep) {
   const { projectId } = useOnboardingContext().resources;
 
   useEffect(() => {
-    if (!projectId || !SAVED_STEPS.includes(step)) return;
+    if (!projectId || !(PROGRESS_STEPS as readonly OnboardingStep[]).includes(step)) return;
 
     const { invites, selectedTemplateNames } = form.getValues();
     fetch(`/api/projects/${projectId}/onboarding/state`, {
