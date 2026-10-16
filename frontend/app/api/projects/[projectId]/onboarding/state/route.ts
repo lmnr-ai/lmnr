@@ -19,6 +19,11 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
     if (!existing || existing.userId !== session.user.id || existing.projectId !== projectId) {
       return NextResponse.json({ error: "No onboarding in progress for this project" }, { status: 404 });
     }
+    // A trial or paid plan already applied the queued choices; a late save from another tab or a slow
+    // request must not move it back before the plan, where Continue would apply them again.
+    if (existing.step === "connect" && !existing.pending) {
+      return NextResponse.json({ error: "The plan is already set up" }, { status: 409 });
+    }
     await setOnboardingState({ ...existing, step, pending });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -80,8 +80,10 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     return redirect("/api/onboarding?to=/projects");
   }
 
+  // Onboarding keeps the cookie from step 1, so a Slack return without one (finished in another tab)
+  // goes to the app instead of a wizard whose first step would create another workspace.
   const returningFromSlack = searchParams?.slack !== undefined;
-  if (workspaceCount > 0 && !resume.inProgress && !returningFromSlack) {
+  if (workspaceCount > 0 && !resume.inProgress) {
     return redirect("/projects");
   }
 
