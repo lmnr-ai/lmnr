@@ -3,6 +3,6 @@
 use super::BoolEnv;
 
 /// Master switch for the checkpoints (agent versions) pipeline. When false,
-/// the spans consumer publishes no checkpoint messages and the checkpoints
-/// workers are not spawned. Disabled by default (LAM-1987).
+/// the ingest producer attaches no agent-versioning inputs to system-prompt
+/// versioning messages and their consumer records nothing. Disabled by default.
 pub const ENABLED: BoolEnv = BoolEnv::new("CHECKPOINTS_ENABLED", false);

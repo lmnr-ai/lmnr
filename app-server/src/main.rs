@@ -103,9 +103,7 @@ use traces::{
 use cache::{
     Cache, connection::ResilientRedisConnection, in_memory::InMemoryCache, redis::RedisCache,
 };
-use checkpoints::{
-    CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE, CHECKPOINTS_ROUTING_KEY, consumer::CheckpointsHandler,
-};
+use checkpoints::CheckpointRecorder;
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
@@ -1000,32 +998,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.13 Checkpoints message queue ====
-            channel
-                .exchange_declare(
-                    CHECKPOINTS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    CHECKPOINTS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
             // ==== 3.14 Static prompt message queue ====
             channel
                 .exchange_declare(
@@ -1211,8 +1183,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
         // ==== 3.12 Reports message queue ====
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
-        // ==== 3.13 Checkpoints message queue ====
-        queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         // ==== 3.14 Static prompt message queue ====
         queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
         // ==== 3.15 Versioning message queues ====
@@ -1353,7 +1323,7 @@ fn main() -> anyhow::Result<()> {
     // CONSUMER also publishes spans: `publish_for_indexing` runs inside
     // `process_span_messages`, and the metadata façades
     // (`publish_trace_{input,output}_update` / `publish_trace_metadata_patch`) are
-    // called from the input-extraction and checkpoints consumers. Gating on
+    // called from the input-extraction consumer. Gating on
     // `enable_producer()` left both publishers `None` on `OPERATION_MODE=consumer`,
     // so every one of those paths silently stayed on the quorum queue — the exact
     // path this transport exists to unload.
@@ -1597,8 +1567,6 @@ fn main() -> anyhow::Result<()> {
         let num_logs_workers = env::workers::NUM_LOGS.get();
 
         let num_reports_workers = env::workers::NUM_REPORTS.get();
-
-        let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
         let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
 
@@ -2250,35 +2218,6 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn checkpoints workers. Gated behind
-                    // CHECKPOINTS_ENABLED (LAM-1987, default off).
-                    if is_feature_enabled(Feature::Checkpoints) {
-                        let db = db_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client = llm_provider_client.clone();
-                        let queue = mq_for_consumer.clone();
-                        let spans_stream_publisher =
-                            spans_stream_publisher_for_consumer.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::Checkpoints,
-                            num_checkpoints_workers,
-                            move || CheckpointsHandler {
-                                db: db.clone(),
-                                cache: cache.clone(),
-                                clickhouse: clickhouse.clone(),
-                                llm_client: llm_client.clone(),
-                                queue: queue.clone(),
-                                spans_stream_publisher: spans_stream_publisher.clone(),
-                            },
-                            QueueConfig::new(
-                                CHECKPOINTS_QUEUE,
-                                CHECKPOINTS_EXCHANGE,
-                                CHECKPOINTS_ROUTING_KEY,
-                            ),
-                        );
-                    }
-
                     // Spawn static prompt workers (legacy pipeline). Gate on
                     // the shared LLM client exactly like input-extraction: a
                     // handler without a client can only ack-and-drop messages,
@@ -2306,9 +2245,9 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn versioning classifier workers, one pool per kind.
-                    // LLM-free (the producers gate publishing on client
-                    // availability; the extraction workers consume their own
-                    // queues), so they run unconditionally.
+                    // LLM-free, so they run unconditionally. System prompts
+                    // also feed agent versioning (CHECKPOINTS_ENABLED), whose
+                    // optional agent naming uses the LLM client when present.
                     for kind in VersionKind::ALL {
                         let (worker_type, num_workers) = match kind {
                             VersionKind::SystemPrompt => {
@@ -2323,16 +2262,30 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let queues = kind.queues();
+                        let checkpoints = (matches!(kind, VersionKind::SystemPrompt)
+                            && is_feature_enabled(Feature::Checkpoints))
+                        .then(|| {
+                            Arc::new(CheckpointRecorder::new(
+                                db_for_consumer.clone(),
+                                cache_for_consumer.clone(),
+                                clickhouse_for_consumer.clone(),
+                                llm_provider_client.clone(),
+                            ))
+                        });
                         worker_pool_clone.spawn(
                             worker_type,
                             num_workers,
                             move || {
-                                SpVersioningHandler::new(
+                                let handler = SpVersioningHandler::new(
                                     kind,
                                     cache.clone(),
                                     clickhouse.clone(),
                                     queue.clone(),
-                                )
+                                );
+                                match &checkpoints {
+                                    Some(recorder) => handler.with_checkpoints(recorder.clone()),
+                                    None => handler,
+                                }
                             },
                             QueueConfig::new(queues.queue, queues.exchange, queues.routing_key),
                         );

@@ -164,8 +164,8 @@ async fn insert_rows<T: RowOwned + RowWrite>(
 /// Journal row written once per version MINT (`*_version_defs`), for either
 /// kind: the static skeleton as text — the registry keeps only one-way line
 /// hashes — plus the provenance needed to audit a mint (which rule allowed it,
-/// how populated the window was, which span triggered it). Nothing in the
-/// pipeline reads these tables.
+/// how populated the window was, which span triggered it). Within the
+/// pipeline, only agent naming reads them ([`fetch_version_static_text`]).
 #[derive(Debug, Clone)]
 pub struct VersionDef {
     pub project_id: Uuid,
@@ -364,6 +364,29 @@ pub async fn fetch_span_version(
         .fetch_optional::<VersionRow>()
         .await?;
     Ok(row.map(|r| r.version_hash))
+}
+
+/// Static skeleton of a system-prompt version; `None` when the def isn't
+/// visible yet or the version has no static text.
+pub async fn fetch_version_static_text(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    agent_hash: &str,
+    version_hash: &str,
+) -> Result<Option<String>> {
+    let text = clickhouse
+        .query(
+            "SELECT static_text
+             FROM system_prompt_version_defs FINAL
+             WHERE project_id = ? AND agent_hash = ? AND version_hash = ?
+             LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(agent_hash)
+        .bind(version_hash)
+        .fetch_optional::<String>()
+        .await?;
+    Ok(text.filter(|t| !t.trim().is_empty()))
 }
 
 /// A uniform random sample of up to `limit` traces that classified to the

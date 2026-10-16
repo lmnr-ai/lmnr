@@ -56,9 +56,6 @@ pub const SPAN_TRACE_OUTPUT_HASHES: &str = "lmnr.internal.trace_output_hashes";
 /// row, so FINAL converges on the latest-ending answer regardless of
 /// insert arrival order.
 pub const SPAN_TRACE_OUTPUT_END_TIME: &str = "lmnr.internal.trace_output_end_time";
-/// Marker on the checkpoints pipeline's own tracing spans, skipped by its producer.
-pub const CHECKPOINT_INTERNAL_SPAN: &str = "lmnr.internal.checkpoint";
-
 // Legacy names (pre-spec). These remain the canonical internal keys our
 // normalization writes into — they are what `db/spans.rs` and the signals
 // pipeline read. New instrumentations use the dotted forms below.

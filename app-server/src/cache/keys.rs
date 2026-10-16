@@ -125,9 +125,18 @@ pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
 /// Positive entries only; the frontend removes the key on role change and
 /// membership removal (`frontend/lib/actions/workspace`).
 pub const MEMBER_ROLE_CACHE_KEY: &str = "member_role";
-pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
-pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
-pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
+// Agent versioning (`checkpoints/recorder.rs`), all under `{key}:{project_id}:…`.
+/// `…:{agent_hash}` → `{ id, named }` of the `agents` row.
+pub const AGENT_CACHE_KEY: &str = "agent";
+/// `…:{version_hash}` → `agent_versions.id`.
+pub const AGENT_VERSION_ID_CACHE_KEY: &str = "agent_version_id";
+/// `…:{version_hash}:{model}` marker: the model is in `agent_version_models`.
+pub const AGENT_VERSION_MODEL_CACHE_KEY: &str = "agent_version_model";
+/// `…:{trace_id}:{version_hash}:{model}` claim: the trace's
+/// `traces_agg.agent_versions` already holds the tuple.
+pub const AGENT_TRACE_TAG_CACHE_KEY: &str = "agent_trace_tag";
+/// `…:{agent_id}` throttle on name generation attempts.
+pub const AGENT_NAMING_LOCK_CACHE_KEY: &str = "agent_naming_lock";
 
 // Static system-prompt extraction (LAM-1899). All three are namespaced by
 // `(project_id, prompt_hash)` — the naive signature — see

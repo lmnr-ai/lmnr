@@ -552,6 +552,7 @@ async fn resolve_template_version(
             trace_id,
             span_id: winner.span_id,
         }],
+        agent_spans: Vec::new(),
     };
     resolve_and_publish(cache, queue, VersionKind::UserTemplate, candidate).await
 }
