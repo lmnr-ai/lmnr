@@ -14,6 +14,8 @@ import {
   evaluatorScores,
   workspaceInvitations,
   agents,
+  agentVersions,
+  agentVersionModels,
   renderTemplates,
   tracesAgentChats,
   sharedEvals,
@@ -55,7 +57,6 @@ import {
   tableViews,
   notificationReads,
   tagClasses,
-  agentVersions,
   traces,
   llmProfiles,
   llmProfileModels,
@@ -116,6 +117,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   evaluatorSpanPaths: many(evaluatorSpanPaths),
   evaluatorScores: many(evaluatorScores),
   agents: many(agents),
+  agentVersions: many(agentVersions),
+  agentVersionModels: many(agentVersionModels),
   renderTemplates: many(renderTemplates),
   tracesAgentChats: many(tracesAgentChats),
   sharedEvals: many(sharedEvals),
@@ -150,7 +153,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   tableViews: many(tableViews),
   notificationReads: many(notificationReads),
   tagClasses: many(tagClasses),
-  agentVersions: many(agentVersions),
   traces: many(traces),
 }));
 
@@ -247,6 +249,29 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
     references: [projects.id],
   }),
   agentVersions: many(agentVersions),
+}));
+
+export const agentVersionsRelations = relations(agentVersions, ({ one, many }) => ({
+  agent: one(agents, {
+    fields: [agentVersions.agentId],
+    references: [agents.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersions.projectId],
+    references: [projects.id],
+  }),
+  agentVersionModels: many(agentVersionModels),
+}));
+
+export const agentVersionModelsRelations = relations(agentVersionModels, ({ one }) => ({
+  agentVersion: one(agentVersions, {
+    fields: [agentVersionModels.agentVersionId],
+    references: [agentVersions.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersionModels.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const renderTemplatesRelations = relations(renderTemplates, ({ one }) => ({
@@ -582,17 +607,6 @@ export const notificationReadsRelations = relations(notificationReads, ({ one })
 export const tagClassesRelations = relations(tagClasses, ({ one }) => ({
   project: one(projects, {
     fields: [tagClasses.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const agentVersionsRelations = relations(agentVersions, ({ one }) => ({
-  agent: one(agents, {
-    fields: [agentVersions.agentId],
-    references: [agents.id],
-  }),
-  project: one(projects, {
-    fields: [agentVersions.projectId],
     references: [projects.id],
   }),
 }));

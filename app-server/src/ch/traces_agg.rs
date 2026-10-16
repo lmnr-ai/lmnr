@@ -88,6 +88,18 @@ pub struct CHTraceAgg {
     /// length-prefixed bytes per element in RowBinary instead of 16.
     #[serde(with = "crate::ch::utils::uuid_vec")]
     pub cluster_ids: Vec<Uuid>,
+    /// Agent versions that ran in this trace; the set unions across partials.
+    pub agent_versions: Vec<CHTraceAgentVersion>,
+}
+
+/// One element of `traces_agg.agent_versions`. Field order is the DDL tuple.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CHTraceAgentVersion {
+    pub agent_hash: String,
+    /// `agent_versions.version_hash` in Postgres.
+    pub version_hash: String,
+    /// Empty when the span reported no model.
+    pub model: String,
 }
 
 /// One element of `traces_agg.signal_events`. Field order is the DDL tuple.
@@ -173,6 +185,7 @@ impl CHTraceAgg {
             trace_types: vec![trace_type_enum_value(agg.trace_type)],
             signal_events: Vec::new(),
             cluster_ids: Vec::new(),
+            agent_versions: Vec::new(),
         }
     }
 
@@ -236,6 +249,7 @@ impl CHTraceAgg {
             trace_types: Vec::new(),
             signal_events: Vec::new(),
             cluster_ids: Vec::new(),
+            agent_versions: Vec::new(),
         }
     }
 }
@@ -308,6 +322,7 @@ mod tests {
         assert_eq!(row.total_cost, 0.0);
         assert!(row.signal_events.is_empty());
         assert!(row.cluster_ids.is_empty());
+        assert!(row.agent_versions.is_empty());
     }
 
     #[test]
@@ -380,6 +395,7 @@ mod live_ch {
         cluster_id: Uuid,
         #[serde(with = "clickhouse::serde::uuid")]
         event_id: Uuid,
+        version_hash: String,
     }
 
     fn client(database: &str) -> clickhouse::Client {
@@ -440,7 +456,8 @@ mod live_ch {
                 trace_types SimpleAggregateFunction(groupUniqArrayArray, Array(Enum8('DEFAULT'=0,'EVALUATION'=1,'EVENT'=2,'PLAYGROUND'=3))),
                 internal_metadata SimpleAggregateFunction(maxMap, Map(String,String)),
                 signal_events SimpleAggregateFunction(groupArrayArray, Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))),
-                cluster_ids SimpleAggregateFunction(groupUniqArrayArray, Array(UUID))
+                cluster_ids SimpleAggregateFunction(groupUniqArrayArray, Array(UUID)),
+                agent_versions SimpleAggregateFunction(groupUniqArrayArray, Array(Tuple(agent_hash String, version_hash String, model String)))
             ) ENGINE = AggregatingMergeTree PARTITION BY toYYYYMM(start_time) ORDER BY (project_id, id)",
         )
         .execute()
@@ -463,6 +480,11 @@ mod live_ch {
                 severity: 1,
                 payload: "{}".to_string(),
             }];
+            row.agent_versions = vec![CHTraceAgentVersion {
+                agent_hash: "agent".to_string(),
+                version_hash: trace_id.to_string(),
+                model: "gpt-4o".to_string(),
+            }];
             insert.write(&row).await.unwrap();
         }
         insert
@@ -474,7 +496,8 @@ mod live_ch {
             let got = c
                 .query(
                     "SELECT arrayJoin(cluster_ids) AS cluster_id, \
-                            tupleElement(arrayJoin(signal_events), 1) AS event_id \
+                            tupleElement(arrayJoin(signal_events), 1) AS event_id, \
+                            tupleElement(arrayJoin(agent_versions), 'version_hash') AS version_hash \
                      FROM traces_agg WHERE project_id = ? AND id = ?",
                 )
                 .bind(project_id)
@@ -487,6 +510,11 @@ mod live_ch {
             // yields a syntactically valid UUID.
             assert_eq!(got_cluster, *cluster_id, "cluster_id byte order drifted");
             assert_eq!(got_event, *event_id, "signal_events tuple drifted");
+            assert_eq!(
+                got.version_hash,
+                trace_id.to_string(),
+                "agent_versions tuple drifted"
+            );
         }
 
         admin
