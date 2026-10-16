@@ -32,6 +32,10 @@ pub struct ReportTriggerMessage {
     /// Used by the generator to compute the report period deterministically,
     /// even if message processing is delayed.
     pub triggered_at: i64,
+    /// Projects left out of the report. Defaulted so messages queued before this field existed
+    /// still deserialize.
+    #[serde(default)]
+    pub excluded_project_ids: Vec<Uuid>,
 }
 
 pub async fn push_to_reports_queue(

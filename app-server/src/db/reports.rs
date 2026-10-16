@@ -11,6 +11,7 @@ pub struct Report {
     pub hour: i32,
     #[allow(unused)]
     pub created_at: DateTime<Utc>,
+    pub excluded_project_ids: Vec<Uuid>,
 }
 
 pub async fn get_reports_for_weekday_and_hour(
@@ -19,7 +20,7 @@ pub async fn get_reports_for_weekday_and_hour(
     hour: i32,
 ) -> anyhow::Result<Vec<Report>> {
     let reports = sqlx::query_as::<_, Report>(
-        "SELECT id, workspace_id, type, weekdays, hour, created_at
+        "SELECT id, workspace_id, type, weekdays, hour, created_at, excluded_project_ids
          FROM reports
          WHERE hour = $1 AND $2 = ANY(weekdays)",
     )

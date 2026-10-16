@@ -1,8 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { reports, reportTargets } from "@/lib/db/migrations/schema";
+import { projects, reports, reportTargets } from "@/lib/db/migrations/schema";
 
 import {
   getReportLabel,
@@ -37,6 +37,12 @@ const SetSlackTargetsSchema = z.object({
   channels: z.array(z.object({ id: z.string().min(1), name: z.string() })),
 });
 
+const SetExcludedProjectsSchema = z.object({
+  reportId: z.uuid(),
+  workspaceId: z.uuid(),
+  excludedProjectIds: z.array(z.uuid()),
+});
+
 export async function getReports(workspaceId: string, userEmail?: string): Promise<ReportWithDetails[]> {
   const reportRows = await db
     .select({
@@ -46,6 +52,7 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
       createdAt: reports.createdAt,
       weekdays: reports.weekdays,
       hour: reports.hour,
+      excludedProjectIds: reports.excludedProjectIds,
     })
     .from(reports)
     .where(eq(reports.workspaceId, workspaceId))
@@ -91,6 +98,7 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
       createdAt: r.createdAt,
       schedule: { weekdays: r.weekdays, hour: r.hour },
       targets: targetsByReport.get(r.id) ?? [],
+      excludedProjectIds: r.excludedProjectIds,
     };
   });
 }
@@ -209,4 +217,29 @@ export async function setSlackTargets(input: z.infer<typeof SetSlackTargetsSchem
 
     return { success: true };
   });
+}
+
+// Replace the set of projects left out of a report. Ids outside the workspace are dropped.
+export async function setExcludedProjects(input: z.infer<typeof SetExcludedProjectsSchema>) {
+  const { reportId, workspaceId, excludedProjectIds } = SetExcludedProjectsSchema.parse(input);
+
+  const workspaceProjects =
+    excludedProjectIds.length > 0
+      ? await db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(eq(projects.workspaceId, workspaceId), inArray(projects.id, excludedProjectIds)))
+      : [];
+
+  const updated = await db
+    .update(reports)
+    .set({ excludedProjectIds: workspaceProjects.map((p) => p.id) })
+    .where(and(eq(reports.id, reportId), eq(reports.workspaceId, workspaceId)))
+    .returning({ id: reports.id });
+
+  if (updated.length === 0) {
+    throw new Error("Report not found.");
+  }
+
+  return { success: true, excluded: workspaceProjects.length };
 }
