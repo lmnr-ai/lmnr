@@ -22,7 +22,7 @@ export async function POST(_req: NextRequest, props: Params): Promise<Response> 
   const { workspaceId } = await props.params;
 
   try {
-    const result = await startStarterTrial({ workspaceId });
+    const result = await startStarterTrial({ workspaceId, source: "billing" });
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {

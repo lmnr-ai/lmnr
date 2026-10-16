@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
@@ -39,6 +40,11 @@ export default function PlanStep({ stepIndex, totalSteps, onAdvance, onBack }: P
   const alreadyOnPaidTier = currentTier !== "free";
   const offerTrial = subscriptionEnabled && trialAvailable && !alreadyOnPaidTier;
   const startsTrial = offerTrial && selectedTier === "hobby";
+
+  useEffect(() => {
+    track("onboarding", "plan_step_viewed", { trial_offered: offerTrial, current_tier: currentTier });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const commit = async (choice: CommitPlan) => {
     const result = await commitPlan(choice);

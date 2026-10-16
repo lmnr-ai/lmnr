@@ -6,7 +6,6 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { TRIAL_DAYS } from "@/lib/actions/checkout/types";
-import { track } from "@/lib/posthog";
 
 interface StartTrialButtonProps {
   workspaceId: string;
@@ -25,7 +24,6 @@ export default function StartTrialButton({ workspaceId, onError }: StartTrialBut
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? "Failed to start the free trial");
       }
-      track("billing", "trial_started");
       router.refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : "Failed to start the free trial");
