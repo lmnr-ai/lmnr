@@ -5,7 +5,7 @@ import { type Dashboard } from "@/components/dashboards/types";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, dashboards } from "@/lib/db/migrations/schema";
 
-export const DEFAULT_DASHBOARD_NAME = "Main";
+export const DEFAULT_DASHBOARD_NAME = "main";
 
 export class LastDashboardError extends Error {
   constructor() {

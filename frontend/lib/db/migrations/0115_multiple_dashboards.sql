@@ -6,7 +6,7 @@ CREATE TABLE "dashboards" (
 );
 --> statement-breakpoint
 ALTER TABLE "dashboard_charts" ADD COLUMN "dashboard_id" uuid;--> statement-breakpoint
-INSERT INTO "dashboards" ("project_id", "name") SELECT DISTINCT "project_id", 'Main' FROM "dashboard_charts";--> statement-breakpoint
+INSERT INTO "dashboards" ("project_id", "name") SELECT DISTINCT "project_id", 'main' FROM "dashboard_charts";--> statement-breakpoint
 UPDATE "dashboard_charts" SET "dashboard_id" = "dashboards"."id" FROM "dashboards" WHERE "dashboards"."project_id" = "dashboard_charts"."project_id";--> statement-breakpoint
 ALTER TABLE "dashboard_charts" ALTER COLUMN "dashboard_id" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "dashboards" ADD CONSTRAINT "dashboards_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
