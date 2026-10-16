@@ -168,8 +168,8 @@ interface MessagesProps {
   hideScrollToBottom?: boolean;
   maxHeight?: number;
   labels?: MessageLabel[];
-  // Pre-detected messages; when set, detection is skipped (used by the Overview).
-  processed?: ProcessedMessages;
+  // Pre-detected segments, each rendered in its own format; when set, detection is skipped (used by the Overview).
+  processed?: ProcessedMessages[];
   defaultExpanded?: boolean;
   /** Expand messages at this index and after (Overview output). */
   expandFromIndex?: number;
@@ -178,6 +178,17 @@ interface MessagesProps {
 type VirtualItem =
   | { kind: "label"; text: string; subtext?: string; key: string }
   | { kind: "message"; index: number; key: string };
+
+// A message addressed by its segment and its index within that segment.
+interface MessageEntry {
+  segment: ProcessedMessages;
+  localIndex: number;
+}
+
+const messageRole = ({ segment, localIndex }: MessageEntry): string | undefined => {
+  const message = segment.messages[localIndex] as { role?: string; type?: string };
+  return segment.type === "openai-responses" ? responsesItemRole(message) : message?.role;
+};
 
 const HEADER_HEIGHT = 28;
 const LABEL_ESTIMATE_SIZE = 40;
@@ -216,8 +227,12 @@ function PureMessages({
   const overlayRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
 
-  const processedResult = useMemo(() => processed ?? processMessages(messages), [processed, messages]);
-  const toolNameMap = useMemo(() => buildToolNameMap(processedResult), [processedResult]);
+  const segments = useMemo(() => processed ?? [processMessages(messages)], [processed, messages]);
+  const entries: MessageEntry[] = useMemo(
+    () => segments.flatMap((segment) => segment.messages.map((_, localIndex) => ({ segment, localIndex }))),
+    [segments]
+  );
+  const toolNameMap = useMemo(() => new Map(segments.flatMap((segment) => [...buildToolNameMap(segment)])), [segments]);
 
   const searchState = useSpanSearchState();
   const searchTerm = searchState?.searchTerm || "";
@@ -236,19 +251,19 @@ function PureMessages({
         labelsByIndex.set(label.beforeIndex, arr);
       }
     }
-    for (let i = 0; i <= processedResult.messages.length; i++) {
+    for (let i = 0; i <= entries.length; i++) {
       const here = labelsByIndex.get(i);
       if (here) {
         for (let j = 0; j < here.length; j++) {
           items.push({ kind: "label", text: here[j].text, subtext: here[j].subtext, key: `label-${i}-${j}` });
         }
       }
-      if (i < processedResult.messages.length) {
+      if (i < entries.length) {
         items.push({ kind: "message", index: i, key: `msg-${i}` });
       }
     }
     return items;
-  }, [labels, processedResult.messages.length]);
+  }, [labels, entries.length]);
 
   const virtualizer = useVirtualizer({
     count: virtualItems.length,
@@ -286,8 +301,7 @@ function PureMessages({
     if (found >= 0) {
       const virtualItem = virtualItems[found];
       if (virtualItem?.kind === "message") {
-        const message = processedResult.messages[virtualItem.index] as { role?: string; type?: string };
-        role = processedResult.type === "openai-responses" ? responsesItemRole(message) : message?.role;
+        role = messageRole(entries[virtualItem.index]);
       }
       const itemStart = cache[found].start;
       const itemEnd = cache[found].end;
@@ -302,7 +316,7 @@ function PureMessages({
       prevOverlayRef.current = { role, show };
       updateOverlay(overlayRef.current, labelRef.current, role, show);
     }
-  }, [processedResult.messages, processedResult.type, virtualItems, virtualizer]);
+  }, [entries, virtualItems, virtualizer]);
 
   const scrollToBottom = useCallback(() => {
     virtualizer.scrollToIndex(virtualItems.length - 1, {
@@ -369,18 +383,17 @@ function PureMessages({
                   );
                 }
                 const messageIndex = virtualItem.index;
-                const message = processedResult.messages[messageIndex] as { role?: string; type?: string };
-                const role = processedResult.type === "openai-responses" ? responsesItemRole(message) : message?.role;
+                const entry = entries[messageIndex];
                 return (
                   <div key={virtualItem.key} data-index={item.index} ref={virtualizer.measureElement} className="pb-4">
                     <MessageWrapper
-                      role={role}
+                      role={messageRole(entry)}
                       presetKey={`collapse-${messageIndex}-${presetKey}`}
                       maxHeight={maxHeight}
                       stickyHeader={false}
                       defaultExpanded={defaultExpanded || (expandFromIndex != null && messageIndex >= expandFromIndex)}
                     >
-                      {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
+                      {renderMessageContent(entry.segment, entry.localIndex, presetKey, toolNameMap)}
                     </MessageWrapper>
                   </div>
                 );
