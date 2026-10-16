@@ -13,7 +13,7 @@ import {
 import { invalidateProjectCacheForWorkspace } from "@/lib/actions/usage/utils";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
-import { invalidateWorkspaceMemberAccessCache } from "@/lib/authorization";
+import { getWorkspaceRole, invalidateWorkspaceMemberAccessCache } from "@/lib/authorization";
 import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, users, workspaces } from "@/lib/db/migrations/schema";
@@ -81,6 +81,14 @@ export const isStarterTrialEligible = async (workspaceId: string | null, userId:
   }
 
   return !(await ownsSubscribedWorkspace(userId));
+};
+
+// Mirrors startStarterTrial's checks so the UI offers the trial only to whoever can start it.
+export const canStartStarterTrial = async (workspaceId: string): Promise<boolean> => {
+  const session = await getServerSession();
+  if (!session) return false;
+  if ((await getWorkspaceRole(workspaceId, session.user.id)) !== "owner") return false;
+  return isStarterTrialEligible(workspaceId, session.user.id);
 };
 
 export const getWorkspaceOwnerEmails = async (workspaceId: string): Promise<string[]> => {

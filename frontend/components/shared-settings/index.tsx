@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
+import UpgradeNotice from "@/components/common/upgrade-notice";
 import AgentVersions from "@/components/settings/agent-versions";
 import AlertsSettings from "@/components/settings/alerts";
 import CustomModelCosts from "@/components/settings/custom-model-costs";
@@ -55,7 +56,12 @@ import { type SubscriptionDetails, type UpcomingInvoiceInfo, type ActiveTrialInf
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { Feature } from "@/lib/features/features";
-import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
+import {
+  type WorkspaceInvitation,
+  type WorkspaceRole,
+  type WorkspaceWithOptionalUsers,
+  WorkspaceTier,
+} from "@/lib/workspaces/types";
 
 interface SharedSettingsProps {
   workspace: WorkspaceWithOptionalUsers;
@@ -115,6 +121,7 @@ const SharedSettings = ({
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
   const workspaceId = workspace.id;
+  const isFree = !!featureFlags[Feature.SUBSCRIPTION] && workspace.tierName === WorkspaceTier.FREE;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
   // via a direct ?tab= link when their flag is off.
@@ -181,6 +188,18 @@ const SharedSettings = ({
       case "deployment":
         return <WorkspaceDeployment workspace={workspace} />;
       case "integrations":
+        if (isFree) {
+          return (
+            <>
+              <SettingsSectionHeader title="Integrations" description="Manage your workspace integrations" />
+              <UpgradeNotice
+                title="Slack alerts aren't included in the Free plan"
+                description="Upgrade to Starter to get Signal events and clusters in Slack."
+                source="integrations"
+              />
+            </>
+          );
+        }
         return (
           <WorkspaceIntegrations
             workspaceId={workspace.id}
@@ -241,6 +260,18 @@ const SharedSettings = ({
       case "agent-versions":
         return <AgentVersions />;
       case "alerts":
+        if (isFree) {
+          return (
+            <>
+              <SettingsSectionHeader title="Alerts" description="Get notified about new events or clusters." />
+              <UpgradeNotice
+                title="Alerts aren't included in the Free plan"
+                description="Upgrade to Starter to get alerts on Signal events and clusters by Slack and email."
+                source="alerts"
+              />
+            </>
+          );
+        }
         return (
           <AlertsSettings
             projectId={projectId}

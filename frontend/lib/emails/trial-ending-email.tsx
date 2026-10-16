@@ -9,7 +9,7 @@ import { LAMINAR_LOGO_CID } from "./report-email-layout";
 const PRICING_URL = "https://lmnr.ai/pricing";
 
 const CHANGES = [
-  `Data retention: ${TIER_RETENTION.hobby.durationPlural} → ${TIER_RETENTION.free.durationPlural}`,
+  `Data access: ${TIER_RETENTION.hobby.durationPlural} → ${TIER_RETENTION.free.durationPlural}`,
   `Included data: ${TIERS.hobby.includedBytesGB} GB → ${TIERS.free.includedBytesGB} GB a month`,
   "Signals pause",
   "Slack alerts pause",
