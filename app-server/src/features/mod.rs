@@ -34,7 +34,7 @@ pub enum Feature {
     InputExtraction,
     Reports,
     /// Checkpoints / agent-versioning pipeline. Gated behind
-    /// `CHECKPOINTS_ENABLED`, default off. Records only what the v2
+    /// `CHECKPOINTS_ENABLED`, default on. Records only what the v2
     /// system-prompt versioning consumer resolves, so it is inert without
     /// `SystemPromptVersioning`.
     Checkpoints,
