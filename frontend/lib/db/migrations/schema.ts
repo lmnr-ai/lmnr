@@ -770,6 +770,10 @@ export const reports = pgTable(
     weekdays: integer().array().notNull(),
     hour: integer().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    excludedProjectIds: uuid("excluded_project_ids")
+      .array()
+      .default(sql`'{}'::uuid[]`)
+      .notNull(),
   },
   (table) => [
     foreignKey({

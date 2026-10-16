@@ -31,7 +31,7 @@ interface WorkspaceReportsProps {
 
 export default function WorkspaceReports({ workspaceId, slackClientId, slackRedirectUri }: WorkspaceReportsProps) {
   const { email: userEmail } = useUserContext();
-  const { settingsHref } = useProjectContext();
+  const { settingsHref, projects } = useProjectContext();
 
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
@@ -52,7 +52,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
     <SettingsSection>
       <SettingsSectionHeader
         title="Reports"
-        description="Periodic reports of signal activity across every project in the workspace. Stay up to date with issues in your project without digging through traces and events."
+        description="Periodic reports of signal activity across the projects in your workspace. Stay up to date with issues in your project without digging through traces and events."
       />
 
       <SlackConnectionCard
@@ -66,12 +66,13 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
         isLoading={isLoading}
         isEmpty={isNil(reports) || isEmpty(reports)}
         emptyMessage="No reports available yet. Reports will appear here once they are configured for your workspace."
-        headers={["Report", "Schedule", "Send to", ""]}
-        colSpan={4}
+        headers={["Report", "Schedule", "Projects", "Send to", ""]}
+        colSpan={5}
       >
         {reports?.map((report) => {
           // Only show the current user's own email target + all Slack targets
           const visibleTargets = report.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
+          const includedProjectCount = projects.filter((p) => !report.excludedProjectIds.includes(p.id)).length;
           return (
             <SettingsTableRow key={report.id}>
               <td className="px-4 text-sm font-medium max-w-48">
@@ -81,6 +82,9 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
               </td>
               <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">
                 {formatSchedule(report.schedule)}
+              </td>
+              <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">
+                {includedProjectCount === projects.length ? "All" : `${includedProjectCount} of ${projects.length}`}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />
@@ -109,6 +113,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
         workspaceId={workspaceId}
         integrationId={slackIntegration?.id}
         report={editTarget}
+        projects={projects}
         open={sheetOpen}
         onOpenChange={(open) => {
           setSheetOpen(open);
