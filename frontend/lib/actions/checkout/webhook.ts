@@ -8,6 +8,7 @@ import {
   invalidateUsageWarningsCacheForWorkspace,
 } from "@/lib/actions/usage/utils";
 import { preservePrivacyModeOnDowngrade } from "@/lib/actions/workspace/settings";
+import { invalidateWorkspaceMemberAccessCache } from "@/lib/authorization";
 import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
@@ -155,6 +156,10 @@ export const manageWorkspaceSubscriptionEvent = async ({
     await Promise.all([
       invalidateUsageWarningsCacheForWorkspace(workspaceId),
       invalidateProjectCacheForWorkspace(workspaceId),
+      // Moving in or out of Free toggles the owner-only lock for workspaces that had a subscription.
+      (currentTier === "free") !== (newTierName === "free")
+        ? invalidateWorkspaceMemberAccessCache(workspaceId)
+        : undefined,
     ]);
   } catch (e) {
     console.error(`Failed to sync usage warnings/limits for workspace ${workspaceId}, Error: ${e}`);
@@ -236,8 +241,9 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
       return;
     }
 
-    if (status === "active" && stripeCustomerId && productId) {
-      console.log(`Subscription ${subscription.id} active. productId`, productId);
+    // A Starter trial is a "trialing" subscription and gets the tier like a paid one.
+    if (["active", "trialing"].includes(status) && stripeCustomerId && productId) {
+      console.log(`Subscription ${subscription.id} ${status}. productId`, productId);
       try {
         if (!workspaceId) {
           console.log(`subscription updated event. No workspaceId found. subscriptionId: ${subscription.id}`);

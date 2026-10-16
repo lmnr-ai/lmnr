@@ -544,6 +544,7 @@ export const workspaces = pgTable(
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }).default(5_000_000),
     settings: jsonb().default({}).notNull(),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     foreignKey({

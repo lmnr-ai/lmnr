@@ -46,12 +46,17 @@ const PROJECT_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 /// a failed eviction can keep suppressing the Postgres re-check.
 const HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS: u64 = 60 * 5; // 5 minutes
 
+/// Free, and a card-less Starter trial, stop at the tier allowance instead of billing overage.
+fn is_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
+    project_info.tier_name.is_free() || project_info.trialing
+}
+
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
 ///
-/// - For free tier: always uses the tier limit (custom limits are not allowed).
+/// - For free tier and trials: always uses the tier limit (custom limits are not allowed).
 /// - For paid tiers: uses custom limit when set, else no limit is enforced.
 fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    if project_info.tier_name.is_free() {
+    if is_capped_at_allowance(project_info) {
         return Some(project_info.bytes_limit);
     }
     project_info.custom_bytes_limit
@@ -177,14 +182,19 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         }
     };
 
-    let is_free = project_info.tier_name.is_free();
+    // Free has no Signals at all; existing signals stay but never run.
+    if project_info.tier_name.is_free() {
+        return Ok(true);
+    }
+
+    let is_capped = is_capped_at_allowance(&project_info);
     let effective_limit = project_info.signal_cost_hard_limit_micro_usd;
-    if !is_free && effective_limit.is_none() {
+    if !is_capped && effective_limit.is_none() {
         return Ok(false);
     }
 
     let workspace_id = project_info.workspace_id;
-    if is_free {
+    if is_capped {
         let persisted_credit =
             db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
         let remaining_credit = persisted_credit.unwrap_or(0);
@@ -346,6 +356,7 @@ pub async fn update_workspace_bytes_ingested(
         UsageItem::Bytes,
         current_value,
         &project_info.tier_name,
+        project_info.trialing,
     )
     .await;
 
@@ -416,7 +427,7 @@ pub async fn check_workspace_signal_usage(
         output_tokens,
     } = match get_workspace_signal_tokens_by_project_ids(
         clickhouse,
-        project_info.workspace_project_ids,
+        project_info.workspace_project_ids.clone(),
         billing_start,
     )
     .await
@@ -444,10 +455,11 @@ pub async fn check_workspace_signal_usage(
         UsageItem::SignalCost,
         current_cost,
         &project_info.tier_name,
+        project_info.trialing,
     )
     .await;
 
-    if project_info.tier_name.is_free() {
+    if is_capped_at_allowance(&project_info) {
         let persisted_credit =
             db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
         let remaining_credit = persisted_credit.unwrap_or(0);
@@ -493,6 +505,7 @@ async fn check_soft_limits(
     usage_item: UsageItem,
     current_value: i64,
     tier_name: &WorkspaceTierName,
+    trialing: bool,
 ) {
     let warnings = match get_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
         Ok(w) => w,
@@ -527,6 +540,7 @@ async fn check_soft_limits(
             &usage_item,
             warning.limit_value,
             tier_name,
+            trialing,
         )
         .await;
     }
@@ -545,6 +559,7 @@ async fn send_soft_limit_notification(
     usage_item: &UsageItem,
     limit_value: i64,
     tier_name: &WorkspaceTierName,
+    trialing: bool,
 ) {
     let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
         Ok(name) => name,
@@ -570,7 +585,8 @@ async fn send_soft_limit_notification(
         UsageItem::SignalCost | UsageItem::SignalCredit => None,
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
-    let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
+    let overage_billable =
+        !trialing && matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
 
     let notification_message = NotificationMessage {
         definition_type: NotificationDefinitionType::UsageWarning,

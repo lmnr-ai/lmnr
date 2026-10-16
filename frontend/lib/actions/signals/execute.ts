@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import { assertProjectHasSignals } from "@/lib/actions/usage/plan-gates";
 import { fetcherJSON } from "@/lib/utils.ts";
 
 const ExecuteSignalSchema = z.object({
@@ -22,6 +23,7 @@ const SignalResponseSchema = z.object({
 
 export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>) => {
   const { projectId, traceId, signal, llmProfileId, model } = ExecuteSignalSchema.parse(input);
+  await assertProjectHasSignals(projectId);
 
   const response = await fetcherJSON(`/projects/${projectId}/signals/execute`, {
     method: "POST",

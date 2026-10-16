@@ -193,6 +193,11 @@ impl NotificationDeliveryHandler {
             return Ok(None);
         };
 
+        // Slack is a paid feature: a Free workspace keeps its integration but gets no deliveries.
+        if integration.free_tier {
+            return Ok(None);
+        }
+
         let decrypted_token = slack::decode_slack_token(
             &integration.team_id,
             &integration.nonce_hex,

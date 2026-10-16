@@ -58,7 +58,7 @@ export default function StepShell({
 
   return (
     <div className="relative h-svh w-full flex items-stretch md:items-center justify-center py-4 md:py-6 lg:py-8 overflow-hidden">
-      <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 md:gap-6 xl:gap-8 md:h-[42rem] xl:h-[46rem] 2xl:h-[50rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-4rem)]">
+      <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 2xl:gap-8 md:h-[42rem] xl:h-[46rem] 2xl:h-[50rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-4rem)]">
         <div className="flex items-center justify-between gap-3 px-4 shrink-0">
           <Image
             alt="Laminar logo"
@@ -105,7 +105,7 @@ export default function StepShell({
               className={cn(
                 centerContent
                   ? "flex h-full flex-col items-center justify-center gap-3"
-                  : "flex flex-col gap-5 xl:gap-6"
+                  : "flex flex-col gap-4 xl:gap-6"
               )}
             >
               {children}

@@ -6,14 +6,16 @@ import {
   formatPrice,
   formatProjects,
   formatSeats,
-  formatSignalsCount,
+  formatSignalsCreditLabel,
   formatSupport,
+  tierIncludesSignals,
   TIERS,
 } from "@/lib/billing/tiers";
 
 export interface PlanFeature {
   label: string;
   sub?: string;
+  excluded?: boolean;
 }
 
 export interface PlanOption {
@@ -40,7 +42,7 @@ const buildPlan = (tier: OnboardingTier): PlanOption => {
       isPaid
         ? { label: `${formatDataIncluded(tier)} ingested data`, sub: `then ${formatDataOverage(tier)}` }
         : { label: `${formatDataIncluded(tier)} ingested data`, sub: "no overage" },
-      { label: `${formatSignalsCount(tier)} one-time Signals credit` },
+      tierIncludesSignals(tier) ? { label: formatSignalsCreditLabel(tier) } : { label: "No Signals", excluded: true },
       { label: retentionLabel(tier) },
       { label: formatProjects(tier) },
       { label: formatSeats(tier) },
