@@ -136,7 +136,7 @@ export const commitOnboarding = async (
   // A retry after the trial already started finds the workspace off Free and skips straight on.
   if (await isFreeTierWorkspace(workspaceId)) {
     if (plan === "continue") throw new Error("This workspace isn't on a paid plan yet.");
-    await startStarterTrial({ workspaceId });
+    await startStarterTrial({ workspaceId, source: "onboarding" });
   }
   const failedInvites = await applyOnboardingSelections({
     workspaceId,
