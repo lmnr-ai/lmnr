@@ -3,7 +3,7 @@ import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
+import { type DashboardChart, dragHandleKey, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,24 +20,25 @@ interface ChartHeaderProps {
   name: string;
   id: string;
   projectId: string;
+  dashboardId: string;
 }
 
-const deleteChart = async (id: string, projectId: string) => {
-  await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
+const deleteChart = async (chartsUrl: string, id: string) => {
+  await fetch(`${chartsUrl}/${id}`, {
     method: "DELETE",
   });
 };
 
-const duplicateChart = async (id: string, projectId: string) => {
-  const res = await fetch(`/api/projects/${projectId}/dashboard-charts/${id}/duplicate`, {
+const duplicateChart = async (chartsUrl: string, id: string) => {
+  const res = await fetch(`${chartsUrl}/${id}/duplicate`, {
     method: "POST",
   });
 
   if (!res.ok) throw new Error("Failed to duplicate chart");
 };
 
-const updateChart = async (id: string, projectId: string, name: string) => {
-  await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
+const updateChart = async (chartsUrl: string, id: string, name: string) => {
+  await fetch(`${chartsUrl}/${id}`, {
     method: "PATCH",
     body: JSON.stringify({
       name,
@@ -45,7 +46,11 @@ const updateChart = async (id: string, projectId: string, name: string) => {
   });
 };
 
-const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
+const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => {
+  const chartsUrl = getChartsUrl(projectId, dashboardId);
+  // The switcher's chart counts come from the dashboards list, so adding or
+  // removing a chart has to revalidate it alongside the charts themselves.
+  const dashboardsUrl = getDashboardsUrl(projectId);
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -53,9 +58,9 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   const handleDeleteChart = useCallback(async () => {
     try {
       await mutate<DashboardChart[]>(
-        `/api/projects/${projectId}/dashboard-charts`,
+        chartsUrl,
         async (currentData) => {
-          await deleteChart(id, projectId);
+          await deleteChart(chartsUrl, id);
           return (currentData || []).filter((item) => item.id !== id);
         },
         {
@@ -65,6 +70,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           optimisticData: (currentData) => (currentData || []).filter((item) => item.id !== id),
         }
       );
+      await mutate(dashboardsUrl);
       track("dashboards", "chart_deleted");
     } catch (e) {
       toast({
@@ -72,14 +78,14 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         variant: "destructive",
       });
     }
-  }, [id, mutate, projectId, toast]);
+  }, [chartsUrl, dashboardsUrl, id, mutate, toast]);
 
   const handleDuplicateChart = useCallback(async () => {
     try {
-      await duplicateChart(id, projectId);
+      await duplicateChart(chartsUrl, id);
       // Refetch rather than appending the new chart: duplicating also shifts the
       // siblings it displaced, so the server holds the only complete layout.
-      await mutate(`/api/projects/${projectId}/dashboard-charts`);
+      await Promise.all([mutate(chartsUrl), mutate(dashboardsUrl)]);
       track("dashboards", "chart_duplicated");
     } catch (e) {
       toast({
@@ -87,7 +93,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         variant: "destructive",
       });
     }
-  }, [id, mutate, projectId, toast]);
+  }, [chartsUrl, dashboardsUrl, id, mutate, toast]);
 
   const handleUpdateChart = useCallback(
     async (newName: string) => {
@@ -95,9 +101,9 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         if (newName === name || name?.trim()?.length === 0) return;
         if (newName) {
           await mutate<DashboardChart[]>(
-            `/api/projects/${projectId}/dashboard-charts`,
+            chartsUrl,
             async (currentData) => {
-              await updateChart(id, projectId, newName);
+              await updateChart(chartsUrl, id, newName);
               return (currentData || []).map((item) => (item.id === id ? { ...item, name: newName } : item));
             },
             {
@@ -116,7 +122,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         });
       }
     },
-    [id, mutate, name, projectId, toast]
+    [chartsUrl, id, mutate, name, toast]
   );
 
   const handleOnBlur = async (e: FocusEvent<HTMLInputElement>) => {
@@ -176,12 +182,12 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               }}
               className="cursor-pointer"
             >
-              <Pen className="h-3.5 w-3.5 mr-1 text-inherit" />
+              <Pen className="size-3.5" />
               Rename
             </DropdownMenuItem>
-            <Link passHref href={`/project/${projectId}/dashboards/${id}`}>
+            <Link passHref href={`/project/${projectId}/dashboards/${dashboardId}/charts/${id}`}>
               <DropdownMenuItem className="cursor-pointer">
-                <Edit className="h-3.5 w-3.5 mr-1 text-inherit" />
+                <Edit className="size-3.5" />
                 Edit
               </DropdownMenuItem>
             </Link>
@@ -192,7 +198,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               }}
               className="cursor-pointer"
             >
-              <Copy className="h-3.5 w-3.5 mr-1 text-inherit" />
+              <Copy className="size-3.5" />
               Duplicate
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -200,9 +206,10 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
                 e.stopPropagation();
                 handleDeleteChart();
               }}
-              className="cursor-pointer text-destructive focus:text-destructive"
+              variant="destructive"
+              className="cursor-pointer"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-1 text-inherit" />
+              <Trash2 className="size-3.5" />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>

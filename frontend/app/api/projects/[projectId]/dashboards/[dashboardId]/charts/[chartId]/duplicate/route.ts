@@ -5,12 +5,12 @@ import { duplicateChart } from "@/lib/actions/dashboard";
 
 export async function POST(
   _req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
+  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
 ): Promise<Response> {
-  const { projectId, id } = await props.params;
+  const { projectId, dashboardId, chartId: id } = await props.params;
 
   try {
-    const chart = await duplicateChart({ projectId, id });
+    const chart = await duplicateChart({ projectId, dashboardId, id });
 
     if (!chart) {
       return Response.json({ error: "Chart not found" }, { status: 404 });
