@@ -128,7 +128,7 @@ fn breadcrumb(parts: &[&str], href: &str) -> String {
 fn data_row(label: &str, value: &str, stacked: bool) -> String {
     if stacked {
         format!(
-            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td align="left" style="padding:7px 10px 2px;font-size:14px;color:{};text-align:left">{}</td></tr><tr><td align="left" style="padding:2px 10px 7px;font-size:14px;color:{};text-align:left">{}</td></tr></table>"#,
+            r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:{};border-radius:4px;margin-bottom:4px"><tr><td align="left" style="padding:7px 10px 2px;font-size:14px;color:{};text-align:left">{}</td></tr><tr><td align="left" style="padding:2px 10px 7px;font-size:14px;color:{};text-align:left;white-space:pre-line">{}</td></tr></table>"#,
             ROW,
             MUTED,
             html_escape(label),
@@ -436,6 +436,30 @@ fn render_alert_email(
         TEXT,
         event_data_rows(&rows)
     );
+    let alert_footer = if severity == 2 {
+        let signal_settings = with_utm(
+            &format!(
+                "{}/project/{}/signals/{}?tab=settings&section=settings",
+                frontend_url_email(),
+                project_id,
+                signal_id
+            ),
+            "email",
+            "signal_alert",
+            "signal_settings",
+        );
+        format!(
+            r#"<div style="text-align:center;padding:16px 0;font-size:12px;color:#92949c;line-height:1.6"><p style="margin:0 0 12px">This alert was generated automatically by Laminar.<br>Manage alert preferences <a href="{}" style="color:#92949c">here</a>.</p><p style="margin:0">Influence which events are considered critical by adding additional<br>instructions to your signal's prompt in <a href="{}" style="color:#92949c">Signal settings</a>.</p></div>"#,
+            html_escape(&manage),
+            html_escape(&signal_settings),
+        )
+    } else {
+        footer(
+            "This alert was generated automatically by Laminar.",
+            &manage,
+            "Manage alert preferences",
+        )
+    };
     let body = format!(
         "{}{}{}",
         banner(
@@ -444,11 +468,7 @@ fn render_alert_email(
             None
         ),
         card,
-        footer(
-            "This alert was generated automatically by Laminar.",
-            &manage,
-            "Manage alert preferences"
-        )
+        alert_footer,
     );
     email_document(
         &format!("{}: {} event", event_name, severity_label(severity)),
@@ -1115,6 +1135,18 @@ mod tests {
         };
 
         assert!(html.contains(&format!("?traceId={trace_id}&eventId={event_id}")));
+        assert!(html.contains(
+            "This alert was generated automatically by Laminar.<br>Manage alert preferences"
+        ));
+        assert!(html.contains("Influence which events are considered critical by adding additional<br>instructions to your signal's prompt"));
+        assert!(html.contains(&format!(
+            "/project/{}/signals/{}?tab=settings&amp;section=settings&amp;utm_source=email",
+            Uuid::nil(),
+            Uuid::from_u128(1),
+        )));
+        assert!(html.contains("/settings?tab=alerts&amp;utm_source=email"));
+        assert!(html.contains(">here</a>.</p>"));
+        assert!(html.contains(">Signal settings</a>.</p>"));
     }
 
     #[test]
@@ -1212,6 +1244,8 @@ mod tests {
             "Alert",
             None,
         );
+        assert!(!html.contains("Influence which events are considered critical"));
+        assert!(html.contains(">Manage alert preferences</a>"));
         assert!(!html.contains("empty"));
         assert!(!html.contains(">null<"));
         assert!(html.contains("nested"));

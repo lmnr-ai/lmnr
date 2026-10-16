@@ -2,7 +2,6 @@ import { Head, Html, Img, Link, Preview, Section, Text } from "@react-email/comp
 import type { CSSProperties } from "react";
 
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
-import { WELCOME_BANNER_CID } from "./welcome-email";
 
 export default function WorkspaceInviteEmail({
   workspaceName,
@@ -22,7 +21,7 @@ export default function WorkspaceInviteEmail({
           <table className="invite-banner" role="presentation" cellPadding="0" cellSpacing="0" style={bannerTable}>
             <tbody>
               <tr>
-                <td {...{ background: `cid:${WELCOME_BANNER_CID}` }} style={banner}>
+                <td style={banner}>
                   <table role="presentation" cellPadding="0" cellSpacing="0">
                     <tbody>
                       <tr>
@@ -73,10 +72,6 @@ const banner: CSSProperties = {
   padding: "16px 20px 12px",
   borderRadius: "8px",
   backgroundColor: "#252526",
-  backgroundImage: `url('cid:${WELCOME_BANNER_CID}')`,
-  backgroundPosition: "center",
-  backgroundSize: "cover",
-  backgroundRepeat: "no-repeat",
 };
 const logo: CSSProperties = { display: "block", width: "76px", height: "13px" };
 const identity: CSSProperties = {

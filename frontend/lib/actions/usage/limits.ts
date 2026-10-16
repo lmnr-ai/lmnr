@@ -10,6 +10,7 @@ import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+import { FREE_PLAN_SIGNALS_ERROR } from "./plan-gates";
 import { getSignalCreditState } from "./signal-credit";
 
 interface ProjectBillingInfo {
@@ -21,6 +22,7 @@ interface ProjectBillingInfo {
   workspaceProjectIds: string[];
   bytesLimit: number;
   signalCostHardLimitMicroUsd?: number | null;
+  trialing?: boolean;
 }
 
 interface BillingInfo {
@@ -29,6 +31,8 @@ interface BillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   signalCostHardLimitMicroUsd: number | null;
+  // A card-less Starter trial is capped like Free: no billable overage.
+  trialing: boolean;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -43,6 +47,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
         workspaceProjectIds: cached.workspaceProjectIds,
         signalCostHardLimitMicroUsd:
           cached.signalCostHardLimitMicroUsd != null ? Number(cached.signalCostHardLimitMicroUsd) : null,
+        trialing: cached.trialing ?? false,
       };
     }
   } catch {
@@ -54,6 +59,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       workspaceId: workspaces.id,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
+      trialEndsAt: workspaces.trialEndsAt,
     })
     .from(projects)
     .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
@@ -87,6 +93,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
     signalCostHardLimitMicroUsd: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
+    trialing: row.trialEndsAt !== null,
   };
 }
 
@@ -111,6 +118,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     resetTime,
     workspaceProjectIds,
     signalCostHardLimitMicroUsd: customSignalCostLimit,
+    trialing,
   } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
@@ -118,10 +126,14 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (isFree) {
+    throw new Error(FREE_PLAN_SIGNALS_ERROR);
+  }
+
+  if (trialing) {
     const credit = await getSignalCreditState(workspaceId, 0);
     if (credit.remainingMicroUsd === 0) {
       throw new Error(
-        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Please upgrade your plan.`
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Start Starter from Billing to keep Signals running.`
       );
     }
     return;

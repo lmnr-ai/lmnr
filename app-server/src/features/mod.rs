@@ -25,6 +25,9 @@ pub enum Feature {
     /// Signals route their LLM calls through a profile. Self-hosted only: cloud
     /// signals keep running on Laminar's internal keys.
     SignalLlmProfiles,
+    /// Hosted signals gateway (`/v1/chat/completions`) that self-hosted
+    /// deployments can point a signals LLM profile at. Cloud only.
+    SignalsGateway,
     /// Ingestion-time user-task extraction (LAM-1880). Shares the
     /// LLM-provider condition with `Signals` but stays a separate flag —
     /// features are fine-grained so gating can diverge later.
@@ -86,6 +89,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         // signal, so they boot even with neither env provider nor system workspace.
         Feature::Signals => has_llm_backend() || is_feature_enabled(Feature::SignalLlmProfiles),
         Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
+        Feature::SignalsGateway => env::connections::LAMINAR_CLOUD.get(),
         Feature::InputExtraction => has_llm_backend(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")

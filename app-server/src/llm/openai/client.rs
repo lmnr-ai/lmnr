@@ -6,7 +6,7 @@ use super::conversions::{
 };
 use super::{
     OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult, build_http_config,
-    build_http_config_from, endpoint_url, send_openai_request,
+    build_http_config_from, endpoint_url, post_openai_request, send_openai_request,
 };
 use crate::llm::{
     LanguageModelClient, ProviderResult,
@@ -73,6 +73,22 @@ impl OpenAIClient {
             self.api_version.as_deref(),
         )
     }
+
+    /// POSTs a caller-built Chat Completions body as-is and returns the upstream
+    /// status and body unparsed, error statuses included. For proxying.
+    pub async fn post_raw(&self, body: &serde_json::Value) -> Result<RawResponse, reqwest::Error> {
+        let response =
+            post_openai_request(&self.client, self.flavor, &self.api_key, &self.url(), body)
+                .await?;
+        let status = response.status().as_u16();
+        let body = response.bytes().await?;
+        Ok(RawResponse { status, body })
+    }
+}
+
+pub struct RawResponse {
+    pub status: u16,
+    pub body: bytes::Bytes,
 }
 
 impl LanguageModelClient for OpenAIClient {

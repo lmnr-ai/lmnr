@@ -152,6 +152,7 @@ impl Harness {
             bytes_limit: i64::MAX,
             custom_bytes_limit: None,
             signal_cost_hard_limit_micro_usd: None,
+            trialing: false,
             settings: ProjectSettings {
                 pii_mode: Some(mode),
                 remove_pii: false,

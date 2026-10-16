@@ -85,7 +85,7 @@ services:
     volumes:
       - quickwit-data:/quickwit/qwdata
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7280 && printf 'GET /health/livez HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -150,6 +150,7 @@ services:
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:5667
       ENVIRONMENT: FULL
+      LAMINAR_TELEMETRY_DISABLED: "${LAMINAR_TELEMETRY_DISABLED:-false}"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}

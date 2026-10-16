@@ -15,7 +15,8 @@ interface UsageCardProps {
 
 export default function UsageCard({ usageDetails }: UsageCardProps) {
   const { settingsHref } = useProjectContext();
-  const { gbLimit, gbUsedThisMonth, signalCreditGrantedMicroUsd, signalCreditRemainingMicroUsd } = usageDetails;
+  // Shown only on Free, which has no Signals, so data is the only meter.
+  const { gbLimit, gbUsedThisMonth } = usageDetails;
   const formatGB = (gb: number) => {
     if (gb < 0.001) {
       return `${(gb * 1024).toFixed(0)} MB`;
@@ -23,16 +24,7 @@ export default function UsageCard({ usageDetails }: UsageCardProps) {
     return `${gb.toFixed(1)} GB`;
   };
 
-  // Signal usage/limit are micro-USD (1e-6 USD); render as a dollar amount.
-  const formatSignalCost = (microUsd: number) =>
-    `$${(microUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
   const storagePercentage = gbLimit > 0 ? Math.min((gbUsedThisMonth / gbLimit) * 100, 100) : 0;
-  const signalCreditUsedMicroUsd = Math.max(0, signalCreditGrantedMicroUsd - signalCreditRemainingMicroUsd);
-  const signalCreditUsedPercentage =
-    signalCreditGrantedMicroUsd > 0
-      ? Math.min((signalCreditUsedMicroUsd / signalCreditGrantedMicroUsd) * 100, 100)
-      : 100;
 
   return (
     <SidebarMenuItem>
@@ -50,27 +42,6 @@ export default function UsageCard({ usageDetails }: UsageCardProps) {
             indicatorClassName="bg-primary-400"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1 text-muted-foreground">Signals</span>
-            <span className="font-medium text-secondary-foreground">
-              {signalCreditGrantedMicroUsd > 0 ? (
-                <>
-                  <span className="font-semibold">{formatSignalCost(signalCreditUsedMicroUsd)}</span> /{" "}
-                  {formatSignalCost(signalCreditGrantedMicroUsd)}
-                </>
-              ) : (
-                "No credit available"
-              )}
-            </span>
-          </div>
-          <Progress
-            value={signalCreditUsedPercentage}
-            className="mx-0.5 h-1 w-[calc(100%-4px)] border-0 bg-[#2f2f32]"
-            indicatorClassName="bg-primary-400"
-          />
-        </div>
-
         <Link href={settingsHref("billing")}>
           <Button className="w-full">
             <span>Upgrade</span>

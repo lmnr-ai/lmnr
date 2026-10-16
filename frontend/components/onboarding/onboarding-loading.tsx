@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 
 import StepShell from "@/components/onboarding/step-shell";
-import { ONBOARDING_STEPS } from "@/components/onboarding/types";
+import { ONBOARDING_STEPS } from "@/lib/actions/onboarding/types";
 
 // Same frame as the workspace step it streams into, so the swap doesn't jump.
 export default function OnboardingLoading() {

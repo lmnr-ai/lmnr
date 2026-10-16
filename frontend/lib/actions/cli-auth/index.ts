@@ -1,8 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
+import { isStarterTrialEligible, startStarterTrial } from "@/lib/actions/checkout/trial";
 import { DEFAULT_PROJECT_NAME, workspaceNameFromEmail } from "@/lib/actions/cli-auth/defaults";
+import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/lib/actions/onboarding/types";
 import { createProject } from "@/lib/actions/projects";
+import { setTemplateSignals } from "@/lib/actions/signals";
 import { createWorkspace, seedFirstProject } from "@/lib/actions/workspaces";
 import { auth } from "@/lib/auth";
 import { getServerSession } from "@/lib/auth-session";
@@ -120,6 +123,7 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
 // workspace, or in a fresh workspace named after their email domain).
 // `isFirstProject` marks a brand-new account, which drives the welcome email.
 const resolveDefaultProject = async (
+  userId: string,
   userEmail: string | null | undefined
 ): Promise<{ projectId: string; isFirstProject: boolean } | { error: string }> => {
   const existingProjects = await listProjectsForCurrentSession();
@@ -153,6 +157,21 @@ const resolveDefaultProject = async (
     await seedFirstProject({ workspaceId, projectId, userEmail });
   } catch (e) {
     console.error(`Failed to seed first-project defaults for project ${projectId}, continuing`, e);
+  }
+
+  // CLI signups never reach the wizard's plan step, so they get the Starter trial and its
+  // default signals here. Best-effort for the same reason as the seed.
+  try {
+    if (await isStarterTrialEligible(workspaceId, userId)) {
+      await startStarterTrial({ workspaceId, source: "cli" });
+      await setTemplateSignals({
+        projectId,
+        templateNames: [...DEFAULT_SELECTED_TEMPLATE_NAMES],
+        subscriberEmail: userEmail ?? undefined,
+      });
+    }
+  } catch (e) {
+    console.error(`Failed to start the Starter trial for workspace ${workspaceId}, continuing`, e);
   }
 
   return { projectId, isFirstProject: true };
@@ -209,7 +228,7 @@ export const approveDeviceWithProject = async (
     const isMember = await isUserMemberOfProject(targetProjectId, session.user.id, { skipCache: true });
     if (!isMember) return { error: "You do not have access to this project" };
   } else {
-    const resolved = await resolveDefaultProject(session.user.email);
+    const resolved = await resolveDefaultProject(session.user.id, session.user.email);
     if ("error" in resolved) return { error: resolved.error };
     targetProjectId = resolved.projectId;
     // A user who had no project at all is a brand-new account, so send the

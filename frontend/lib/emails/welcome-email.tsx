@@ -3,22 +3,35 @@ import type { CSSProperties } from "react";
 
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
-export const WELCOME_BANNER_CID = "welcome-banner-background";
 const GET_STARTED_URL = "https://lmnr.ai/docs/getting-started";
+const TRIAL_INCLUDES = [
+  "3 GB of ingested data with 30-day retention",
+  "$5 credit for Signals",
+  "Slack alerts",
+  "Unlimited projects and teammates",
+];
 
-export default function WelcomeEmail() {
+interface WelcomeEmailProps {
+  trial?: { endsOn: string; addPaymentUrl: string };
+}
+
+export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
   return (
     <Html lang="en">
       <Head>
         <style>{`@media screen and (max-width:720px) { .welcome-page { padding:0 !important; } .welcome-shell { width:100% !important; } .welcome-card, .welcome-banner { border-radius:0 !important; } }`}</style>
       </Head>
-      <Preview>Welcome to Laminar - observability purpose-built for AI agents</Preview>
+      <Preview>
+        {trial
+          ? `Welcome to Laminar. Your Starter trial runs until ${trial.endsOn}.`
+          : "Welcome to Laminar - observability purpose-built for AI agents"}
+      </Preview>
       <div className="welcome-page" style={page}>
         <div className="welcome-shell" style={shell}>
           <table className="welcome-banner" role="presentation" cellPadding="0" cellSpacing="0" style={bannerTable}>
             <tbody>
               <tr>
-                <td {...{ background: `cid:${WELCOME_BANNER_CID}` }} style={banner}>
+                <td style={banner}>
                   <Img src={`cid:${LAMINAR_LOGO_CID}`} alt="Laminar" width="76" height="13" style={logo} />
                   <Text style={heading}>Welcome to Laminar!</Text>
                 </td>
@@ -26,10 +39,30 @@ export default function WelcomeEmail() {
             </tbody>
           </table>
           <Section className="welcome-card" style={card}>
+            <Text style={greeting}>Hey there, it{"'"}s Robert from Laminar. Excited for you to try it out!</Text>
+            {trial && (
+              <Section style={trialNote}>
+                <Text style={trialNoteTitle}>Your free 14-day Starter trial is on</Text>
+                <Text style={trialNoteText}>No card needed. It runs until {trial.endsOn} and includes:</Text>
+                <table role="presentation" cellPadding="0" cellSpacing="0" style={trialNoteList}>
+                  <tbody>
+                    {TRIAL_INCLUDES.map((item) => (
+                      <tr key={item}>
+                        <td style={trialNoteMarker}>●</td>
+                        <td style={trialNoteItem}>{item}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Text style={trialNoteText}>
+                  <Link style={link} href={trial.addPaymentUrl} target="_blank">
+                    Add a payment method
+                  </Link>{" "}
+                  any time to keep Starter after the trial.
+                </Text>
+              </Section>
+            )}
             <Text style={intro}>
-              Hey there, it{"'"}s Robert from Laminar. Excited for you to try it out!
-              <br />
-              <br />
               Laminar is an open-source observability platform purpose-built for AI agents.
               <br />
               <br />
@@ -130,10 +163,6 @@ const banner: CSSProperties = {
   padding: "16px 20px 12px",
   borderRadius: "8px",
   backgroundColor: "#252526",
-  backgroundImage: `url('cid:${WELCOME_BANNER_CID}')`,
-  backgroundPosition: "center",
-  backgroundSize: "cover",
-  backgroundRepeat: "no-repeat",
 };
 const logo: CSSProperties = { display: "block", width: "76px", height: "13px" };
 const heading: CSSProperties = {
@@ -160,7 +189,28 @@ const text: CSSProperties = {
   letterSpacing: 0,
   lineHeight: "19px",
 };
+const greeting: CSSProperties = { ...text, marginBottom: "19px" };
 const intro: CSSProperties = { ...text, marginBottom: "28px" };
+const trialNote: CSSProperties = {
+  boxSizing: "border-box",
+  marginBottom: "19px",
+  padding: "14px 16px",
+  border: "1px solid #fdd3bd",
+  borderRadius: "8px",
+  backgroundColor: "#fff5ef",
+};
+const trialNoteTitle: CSSProperties = { ...text, marginBottom: "4px", fontWeight: 600 };
+const trialNoteText: CSSProperties = { ...text };
+const trialNoteList: CSSProperties = { width: "100%", borderCollapse: "collapse", margin: "8px 0" };
+const trialNoteMarker: CSSProperties = {
+  width: "6px",
+  padding: "0 8px 4px",
+  color: "#fda476",
+  fontSize: "10px",
+  lineHeight: "19px",
+  verticalAlign: "top",
+};
+const trialNoteItem: CSSProperties = { ...text, paddingBottom: "4px", verticalAlign: "top" };
 const link: CSSProperties = { color: "#0a0a0a", fontWeight: 600, textDecoration: "underline" };
 const bulletList: CSSProperties = { width: "100%", borderCollapse: "collapse", marginBottom: "28px" };
 const bulletMarker: CSSProperties = {

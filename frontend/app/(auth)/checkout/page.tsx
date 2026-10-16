@@ -1,14 +1,11 @@
-import { eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import Stripe from "stripe";
 
+import { getOrCreateStripeCustomer } from "@/lib/actions/checkout/customer";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
-import { getUserSubscriptionInfo } from "@/lib/actions/checkout/webhook";
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
-import { db } from "@/lib/db/drizzle";
-import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
   title: "Checkout - Laminar",
@@ -22,51 +19,18 @@ export default async function CheckoutPage(props: {
   const lookupKey = (searchParams?.lookupKey as string) ?? TIER_CONFIG.hobby.lookupKey;
   const workspaceId = searchParams?.workspaceId as string | undefined;
   const workspaceName = searchParams?.workspaceName as string | undefined;
-  // Caller-controlled landing target. The onboarding wizard sets this so it
-  // can run its own finalize path (DELETE cookie + go to project); in-app
-  // upgrade flows (workspace billing) omit it and keep the legacy behavior.
+  // Caller-controlled landing target. Onboarding returns through a route that confirms the
+  // session and applies the queued invites and signals; in-app upgrades go to billing.
   const returnTo = searchParams?.returnTo as string | undefined;
 
   // Session enforced by the (auth) layout; non-null here.
   const userSession = (await getServerSession())!;
 
-  const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
-
   const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-  const customerId =
-    existingStripeCustomer?.stripeCustomerId ||
-    (
-      await s.customers.create({
-        email: userSession.user.email!,
-      })
-    ).id;
-
-  const userId =
-    existingStripeCustomer?.userId ??
-    (
-      await db.query.users.findFirst({
-        where: eq(users.email, userSession.user.email!),
-      })
-    )?.id;
+  const { customerId, userId } = await getOrCreateStripeCustomer(userSession.user.email!);
 
   if (!userId) {
     redirect(await getWorkspaceSettingsPath(workspaceId!, "billing"));
-  }
-
-  if (!existingStripeCustomer?.stripeCustomerId) {
-    await db
-      .insert(userSubscriptionInfo)
-      .values({
-        userId,
-        stripeCustomerId: customerId,
-      })
-      .onConflictDoUpdate({
-        target: userSubscriptionInfo.userId,
-        set: {
-          stripeCustomerId: customerId,
-        },
-      });
   }
 
   const billingSettingsPath = await getWorkspaceSettingsPath(workspaceId!, "billing");
@@ -75,7 +39,7 @@ export default async function CheckoutPage(props: {
   const billingSeparator = billingSettingsPath.includes("?") ? "&" : "?";
   const successUrl =
     returnTo === "onboarding"
-      ? `${process.env.NEXT_PUBLIC_URL}/onboarding?upgraded=true&sessionId={CHECKOUT_SESSION_ID}`
+      ? `${process.env.NEXT_PUBLIC_URL}/api/onboarding/checkout-return?sessionId={CHECKOUT_SESSION_ID}`
       : `${process.env.NEXT_PUBLIC_URL}${billingSettingsPath}${billingSeparator}sessionId={CHECKOUT_SESSION_ID}`;
   const cancelUrl =
     returnTo === "onboarding"

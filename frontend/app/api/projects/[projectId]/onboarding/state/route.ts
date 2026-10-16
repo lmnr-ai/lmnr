@@ -1,18 +1,10 @@
-import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod/v4";
 
 import { clearOnboardingState, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
-import { ONBOARDING_COOKIE_VERSION } from "@/lib/actions/onboarding/types";
+import { OnboardingProgressSchema } from "@/lib/actions/onboarding/types";
 import { getServerSession } from "@/lib/auth-session";
-import { db } from "@/lib/db/drizzle";
-import { projects } from "@/lib/db/migrations/schema";
 import { sendWelcomeEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-
-const StateSchema = z.object({
-  step: z.number().int().min(0).max(10),
-});
 
 export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const session = await getServerSession();
@@ -21,28 +13,18 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   }
   try {
     const { projectId } = await props.params;
-    const { step } = StateSchema.parse(await request.json());
-
-    const [project] = await db
-      .select({ workspaceId: projects.workspaceId })
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .limit(1);
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
+    const { step, pending } = OnboardingProgressSchema.parse(await request.json());
 
     const existing = await getOnboardingState();
-    const startedAt = existing && existing.userId === session.user.id ? existing.startedAt : Date.now();
-
-    await setOnboardingState({
-      v: ONBOARDING_COOKIE_VERSION,
-      userId: session.user.id,
-      workspaceId: project.workspaceId,
-      projectId,
-      step,
-      startedAt,
-    });
+    if (!existing || existing.userId !== session.user.id || existing.projectId !== projectId) {
+      return NextResponse.json({ error: "No onboarding in progress for this project" }, { status: 404 });
+    }
+    // A trial or paid plan already applied the queued choices; a late save from another tab or a slow
+    // request must not move it back before the plan, where Continue would apply them again.
+    if (existing.step === "connect" && !existing.pending) {
+      return NextResponse.json({ error: "The plan is already set up" }, { status: 409 });
+    }
+    await setOnboardingState({ ...existing, step, pending });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(
@@ -57,11 +39,14 @@ export async function DELETE(_request: NextRequest, props: { params: Promise<{ p
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Repeat DELETEs (other tabs, retries) arrive without the cookie and must not re-send the
+  // welcome email. OSS never sets the cookie and calls this only to send the email.
+  const saved = await getOnboardingState();
+  const isFirstFinish = !isFeatureEnabled(Feature.LAMINAR_CLOUD) || saved?.userId === session.user.id;
   await clearOnboardingState();
-  if (isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
+  if (isFirstFinish && isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
     // Cookie is already cleared; an email failure must NOT propagate to a 500
-    // or finishOnboarding (called from both PlanStep free-tier branch and
-    // PaidFinalize) would block navigation on `res.ok`.
+    // or finishOnboarding would block navigation on `res.ok`.
     try {
       const { projectId } = await props.params;
       await sendWelcomeEmail(session.user.email, projectId);
