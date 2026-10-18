@@ -31,6 +31,7 @@ import ProjectApiKeys from "@/components/settings/project-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import { Badge } from "@/components/ui/badge";
 import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -161,12 +162,12 @@ const SharedSettings = ({
     return items;
   }, [featureFlags, isOwner]);
 
-  const projectMenus: { label: string; section: Section; icon: LucideIcon }[] = [
+  const projectMenus: { label: string; section: Section; icon: LucideIcon; badge?: string }[] = [
     { label: "General", section: "general", icon: Settings2 },
     { label: "Project API Keys", section: "project-api-keys", icon: Key },
     { label: "Model costs", section: "model-costs", icon: DollarSign },
     { label: "Render templates", section: "render-templates", icon: Code2 },
-    { label: "Agent versions", section: "agent-versions", icon: GitBranch },
+    { label: "Agent versions", section: "agent-versions", icon: GitBranch, badge: "Beta" },
     { label: "Security", section: "security", icon: ShieldCheck },
     { label: "Alerts", section: "alerts", icon: Bell },
   ];
@@ -307,6 +308,14 @@ const SharedSettings = ({
                         <Link href={sectionHref(m.section)}>
                           <m.icon />
                           <span className="mr-2">{m.label}</span>
+                          {m.badge && (
+                            <Badge
+                              variant="outline"
+                              className="ml-auto h-5 px-1.5 text-[11px] font-normal text-muted-foreground"
+                            >
+                              {m.badge}
+                            </Badge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

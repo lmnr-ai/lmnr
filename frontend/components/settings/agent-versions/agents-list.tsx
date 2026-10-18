@@ -8,7 +8,7 @@ import { type AgentListItem } from "@/lib/actions/agents";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
-import { agentDisplayName, shortHash } from "./utils";
+import { agentDisplayName } from "./utils";
 
 interface AgentsListProps {
   projectId: string;
@@ -39,7 +39,6 @@ export default function AgentsList({ projectId, onSelect }: AgentsListProps) {
           >
             <td className="px-4 text-sm">
               <span className="font-medium">{agentDisplayName(agent.name)}</span>
-              <span className="ml-2 font-mono text-xs text-muted-foreground">{shortHash(agent.agentHash)}</span>
             </td>
             <td className="px-4 text-sm text-muted-foreground">{agent.versionCount}</td>
             <td className="px-4 text-sm text-muted-foreground">{formatTimestamp(agent.createdAt)}</td>
