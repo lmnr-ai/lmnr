@@ -3,16 +3,12 @@
 import { ArrowUpRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
-import { SharedTraceApiBaseContext } from "@/components/shared/traces/shared-api-base";
 import TraceView from "@/components/shared/traces/trace-view";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 
 import TabBar from "../tab-bar";
 import TraceEmbedBoundary from "./trace-embed-boundary";
 
-// Same-origin rewrite to Laminar Cloud's shared-trace API (next.config.ts), so
-// the embed's client-side fetches (previews, span details) also hit cloud.
-const CLOUD_SHARED_API = "/api/blog/shared-traces";
 const CLOUD_SHARED_PAGE = "https://laminar.sh/shared/traces";
 
 export interface TraceTabData {
@@ -59,9 +55,7 @@ export default function TraceTabsClient({ tabs }: { tabs: TraceTabData[] }) {
             key={tab.traceId}
             fallback={<EmbedFallback traceId={tab.traceId} message="Couldn't load this trace here." />}
           >
-            <SharedTraceApiBaseContext value={CLOUD_SHARED_API}>
-              <TraceView key={tab.traceId} trace={tab.trace} spans={tab.spans} embedded />
-            </SharedTraceApiBaseContext>
+            <TraceView key={tab.traceId} trace={tab.trace} spans={tab.spans} embedded />
           </TraceEmbedBoundary>
         ) : (
           <EmbedFallback traceId={tab.traceId} message="This trace isn't public yet." />

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useSharedTraceApiBase } from "@/components/shared/traces/shared-api-base";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
 
@@ -34,7 +33,6 @@ export function useBatchedSpanPreviews(
 ): BatchedPreviewsHook {
   const { debounceMs = 150, isShared = false } = options;
   const { toast } = useToast();
-  const sharedApiBase = useSharedTraceApiBase();
 
   // Union of "pending + in-flight + successfully fetched" per role. The React
   // state objects below are the fetched-set (keyed by `id in previews`). These
@@ -92,7 +90,7 @@ export function useBatchedSpanPreviews(
     }
 
     const url = isShared
-      ? `${sharedApiBase}/${trace.id}/spans/previews`
+      ? `/api/shared/traces/${trace.id}/spans/previews`
       : `/api/projects/${projectId}/traces/${trace.id}/spans/previews`;
 
     try {
@@ -149,7 +147,7 @@ export function useBatchedSpanPreviews(
         });
       }
     }
-  }, [projectId, toast, trace, isShared, sharedApiBase]);
+  }, [projectId, toast, trace, isShared]);
 
   useEffect(() => {
     let queued = false;

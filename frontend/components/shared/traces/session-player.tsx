@@ -10,7 +10,6 @@ import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
-import { useSharedTraceApiBase } from "@/components/shared/traces/shared-api-base";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button.tsx";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
@@ -31,7 +30,6 @@ interface SessionPlayerProps {
 const speedOptions = [1, 2, 4, 8, 16];
 
 const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
-  const sharedApiBase = useSharedTraceApiBase();
   const { setSessionTime, sessionTime } = useTraceViewStore((state) => ({
     setSessionTime: state.setSessionTime,
     sessionTime: state.sessionTime,
@@ -118,7 +116,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
     const loadEvents = async () => {
       setIsLoading(true);
       try {
-        const result = await fetchBrowserSessionEvents(`${sharedApiBase}/${traceId}/browser-sessions/events`);
+        const result = await fetchBrowserSessionEvents(`/api/shared/traces/${traceId}/browser-sessions/events`);
         setEvents(result.events);
         setUrlChanges(result.urlChanges);
         setDuration(result.duration);
@@ -133,7 +131,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
     };
 
     loadEvents();
-  }, [traceId, sharedApiBase]);
+  }, [traceId]);
 
   useEffect(() => {
     if (!events?.length || !playerContainerRef.current) return;

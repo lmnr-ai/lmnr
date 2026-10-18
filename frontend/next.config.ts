@@ -41,12 +41,6 @@ const nextConfig: NextConfig = {
         { source: "/api/auth/callback/keycloak", destination: "/api/auth/oauth2/callback/keycloak" },
         { source: "/api/auth/callback/azure-ad", destination: "/api/auth/oauth2/callback/microsoft-entra-id" },
       ],
-      // Blog trace embeds always read Laminar Cloud's public shared-trace API.
-      // Same-origin proxy because cloud sends no CORS headers; cloud itself
-      // enforces that the trace is public.
-      afterFiles: [
-        { source: "/api/blog/shared-traces/:path*", destination: "https://laminar.sh/api/shared/traces/:path*" },
-      ],
     };
   },
   async headers() {
