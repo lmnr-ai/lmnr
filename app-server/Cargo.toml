@@ -28,7 +28,7 @@ chacha20poly1305 = "0.11"
 chrono = {version = "0.4.45", features = ["serde"]}
 clickhouse = {version = "0.15.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
-deadpool = "0.12.2"
+deadpool = "0.13.1"
 dotenv = "0.15"
 # Ed25519 keys are libsodium-format (64-byte seed||pubkey), which `SecretKey::from_slice` accepts as-is.
 ed25519-compact = "2.4"
