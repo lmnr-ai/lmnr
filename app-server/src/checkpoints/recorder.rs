@@ -4,10 +4,7 @@
 //! the same version retries it. A version whose tool text isn't readable yet
 //! is deferred the same way, without a Postgres row.
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -48,8 +45,6 @@ const ENTRY_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 const TRACE_TAG_TTL_SECONDS: u64 = 24 * 60 * 60;
 /// Also the retry interval after a failed naming attempt.
 const NAMING_LOCK_TTL_SECONDS: u64 = 10 * 60;
-/// Blobs tried per new version in a batch; each is one ClickHouse read.
-const TOOL_TEXT_CANDIDATES: usize = 4;
 const MODEL_MAX_CHARS: usize = 256;
 
 /// One LLM span's agent-versioning inputs, captured on the ingest producer.
@@ -307,8 +302,8 @@ impl CheckpointRecorder {
     }
 
     /// Text of the version's tool set: from another version of the agent with
-    /// the same set, else from the `unique_content` blob of one of `spans`,
-    /// oldest first. The spans consumer may not have written any yet (`None`).
+    /// the same set, else from the `unique_content` blob of the oldest of
+    /// `spans`. The spans consumer may not have written it yet (`None`).
     async fn tool_definitions(
         &self,
         spans: &[&VersionedSpan<'_>],
@@ -328,19 +323,18 @@ impl CheckpointRecorder {
         {
             return Ok(Some(text));
         }
-        for span in tool_text_candidates(spans) {
-            let text = get_content_by_hash(
-                &self.clickhouse,
-                span.project_id,
-                &span.inputs.group_id,
-                &span.inputs.tool_content_hash,
-            )
-            .await?;
-            if text.is_some() {
-                return Ok(text);
-            }
-        }
-        Ok(None)
+        // The oldest span's blob is the likeliest to be written already.
+        let oldest = spans
+            .iter()
+            .min_by_key(|s| s.inputs.start_time)
+            .unwrap_or(&span);
+        Ok(get_content_by_hash(
+            &self.clickhouse,
+            oldest.project_id,
+            &oldest.inputs.group_id,
+            &oldest.inputs.tool_content_hash,
+        )
+        .await?)
     }
 
     async fn ensure_model(&self, span: &VersionedSpan<'_>, version_id: Uuid) -> anyhow::Result<()> {
@@ -523,24 +517,6 @@ impl NamingTask {
     }
 }
 
-/// Distinct tool blobs of `spans`, oldest span first: an older span's blob is
-/// the likeliest to be written already.
-fn tool_text_candidates<'s, 'a>(spans: &[&'s VersionedSpan<'a>]) -> Vec<&'s VersionedSpan<'a>> {
-    let mut sorted = spans.to_vec();
-    sorted.sort_by_key(|s| s.inputs.start_time);
-    let mut seen = HashSet::new();
-    sorted
-        .into_iter()
-        .filter(|s| {
-            seen.insert((
-                s.inputs.group_id.as_str(),
-                s.inputs.tool_content_hash.as_str(),
-            ))
-        })
-        .take(TOOL_TEXT_CANDIDATES)
-        .collect()
-}
-
 fn agent_cache_key(project_id: Uuid, agent_hash: &str) -> String {
     format!("{AGENT_CACHE_KEY}:{project_id}:{agent_hash}")
 }
@@ -626,45 +602,6 @@ mod tests {
         assert_eq!(spans[1].version_hash, version_hash("agent", "sp1", ""));
         assert_ne!(spans[0].version_hash, spans[1].version_hash);
         assert_eq!(spans[0].system_prompt, "You are a test agent.");
-    }
-
-    #[test]
-    fn tool_text_candidates_are_distinct_oldest_first_and_capped() {
-        let inputs: Vec<AgentSpan> = [
-            (5, "g1"),
-            (1, "g2"),
-            (3, "g2"),
-            (2, "g3"),
-            (4, "g4"),
-            (0, "g5"),
-        ]
-        .into_iter()
-        .map(|(start_time, group)| AgentSpan {
-            start_time,
-            tool_content_hash: "blob".to_string(),
-            group_id: group.to_string(),
-            ..agent_span(Uuid::new_v4(), "tools")
-        })
-        .collect();
-        let spans: Vec<VersionedSpan> = inputs
-            .iter()
-            .map(|inputs| VersionedSpan {
-                project_id: Uuid::nil(),
-                trace_id: Uuid::nil(),
-                agent_hash: "agent",
-                system_prompt_version_hash: "sp1",
-                version_hash: "v".to_string(),
-                inputs,
-                system_prompt: "",
-            })
-            .collect();
-        let refs: Vec<&VersionedSpan> = spans.iter().collect();
-
-        let groups: Vec<&str> = tool_text_candidates(&refs)
-            .iter()
-            .map(|s| s.inputs.group_id.as_str())
-            .collect();
-        assert_eq!(groups, vec!["g5", "g2", "g3", "g4"]);
     }
 
     #[test]
