@@ -1,9 +1,8 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FileDiff } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DiffView from "@/components/ui/diff";
 import { prettyJson } from "@/components/ui/diff/diff";
@@ -56,22 +55,21 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
           <ChevronRight
             className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
           />
-          <span className="text-sm font-medium">Version {version.versionNumber}</span>
-          {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
-          <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
+          <span className="text-sm font-medium flex-shrink-0">Version {version.versionNumber}</span>
+          {isLatest && <span className="text-xs font-medium text-primary flex-shrink-0">Latest</span>}
+          <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            {previous
+              ? changes.length > 0 && (
+                  <>
+                    <FileDiff className="size-3 flex-shrink-0" />
+                    <span className="truncate">Changed: {changes.join(", ")}</span>
+                  </>
+                )
+              : "Initial version"}
+          </span>
           <div className="flex-1" />
+          <span className="text-xs text-muted-foreground flex-shrink-0">{formatTimestamp(version.createdAt)}</span>
           <VersionModels models={version.models} />
-          <div className="flex items-center gap-1.5">
-            {previous ? (
-              changes.map((c) => (
-                <Badge key={c} variant="outline" className="h-5 font-normal text-muted-foreground">
-                  {c}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground">Initial version</span>
-            )}
-          </div>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>
