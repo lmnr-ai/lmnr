@@ -60,7 +60,6 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
           {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
           <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
           <div className="flex-1" />
-          <VersionModels models={version.models} />
           <div className="flex items-center gap-1.5">
             {previous ? (
               changes.map((c) => (
@@ -76,6 +75,9 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="flex flex-col gap-4 border-t p-3">
+          <Field label="Models">
+            <VersionModels models={version.models} />
+          </Field>
           {previous ? (
             <>
               {promptChanged && (
