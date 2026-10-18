@@ -9,8 +9,8 @@ use crate::{
     instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage},
     llm::{
         LlmClient, LlmFeature, LlmRoute, ModelProvider, ProviderContent,
-        ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderPart, ProviderRequest,
-        ProviderResponse, ProviderTool, request_to_span_input, request_to_tools_attr,
+        ProviderFunctionDeclaration, ProviderPart, ProviderRequest, ProviderResponse, ProviderTool,
+        request_to_span_input, request_to_tools_attr,
     },
 };
 
@@ -50,10 +50,7 @@ pub(super) async fn generate_agent_name(
             }]),
         }),
         tools: Some(vec![name_tool()]),
-        generation_config: Some(ProviderGenerationConfig {
-            temperature: Some(0.0),
-            ..Default::default()
-        }),
+        generation_config: None,
         service_tier: None,
         route: LlmRoute::feature(LlmFeature::CheckpointsAgentNaming, Some(project_id)),
     };
