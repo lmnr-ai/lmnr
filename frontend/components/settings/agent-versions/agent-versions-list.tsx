@@ -10,6 +10,8 @@ import { type AgentVersionsResult } from "@/lib/actions/agents";
 import { swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader } from "../settings-section";
+import RenameAgentDialog from "./rename-agent-dialog";
+import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
 
 interface AgentVersionsListProps {
@@ -19,7 +21,7 @@ interface AgentVersionsListProps {
 }
 
 export default function AgentVersionsList({ projectId, agentId, onBack }: AgentVersionsListProps) {
-  const { data, isLoading } = useSWR<AgentVersionsResult>(
+  const { data, isLoading, mutate } = useSWR<AgentVersionsResult>(
     `/api/projects/${projectId}/agents/${agentId}/versions`,
     swrFetcher
   );
@@ -32,10 +34,20 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
         <ArrowLeft data-icon="inline-start" className="size-4 mr-1" />
         All agents
       </Button>
-      <SettingsSectionHeader
-        title={data?.agent.name ?? "Agent versions"}
-        description="Track changes between versions of your agent based on system prompt, tools, and model."
-      />
+      <div className="flex items-start justify-between gap-4">
+        <SettingsSectionHeader
+          title={data ? agentDisplayName(data.agent.name) : "Agent versions"}
+          description="A new version starts whenever the agent's system prompt or tools change. Models are tracked per version."
+        />
+        {data && (
+          <RenameAgentDialog
+            projectId={projectId}
+            agentId={agentId}
+            currentName={agentDisplayName(data.agent.name)}
+            onRenamed={() => mutate()}
+          />
+        )}
+      </div>
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {times(3, (i) => (
@@ -49,13 +61,7 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
       ) : (
         <div className="flex flex-col gap-2">
           {versions.map((version, i) => (
-            <VersionCard
-              key={version.versionHash}
-              version={version}
-              previous={versions[i + 1]}
-              versionNumber={versions.length - i}
-              isLatest={i === 0}
-            />
+            <VersionCard key={version.id} version={version} previous={versions[i + 1]} isLatest={i === 0} />
           ))}
         </div>
       )}

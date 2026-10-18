@@ -31,6 +31,7 @@ use crate::{
     ch::system_prompt_versions::{
         SpanVersion, VersionDef, insert_version_def, insert_version_rows,
     },
+    checkpoints::{AgentSpan, CheckpointRecorder},
     env,
     mq::{MessageQueue, MessageQueueTrait},
     worker::{HandlerError, MessageHandler},
@@ -143,6 +144,10 @@ pub struct SpVersioningMessage {
     /// window's `seen_count`.
     #[serde(default)]
     pub retry_count: u32,
+    /// Agent-versioning inputs for `span_refs`' spans. System prompts only,
+    /// and only while checkpoints are on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub agent_spans: Vec<AgentSpan>,
 }
 
 impl SpVersioningMessage {
@@ -163,6 +168,8 @@ pub struct SpVersioningHandler {
     pub clickhouse: clickhouse::Client,
     /// For parking unresolved messages on the delay queue.
     pub queue: Arc<MessageQueue>,
+    /// Agent versioning, fed every batch's resolved rows.
+    checkpoint_recorder: Option<Arc<CheckpointRecorder>>,
 }
 
 impl SpVersioningHandler {
@@ -177,7 +184,13 @@ impl SpVersioningHandler {
             cache,
             clickhouse,
             queue,
+            checkpoint_recorder: None,
         }
+    }
+
+    pub fn with_checkpoint_recorder(mut self, recorder: Arc<CheckpointRecorder>) -> Self {
+        self.checkpoint_recorder = Some(recorder);
+        self
     }
 }
 
@@ -185,10 +198,7 @@ impl SpVersioningHandler {
 impl MessageHandler for SpVersioningHandler {
     type Message = Vec<SpVersioningMessage>;
 
-    // Classification is LLM-free, so it runs unconditionally: the ingest
-    // producer gates publishing on `llm_client_available()`, and the
-    // extraction workers (which DO need the client) consume their own queue
-    // — possibly on another node.
+    // Classification is LLM-free, so it runs unconditionally.
     async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
         let mut rows: Vec<SpanVersion> = Vec::new();
         for message in &messages {
@@ -221,6 +231,13 @@ impl MessageHandler for SpVersioningHandler {
                 rows.len(),
                 self.kind.tables().versions
             );
+        }
+
+        // Check new agents versions.
+        if let Some(recorder) = &self.checkpoint_recorder
+            && !rows.is_empty()
+        {
+            recorder.record(&messages, &rows).await;
         }
         Ok(())
     }
@@ -899,6 +916,7 @@ mod tests {
             cheap_matched_version: None,
             run_full: false,
             retry_count: 0,
+            agent_spans: Vec::new(),
         }
     }
 

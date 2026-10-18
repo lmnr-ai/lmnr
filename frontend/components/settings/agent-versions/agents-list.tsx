@@ -8,6 +8,7 @@ import { type AgentListItem } from "@/lib/actions/agents";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
+import { agentDisplayName } from "./utils";
 
 interface AgentsListProps {
   projectId: string;
@@ -21,7 +22,7 @@ export default function AgentsList({ projectId, onSelect }: AgentsListProps) {
     <SettingsSection>
       <SettingsSectionHeader
         title="Agent versions"
-        description="Agents detected from your traces. Each agent tracks versions of its system prompt, tools, and model over time. Select an agent to see its version history."
+        description="Agents detected from your traces. Each agent tracks versions of its system prompt and tools, and the models each version ran on. Select an agent to see its version history."
       />
       <SettingsTable
         isLoading={isLoading}
@@ -36,7 +37,9 @@ export default function AgentsList({ projectId, onSelect }: AgentsListProps) {
             className="cursor-pointer hover:bg-muted/50"
             onClick={() => onSelect(agent.id)}
           >
-            <td className="px-4 text-sm font-medium">{agent.name}</td>
+            <td className="px-4 text-sm">
+              <span className="font-medium">{agentDisplayName(agent.name)}</span>
+            </td>
             <td className="px-4 text-sm text-muted-foreground">{agent.versionCount}</td>
             <td className="px-4 text-sm text-muted-foreground">{formatTimestamp(agent.createdAt)}</td>
             <td className="px-4">

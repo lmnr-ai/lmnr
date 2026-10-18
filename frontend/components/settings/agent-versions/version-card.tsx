@@ -11,10 +11,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";
 
+import VersionModels from "./version-models";
+
 interface VersionCardProps {
   version: AgentVersionItem;
   previous?: AgentVersionItem;
-  versionNumber: number;
   isLatest: boolean;
 }
 
@@ -37,16 +38,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export default function VersionCard({ version, previous, versionNumber, isLatest }: VersionCardProps) {
+export default function VersionCard({ version, previous, isLatest }: VersionCardProps) {
   const [open, setOpen] = useState(isLatest);
 
-  const modelChanged = previous ? version.model !== previous.model : false;
-  const promptChanged = previous ? version.systemPrompt !== previous.systemPrompt : false;
-  const toolsChanged = previous ? version.toolDefinitions !== previous.toolDefinitions : false;
-
-  const changes = [modelChanged && "Model", promptChanged && "System prompt", toolsChanged && "Tools"].filter(
-    Boolean
-  ) as string[];
+  const promptChanged = previous ? version.systemPromptVersionHash !== previous.systemPromptVersionHash : false;
+  const toolsChanged = previous ? version.toolDefinitionsHash !== previous.toolDefinitionsHash : false;
+  const changes = [promptChanged && "System prompt", toolsChanged && "Tools"].filter(Boolean) as string[];
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border rounded-md">
@@ -59,25 +56,17 @@ export default function VersionCard({ version, previous, versionNumber, isLatest
           <ChevronRight
             className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
           />
-          <span className="text-sm font-medium">Version {versionNumber}</span>
+          <span className="text-sm font-medium">Version {version.versionNumber}</span>
           {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
           <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
           <div className="flex-1" />
-          <span className="font-mono text-xs text-muted-foreground">{version.model}</span>
           <div className="flex items-center gap-1.5">
             {previous ? (
-              changes.length > 0 ? (
-                <>
-                  <span className="text-xs text-muted-foreground">Changed</span>
-                  {changes.map((c) => (
-                    <Badge key={c} variant="outline" className="h-5 font-normal text-muted-foreground">
-                      {c}
-                    </Badge>
-                  ))}
-                </>
-              ) : (
-                <span className="text-xs text-muted-foreground">No changes</span>
-              )
+              changes.map((c) => (
+                <Badge key={c} variant="outline" className="h-5 font-normal text-muted-foreground">
+                  {c}
+                </Badge>
+              ))
             ) : (
               <span className="text-xs text-muted-foreground">Initial version</span>
             )}
@@ -86,19 +75,11 @@ export default function VersionCard({ version, previous, versionNumber, isLatest
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="flex flex-col gap-4 border-t p-3">
+          <Field label="Models">
+            <VersionModels models={version.models} />
+          </Field>
           {previous ? (
             <>
-              {modelChanged && (
-                <Field label="Model">
-                  <div className="flex items-center gap-2 font-mono text-xs">
-                    <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-destructive line-through">
-                      {previous.model}
-                    </span>
-                    <span className="text-muted-foreground">{"\u2192"}</span>
-                    <span className="rounded bg-success/10 px-1.5 py-0.5 text-success">{version.model}</span>
-                  </div>
-                </Field>
-              )}
               {promptChanged && (
                 <Field label="System prompt">
                   <DiffView oldText={previous.systemPrompt} newText={version.systemPrompt} />
@@ -112,17 +93,9 @@ export default function VersionCard({ version, previous, versionNumber, isLatest
                   />
                 </Field>
               )}
-              {changes.length === 0 && (
-                <span className="text-xs text-muted-foreground">
-                  This version is identical to the previous one in model, system prompt, and tools.
-                </span>
-              )}
             </>
           ) : (
             <>
-              <Field label="Model">
-                <span className="font-mono text-xs text-muted-foreground">{version.model}</span>
-              </Field>
               <Field label="System prompt">
                 <ContentBlock text={version.systemPrompt} />
               </Field>

@@ -33,8 +33,10 @@ pub enum Feature {
     /// features are fine-grained so gating can diverge later.
     InputExtraction,
     Reports,
-    /// Checkpoints / agent-versioning pipeline (LAM-1987). Temporarily
-    /// gated behind `CHECKPOINTS_ENABLED`, default off.
+    /// Checkpoints / agent-versioning pipeline. Gated behind
+    /// `CHECKPOINTS_ENABLED`, default on. Records only what the v2
+    /// system-prompt versioning consumer resolves, so it is inert without
+    /// `SystemPromptVersioning`.
     Checkpoints,
     /// v2 static system-prompt extraction: per-agent prompt windows +
     /// line-level version detection replacing the skeleton-hash keying.
