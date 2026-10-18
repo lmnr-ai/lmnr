@@ -2262,7 +2262,7 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let queues = kind.queues();
-                        let checkpoints = (matches!(kind, VersionKind::SystemPrompt)
+                        let checkpoint_recorder = (matches!(kind, VersionKind::SystemPrompt)
                             && is_feature_enabled(Feature::Checkpoints))
                         .then(|| {
                             Arc::new(CheckpointRecorder::new(
@@ -2282,8 +2282,10 @@ fn main() -> anyhow::Result<()> {
                                     clickhouse.clone(),
                                     queue.clone(),
                                 );
-                                match &checkpoints {
-                                    Some(recorder) => handler.with_checkpoints(recorder.clone()),
+                                match &checkpoint_recorder {
+                                    Some(recorder) => {
+                                        handler.with_checkpoint_recorder(recorder.clone())
+                                    }
                                     None => handler,
                                 }
                             },

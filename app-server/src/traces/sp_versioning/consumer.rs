@@ -169,7 +169,7 @@ pub struct SpVersioningHandler {
     /// For parking unresolved messages on the delay queue.
     pub queue: Arc<MessageQueue>,
     /// Agent versioning, fed every batch's resolved rows.
-    checkpoints: Option<Arc<CheckpointRecorder>>,
+    checkpoint_recorder: Option<Arc<CheckpointRecorder>>,
 }
 
 impl SpVersioningHandler {
@@ -184,12 +184,12 @@ impl SpVersioningHandler {
             cache,
             clickhouse,
             queue,
-            checkpoints: None,
+            checkpoint_recorder: None,
         }
     }
 
-    pub fn with_checkpoints(mut self, recorder: Arc<CheckpointRecorder>) -> Self {
-        self.checkpoints = Some(recorder);
+    pub fn with_checkpoint_recorder(mut self, recorder: Arc<CheckpointRecorder>) -> Self {
+        self.checkpoint_recorder = Some(recorder);
         self
     }
 }
@@ -234,7 +234,7 @@ impl MessageHandler for SpVersioningHandler {
         }
 
         // Check new agents versions.
-        if let Some(recorder) = &self.checkpoints
+        if let Some(recorder) = &self.checkpoint_recorder
             && !rows.is_empty()
         {
             recorder.record(&messages, &rows).await;

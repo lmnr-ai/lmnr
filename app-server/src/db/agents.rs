@@ -43,7 +43,7 @@ pub async fn get_agent_name(
 }
 
 /// Set a generated name, never overwriting one a user already set.
-pub async fn set_generated_agent_name(
+pub async fn set_agent_name(
     pool: &PgPool,
     project_id: Uuid,
     agent_id: Uuid,

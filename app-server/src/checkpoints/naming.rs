@@ -1,13 +1,20 @@
 //! One cheap LLM call per new agent for a human-readable name.
 
 use serde_json::Value;
+use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::llm::{
-    LlmClient, LlmFeature, LlmRoute, ProviderContent, ProviderFunctionDeclaration,
-    ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
+use crate::{
+    env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
+    instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage},
+    llm::{
+        LlmClient, LlmFeature, LlmRoute, ModelProvider, ProviderContent,
+        ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderPart, ProviderRequest,
+        ProviderResponse, ProviderTool, request_to_span_input, request_to_tools_attr,
+    },
 };
 
+const INTERNAL_TRACING_TARGET: &str = "lmnr::internal";
 const NAME_TOOL_NAME: &str = "name_agent";
 const PROMPT_LIMIT: usize = 4000;
 const NAME_LIMIT: usize = 100;
@@ -21,6 +28,7 @@ const NAMING_INSTRUCTION: &str = "You name AI agents. Given an agent's system pr
 pub(super) async fn generate_agent_name(
     llm_client: &LlmClient,
     project_id: Uuid,
+    agent_id: Uuid,
     system_prompt: &str,
 ) -> anyhow::Result<String> {
     let request = ProviderRequest {
@@ -50,10 +58,7 @@ pub(super) async fn generate_agent_name(
         route: LlmRoute::feature(LlmFeature::CheckpointsAgentNaming, Some(project_id)),
     };
 
-    let response = llm_client
-        .generate_content(&request)
-        .await
-        .map_err(|e| anyhow::anyhow!("name_agent LLM call failed: {e:?}"))?;
+    let response = generate_traced(llm_client, &request, project_id, agent_id).await?;
 
     let args = response
         .candidates
@@ -69,6 +74,61 @@ pub(super) async fn generate_agent_name(
         })
         .ok_or_else(|| anyhow::anyhow!("name_agent returned no tool call"))?;
     parse_name(&args)
+}
+
+/// The naming call, traced as one LLM span into `CHECKPOINTS_INTERNAL_PROJECT_ID`
+/// when it is set.
+async fn generate_traced(
+    llm_client: &LlmClient,
+    request: &ProviderRequest,
+    project_id: Uuid,
+    agent_id: Uuid,
+) -> anyhow::Result<ProviderResponse> {
+    let internal_project_id = std::env::var(CHECKPOINTS_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|value| Uuid::parse_str(&value).ok());
+    let Some(internal_project_id) = internal_project_id else {
+        return llm_client
+            .generate_content(request)
+            .await
+            .map_err(|e| anyhow::anyhow!("name_agent LLM call failed: {e:?}"));
+    };
+
+    let ModelProvider { model, provider } = llm_client.resolve_model_provider(request).await;
+    let span = InternalSpan::wrap(
+        tracing::info_span!(target: INTERNAL_TRACING_TARGET, parent: None, "agent.naming"),
+        SpanType::LLM,
+    )
+    .project(Some(internal_project_id))
+    .metadata_str("project_id", &project_id.to_string())
+    .metadata_str("agent_id", &agent_id.to_string())
+    .input(&request_to_span_input(request))
+    .tools(request_to_tools_attr(request).as_ref())
+    .model(&provider, &model)
+    .build();
+
+    match llm_client
+        .generate_content(request)
+        .instrument(span.clone())
+        .await
+    {
+        Ok(response) => {
+            set_output(&span, &serde_json::json!(&response.candidates));
+            if let Some(usage) = response.usage_metadata.as_ref() {
+                set_usage(
+                    &span,
+                    usage.prompt_token_count,
+                    usage.cache_read_input_tokens,
+                    usage.candidates_token_count,
+                );
+            }
+            Ok(response)
+        }
+        Err(e) => {
+            record_error(&span, e.to_string());
+            Err(anyhow::anyhow!("name_agent LLM call failed: {e:?}"))
+        }
+    }
 }
 
 fn parse_name(args: &Value) -> anyhow::Result<String> {

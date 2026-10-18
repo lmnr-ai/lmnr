@@ -20,6 +20,7 @@ export interface AgentListItem {
   versionCount: number;
 }
 
+/** Agents with at least one version; one whose versions were all deferred has nothing to show yet. */
 export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise<AgentListItem[]> {
   const { projectId } = GetAgentsSchema.parse(input);
 
@@ -32,7 +33,7 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
       versionCount: count(agentVersions.id),
     })
     .from(agents)
-    .leftJoin(agentVersions, eq(agentVersions.agentId, agents.id))
+    .innerJoin(agentVersions, eq(agentVersions.agentId, agents.id))
     .where(eq(agents.projectId, projectId))
     .groupBy(agents.id)
     .orderBy(desc(agents.createdAt))

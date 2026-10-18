@@ -114,12 +114,13 @@ struct InlineResolution {
     version: Option<String>,
 }
 
-/// Spans emitted by our own extraction self-tracing land in these projects;
-/// feeding them back into extraction would loop indefinitely.
+/// Spans emitted by our own self-tracing (extraction, signals, agent naming)
+/// land in these projects; feeding them back into versioning would loop.
 pub(crate) fn internal_project_ids() -> Vec<Uuid> {
     [
         crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID,
         crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID,
+        crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     ]
     .iter()
     .filter_map(|name| std::env::var(name).ok())

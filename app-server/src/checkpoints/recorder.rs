@@ -185,15 +185,15 @@ impl CheckpointRecorder {
                 .or_default()
                 .push(span);
         }
-        let mut agent_ids: HashMap<(Uuid, &str), Uuid> = HashMap::new();
+        let mut agents: HashMap<(Uuid, &str), CachedAgent> = HashMap::new();
         let mut version_ids: HashMap<(Uuid, &str), Uuid> = HashMap::new();
         for version_spans in spans_by_version.into_values() {
             let span = version_spans[0];
             let agent_key = (span.project_id, span.agent_hash);
-            let agent_id = match agent_ids.get(&agent_key) {
-                Some(id) => *id,
+            let agent = match agents.get(&agent_key) {
+                Some(agent) => *agent,
                 None => match self.ensure_agent(span).await {
-                    Ok(id) => *agent_ids.entry(agent_key).or_insert(id),
+                    Ok(agent) => *agents.entry(agent_key).or_insert(agent),
                     Err(e) => {
                         log::warn!(
                             "[CHECKPOINTS] Failed to upsert agent {}: {e:?}",
@@ -203,9 +203,13 @@ impl CheckpointRecorder {
                     }
                 },
             };
-            match self.ensure_version(&version_spans, agent_id).await {
+            match self.ensure_version(&version_spans, agent.id).await {
                 Ok(Some(id)) => {
                     version_ids.insert((span.project_id, span.version_hash.as_str()), id);
+                    // Naming waits for a version so a deferred-only agent costs no LLM call.
+                    if !agent.named {
+                        self.spawn_naming(span, agent.id).await;
+                    }
                 }
                 Ok(None) => log::debug!(
                     "[CHECKPOINTS] Deferring version {}: tool definitions not readable yet or version_number race lost",
@@ -235,25 +239,18 @@ impl CheckpointRecorder {
         self.tag_traces(&spans).await;
     }
 
-    async fn ensure_agent(&self, span: &VersionedSpan<'_>) -> anyhow::Result<Uuid> {
+    async fn ensure_agent(&self, span: &VersionedSpan<'_>) -> anyhow::Result<CachedAgent> {
         let key = agent_cache_key(span.project_id, span.agent_hash);
-        let agent = match self.cached::<CachedAgent>(&key).await {
-            Some(agent) => agent,
-            None => {
-                let row =
-                    agents::upsert_agent(&self.db.pool, span.project_id, span.agent_hash).await?;
-                let agent = CachedAgent {
-                    id: row.id,
-                    named: row.name.is_some(),
-                };
-                remember(&self.cache, &key, agent, ENTRY_TTL_SECONDS).await;
-                agent
-            }
-        };
-        if !agent.named {
-            self.spawn_naming(span, agent.id).await;
+        if let Some(agent) = self.cached::<CachedAgent>(&key).await {
+            return Ok(agent);
         }
-        Ok(agent.id)
+        let row = agents::upsert_agent(&self.db.pool, span.project_id, span.agent_hash).await?;
+        let agent = CachedAgent {
+            id: row.id,
+            named: row.name.is_some(),
+        };
+        remember(&self.cache, &key, agent, ENTRY_TTL_SECONDS).await;
+        Ok(agent)
     }
 
     /// `spans` all present the same version. `None` defers the version: its
@@ -490,9 +487,10 @@ impl NamingTask {
             .is_none()
         {
             let prompt = self.prompt_text().await?;
-            let name = generate_agent_name(&self.llm_client, self.project_id, &prompt).await?;
-            agents::set_generated_agent_name(&self.db.pool, self.project_id, self.agent_id, &name)
-                .await?;
+            let name =
+                generate_agent_name(&self.llm_client, self.project_id, self.agent_id, &prompt)
+                    .await?;
+            agents::set_agent_name(&self.db.pool, self.project_id, self.agent_id, &name).await?;
         }
         let agent = CachedAgent {
             id: self.agent_id,
