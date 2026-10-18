@@ -310,8 +310,8 @@ const SharedSettings = ({
                           <span className="mr-2">{m.label}</span>
                           {m.badge && (
                             <Badge
-                              variant="outlinePrimary"
-                              className="ml-auto h-5 px-1.5 text-[11px] font-normal bg-primary/10"
+                              variant="outline"
+                              className="ml-auto h-5 px-1.5 text-[11px] font-normal border-primary/30 bg-primary/5 text-primary/80"
                             >
                               {m.badge}
                             </Badge>
