@@ -111,7 +111,7 @@ struct VersionedSpan<'a> {
 
 fn join_spans<'a>(
     messages: &'a [SpVersioningMessage],
-    rows: &'a [SpanVersion],
+    span_versions: &'a [SpanVersion],
 ) -> Vec<VersionedSpan<'a>> {
     let inputs: HashMap<(Uuid, Uuid), (&AgentSpan, &str)> = messages
         .iter()
@@ -124,17 +124,19 @@ fn join_spans<'a>(
             })
         })
         .collect();
-    rows.iter()
-        .filter_map(|row| {
-            let (inputs, system_prompt) = inputs.get(&(row.project_id, row.span_id))?;
+    span_versions
+        .iter()
+        .filter_map(|span_version| {
+            let (inputs, system_prompt) =
+                inputs.get(&(span_version.project_id, span_version.span_id))?;
             Some(VersionedSpan {
-                project_id: row.project_id,
-                trace_id: row.trace_id,
-                agent_hash: &row.agent_hash,
-                system_prompt_version_hash: &row.version_hash,
+                project_id: span_version.project_id,
+                trace_id: span_version.trace_id,
+                agent_hash: &span_version.agent_hash,
+                system_prompt_version_hash: &span_version.version_hash,
                 version_hash: version_hash(
-                    &row.agent_hash,
-                    &row.version_hash,
+                    &span_version.agent_hash,
+                    &span_version.version_hash,
                     &inputs.tool_set_hash,
                 ),
                 inputs,
@@ -172,8 +174,8 @@ impl CheckpointRecorder {
         }
     }
 
-    pub async fn record(&self, messages: &[SpVersioningMessage], rows: &[SpanVersion]) {
-        let spans = join_spans(messages, rows);
+    pub async fn record(&self, messages: &[SpVersioningMessage], span_versions: &[SpanVersion]) {
+        let spans = join_spans(messages, span_versions);
         if spans.is_empty() {
             return;
         }
@@ -600,7 +602,7 @@ mod tests {
         }
     }
 
-    fn row(project_id: Uuid, span_id: Uuid, sp_version: &str) -> SpanVersion {
+    fn span_version(project_id: Uuid, span_id: Uuid, sp_version: &str) -> SpanVersion {
         SpanVersion::new(
             project_id,
             Uuid::new_v4(),
@@ -612,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn join_keeps_only_rows_with_inputs_and_hashes_the_tool_set() {
+    fn join_keeps_only_span_versions_with_inputs_and_hashes_the_tool_set() {
         let project_id = Uuid::new_v4();
         let (with_tools, without_tools, unknown) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
         let messages = [message(
@@ -622,15 +624,15 @@ mod tests {
                 agent_span(without_tools, ""),
             ],
         )];
-        let rows = [
-            row(project_id, with_tools, "sp1"),
-            row(project_id, without_tools, "sp1"),
-            row(project_id, unknown, "sp1"),
+        let span_versions = [
+            span_version(project_id, with_tools, "sp1"),
+            span_version(project_id, without_tools, "sp1"),
+            span_version(project_id, unknown, "sp1"),
             // Same span id under another project must not borrow the inputs.
-            row(Uuid::new_v4(), with_tools, "sp1"),
+            span_version(Uuid::new_v4(), with_tools, "sp1"),
         ];
 
-        let spans = join_spans(&messages, &rows);
+        let spans = join_spans(&messages, &span_versions);
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].version_hash, version_hash("agent", "sp1", "tools"));
         assert_eq!(spans[1].version_hash, version_hash("agent", "sp1", ""));
