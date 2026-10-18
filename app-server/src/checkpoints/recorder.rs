@@ -149,6 +149,8 @@ pub struct CheckpointRecorder {
     db: Arc<DB>,
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
+    /// Agent versioning only runs for cloud workspaces.
+    cloud_clickhouse: CloudClickhouse,
     llm_client: Option<Arc<LlmClient>>,
 }
 
@@ -162,6 +164,7 @@ impl CheckpointRecorder {
         Self {
             db,
             cache,
+            cloud_clickhouse: CloudClickhouse::new(clickhouse.clone()),
             clickhouse,
             llm_client,
         }
@@ -399,8 +402,7 @@ impl CheckpointRecorder {
         }
 
         let rows: Vec<CHTraceAgg> = partials.into_values().collect();
-        let clickhouse = CloudClickhouse::new(self.clickhouse.clone());
-        if let Err(e) = clickhouse.insert_batch(&rows, None).await {
+        if let Err(e) = self.cloud_clickhouse.insert_batch(&rows, None).await {
             log::error!(
                 "[CHECKPOINTS] Failed to insert {} trace tag partials: {e:?}",
                 rows.len()
