@@ -6,8 +6,8 @@ import { useFormContext } from "react-hook-form";
 import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import FreePlanWarning from "@/components/onboarding/steps/plan-step/free-plan-warning";
-import PlanCard from "@/components/onboarding/steps/plan-step/plan-card";
-import { PLANS } from "@/components/onboarding/steps/plan-step/plans";
+import PlanTable from "@/components/onboarding/steps/plan-step/plan-table";
+import { type PlanColumn, PLANS, SHARED_FEATURES } from "@/components/onboarding/steps/plan-step/plans";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { type CommitPlan, useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -40,6 +40,19 @@ export default function PlanStep({ stepIndex, totalSteps, onAdvance, onBack }: P
   const alreadyOnPaidTier = currentTier !== "free";
   const offerTrial = subscriptionEnabled && trialAvailable && !alreadyOnPaidTier;
   const startsTrial = offerTrial && selectedTier === "hobby";
+  // While the trial is on offer, Free is where an unconverted trial lands, not a choice here.
+  const plans = offerTrial ? PLANS.filter((plan) => plan.id !== "free") : PLANS;
+  const columns: PlanColumn[] = plans.map((plan) => {
+    const isCurrent = plan.id === currentTier;
+    return {
+      plan,
+      selected: selectedTier === plan.id,
+      disabled: alreadyOnPaidTier && !isCurrent,
+      // A new workspace starts on Free; badging it "Current" nudges people away from the trial.
+      isCurrent: alreadyOnPaidTier && isCurrent,
+      trialDays: offerTrial && plan.id === "hobby" ? TRIAL_DAYS : undefined,
+    };
+  });
 
   useEffect(() => {
     track("onboarding", "plan_step_viewed", { trial_offered: offerTrial, current_tier: currentTier });
@@ -94,34 +107,15 @@ export default function PlanStep({ stepIndex, totalSteps, onAdvance, onBack }: P
       description={
         alreadyOnPaidTier
           ? "Your subscription is active. Continue to finish setting up."
-          : offerTrial
-            ? `Match the plan to your expected usage. Starter comes with a ${TRIAL_DAYS}-day free trial, no card needed.`
-            : "Match the plan to your expected usage."
+          : "Match the plan to your expected usage."
       }
       onNext={handleNext}
       onBack={alreadyOnPaidTier ? undefined : onBack}
       nextLabel={nextLabel()}
       isSubmitting={isSubmitting}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:gap-4 2xl:gap-5">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.id === currentTier;
-          const isLocked = alreadyOnPaidTier && !isCurrent;
-          return (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              selected={selectedTier === plan.id}
-              disabled={isLocked}
-              isCurrent={isCurrent}
-              trialDays={offerTrial && plan.id === "hobby" ? TRIAL_DAYS : undefined}
-              onSelect={() => {
-                if (!isLocked) setValue("selectedTier", plan.id);
-              }}
-            />
-          );
-        })}
-      </div>
+      <PlanTable columns={columns} onSelect={(tier) => setValue("selectedTier", tier)} />
+      <p className="text-xs text-muted-foreground">{SHARED_FEATURES}</p>
       {selectedTier === "free" && !alreadyOnPaidTier && (
         <FreePlanWarning inviteCount={inviteCount} signalCount={signalCount} />
       )}
