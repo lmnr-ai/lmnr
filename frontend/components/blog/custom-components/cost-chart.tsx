@@ -26,7 +26,8 @@ export function CostChart({ title, children }: { title?: string; children: React
   const baseline = bars.find((b) => b.isHighlight);
 
   return (
-    <figure className="not-typeset my-8 flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+    // Scrolls sideways on narrow screens like tables; on the card so the scroll area includes its padding.
+    <figure className="not-typeset my-8 flex flex-col gap-3 overflow-x-auto rounded-lg border border-white/10 bg-white/[0.02] p-4">
       {title && <figcaption className="text-sm font-medium text-white">{title}</figcaption>}
       {bars.map((bar) => (
         <div key={bar.model} className="grid grid-cols-[120px_1fr] items-center gap-3 sm:grid-cols-[150px_1fr]">
@@ -44,6 +45,8 @@ export function CostChart({ title, children }: { title?: string; children: React
                 {formatRatio(bar.value / baseline.value)} {baseline.model}
               </span>
             )}
+            {/* Overflowing content drops the card's end padding when scrolled; this restores it (gap-2 + w-2). */}
+            <span aria-hidden className="w-2 shrink-0" />
           </div>
         </div>
       ))}
