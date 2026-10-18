@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
+import CollapsibleEventBody from "./collapsible-event-body";
 import WarningMark from "./signals-pipeline/warning-mark";
 
 // `triangle` matches the issue-triangle colours in the MultiModelPipeline graph
@@ -58,9 +59,13 @@ export function SignalEvent({ model, grade, highlight, children }: SignalEventPr
           {model}
         </span>
       </div>
-      <div className="text-sm leading-relaxed text-secondary-foreground [&_p]:m-0">
-        {children ?? <span className="italic">No event: no failure found.</span>}
-      </div>
+      {children ? (
+        <CollapsibleEventBody className="flex flex-col gap-2 text-sm leading-relaxed text-secondary-foreground [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:m-0 [&_ul]:list-disc [&_ul]:pl-5">
+          {children}
+        </CollapsibleEventBody>
+      ) : (
+        <span className="text-sm italic text-secondary-foreground">No event: no failure found.</span>
+      )}
     </div>
   );
 }

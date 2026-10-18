@@ -32,9 +32,9 @@ const GREEN = "#26ae6c";
 const YELLOW = "#fddb08";
 const RED = "#f78079";
 const ISSUE_COLORS = [
-  [GREEN, GREEN, RED, RED, GREEN], // τ²-bench
+  [GREEN, GREEN, RED, GREEN, RED], // τ²-bench
   [GREEN, GREEN, GREEN, GREEN, GREEN], // TheAgentCompany
-  [GREEN, GREEN, RED, RED, YELLOW], // Terminal Bench 2 (sol: noise, luna: partial)
+  [RED, GREEN, GREEN, YELLOW, YELLOW], // Terminal Bench 2 (sol, luna: partial)
 ];
 
 const SURFACE = "var(--color-surface-350)";
