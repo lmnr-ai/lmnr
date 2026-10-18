@@ -16,7 +16,7 @@ use crate::{
 
 const INTERNAL_TRACING_TARGET: &str = "lmnr::internal";
 const NAME_TOOL_NAME: &str = "name_agent";
-const PROMPT_LIMIT: usize = 4000;
+const PROMPT_LIMIT: usize = 16_000;
 const NAME_LIMIT: usize = 100;
 
 const NAMING_INSTRUCTION: &str = "You name AI agents. Given an agent's system prompt, \
