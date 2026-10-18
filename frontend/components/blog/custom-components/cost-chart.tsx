@@ -26,30 +26,30 @@ export function CostChart({ title, children }: { title?: string; children: React
   const baseline = bars.find((b) => b.isHighlight);
 
   return (
-    <figure className="not-typeset my-8 flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+    // Scrolls sideways on narrow screens like tables; on the card so the scroll area includes its padding.
+    <figure className="not-typeset my-8 flex flex-col gap-3 overflow-x-auto rounded-lg border border-white/10 bg-white/[0.02] p-4">
       {title && <figcaption className="text-sm font-medium text-white">{title}</figcaption>}
-      {/* Scrolls sideways on narrow screens instead of overflowing the card, like tables. */}
-      <div className="flex flex-col gap-3 overflow-x-auto">
-        {bars.map((bar) => (
-          <div key={bar.model} className="grid grid-cols-[120px_1fr] items-center gap-3 sm:grid-cols-[150px_1fr]">
-            <span className={cn("truncate text-sm", bar.isHighlight ? "font-medium text-primary" : "text-white")}>
-              {bar.model}
-            </span>
-            <div className="flex items-center gap-2">
-              <div
-                className={cn("h-5 shrink-0 rounded-sm", bar.isHighlight ? "bg-primary" : "bg-white/25")}
-                style={{ width: `max(3px, ${max ? (bar.value / max) * 55 : 0}%)` }}
-              />
-              <span className="whitespace-nowrap font-mono text-xs text-white">{formatUsd(bar.value)}</span>
-              {baseline && !bar.isHighlight && baseline.value > 0 && (
-                <span className="whitespace-nowrap text-xs text-secondary-foreground">
-                  {formatRatio(bar.value / baseline.value)} {baseline.model}
-                </span>
-              )}
-            </div>
+      {bars.map((bar) => (
+        <div key={bar.model} className="grid grid-cols-[120px_1fr] items-center gap-3 sm:grid-cols-[150px_1fr]">
+          <span className={cn("truncate text-sm", bar.isHighlight ? "font-medium text-primary" : "text-white")}>
+            {bar.model}
+          </span>
+          <div className="flex items-center gap-2">
+            <div
+              className={cn("h-5 shrink-0 rounded-sm", bar.isHighlight ? "bg-primary" : "bg-white/25")}
+              style={{ width: `max(3px, ${max ? (bar.value / max) * 55 : 0}%)` }}
+            />
+            <span className="whitespace-nowrap font-mono text-xs text-white">{formatUsd(bar.value)}</span>
+            {baseline && !bar.isHighlight && baseline.value > 0 && (
+              <span className="whitespace-nowrap text-xs text-secondary-foreground">
+                {formatRatio(bar.value / baseline.value)} {baseline.model}
+              </span>
+            )}
+            {/* Overflowing content drops the card's end padding when scrolled; this restores it (gap-2 + w-2). */}
+            <span aria-hidden className="w-2 shrink-0" />
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </figure>
   );
 }
