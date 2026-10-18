@@ -20,12 +20,10 @@ interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
   onClose?: () => void;
-  // Inline in another page (blog): leaves the host URL alone, hides signal events, opens on the tree.
-  embedded?: boolean;
 }
 
 // Expects a store seeded with `trace`/`spans` so the server render already shows the tree.
-export const PureTraceView = ({ trace, spans, onClose, embedded }: TraceViewProps) => {
+export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -40,33 +38,32 @@ export const PureTraceView = ({ trace, spans, onClose, embedded }: TraceViewProp
   );
 
   // Auto-selecting the first span needs the viewport width; keep a span placeholder until the effect decides.
-  const [selectionPending, setSelectionPending] = useState(!onClose && !embedded);
+  const [selectionPending, setSelectionPending] = useState(!onClose);
 
-  useTraceSignals(embedded ? null : `/api/shared/traces/${trace.id}/signals`);
+  useTraceSignals(`/api/shared/traces/${trace.id}/signals`);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (span && !embedded) {
+      if (span) {
         const params = new URLSearchParams(searchParams);
         params.set("spanId", span.spanId);
         router.replace(`${pathName}?${params.toString()}`);
       }
       setSelectedSpan(span);
     },
-    [embedded, pathName, router, searchParams, setSelectedSpan]
+    [pathName, router, searchParams, setSelectedSpan]
   );
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    if (!embedded && searchParams.has("spanId")) {
+    if (searchParams.has("spanId")) {
       const params = new URLSearchParams(searchParams);
       params.delete("spanId");
       router.replace(`${pathName}?${params.toString()}`);
     }
-  }, [embedded, setSelectedSpan, searchParams, router, pathName]);
+  }, [setSelectedSpan, searchParams, router, pathName]);
 
   useEffect(() => {
-    if (embedded) return;
     const spanId = searchParams.get("spanId");
     const linkedSpan = spanId ? spans.find((s) => s.spanId === spanId) : undefined;
     const span = linkedSpan ?? (!onClose && window.innerWidth >= STACK_THRESHOLD ? spans[0] : undefined);

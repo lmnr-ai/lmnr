@@ -3,10 +3,10 @@
 import { ArrowUpRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
-import TraceView from "@/components/shared/traces/trace-view";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 
 import TabBar from "../tab-bar";
+import EmbeddedTraceView from "./embedded-trace-view";
 import TraceEmbedBoundary from "./trace-embed-boundary";
 
 const CLOUD_SHARED_PAGE = "https://laminar.sh/shared/traces";
@@ -55,7 +55,7 @@ export default function TraceTabsClient({ tabs }: { tabs: TraceTabData[] }) {
             key={tab.traceId}
             fallback={<EmbedFallback traceId={tab.traceId} message="Couldn't load this trace here." />}
           >
-            <TraceView key={tab.traceId} trace={tab.trace} spans={tab.spans} embedded />
+            <EmbeddedTraceView key={tab.traceId} trace={tab.trace} spans={tab.spans} />
           </TraceEmbedBoundary>
         ) : (
           <EmbedFallback traceId={tab.traceId} message="This trace isn't public yet." />
