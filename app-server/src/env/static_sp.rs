@@ -16,7 +16,8 @@ pub const ACCUMULATOR_TTL_SECONDS: NumEnv<u64> =
 /// signature even though its unique samples never reached `PROMPT_SAMPLES` (a
 /// byte-identical prompt collapses to one unique sample forever, so it would
 /// otherwise never extract and the producer would re-enqueue on every trace).
-pub const OCCURRENCE_THRESHOLD: NumEnv<u64> = NumEnv::new("SP_EXTRACTION_OCCURRENCE_THRESHOLD", 50);
+pub const OCCURRENCE_THRESHOLD: NumEnv<u64> =
+    NumEnv::new("SP_EXTRACTION_OCCURRENCE_THRESHOLD", 100);
 
 // ==== v2 (version-tracking) pipeline, gated by `Feature::StaticSpV2` ====
 
