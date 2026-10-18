@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    ContentHash, SharedContentBatch, content_hash, is_seen, span_group_id, storage_seen_key,
+    BatchSeen, ContentHash, SharedContentBatch, content_hash, is_seen_or_claimed, span_group_id,
+    storage_seen_key,
 };
 use crate::{
     cache::Cache,
@@ -122,7 +123,11 @@ fn indexed_function(attrs: &HashMap<String, Value>, idx: u32) -> Option<Value> {
 
 /// Producer-side: extract, hash and consult storage for one LLM span's tool
 /// definitions. `None` when the span isn't an LLM span or has no tools.
-pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedup> {
+pub async fn build_tool_dedup(
+    span: &mut Span,
+    cache: &Cache,
+    batch_seen: &mut BatchSeen,
+) -> Option<ToolDedup> {
     if !span.is_llm_span() {
         return None;
     }
@@ -131,11 +136,12 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
     )?);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);
-    let content = if is_seen(cache, &key).await {
+    let content = if is_seen_or_claimed(cache, batch_seen, &key).await {
         None
     } else {
         Some(sanitize_string(&tools.to_string()))
     };
+    batch_seen.claim(key);
     Some(ToolDedup {
         hash,
         content,
@@ -194,7 +200,9 @@ mod tests {
             ]),
         )]);
         let mut span = llm_span_with_attrs(attrs);
-        let dedup = build_tool_dedup(&mut span, &make_cache()).await.unwrap();
+        let dedup = build_tool_dedup(&mut span, &make_cache(), &mut BatchSeen::per_span())
+            .await
+            .unwrap();
         assert!(dedup.content.is_some());
         assert!(
             !span
@@ -225,7 +233,9 @@ mod tests {
             ),
         ]);
         let mut span = llm_span_with_attrs(attrs);
-        let dedup = build_tool_dedup(&mut span, &make_cache()).await.unwrap();
+        let dedup = build_tool_dedup(&mut span, &make_cache(), &mut BatchSeen::per_span())
+            .await
+            .unwrap();
         let parsed: Value = serde_json::from_str(dedup.content.as_ref().unwrap()).unwrap();
         let arr = parsed.as_array().unwrap();
         assert_eq!(arr.len(), 2);
@@ -246,7 +256,11 @@ mod tests {
     #[tokio::test]
     async fn returns_none_when_no_tools_present() {
         let mut span = llm_span_with_attrs(HashMap::new());
-        assert!(build_tool_dedup(&mut span, &make_cache()).await.is_none());
+        assert!(
+            build_tool_dedup(&mut span, &make_cache(), &mut BatchSeen::per_span())
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -257,7 +271,11 @@ mod tests {
             ("ai.prompt.tools", json!({"unexpected": "shape"})),
         ] {
             let mut span = llm_span_with_attrs(HashMap::from([(key.to_string(), value)]));
-            assert!(build_tool_dedup(&mut span, &make_cache()).await.is_none());
+            assert!(
+                build_tool_dedup(&mut span, &make_cache(), &mut BatchSeen::per_span())
+                    .await
+                    .is_none()
+            );
             assert!(
                 span.attributes.raw_attributes.contains_key(key),
                 "{key} must not be silently dropped"
@@ -273,7 +291,9 @@ mod tests {
         )]);
         let mut first_span = llm_span_with_attrs(attrs.clone());
         let cache = make_cache();
-        let first = build_tool_dedup(&mut first_span, &cache).await.unwrap();
+        let first = build_tool_dedup(&mut first_span, &cache, &mut BatchSeen::per_span())
+            .await
+            .unwrap();
 
         // Same project and trace (hence group) as the first span.
         let mut second_span = Span {
@@ -292,7 +312,9 @@ mod tests {
             )
             .await
             .unwrap();
-        let second = build_tool_dedup(&mut second_span, &cache).await.unwrap();
+        let second = build_tool_dedup(&mut second_span, &cache, &mut BatchSeen::per_span())
+            .await
+            .unwrap();
         assert_eq!(second.hash, first.hash);
         assert!(second.content.is_none());
     }

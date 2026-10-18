@@ -33,6 +33,7 @@
 - `span.input = None` on the wire when a verdict exists — EXCEPT root spans (`parent_span_id.is_none()` OR `is_top_span`), because `TraceAggregation::from_spans` reads `root_span_input` for the trace-list preview. Use `is_top_span` (`pub(crate)` in `traces::utils`), don't duplicate the heuristic.
 - `RabbitMqSpanMessage.pre_processed = true` makes the consumer skip `parse_and_enrich_attributes` + `convert_span_to_provider_format`; running the LangChain rewrite twice would replace `span.input` and break hash alignment.
 - Consumer-side `MessageBatch::build` is bounds-checked against malformed verdicts (`get(..)` + `continue`), so a corrupt dedup skips entries instead of panicking the whole flush.
+- `BatchSeen` (`traces/dedup/mod.rs`) holds keys claimed by earlier spans in the same MQ message. `per_span()` (OTLP default) claims nothing, so siblings each ship full content. `across_spans()` (`SpanMessageBatch::across_spans`, used by `/v1/atif`) lets a later span go hash-only on content an earlier sibling carries. This is only safe because the consumer writes a whole delivery in one flush AND records every span in it. So `SpanMessageBatch::push` gives a span that fails `should_record_to_clickhouse()` a throwaway `per_span` set. A dropped span must neither claim content for its siblings nor rely on theirs.
 - Quickwit indexing reads the pre-built `span_trace_new_contents` (aligned with the batch) rather than projecting indices onto `span.input`, which is `None` on the producer path.
 
 ## Quickwit index configs and commit cadence

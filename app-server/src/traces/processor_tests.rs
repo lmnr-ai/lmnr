@@ -39,8 +39,12 @@ use crate::{
     pubsub::{PubSub, PubSubTrait, in_memory::InMemoryPubSub},
     quickwit::{SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_ROUTING_KEY},
     traces::{
+        atif::{
+            convert::{self, ConvertOptions},
+            schema::Trajectory,
+        },
         dedup::{
-            content_hash,
+            BatchSeen, content_hash,
             messages::{MessageDedup, build_message_dedup},
             session::resolve_session,
             span_group_id,
@@ -177,13 +181,23 @@ impl Harness {
     /// Producer side, as `producer::preprocess_for_queue` does it: enrich,
     /// convert, settle the session, build the three verdicts, strip the
     /// dedup'd fields off the wire.
-    async fn produce(&self, mut span: Span) -> RabbitMqSpanMessage {
+    async fn produce(&self, span: Span) -> RabbitMqSpanMessage {
+        self.produce_with(span, &mut BatchSeen::per_span()).await
+    }
+
+    async fn produce_with(
+        &self,
+        mut span: Span,
+        batch_seen: &mut BatchSeen,
+    ) -> RabbitMqSpanMessage {
         span.parse_and_enrich_attributes();
         convert_span_to_provider_format(&mut span);
         resolve_session(&mut span, &self.cache).await;
-        let tool_dedup = build_tool_dedup(&mut span, &self.cache).await;
-        let input_dedup = build_message_dedup(&span, span.input.as_ref(), &self.cache).await;
-        let output_dedup = build_message_dedup(&span, span.output.as_ref(), &self.cache).await;
+        let tool_dedup = build_tool_dedup(&mut span, &self.cache, batch_seen).await;
+        let input_dedup =
+            build_message_dedup(&span, span.input.as_ref(), &self.cache, batch_seen).await;
+        let output_dedup =
+            build_message_dedup(&span, span.output.as_ref(), &self.cache, batch_seen).await;
         if input_dedup.is_some() {
             span.input = None;
         }
@@ -1063,6 +1077,97 @@ async fn pipeline_end_to_end() {
 
 fn nanos(secs: i64) -> Value {
     json!(at(secs).timestamp_nanos_opt().unwrap())
+}
+
+/// A converted ATIF trajectory is one MQ message whose LLM spans each repeat
+/// the whole history. Sharing claims across the batch stores every message
+/// once and marks it trace-new only where it first appears.
+#[tokio::test]
+async fn atif_trajectory_dedups_history_across_spans() {
+    let mut h = Harness::new().await;
+    h.seed_project(id(P_OFF), PiiMode::Off).await;
+    let trajectory: Trajectory = serde_json::from_value(json!({
+        "agent": {"name": "terminus-2", "model_name": "openai/gpt-4o"},
+        "steps": [
+            {"timestamp": "2024-01-01T00:00:00Z", "source": "system", "message": "You are an agent."},
+            {"timestamp": "2024-01-01T00:00:00Z", "source": "user", "message": "List files."},
+            {
+                "timestamp": "2024-01-01T00:00:10Z", "source": "agent", "message": "Running ls.",
+                "tool_calls": [{"tool_call_id": "c1", "function_name": "bash", "arguments": {"cmd": "ls"}}],
+                "observation": {"results": [{"source_call_id": "c1", "content": "a.txt"}]},
+                "metrics": {"prompt_tokens": 100, "completion_tokens": 20, "cost_usd": 0.01}
+            },
+            {
+                "timestamp": "2024-01-01T00:00:20Z", "source": "agent", "message": "Found a.txt.",
+                "metrics": {"prompt_tokens": 130, "completion_tokens": 5, "cost_usd": 0.01}
+            }
+        ]
+    }))
+    .unwrap();
+    // Costs given, so usage never falls back to the (unconnected) price DB.
+    let converted = convert::convert_trajectory(
+        &trajectory,
+        &ConvertOptions {
+            project_id: id(P_OFF),
+            trace_id: id(0xA7),
+            parent: None,
+            session_id: None,
+            user_id: None,
+            metadata: serde_json::Map::new(),
+            received_at: at(0),
+        },
+    );
+
+    let mut batch_seen = BatchSeen::across_spans();
+    let mut messages = Vec::new();
+    for span in converted.into_spans() {
+        messages.push(h.produce_with(span, &mut batch_seen).await);
+    }
+    let llm_ids: Vec<Uuid> = messages
+        .iter()
+        .filter(|m| m.span.span_type == SpanType::LLM)
+        .map(|m| m.span.span_id)
+        .collect();
+    assert_eq!(llm_ids.len(), 2);
+    let flush = h.flush(messages).await;
+
+    assert_eq!(flush.rows("spans").len(), 4);
+    let first = flush.span_row(llm_ids[0]);
+    assert_eq!(first["span_type"], 1);
+    assert_eq!(first["model"], "gpt-4o");
+    assert_eq!(first["input_tokens"], 100);
+    assert_eq!(hashes_of(&first["input_message_hashes"]).len(), 2);
+    assert_eq!(u16s(&first["input_new_message_indices"]), vec![0, 1]);
+    assert_eq!(u16s(&first["output_new_message_indices"]), vec![0]);
+
+    // The second call's history repeats the first's input and output; only
+    // the tool result is new.
+    let second = flush.span_row(llm_ids[1]);
+    let second_input = hashes_of(&second["input_message_hashes"]);
+    assert_eq!(second_input.len(), 4);
+    assert_eq!(
+        second_input[..2],
+        hashes_of(&first["input_message_hashes"])[..]
+    );
+    assert_eq!(
+        second_input[2],
+        hashes_of(&first["output_message_hashes"])[0]
+    );
+    assert_eq!(u16s(&second["input_new_message_indices"]), vec![3]);
+
+    // sys, user, assistant 1, tool result, assistant 2 — each stored once.
+    let stored: Vec<[u8; 32]> = flush
+        .rows("unique_content")
+        .iter()
+        .map(|r| hashes_of(&json!([r["content_hash"]]))[0])
+        .collect();
+    assert_eq!(stored.len(), 5);
+    for hash in second_input
+        .iter()
+        .chain(hashes_of(&second["output_message_hashes"]).iter())
+    {
+        assert!(stored.contains(hash));
+    }
 }
 
 // ---------------------------------------------------------------------------
