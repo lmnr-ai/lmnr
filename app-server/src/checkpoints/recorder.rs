@@ -48,8 +48,6 @@ const ENTRY_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 const TRACE_TAG_TTL_SECONDS: u64 = 24 * 60 * 60;
 /// Also the retry interval after a failed naming attempt.
 const NAMING_LOCK_TTL_SECONDS: u64 = 10 * 60;
-/// Each lost race on `version_number` costs one attempt.
-const VERSION_INSERT_ATTEMPTS: usize = 3;
 /// Blobs tried per new version in a batch; each is one ClickHouse read.
 const TOOL_TEXT_CANDIDATES: usize = 4;
 const MODEL_MAX_CHARS: usize = 256;
@@ -210,7 +208,7 @@ impl CheckpointRecorder {
                     version_ids.insert((span.project_id, span.version_hash.as_str()), id);
                 }
                 Ok(None) => log::debug!(
-                    "[CHECKPOINTS] Deferring version {}: tool definitions not readable yet",
+                    "[CHECKPOINTS] Deferring version {}: tool definitions not readable yet or version_number race lost",
                     span.version_hash
                 ),
                 Err(e) => log::warn!(
@@ -259,7 +257,7 @@ impl CheckpointRecorder {
     }
 
     /// `spans` all present the same version. `None` defers the version: its
-    /// tool text isn't readable yet.
+    /// tool text isn't readable yet, or it lost the `version_number` race.
     async fn ensure_version(
         &self,
         spans: &[&VersionedSpan<'_>],
@@ -303,20 +301,12 @@ impl CheckpointRecorder {
             tool_definitions_hash: &span.inputs.tool_set_hash,
             tool_definitions: &tool_definitions,
         };
-        for _ in 0..VERSION_INSERT_ATTEMPTS {
-            if let Some(id) = agents::insert_agent_version(&self.db.pool, &version).await? {
-                return Ok(Some(id));
-            }
-            // A conflict means either a concurrent insert of this same version
-            // or a lost race for the next `version_number`.
-            if let Some(id) =
-                agents::get_agent_version_id(&self.db.pool, span.project_id, &span.version_hash)
-                    .await?
-            {
-                return Ok(Some(id));
-            }
+        if let Some(id) = agents::insert_agent_version(&self.db.pool, &version).await? {
+            return Ok(Some(id));
         }
-        anyhow::bail!("version_number contention on agent {agent_id}")
+        // A conflict is a concurrent insert of this same version, or a lost race
+        // for the next `version_number`, which defers the version.
+        agents::get_agent_version_id(&self.db.pool, span.project_id, &span.version_hash).await
     }
 
     /// Text of the version's tool set: from another version of the agent with
