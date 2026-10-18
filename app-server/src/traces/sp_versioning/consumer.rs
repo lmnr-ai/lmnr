@@ -232,6 +232,8 @@ impl MessageHandler for SpVersioningHandler {
                 self.kind.tables().versions
             );
         }
+
+        // Check new agents versions.
         if let Some(recorder) = &self.checkpoints
             && !rows.is_empty()
         {
