@@ -818,14 +818,7 @@
       "idx": 116,
       "version": "7",
       "when": 1792169727831,
-      "tag": "0116_drop_legacy_agents",
-      "breakpoints": true
-    },
-    {
-      "idx": 117,
-      "version": "7",
-      "when": 1792169727854,
-      "tag": "0117_agent_versioning",
+      "tag": "0116_agent_versioning",
       "breakpoints": true
     }
   ]

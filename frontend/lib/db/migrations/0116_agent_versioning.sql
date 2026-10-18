@@ -1,3 +1,5 @@
+DROP TABLE "agent_versions" CASCADE;--> statement-breakpoint
+DROP TABLE "agents" CASCADE;--> statement-breakpoint
 CREATE TABLE "agent_version_models" (
 	"project_id" uuid NOT NULL,
 	"agent_version_id" uuid NOT NULL,
