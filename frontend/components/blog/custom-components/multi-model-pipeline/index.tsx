@@ -23,7 +23,7 @@ const MODEL_R = 8;
 const SQUARE = 16;
 const LABEL_X = 54;
 
-const BENCHMARKS = ["τ²-bench", "Harvey LAB", "Terminal Bench 2"];
+const BENCHMARKS = ["τ²-bench", "TheAgentCompany", "Terminal Bench 2"];
 // flow-1 is highlighted (leftmost); the rest are neutral.
 const MODEL_COLORS = ["#8cb9ff", "#f0f0f0", "#f0f0f0", "#f0f0f0", "#f0f0f0"];
 
@@ -32,9 +32,9 @@ const GREEN = "#26ae6c";
 const YELLOW = "#fddb08";
 const RED = "#f78079";
 const ISSUE_COLORS = [
-  [GREEN, GREEN, RED, GREEN, RED], // τ²-bench (luna: noise → red)
-  [GREEN, YELLOW, RED, YELLOW, YELLOW], // Harvey LAB (Opus/sol/luna: partial)
-  [GREEN, GREEN, RED, GREEN, GREEN], // Terminal Bench 2
+  [GREEN, GREEN, RED, RED, GREEN], // τ²-bench
+  [GREEN, GREEN, GREEN, GREEN, GREEN], // TheAgentCompany
+  [GREEN, GREEN, RED, RED, YELLOW], // Terminal Bench 2 (sol: noise, luna: partial)
 ];
 
 const SURFACE = "var(--color-surface-350)";
@@ -170,10 +170,10 @@ export default function MultiModelPipeline() {
           {/* Stage labels down the left */}
           <g style={labelStyle} fill={TEXT} textAnchor="middle" dominantBaseline="central">
             <text x={LABEL_X} y={Y.agent}>
-              Agents
+              Agent
             </text>
             <text x={LABEL_X} y={Y.trace}>
-              Traces
+              Trace
             </text>
             <text x={LABEL_X} y={Y.model}>
               <tspan x={LABEL_X} dy="-0.55em">
