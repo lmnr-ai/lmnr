@@ -16,21 +16,20 @@ pub const ACCUMULATOR_TTL_SECONDS: NumEnv<u64> =
 /// signature even though its unique samples never reached `PROMPT_SAMPLES` (a
 /// byte-identical prompt collapses to one unique sample forever, so it would
 /// otherwise never extract and the producer would re-enqueue on every trace).
-pub const OCCURRENCE_THRESHOLD: NumEnv<u64> =
-    NumEnv::new("SP_EXTRACTION_OCCURRENCE_THRESHOLD", 100);
+pub const OCCURRENCE_THRESHOLD: NumEnv<u64> = NumEnv::new("SP_EXTRACTION_OCCURRENCE_THRESHOLD", 50);
 
 // ==== v2 (version-tracking) pipeline, gated by `Feature::StaticSpV2` ====
 
 /// Master switch for the v2 pipeline: per-agent prompt windows, line-level
 /// version detection, and per-span version rows in ClickHouse. When false the
 /// legacy skeleton-hash pipeline runs unchanged.
-pub const V2_ENABLED: BoolEnv = BoolEnv::new("SP_VERSIONING_ENABLED", false);
+pub const V2_ENABLED: BoolEnv = BoolEnv::new("SP_VERSIONING_ENABLED", true);
 
 /// Lets signals keep resolving static prompts through the legacy
 /// per-naive-signature regex cache while versions are already being minted, so
 /// the classifier can be rolled out and observed before summarization depends
 /// on it. Requires `V2_ENABLED` to have any effect.
-pub const SIGNALS_ENABLED: BoolEnv = BoolEnv::new("SP_VERSIONING_SIGNALS_ENABLED", false);
+pub const SIGNALS_ENABLED: BoolEnv = BoolEnv::new("SP_VERSIONING_SIGNALS_ENABLED", true);
 
 /// Distinct user-message samples accumulated per (user-template version,
 /// has_history) cohort before the multi-sample user-task regex agent runs.
