@@ -8,9 +8,9 @@ import { TIER_RETENTION } from "@/lib/billing/retention";
 import { TIERS } from "@/lib/billing/tiers";
 
 const TRIAL_INCLUDES = [
+  { icon: Bell, label: "Signals and Slack alerts" },
   { icon: Database, label: `${TIERS.hobby.includedBytesGB} GB of data a month` },
   { icon: Clock, label: `${TIER_RETENTION.hobby.durationPlural} of data access` },
-  { icon: Bell, label: "Signals and Slack alerts" },
   { icon: Users, label: "Unlimited teammates" },
 ];
 
@@ -25,11 +25,11 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <span className="font-medium text-white">Your Starter trial ends on {format(endsAt, "MMMM d")}</span>
+        <span className="font-medium text-white">You&apos;re on the Starter trial</span>
         <span className="text-xs text-muted-foreground">
           {convertsToPaid
-            ? `Starter continues then at $${TIERS.hobby.basePriceMonthly}/month on your saved card.`
-            : "After that, this workspace moves to the Free plan. Upgrade to keep:"}
+            ? `Starter continues after ${format(endsAt, "MMMM d")} at $${TIERS.hobby.basePriceMonthly}/month on your saved card.`
+            : `Try Signals on your traces, free until ${format(endsAt, "MMMM d")}. Your workspace includes:`}
         </span>
       </div>
       <ul className="flex flex-col gap-1.5 text-xs text-secondary-foreground">
@@ -40,6 +40,7 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
           </li>
         ))}
       </ul>
+      {!convertsToPaid && <span className="text-xs text-muted-foreground">Upgrade to keep these features.</span>}
       <Link href={settingsHref("billing")} onClick={onNavigate} className="mt-1">
         <Button size="sm" className="h-7 w-full" variant={convertsToPaid ? "outline" : "default"}>
           <span>{convertsToPaid ? "Manage billing" : "Upgrade"}</span>
