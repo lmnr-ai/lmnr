@@ -19,6 +19,8 @@ interface TracePanelProps {
   spans: TraceViewSpan[];
   onClose?: () => void;
   onSpanSelect: (span?: TraceViewSpan) => void;
+  // Shorter timeline for small embeds (blog), so the tree/transcript gets the room.
+  isCompactTimeline?: boolean;
 }
 
 const useHydrated = () =>
@@ -28,7 +30,7 @@ const useHydrated = () =>
     () => false
   );
 
-export default function TracePanel({ trace, spans, onClose, onSpanSelect }: TracePanelProps) {
+export default function TracePanel({ trace, spans, onClose, onSpanSelect, isCompactTimeline }: TracePanelProps) {
   const hydrated = useHydrated();
 
   const {
@@ -76,12 +78,12 @@ export default function TracePanel({ trace, spans, onClose, onSpanSelect }: Trac
           "flex-1 min-h-0",
           isResizing && "pointer-events-none",
           // Panels render flex-grow:1 (a 50/50 split) until measured; hold the timeline at its defaultSize.
-          !hydrated && "[&>[data-timeline]]:!max-h-[200px]"
+          !hydrated && (isCompactTimeline ? "[&>[data-timeline]]:!max-h-[96px]" : "[&>[data-timeline]]:!max-h-[200px]")
         )}
       >
         {condensedTimelineEnabled && (
           <>
-            <ResizablePanel defaultSize={200} minSize={80} data-timeline="">
+            <ResizablePanel defaultSize={isCompactTimeline ? 96 : 200} minSize={80} data-timeline="">
               <div className="border-t h-full">
                 <CondensedTimeline />
               </div>
