@@ -5,8 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import useSWR from "swr";
 
-import TrialIntroContent from "@/components/project/sidebar/trial-intro-content.tsx";
-import TrialStatusContent from "@/components/project/sidebar/trial-status-content.tsx";
+import TrialPopoverContent from "@/components/project/sidebar/trial-popover-content.tsx";
 import { useTrialIntro } from "@/components/project/sidebar/use-trial-intro.ts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
@@ -67,12 +66,12 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
             <ChevronRight className="size-3.5 text-primary-300 transition-transform group-hover:translate-x-0.5" />
           </button>
         </PopoverTrigger>
-        <PopoverContent side="right" align="end" className="flex w-80 flex-col gap-3 text-sm">
-          {intro ? (
-            <TrialIntroContent endsAt={endsAt} onClose={() => handleOpenChange(false)} />
-          ) : (
-            <TrialStatusContent endsAt={endsAt} convertsToPaid={convertsToPaid} />
-          )}
+        <PopoverContent side="right" align="end" className="w-64 text-sm">
+          <TrialPopoverContent
+            endsAt={endsAt}
+            convertsToPaid={convertsToPaid}
+            onNavigate={() => handleOpenChange(false)}
+          />
         </PopoverContent>
       </Popover>
     </SidebarMenuItem>

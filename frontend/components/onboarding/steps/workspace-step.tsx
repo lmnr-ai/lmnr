@@ -93,6 +93,8 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
                     field.onChange(e);
                   }}
                   id="workspace-name"
+                  // The workspace name is usually prefilled, so focus goes to the project name instead.
+                  autoFocus={!workspaceName?.trim()}
                   placeholder="e.g. Acme Inc."
                   className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}
                 />
@@ -117,6 +119,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
                 <Input
                   {...field}
                   id="project-name"
+                  autoFocus={!!workspaceName?.trim()}
                   placeholder="e.g. My AI Agent"
                   className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}
                 />
