@@ -44,6 +44,17 @@ pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
 /// demotion on `signals_realtime_queue` (`signals/private/fairness.rs`).
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_PROJECT_BACKLOG_CACHE_KEY: &str = "signal_project_backlog";
+/// Held by the one replica currently running the backfill dispatcher
+/// (`signals/private/dispatch.rs`).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_BACKFILL_DISPATCH_LOCK_CACHE_KEY: &str = "signal_backfill_dispatch_lock";
+/// Set by every dispatch request; the lock holder runs again if it finds it set
+/// after releasing, so a request that lost the lock race is never dropped.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_BACKFILL_DISPATCH_DIRTY_CACHE_KEY: &str = "signal_backfill_dispatch_dirty";
+/// The `project_id` the dispatcher served last — where its round-robin resumes.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_BACKFILL_DISPATCH_CURSOR_CACHE_KEY: &str = "signal_backfill_dispatch_cursor";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
