@@ -6,10 +6,10 @@
 //! a miss ships the raw text for consumer-side classification.
 //!
 //! - [`publish_static_prompt_candidates`] — system prompts, once per ingest
-//!   batch. Shared guards (LLM availability, internal-project filter), then a
-//!   feature-flag dispatch: `Feature::SystemPromptVersioning` routes to this
-//!   pipeline, off routes to the legacy skeleton-hash pipeline
-//!   (`static_sp_extraction::producer`).
+//!   batch. The internal-project filter, then a feature-flag dispatch:
+//!   `Feature::SystemPromptVersioning` routes to this LLM-free pipeline, off
+//!   routes to the legacy skeleton-hash pipeline
+//!   (`static_sp_extraction::producer`), which needs an LLM client.
 //! - [`resolve_and_publish`] — a single text whose caller needs the version
 //!   synchronously (the user-task hook keys its regex on the user template's).
 
@@ -21,6 +21,7 @@ use uuid::Uuid;
 use super::{VersionKind, consumer::SpVersioningMessage, similarity, versions, window::SpanRef};
 use crate::{
     cache::{Cache, CacheTrait},
+    checkpoints::AgentSpan,
     features::{Feature, is_feature_enabled},
     llm::llm_client_available,
     mq::{MessageQueue, MessageQueueTrait},
@@ -86,6 +87,8 @@ pub struct StaticPromptCandidate {
     /// Byte-identity hash of the prompt, computed once on the ingest producer.
     pub full_prompt_hash: String,
     pub system_prompt: String,
+    /// Agent-versioning inputs; set only while checkpoints are on.
+    pub agent_span: Option<AgentSpan>,
 }
 
 /// One distinct text to version, with every span that presented it.
@@ -99,6 +102,8 @@ pub struct VersionCandidate {
     pub full_hash: String,
     pub text: String,
     pub span_refs: Vec<SpanRef>,
+    /// See [`SpVersioningMessage::agent_spans`].
+    pub agent_spans: Vec<AgentSpan>,
 }
 
 /// What [`resolve_inline`] decided for one text.
@@ -109,12 +114,13 @@ struct InlineResolution {
     version: Option<String>,
 }
 
-/// Spans emitted by our own extraction self-tracing land in these projects;
-/// feeding them back into extraction would loop indefinitely.
+/// Spans emitted by our own self-tracing (extraction, signals, agent naming)
+/// land in these projects; feeding them back into versioning would loop.
 pub(crate) fn internal_project_ids() -> Vec<Uuid> {
     [
         crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID,
         crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID,
+        crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     ]
     .iter()
     .filter_map(|name| std::env::var(name).ok())
@@ -130,13 +136,6 @@ pub async fn publish_static_prompt_candidates(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    // Without the shared LLM client the extraction workers never spawn, the
-    // regex caches never fill, and every ingest batch would re-publish the
-    // same prompts forever.
-    if !llm_client_available() {
-        return;
-    }
-
     let internal_ids = internal_project_ids();
     let candidates: Vec<StaticPromptCandidate> = candidates
         .into_iter()
@@ -147,6 +146,12 @@ pub async fn publish_static_prompt_candidates(
     }
 
     if !is_feature_enabled(Feature::SystemPromptVersioning) {
+        // Without the shared LLM client the legacy extraction workers never
+        // spawn, the regex caches never fill, and every ingest batch would
+        // re-publish the same prompts forever.
+        if !llm_client_available() {
+            return;
+        }
         crate::traces::static_sp_extraction::producer::publish_legacy_candidates(
             candidates, &cache, &queue,
         )
@@ -189,6 +194,7 @@ fn group_by_prompt(candidates: Vec<StaticPromptCandidate>) -> Vec<VersionCandida
                 full_hash: candidate.full_prompt_hash,
                 text: candidate.system_prompt,
                 span_refs: Vec::new(),
+                agent_spans: Vec::new(),
             });
         let span_ref = SpanRef {
             trace_id: candidate.trace_id,
@@ -196,6 +202,7 @@ fn group_by_prompt(candidates: Vec<StaticPromptCandidate>) -> Vec<VersionCandida
         };
         if !group.span_refs.contains(&span_ref) {
             group.span_refs.push(span_ref);
+            group.agent_spans.extend(candidate.agent_span);
         }
     }
     groups.into_values().collect()
@@ -217,6 +224,7 @@ async fn resolve_inline(
         full_hash,
         text,
         span_refs,
+        agent_spans,
     } = candidate;
     let partition = kind.partition(&agent_hash, has_history);
     let line_hashes = similarity::line_hashes(&text);
@@ -265,6 +273,7 @@ async fn resolve_inline(
             cheap_matched_version,
             run_full,
             retry_count: 0,
+            agent_spans,
         },
         version,
     }
@@ -371,7 +380,47 @@ mod tests {
             full_hash: similarity::full_prompt_hash(text),
             text: text.to_string(),
             span_refs: Vec::new(),
+            agent_spans: Vec::new(),
         }
+    }
+
+    fn static_candidate(span_id: Uuid, agent_span: Option<AgentSpan>) -> StaticPromptCandidate {
+        StaticPromptCandidate {
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            span_id,
+            prompt_hash: "skeleton".to_string(),
+            agent_hash: "agent01".to_string(),
+            full_prompt_hash: "full".to_string(),
+            system_prompt: "prompt".to_string(),
+            agent_span,
+        }
+    }
+
+    fn agent_span(span_id: Uuid) -> AgentSpan {
+        AgentSpan {
+            span_id,
+            start_time: 0,
+            model: "gpt-4o".to_string(),
+            tool_set_hash: String::new(),
+            tool_content_hash: String::new(),
+            group_id: "group".to_string(),
+        }
+    }
+
+    #[test]
+    fn grouping_keeps_one_agent_span_per_span_ref() {
+        let (a, b, c) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let groups = group_by_prompt(vec![
+            static_candidate(a, Some(agent_span(a))),
+            static_candidate(a, Some(agent_span(a))),
+            static_candidate(b, Some(agent_span(b))),
+            static_candidate(c, None),
+        ]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].span_refs.len(), 3);
+        let ids: Vec<Uuid> = groups[0].agent_spans.iter().map(|s| s.span_id).collect();
+        assert_eq!(ids, vec![a, b]);
     }
 
     #[tokio::test]

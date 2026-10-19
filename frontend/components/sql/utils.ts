@@ -211,6 +211,12 @@ export const tableSchemas: Record<string, TableSchema> = {
         description:
           "Named clusters (L1 and ancestors) this trace's signal events belong to. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
       },
+      {
+        name: "agent_versions",
+        type: "Array(Tuple(agent_hash String, version_hash String, model String))",
+        description:
+          "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
+      },
     ],
   },
   trace_outputs: {

@@ -368,20 +368,6 @@ pub async fn process_span_messages(
         .await;
     }
 
-    // Best-effort: the system prompt is trace-new for conversation-start LLM
-    // spans, so it's in `dedup.input.span_trace_new_contents` even when
-    // storage-deduped.
-    if is_feature_enabled(Feature::Checkpoints) {
-        crate::checkpoints::producer::publish_checkpoints_for_batch(
-            &batch.spans,
-            &recordable_indices,
-            &dedup.input,
-            &batch.tool_dedups,
-            queue.clone(),
-        )
-        .await;
-    }
-
     populate_autocomplete_caches(&batch.spans, &cache, &clickhouse).await;
 
     if is_feature_enabled(Feature::UsageLimit) {

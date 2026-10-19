@@ -238,6 +238,11 @@ const TABLES: &[Table] = &[
                 "Array(Tuple(id UUID, signal_id UUID, name String, level UInt8, parent_id UUID, num_signal_events UInt32, created_at DateTime64(9), updated_at DateTime64(9)))",
                 "Named clusters (L1 and ancestors) this trace's signal events belong to. Empty until events are clustered. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
             ),
+            col(
+                "agent_versions",
+                "Array(Tuple(agent_hash String, version_hash String, model String))",
+                "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models. Empty when agent versioning is off",
+            ),
         ],
     },
     Table {
