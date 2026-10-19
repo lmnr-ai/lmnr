@@ -2072,6 +2072,16 @@ fn main() -> anyhow::Result<()> {
                                 queue_config,
                             );
                         }
+                        // Tracked so shutdown waits out a pass in progress.
+                        worker_tasks_for_consumer.spawn(
+                            signals::private::dispatch::run_dispatch_sweep(
+                                db_for_consumer.clone(),
+                                cache_for_consumer.clone(),
+                                mq_for_consumer.clone(),
+                                clickhouse_for_consumer.clone(),
+                                shutdown_for_consumer.clone(),
+                            ),
+                        );
                     } else {
                         log::warn!(
                             "LLM provider not available - skipping realtime and backfill workers"
