@@ -50,7 +50,7 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
       : 0;
 
   return (
-    <Card>
+    <Card className="border-0">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Upcoming invoice</CardTitle>
@@ -282,7 +282,7 @@ export default function WorkspaceBilling({
 
       {canManageBilling && subscription && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
-          <Card>
+          <Card className="border-0">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Current plan</CardTitle>

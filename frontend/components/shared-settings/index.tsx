@@ -307,11 +307,11 @@ const SharedSettings = ({
                       >
                         <Link href={sectionHref(m.section)}>
                           <m.icon />
-                          <span className="mr-2">{m.label}</span>
+                          <span>{m.label}</span>
                           {m.badge && (
                             <Badge
                               variant="outline"
-                              className="ml-auto h-5 px-1.5 text-[11px] font-normal border-primary/30 bg-primary/5 text-primary/80"
+                              className="h-5 px-1.5 text-[11px] font-normal border-primary/30 bg-primary/5 text-primary/80"
                             >
                               {m.badge}
                             </Badge>

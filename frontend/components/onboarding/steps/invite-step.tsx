@@ -19,7 +19,7 @@ interface InviteStepProps {
 
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-// Only queues addresses; the invites go out when a trial or paid plan starts at the plan step.
+// Only queues addresses; the invites go out when the trial starts on leaving the Slack step.
 export default function InviteStep({ stepIndex, totalSteps, onAdvance }: InviteStepProps) {
   const { watch, setValue, getValues } = useFormContext<OnboardingFormValues>();
   const [draft, setDraft] = useState("");

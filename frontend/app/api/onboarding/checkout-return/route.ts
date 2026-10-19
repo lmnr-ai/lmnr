@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     try {
       await completeOnboardingCheckout(sessionId);
     } catch (e) {
-      // The webhook still applies the plan; the wizard resumes on the plan step.
+      // The webhook still applies the plan; the wizard resumes on the Slack step.
       console.error("Failed to complete onboarding checkout", e);
     }
   }

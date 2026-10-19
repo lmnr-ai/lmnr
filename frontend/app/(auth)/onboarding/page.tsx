@@ -56,7 +56,7 @@ function buildDefaults(
   return { ...EMPTY_DEFAULTS, workspaceName: companyName ?? "" };
 }
 
-// Starter is preselected while its free trial is on offer; a workspace already past Free keeps its tier.
+// The commit starts the trial on Starter; a workspace already past Free keeps its tier.
 const preselectTrial = (values: OnboardingFormValues, trialAvailable: boolean): OnboardingFormValues =>
   trialAvailable && values.currentTier === "free" ? { ...values, selectedTier: "hobby" } : values;
 

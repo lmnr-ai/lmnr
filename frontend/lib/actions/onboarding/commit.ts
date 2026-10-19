@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 
 import { confirmCheckoutSession } from "@/lib/actions/checkout/confirm";
 import { startStarterTrial } from "@/lib/actions/checkout/trial";
-import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
 import {
   type CommitOnboardingResult,
@@ -18,7 +17,7 @@ import { inviteUserToWorkspace } from "@/lib/actions/workspace/invite";
 import { createWorkspace } from "@/lib/actions/workspaces";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, workspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 
 export const StartOnboardingSchema = z.object({
   workspaceName: z.string().trim().min(1).max(200),
@@ -26,9 +25,9 @@ export const StartOnboardingSchema = z.object({
 });
 
 export const CommitOnboardingSchema = OnboardingPendingSchema.extend({
-  // "continue": the workspace is already paid (e.g. its checkout webhook won the race).
-  plan: z.enum(["trial", "continue", "free", "checkout"]),
-  checkoutTier: z.enum(["hobby", "pro"]).optional(),
+  // "trial" starts the Starter trial unless the workspace is already past Free (a legacy onboarding
+  // checkout); "free" is for owners who can't start one.
+  plan: z.enum(["trial", "free"]),
 });
 
 const isOwnOnboarding = async (state: OnboardingState | null, userId: string): Promise<boolean> => {
@@ -103,7 +102,7 @@ export const commitOnboarding = async (
 ): Promise<CommitOnboardingResult> => {
   const session = await getServerSession();
   if (!session?.user) throw new Error("Unauthorized");
-  const { invites, templateNames, plan, checkoutTier } = CommitOnboardingSchema.parse(input);
+  const { invites, templateNames, plan } = CommitOnboardingSchema.parse(input);
 
   const state = await getOnboardingState();
   if (!state || !(await isOwnOnboarding(state, session.user.id))) {
@@ -113,29 +112,17 @@ export const commitOnboarding = async (
   const pending = { invites, templateNames };
 
   // Free has one seat and no Signals, so the queued invites and templates aren't applied. They stay
-  // pending in case the user goes back and starts the trial.
+  // pending in case the user goes back and commits again.
   if (plan === "free") {
     await setOnboardingState({ ...state, step: "connect", pending });
-    return { workspaceId, projectId, next: "connect", failedInvites: [] };
+    return { workspaceId, projectId, failedInvites: [] };
   }
 
-  // Saved before anything that can fail, so a retry or the Stripe return still has the choices.
-  await setOnboardingState({ ...state, step: "plan", pending });
-
-  if (plan === "checkout") {
-    const lookupKey = TIER_CONFIG[checkoutTier ?? "hobby"].lookupKey;
-    const workspace = await db.query.workspaces.findFirst({
-      where: eq(workspaces.id, workspaceId),
-      columns: { name: true },
-    });
-    const workspaceName = workspace?.name ?? "";
-    const sp = new URLSearchParams({ lookupKey, workspaceId, workspaceName, returnTo: "onboarding" });
-    return { workspaceId, projectId, next: "checkout", checkoutUrl: `/checkout?${sp}`, failedInvites: [] };
-  }
+  // Saved before anything that can fail, so a retry still has the choices.
+  await setOnboardingState({ ...state, step: "slack", pending });
 
   // A retry after the trial already started finds the workspace off Free and skips straight on.
   if (await isFreeTierWorkspace(workspaceId)) {
-    if (plan === "continue") throw new Error("This workspace isn't on a paid plan yet.");
     await startStarterTrial({ workspaceId, source: "onboarding" });
   }
   const failedInvites = await applyOnboardingSelections({
@@ -146,11 +133,11 @@ export const commitOnboarding = async (
   });
   const { pending: _applied, ...rest } = state;
   await setOnboardingState({ ...rest, step: "connect" });
-  return { workspaceId, projectId, next: "connect", failedInvites };
+  return { workspaceId, projectId, failedInvites };
 };
 
-// Stripe's success_url for onboarding checkouts. Applies the plan, then the queued choices.
-// Anything short of a confirmed payment leaves the cookie on the plan step.
+// Stripe's success_url for legacy onboarding checkouts. Applies the plan, then the queued choices.
+// Anything short of a confirmed payment leaves the cookie as is.
 export const completeOnboardingCheckout = async (sessionId: string): Promise<void> => {
   const session = await getServerSession();
   const state = await getOnboardingState();
