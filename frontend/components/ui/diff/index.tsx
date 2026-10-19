@@ -5,29 +5,12 @@ import { useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-import { collapseDiffRows, computeDiffRows, type Segment } from "./diff";
+import { collapseDiffRows, computeDiffRows } from "./diff";
+import SegmentSpans from "./segment-spans";
 
 interface DiffViewProps {
   oldText: string;
   newText: string;
-}
-
-function SegmentSpans({ segments, tone }: { segments: Segment[]; tone: "add" | "remove" }) {
-  return (
-    <>
-      {segments.map((seg, i) => (
-        <span
-          key={i}
-          className={cn(
-            seg.highlight && tone === "add" && "bg-success/30 rounded-sm",
-            seg.highlight && tone === "remove" && "bg-destructive/30 rounded-sm"
-          )}
-        >
-          {seg.text || "\u00A0"}
-        </span>
-      ))}
-    </>
-  );
 }
 
 export default function DiffView({ oldText, newText }: DiffViewProps) {

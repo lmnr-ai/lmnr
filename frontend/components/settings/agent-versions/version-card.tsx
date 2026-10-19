@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";
 
+import SideBySideDialog from "./side-by-side-dialog";
 import VersionModels from "./version-models";
 
 interface VersionCardProps {
@@ -29,10 +30,13 @@ function ContentBlock({ text }: { text: string }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, action, children }: { label: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="flex min-h-[22px] items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -81,12 +85,34 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
           {previous ? (
             <>
               {promptChanged && (
-                <Field label="System prompt">
+                <Field
+                  label="System prompt"
+                  action={
+                    <SideBySideDialog
+                      title="System prompt"
+                      oldLabel={`Version ${previous.versionNumber}`}
+                      newLabel={`Version ${version.versionNumber}`}
+                      oldText={previous.systemPrompt}
+                      newText={version.systemPrompt}
+                    />
+                  }
+                >
                   <DiffView oldText={previous.systemPrompt} newText={version.systemPrompt} />
                 </Field>
               )}
               {toolsChanged && (
-                <Field label="Tools">
+                <Field
+                  label="Tools"
+                  action={
+                    <SideBySideDialog
+                      title="Tools"
+                      oldLabel={`Version ${previous.versionNumber}`}
+                      newLabel={`Version ${version.versionNumber}`}
+                      oldText={prettyJson(previous.toolDefinitions)}
+                      newText={prettyJson(version.toolDefinitions)}
+                    />
+                  }
+                >
                   <DiffView
                     oldText={prettyJson(previous.toolDefinitions)}
                     newText={prettyJson(version.toolDefinitions)}
