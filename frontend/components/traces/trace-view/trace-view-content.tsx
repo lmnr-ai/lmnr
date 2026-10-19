@@ -1,6 +1,6 @@
 import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -260,12 +260,19 @@ export default function TraceViewContent({
     [setBrowserSession, setSpans, setTrace]
   );
 
+  // Apply each URL spanId once: re-applying on every `spans` change would override selections
+  // made without touching the URL (span reference links, realtime updates).
+  const appliedSpanIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!isSpansLoading) {
-      const span = spans?.find((s) => s.spanId === spanId);
-      if (spanId && span) {
-        setSelectedSpan(span);
-      }
+    if (!spanId) {
+      appliedSpanIdRef.current = undefined;
+      return;
+    }
+    if (isSpansLoading || appliedSpanIdRef.current === spanId) return;
+    const span = spans?.find((s) => s.spanId === spanId);
+    if (span) {
+      appliedSpanIdRef.current = spanId;
+      setSelectedSpan(span);
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
 
