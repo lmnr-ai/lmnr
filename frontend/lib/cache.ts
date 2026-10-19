@@ -241,15 +241,6 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 // and is repopulated from a fresh DB query — no key bump needed.
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-// Signal usage is cached as raw accumulated token counts (input, cache-read,
-// and output kept in separate keys because each is priced at a different
-// per-token rate); cost in micro-USD is derived at read time so a rate change
-// re-prices the hot cache too. These keys are brand new (the old step-count key
-// was `workspace_signal_runs_usage`), so no version suffix is needed.
-// Must stay in sync with the Rust constants in `app-server/src/cache/keys.rs`.
-export const WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_input_tokens";
-export const WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_cache_read_tokens";
-export const WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY = "workspace_signal_runs_usage_output_tokens";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
@@ -259,11 +250,15 @@ export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deploymen
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";
 // Must stay in sync with `HARD_LIMIT_NOTIFIED_CACHE_KEY` in `app-server/src/cache/keys.rs`
 export const HARD_LIMIT_NOTIFIED_CACHE_KEY = "hard_limit_notified";
+export const ONBOARDING_COMPANY_NAME_CACHE_KEY = "onboarding_company_name";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;
 
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
+// Must stay in sync with `PROJECT_MEMBERSHIP_CACHE_KEY` in `app-server/src/cache/keys.rs` (CLI user routes).
+export const CLI_PROJECT_MEMBERSHIP_CACHE_KEY = (userId: string, projectId: string) =>
+  `project_membership:${userId}:${projectId}`;
 
 // Must stay in sync with `MEMBER_ROLE_CACHE_KEY` in `app-server/src/cache/keys.rs`.
 // The app-server caches a member's role to derive its read policy; remove the

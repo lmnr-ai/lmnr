@@ -407,7 +407,7 @@ export default function DebuggerList({ scrollEl, projectId, sessionId }: Debugge
 
         const activeSticky = isActiveSticky(virtualRow.index);
         const positionStyle: CSSProperties = activeSticky
-          ? { position: "sticky", top: 0, zIndex: 100 + virtualRow.index, background: "hsl(var(--background))" }
+          ? { position: "sticky", top: 0, zIndex: 100 + virtualRow.index, background: "var(--color-background)" }
           : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start - scrollMargin}px)` };
 
         return (

@@ -10,7 +10,6 @@ pub const NUM_SPANS_INDEXER: NumEnv<usize> = NumEnv::new("NUM_SPANS_INDEXER_WORK
 pub const NUM_BROWSER_EVENTS: NumEnv<usize> = NumEnv::new("NUM_BROWSER_EVENTS_WORKERS", 4);
 pub const NUM_LOGS: NumEnv<usize> = NumEnv::new("NUM_LOGS_WORKERS", 4);
 pub const NUM_REPORTS: NumEnv<usize> = NumEnv::new("NUM_REPORTS_WORKERS", 2);
-pub const NUM_CHECKPOINTS: NumEnv<usize> = NumEnv::new("NUM_CHECKPOINTS_WORKERS", 2);
 pub const NUM_STATIC_SP: NumEnv<usize> = NumEnv::new("NUM_STATIC_SP_WORKERS", 2);
 pub const NUM_SP_VERSIONING: NumEnv<usize> = NumEnv::new("NUM_SP_VERSIONING_WORKERS", 2);
 pub const NUM_SP_REGEX_EXTRACTION: NumEnv<usize> =
@@ -35,6 +34,12 @@ pub const NUM_CLUSTERING: NumEnv<usize> = NumEnv::new("NUM_CLUSTERING_WORKERS", 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const NUM_SIGNAL_JOB_REALTIME: NumEnv<usize> =
     NumEnv::new("NUM_SIGNAL_JOB_REALTIME_WORKERS", 4);
+/// Consumers of the signals agent's backfill lane (job runs). Separate from the
+/// realtime workers so a large backfill scales on its own and never delays
+/// trigger-based runs.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const NUM_SIGNAL_JOB_BACKFILL: NumEnv<usize> =
+    NumEnv::new("NUM_SIGNAL_JOB_BACKFILL_WORKERS", 4);
 /// Consumers of the admission gate in front of the signals agent. Its work is a
 /// cache read plus at most one ClickHouse query, so these are far cheaper than
 /// the realtime workers and scale independently of them.

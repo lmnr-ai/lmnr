@@ -13,6 +13,7 @@ const DidMyFixWork = () => (
       <h2 className={cn(subSection, "mb-2")}>Did the new release break anything?</h2>
       <p className={bodyMedium}>
         Every error cluster you fix can automatically be turned into an eval dataset. <br className="hidden md:block" />
+        {` `}
         Run evals after a change to catch regressions and iterate with confidence.
       </p>
       <LearnMoreLink

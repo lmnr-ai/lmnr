@@ -14,16 +14,38 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    ContentHash, SharedContentBatch, content_hash, is_seen, span_group_id, storage_seen_key,
+    ContentHash, SharedContentBatch, canonical_json, content_hash, is_seen, span_group_id,
+    storage_seen_key,
 };
-use crate::{cache::Cache, db::spans::Span, utils::sanitize_string};
+use crate::{
+    cache::Cache,
+    db::spans::Span,
+    features::{Feature, is_feature_enabled},
+    utils::{estimate_json_size, sanitize_string},
+};
 
 /// Producer's verdict for a span's tool definitions. `content` is `Some` only
-/// on a storage miss; otherwise the hash alone rides the wire.
+/// on a storage miss; otherwise the hash alone rides the wire. `size_bytes`
+/// is the blob's raw JSON size either way, for `original_size_bytes`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ToolDedup {
     pub hash: ContentHash,
     pub content: Option<String>,
+    #[serde(default)]
+    pub size_bytes: usize,
+    /// [`tool_set_hash`], set only while agent versioning is on. Read on the
+    /// ingest producer, so it never rides the wire.
+    #[serde(skip)]
+    pub set_hash: Option<ContentHash>,
+}
+
+/// Identity of a tool set with element order ignored: tool lists are often
+/// assembled from maps or MCP servers whose order shifts between runs.
+pub fn tool_set_hash(tools: &[Value]) -> ContentHash {
+    let mut elements: Vec<String> = tools.iter().map(canonical_json).collect();
+    elements.sort_unstable();
+    // Canonical JSON escapes newlines inside strings, so `\n` can't be forged.
+    *blake3::hash(elements.join("\n").as_bytes()).as_bytes()
 }
 
 /// Pull tool definitions out of `raw_attributes` as one JSON array, trying the
@@ -119,9 +141,9 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
     if !span.is_llm_span() {
         return None;
     }
-    let tools = Value::Array(extract_tool_definitions(
-        &mut span.attributes.raw_attributes,
-    )?);
+    let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
+    let set_hash = is_feature_enabled(Feature::Checkpoints).then(|| tool_set_hash(&tools));
+    let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);
     let content = if is_seen(cache, &key).await {
@@ -129,7 +151,12 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
     } else {
         Some(sanitize_string(&tools.to_string()))
     };
-    Some(ToolDedup { hash, content })
+    Some(ToolDedup {
+        hash,
+        content,
+        size_bytes: estimate_json_size(&tools),
+        set_hash,
+    })
 }
 
 /// Consumer-side: add the span's tool blob to the shared batch when the
@@ -293,10 +320,24 @@ mod tests {
         let dedup = ToolDedup {
             hash: [7u8; 32],
             content: Some("[{}]".to_string()),
+            size_bytes: 4,
+            set_hash: None,
         };
         let mut shared = SharedContentBatch::default();
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 4);
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 0);
         assert_eq!(shared.rows()[0].group_id, span.trace_id.to_string());
+    }
+
+    #[test]
+    fn tool_set_hash_ignores_tool_and_key_order() {
+        let a = json!({"name": "get_weather", "description": "x"});
+        let b = json!({"description": "y", "name": "get_time"});
+        let b_reordered_keys = json!({"name": "get_time", "description": "y"});
+        assert_eq!(
+            tool_set_hash(&[a.clone(), b.clone()]),
+            tool_set_hash(&[b_reordered_keys, a.clone()])
+        );
+        assert_ne!(tool_set_hash(&[a.clone(), b]), tool_set_hash(&[a]));
     }
 }

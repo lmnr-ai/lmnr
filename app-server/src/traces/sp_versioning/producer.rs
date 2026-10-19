@@ -1,69 +1,60 @@
-//! Publishes system prompts for classification.
+//! Ingest-side entry points for version classification.
 //!
-//! Single ingest entry point ([`publish_static_prompt_candidates`]): shared
-//! guards (LLM availability, internal-project filter), then a feature-flag
-//! dispatch — `Feature::StaticSpV2` routes to this pipeline's queue, off
-//! routes to the legacy skeleton-hash pipeline
-//! (`static_sp_extraction::producer`).
+//! Every text runs the same inline resolution ([`resolve_inline`]): a memo hit
+//! (text already classified) ships a slim message with the known version hash
+//! and no body; otherwise the subset match against the live registry runs, and
+//! a miss ships the raw text for consumer-side classification.
 //!
-//! v2 messages are grouped by byte-identity within the batch: a memo hit
-//! (prompt already classified) ships a slim message with the known version
-//! hash and no body; a miss ships the raw prompt for consumer-side
-//! classification.
+//! - [`publish_static_prompt_candidates`] — system prompts, once per ingest
+//!   batch. The internal-project filter, then a feature-flag dispatch:
+//!   `Feature::SystemPromptVersioning` routes to this LLM-free pipeline, off
+//!   routes to the legacy skeleton-hash pipeline
+//!   (`static_sp_extraction::producer`), which needs an LLM client.
+//! - [`resolve_and_publish`] — a single text whose caller needs the version
+//!   synchronously (the user-task hook keys its regex on the user template's).
 
-use std::collections::HashMap;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use indexmap::IndexMap;
 use uuid::Uuid;
 
-use super::{
-    SP_VERSIONING_EXCHANGE, SP_VERSIONING_ROUTING_KEY, consumer::SpVersioningMessage, similarity,
-    versions, window::SpanRef,
-};
+use super::{VersionKind, consumer::SpVersioningMessage, similarity, versions, window::SpanRef};
 use crate::{
-    cache::{Cache, CacheTrait, keys::SYSTEM_PROMPT_PROBE_CACHE_KEY},
+    cache::{Cache, CacheTrait},
+    checkpoints::AgentSpan,
     features::{Feature, is_feature_enabled},
     llm::llm_client_available,
     mq::{MessageQueue, MessageQueueTrait},
 };
 
-static FULL_RUN_INTERVAL_SECONDS: LazyLock<u64> =
-    LazyLock::new(|| crate::env::static_sp::FULL_RUN_INTERVAL_SECONDS.get());
-
 /// Marker key for [`should_probe`]. Shared across ingest pods, so the interval
 /// means the same thing however many are running — a process-local tracker
 /// would multiply the fleet-wide probe rate by the pod count and reset the
 /// whole fleet's markers on every deploy.
-fn probe_cache_key(project_id: Uuid, agent_hash: &str) -> String {
-    format!("{SYSTEM_PROMPT_PROBE_CACHE_KEY}:{project_id}:{agent_hash}")
+fn probe_cache_key(kind: VersionKind, project_id: Uuid, partition: &str) -> String {
+    format!("{}:{project_id}:{partition}", kind.keys().probe)
 }
 
-/// `full_prompt_hash → version_hash` for the prompts in one batch that resolved
-/// inline. The user-task hook keys its regex cache on these; a prompt missing
-/// here has no live version yet (cold-start agent, or a static shape whose
-/// version hasn't been minted), and its trace falls back to a direct LLM
-/// extraction.
-pub type VersionVerdicts = HashMap<String, String>;
-
-/// Whether this prompt re-runs the full clustering algorithm despite a
+/// Whether this text re-runs the full clustering algorithm despite a
 /// cheap-match hit. Decided HERE rather than on the consumer because it governs
 /// whether the raw body needs to ride the wire at all.
 ///
-/// Claiming the slot is a plain check-then-set, so two concurrent batches for
-/// one agent can both probe. Deliberately unsynchronized: the loser costs one
-/// extra clustering run, and a lock would serialize every ingest batch for the
-/// agent to prevent something harmless.
+/// The slot is per partition ([`VersionKind::partition`]). Claiming it is a
+/// plain check-then-set, so two concurrent batches for one partition can both
+/// probe. Deliberately unsynchronized: the loser costs one extra clustering
+/// run, and a lock would serialize every ingest batch for the partition to
+/// prevent something harmless.
 ///
 /// Cache errors DON'T probe. The full algorithm reads the window and the
 /// registry from this same cache, so an error here means it could not run
-/// usefully anyway — and probing sends the raw prompt body over the wire, so
-/// failing open would inflate every queue payload for the length of an outage.
-async fn should_probe(cache: &Cache, project_id: Uuid, agent_hash: &str) -> bool {
-    if *FULL_RUN_INTERVAL_SECONDS == 0 {
+/// usefully anyway — and probing sends the raw body over the wire, so failing
+/// open would inflate every queue payload for the length of an outage.
+async fn should_probe(cache: &Cache, kind: VersionKind, project_id: Uuid, partition: &str) -> bool {
+    let interval = kind.tunables().full_run_interval_seconds;
+    if interval == 0 {
         return true;
     }
-    let key = probe_cache_key(project_id, agent_hash);
+    let key = probe_cache_key(kind, project_id, partition);
     match cache.exists(&key).await {
         Ok(true) => return false,
         Ok(false) => {}
@@ -72,10 +63,7 @@ async fn should_probe(cache: &Cache, project_id: Uuid, agent_hash: &str) -> bool
             return false;
         }
     }
-    if let Err(e) = cache
-        .insert_with_ttl(&key, "1", *FULL_RUN_INTERVAL_SECONDS)
-        .await
-    {
+    if let Err(e) = cache.insert_with_ttl(&key, "1", interval).await {
         // Probing without recording it would re-probe on the very next
         // message, so treat a failed claim as "not our turn".
         log::warn!("[SP_VERSIONING] Failed to claim probe marker {key}: {e:?}");
@@ -96,18 +84,43 @@ pub struct StaticPromptCandidate {
     pub prompt_hash: String,
     /// First-sentence hash (`lmnr.span.agent_hash`) — the v2 agent identity.
     pub agent_hash: String,
-    /// Byte-identity hash of the prompt, computed once on the ingest producer so
-    /// grouping here and the user-task candidate agree without re-hashing.
+    /// Byte-identity hash of the prompt, computed once on the ingest producer.
     pub full_prompt_hash: String,
     pub system_prompt: String,
+    /// Agent-versioning inputs; set only while checkpoints are on.
+    pub agent_span: Option<AgentSpan>,
 }
 
-/// Spans emitted by our own extraction self-tracing land in these projects;
-/// feeding them back into extraction would loop indefinitely.
+/// One distinct text to version, with every span that presented it.
+pub struct VersionCandidate {
+    pub project_id: Uuid,
+    /// First-sentence hash of the system prompt. With `has_history`, it picks
+    /// the window partition ([`VersionKind::partition`]).
+    pub agent_hash: String,
+    pub has_history: bool,
+    /// Content hash of `text`: the memo key and the window entry id.
+    pub full_hash: String,
+    pub text: String,
+    pub span_refs: Vec<SpanRef>,
+    /// See [`SpVersioningMessage::agent_spans`].
+    pub agent_spans: Vec<AgentSpan>,
+}
+
+/// What [`resolve_inline`] decided for one text.
+struct InlineResolution {
+    message: SpVersioningMessage,
+    /// The version resolved on the spot (memo or subset match). `None` means
+    /// the text has no live version yet; the consumer classifies it.
+    version: Option<String>,
+}
+
+/// Spans emitted by our own self-tracing (extraction, signals, agent naming)
+/// land in these projects; feeding them back into versioning would loop.
 pub(crate) fn internal_project_ids() -> Vec<Uuid> {
     [
         crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID,
         crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID,
+        crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     ]
     .iter()
     .filter_map(|name| std::env::var(name).ok())
@@ -115,90 +128,73 @@ pub(crate) fn internal_project_ids() -> Vec<Uuid> {
     .collect()
 }
 
-/// Publish candidates to the active pipeline's queue and return the version
-/// verdicts resolved inline. Best-effort: cache/publish failures are logged and
-/// never propagated — a later span with the same prompt re-triggers.
+/// Publish a batch's system prompts to the active pipeline's queue.
+/// Best-effort: cache/publish failures are logged and never propagated — a
+/// later span with the same prompt re-triggers.
 pub async fn publish_static_prompt_candidates(
     candidates: Vec<StaticPromptCandidate>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
-) -> VersionVerdicts {
-    // Without the shared LLM client the extraction workers never spawn, the
-    // regex caches never fill, and every ingest batch would re-publish the
-    // same prompts forever.
-    if !llm_client_available() {
-        return VersionVerdicts::new();
-    }
-
+) {
     let internal_ids = internal_project_ids();
     let candidates: Vec<StaticPromptCandidate> = candidates
         .into_iter()
         .filter(|c| !internal_ids.contains(&c.project_id))
         .collect();
     if candidates.is_empty() {
-        return VersionVerdicts::new();
+        return;
     }
 
     if !is_feature_enabled(Feature::SystemPromptVersioning) {
+        // Without the shared LLM client the legacy extraction workers never
+        // spawn, the regex caches never fill, and every ingest batch would
+        // re-publish the same prompts forever.
+        if !llm_client_available() {
+            return;
+        }
         crate::traces::static_sp_extraction::producer::publish_legacy_candidates(
             candidates, &cache, &queue,
         )
         .await;
-        return VersionVerdicts::new();
+        return;
     }
 
-    let (messages, verdicts) = build_v2_messages(candidates, &cache).await;
-    if messages.is_empty() {
-        return verdicts;
+    let mut messages = Vec::new();
+    for candidate in group_by_prompt(candidates) {
+        let resolution = resolve_inline(&cache, VersionKind::SystemPrompt, candidate).await;
+        messages.push(resolution.message);
     }
-
-    let payload = match serde_json::to_vec(&messages) {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("[SP_VERSIONING] Failed to serialize queue messages: {e:?}");
-            return verdicts;
-        }
-    };
-
-    if let Err(e) = queue
-        .publish(
-            &payload,
-            SP_VERSIONING_EXCHANGE,
-            SP_VERSIONING_ROUTING_KEY,
-            None,
-        )
-        .await
-    {
-        log::error!("[SP_VERSIONING] Failed to publish queue messages: {e:?}");
-    }
-    verdicts
+    publish_messages(&queue, VersionKind::SystemPrompt, &messages).await;
 }
 
-/// One message per distinct prompt body in the batch, carrying every span that
-/// presented it. Each group runs the resolution ladder inline — memo GET, then
-/// the subset match against the live registry — because the user-task regex key
-/// needs the version synchronously and the classifier is asynchronous. The
-/// verdict plus the per-agent staleness interval then decide whether the raw body has
-/// to ride the wire; `line_hashes` always does, so a slim message still feeds
-/// the window.
-async fn build_v2_messages(
-    candidates: Vec<StaticPromptCandidate>,
+/// Resolve one text's version inline and publish it for classification.
+/// Returns the inline verdict; `None` means no live version yet.
+pub async fn resolve_and_publish(
     cache: &Cache,
-) -> (Vec<SpVersioningMessage>, VersionVerdicts) {
-    struct Group {
-        agent_hash: String,
-        system_prompt: String,
-        span_refs: Vec<SpanRef>,
-    }
+    queue: &MessageQueue,
+    kind: VersionKind,
+    candidate: VersionCandidate,
+) -> Option<String> {
+    let resolution = resolve_inline(cache, kind, candidate).await;
+    publish_messages(queue, kind, std::slice::from_ref(&resolution.message)).await;
+    resolution.version
+}
 
-    let mut groups: IndexMap<(Uuid, String), Group> = IndexMap::new();
+/// One candidate per distinct prompt body in the batch, carrying every span
+/// that presented it.
+fn group_by_prompt(candidates: Vec<StaticPromptCandidate>) -> Vec<VersionCandidate> {
+    let mut groups: IndexMap<(Uuid, String), VersionCandidate> = IndexMap::new();
     for candidate in candidates {
         let group = groups
             .entry((candidate.project_id, candidate.full_prompt_hash.clone()))
-            .or_insert_with(|| Group {
-                agent_hash: candidate.agent_hash.clone(),
-                system_prompt: candidate.system_prompt.clone(),
+            .or_insert_with(|| VersionCandidate {
+                project_id: candidate.project_id,
+                agent_hash: candidate.agent_hash,
+                has_history: false,
+                full_hash: candidate.full_prompt_hash,
+                text: candidate.system_prompt,
                 span_refs: Vec::new(),
+                agent_spans: Vec::new(),
             });
         let span_ref = SpanRef {
             trace_id: candidate.trace_id,
@@ -206,74 +202,116 @@ async fn build_v2_messages(
         };
         if !group.span_refs.contains(&span_ref) {
             group.span_refs.push(span_ref);
+            group.agent_spans.extend(candidate.agent_span);
         }
     }
+    groups.into_values().collect()
+}
 
-    let mut messages = Vec::with_capacity(groups.len());
-    let mut verdicts = VersionVerdicts::new();
-    for ((project_id, full_prompt_hash), group) in groups {
-        let line_hashes = similarity::line_hashes(&group.system_prompt);
-        let known_version_hash = versions::memo_get(cache, project_id, &full_prompt_hash).await;
+/// The resolution ladder — memo GET, then the subset match against the live
+/// registry — plus the per-partition staleness interval, which together decide
+/// whether the raw body has to ride the wire. `line_hashes` always does, so a
+/// slim message still feeds the window.
+async fn resolve_inline(
+    cache: &Cache,
+    kind: VersionKind,
+    candidate: VersionCandidate,
+) -> InlineResolution {
+    let VersionCandidate {
+        project_id,
+        agent_hash,
+        has_history,
+        full_hash,
+        text,
+        span_refs,
+        agent_spans,
+    } = candidate;
+    let partition = kind.partition(&agent_hash, has_history);
+    let line_hashes = similarity::line_hashes(&text);
+    let known_version_hash =
+        versions::memo_get(cache, kind, project_id, &partition, &full_hash).await;
 
-        // The memo answers only byte-identical repeats, which is nearly never
-        // the case for an agent with dynamic content in its system prompt — the
-        // subset match is what actually resolves those.
-        let cheap_matched_version = match known_version_hash {
-            Some(_) => None,
-            None => versions::cheap_match(
-                cache,
-                project_id,
-                &group.agent_hash,
-                &similarity::line_hash_set(&line_hashes),
-            )
-            .await
-            .unwrap_or_else(|e| {
-                log::warn!("[SP_VERSIONING] Inline cheap match failed: {e:?}");
-                None
-            }),
-        };
-
-        if let Some(version) = known_version_hash
-            .as_ref()
-            .or(cheap_matched_version.as_ref())
-        {
-            verdicts.insert(full_prompt_hash.clone(), version.clone());
-        }
-
-        // The probe mints and journals, so it needs the body; so does an
-        // unresolved prompt. A memo hit never probes — its staleness bound is
-        // the memo TTL, and it is byte-identical to a window entry already
-        // labeled.
-        let run_full = cheap_matched_version.is_some()
-            && should_probe(cache, project_id, &group.agent_hash).await;
-        let needs_body =
-            run_full || (known_version_hash.is_none() && cheap_matched_version.is_none());
-        let system_prompt = if needs_body {
-            group.system_prompt
-        } else {
-            String::new()
-        };
-
-        messages.push(SpVersioningMessage {
+    // The memo answers only byte-identical repeats, which is nearly never the
+    // case for a text with dynamic content — the subset match is what actually
+    // resolves those.
+    let cheap_matched_version = match known_version_hash {
+        Some(_) => None,
+        None => versions::cheap_match(
+            cache,
+            kind,
             project_id,
-            system_prompt,
-            agent_hash: group.agent_hash,
-            full_prompt_hash,
+            &partition,
+            &similarity::line_hash_set(&line_hashes),
+        )
+        .await
+        .unwrap_or_else(|e| {
+            log::warn!("[SP_VERSIONING] Inline cheap match failed: {e:?}");
+            None
+        }),
+    };
+    let version = known_version_hash
+        .clone()
+        .or_else(|| cheap_matched_version.clone());
+
+    // The probe mints and journals, so it needs the body; so does an
+    // unresolved text. A memo hit never probes — its staleness bound is the
+    // memo TTL, and it is byte-identical to a window entry already labeled.
+    let run_full =
+        cheap_matched_version.is_some() && should_probe(cache, kind, project_id, &partition).await;
+    let needs_body = run_full || version.is_none();
+
+    InlineResolution {
+        message: SpVersioningMessage {
+            project_id,
+            system_prompt: if needs_body { text } else { String::new() },
+            agent_hash,
+            has_history,
+            full_prompt_hash: full_hash,
             line_hashes,
-            span_refs: group.span_refs,
+            span_refs,
             known_version_hash,
             cheap_matched_version,
             run_full,
             retry_count: 0,
-        });
+            agent_spans,
+        },
+        version,
     }
-    (messages, verdicts)
+}
+
+async fn publish_messages(
+    queue: &MessageQueue,
+    kind: VersionKind,
+    messages: &[SpVersioningMessage],
+) {
+    if messages.is_empty() {
+        return;
+    }
+    let payload = match serde_json::to_vec(messages) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("[SP_VERSIONING] Failed to serialize queue messages: {e:?}");
+            return;
+        }
+    };
+    let queues = kind.queues();
+    if let Err(e) = queue
+        .publish(&payload, queues.exchange, queues.routing_key, None)
+        .await
+    {
+        log::error!(
+            "[SP_VERSIONING] Failed to publish {} queue messages: {e:?}",
+            kind.label()
+        );
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::cache::in_memory::InMemoryCache;
+
+    const KIND: VersionKind = VersionKind::SystemPrompt;
 
     fn cache() -> Cache {
         Cache::InMemory(InMemoryCache::new(None))
@@ -283,7 +321,7 @@ mod tests {
     /// would make them vacuous rather than failing loudly.
     fn require_rate_limiting() {
         assert!(
-            *FULL_RUN_INTERVAL_SECONDS > 0,
+            KIND.tunables().full_run_interval_seconds > 0,
             "SP_VERSIONING_FULL_RUN_INTERVAL_SECONDS=0 disables rate limiting"
         );
     }
@@ -294,27 +332,29 @@ mod tests {
         let cache = cache();
         let project_id = Uuid::new_v4();
         assert!(
-            should_probe(&cache, project_id, "agent01").await,
+            should_probe(&cache, KIND, project_id, "agent01").await,
             "first sighting probes"
         );
-        assert!(!should_probe(&cache, project_id, "agent01").await);
-        assert!(!should_probe(&cache, project_id, "agent01").await);
+        assert!(!should_probe(&cache, KIND, project_id, "agent01").await);
+        assert!(!should_probe(&cache, KIND, project_id, "agent01").await);
     }
 
     /// The bound is per agent, so a busy agent holding the slot must not
     /// starve every other agent in the project — nor an unrelated project's
-    /// agent that happens to share a first-sentence hash.
+    /// agent that happens to share a first-sentence hash, nor the same agent's
+    /// other kind.
     #[tokio::test]
-    async fn the_slot_is_per_project_and_agent() {
+    async fn the_slot_is_per_project_agent_and_kind() {
         require_rate_limiting();
         let cache = cache();
         let project_id = Uuid::new_v4();
         let other_project = Uuid::new_v4();
-        assert!(should_probe(&cache, project_id, "busy").await);
-        assert!(!should_probe(&cache, project_id, "busy").await);
+        assert!(should_probe(&cache, KIND, project_id, "busy").await);
+        assert!(!should_probe(&cache, KIND, project_id, "busy").await);
 
-        assert!(should_probe(&cache, project_id, "quiet").await);
-        assert!(should_probe(&cache, other_project, "busy").await);
+        assert!(should_probe(&cache, KIND, project_id, "quiet").await);
+        assert!(should_probe(&cache, KIND, other_project, "busy").await);
+        assert!(should_probe(&cache, VersionKind::UserTemplate, project_id, "busy").await);
     }
 
     /// The marker is shared, so a second ingest pod reading the same cache
@@ -325,10 +365,144 @@ mod tests {
         require_rate_limiting();
         let shared = cache();
         let project_id = Uuid::new_v4();
-        assert!(should_probe(&shared, project_id, "agent01").await);
+        assert!(should_probe(&shared, KIND, project_id, "agent01").await);
         // Same cache, a different caller — as a second pod would see it.
-        assert!(!should_probe(&shared, project_id, "agent01").await);
+        assert!(!should_probe(&shared, KIND, project_id, "agent01").await);
         // A different cache is a different deployment, not a second pod.
-        assert!(should_probe(&cache(), project_id, "agent01").await);
+        assert!(should_probe(&cache(), KIND, project_id, "agent01").await);
+    }
+
+    fn candidate(text: &str) -> VersionCandidate {
+        VersionCandidate {
+            project_id: Uuid::nil(),
+            agent_hash: "agent01".to_string(),
+            has_history: false,
+            full_hash: similarity::full_prompt_hash(text),
+            text: text.to_string(),
+            span_refs: Vec::new(),
+            agent_spans: Vec::new(),
+        }
+    }
+
+    fn static_candidate(span_id: Uuid, agent_span: Option<AgentSpan>) -> StaticPromptCandidate {
+        StaticPromptCandidate {
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            span_id,
+            prompt_hash: "skeleton".to_string(),
+            agent_hash: "agent01".to_string(),
+            full_prompt_hash: "full".to_string(),
+            system_prompt: "prompt".to_string(),
+            agent_span,
+        }
+    }
+
+    fn agent_span(span_id: Uuid) -> AgentSpan {
+        AgentSpan {
+            span_id,
+            start_time: 0,
+            model: "gpt-4o".to_string(),
+            tool_set_hash: String::new(),
+            tool_content_hash: String::new(),
+            group_id: "group".to_string(),
+        }
+    }
+
+    #[test]
+    fn grouping_keeps_one_agent_span_per_span_ref() {
+        let (a, b, c) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let groups = group_by_prompt(vec![
+            static_candidate(a, Some(agent_span(a))),
+            static_candidate(a, Some(agent_span(a))),
+            static_candidate(b, Some(agent_span(b))),
+            static_candidate(c, None),
+        ]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].span_refs.len(), 3);
+        let ids: Vec<Uuid> = groups[0].agent_spans.iter().map(|s| s.span_id).collect();
+        assert_eq!(ids, vec![a, b]);
+    }
+
+    #[tokio::test]
+    async fn unresolved_text_ships_its_body() {
+        let cache = cache();
+        let resolution = resolve_inline(&cache, KIND, candidate("head\ntask\ntail")).await;
+        assert_eq!(resolution.version, None);
+        assert_eq!(resolution.message.system_prompt, "head\ntask\ntail");
+    }
+
+    #[tokio::test]
+    async fn memo_hit_resolves_inline_and_ships_slim() {
+        let cache = cache();
+        let text = "head\ntask\ntail";
+        versions::memo_set(
+            &cache,
+            KIND,
+            Uuid::nil(),
+            "agent01",
+            &similarity::full_prompt_hash(text),
+            "vhash",
+        )
+        .await;
+        let resolution = resolve_inline(&cache, KIND, candidate(text)).await;
+        assert_eq!(resolution.version.as_deref(), Some("vhash"));
+        assert!(resolution.message.system_prompt.is_empty());
+        assert!(
+            !resolution.message.line_hashes.is_empty(),
+            "still feeds the window"
+        );
+    }
+
+    #[tokio::test]
+    async fn subset_match_resolves_inline() {
+        let cache = cache();
+        versions::register_version(
+            &cache,
+            KIND,
+            Uuid::nil(),
+            "agent01",
+            "vhash",
+            &similarity::line_hashes("head\ntail"),
+            None,
+        )
+        .await
+        .unwrap();
+        let resolution = resolve_inline(&cache, KIND, candidate("head\nnew task\ntail")).await;
+        assert_eq!(resolution.version.as_deref(), Some("vhash"));
+        assert_eq!(
+            resolution.message.cheap_matched_version.as_deref(),
+            Some("vhash")
+        );
+    }
+
+    /// A first-turn template's version must not label a follow-up that happens
+    /// to contain its lines: the two turn positions are separate partitions.
+    #[tokio::test]
+    async fn user_template_turn_positions_do_not_share_versions() {
+        let cache = cache();
+        let kind = VersionKind::UserTemplate;
+        versions::register_version(
+            &cache,
+            kind,
+            Uuid::nil(),
+            &kind.partition("agent01", false),
+            "firstturn",
+            &similarity::line_hashes("<task>\n</task>"),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let text = "<task>\nnext step\n</task>";
+        let first_turn = resolve_inline(&cache, kind, candidate(text)).await;
+        assert_eq!(first_turn.version.as_deref(), Some("firstturn"));
+
+        let follow_up = VersionCandidate {
+            has_history: true,
+            ..candidate(text)
+        };
+        let follow_up = resolve_inline(&cache, kind, follow_up).await;
+        assert_eq!(follow_up.version, None);
+        assert!(follow_up.message.has_history);
     }
 }

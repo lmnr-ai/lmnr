@@ -7,6 +7,7 @@ use uuid::Uuid;
 /// Workspace signal token spend this billing period. Cache reads are a subset
 /// of input tokens, billed cheaper. Tokens are stored raw and priced into
 /// micro-USD at the call boundary, so a rate change re-prices history.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Row, Deserialize, Debug, Clone, Copy, Default)]
 pub struct WorkspaceSignalTokens {
     pub input_tokens: u64,
@@ -79,28 +80,15 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
     Ok(result.unwrap_or(0))
 }
 
-/// Returns the workspace's total signal token spend this billing period.
+/// Returns uncredited signal token spend in the requested usage window.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_workspace_signal_tokens_by_project_ids(
     clickhouse: Client,
     project_ids: Vec<Uuid>,
-    reset_time: DateTime<Utc>,
+    billing_period_start: DateTime<Utc>,
 ) -> Result<WorkspaceSignalTokens> {
-    let now = Utc::now();
-    let months_elapsed = complete_months_elapsed(reset_time, now);
-
-    let latest_reset_time = if months_elapsed > 0 {
-        // Unwrap is safe, because the date is unlikely to be out of range
-        // and we are using UTC, so DST is not an issue
-        reset_time
-            .checked_add_months(Months::new(months_elapsed))
-            .unwrap_or(reset_time)
-    } else {
-        reset_time
-    };
-
-    // Signals are billed by the token cost the agent spent. Tokens are stored
-    // raw per run and returned raw here; cost is derived at the call boundary
-    // at the current per-token rate so a future rate change re-prices history.
+    // Completed runs are marked when covered by the one-time credit. Return only
+    // uncredited raw tokens; callers derive their cost at the current rates.
     let query = "
     SELECT
       SUM(input_tokens) as total_input_tokens,
@@ -110,12 +98,13 @@ pub async fn get_workspace_signal_tokens_by_project_ids(
     WHERE project_id IN { project_ids: Array(UUID) }
     AND signal_runs.updated_at >= { latest_reset_time: DateTime(6) }
     AND signal_runs.status = 1
+    AND signal_runs.credit_applied = false
     ";
 
     let result = clickhouse
         .query(&query)
         .param("project_ids", project_ids)
-        .param("latest_reset_time", latest_reset_time.naive_utc())
+        .param("latest_reset_time", billing_period_start.naive_utc())
         .fetch_optional::<WorkspaceSignalTokens>()
         .await?;
 

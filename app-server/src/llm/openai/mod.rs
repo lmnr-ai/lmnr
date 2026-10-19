@@ -176,17 +176,7 @@ pub(super) async fn send_openai_request(
     url: &str,
     body: &Value,
 ) -> OpenAIResult<reqwest::Response> {
-    let request = match flavor {
-        OpenAIFlavor::OpenAI => client
-            .post(url)
-            .header("Authorization", format!("Bearer {api_key}")),
-        OpenAIFlavor::Azure => client.post(url).header("api-key", api_key),
-    };
-    let response = request
-        .header("Content-Type", "application/json")
-        .json(body)
-        .send()
-        .await?;
+    let response = post_openai_request(client, flavor, api_key, url, body).await?;
 
     let status = response.status();
     if !status.is_success() {
@@ -207,6 +197,28 @@ pub(super) async fn send_openai_request(
     }
 
     Ok(response)
+}
+
+/// Sends the request with the flavor's auth and returns the response whatever
+/// its status.
+pub(super) async fn post_openai_request(
+    client: &reqwest::Client,
+    flavor: OpenAIFlavor,
+    api_key: &str,
+    url: &str,
+    body: &Value,
+) -> Result<reqwest::Response, reqwest::Error> {
+    let request = match flavor {
+        OpenAIFlavor::OpenAI => client
+            .post(url)
+            .header("Authorization", format!("Bearer {api_key}")),
+        OpenAIFlavor::Azure => client.post(url).header("api-key", api_key),
+    };
+    request
+        .header("Content-Type", "application/json")
+        .json(body)
+        .send()
+        .await
 }
 
 #[cfg(test)]

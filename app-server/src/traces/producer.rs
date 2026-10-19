@@ -28,14 +28,15 @@ use super::{
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
+    checkpoints::AgentSpan,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
+    features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
     traces::{
-        input_extraction::SystemPromptIdentity,
         prompt_hash::{extract_system_message, prompt_hashes},
         sp_versioning::{
             producer::{StaticPromptCandidate, publish_static_prompt_candidates},
@@ -47,7 +48,7 @@ use crate::{
 
 /// System prompt of an LLM span with its hashes: the skeleton (naive
 /// signature), the first-sentence agent identity, and the byte-identity hash
-/// (memo key for classification, verdict-map key for the user-task regex).
+/// (memo key for classification).
 struct SystemPromptVerdict {
     skeleton_hash: String,
     agent_hash: String,
@@ -115,10 +116,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     // prompt's XML scaffolding don't re-trigger regex generation.
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(
         span,
-        system_prompt.as_ref().map(|sp| SystemPromptIdentity {
-            agent_hash: &sp.agent_hash,
-            full_prompt_hash: &sp.full_prompt_hash,
-        }),
+        system_prompt.as_ref().map(|sp| sp.agent_hash.as_str()),
     );
 
     // Session first: every verdict below keys storage by the span's group.
@@ -176,6 +174,7 @@ pub async fn publish_span_messages(
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
     let mut static_prompt_candidates: Vec<StaticPromptCandidate> = Vec::new();
+    let checkpoints_enabled = is_feature_enabled(Feature::Checkpoints);
     // (span idx, input candidate, output candidate) for spans carrying
     // either — the input/output extraction passes run after publish.
     let mut extraction_candidates: Vec<(
@@ -201,6 +200,8 @@ pub async fn publish_span_messages(
                 agent_hash: verdict.agent_hash,
                 full_prompt_hash: verdict.full_prompt_hash,
                 system_prompt: verdict.text,
+                agent_span: checkpoints_enabled
+                    .then(|| AgentSpan::from_span(&msg.span, msg.tool_dedup.as_ref())),
             });
         }
         if verdicts.user_task.is_some() || verdicts.output_candidate.is_some() {
@@ -274,18 +275,18 @@ pub async fn publish_span_messages(
                     None,
                 )
                 .await?;
+            // Agent versioning resolves tool text from the cloud
+            // `unique_content`, which hybrid workspaces never write.
+            for candidate in &mut static_prompt_candidates {
+                candidate.agent_span = None;
+            }
         }
     }
 
     // Static-prompt extraction candidates ride a separate queue and are
     // best-effort — only after the span publish succeeded, so a rejected
     // batch doesn't feed the accumulator with spans that were never stored.
-    // The returned verdicts are the versions this call resolved inline; the
-    // user-task hook below keys its regex cache on them, which is why the
-    // subset match runs on the ingest path at all.
-    let version_verdicts =
-        publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone())
-            .await;
+    publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone()).await;
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.
@@ -311,7 +312,6 @@ pub async fn publish_span_messages(
     crate::traces::input_extraction::process_user_task_candidates(
         contexts,
         project_id,
-        version_verdicts,
         queue,
         db,
         cache,

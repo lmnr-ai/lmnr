@@ -112,14 +112,7 @@ export default function SignalFormFields({
           name="name"
           control={control}
           render={({ field }) => (
-            <Input
-              disabled={Boolean(getValues("id"))}
-              id="name"
-              placeholder="Signal name"
-              autoFocus
-              size="sm"
-              {...field}
-            />
+            <Input id="name" placeholder="Signal name" autoFocus={!getValues("id")} size="sm" {...field} />
           )}
         />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}

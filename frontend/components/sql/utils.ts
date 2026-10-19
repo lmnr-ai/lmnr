@@ -211,6 +211,12 @@ export const tableSchemas: Record<string, TableSchema> = {
         description:
           "Named clusters (L1 and ancestors) this trace's signal events belong to. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
       },
+      {
+        name: "agent_versions",
+        type: "Array(Tuple(agent_hash String, version_hash String, model String))",
+        description:
+          "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
+      },
     ],
   },
   trace_outputs: {
@@ -783,7 +789,7 @@ const editorBaseStyles = {
   },
   ".cm-searchMatch-selected": {
     backgroundColor: "hsl(var(--primary))",
-    color: "hsl(var(--primary-foreground))",
+    color: "var(--color-primary-foreground)",
     fontWeight: "600",
   },
 };
@@ -813,8 +819,8 @@ const syntaxHighlightStyles = {
 // Autocomplete dropdown styles
 const autocompleteStyles = {
   ".cm-tooltip.cm-tooltip-autocomplete": {
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
     // Note: don't use overflow:hidden here as it clips the info panel
@@ -830,8 +836,8 @@ const autocompleteStyles = {
     gap: "6px",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "hsl(var(--accent))",
-    color: "hsl(var(--accent-foreground))",
+    background: "var(--color-accent)",
+    color: "var(--color-accent-foreground)",
   },
   ".cm-completionIcon": {
     width: "14px",
@@ -881,7 +887,7 @@ const autocompleteStyles = {
     fontSize: "11px",
   },
   ".cm-completionLabel": {
-    color: "hsl(var(--foreground))",
+    color: "var(--color-foreground)",
   },
   ".cm-completionMatchedText": {
     color: "hsl(var(--primary))",
@@ -889,20 +895,20 @@ const autocompleteStyles = {
     textDecoration: "none",
   },
   ".cm-completionDetail": {
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     fontStyle: "normal",
     marginLeft: "auto",
     fontSize: "11px",
   },
   ".cm-tooltip.cm-completionInfo": {
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     padding: "6px 10px",
     maxWidth: "400px",
     fontSize: "12px",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
     whiteSpace: "pre-wrap",
     lineHeight: "1.4",
@@ -913,8 +919,8 @@ const autocompleteStyles = {
 const signatureHelpStyles = {
   ".cm-tooltip .signature-help": {
     padding: "6px 10px",
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
     fontSize: "13px",
@@ -923,8 +929,8 @@ const signatureHelpStyles = {
   },
   ".signature-help": {
     padding: "6px 10px !important",
-    background: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
+    background: "var(--color-background)",
+    border: "1px solid var(--color-border)",
     borderRadius: "6px",
     fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
     fontSize: "13px",
@@ -936,7 +942,7 @@ const signatureHelpStyles = {
     fontWeight: "600",
   },
   ".signature-help .signature-param": {
-    color: "hsl(var(--foreground))",
+    color: "var(--color-foreground)",
   },
   ".signature-help .signature-param-current": {
     color: "hsl(var(--primary))",
@@ -946,33 +952,33 @@ const signatureHelpStyles = {
     borderRadius: "3px",
   },
   ".signature-help .signature-return-type": {
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     fontSize: "12px",
     marginLeft: "6px",
   },
   ".signature-help .signature-description": {
     marginTop: "6px",
     paddingTop: "6px",
-    borderTop: "1px solid hsl(var(--border))",
-    color: "hsl(var(--muted-foreground))",
+    borderTop: "1px solid var(--color-border)",
+    color: "var(--color-muted-foreground)",
     fontSize: "12px",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   ".signature-help .signature-param-details": {
     marginTop: "6px",
     paddingTop: "6px",
-    borderTop: "1px solid hsl(var(--border))",
+    borderTop: "1px solid var(--color-border)",
     fontSize: "12px",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   ".signature-help .signature-param-type": {
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
     fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
     marginLeft: "4px",
   },
   ".signature-help .signature-param-details div": {
     marginTop: "3px",
-    color: "hsl(var(--muted-foreground))",
+    color: "var(--color-muted-foreground)",
   },
 };
 

@@ -329,15 +329,74 @@ export const agents = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
+    agentHash: text("agent_hash").notNull(),
+    name: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "fk_agents_project_id",
+      name: "agents_project_id_fkey",
     }).onDelete("cascade"),
+    unique("agents_project_id_agent_hash_key").on(table.projectId, table.agentHash),
+  ]
+);
+
+export const agentVersions = pgTable(
+  "agent_versions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    versionHash: text("version_hash").notNull(),
+    versionNumber: integer("version_number").notNull(),
+    systemPromptVersionHash: text("system_prompt_version_hash").notNull(),
+    toolDefinitionsHash: text("tool_definitions_hash").notNull(),
+    toolDefinitions: text("tool_definitions").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agentId],
+      foreignColumns: [agents.id],
+      name: "agent_versions_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_versions_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("agent_versions_project_id_version_hash_key").on(table.projectId, table.versionHash),
+    unique("agent_versions_agent_id_version_number_key").on(table.agentId, table.versionNumber),
+    index("agent_versions_agent_id_tool_definitions_hash_idx").using(
+      "btree",
+      table.agentId.asc().nullsLast().op("uuid_ops"),
+      table.toolDefinitionsHash.asc().nullsLast().op("text_ops")
+    ),
+  ]
+);
+
+export const agentVersionModels = pgTable(
+  "agent_version_models",
+  {
+    projectId: uuid("project_id").notNull(),
+    agentVersionId: uuid("agent_version_id").notNull(),
+    model: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agentVersionId],
+      foreignColumns: [agentVersions.id],
+      name: "agent_version_models_agent_version_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_version_models_project_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.agentVersionId, table.model], name: "agent_version_models_pkey" }),
   ]
 );
 
@@ -513,6 +572,7 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     emailVerified: boolean("email_verified").default(false).notNull(),
+    preferences: jsonb().default({}).notNull(),
   },
   (table) => [
     unique("users_email_key").on(table.email),
@@ -541,7 +601,9 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }).default(5_000_000),
     settings: jsonb().default({}).notNull(),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     foreignKey({
@@ -549,6 +611,10 @@ export const workspaces = pgTable(
       foreignColumns: [subscriptionTiers.id],
       name: "workspaces_tier_id_fkey",
     }).onUpdate("cascade"),
+    check(
+      "workspaces_signal_credit_remaining_check",
+      sql`${table.signalCreditRemainingMicroUsd} IS NULL OR (${table.signalCreditRemainingMicroUsd} >= 0 AND ${table.signalCreditRemainingMicroUsd} <= 5000000)`
+    ),
   ]
 );
 
@@ -1242,6 +1308,24 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   signalCostIncludedMicroUsd: bigint("signal_cost_included_micro_usd", { mode: "number" }).default(0).notNull(),
 });
 
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    index("dashboards_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dashboards_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const dashboardCharts = pgTable(
   "dashboard_charts",
   {
@@ -1251,12 +1335,19 @@ export const dashboardCharts = pgTable(
     query: text().notNull(),
     settings: jsonb().notNull(),
     projectId: uuid("project_id").notNull(),
+    dashboardId: uuid("dashboard_id").notNull(),
   },
   (table) => [
+    index("dashboard_charts_dashboard_id_idx").using("btree", table.dashboardId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "dashboard_charts_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.dashboardId],
+      foreignColumns: [dashboards.id],
+      name: "dashboard_charts_dashboard_id_fkey",
     }).onDelete("cascade"),
   ]
 );
@@ -1561,32 +1652,6 @@ export const tagClasses = pgTable(
       .onDelete("cascade"),
     primaryKey({ columns: [table.name, table.projectId], name: "tag_classes_pkey" }),
     unique("tag_classes_name_project_id_unique").on(table.name, table.projectId),
-  ]
-);
-
-export const agentVersions = pgTable(
-  "agent_versions",
-  {
-    projectId: uuid("project_id").notNull(),
-    agentId: uuid("agent_id").notNull(),
-    versionHash: text("version_hash").notNull(),
-    systemPrompt: text("system_prompt").notNull(),
-    toolDefinitions: text("tool_definitions").notNull(),
-    model: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.agentId],
-      foreignColumns: [agents.id],
-      name: "agent_versions_agent_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "fk_agent_versions_project_id",
-    }).onDelete("cascade"),
-    primaryKey({ columns: [table.projectId, table.versionHash], name: "agent_versions_pkey" }),
   ]
 );
 

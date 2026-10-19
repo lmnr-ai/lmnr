@@ -16,12 +16,13 @@ interface Props {
 }
 
 export default function BlogSidebar({ tocItems, className }: Props) {
-  // Sticky at top-24 (96px). Cap height to `100vh - 6rem` so the TOC region
+  // Sticky at top-32 (128px), clear of the sticky banner + header and its fade.
+  // Cap height to `100vh - 10rem` so the TOC region
   // can scroll independently when the outline outgrows the viewport. The CTA
   // is shrink-0; the TOC nav (inside <TableOfContents>) is the flex-1 child
   // that does the scrolling.
   return (
-    <aside className={cn("flex flex-col gap-8 max-h-[calc(100vh-8rem)]", className)}>
+    <aside className={cn("flex flex-col gap-8 max-h-[calc(100vh-10rem)]", className)}>
       <Link
         href="/sign-up"
         className="flex items-center justify-center w-full h-[36px] rounded-sm bg-primary-200 hover:bg-primary-400 transition-colors no-underline shrink-0"

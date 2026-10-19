@@ -23,8 +23,8 @@ pub async fn create_signal(
         .map_err(actix_web::error::ErrorInternalServerError)?;
 
     let result = service::create_signal(
-        &db.pool,
-        cache.get_ref(),
+        db.into_inner(),
+        cache.into_inner(),
         auth.project_id,
         email.as_deref(),
         body.into_inner(),

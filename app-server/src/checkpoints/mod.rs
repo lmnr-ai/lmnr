@@ -1,10 +1,13 @@
-pub mod classifier;
-pub mod consumer;
-pub mod llm;
-pub mod producer;
-pub mod system_prompt;
-pub mod version;
+//! Agent versioning ("checkpoints").
+//!
+//! Runs inline in the system-prompt versioning consumer, right after a batch's
+//! spans get their system-prompt version. An agent is an `agent_hash`; a
+//! version is a (system-prompt version, tool set) pair; models are a set per
+//! version. Every versioned span also tags its trace with
+//! `(agent_hash, version_hash, model)` in `traces_agg.agent_versions`.
 
-pub const CHECKPOINTS_QUEUE: &str = "checkpoints_queue";
-pub const CHECKPOINTS_EXCHANGE: &str = "checkpoints_exchange";
-pub const CHECKPOINTS_ROUTING_KEY: &str = "checkpoints_routing_key";
+mod naming;
+mod recorder;
+mod version;
+
+pub use recorder::{AgentSpan, CheckpointRecorder};

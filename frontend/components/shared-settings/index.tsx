@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
+import UpgradeNotice from "@/components/common/upgrade-notice";
 import AgentVersions from "@/components/settings/agent-versions";
 import AlertsSettings from "@/components/settings/alerts";
 import CustomModelCosts from "@/components/settings/custom-model-costs";
@@ -30,6 +31,7 @@ import ProjectApiKeys from "@/components/settings/project-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import { Badge } from "@/components/ui/badge";
 import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -51,11 +53,16 @@ import WorkspaceSettings from "@/components/workspace/workspace-settings";
 import WorkspaceUsers from "@/components/workspace/workspace-users";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type SettingsSection } from "@/contexts/project-context";
-import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
+import { type SubscriptionDetails, type UpcomingInvoiceInfo, type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { Feature } from "@/lib/features/features";
-import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
+import {
+  type WorkspaceInvitation,
+  type WorkspaceRole,
+  type WorkspaceWithOptionalUsers,
+  WorkspaceTier,
+} from "@/lib/workspaces/types";
 
 interface SharedSettingsProps {
   workspace: WorkspaceWithOptionalUsers;
@@ -68,6 +75,8 @@ interface SharedSettingsProps {
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
   canManageBilling: boolean;
+  trialEligible: boolean;
+  trial: ActiveTrialInfo | null;
   slackClientId?: string;
   slackRedirectUri?: string;
   slackBrokerEnabled?: boolean;
@@ -104,6 +113,8 @@ const SharedSettings = ({
   subscription,
   upcomingInvoice,
   canManageBilling,
+  trialEligible,
+  trial,
   slackClientId,
   slackRedirectUri,
   slackBrokerEnabled,
@@ -111,6 +122,7 @@ const SharedSettings = ({
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
   const workspaceId = workspace.id;
+  const isFree = !!featureFlags[Feature.SUBSCRIPTION] && workspace.tierName === WorkspaceTier.FREE;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
   // via a direct ?tab= link when their flag is off.
@@ -150,12 +162,12 @@ const SharedSettings = ({
     return items;
   }, [featureFlags, isOwner]);
 
-  const projectMenus: { label: string; section: Section; icon: LucideIcon }[] = [
+  const projectMenus: { label: string; section: Section; icon: LucideIcon; badge?: string }[] = [
     { label: "General", section: "general", icon: Settings2 },
     { label: "Project API Keys", section: "project-api-keys", icon: Key },
     { label: "Model costs", section: "model-costs", icon: DollarSign },
     { label: "Render templates", section: "render-templates", icon: Code2 },
-    { label: "Agent versions", section: "agent-versions", icon: GitBranch },
+    { label: "Agent versions", section: "agent-versions", icon: GitBranch, badge: "Beta" },
     { label: "Security", section: "security", icon: ShieldCheck },
     { label: "Alerts", section: "alerts", icon: Bell },
   ];
@@ -164,7 +176,7 @@ const SharedSettings = ({
     switch (activeSection) {
       // Workspace sections
       case "usage":
-        return <WorkspaceUsage workspaceStats={workspaceStats} workspace={workspace} isOwner={isOwner} />;
+        return <WorkspaceUsage workspaceStats={workspaceStats} workspace={workspace} isOwner={isOwner} trial={trial} />;
       case "team":
         return (
           <WorkspaceUsers
@@ -177,6 +189,18 @@ const SharedSettings = ({
       case "deployment":
         return <WorkspaceDeployment workspace={workspace} />;
       case "integrations":
+        if (isFree) {
+          return (
+            <>
+              <SettingsSectionHeader title="Integrations" description="Manage your workspace integrations" />
+              <UpgradeNotice
+                title="Slack alerts aren't included in the Free plan"
+                description="Upgrade to Starter to get Signal events and clusters in Slack."
+                source="integrations"
+              />
+            </>
+          );
+        }
         return (
           <WorkspaceIntegrations
             workspaceId={workspace.id}
@@ -201,6 +225,7 @@ const SharedSettings = ({
             canManageBilling={canManageBilling}
             subscription={subscription}
             upcomingInvoice={upcomingInvoice}
+            trialEligible={trialEligible}
           />
         );
       case "workspace-general":
@@ -236,6 +261,18 @@ const SharedSettings = ({
       case "agent-versions":
         return <AgentVersions />;
       case "alerts":
+        if (isFree) {
+          return (
+            <>
+              <SettingsSectionHeader title="Alerts" description="Get notified about new events or clusters." />
+              <UpgradeNotice
+                title="Alerts aren't included in the Free plan"
+                description="Upgrade to Starter to get alerts on Signal events and clusters by Slack and email."
+                source="alerts"
+              />
+            </>
+          );
+        }
         return (
           <AlertsSettings
             projectId={projectId}
@@ -271,6 +308,14 @@ const SharedSettings = ({
                         <Link href={sectionHref(m.section)}>
                           <m.icon />
                           <span className="mr-2">{m.label}</span>
+                          {m.badge && (
+                            <Badge
+                              variant="outline"
+                              className="ml-auto h-5 px-1.5 text-[11px] font-normal border-primary/30 bg-primary/5 text-primary/80"
+                            >
+                              {m.badge}
+                            </Badge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

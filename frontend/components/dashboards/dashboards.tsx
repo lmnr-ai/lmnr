@@ -1,14 +1,19 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 
 import AddChartDropdown from "@/components/dashboards/add-chart-dropdown";
+import { DashboardRefreshProvider, useDashboardRefresh } from "@/components/dashboards/dashboard-refresh-context";
 import { DashboardSelectionProvider } from "@/components/dashboards/dashboard-selection-store";
+import DashboardSwitcher from "@/components/dashboards/dashboard-switcher";
 import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import GridLayout from "@/components/dashboards/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
+import { LAST_DASHBOARD_ID, LAST_ID_COOKIE_MAX_AGE } from "@/lib/cookies";
 import { track } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
@@ -17,6 +22,7 @@ import { ScrollArea } from "../ui/scroll-area";
 
 function DashboardContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
   const searchParams = useSearchParams();
   const isNewChart = searchParams.get("newChart") === "1";
   const { traceId, spanId, signalId, closeTrace } = useDashboardTraceStore((s) => ({
@@ -25,6 +31,7 @@ function DashboardContent() {
     signalId: s.signalId,
     closeTrace: s.closeTrace,
   }));
+  const { refresh } = useDashboardRefresh();
 
   const scrollToBottom = useCallback(() => {
     const viewport = scrollRef.current;
@@ -37,6 +44,12 @@ function DashboardContent() {
     track("dashboards", "page_viewed");
   }, []);
 
+  // Read by the `/dashboards` redirect to reopen the last-visited dashboard.
+  useEffect(() => {
+    const path = withBasePath(`/project/${projectId}/dashboards`);
+    document.cookie = `${LAST_DASHBOARD_ID}=${dashboardId};path=${path};max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+  }, [projectId, dashboardId]);
+
   useEffect(() => {
     if (isNewChart) {
       requestAnimationFrame(() => scrollToBottom());
@@ -47,9 +60,14 @@ function DashboardContent() {
   return (
     <>
       <Header path={"Dashboards"}>
-        <div className="h-12 flex gap-2 w-full items-center">
+        <div className="text-secondary-foreground/40">/</div>
+        <div className="ml-1">
+          <DashboardSwitcher />
+        </div>
+        <div className="h-12 flex gap-2 w-full items-center ml-2">
           <DateRangeFilter />
           <GroupByPeriodSelect />
+          <RefreshButton onClick={refresh} variant="outline" />
           <div className="ml-auto">
             <AddChartDropdown onChartCreated={scrollToBottom} />
           </div>
@@ -78,7 +96,9 @@ export default function Dashboard() {
   return (
     <DashboardTraceProvider>
       <DashboardSelectionProvider>
-        <DashboardContent />
+        <DashboardRefreshProvider>
+          <DashboardContent />
+        </DashboardRefreshProvider>
       </DashboardSelectionProvider>
     </DashboardTraceProvider>
   );

@@ -22,5 +22,5 @@ export const bodyMedium = "font-sans-landing text-foreground-200 whitespace-pre-
 export const microLabel = "font-sans-landing text-foreground-300";
 
 // Center-column width for the landing/blog/pricing pages. Scales up on
-// xl/2xl screens so the column doesn't look cramped on large displays.
-export const LANDING_COLUMN_MAX_W = "max-w-[880px] 2xl:max-w-[1000px] 3xl:max-w-[1100px]";
+// 2xl screens so the column doesn't look cramped on large displays.
+export const LANDING_COLUMN_MAX_W = "max-w-[880px] 2xl:max-w-[1000px]";

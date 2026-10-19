@@ -85,6 +85,15 @@ pub const REPLICATION_FACTOR: NumEnv<usize> = NumEnv::new("RABBITMQ_STREAM_REPLI
 pub const CONFIRM_TIMEOUT_MS: NumEnv<u64> =
     NumEnv::new("RABBITMQ_STREAM_CONFIRM_TIMEOUT_MS", 10_000);
 
+/// How long a stream consumer that is being deactivated (a SAC rebalance moving a
+/// partition to another consumer) waits for its in-flight flush of that partition
+/// to insert AND store its offset before replying to the broker. The broker keeps
+/// the successor inactive until that reply, with no timeout of its own, so this is
+/// the only bound on how long the partition pauses. Past it we step down anyway and
+/// the in-flight batch is replayed (one duplicate batch).
+pub const HANDOVER_TIMEOUT_MS: NumEnv<u64> =
+    NumEnv::new("RABBITMQ_STREAM_HANDOVER_TIMEOUT_MS", 10_000);
+
 /// Bytes of decoded records one stream reader may hold between the delivery
 /// loop and its batchers — everything received but not yet flushed. This is the
 /// backpressure knob: when the budget is spent the reader stops polling the

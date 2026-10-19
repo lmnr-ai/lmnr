@@ -2,6 +2,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { SlackOauthResponseSchema } from "@/lib/actions/slack/types";
+import { assertWorkspaceHasSlack } from "@/lib/actions/usage/plan-gates";
 import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { alertTargets, reportTargets, slackIntegrations } from "@/lib/db/migrations/schema";
@@ -343,6 +344,7 @@ export async function getSlackChannels(workspaceId: string): Promise<GetSlackCha
 
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
   const { workspaceId, channelId, eventName } = SendTestNotificationSchema.parse(input);
+  await assertWorkspaceHasSlack(workspaceId);
 
   const integration = await getIntegrationWithToken(workspaceId);
 

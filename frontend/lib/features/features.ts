@@ -2,6 +2,7 @@ import { isAiProviderConfigured } from "@/lib/ai/model";
 
 export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
+  EMAIL_AUTOMATIONS = "EMAIL_AUTOMATIONS",
   GITHUB_AUTH = "GITHUB_AUTH",
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
@@ -22,6 +23,7 @@ export enum Feature {
   LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
+  ONBOARDING_COMPANY_NAME = "ONBOARDING_COMPANY_NAME",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -112,6 +114,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     return !!process.env.RESEND_API_KEY;
   }
 
+  if (feature === Feature.EMAIL_AUTOMATIONS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.RESEND_API_KEY;
+  }
+
   if (feature === Feature.SLACK) {
     // Cloud: the official app's own OAuth config. Broker: a self-hosted instance
     // points at the Laminar Cloud broker with its license key and needs no Slack
@@ -140,6 +146,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.AGENT) {
     return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.ONBOARDING_COMPANY_NAME) {
+    return process.env.LAMINAR_CLOUD === "true" && isAiProviderConfigured();
   }
 
   if (feature === Feature.TELEMETRY) {

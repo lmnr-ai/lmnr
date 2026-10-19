@@ -46,7 +46,6 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
 
         <p className="text-sm text-foreground-300">
           {formatUTCDate(data.date)} · {data.author.name}
-          {data.tags?.[0] ? ` · ${data.tags[0]}` : ""}
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">
@@ -59,14 +58,14 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
                 MDX components map. */}
             <article
               data-ph-capture-attribute-link_surface="blog_article"
-              className="blog-article typeset typeset-docs z-30 w-full font-sans-landing font-[460] [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0"
+              className="blog-article typeset typeset-docs z-30 w-full font-sans-landing font-[460] [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0 [&_:is(h1,h2,h3,h4)]:scroll-mt-32"
             >
               {children}
             </article>
           </div>
 
           <div className="hidden lg:block">
-            <BlogSidebar tocItems={tocItems} className="sticky top-24" />
+            <BlogSidebar tocItems={tocItems} className="sticky top-32" />
           </div>
         </div>
 

@@ -1,9 +1,14 @@
 "use client";
 
+import { Info } from "lucide-react";
+import { type ReactNode } from "react";
+
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   label: string;
+  labelHelp?: ReactNode;
   value: string;
   /** Omitted on a derived value, which is read rather than set. The cell keeps
    *  its label and number identical either way — a computed number is the same
@@ -13,9 +18,23 @@ interface Props {
 
 // One vertical rhythm — label, number, control — shared by every input on the
 // calculator, so cells line up wherever they are arranged.
-const Cell = ({ label, value, slider }: Props) => (
+const Cell = ({ label, labelHelp, value, slider }: Props) => (
   <div className="min-w-0">
-    <span className="block text-sm text-foreground-300 h-5">{label}</span>
+    <div className="flex h-5 items-center gap-1 text-sm text-foreground-300">
+      <span>{label}</span>
+      {labelHelp && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" aria-label={`About ${label}`} className="cursor-help">
+              <Info className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent>{labelHelp}</TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+      )}
+    </div>
     <span className="block text-[28px] leading-9 text-white tabular-nums">{value}</span>
     {slider && (
       <Slider

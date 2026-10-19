@@ -58,6 +58,7 @@ const Compliance = () => (
         description={
           <>
             Run Laminar on Kubernetes with the <br className="hidden lg:block" />
+            {` `}
             Laminar Helm chart.
           </>
         }
@@ -68,7 +69,9 @@ const Compliance = () => (
         description={
           <>
             Laminar redacts sensitive information from <br className="hidden lg:block" />
+            {` `}
             every span on Laminar&apos;s own infrastructure <br className="hidden lg:block" />
+            {` `}
             before storage.
           </>
         }

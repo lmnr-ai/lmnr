@@ -1435,6 +1435,7 @@ fn test_array_join_allows_other_tables_array_columns() {
         ("traces", "tags", "tag"),
         ("traces", "signal_events", "e"),
         ("traces", "clusters", "c"),
+        ("traces", "agent_versions", "v"),
         ("evaluation_datapoints", "trace_spans", "s"),
         ("spans", "tags", "tag"),
     ];

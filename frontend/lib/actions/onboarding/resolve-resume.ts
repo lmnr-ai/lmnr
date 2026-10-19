@@ -1,12 +1,11 @@
 import { and, eq } from "drizzle-orm";
 
-import { ONBOARDING_STEPS } from "@/components/onboarding/types";
 import { type OnboardingState } from "@/lib/actions/onboarding/types";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema";
 
 export interface ResumeResolution {
-  point: { workspaceId: string; projectId: string; step: number } | null;
+  point: Pick<OnboardingState, "workspaceId" | "projectId" | "step" | "pending"> | null;
   // Cookie owned by this user — suppresses the "already has workspaces" redirect.
   inProgress: boolean;
   // Cookie points at a workspace/project the user can no longer access.
@@ -16,9 +15,6 @@ export interface ResumeResolution {
 export async function resolveResume(saved: OnboardingState | null, userId: string): Promise<ResumeResolution> {
   if (!saved || saved.userId !== userId) {
     return { point: null, inProgress: false, stale: false };
-  }
-  if (!saved.workspaceId || !saved.projectId) {
-    return { point: null, inProgress: true, stale: false };
   }
   const owned = await db
     .select({ id: projects.id })
@@ -35,10 +31,8 @@ export async function resolveResume(saved: OnboardingState | null, userId: strin
   if (owned.length === 0) {
     return { point: null, inProgress: true, stale: true };
   }
-  // Clamp against current step count — old cookies from longer wizards stay valid.
-  const step = Math.min(Math.max(0, saved.step), ONBOARDING_STEPS.length - 1);
   return {
-    point: { workspaceId: saved.workspaceId, projectId: saved.projectId, step },
+    point: { workspaceId: saved.workspaceId, projectId: saved.projectId, step: saved.step, pending: saved.pending },
     inProgress: true,
     stale: false,
   };

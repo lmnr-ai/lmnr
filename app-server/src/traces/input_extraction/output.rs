@@ -87,6 +87,7 @@ mod tests {
             trace_new_indices: vec![],
             storage_miss_indices: vec![],
             contents: Default::default(),
+            size_bytes: 0,
         }
     }
 

@@ -538,6 +538,7 @@ impl TableRegistry {
             "has_browser_session",
             "signal_events",
             "clusters",
+            "agent_versions",
         ];
 
         // Extracted agent outputs live in their own view (`trace_outputs_v0`,

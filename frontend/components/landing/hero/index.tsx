@@ -3,9 +3,11 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+import AnnouncementBanner from "../announcement-banner";
 import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
-import AgentCta from "./agent-cta";
+import CopySetupButton from "./copy-setup-button";
+import GridLoop from "./grid-loop";
 import LogoStrip from "./logo-strip";
 
 /** Apache-2.0, on the repo's own licence tab. */
@@ -21,9 +23,10 @@ interface Props {
 // CTA row sits below at gap-32. Logo strip is a 4-col grid below.
 const Hero = ({ className, hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full z-10", className)}>
+    <AnnouncementBanner />
     <Header hasSession={hasSession} className={cn("w-full pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)} isIncludePadding />
 
-    <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[100px] pb-2 justify-start gap-[80px] shrink-0">
+    <div className="flex w-full shrink-0 flex-col items-center justify-start gap-[44px] md:gap-[56px] px-3 pt-[72px] md:pt-[100px] pb-2 sm:px-6 lg:px-0">
       <div className={cn("flex flex-col items-start gap-8 w-full", LANDING_COLUMN_MAX_W)}>
         <div className="flex flex-col items-start gap-4">
           <h1 className={cn(mainTitle, "tracking-[-0.015em]")}>
@@ -57,23 +60,26 @@ const Hero = ({ className, hasSession }: Props) => (
               <ArrowUpRight strokeWidth={2.2} viewBox="6 6 12 12" className="size-[0.32em] -translate-y-[0.22em]" />
             </a>
             {"  "}
-            agent observability platform.
-            <br className="hidden md:block" />
-            It automatically catches agent failures and helps you fix them.
+            agent observability platform. <br className="hidden md:block" />
+            {` `}
+            It automatically catches agent failures at scale and helps you fix them.
           </p>
         </div>
 
-        <div className="flex flex-row gap-3 items-center">
+        <div className="flex w-full max-w-[392px] items-center gap-3">
           <Link
             href="/sign-up"
-            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm bg-primary-200 hover:bg-primary-400 transition-colors no-underline"
+            className="flex h-[36px] w-[calc(50%-36px)] shrink-0 items-center justify-center rounded-sm bg-primary-200 no-underline transition-colors hover:bg-primary-400"
           >
-            <span className="font-sans-landing font-medium text-sm text-black">Get started – free</span>
+            <span className="whitespace-nowrap font-sans-landing text-sm font-medium text-black">
+              Get started – free
+            </span>
           </Link>
-          <AgentCta />
+          <CopySetupButton className="w-[calc(50%+24px)]" />
         </div>
       </div>
 
+      <GridLoop />
       <LogoStrip className={LANDING_COLUMN_MAX_W} />
     </div>
   </div>

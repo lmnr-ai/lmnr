@@ -254,7 +254,8 @@ export function createTableConfigStore({
           config: {
             ...get().config,
             columnOrder: defaults.columnOrder ?? [],
-            columnVisibility: {},
+            // `{}` would show every column, not the table's default set.
+            columnVisibility: defaults.columnVisibility ?? {},
             columnSizing: {},
           },
         });

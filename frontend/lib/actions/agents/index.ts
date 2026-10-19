@@ -1,8 +1,11 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { agents, agentVersions } from "@/lib/db/migrations/schema";
+import { agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
+
+const VERSIONS_LIMIT = 50;
 
 export const GetAgentsSchema = z.object({
   projectId: z.guid(),
@@ -10,36 +13,31 @@ export const GetAgentsSchema = z.object({
 
 export interface AgentListItem {
   id: string;
-  name: string;
+  /** `null` until generated or set by a user. */
+  name: string | null;
+  agentHash: string;
   createdAt: string;
   versionCount: number;
 }
 
+/** Agents with at least one version; one whose versions were all deferred has nothing to show yet. */
 export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise<AgentListItem[]> {
   const { projectId } = GetAgentsSchema.parse(input);
 
-  const topAgents = db
-    .select({ id: agents.id, name: agents.name, createdAt: agents.createdAt })
-    .from(agents)
-    .where(eq(agents.projectId, projectId))
-    .orderBy(desc(agents.createdAt))
-    .limit(20)
-    .as("top_agents");
-
-  const rows = await db
+  return db
     .select({
-      id: topAgents.id,
-      name: topAgents.name,
-      createdAt: topAgents.createdAt,
-      versionCount: sql<number>`count(${agentVersions.versionHash})`.mapWith(Number),
+      id: agents.id,
+      name: agents.name,
+      agentHash: agents.agentHash,
+      createdAt: agents.createdAt,
+      versionCount: count(agentVersions.id),
     })
-    .from(topAgents)
-    .leftJoin(agentVersions, eq(agentVersions.agentId, topAgents.id))
-    .groupBy(topAgents.id, topAgents.name, topAgents.createdAt)
-    .orderBy(desc(topAgents.createdAt))
+    .from(agents)
+    .innerJoin(agentVersions, eq(agentVersions.agentId, agents.id))
+    .where(eq(agents.projectId, projectId))
+    .groupBy(agents.id)
+    .orderBy(desc(agents.createdAt))
     .limit(100);
-
-  return rows;
 }
 
 export const GetAgentVersionsSchema = z.object({
@@ -48,15 +46,21 @@ export const GetAgentVersionsSchema = z.object({
 });
 
 export interface AgentVersionItem {
+  id: string;
   versionHash: string;
+  versionNumber: number;
+  systemPromptVersionHash: string;
+  /** Static part of the system-prompt version; empty until ClickHouse has it. */
   systemPrompt: string;
+  toolDefinitionsHash: string;
   toolDefinitions: string;
-  model: string;
+  /** Models seen running this version, oldest first. */
+  models: string[];
   createdAt: string;
 }
 
 export interface AgentVersionsResult {
-  agent: { id: string; name: string; createdAt: string };
+  agent: { id: string; name: string | null; agentHash: string; createdAt: string };
   versions: AgentVersionItem[];
 }
 
@@ -66,7 +70,7 @@ export async function getAgentVersions(
   const { projectId, agentId } = GetAgentVersionsSchema.parse(input);
 
   const [agent] = await db
-    .select({ id: agents.id, name: agents.name, createdAt: agents.createdAt })
+    .select({ id: agents.id, name: agents.name, agentHash: agents.agentHash, createdAt: agents.createdAt })
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
     .limit(1);
@@ -75,16 +79,89 @@ export async function getAgentVersions(
 
   const versions = await db
     .select({
+      id: agentVersions.id,
       versionHash: agentVersions.versionHash,
-      systemPrompt: agentVersions.systemPrompt,
+      versionNumber: agentVersions.versionNumber,
+      systemPromptVersionHash: agentVersions.systemPromptVersionHash,
+      toolDefinitionsHash: agentVersions.toolDefinitionsHash,
       toolDefinitions: agentVersions.toolDefinitions,
-      model: agentVersions.model,
       createdAt: agentVersions.createdAt,
     })
     .from(agentVersions)
     .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)))
-    .orderBy(desc(agentVersions.createdAt))
-    .limit(50);
+    .orderBy(desc(agentVersions.versionNumber))
+    .limit(VERSIONS_LIMIT);
 
-  return { agent, versions };
+  if (versions.length === 0) return { agent, versions: [] };
+
+  const [models, prompts] = await Promise.all([
+    getVersionModels(
+      projectId,
+      versions.map((v) => v.id)
+    ),
+    getSystemPromptTexts(projectId, agent.agentHash, [...new Set(versions.map((v) => v.systemPromptVersionHash))]),
+  ]);
+
+  return {
+    agent,
+    versions: versions.map((version) => ({
+      ...version,
+      systemPrompt: prompts.get(version.systemPromptVersionHash) ?? "",
+      models: models.get(version.id) ?? [],
+    })),
+  };
+}
+
+async function getVersionModels(projectId: string, versionIds: string[]): Promise<Map<string, string[]>> {
+  const rows = await db
+    .select({ agentVersionId: agentVersionModels.agentVersionId, model: agentVersionModels.model })
+    .from(agentVersionModels)
+    .where(and(eq(agentVersionModels.projectId, projectId), inArray(agentVersionModels.agentVersionId, versionIds)))
+    .orderBy(asc(agentVersionModels.createdAt));
+
+  const models = new Map<string, string[]>();
+  for (const row of rows) {
+    models.set(row.agentVersionId, [...(models.get(row.agentVersionId) ?? []), row.model]);
+  }
+  return models;
+}
+
+async function getSystemPromptTexts(
+  projectId: string,
+  agentHash: string,
+  versionHashes: string[]
+): Promise<Map<string, string>> {
+  const result = await clickhouseClient.query({
+    query: `
+      SELECT version_hash, static_text
+      FROM system_prompt_version_defs FINAL
+      WHERE project_id = {projectId: UUID}
+        AND agent_hash = {agentHash: String}
+        AND version_hash IN {versionHashes: Array(String)}
+    `,
+    format: "JSONEachRow",
+    query_params: { projectId, agentHash, versionHashes },
+  });
+  const rows = await result.json<{ version_hash: string; static_text: string }>();
+  return new Map(rows.map((row) => [row.version_hash, row.static_text]));
+}
+
+export const RenameAgentSchema = z.object({
+  projectId: z.guid(),
+  agentId: z.guid(),
+  name: z.string().trim().min(1, "Name is required").max(100),
+});
+
+export async function renameAgent(
+  input: z.infer<typeof RenameAgentSchema>
+): Promise<{ id: string; name: string | null } | null> {
+  const { projectId, agentId, name } = RenameAgentSchema.parse(input);
+
+  const [agent] = await db
+    .update(agents)
+    .set({ name })
+    .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
+    .returning({ id: agents.id, name: agents.name });
+
+  return agent ?? null;
 }

@@ -1,4 +1,4 @@
-//! Worker generating a prompt version's user-task extraction regex from the
+//! Worker generating a user template version's extraction regex from the
 //! cohort's accumulated samples.
 //!
 //! Its own queue, separate from `input_extraction_queue`: an agent run takes
@@ -21,9 +21,9 @@ use uuid::Uuid;
 use super::accumulator::{cohort_cache_key, load_samples};
 use super::generate::GenerationVerdict;
 use super::generate_multi::generate_extraction_regex_multi;
-use super::regex::versioned_regex_cache_key;
+use super::regex::template_regex_cache_key;
 use super::self_tracing::{self, RunKind, SpanBuilder, SpanContextCarrier, SpanScope};
-use crate::cache::keys::USER_TASK_REGEX_AGENT_LOCK_CACHE_KEY;
+use crate::cache::keys::USER_TASK_TEMPLATE_REGEX_AGENT_LOCK_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::llm::LlmClient;
 use crate::mq::{MessageQueue, MessageQueueTrait};
@@ -46,6 +46,7 @@ const REGEX_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 pub struct UserTaskRegexRequest {
     pub project_id: Uuid,
     pub agent_hash: String,
+    /// The user template's version.
     pub version_hash: String,
     pub has_history: bool,
 }
@@ -114,7 +115,7 @@ impl MessageHandler for UserTaskRegexHandler {
 
 impl UserTaskRegexHandler {
     fn regex_key(&self, request: &UserTaskRegexRequest) -> String {
-        versioned_regex_cache_key(
+        template_regex_cache_key(
             request.project_id,
             &request.agent_hash,
             &request.version_hash,
@@ -125,7 +126,7 @@ impl UserTaskRegexHandler {
     fn lock_key(request: &UserTaskRegexRequest) -> String {
         let history = if request.has_history { "h" } else { "n" };
         format!(
-            "{USER_TASK_REGEX_AGENT_LOCK_CACHE_KEY}:{}:{}:{}:{history}",
+            "{USER_TASK_TEMPLATE_REGEX_AGENT_LOCK_CACHE_KEY}:{}:{}:{}:{history}",
             request.project_id, request.agent_hash, request.version_hash
         )
     }

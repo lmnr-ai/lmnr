@@ -14,6 +14,8 @@ import {
   evaluatorScores,
   workspaceInvitations,
   agents,
+  agentVersions,
+  agentVersionModels,
   renderTemplates,
   tracesAgentChats,
   sharedEvals,
@@ -44,6 +46,7 @@ import {
   playgrounds,
   eventDefinitions,
   dashboardCharts,
+  dashboards,
   sharedPayloads,
   debuggerSessions,
   debuggerSessionBlocks,
@@ -54,7 +57,6 @@ import {
   tableViews,
   notificationReads,
   tagClasses,
-  agentVersions,
   traces,
   llmProfiles,
   llmProfileModels,
@@ -115,6 +117,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   evaluatorSpanPaths: many(evaluatorSpanPaths),
   evaluatorScores: many(evaluatorScores),
   agents: many(agents),
+  agentVersions: many(agentVersions),
+  agentVersionModels: many(agentVersionModels),
   renderTemplates: many(renderTemplates),
   tracesAgentChats: many(tracesAgentChats),
   sharedEvals: many(sharedEvals),
@@ -139,6 +143,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   playgrounds: many(playgrounds),
   eventDefinitions: many(eventDefinitions),
   dashboardCharts: many(dashboardCharts),
+  dashboards: many(dashboards),
   sharedPayloads: many(sharedPayloads),
   debuggerSessions: many(debuggerSessions),
   debuggerSessionBlocks: many(debuggerSessionBlocks),
@@ -148,7 +153,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   tableViews: many(tableViews),
   notificationReads: many(notificationReads),
   tagClasses: many(tagClasses),
-  agentVersions: many(agentVersions),
   traces: many(traces),
 }));
 
@@ -245,6 +249,29 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
     references: [projects.id],
   }),
   agentVersions: many(agentVersions),
+}));
+
+export const agentVersionsRelations = relations(agentVersions, ({ one, many }) => ({
+  agent: one(agents, {
+    fields: [agentVersions.agentId],
+    references: [agents.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersions.projectId],
+    references: [projects.id],
+  }),
+  agentVersionModels: many(agentVersionModels),
+}));
+
+export const agentVersionModelsRelations = relations(agentVersionModels, ({ one }) => ({
+  agentVersion: one(agentVersions, {
+    fields: [agentVersionModels.agentVersionId],
+    references: [agentVersions.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersionModels.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const renderTemplatesRelations = relations(renderTemplates, ({ one }) => ({
@@ -487,6 +514,18 @@ export const dashboardChartsRelations = relations(dashboardCharts, ({ one }) => 
     fields: [dashboardCharts.projectId],
     references: [projects.id],
   }),
+  dashboard: one(dashboards, {
+    fields: [dashboardCharts.dashboardId],
+    references: [dashboards.id],
+  }),
+}));
+
+export const dashboardsRelations = relations(dashboards, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [dashboards.projectId],
+    references: [projects.id],
+  }),
+  dashboardCharts: many(dashboardCharts),
 }));
 
 export const sharedPayloadsRelations = relations(sharedPayloads, ({ one }) => ({
@@ -568,17 +607,6 @@ export const notificationReadsRelations = relations(notificationReads, ({ one })
 export const tagClassesRelations = relations(tagClasses, ({ one }) => ({
   project: one(projects, {
     fields: [tagClasses.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const agentVersionsRelations = relations(agentVersions, ({ one }) => ({
-  agent: one(agents, {
-    fields: [agentVersions.agentId],
-    references: [agents.id],
-  }),
-  project: one(projects, {
-    fields: [agentVersions.projectId],
     references: [projects.id],
   }),
 }));

@@ -2,17 +2,26 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { type PropsWithChildren, useState } from "react";
+import useSWR from "swr";
 
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
+import { type Dashboard, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";
+import { swrFetcher } from "@/lib/utils";
 
 const ExportChartDialog = ({ children }: PropsWithChildren) => {
-  const { projectId } = useParams();
+  const { projectId } = useParams<{ projectId: string }>();
   const [open, setOpen] = useState(false);
+  const [selectedDashboardId, setSelectedDashboardId] = useState<string>();
+  const { data: dashboards = [] } = useSWR<Dashboard[]>(open ? getDashboardsUrl(projectId) : null, swrFetcher);
+  const dashboardId = selectedDashboardId ?? dashboards[0]?.id;
+  const dashboardName = dashboards.find((d) => d.id === dashboardId)?.name;
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const { query, chartConfig, setChartName, name, isValidChartConfiguration } = useChartBuilderStoreContext(
@@ -26,7 +35,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
   );
 
   const handleExport = async () => {
-    if (!name) {
+    if (!name || !dashboardId) {
       return;
     }
 
@@ -36,7 +45,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+      const res = await fetch(getChartsUrl(projectId, dashboardId), {
         method: "POST",
         body: JSON.stringify({
           query,
@@ -63,9 +72,9 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         title: "Success",
         description: (
           <span>
-            Successfully exported chart to Dashboards.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/dashboards`}>
-              Go to Dashboards.
+            Successfully exported chart to {dashboardName}.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/dashboards/${dashboardId}`}>
+              Go to dashboard.
             </Link>
           </span>
         ),
@@ -77,23 +86,42 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const isValid = isValidChartConfiguration() && (name?.trim().length || 0) > 0;
+  const isValid = isValidChartConfiguration() && (name?.trim().length || 0) > 0 && !!dashboardId;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-left">Export Chart to Dashboards</DialogTitle>
+          <DialogTitle className="text-left">Export Chart to Dashboard</DialogTitle>
         </DialogHeader>
         <Separator />
-        <Input
-          id="chart-name"
-          aria-label="Chart name"
-          value={name || ""}
-          onChange={(e) => setChartName(e.target.value || undefined)}
-          placeholder="Enter chart name"
-        />
+        <div className="grid gap-1">
+          <Label htmlFor="chart-name" className="text-xs">
+            Chart name
+          </Label>
+          <Input
+            id="chart-name"
+            value={name || ""}
+            onChange={(e) => setChartName(e.target.value || undefined)}
+            placeholder="Enter chart name"
+          />
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-xs">Dashboard</Label>
+          <Select value={dashboardId} onValueChange={setSelectedDashboardId}>
+            <SelectTrigger aria-label="Dashboard">
+              <SelectValue placeholder="Select dashboard" />
+            </SelectTrigger>
+            <SelectContent>
+              {dashboards.map((dashboard) => (
+                <SelectItem key={dashboard.id} value={dashboard.id}>
+                  {dashboard.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel

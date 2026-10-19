@@ -7,6 +7,7 @@ import {
   type Ref,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useRef,
   useState,
@@ -57,7 +58,7 @@ const FilterSelect = ({
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const listboxId = useRef(`listbox-${Math.random().toString(36).slice(2, 9)}`).current;
+  const listboxId = `listbox-${useId()}`;
 
   const selectedOption = options.find((o) => o.value === value);
   const selectedIndex = options.findIndex((o) => o.value === value);

@@ -201,12 +201,12 @@ export default function CombinedChart({
             axisLine={false}
             tickMargin={6}
             height={20}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
           />
           {/* Padding keeps min/max dots (y = 0 / 1) from being clipped at the plot edges. */}
           <YAxis hide domain={[0, 1]} padding={{ top: 10, bottom: 10 }} />
           <Tooltip
-            cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }}
+            cursor={{ stroke: "var(--color-muted-foreground)", strokeOpacity: 0.4 }}
             content={<NormalizedTooltip ranks={ranks} chartConfig={chartConfig} />}
           />
           {visible.map((score) => {
@@ -243,7 +243,7 @@ export default function CombinedChart({
                       r={r}
                       fill={chartConfig[score]?.color}
                       fillOpacity={opacity}
-                      stroke={isHovered ? "hsl(var(--background))" : "none"}
+                      stroke={isHovered ? "var(--color-background)" : "none"}
                       strokeWidth={isHovered ? 1.5 : 0}
                     />
                   );

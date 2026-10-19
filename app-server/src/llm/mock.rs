@@ -59,6 +59,9 @@ pub enum GenerateFailureMode {
     /// but NOT a flex 429/503, so it drives the immediate flex->standard fallback.
     #[allow(dead_code)]
     Timeout,
+    /// Never return, like a provider that holds the connection open.
+    #[allow(dead_code)]
+    Hang,
 }
 
 /// Configuration for programmatic `generate_content` failure injection.
@@ -200,6 +203,7 @@ fn read_generate_failure_from_env() -> Option<GenerateFailureConfig> {
             GenerateFailureMode::Retryable429 => "retryable_429",
             GenerateFailureMode::NonRetryable => "non_retryable",
             GenerateFailureMode::Timeout => "timeout",
+            GenerateFailureMode::Hang => "hang",
         },
         if fail_count == usize::MAX {
             "forever".to_string()
@@ -320,6 +324,7 @@ impl LanguageModelClient for MockProviderClient {
                     GenerateFailureMode::Timeout => Err(ProviderError::RequestError(
                         "Mock: request timed out".to_string(),
                     )),
+                    GenerateFailureMode::Hang => std::future::pending().await,
                 };
             }
         }
