@@ -28,6 +28,8 @@ SELECT s."project_id", s."id", 1,
        ),
        s."created_at"
 FROM "signals" s
+-- Skip orphaned signals (project deleted; signals has no FK to projects) or the project_id FK fails.
+JOIN "projects" p ON p."id" = s."project_id"
 LEFT JOIN LATERAL (
   SELECT "value", "filters", "mode"
   FROM "signal_triggers"
