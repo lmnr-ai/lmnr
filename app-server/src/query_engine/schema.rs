@@ -269,6 +269,7 @@ const TABLES: &[Table] = &[
         columns: &[
             col("id", "UUID", "Unique id of the evaluation datapoint"),
             col("evaluation_id", "UUID", "Id of the evaluation"),
+            col("evaluation_name", "String", "Name of the evaluation"),
             col("trace_id", "UUID", "Id of the associated trace"),
             col(
                 "created_at",
@@ -383,6 +384,7 @@ const TABLES: &[Table] = &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("dataset_id", "UUID", "Id of the dataset"),
+            col("dataset_name", "String", "Name of the dataset"),
             col(
                 "data",
                 "String",
@@ -408,6 +410,7 @@ const TABLES: &[Table] = &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("dataset_id", "UUID", "Id of the dataset"),
+            col("dataset_name", "String", "Name of the dataset"),
             col(
                 "data",
                 "String",
@@ -504,9 +507,14 @@ const TABLES: &[Table] = &[
         columns: &[
             col("id", "UUID", "Unique id of the signal event"),
             col("signal_id", "UUID", "Id of the signal"),
+            col("signal_name", "String", "Current name of the signal"),
             col("trace_id", "UUID", "Id of the trace"),
             col("run_id", "UUID", "Id of the run"),
-            col("name", "String", "Event name"),
+            col(
+                "name",
+                "String",
+                "Alias of signal_name, kept for older queries; use signal_name",
+            ),
             col(
                 "payload",
                 "String",
@@ -574,7 +582,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "signals",
-        description: "Signal definitions stored in Postgres. Join to signal_events / signal_runs / traces.signal_events on signals.id = signal_id for the definition name and version.",
+        description: "Signal definitions stored in Postgres: prompt, output schema, model, and current version. Join to signal_events / signal_runs / traces.signal_events on signals.id = signal_id; for just the name, use signal_events.signal_name.",
         columns: &[
             col("id", "UUID", "Unique id of the signal"),
             col("name", "String", "Signal name, unique per project"),
@@ -592,37 +600,6 @@ const TABLES: &[Table] = &[
             ),
             col("created_at", "DateTime64(6)", "When the signal was created"),
             col("version", "Int32", "Current definition version"),
-        ],
-    },
-    Table {
-        name: "evaluations",
-        description: "Evaluation run definitions stored in Postgres. Join to evaluation_datapoints on evaluations.id = evaluation_id for the run name and group.",
-        columns: &[
-            col("id", "UUID", "Unique id of the evaluation"),
-            col("name", "String", "Evaluation name"),
-            col(
-                "group_id",
-                "String",
-                "Group identifier of the evaluation run",
-            ),
-            col(
-                "created_at",
-                "DateTime64(6)",
-                "When the evaluation was created",
-            ),
-        ],
-    },
-    Table {
-        name: "datasets",
-        description: "Dataset definitions stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id for the dataset name.",
-        columns: &[
-            col("id", "UUID", "Unique id of the dataset"),
-            col("name", "String", "Dataset name"),
-            col(
-                "created_at",
-                "DateTime64(6)",
-                "When the dataset was created",
-            ),
         ],
     },
     Table {
@@ -708,8 +685,6 @@ mod tests {
             "signal_runs",
             "logs",
             "signals",
-            "evaluations",
-            "datasets",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

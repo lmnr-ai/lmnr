@@ -47,8 +47,8 @@ fn test_default_tables_registered() {
     assert!(!reg.is_table_allowed("spans_v0"));
     assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
     assert!(reg.is_table_allowed("signals"));
-    assert!(reg.is_table_allowed("evaluations"));
-    assert!(reg.is_table_allowed("datasets"));
+    assert!(!reg.is_table_allowed("evaluations"));
+    assert!(!reg.is_table_allowed("datasets"));
     // The PostgreSQL engine mirrors the whole schema — never allowlist it.
     assert!(!reg.is_table_allowed("pg"));
     assert!(!reg.is_table_allowed("users"));
@@ -167,8 +167,11 @@ fn test_validate_postgres_entity_tables() {
 #[test]
 fn test_schema_advertised_pg_entity_columns_are_allowlisted() {
     validate_ok("SELECT signals.name, signals.version FROM signals");
-    validate_ok("SELECT evaluations.name, evaluations.group_id FROM evaluations");
-    validate_ok("SELECT datasets.name FROM datasets");
+    validate_ok("SELECT signal_events.signal_name FROM signal_events");
+    validate_ok("SELECT signal_events_all.signal_name FROM signal_events_all");
+    validate_ok("SELECT evaluation_datapoints.evaluation_name FROM evaluation_datapoints");
+    validate_ok("SELECT dataset_datapoints.dataset_name FROM dataset_datapoints");
+    validate_ok("SELECT dataset_datapoint_versions.dataset_name FROM dataset_datapoint_versions");
 }
 
 /// Columns the shared schema advertises must also be allowlisted here, or a

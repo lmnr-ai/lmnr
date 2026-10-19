@@ -285,10 +285,10 @@ export async function register() {
           const migrationsHome = join(process.cwd(), "lib/clickhouse/migrations");
 
           const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants } =
+          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants, ensurePgEntityDicts } =
             await import("@/lib/clickhouse/postgres-engine.ts");
 
-          // Ordered before migration 67 so a healthy boot has `pg` ready for the
+          // Ordered before migration 73 so a healthy boot has `pg` ready for the
           // views over it; warn-only, so a broken one still starts.
           await ensureClickhousePostgresDatabase(clickhouseClient);
 
@@ -304,6 +304,7 @@ export async function register() {
 
           await ensureContentDicts();
           await ensureClustersDict();
+          await ensurePgEntityDicts(clickhouseClient);
           await ensureClickhouseReadonlyGrants(clickhouseClient);
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);

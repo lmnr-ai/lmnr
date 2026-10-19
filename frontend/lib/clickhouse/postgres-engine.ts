@@ -3,13 +3,13 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { db, getDatabaseConfig, getPostgresSchema } from "@/lib/db/drizzle";
 
 /**
- * Boot wiring for the `pg` ClickHouse database and the Postgres role behind it.
- * Nothing here may throw — `instrumentation.ts` awaits all three exports
+ * Boot wiring for the `pg` ClickHouse database, the dictionaries over it, and the
+ * Postgres role behind it. Nothing here may throw — `instrumentation.ts` awaits every export
  * unguarded, and an unreachable Postgres must cost these three tables, not the
  * whole frontend. See `docs/internal/sql-query-engine.md`.
  */
 
-/** Must match the `_v0` SELECT lists in CH migration 67. `project_id` is granted for those views to filter on, never selected. */
+/** Must match `signals_v0` and the dict sources below (CH migration 73). `project_id` is granted to filter and key on, never exposed. */
 const PG_ENTITY_COLUMNS: Record<string, string[]> = {
   signals: [
     "id",
@@ -22,8 +22,15 @@ const PG_ENTITY_COLUMNS: Record<string, string[]> = {
     "created_at",
     "version",
   ],
-  evaluations: ["id", "project_id", "name", "group_id", "created_at"],
-  datasets: ["id", "project_id", "name", "created_at"],
+  evaluations: ["id", "project_id", "name", "group_id"],
+  datasets: ["id", "project_id", "name"],
+};
+
+/** Attributes resolved by `dictGetOrDefault` in the `_v0` views of CH migration 73, keyed by `(project_id, id)`. */
+const PG_ENTITY_DICTS: Record<string, string[]> = {
+  signals: ["name"],
+  evaluations: ["name", "group_id"],
+  datasets: ["name"],
 };
 
 const identRe = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -145,7 +152,7 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
  * compose, not the host's localhost:5433). `IF NOT EXISTS`, so rotate
  * credentials by dropping the database rather than by restarting.
  *
- * Migration 67 survives a failure here — ClickHouse does not resolve a view's
+ * Migration 73 survives a failure here — ClickHouse does not resolve a view's
  * source database at `CREATE VIEW` time. Never logs the statement: the engine
  * parameters carry the role password.
  */
@@ -167,17 +174,56 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
     });
   } catch (error) {
     warnFailure(
-      "Skipped creating the ClickHouse `pg` database; SQL queries against signals/evaluations/datasets will fail",
+      "Skipped creating the ClickHouse `pg` database; SQL queries reading signals or entity names will fail",
       error
     );
   }
 }
 
 /**
+ * Cache-layout dicts: a dictGet fetches only the keys it misses from Postgres
+ * (`WHERE (project_id, id) IN (...)`, pushed through `pg`), and each key stays
+ * valid for LIFETIME. Postgres is never read unless a query selects a name
+ * column, so a missing `pg` fails only those queries. Cloud creates these by
+ * hand (LOCAL_DB is off).
+ */
+export async function ensurePgEntityDicts(clickhouseClient: ClickHouseClient): Promise<void> {
+  const user = process.env.CLICKHOUSE_USER || "ch_user";
+  const password = process.env.CLICKHOUSE_PASSWORD || "ch_passwd";
+
+  for (const [table, attributes] of Object.entries(PG_ENTITY_DICTS)) {
+    try {
+      await clickhouseClient.command({
+        query: `
+          CREATE OR REPLACE DICTIONARY ${table}_dict
+          (
+            project_id UUID,
+            id UUID,
+            ${attributes.map((attribute) => `${attribute} String`).join(",\n            ")}
+          )
+          PRIMARY KEY project_id, id
+          SOURCE(CLICKHOUSE(
+            USER ${chStr(user)}
+            PASSWORD ${chStr(password)}
+            DB 'pg'
+            TABLE ${chStr(table)}
+          ))
+          LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 100000))
+          LIFETIME(MIN 30 MAX 60)
+        `,
+      });
+    } catch (error) {
+      warnFailure(`Skipped creating ${table}_dict; SQL queries reading ${table} names will fail`, error);
+    }
+  }
+}
+
+/**
  * Second layer behind the query-engine validator, on the user the query API
  * connects as: no off-box table functions, and no read on `pg`, which mirrors the
- * whole Postgres schema. Migration 67's views are `SQL SECURITY DEFINER`, so
- * `SELECT ON default.*` is the only route to the entity data.
+ * whole Postgres schema. `signals_v0` is `SQL SECURITY DEFINER` and the entity
+ * dicts load as the admin user, so the views in `default` are the only route to
+ * the entity data.
  */
 export async function ensureClickhouseReadonlyGrants(clickhouseClient: ClickHouseClient): Promise<void> {
   const roUser = process.env.CLICKHOUSE_RO_USER?.trim();
@@ -203,6 +249,7 @@ export async function ensureClickhouseReadonlyGrants(clickhouseClient: ClickHous
 
   for (const query of [
     `GRANT SELECT ON default.* TO ${user}`,
+    `GRANT dictGet ON default.* TO ${user}`,
     `REVOKE SOURCES, POSTGRES, S3, URL, REMOTE, FILE ON *.* FROM ${user}`,
     `REVOKE ALL ON pg.* FROM ${user}`,
   ]) {
