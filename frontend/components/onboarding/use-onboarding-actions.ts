@@ -9,12 +9,8 @@ import { type CommitOnboardingResult } from "@/lib/actions/onboarding/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
-// "continue" is for a workspace that is already paid; "checkout" returns a Stripe URL.
-export type CommitPlan =
-  | { plan: "trial" }
-  | { plan: "continue" }
-  | { plan: "free" }
-  | { plan: "checkout"; checkoutTier: "hobby" | "pro" };
+// "trial" also covers a workspace that is already paid; "free" is for owners who can't start a trial.
+export type CommitPlan = { plan: "trial" | "free" };
 
 interface UseOnboardingActions {
   isSubmitting: boolean;

@@ -4,7 +4,7 @@ import { type OnboardingSignal } from "@/components/onboarding/steps/signals-ste
 import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
-// surface-250, matching the plan step's cards.
+// surface-250.
 const CARD_ELEVATION = 5;
 
 interface SignalCardProps {

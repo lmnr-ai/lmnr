@@ -9,6 +9,7 @@ import slackLogo from "@/assets/logo/slack.png";
 import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { SLACK_SCOPES } from "@/lib/actions/slack/types";
@@ -25,9 +26,11 @@ interface SlackStepProps {
 export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: SlackStepProps) {
   const { watch } = useFormContext<OnboardingFormValues>();
   const flags = useFeatureFlags();
-  const { resources, slackClientId, slackRedirectUri } = useOnboardingContext();
+  const { resources, slackClientId, slackRedirectUri, trialAvailable } = useOnboardingContext();
+  const { isSubmitting, commitPlan } = useOnboardingActions();
 
   const slackConnected = watch("slackConnected");
+  const onFree = watch("currentTier") === "free";
 
   const slackUrl = useMemo(() => {
     if (!slackClientId || !slackRedirectUri || !resources.workspaceId) return undefined;
@@ -46,8 +49,10 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
 
   const slackAvailable = flags[Feature.SLACK] && !!slackUrl;
 
-  const handleNext = () => {
+  // Last step before Connect: starts the trial and applies the queued invites and signals.
+  const handleNext = async () => {
     track("onboarding", "slack_step_completed", { slackConnected });
+    if (!(await commitPlan({ plan: trialAvailable || !onFree ? "trial" : "free" }))) return;
     onAdvance();
   };
 
@@ -60,6 +65,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
       nextLabel={slackConnected ? "Continue" : "Skip for now"}
       onNext={handleNext}
       onBack={onBack}
+      isSubmitting={isSubmitting}
     >
       <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-200 px-4 py-3">
         <div className="my-auto">

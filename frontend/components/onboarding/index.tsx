@@ -8,7 +8,6 @@ import { FormProvider, useForm, useFormContext } from "react-hook-form";
 import { OnboardingProvider } from "@/components/onboarding/context";
 import ConnectStep from "@/components/onboarding/steps/connect-step";
 import InviteStep from "@/components/onboarding/steps/invite-step";
-import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
@@ -157,9 +156,7 @@ function WizardStepsInner({ initialStep }: { initialStep: OnboardingStep }) {
         return <SignalsStep {...shared} onAdvance={advance} onBack={back} />;
       case "slack":
         return <SlackStep {...shared} onAdvance={advance} onBack={back} />;
-      case "plan":
-        return <PlanStep {...shared} onAdvance={advance} onBack={back} />;
-      // A paid plan has applied the invites and signals, so only Free can go back and pick again.
+      // A trial or paid plan has applied the invites and signals, so only Free can go back.
       case "connect":
         return <ConnectStep {...shared} onBack={onFree ? back : undefined} />;
       default:

@@ -3,7 +3,7 @@ export type OnboardingTier = "free" | "hobby" | "pro";
 export interface OnboardingFormValues {
   workspaceName: string;
   projectName: string;
-  // Queued until the plan commit; dropped if the user stays on Free.
+  // Queued until the commit on leaving the Slack step; not applied if the workspace stays on Free.
   invites: string[];
   selectedTemplateNames: string[];
   slackConnected: boolean;

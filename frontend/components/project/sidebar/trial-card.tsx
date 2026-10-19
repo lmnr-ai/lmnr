@@ -1,27 +1,17 @@
 "use client";
 
-import { differenceInCalendarDays, format } from "date-fns";
-import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
-import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { differenceInCalendarDays } from "date-fns";
+import { ChevronRight } from "lucide-react";
+import { useState, useSyncExternalStore } from "react";
 import useSWR from "swr";
 
-import { Button } from "@/components/ui/button.tsx";
+import TrialIntroContent from "@/components/project/sidebar/trial-intro-content.tsx";
+import TrialStatusContent from "@/components/project/sidebar/trial-status-content.tsx";
+import { useTrialIntro } from "@/components/project/sidebar/use-trial-intro.ts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
-import { useProjectContext } from "@/contexts/project-context";
-import { TIER_RETENTION } from "@/lib/billing/retention";
-import { TIERS } from "@/lib/billing/tiers";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
-
-const KEPT_ON_STARTER = [
-  `${TIERS.hobby.includedBytesGB} GB of data a month (Free has ${TIERS.free.includedBytesGB} GB)`,
-  `${TIER_RETENTION.hobby.durationPlural} of data access (Free has ${TIER_RETENTION.free.durationPlural})`,
-  "Signals and clusters",
-  "Slack notifications",
-  "Unlimited projects and teammates",
-];
 
 const subscribeNone = () => () => {};
 
@@ -37,12 +27,13 @@ interface TrialCardProps {
 }
 
 export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) {
-  const { settingsHref } = useProjectContext();
   const { data } = useSWR<{ convertsToPaid: boolean | null }>(
     `/api/workspaces/${workspaceId}/subscription/trial`,
     swrFetcher
   );
   const convertsToPaid = data?.convertsToPaid === true;
+  const { intro, dismissIntro } = useTrialIntro(workspaceId);
+  const [open, setOpen] = useState(intro);
   // Calendar days need the viewer's timezone, which the server render doesn't have.
   const hydrated = useSyncExternalStore(
     subscribeNone,
@@ -55,9 +46,15 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
   const daysLeft = differenceInCalendarDays(endsAt, new Date());
   const urgent = daysLeft <= 3;
 
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) track("billing", "trial_sidebar_card_opened");
+    else if (intro) dismissIntro();
+  };
+
   return (
     <SidebarMenuItem>
-      <Popover onOpenChange={(open) => open && track("billing", "trial_sidebar_card_opened")}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <button
             className={cn(
@@ -71,32 +68,11 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
           </button>
         </PopoverTrigger>
         <PopoverContent side="right" align="end" className="flex w-80 flex-col gap-3 text-sm">
-          <span className="font-medium">Your Starter trial ends on {format(endsAt, "MMMM d")}</span>
-          {convertsToPaid ? (
-            <span className="text-secondary-foreground">
-              Starter starts then at ${TIERS.hobby.basePriceMonthly}/month on your saved card.
-            </span>
+          {intro ? (
+            <TrialIntroContent endsAt={endsAt} onClose={() => handleOpenChange(false)} />
           ) : (
-            <>
-              <span className="text-secondary-foreground">
-                After that, this workspace moves to the Free plan. Upgrade to Starter to keep:
-              </span>
-              <ul className="flex flex-col gap-1.5 text-xs">
-                {KEPT_ON_STARTER.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
+            <TrialStatusContent endsAt={endsAt} convertsToPaid={convertsToPaid} />
           )}
-          <Link href={settingsHref("billing")}>
-            <Button className="w-full" variant={convertsToPaid ? "outline" : "default"}>
-              <span>{convertsToPaid ? "Manage billing" : "Upgrade"}</span>
-              <ArrowUpRight className="ml-1 size-3.5" />
-            </Button>
-          </Link>
         </PopoverContent>
       </Popover>
     </SidebarMenuItem>
