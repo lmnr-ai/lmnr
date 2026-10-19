@@ -30,7 +30,7 @@ function PureEmbeddedTraceView({ trace, spans }: EmbeddedTraceViewProps) {
   );
 
   const panels = {
-    tracePanel: <TracePanel trace={trace} spans={spans} onSpanSelect={setSelectedSpan} />,
+    tracePanel: <TracePanel trace={trace} spans={spans} onSpanSelect={setSelectedSpan} isCompactTimeline />,
     spanPanel: selectedSpan ? (
       <SpanView
         key={selectedSpan.spanId}
