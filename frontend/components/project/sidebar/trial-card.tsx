@@ -66,7 +66,7 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
             <ChevronRight className="size-3.5 text-primary-300 transition-transform group-hover:translate-x-0.5" />
           </button>
         </PopoverTrigger>
-        <PopoverContent side="right" align="end" className="w-64 text-sm">
+        <PopoverContent side="right" align="end" className="w-80 text-sm">
           <TrialPopoverContent
             endsAt={endsAt}
             convertsToPaid={convertsToPaid}
