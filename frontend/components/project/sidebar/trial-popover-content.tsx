@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ArrowUpRight, Bell, Clock, Database, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, Bell, Clock, Database, Radio, Users } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button.tsx";
@@ -8,7 +8,7 @@ import { TIER_RETENTION } from "@/lib/billing/retention";
 import { TIERS } from "@/lib/billing/tiers";
 
 const TRIAL_INCLUDES = [
-  { icon: Sparkles, label: "Signals on every trace" },
+  { icon: Radio, label: "Signals" },
   { icon: Bell, label: "Slack alerts for critical events" },
   { icon: Database, label: `${TIERS.hobby.includedBytesGB} GB of data a month` },
   { icon: Clock, label: `${TIER_RETENTION.hobby.durationPlural} of data access` },
@@ -44,13 +44,13 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
         {convertsToPaid ? (
           <span>
             Starter continues after {endDate} at ${TIERS.hobby.basePriceMonthly}/month on your saved card, with
-            pay-as-you-go overage past the included data. You can cancel anytime from billing.
+            pay-as-you-go overage past the included data.
           </span>
         ) : (
           <>
             <span>
-              You can cancel anytime from billing. If you don&apos;t upgrade, the trial ends on its own on {endDate} and
-              the workspace moves to the Free plan. You won&apos;t be charged.
+              If you don&apos;t upgrade, the trial ends on its own on {endDate} and the workspace moves to the Free
+              plan. You won&apos;t be charged.
             </span>
             <span>Upgrade to keep these features and grow past the included data with pay-as-you-go overage.</span>
           </>
