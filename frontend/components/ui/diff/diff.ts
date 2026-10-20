@@ -59,7 +59,7 @@ const plain = (line: string): Segment[] => [{ text: line, highlight: false }];
 // Line diff with intra-line word highlighting: a removed block followed by an added block
 // is paired line-by-line and word-diffed; unpaired extras render as whole add/remove lines.
 export function computeDiffRows(oldText: string, newText: string): DiffRow[] {
-  const parts = diffLines(oldText ?? "", newText ?? "");
+  const parts = diffLines(oldText ?? "", newText ?? "", { ignoreNewlineAtEof: true });
   const rows: DiffRow[] = [];
 
   for (let i = 0; i < parts.length; i++) {
@@ -101,7 +101,7 @@ export function computeDiffRows(oldText: string, newText: string): DiffRow[] {
 
 // Same pairing as `computeDiffRows`, but each removed/added pair shares one row.
 export function computeSplitRows(oldText: string, newText: string): SplitRow[] {
-  const parts = diffLines(oldText ?? "", newText ?? "");
+  const parts = diffLines(oldText ?? "", newText ?? "", { ignoreNewlineAtEof: true });
   const rows: SplitRow[] = [];
   let oldNum = 0;
   let newNum = 0;

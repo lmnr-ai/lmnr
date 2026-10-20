@@ -6,8 +6,10 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::Context;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::Value;
 use uuid::Uuid;
 
 use super::{naming::generate_agent_name, version::version_hash};
@@ -34,7 +36,7 @@ use crate::{
     },
     llm::LlmClient,
     traces::{
-        dedup::{span_group_id, tools::ToolDedup},
+        dedup::{span_group_id, tool_normalize::normalize_tools, tools::ToolDedup},
         sp_versioning::consumer::SpVersioningMessage,
     },
     utils::{sanitize_string, truncate_chars},
@@ -304,9 +306,10 @@ impl CheckpointRecorder {
         agents::get_agent_version_id(&self.db.pool, span.project_id, &span.version_hash).await
     }
 
-    /// Text of the version's tool set: from another version of the agent with
-    /// the same set, else from the `unique_content` blob of the oldest of
-    /// `spans`. The spans consumer may not have written it yet (`None`).
+    /// [`normalize_tools`] text of the version's tool set: from another version
+    /// of the agent with the same set, else from the `unique_content` blob of
+    /// the oldest of `spans`. The spans consumer may not have written it yet
+    /// (`None`).
     async fn tool_definitions(
         &self,
         spans: &[&VersionedSpan<'_>],
@@ -331,13 +334,23 @@ impl CheckpointRecorder {
             .iter()
             .min_by_key(|s| s.inputs.start_time)
             .unwrap_or(&span);
-        Ok(get_content_by_hash(
+        let Some(blob) = get_content_by_hash(
             &self.clickhouse,
             oldest.project_id,
             &oldest.inputs.group_id,
             &oldest.inputs.tool_content_hash,
         )
-        .await?)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let tools: Vec<Value> = serde_json::from_str(&blob).with_context(|| {
+            format!(
+                "tool blob {} is not a JSON array",
+                oldest.inputs.tool_content_hash
+            )
+        })?;
+        Ok(Some(Value::Array(normalize_tools(&tools)).to_string()))
     }
 
     async fn ensure_model(&self, span: &VersionedSpan<'_>, version_id: Uuid) -> anyhow::Result<()> {
