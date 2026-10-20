@@ -128,10 +128,6 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
               </Field>
             </>
           )}
-          <div className="flex items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
-            <span className="font-medium">Version ID</span>
-            <span className="font-mono break-all">{version.versionHash}</span>
-          </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
