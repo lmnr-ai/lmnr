@@ -12,7 +12,7 @@ interface ProcessNodeProps {
 
 export const ProcessNode = ({ rect, color, reveal }: ProcessNodeProps) => (
   <div
-    className="absolute flex origin-center items-center justify-center bg-surface-350"
+    className="absolute flex origin-center items-center justify-center bg-surface-550"
     style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, opacity: reveal, transform: `scale(${reveal})` }}
   >
     <div className="flex size-[32px] items-center justify-center rounded-full" style={{ backgroundColor: color }}>
@@ -28,13 +28,13 @@ export const ProcessNode = ({ rect, color, reveal }: ProcessNodeProps) => (
 // Extra breathing room between a label and the element below it.
 const LABEL_GAP = 4;
 
-// Centred over its element; the span's bg-surface-200 hides only the dots behind the text.
+// Centred over its element; the span's bg-surface-400 hides only the dots behind the text.
 export const GridLabel = ({ rect, text, opacity }: { rect: Rect; text: string; opacity: number }) => (
   <div
     className="absolute flex h-[20px] items-center justify-center"
     style={{ left: rect.x, top: rect.y - LABEL_GAP, width: rect.w, opacity }}
   >
-    <span className="bg-surface-200 px-[6px] font-sans-landing text-[12px] leading-[20px] whitespace-nowrap text-foreground-100">
+    <span className="bg-surface-400 px-[6px] font-sans-landing text-[12px] leading-[20px] whitespace-nowrap text-foreground-100">
       {text}
     </span>
   </div>

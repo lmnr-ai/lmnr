@@ -134,7 +134,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   return (
     <UserContextProvider user={user}>
-      <div className="flex flex-col min-h-screen w-full bg-surface-150">{content}</div>
+      <div className="flex flex-col min-h-screen w-full bg-surface-350">{content}</div>
     </UserContextProvider>
   );
 }

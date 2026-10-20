@@ -16,7 +16,7 @@ export default async function PoliciesLayout({ children }: PropsWithChildren) {
   const session = await getServerSession();
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-150">
+    <div className="min-h-screen flex flex-col bg-surface-350">
       <AnnouncementBanner />
       <LandingHeader
         hasSession={session !== null && session !== undefined}

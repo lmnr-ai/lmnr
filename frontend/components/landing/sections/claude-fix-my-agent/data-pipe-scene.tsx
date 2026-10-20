@@ -15,7 +15,7 @@ const DataPipeScene = () => {
   const [transfer, setTransfer] = useState<TransferProgress>();
 
   return (
-    <div className="relative w-full overflow-hidden bg-surface-250">
+    <div className="relative w-full overflow-hidden bg-surface-450">
       {/* Let the stage narrow with its panel while its terminal stays fixed-width.
           As in the evals section, auto margins center the terminal when it fits
           and collapse when it does not, pinning it left and overflowing right. */}
@@ -49,7 +49,7 @@ const DataPipeScene = () => {
         <div
           className="absolute z-20 flex items-center justify-center rounded-md"
           style={{
-            backgroundColor: "var(--color-surface-150)",
+            backgroundColor: "var(--color-surface-350)",
             height: SOURCE_BLOCK.size,
             left: responsiveSceneLeft(SOURCE_BLOCK.x),
             top: SOURCE_BLOCK.y,
@@ -61,7 +61,7 @@ const DataPipeScene = () => {
             className="block"
             role="img"
             style={{
-              backgroundColor: transfer === undefined ? "var(--color-surface-400)" : "var(--color-foreground-200)",
+              backgroundColor: transfer === undefined ? "var(--color-surface-600)" : "var(--color-foreground-200)",
               height: SOURCE_BLOCK.iconSize,
               maskImage: `url(${laminarIcon.src})`,
               maskRepeat: "no-repeat",

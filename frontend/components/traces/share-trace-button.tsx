@@ -83,7 +83,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string }) => {
             disabled={isVisibilityLoading}
             onValueChange={(visibility: "private" | "public") => handleChangeVisibility(visibility)}
           >
-            <SelectTrigger className="h-7 border-0 bg-surface-up-2 px-2 shadow-none hover:overlay-hover">
+            <SelectTrigger className="h-7 border-0 bg-emphasis-1 px-2 shadow-none hover:overlay-hover">
               {isVisibilityLoading ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (

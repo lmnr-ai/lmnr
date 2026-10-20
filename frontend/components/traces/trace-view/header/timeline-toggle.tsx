@@ -23,7 +23,7 @@ export default function CondensedTimelineControls({ enabled, setEnabled, classNa
         variant="ghost"
         size="icon"
         className={cn(
-          "bg-surface-up-2 transition-all duration-200 hover:overlay-hover active:overlay-selected",
+          "bg-emphasis-1 transition-all duration-200 hover:overlay-hover active:overlay-selected",
           enabled ? "size-[26px] min-w-[26px] rounded-none rounded-bl" : "h-full w-auto px-2 py-0 text-xs"
         )}
       >

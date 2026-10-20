@@ -139,11 +139,11 @@ export default function LandingHeader({
       {/* Mobile Menu Overlay - starts below the announcement banner and header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[100px] z-40 bg-surface-150 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[100px] z-40 bg-surface-350 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >
-        <nav className="flex flex-col px-[32px] pt-12 border-t border-t-surface-400 gap-5">
+        <nav className="flex flex-col px-[32px] pt-12 border-t border-t-surface-600 gap-5">
           {mobileMenuLinks.map((link) => (
             <Link
               key={link.href}

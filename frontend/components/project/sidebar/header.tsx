@@ -89,9 +89,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   }, [otherProjectsError, toast]);
 
   return (
-    <SidebarHeader className="px-0 mt-2">
+    <SidebarHeader className="px-0 mt-1.5">
       <SidebarMenu>
-        <SidebarMenuItem className="m-0 px-2 flex items-center">
+        <SidebarMenuItem className="m-0 px-3 flex items-center gap-0.5">
           <div className="flex-1 overflow-hidden">
             <DropdownMenu
               onOpenChange={(o) => {
@@ -105,7 +105,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
             >
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
-                  className={cn("flex items-center justify-center px-1.5", { border: !open && !openMobile })}
+                  className={cn("flex items-center justify-center pl-2 pr-1.5 data-[state=open]:overlay-selected", {
+                    border: !open && !openMobile,
+                  })}
                 >
                   <AnimatePresence mode="wait" initial={false}>
                     {!open && !openMobile ? (
@@ -136,7 +138,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs p-0"
+                className="w-64 rounded-lg text-xs p-0"
                 align="start"
                 sideOffset={4}
                 side={isMobile ? "bottom" : "right"}
@@ -161,7 +163,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                               setDirection(-1);
                               setView("workspaces");
                             }}
-                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:text-primary-foreground"
+                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:text-foreground-100"
                           >
                             <ArrowLeft className="size-3 shrink-0" />
                             <span className="truncate">All workspaces</span>
@@ -190,10 +192,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                 >
                                   <DropdownMenuItem
                                     className={cn("cursor-pointer", {
-                                      "bg-accent": isSelectedCurrent && p.id === projectId,
+                                      "overlay-selected focus:overlay-selected":
+                                        isSelectedCurrent && p.id === projectId,
                                     })}
                                   >
-                                    <span className="min-w-0 truncate text-xs text-sidebar-foreground font-medium">
+                                    <span className="min-w-0 truncate text-xs text-foreground-50 font-medium">
                                       {p.name}
                                     </span>
                                   </DropdownMenuItem>
@@ -245,9 +248,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                   setDirection(1);
                                   setView("projects");
                                 }}
-                                className={cn("cursor-pointer", { "bg-accent": w.id === selectedWorkspaceId })}
+                                className={cn("cursor-pointer", {
+                                  "overlay-selected focus:overlay-selected": w.id === selectedWorkspaceId,
+                                })}
                               >
-                                <span className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground font-medium">
+                                <span className="min-w-0 flex-1 truncate text-xs text-foreground-50 font-medium">
                                   {w.name}
                                 </span>
                                 <span

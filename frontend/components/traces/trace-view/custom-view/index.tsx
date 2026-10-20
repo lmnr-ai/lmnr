@@ -78,7 +78,7 @@ export default function CustomView({
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : current?.error ? (
-        <div className="flex flex-1 items-center justify-center px-4 text-center text-xs text-destructive">
+        <div className="flex flex-1 items-center justify-center px-4 text-center text-xs text-destructive-text">
           {current.error}
         </div>
       ) : (

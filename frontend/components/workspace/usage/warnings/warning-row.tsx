@@ -169,13 +169,13 @@ export function AddWarningPopover({ workspaceId, usageItem, unit, toRawValue, on
                     min="0"
                     autoFocus
                     placeholder="e.g. 5"
-                    className={cn("pr-10 hide-arrow", fieldState.error && "border-destructive")}
+                    className={cn("pr-10 hide-arrow", fieldState.error && "border-destructive-border")}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-secondary-foreground hide-arrow pointer-events-none">
                     {unit}
                   </span>
                 </div>
-                {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
               </div>
             )}
           />

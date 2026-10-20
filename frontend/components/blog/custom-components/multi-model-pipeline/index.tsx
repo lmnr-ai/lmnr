@@ -37,7 +37,7 @@ const ISSUE_COLORS = [
   [RED, GREEN, GREEN, YELLOW, YELLOW], // Terminal Bench 2 (sol, luna: partial)
 ];
 
-const SURFACE = "var(--color-surface-350)";
+const SURFACE = "var(--color-surface-550)";
 const STROKE = "var(--color-foreground-600)";
 const TEXT = "var(--color-foreground-100)";
 
@@ -109,7 +109,7 @@ export default function MultiModelPipeline() {
 
   return (
     <div className="not-typeset my-8">
-      <div className="flex justify-center overflow-hidden rounded-lg border bg-surface-200">
+      <div className="flex justify-center overflow-hidden rounded-lg border bg-surface-400">
         <svg
           viewBox={`0 0 ${CANVAS.w} ${CANVAS.h}`}
           width="100%"

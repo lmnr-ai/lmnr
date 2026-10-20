@@ -6,11 +6,11 @@ import { type ChartConfig } from "@/components/ui/chart.tsx";
 export const chartConfig: ChartConfig = {
   successCount: {
     label: "success",
-    color: "hsl(var(--success-bright))",
+    color: "var(--success)",
   },
   errorCount: {
     label: "error",
-    color: "hsl(var(--destructive-bright))",
+    color: "var(--destructive)",
   },
 };
 

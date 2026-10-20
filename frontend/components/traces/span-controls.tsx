@@ -74,7 +74,7 @@ export function SpanControls({
           <ModelIndicator attributes={span.attributes} />
           <ToolList tools={tools} />
           <SpanStatsShields span={span} className="w-fit" />
-          <div className="flex h-6 w-fit items-center rounded-md bg-surface-up-2 px-2">
+          <div className="flex h-6 w-fit items-center rounded-md bg-emphasis-1 px-2">
             <ClientTimestampFormatter
               absolute
               seconds

@@ -37,7 +37,7 @@ export const ColumnsMenuItem = ({
     <div
       style={style}
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:overlay-hover hover:text-accent-foreground w-full",
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:overlay-hover hover:text-foreground-50 w-full",
         isLocked && "hidden"
       )}
     >
@@ -68,7 +68,7 @@ export const ColumnsMenuItem = ({
         {onDelete && (
           <button
             aria-label="Delete"
-            className="text-muted-foreground hover:text-destructive"
+            className="text-muted-foreground hover:text-destructive-text"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();

@@ -34,7 +34,7 @@ export default function SignalsPipeline() {
 
   return (
     <div className="not-typeset relative my-8">
-      <div ref={ref} className="flex justify-center overflow-hidden rounded-lg border bg-surface-200">
+      <div ref={ref} className="flex justify-center overflow-hidden rounded-lg border bg-surface-400">
         <div
           className="relative shrink-0"
           style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, zoom: scale }}
@@ -93,7 +93,7 @@ export default function SignalsPipeline() {
           type="button"
           onClick={replay}
           aria-label="Replay animation"
-          className="absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-full bg-surface-300 text-foreground-400 transition-colors animate-in fade-in duration-200 hover:overlay-hover active:overlay-selected"
+          className="absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-full bg-surface-500 text-foreground-400 transition-colors animate-in fade-in duration-200 hover:overlay-hover active:overlay-selected"
         >
           <RotateCcw className="size-4" strokeWidth={1.5} />
         </button>

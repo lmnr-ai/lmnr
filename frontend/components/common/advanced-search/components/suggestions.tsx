@@ -110,7 +110,7 @@ const RecentSearchChip = ({
       ref={ref}
       className={cn(
         "inline-flex items-center rounded-md border h-6 text-xs divide-x px-0.5 cursor-pointer shrink-0 transition-colors",
-        isActive ? "bg-accent border-primary/40" : "bg-background hover:overlay-hover"
+        isActive ? "bg-surface-500 border-primary/40" : "bg-background hover:overlay-hover"
       )}
       onMouseDown={(e) => {
         e.preventDefault();
@@ -283,7 +283,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       }}
                       className={cn(
                         "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
-                        isActive ? "bg-accent" : "hover:overlay-hover"
+                        isActive ? "bg-surface-500" : "hover:overlay-hover"
                       )}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -308,7 +308,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       }}
                       className={cn(
                         "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
-                        isActive ? "bg-accent" : "hover:overlay-hover"
+                        isActive ? "bg-surface-500" : "hover:overlay-hover"
                       )}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -330,7 +330,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                     }}
                     className={cn(
                       "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
-                      isActive ? "bg-accent" : "hover:overlay-hover"
+                      isActive ? "bg-surface-500" : "hover:overlay-hover"
                     )}
                     onMouseDown={(e) => {
                       e.preventDefault();

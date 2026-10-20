@@ -22,7 +22,7 @@ export const HeaderLinkButton = ({ icon, label, tooltip, onClick, className }: H
         variant="ghost"
         size="sm"
         onClick={onClick}
-        className={cn("h-7 bg-surface-up-2 hover:overlay-hover active:overlay-selected", className)}
+        className={cn("h-7 bg-emphasis-1 hover:overlay-hover active:overlay-selected", className)}
       >
         {icon}
         <span className="truncate ml-1">{label}</span>

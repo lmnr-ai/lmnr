@@ -162,8 +162,8 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
             ))}
             <DeleteEvaluationDialog>
               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                <Trash className="size-3.5 text-destructive" />
-                <span className="text-destructive text-xs">Delete</span>
+                <Trash className="size-3.5 text-destructive-text" />
+                <span className="text-destructive-text text-xs">Delete</span>
               </DropdownMenuItem>
             </DeleteEvaluationDialog>
           </DropdownMenuContent>

@@ -81,7 +81,7 @@ export default function SignalsFreePlanPlaceholder() {
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {ONBOARDING_SIGNALS.map(({ name, description, icon: Icon }) => (
-                <ElevatedSurface key={name} level={5} className="flex flex-col gap-3 rounded-md p-3">
+                <ElevatedSurface key={name} level={9} className="flex flex-col gap-3 rounded-md p-3">
                   <Icon className="size-5 text-primary-text" />
                   <div className="flex flex-col gap-1">
                     <span className="text-sm font-medium text-secondary-foreground">{name}</span>

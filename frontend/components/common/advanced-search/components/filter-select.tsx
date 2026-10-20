@@ -215,7 +215,7 @@ const FilterSelect = ({
           role="listbox"
           className={cn(
             "absolute top-full left-0 z-50 mt-1 min-w-48 max-h-48",
-            "bg-popover text-secondary-foreground",
+            "bg-surface-300 text-secondary-foreground",
             "rounded-md border shadow-md p-1",
             "overflow-y-auto no-scrollbar",
             "animate-in fade-in-0 zoom-in-95",
@@ -233,9 +233,9 @@ const FilterSelect = ({
               aria-selected={option.value === value}
               className={cn(
                 "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
-                "hover:overlay-hover hover:text-accent-foreground",
-                index === highlightedIndex && "bg-accent text-accent-foreground",
-                option.value === value && index !== highlightedIndex && "bg-accent/50"
+                "hover:overlay-hover hover:text-foreground-50",
+                index === highlightedIndex && "bg-surface-500 text-foreground-50",
+                option.value === value && index !== highlightedIndex && "bg-surface-500/50"
               )}
               onMouseDown={handleOptionMouseDown(option.value)}
               onMouseEnter={() => setHighlightedIndex(index)}

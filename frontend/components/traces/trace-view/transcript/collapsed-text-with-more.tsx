@@ -45,7 +45,7 @@ export function CollapsedTextWithMore({ text, lineHeight, maxLines = 4, classNam
       </div>
       {(isOverflowing || isExpanded) && (
         <button
-          className="text-muted-foreground hover:text-primary-foreground transition-colors cursor-pointer"
+          className="text-muted-foreground hover:text-foreground-100 transition-colors cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded((v) => !v);

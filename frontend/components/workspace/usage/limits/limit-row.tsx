@@ -166,7 +166,11 @@ export default function LimitRow({
             disabled={isRemoving}
             title="Remove limit"
           >
-            {isRemoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5 text-destructive" />}
+            {isRemoving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <X className="h-3.5 w-3.5 text-destructive-text" />
+            )}
           </Button>
         ) : null}
       </div>

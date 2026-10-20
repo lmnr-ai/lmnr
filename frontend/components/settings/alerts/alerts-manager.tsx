@@ -200,7 +200,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                         size="icon"
                         className={cn(
                           "h-5 w-0 shrink-0 overflow-hidden p-0 text-muted-foreground opacity-0 transition-all",
-                          "hover:text-destructive-bright",
+                          "hover:text-destructive-text",
                           "group-hover:mr-2 group-hover:w-5 group-hover:opacity-100",
                           "focus-visible:mr-2 focus-visible:w-5 focus-visible:opacity-100"
                         )}

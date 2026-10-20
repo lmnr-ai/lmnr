@@ -12,7 +12,7 @@ export const CHIP_ARROW = "size-[13px] shrink-0 opacity-60";
 /** The two link chips. A step off the card, not a wash of a hue: the panel is an
  *  `ElevatedSurface`, so this means "three above THE CARD" wherever the card
  *  itself ends up on the ramp. */
-export const CHIP_SURFACE = "bg-surface-up-3 hover:overlay-hover";
+export const CHIP_SURFACE = "bg-emphasis-1 hover:overlay-hover";
 
 /** The same fill without the hover, for a chip that has nowhere to go — a shared
  *  trace's cluster pill. Lighting it would promise the click does something. */

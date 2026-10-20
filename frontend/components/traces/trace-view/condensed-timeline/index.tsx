@@ -6,7 +6,6 @@ import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-vi
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
@@ -245,7 +244,7 @@ function CondensedTimeline() {
           {timeMarkers.map((marker, index) => (
             <div
               key={`marker-${index}`}
-              className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-muted"
+              className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-emphasis-2"
               style={{ left: `${marker.positionPercent}%` }}
             />
           ))}
@@ -254,7 +253,7 @@ function CondensedTimeline() {
               visible in the transcript/tree virtualizer */}
           {scrollIndicator && (
             <div
-              className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
+              className="absolute bottom-[-60px] top-0 bg-emphasis-1 pointer-events-none"
               style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
             />
           )}
@@ -329,9 +328,9 @@ function CondensedTimeline() {
   };
 
   return (
-    // The timeline is a surface one level above the trace-view substrate it sits in (fill +
-    // vars + context, no shadow); its controls elevate a further step above via that context.
-    <ElevatedSurface offset={2} className="flex flex-col h-full w-full overflow-hidden relative">
+    // An inline well, not an elevated layer: emphasis tints it darker than the trace view in light
+    // mode and lighter in dark, without raising the elevation its contents resolve against.
+    <div className="flex flex-col h-full w-full overflow-hidden relative bg-emphasis-1">
       {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
       <div
         ref={combinedScrollRef}
@@ -367,7 +366,7 @@ function CondensedTimeline() {
         isCostHeatmapVisible={isCostHeatmapVisible}
         onToggleCostHeatmap={setIsCostHeatmapVisible}
       />
-    </ElevatedSurface>
+    </div>
   );
 }
 

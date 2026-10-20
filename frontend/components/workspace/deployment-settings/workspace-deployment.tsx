@@ -180,8 +180,8 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
           title="Data Residency"
           description="Choose where your workspace data is stored and processed."
         />
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 mt-2">
-          <p className="text-sm text-destructive">
+        <div className="rounded-lg border border-destructive-border/50 bg-destructive/10 p-4 mt-2">
+          <p className="text-sm text-destructive-text">
             {error instanceof Error ? error.message : "Failed to load data residency settings"}
           </p>
         </div>

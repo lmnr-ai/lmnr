@@ -11,7 +11,7 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
 }
 
 const tabsListVariants = cva(
-  "bg-surface overlay-selected text-muted-foreground inline-flex w-fit items-center justify-center rounded-lg p-[3px]",
+  "bg-surface-down-2 text-muted-foreground inline-flex w-fit items-center justify-center rounded-lg p-[3px]",
   {
     variants: {
       // `sm` drives the compact trace/span/settings tab bars: shorter list + xs

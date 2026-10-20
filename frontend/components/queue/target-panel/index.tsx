@@ -103,7 +103,7 @@ export default function TargetPanel() {
               <ContentRenderer
                 presetKey={`labeling-queue-target-${queueId}`}
                 codeEditorClassName="rounded-none"
-                className={cn("rounded", !isTargetJsonValid && "border border-destructive/75")}
+                className={cn("rounded", !isTargetJsonValid && "border border-destructive-border/75")}
                 defaultMode="json"
                 value={targetValue}
                 onChange={onTargetJsonChange}

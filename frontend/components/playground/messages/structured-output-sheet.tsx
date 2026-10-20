@@ -115,7 +115,7 @@ export default function StructuredOutputSheet({
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {
-                    "border border-destructive/75": errors.structuredOutput?.message,
+                    "border border-destructive-border/75": errors.structuredOutput?.message,
                   })}
                   defaultMode="json"
                   modes={["JSON"]}

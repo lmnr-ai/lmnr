@@ -116,7 +116,7 @@ function LlmProfileFields() {
                   ))}
                 </SelectContent>
               </Select>
-              {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+              {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
             </div>
           )}
         />
@@ -138,7 +138,7 @@ function LlmProfileFields() {
                   ))}
                 </SelectContent>
               </Select>
-              {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+              {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
             </div>
           )}
         />

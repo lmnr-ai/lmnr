@@ -94,7 +94,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, tri
               : cycleLabel}
           </p>
         )}
-        {error && <p className="text-sm text-destructive">Failed to load daily usage.</p>}
+        {error && <p className="text-sm text-destructive-text">Failed to load daily usage.</p>}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <UsageMeterCard
             title="Data ingestion"

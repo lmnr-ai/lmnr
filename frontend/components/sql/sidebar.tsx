@@ -121,7 +121,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
       className={cn(
         "group flex items-center px-2 py-1 rounded-md hover:overlay-hover cursor-pointer transition-colors",
         {
-          "bg-accent": selected,
+          "bg-surface-500": selected,
         }
       )}
       onClick={handleQueryClick}
@@ -173,7 +173,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
                 e.stopPropagation();
                 handleDelete();
               }}
-              className="cursor-pointer text-destructive focus:text-destructive"
+              className="cursor-pointer text-destructive-text focus:text-destructive-text"
             >
               <Trash2 className="h-3.5 w-3.5 text-inherit" />
               <span>Delete</span>
@@ -268,7 +268,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   }, [id, templates, setCurrentTemplate]);
 
   return (
-    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-sidebar">
+    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-(--sidebar-surface)">
       <div className="flex items-center p-2 px-4 border-b shrink-0">
         <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>

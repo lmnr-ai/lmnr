@@ -142,7 +142,7 @@ export default function ToolsSheet({
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {
-                    "border border-destructive/75": errors.tools?.message,
+                    "border border-destructive-border/75": errors.tools?.message,
                   })}
                   defaultMode="json"
                   modes={["JSON"]}

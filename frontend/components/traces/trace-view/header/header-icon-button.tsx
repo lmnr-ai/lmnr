@@ -21,7 +21,7 @@ export const HeaderIconButton = forwardRef<HTMLButtonElement, HeaderIconButtonPr
           variant="ghost"
           size="icon"
           aria-label={label}
-          className={cn("hover:overlay-hover", active && "bg-surface-up-2 text-primary-text", className)}
+          className={cn("hover:overlay-hover", active && "bg-emphasis-1 text-primary-text", className)}
           {...props}
         >
           {icon}

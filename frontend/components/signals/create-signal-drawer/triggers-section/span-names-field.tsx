@@ -65,7 +65,9 @@ export default function SpanNamesField() {
         {isLoading && <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />}
       </div>
       {spanNames.length === 0 ? (
-        <span className="text-xs text-destructive">Add at least one span name, or this signal will never run.</span>
+        <span className="text-xs text-destructive-text">
+          Add at least one span name, or this signal will never run.
+        </span>
       ) : (
         <span className="text-xs text-muted-foreground">
           Fires when <span className="font-medium text-foreground">any</span> of these spans finish.

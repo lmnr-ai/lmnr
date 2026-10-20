@@ -253,7 +253,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
     <div
       className={cn(
         "flex h-6 items-center gap-2.5 px-2 rounded-md overflow-hidden text-xs min-w-0",
-        variant === "outline" ? "border border-muted text-foreground" : "bg-surface-up-2 text-secondary-foreground",
+        variant === "outline" ? "border border-muted text-foreground" : "bg-emphasis-1 text-secondary-foreground",
         className
       )}
     >

@@ -303,7 +303,7 @@ const Chart = ({ chart }: ChartProps) => {
         {error ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
             <p className="text text-muted-foreground">Error loading chart data</p>
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive-text">{error}</p>
           </div>
         ) : isLoading ? (
           <Skeleton className="h-full w-full" />

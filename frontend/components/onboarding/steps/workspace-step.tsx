@@ -96,9 +96,12 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
                   // The workspace name is usually prefilled, so focus goes to the project name instead.
                   autoFocus={!workspaceName?.trim()}
                   placeholder="e.g. Acme Inc."
-                  className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                  className={cn(
+                    "h-8",
+                    fieldState.error && "border-destructive-border focus-visible:ring-destructive-border"
+                  )}
                 />
-                {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
               </>
             )}
           />
@@ -121,9 +124,12 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
                   id="project-name"
                   autoFocus={!!workspaceName?.trim()}
                   placeholder="e.g. My AI Agent"
-                  className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                  className={cn(
+                    "h-8",
+                    fieldState.error && "border-destructive-border focus-visible:ring-destructive-border"
+                  )}
                 />
-                {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
               </>
             )}
           />

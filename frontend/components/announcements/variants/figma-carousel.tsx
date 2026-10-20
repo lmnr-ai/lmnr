@@ -50,7 +50,7 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
               onOpenDetails(current.id)
             }
             className={cn(
-              "absolute inset-0 flex flex-col items-end justify-end gap-[4px] overflow-hidden rounded-[8px] bg-surface-200 px-[10px] pb-[10px] pt-[8px] transition-colors",
+              "absolute inset-0 flex flex-col items-end justify-end gap-[4px] overflow-hidden rounded-[8px] bg-surface-400 px-[10px] pb-[10px] pt-[8px] transition-colors",
               current.long_description && !isCloseHovered && "cursor-pointer hover:overlay-hover"
             )}
           >
@@ -66,11 +66,11 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
                   <>
                     <Image src={current.card_image_src} alt="" fill sizes="256px" className="object-cover object-top" />
                     <div className="absolute left-[42px] top-[-82px] h-[210px] w-[213px] rotate-[44deg]">
-                      <div className="mt-[65px] h-[80px] w-[219px] bg-gradient-to-b from-surface-00 to-transparent" />
+                      <div className="mt-[65px] h-[80px] w-[219px] bg-gradient-to-b from-surface-200 to-transparent" />
                     </div>
                   </>
                 ) : (
-                  <div className="absolute inset-0 bg-surface-100" />
+                  <div className="absolute inset-0 bg-surface-300" />
                 )}
               </div>
             </div>
@@ -86,7 +86,7 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
               onPointerLeave={() => setIsCloseHovered(false)}
               className="group/close absolute right-0 top-0 flex items-center p-[8px] text-secondary-foreground hover:text-foreground"
             >
-              <span className="flex size-[24px] items-center justify-center rounded-full bg-surface-300 transition-colors group-hover/close:overlay-hover">
+              <span className="flex size-[24px] items-center justify-center rounded-full bg-surface-500 transition-colors group-hover/close:overlay-hover">
                 <X className="size-[14px]" />
               </span>
             </button>

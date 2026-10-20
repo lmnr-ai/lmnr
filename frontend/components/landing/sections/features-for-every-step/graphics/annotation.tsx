@@ -15,7 +15,7 @@ const VERDICTS = [
 ];
 
 const segmentTone = (i: number) => {
-  if (i < APPROVED) return "bg-success-bright";
+  if (i < APPROVED) return "bg-success";
   if (i < APPROVED + MODIFIED) return "bg-amber-500";
   return "bg-muted-foreground/30";
 };
@@ -51,7 +51,7 @@ const Annotation = () => (
           {MODIFIED}
         </span>
         <span className="inline-flex items-center gap-1">
-          <Check className="size-2.5 text-success-bright" />
+          <Check className="size-2.5 text-success-text" />
           {APPROVED}
         </span>
       </div>

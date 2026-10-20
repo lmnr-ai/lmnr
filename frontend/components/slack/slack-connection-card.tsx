@@ -143,7 +143,7 @@ export default function SlackConnectionCard({
       <div className="flex items-center gap-2 shrink-0">
         {slackIntegration ? (
           <>
-            <Badge className="py-1.5 border-success bg-success/80" variant="outline">
+            <Badge className="py-1.5 border-success-border bg-success/80" variant="outline">
               Connected
             </Badge>
             {/* Visible "Reconnect" sized to match the Connected badge (same px/py/text/radius), styled
@@ -198,19 +198,19 @@ export default function SlackConnectionCard({
           />
         )}
       </div>
-      {slackError && <span className="text-destructive text-xs">Failed to connect. Please try again.</span>}
+      {slackError && <span className="text-destructive-text text-xs">Failed to connect. Please try again.</span>}
     </>
   );
 
   return (
     <>
       {children ? (
-        <div className={cn("flex flex-col rounded-lg border border-border bg-surface-100 overflow-hidden", className)}>
+        <div className={cn("flex flex-col rounded-lg border border-border bg-surface-300 overflow-hidden", className)}>
           <div className="flex items-center gap-4 p-4">{integrationRow}</div>
           {slackIntegration && <div className="border-t border-border">{children}</div>}
         </div>
       ) : (
-        <div className={cn("rounded-lg border border-border p-4 flex items-center gap-4 bg-surface-100", className)}>
+        <div className={cn("rounded-lg border border-border p-4 flex items-center gap-4 bg-surface-300", className)}>
           {integrationRow}
         </div>
       )}

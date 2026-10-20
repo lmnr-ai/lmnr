@@ -84,7 +84,7 @@ const OrderByField = () => {
                           <Badge
                             variant="outline"
                             className={cn("text-[10px] py-0 px-1", {
-                              "border-success text-success": availableField.type === "string",
+                              "border-success-border text-success-text": availableField.type === "string",
                               "border-primary text-primary-text": availableField.type === "number",
                             })}
                           >

@@ -39,7 +39,7 @@ const AnnouncementDetailsDialog = () => {
               <button
                 type="button"
                 aria-label="Close announcement"
-                className="absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-full bg-surface-400 text-secondary-foreground shadow-sm backdrop-blur-sm transition-colors hover:overlay-hover hover:text-foreground"
+                className="absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-full bg-surface-600 text-secondary-foreground shadow-sm backdrop-blur-sm transition-colors hover:overlay-hover hover:text-foreground"
               >
                 <X className="size-4" />
               </button>

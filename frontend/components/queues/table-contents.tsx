@@ -60,7 +60,7 @@ const columns: ColumnDef<LabelingQueueWithProgress>[] = [
             {progress.modified}
           </span>
           <span className="inline-flex items-center gap-1 text-secondary-foreground">
-            <Check className="size-3 text-success-bright" />
+            <Check className="size-3 text-success-text" />
             {progress.approved}
           </span>
         </div>

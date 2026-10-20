@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 
 import AnthropicContentParts from "@/components/traces/span-view/anthropic-parts";
-import { getRoleColors, MessageWrapper } from "@/components/traces/span-view/common";
+import { getRoleTextColor, MessageWrapper } from "@/components/traces/span-view/common";
 import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
@@ -209,10 +209,9 @@ function updateOverlay(
     overlayEl.style.pointerEvents = "none";
     return;
   }
-  const colors = getRoleColors(role);
   overlayEl.style.opacity = "1";
   overlayEl.style.pointerEvents = "auto";
-  labelEl.style.color = colors.badgeText;
+  labelEl.style.color = getRoleTextColor(role);
   labelEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
 }
 

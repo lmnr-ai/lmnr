@@ -31,7 +31,7 @@ import ProjectApiKeys from "@/components/settings/project-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
-import { AppearanceThemeSelector } from "@/components/shared-settings/appearance-theme-selector";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -347,11 +347,10 @@ const SharedSettings = ({
 
               <SidebarGroup className="pt-0">
                 <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Appearance</div>
-                <SidebarMenu>
-                  <SidebarMenuItem className="h-7">
-                    <AppearanceThemeSelector />
-                  </SidebarMenuItem>
-                </SidebarMenu>
+                <div className="flex h-8 items-center justify-between px-2 text-sm">
+                  <span>Theme</span>
+                  <ThemeToggle />
+                </div>
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>

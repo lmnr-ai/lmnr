@@ -68,7 +68,7 @@ export default function ScoreCardItem({
           <span
             className={cn(
               "whitespace-nowrap text-[12px] leading-[10px] tabular-nums",
-              improved ? "text-success-bright" : "text-destructive"
+              improved ? "text-success-text" : "text-destructive-text"
             )}
           >
             <DeltaTriangle direction={increased ? "up" : "down"} />

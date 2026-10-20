@@ -60,7 +60,7 @@ export default function DiffView({ oldText, newText }: DiffViewProps) {
               key={idx}
               className={cn(
                 "px-3 whitespace-pre-wrap break-words",
-                isAdd ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+                isAdd ? "bg-success/10 text-success-text" : "bg-destructive/10 text-destructive-text"
               )}
             >
               <span className="select-none mr-2 opacity-60">{isAdd ? "+" : "-"}</span>

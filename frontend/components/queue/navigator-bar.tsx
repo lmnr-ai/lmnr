@@ -17,7 +17,7 @@ import { useQueueStore } from "./queue-store";
 const STATE_BG: Record<QueueItemState, string> = {
   new: "bg-muted-foreground/30",
   modified: "bg-amber-500",
-  approved: "bg-success-bright",
+  approved: "bg-success",
 };
 
 const MIN_SEGMENT_PX = 6;
@@ -148,7 +148,7 @@ export default function NavigatorBar() {
               <TooltipPrimitive.Content
                 side="top"
                 sideOffset={8}
-                className="z-50 whitespace-nowrap rounded-md border bg-popover px-1.5 py-0.5 text-[10px] tabular-nums text-popover-foreground shadow-sm"
+                className="z-50 whitespace-nowrap rounded-md border bg-surface-300 px-1.5 py-0.5 text-[10px] tabular-nums text-foreground-100 shadow-sm"
               >
                 {(hoverIndex ?? 0) + 1}
               </TooltipPrimitive.Content>
@@ -200,7 +200,7 @@ export default function NavigatorBar() {
           {progress.modified}
         </span>
         <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:overlay-hover transition-colors">
-          <Check className="size-2.5 text-success-bright" />
+          <Check className="size-2.5 text-success-text" />
           {progress.approved}
         </span>
       </div>

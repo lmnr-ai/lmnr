@@ -11,7 +11,7 @@ interface MetricBreakdownRowProps {
 
 export function MetricBreakdownRow({ label, value, highlight, bold }: MetricBreakdownRowProps) {
   return (
-    <div className={cn("flex justify-between gap-4 text-xs", highlight ? "text-success-bright" : "text-foreground")}>
+    <div className={cn("flex justify-between gap-4 text-xs", highlight ? "text-success-text" : "text-foreground")}>
       <span className={cn("text-secondary-foreground", bold && "font-semibold text-foreground")}>{label}</span>
       <span className={cn(bold && "font-semibold")}>{value}</span>
     </div>

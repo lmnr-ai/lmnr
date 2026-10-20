@@ -38,7 +38,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
   return (
     <div
       className={cn(
-        "flex h-[480px] w-[600px] shrink-0 flex-col rounded-md border border-surface-300 bg-surface-150",
+        "flex h-[480px] w-[600px] shrink-0 flex-col rounded-md border border-surface-500 bg-surface-350",
         className
       )}
     >
@@ -59,7 +59,7 @@ const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, clas
       </div>
 
       <div className="flex shrink-0 flex-col gap-1.5 px-5 pb-4 pt-4">
-        <div className="flex items-center gap-2 rounded-md border border-surface-300 bg-surface-200 px-3 py-2.5">
+        <div className="flex items-center gap-2 rounded-md border border-surface-500 bg-surface-400 px-3 py-2.5">
           <span className={cn(MONO_TEXT, "font-medium")} style={{ color: USER_COLOR }}>
             &gt;
           </span>
