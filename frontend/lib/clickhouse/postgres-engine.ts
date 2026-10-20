@@ -189,9 +189,9 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
  */
 export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHouseClient): Promise<void> {
   try {
-    const cfg = getConfig();
-
+    // First, so a boot without the credentials also turns an earlier `pg` off.
     await clickhouseClient.command({ query: "DROP DATABASE IF EXISTS pg SYNC" });
+    const cfg = getConfig();
     await assertDedicatedRole(cfg.user);
     await clickhouseClient.command({
       query: `
