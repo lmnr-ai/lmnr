@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use super::{
     ContentHash, SharedContentBatch, canonical_json, content_hash, is_seen, span_group_id,
-    storage_seen_key,
+    storage_seen_key, tool_normalize::normalize_tools,
 };
 use crate::{
     cache::Cache,
@@ -39,13 +39,11 @@ pub struct ToolDedup {
     pub set_hash: Option<ContentHash>,
 }
 
-/// Identity of a tool set with element order ignored: tool lists are often
-/// assembled from maps or MCP servers whose order shifts between runs.
+/// Identity of a tool set: its [`normalize_tools`] form, which ignores tool
+/// order, key order, provider shape and transport-only fields.
 pub fn tool_set_hash(tools: &[Value]) -> ContentHash {
-    let mut elements: Vec<String> = tools.iter().map(canonical_json).collect();
-    elements.sort_unstable();
-    // Canonical JSON escapes newlines inside strings, so `\n` can't be forged.
-    *blake3::hash(elements.join("\n").as_bytes()).as_bytes()
+    let normalized = Value::Array(normalize_tools(tools));
+    *blake3::hash(canonical_json(&normalized).as_bytes()).as_bytes()
 }
 
 /// Pull tool definitions out of `raw_attributes` as one JSON array, trying the
@@ -339,5 +337,18 @@ mod tests {
             tool_set_hash(&[b_reordered_keys, a.clone()])
         );
         assert_ne!(tool_set_hash(&[a.clone(), b]), tool_set_hash(&[a]));
+    }
+
+    #[test]
+    fn tool_set_hash_ignores_provider_shape_and_transport_fields() {
+        let schema = json!({"type": "object", "properties": {"city": {"type": "string"}}});
+        let openai = json!({"type": "function", "function": {"name": "get_weather", "parameters": schema, "strict": true}});
+        let anthropic = json!({"name": "get_weather", "input_schema": schema, "cache_control": {"type": "ephemeral"}});
+        assert_eq!(tool_set_hash(&[openai]), tool_set_hash(&[anthropic]));
+        let changed = json!({"name": "get_weather", "input_schema": {"type": "object", "properties": {"zip": {"type": "string"}}}});
+        assert_ne!(
+            tool_set_hash(&[changed]),
+            tool_set_hash(&[json!({"name": "get_weather", "input_schema": schema})])
+        );
     }
 }
