@@ -682,9 +682,9 @@ impl TableRegistry {
             "updated_at",
         ];
 
-        // Signal definitions, reached through the `pg` PostgreSQL database
-        // engine and `signals_v0`. Do not add `pg` or a wildcard — the engine
-        // mirrors the whole schema.
+        // Signal, evaluation and dataset definitions, reached through the `pg`
+        // PostgreSQL database engine and their `_v0` views. Do not add `pg` or a
+        // wildcard — the engine mirrors the whole schema.
         let signals_columns = [
             "id",
             "name",
@@ -695,6 +695,8 @@ impl TableRegistry {
             "created_at",
             "version",
         ];
+        let evaluations_columns = ["id", "name", "group_id", "metadata", "created_at"];
+        let datasets_columns = ["id", "name", "indexed_on", "created_at"];
 
         tables.insert("spans", schema(&spans_columns));
         tables.insert("traces", schema(&traces_columns));
@@ -722,6 +724,8 @@ impl TableRegistry {
         tables.insert("signal_events_all", schema(&signal_events_columns));
         tables.insert("event_clusters_all", schema(&event_clusters_all_columns));
         tables.insert("signals", schema(&signals_columns));
+        tables.insert("evaluations", schema(&evaluations_columns));
+        tables.insert("datasets", schema(&datasets_columns));
 
         Self { tables }
     }

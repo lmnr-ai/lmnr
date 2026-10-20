@@ -157,8 +157,9 @@ intervention, since Drizzle's migration journal is versioned per-schema.
 
 ### SQL access to Postgres entities (optional)
 
-Some SQL tables are read live from Postgres: `signals`, plus the signal, evaluation
-and dataset names on `signal_events`, `evaluation_datapoints` and `dataset_datapoints`.
+Some SQL tables are read live from Postgres: `signals`, `evaluations` and `datasets`,
+plus the signal, evaluation and dataset names on `signal_events`, `evaluation_datapoints`
+and `dataset_datapoints`.
 ClickHouse reads them through a dedicated read-only role, which is off until you set
 both of these in your `.env`:
 

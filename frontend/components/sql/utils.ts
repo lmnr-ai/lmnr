@@ -419,6 +419,26 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "version", type: "Int32", description: "Current definition version" },
     ],
   },
+  evaluations: {
+    description:
+      "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "name", type: "String", description: "Evaluation name" },
+      { name: "group_id", type: "String", description: "Group the evaluation belongs to" },
+      { name: "metadata", type: "Nullable(String)", description: "Evaluation metadata, as a JSON object" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the evaluation was created" },
+    ],
+  },
+  datasets: {
+    description: "Datasets stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "name", type: "String", description: "Dataset name" },
+      { name: "indexed_on", type: "Nullable(String)", description: "Legacy indexing setting, unused; usually NULL" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dataset was created" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [

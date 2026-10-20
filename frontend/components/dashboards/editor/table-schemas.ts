@@ -84,6 +84,19 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "created_at", type: "string", description: "When the signal was created" },
     { name: "version", type: "number", description: "Current definition version" },
   ],
+  evaluations: [
+    { name: "id", type: "string", description: "Unique identifier for the evaluation" },
+    { name: "name", type: "string", description: "Evaluation name" },
+    { name: "group_id", type: "string", description: "Group the evaluation belongs to" },
+    { name: "metadata", type: "string", description: "Evaluation metadata, as a JSON object" },
+    { name: "created_at", type: "string", description: "When the evaluation was created" },
+  ],
+  datasets: [
+    { name: "id", type: "string", description: "Unique identifier for the dataset" },
+    { name: "name", type: "string", description: "Dataset name" },
+    { name: "indexed_on", type: "string", description: "Legacy indexing setting, unused; usually NULL" },
+    { name: "created_at", type: "string", description: "When the dataset was created" },
+  ],
 };
 
 const requiresNumericColumn = (fn: string): boolean =>

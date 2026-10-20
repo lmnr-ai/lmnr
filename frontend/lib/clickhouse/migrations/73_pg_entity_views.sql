@@ -27,6 +27,29 @@ AS SELECT
 FROM pg.signals
 WHERE project_id = {project_id:UUID};
 
+DROP VIEW IF EXISTS evaluations_v0;
+CREATE VIEW evaluations_v0
+SQL SECURITY DEFINER
+AS SELECT
+    id,
+    name,
+    group_id,
+    metadata,
+    created_at
+FROM pg.evaluations
+WHERE project_id = {project_id:UUID};
+
+DROP VIEW IF EXISTS datasets_v0;
+CREATE VIEW datasets_v0
+SQL SECURITY DEFINER
+AS SELECT
+    id,
+    name,
+    indexed_on,
+    created_at
+FROM pg.datasets
+WHERE project_id = {project_id:UUID};
+
 -- Entity names (and evaluations.group_id) come from Postgres through the
 -- `signals_dict` / `evaluations_dict` / `datasets_dict` dictionaries, created at
 -- boot over `pg.*` (postgres-engine.ts). A dictGet column is pruned when not

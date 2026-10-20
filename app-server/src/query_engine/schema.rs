@@ -603,6 +603,43 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "evaluations",
+        description: "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id; for just the name, use evaluation_datapoints.evaluation_name.",
+        columns: &[
+            col("id", "UUID", "Unique id of the evaluation"),
+            col("name", "String", "Evaluation name"),
+            col("group_id", "String", "Group the evaluation belongs to"),
+            col(
+                "metadata",
+                "Nullable(String)",
+                "Evaluation metadata, as a JSON object",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the evaluation was created",
+            ),
+        ],
+    },
+    Table {
+        name: "datasets",
+        description: "Datasets stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id; for just the name, use dataset_datapoints.dataset_name.",
+        columns: &[
+            col("id", "UUID", "Unique id of the dataset"),
+            col("name", "String", "Dataset name"),
+            col(
+                "indexed_on",
+                "Nullable(String)",
+                "Legacy indexing setting, unused by Laminar; usually NULL",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the dataset was created",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -685,6 +722,8 @@ mod tests {
             "signal_runs",
             "logs",
             "signals",
+            "evaluations",
+            "datasets",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

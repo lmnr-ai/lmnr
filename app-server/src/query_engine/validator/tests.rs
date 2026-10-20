@@ -47,8 +47,8 @@ fn test_default_tables_registered() {
     assert!(!reg.is_table_allowed("spans_v0"));
     assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
     assert!(reg.is_table_allowed("signals"));
-    assert!(!reg.is_table_allowed("evaluations"));
-    assert!(!reg.is_table_allowed("datasets"));
+    assert!(reg.is_table_allowed("evaluations"));
+    assert!(reg.is_table_allowed("datasets"));
     // The PostgreSQL engine mirrors the whole schema — never allowlist it.
     assert!(!reg.is_table_allowed("pg"));
     assert!(!reg.is_table_allowed("users"));
@@ -160,6 +160,23 @@ fn test_validate_postgres_entity_tables() {
         "got: {result}"
     );
 
+    for (query, view) in [
+        (
+            "SELECT id, name, metadata FROM evaluations",
+            "evaluations_v0",
+        ),
+        ("SELECT id, name, indexed_on FROM datasets", "datasets_v0"),
+    ] {
+        let result = validate_ok(query);
+        assert!(
+            contains_ws(
+                &result,
+                &format!("FROM {view}(project_id = '{SAMPLE_PROJECT_ID}')")
+            ),
+            "got: {result}"
+        );
+    }
+
     let err = validate("SELECT * FROM users").expect_err("pg-mirrored tables stay rejected");
     assert!(err.contains("not allowed"), "got: {err}");
 }
@@ -167,6 +184,8 @@ fn test_validate_postgres_entity_tables() {
 #[test]
 fn test_schema_advertised_pg_entity_columns_are_allowlisted() {
     validate_ok("SELECT signals.name, signals.version FROM signals");
+    validate_ok("SELECT evaluations.group_id, evaluations.metadata FROM evaluations");
+    validate_ok("SELECT datasets.indexed_on, datasets.created_at FROM datasets");
     validate_ok("SELECT signal_events.signal_name FROM signal_events");
     validate_ok("SELECT signal_events_all.signal_name FROM signal_events_all");
     validate_ok("SELECT evaluation_datapoints.evaluation_name FROM evaluation_datapoints");
@@ -2420,7 +2439,7 @@ fn test_trace_filter_value_with_quotes_survives_as_one_literal() {
 fn test_qualified_table_is_not_exempted_by_a_same_named_cte() {
     for query in [
         "WITH users AS (SELECT 1) SELECT * FROM pg.users",
-        "WITH evaluations AS (SELECT 1) SELECT * FROM spans JOIN pg.evaluations e ON 1 = 1",
+        "WITH project_api_keys AS (SELECT 1) SELECT * FROM spans JOIN pg.project_api_keys k ON 1 = 1",
         "WITH traces_agg AS (SELECT 1) SELECT * FROM default.traces_agg",
         "WITH tables AS (SELECT 1) SELECT * FROM system.tables",
         "SELECT * FROM pg.signals",
