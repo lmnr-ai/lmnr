@@ -5,9 +5,6 @@ import { useMemo } from "react";
 import ToolChangeRow from "./tool-change-row";
 import { diffTools } from "./utils";
 
-/** Rows open by default when at most this many tools changed. */
-const AUTO_EXPAND_LIMIT = 3;
-
 interface ToolsDiffProps {
   oldText: string;
   newText: string;
@@ -15,7 +12,7 @@ interface ToolsDiffProps {
 
 export default function ToolsDiff({ oldText, newText }: ToolsDiffProps) {
   const { changes, unchanged } = useMemo(() => diffTools(oldText, newText), [oldText, newText]);
-  const defaultOpen = changes.length <= AUTO_EXPAND_LIMIT;
+  const defaultOpen = changes.length === 1;
 
   return (
     <div className="flex flex-col divide-y rounded-md border">
