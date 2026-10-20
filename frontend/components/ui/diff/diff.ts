@@ -6,11 +6,28 @@ export interface Segment {
   highlight: boolean;
 }
 
+export interface GapRow {
+  type: "gap";
+  count: number;
+}
+
 export type DiffRow =
   | { type: "equal"; text: string }
   | { type: "add"; segments: Segment[] }
   | { type: "remove"; segments: Segment[] }
-  | { type: "gap"; count: number };
+  | GapRow;
+
+export interface SplitSide {
+  /** 1-based line number within its own text. */
+  num: number;
+  segments: Segment[];
+}
+
+/** One aligned line pair; a `change` side is absent where the other text has no counterpart. */
+export type SplitRow =
+  | { type: "equal"; left: SplitSide; right: SplitSide }
+  | { type: "change"; left?: SplitSide; right?: SplitSide }
+  | GapRow;
 
 // jsdiff line parts keep a trailing newline; drop the spurious empty tail.
 function splitLines(value: string): string[] {
@@ -82,8 +99,55 @@ export function computeDiffRows(oldText: string, newText: string): DiffRow[] {
   return rows;
 }
 
+// Same pairing as `computeDiffRows`, but each removed/added pair shares one row.
+export function computeSplitRows(oldText: string, newText: string): SplitRow[] {
+  const parts = diffLines(oldText ?? "", newText ?? "");
+  const rows: SplitRow[] = [];
+  let oldNum = 0;
+  let newNum = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+
+    if (!part.added && !part.removed) {
+      for (const line of splitLines(part.value)) {
+        rows.push({
+          type: "equal",
+          left: { num: ++oldNum, segments: plain(line) },
+          right: { num: ++newNum, segments: plain(line) },
+        });
+      }
+      continue;
+    }
+
+    const removedLines = part.removed ? splitLines(part.value) : [];
+    const addedSource = part.removed ? parts[i + 1] : part;
+    const addedLines = addedSource?.added ? splitLines(addedSource.value) : [];
+    if (part.removed && addedSource?.added) i++;
+
+    for (let k = 0; k < Math.max(removedLines.length, addedLines.length); k++) {
+      const removedLine = removedLines[k];
+      const addedLine = addedLines[k];
+      if (removedLine !== undefined && addedLine !== undefined) {
+        const { removed, added } = pairSegments(removedLine, addedLine);
+        rows.push({
+          type: "change",
+          left: { num: ++oldNum, segments: removed },
+          right: { num: ++newNum, segments: added },
+        });
+      } else if (removedLine !== undefined) {
+        rows.push({ type: "change", left: { num: ++oldNum, segments: plain(removedLine) } });
+      } else {
+        rows.push({ type: "change", right: { num: ++newNum, segments: plain(addedLine) } });
+      }
+    }
+  }
+
+  return rows;
+}
+
 // Collapse long runs of unchanged lines into a placeholder, keeping `context` lines around changes.
-export function collapseDiffRows(rows: DiffRow[], context = 3): DiffRow[] {
+export function collapseDiffRows<T extends { type: string }>(rows: T[], context = 3): (T | GapRow)[] {
   const keep = new Array<boolean>(rows.length).fill(false);
   rows.forEach((row, idx) => {
     if (row.type !== "equal") {
@@ -91,7 +155,7 @@ export function collapseDiffRows(rows: DiffRow[], context = 3): DiffRow[] {
     }
   });
 
-  const out: DiffRow[] = [];
+  const out: (T | GapRow)[] = [];
   let gap = 0;
   rows.forEach((row, idx) => {
     if (keep[idx]) {
