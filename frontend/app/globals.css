@@ -912,6 +912,44 @@
   }
 }
 
+/* Prism emits token classes, but its inline One Dark palette has poor contrast in light mode.
+   Keep these selectors scoped to static snippets; CodeMirror uses the same palette via its theme. */
+.code-highlighter .prismjs,
+.code-highlighter .prismjs code {
+  color: var(--code-text);
+  text-shadow: none;
+}
+.code-highlighter .token {
+  font-style: normal;
+}
+.code-highlighter .token:is(.comment, .prolog, .doctype, .cdata, .punctuation) {
+  color: var(--code-muted);
+}
+.code-highlighter .token:is(.property, .function, .class-name) {
+  color: var(--code-purple);
+}
+.code-highlighter .token:is(.tag, .selector, .inserted) {
+  color: var(--code-green);
+}
+.code-highlighter .token:is(.boolean, .constant, .symbol) {
+  color: var(--code-orange);
+}
+.code-highlighter .token:is(.number, .operator, .entity, .url, .variable, .attr-name) {
+  color: var(--code-blue);
+}
+.code-highlighter .token:is(.string, .char, .builtin, .attr-value, .regex) {
+  color: var(--code-string);
+}
+.code-highlighter .token:is(.atrule, .keyword, .important) {
+  color: var(--code-red);
+}
+.code-highlighter .token.deleted {
+  color: var(--code-deleted);
+}
+.code-highlighter .token.important {
+  font-weight: bold;
+}
+
 /* TODO(blog): strip pasted `class="px-2 py-1"` from Strapi posts, then move
    these rules into @layer base via @apply (or MDX overrides). Unlayered now
    because Strapi cells carry utility classes that'd beat @layer base. */
