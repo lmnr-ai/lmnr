@@ -682,6 +682,8 @@
     --pink-icon-background: hsl(329 86% 70% / 0.7);
     --red-text: hsl(2 100% 79%);
     --red-icon-background: hsl(0 60% 50%);
+
+    --unclustered: var(--color-surface-700);
   }
 
   .light {
@@ -731,6 +733,8 @@
     --pink-icon-background: hsl(329 86% 70% / 0.7);
     --red-text: hsl(2 100% 79%);
     --red-icon-background: hsl(0 72% 60%);
+
+    --unclustered: oklch(0.72 0 0);
     --foreground: 240 10% 15%;
     --primary-foreground: 0 0% 100%;
 

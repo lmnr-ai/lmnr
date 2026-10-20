@@ -63,7 +63,7 @@ export const BAND_ID_ATTR = "data-cluster-band";
 
 /** The hairline joining a nested band to the row above it. Its LENGTH is
  *  `BAND.rowGap`; wider than this and it reads as a second thing on the strip. */
-export const STEM = { width: 2, className: "bg-surface-up-8" } as const;
+export const STEM = { width: 2, className: "bg-emphasis-3" } as const;
 
 /**
  * Focusing a cluster with children paints its whole column — its own band plus
@@ -104,9 +104,9 @@ export const EXTRA = {
    * no room for, so it has to sit behind the real bands rather than in front of
    * them — which is what a wash of some off-ramp grey did.
    */
-  className: "bg-surface-up-4",
+  className: "bg-emphasis-2",
   /** The cluster in focus came from inside this counter. */
-  focusClassName: "bg-surface-up-6",
+  focusClassName: "bg-emphasis-3",
   /** Extra inset on its label, on top of the band's own. A bare "+36" needs the
    *  room a glyph would have taken to read as centred in the pill. */
   padLeft: 2,
@@ -132,7 +132,7 @@ export const EXTRA_LIST_HEIGHT = 470;
  * its own panel.
  */
 export const SURFACE = {
-  band: "bg-surface-up-2",
-  muted: "bg-surface-up",
-  panel: "bg-surface-up",
+  band: "bg-emphasis-1",
+  muted: "bg-emphasis-1",
+  panel: "bg-emphasis-1",
 } as const;
