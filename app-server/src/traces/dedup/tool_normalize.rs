@@ -110,21 +110,24 @@ fn push_tool(tool: &Value, out: &mut Vec<Value>) {
     }
 }
 
-/// OpenAI's `{type: "custom", format}` tools have no schema, so a non-function
-/// `type` counts only alongside one (Anthropic's `type: "custom"`).
+/// `type: "custom"` is a function only with a schema (Anthropic); OpenAI's
+/// schemaless `{type: "custom", format}` grammar tools are not.
 fn is_function_tool(map: &Map<String, Value>) -> bool {
     if !map.get("name").is_some_and(Value::is_string) {
         return false;
     }
-    match map.get("type") {
-        None => true,
-        Some(Value::String(t)) if t == "function" => true,
-        Some(_) => SCHEMA_KEYS.iter().any(|key| map.contains_key(*key)),
+    match map.get("type").map(Value::as_str) {
+        None | Some(Some("function")) => true,
+        Some(Some("custom")) => SCHEMA_KEYS.iter().any(|key| map.contains_key(*key)),
+        Some(_) => false,
     }
 }
 
 fn normalize_function(mut map: Map<String, Value>) -> Value {
-    if map.get("type").and_then(Value::as_str) == Some("function") {
+    if matches!(
+        map.get("type").and_then(Value::as_str),
+        Some("function" | "custom")
+    ) {
         map.remove("type");
     }
     strip_transport(&mut map);
@@ -275,6 +278,7 @@ mod tests {
             json!({"type": "function", "function": {"name": "get_weather", "description": "Weather", "parameters": schema, "strict": true}}),
             json!({"type": "function", "name": "get_weather", "description": "Weather", "parameters": schema, "strict": false}),
             json!({"name": "get_weather", "description": "Weather", "input_schema": schema, "cache_control": {"type": "ephemeral"}}),
+            json!({"type": "custom", "name": "get_weather", "description": "Weather", "input_schema": schema}),
             json!({"type": "function", "name": "get_weather", "description": "Weather", "inputSchema": schema, "providerOptions": {"x": 1}}),
             json!({"functionDeclarations": [{"name": "get_weather", "description": "Weather", "parametersJsonSchema": schema}]}),
             Value::String(
