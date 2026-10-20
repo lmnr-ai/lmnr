@@ -1,5 +1,3 @@
-import { createHash } from "crypto";
-
 import type { ClickHouseClient } from "@clickhouse/client";
 import { sql } from "drizzle-orm";
 
@@ -200,38 +198,9 @@ async function dropPgDatabase(clickhouseClient: ClickHouseClient): Promise<void>
 }
 
 /**
- * Identifies the engine parameters `pg` was last created from. The password is in
- * the digest so a rotation still recreates the database, and digesting it exposes
- * nothing new — ClickHouse keeps the parameters themselves in `pg`'s metadata, and
- * only masks the password when displaying them (`engine_full` shows `[HIDDEN]`).
- */
-const engineFingerprint = (cfg: ReturnType<typeof getConfig>): string =>
-  "lmnr-pg-engine:" +
-  createHash("sha256")
-    .update([cfg.host, cfg.port, cfg.database, cfg.user, cfg.password, cfg.schema].join("\u0000"))
-    .digest("hex");
-
-/** `null` when there is no `pg` database; `""` when one exists that this never stamped. */
-async function currentEngineFingerprint(clickhouseClient: ClickHouseClient): Promise<string | null> {
-  const result = await clickhouseClient.query({
-    query: "SELECT comment FROM system.databases WHERE name = 'pg'",
-    format: "JSONEachRow",
-  });
-  const [row] = await result.json<{ comment: string }>();
-  return row?.comment ?? null;
-}
-
-/**
  * Host/port are from the ClickHouse server's perspective (`postgres:5432` under
- * compose, not the host's localhost:5433). It stores nothing itself, so a config
- * this refuses to use — credentials unset, or a role that is the app's own or
- * privileged — drops it rather than leaving an earlier boot's live proxy up.
- *
- * Past that it is replaced only when the parameters differ from the fingerprint
- * the last create stamped on it, the password `ensurePostgresReadonlyRole` just
- * set included. Dropping it on every boot instead would tear `pg` out from under
- * in-flight queries once per replica, N times over a rolling deploy of N; an
- * unchanged config never reaches the DROP at all.
+ * compose, not the host's localhost:5433). Recreated on every boot so it always
+ * carries the password `ensurePostgresReadonlyRole` just set; it stores nothing.
  *
  * Migration 73 survives a failure here — ClickHouse does not resolve a view's
  * source database at `CREATE VIEW` time. Never logs the statement: the engine
@@ -258,11 +227,6 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
   }
 
   try {
-    const fingerprint = engineFingerprint(cfg);
-    if ((await currentEngineFingerprint(clickhouseClient)) === fingerprint) {
-      return;
-    }
-
     await clickhouseClient.command({ query: "DROP DATABASE IF EXISTS pg SYNC" });
     await clickhouseClient.command({
       query: `
@@ -274,7 +238,6 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
           ${chStr(cfg.password)},
           ${chStr(cfg.schema)}
         )
-        COMMENT ${chStr(fingerprint)}
       `,
     });
   } catch (error) {
