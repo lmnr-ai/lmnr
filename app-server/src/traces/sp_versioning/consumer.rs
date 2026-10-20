@@ -339,13 +339,14 @@ impl SpVersioningHandler {
         )
         .await
         {
-            // An unprobed inline verdict is final: the producer already
-            // stamped it on the spans' agent versions, so a newer memo (a
-            // probe mint in between) must not relabel them.
+            // An unprobed tool verdict is final: the producer already stamped
+            // it on the spans' agent versions, so a newer memo (a probe mint
+            // in between) must not relabel them. System prompts are not
+            // stamped; the tool side joins on their memo, so the memo wins.
             let label = message
                 .cheap_matched_version
                 .as_deref()
-                .filter(|_| !message.run_full)
+                .filter(|_| self.kind == VersionKind::ToolDefinitions && !message.run_full)
                 .unwrap_or(&version_hash);
             push_message_rows(message, label, rows_out);
             return Ok(());
@@ -1100,16 +1101,15 @@ mod tests {
         assert_eq!(memo.as_deref(), Some(version_hash.as_str()));
     }
 
-    #[tokio::test]
-    async fn unprobed_inline_verdict_wins_over_a_newer_memo() {
-        let handler = make_handler();
+    /// Label of a message whose unprobed inline verdict ("stamped") predates
+    /// a newer memo value ("newer", a probe mint in between).
+    async fn memo_hit_label(kind: VersionKind, run_full: bool) -> String {
+        let handler = handler_for(kind);
         let project_id = Uuid::new_v4();
         let mut message = make_message(project_id, &versioned_prompt(999));
-        // A probe minted a newer version for the same text after the producer
-        // resolved (and stamped) the older one.
         versions::memo_set(
             &handler.cache,
-            KIND,
+            kind,
             project_id,
             AGENT,
             &message.full_prompt_hash,
@@ -1117,17 +1117,30 @@ mod tests {
         )
         .await;
         message.cheap_matched_version = Some("stamped".to_string());
+        message.run_full = run_full;
 
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].version_hash, "stamped");
+        rows.remove(0).version_hash
+    }
 
-        // A probed verdict was never stamped, so the memo still labels it.
-        message.run_full = true;
-        let mut rows = Vec::new();
-        handler.process_message(&message, &mut rows).await.unwrap();
-        assert_eq!(rows[0].version_hash, "newer");
+    #[tokio::test]
+    async fn unprobed_tool_verdict_wins_over_a_newer_memo() {
+        assert_eq!(
+            memo_hit_label(VersionKind::ToolDefinitions, false).await,
+            "stamped"
+        );
+        // A probed verdict was never stamped.
+        assert_eq!(
+            memo_hit_label(VersionKind::ToolDefinitions, true).await,
+            "newer"
+        );
+        // The tool side joins on the system-prompt memo, so it must win there.
+        assert_eq!(
+            memo_hit_label(VersionKind::SystemPrompt, false).await,
+            "newer"
+        );
     }
 
     /// Drive `full_algorithm` against a window whose prompts have all dropped
