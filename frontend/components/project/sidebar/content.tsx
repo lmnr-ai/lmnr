@@ -65,7 +65,7 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
       </SidebarGroup>
 
       {(showUsage || showTrial || featureFlags[Feature.LAMINAR_CLOUD]) && (
-        <SidebarGroup className={cn("mt-auto p-1", !(open || openMobile) && "hidden")}>
+        <SidebarGroup className={cn("mt-auto py-1 px-2", !(open || openMobile) && "hidden")}>
           <SidebarGroupContent>
             <SidebarMenu className="gap-2">
               {showTrial && <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} />}
