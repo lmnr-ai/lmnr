@@ -18,6 +18,9 @@ export type BlogMetadata = {
 export type BlogListItem = BlogMetadata & {
   slug: string;
   data: BlogMetadata;
+  // List-card image: `image` when set, else the post's first figure. Kept off `data` so
+  // the post page doesn't render that figure twice (once as hero, once in the body).
+  cover?: string;
 };
 
 export type MatterAndContent = {
