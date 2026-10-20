@@ -291,6 +291,7 @@ export async function register() {
             process.env.CLICKHOUSE_PASSWORD || "ch_passwd",
             process.env.CLICKHOUSE_DB || "default",
             "ENGINE=Atomic", // db_engine
+            "MergeTree", // table_engine
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
 
