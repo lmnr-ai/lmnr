@@ -27,13 +27,15 @@ const TRANSPORT_KEYS: [&str; 4] = [
     "provider_options",
 ];
 
-/// Leading keys of a normalized function tool; the rest keep their order.
-const LEADING_KEYS: [&str; 5] = [
+/// Top-level keys of a normalized tool, in display order; the rest follow sorted.
+const LEADING_KEYS: [&str; 7] = [
+    "type",
     "name",
     "namespace",
     "namespace_description",
     "defer_loading",
     "description",
+    "input_schema",
 ];
 
 /// Normalized tools sorted by name, so equal sets serialize identically.
@@ -44,6 +46,7 @@ pub fn normalize_tools(tools: &[Value]) -> Vec<Value> {
     }
     let mut keyed: Vec<(String, String, Value)> = out
         .into_iter()
+        .map(order_keys)
         .map(|tool| (tool_name(&tool).to_string(), canonical_json(&tool), tool))
         .collect();
     keyed.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
@@ -145,18 +148,45 @@ fn normalize_function(mut map: Map<String, Value>) -> Value {
     if map.get("description").is_some_and(is_blank) {
         map.remove("description");
     }
+    if let Some(schema) = schema.filter(|s| !is_empty_schema(s)) {
+        map.insert("input_schema".to_string(), schema);
+    }
+    Value::Object(map)
+}
 
-    let mut out = Map::with_capacity(map.len() + 1);
+/// [`LEADING_KEYS`] first, then every other key sorted at every depth, so one
+/// identity always serializes to the same text.
+fn order_keys(tool: Value) -> Value {
+    let Value::Object(mut map) = tool else {
+        return sort_keys(tool);
+    };
+    let mut out = Map::with_capacity(map.len());
     for key in LEADING_KEYS {
         if let Some(value) = map.remove(key) {
-            out.insert(key.to_string(), value);
+            out.insert(key.to_string(), sort_keys(value));
         }
     }
-    if let Some(schema) = schema.filter(|s| !is_empty_schema(s)) {
-        out.insert("input_schema".to_string(), schema);
+    if let Value::Object(rest) = sort_keys(Value::Object(map)) {
+        out.extend(rest);
     }
-    out.extend(map);
     Value::Object(out)
+}
+
+fn sort_keys(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(
+                entries
+                    .into_iter()
+                    .map(|(k, v)| (k, sort_keys(v)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sort_keys).collect()),
+        other => other,
+    }
 }
 
 fn strip_transport(map: &mut Map<String, Value>) {
@@ -367,6 +397,14 @@ mod tests {
                 "input_schema"
             ]
         );
+    }
+
+    #[test]
+    fn key_order_never_changes_the_text() {
+        let a = json!({"name": "f", "description": "d", "parameters": {"type": "object", "properties": {"x": {"type": "string", "description": "x"}, "y": {"type": "number"}}}, "extra": {"b": 1, "a": 2}});
+        let b = json!({"extra": {"a": 2, "b": 1}, "parameters": {"properties": {"y": {"type": "number"}, "x": {"description": "x", "type": "string"}}, "type": "object"}, "description": "d", "name": "f"});
+        let text = |tool: Value| Value::Array(normalize_tools(&[tool])).to_string();
+        assert_eq!(text(a), text(b));
     }
 
     #[test]
