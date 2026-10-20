@@ -650,7 +650,10 @@ fn test_cte_with_spans() {
         ),
         "got: {result}"
     );
-    assert!(contains_ws(&result, "FROM span_stats"), "got: {result}");
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_span_stats AS span_stats"),
+        "got: {result}"
+    );
 }
 
 #[test]
@@ -1087,7 +1090,10 @@ fn test_cte_with_safe_name_still_allowed() {
         ),
         "got: {result}"
     );
-    assert!(contains_ws(&result, "FROM span_ids"), "got: {result}");
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_span_ids AS span_ids"),
+        "got: {result}"
+    );
 }
 
 #[test]
@@ -1245,15 +1251,11 @@ fn test_in_with_bare_function_call() {
 }
 
 #[test]
-fn test_in_with_bare_column_ref_not_rewritten() {
-    // A bare identifier RHS is a column reference, NOT a relation — it must not
-    // be rewritten to a `_v0` view function.
-    let result = validate_ok("SELECT span_id FROM spans WHERE span_id IN parent_span_id");
-    assert!(
-        contains_ws(&result, "span_id IN (parent_span_id)"),
-        "got: {result}"
-    );
-    assert!(!result.contains("parent_span_id_v0"), "got: {result}");
+fn test_in_with_bare_name_rhs_rejected() {
+    // ClickHouse resolves a lone name after IN to a column only when one is in
+    // scope, and to a whole table otherwise, so the validator cannot tell which.
+    let err = validate("SELECT span_id FROM spans WHERE span_id IN parent_span_id").unwrap_err();
+    assert!(err.contains("IN must be followed by"), "got: {err}");
 }
 
 #[test]
@@ -2408,4 +2410,122 @@ fn test_trace_filter_value_with_quotes_survives_as_one_literal() {
     );
     assert_eq!(result.matches("policy = ").count(), 1);
     parse_clickhouse_sql(&result).expect("rewritten SQL re-parses");
+}
+
+// ----------------------------------------------------------------------------
+// Names that ClickHouse resolves to tables outside the allowlist
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_qualified_table_is_not_exempted_by_a_same_named_cte() {
+    for query in [
+        "WITH users AS (SELECT 1) SELECT * FROM pg.users",
+        "WITH evaluations AS (SELECT 1) SELECT * FROM spans JOIN pg.evaluations e ON 1 = 1",
+        "WITH traces_agg AS (SELECT 1) SELECT * FROM default.traces_agg",
+        "WITH tables AS (SELECT 1) SELECT * FROM system.tables",
+        "SELECT * FROM pg.signals",
+        "SELECT * FROM system.spans",
+        "SELECT * FROM default.default.spans",
+    ] {
+        let err = validate(query).expect_err(query);
+        assert!(err.contains("is not allowed"), "{query}: {err}");
+    }
+    validate_ok("SELECT name FROM default.spans");
+}
+
+#[test]
+fn test_cte_names_are_renamed_so_out_of_scope_references_fail() {
+    // A CTE cannot see itself, so ClickHouse resolves the inner `traces_agg` to
+    // the real table; renamed, it names a table that does not exist.
+    let result =
+        validate_ok("WITH traces_agg AS (SELECT * FROM traces_agg) SELECT * FROM traces_agg");
+    assert!(
+        contains_ws(
+            &result,
+            "WITH __lmnr_cte_traces_agg AS (SELECT * FROM __lmnr_cte_traces_agg AS traces_agg)"
+        ),
+        "got: {result}"
+    );
+    // A subquery's WITH does not cover its sibling in ClickHouse.
+    let result = validate_ok(
+        "SELECT * FROM (WITH traces_agg AS (SELECT 1 AS x) SELECT x FROM traces_agg) AS s, traces_agg",
+    );
+    assert!(!contains_ws(&result, "FROM traces_agg"), "got: {result}");
+    assert!(!contains_ws(&result, ", traces_agg"), "got: {result}");
+}
+
+#[test]
+fn test_cte_reference_keeps_its_name_as_alias() {
+    let result =
+        validate_ok("WITH Recent AS (SELECT name FROM spans) SELECT Recent.name FROM Recent");
+    assert!(
+        contains_ws(&result, "WITH __lmnr_cte_recent AS"),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_recent AS Recent"),
+        "got: {result}"
+    );
+
+    let result = validate_ok("WITH r AS (SELECT name FROM spans) SELECT x.name FROM r AS x");
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_r AS x"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_cte_name_cannot_be_a_table_function_or_need_quoting() {
+    let err = validate("WITH numbers AS (SELECT 1) SELECT * FROM numbers(10)").unwrap_err();
+    assert!(err.contains("Table function"), "got: {err}");
+    let err = validate("WITH `a b` AS (SELECT 1) SELECT * FROM `a b`").unwrap_err();
+    assert!(
+        err.contains("letters, digits and underscores"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_in_operand_cannot_name_a_table() {
+    for query in [
+        "SELECT name FROM spans WHERE input IN pg.users",
+        "SELECT name FROM spans WHERE input IN (pg.users)",
+        "SELECT name FROM spans WHERE input IN ((default.traces_agg))",
+        "SELECT name FROM spans WHERE input NOT IN traces_agg",
+        "SELECT name FROM spans WHERE trace_id IN signal_events",
+        "SELECT name FROM spans WHERE input IN (spans.output)",
+        "SELECT globalIn(input, traces_agg) FROM spans",
+        "SELECT notNullInIgnoreSet(input, pg.users) FROM spans",
+    ] {
+        let err = validate(query).expect_err(query);
+        assert!(err.contains("IN must be followed by"), "{query}: {err}");
+    }
+}
+
+#[test]
+fn test_in_operand_values_subqueries_and_ctes_still_work() {
+    validate_ok("SELECT name FROM spans WHERE name IN ('a', 'b')");
+    validate_ok("SELECT name FROM spans WHERE name IN (name, input)");
+    validate_ok("SELECT name FROM spans WHERE status IN 'error'");
+    validate_ok("SELECT name FROM spans WHERE trace_id IN {ids:Array(UUID)}");
+    validate_ok("SELECT name FROM spans WHERE trace_id IN (SELECT id FROM traces)");
+
+    let result = validate_ok(
+        "WITH ids AS (SELECT id FROM traces) SELECT name FROM spans WHERE trace_id IN ids",
+    );
+    assert!(contains_ws(&result, "IN (__lmnr_cte_ids)"), "got: {result}");
+}
+
+#[test]
+fn test_identifier_placeholders_are_rejected() {
+    for query in [
+        "SELECT name FROM spans WHERE input IN {t:Identifier}",
+        "SELECT {c:Identifier} FROM spans",
+    ] {
+        let err = validate(query).expect_err(query);
+        assert!(
+            err.contains("Identifier query parameters"),
+            "{query}: {err}"
+        );
+    }
 }

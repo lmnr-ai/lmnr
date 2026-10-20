@@ -1,4 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
+import { sql } from "drizzle-orm";
 
 import { db, getDatabaseConfig, getPostgresSchema } from "@/lib/db/drizzle";
 
@@ -45,6 +46,15 @@ function requireIdent(value: string, name: string): string {
 const envOr = (name: string, fallback: string): string => process.env[name]?.trim() || fallback;
 
 function getConfig() {
+  // No defaults: a well-known login on a published Postgres port would be one
+  // nobody chose. Unset leaves SQL access to Postgres entities off.
+  const user = process.env.CLICKHOUSE_POSTGRES_USER?.trim();
+  const password = process.env.CLICKHOUSE_POSTGRES_PASSWORD?.trim();
+  if (!user || !password) {
+    throw new Error(
+      "CLICKHOUSE_POSTGRES_USER and CLICKHOUSE_POSTGRES_PASSWORD are not set (see README, SQL access to Postgres entities)"
+    );
+  }
   const connectionLimit = Number(envOr("CLICKHOUSE_POSTGRES_CONNECTION_LIMIT", "10"));
   if (!Number.isInteger(connectionLimit) || connectionLimit < 1) {
     throw new Error("CLICKHOUSE_POSTGRES_CONNECTION_LIMIT must be a positive integer");
@@ -60,8 +70,8 @@ function getConfig() {
     // connects to the maintenance db and reports the tables as merely missing.
     database: envOr("CLICKHOUSE_POSTGRES_DATABASE", getDatabaseConfig().database || "postgres"),
     // Unchecked on purpose: quoted at every use, and a hyphenated schema is legal.
-    user: envOr("CLICKHOUSE_POSTGRES_USER", "clickhouse_ro"),
-    password: envOr("CLICKHOUSE_POSTGRES_PASSWORD", "clickhouse_ro_passwordabc"),
+    user,
+    password,
     schema: envOr("CLICKHOUSE_POSTGRES_SCHEMA", getPostgresSchema() || "public"),
     statementTimeout: envOr("CLICKHOUSE_POSTGRES_STATEMENT_TIMEOUT", "15s"),
     connectionLimit,
@@ -85,6 +95,20 @@ async function tryExec(what: string, query: string): Promise<void> {
   }
 }
 
+/**
+ * Role setup rewrites this role (password, connection limit, timeout) and the
+ * `pg` engine reads as it, so it must never be the app's own or a privileged role.
+ */
+async function assertDedicatedRole(user: string): Promise<void> {
+  const [existing] = await db.execute<{ privileged: boolean }>(
+    sql`SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolname = current_user AS privileged
+        FROM pg_roles WHERE rolname = ${user}`
+  );
+  if (existing?.privileged || user === getDatabaseConfig().username) {
+    throw new Error(`CLICKHOUSE_POSTGRES_USER=${user} is the app's own or a privileged role; use a dedicated one`);
+  }
+}
+
 /** `statement_timeout` and `CONNECTION LIMIT` are the load guards — user SQL reaches the primary, not a replica. */
 export async function ensurePostgresReadonlyRole(): Promise<void> {
   let cfg: ReturnType<typeof getConfig>;
@@ -96,6 +120,13 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
   }
   const role = pgIdent(cfg.user);
   const schema = pgIdent(cfg.schema);
+
+  try {
+    await assertDedicatedRole(cfg.user);
+  } catch (error) {
+    warnFailure("Skipped provisioning the ClickHouse Postgres role", error);
+    return;
+  }
 
   await tryExec(
     `creating role ${cfg.user}`,
@@ -149,8 +180,8 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
 
 /**
  * Host/port are from the ClickHouse server's perspective (`postgres:5432` under
- * compose, not the host's localhost:5433). `IF NOT EXISTS`, so rotate
- * credentials by dropping the database rather than by restarting.
+ * compose, not the host's localhost:5433). Recreated on every boot so it always
+ * carries the password `ensurePostgresReadonlyRole` just set; it stores nothing.
  *
  * Migration 73 survives a failure here — ClickHouse does not resolve a view's
  * source database at `CREATE VIEW` time. Never logs the statement: the engine
@@ -160,9 +191,11 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
   try {
     const cfg = getConfig();
 
+    await clickhouseClient.command({ query: "DROP DATABASE IF EXISTS pg SYNC" });
+    await assertDedicatedRole(cfg.user);
     await clickhouseClient.command({
       query: `
-        CREATE DATABASE IF NOT EXISTS pg
+        CREATE DATABASE pg
         ENGINE = PostgreSQL(
           ${chStr(`${cfg.host}:${cfg.port}`)},
           ${chStr(cfg.database)},
