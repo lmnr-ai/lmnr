@@ -1,29 +1,27 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, type LucideIcon, SquareMinus, SquarePlus } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DiffView from "@/components/ui/diff";
 import { cn } from "@/lib/utils";
 
 import { type ToolChange, type ToolChangeStatus } from "./utils";
 
-const STATUS_STYLES: Record<ToolChangeStatus, { label: string; className: string }> = {
-  added: { label: "Added", className: "text-success border-success/40" },
-  removed: { label: "Removed", className: "text-destructive border-destructive/40" },
-  modified: { label: "Modified", className: "text-primary border-primary/40" },
+const STATUS_ICONS: Record<ToolChangeStatus, { icon: LucideIcon; className: string } | null> = {
+  added: { icon: SquarePlus, className: "text-success" },
+  removed: { icon: SquareMinus, className: "text-destructive" },
+  modified: null,
 };
 
 interface ToolChangeRowProps {
   change: ToolChange;
-  defaultOpen: boolean;
 }
 
-export default function ToolChangeRow({ change, defaultOpen }: ToolChangeRowProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const status = STATUS_STYLES[change.status];
+export default function ToolChangeRow({ change }: ToolChangeRowProps) {
+  const [open, setOpen] = useState(false);
+  const status = STATUS_ICONS[change.status];
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -37,9 +35,13 @@ export default function ToolChangeRow({ change, defaultOpen }: ToolChangeRowProp
             className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
           />
           <span className="truncate font-mono text-xs">{change.name}</span>
-          <Badge variant="outline" className={cn("ml-auto h-5 font-normal", status.className)}>
-            {status.label}
-          </Badge>
+          {status && (
+            <status.icon className={cn("size-3.5 flex-shrink-0", status.className)} aria-label={change.status} />
+          )}
+          <span className="ml-auto flex flex-shrink-0 gap-1.5 font-mono text-xs">
+            {change.additions > 0 && <span className="text-success">+{change.additions}</span>}
+            {change.deletions > 0 && <span className="text-destructive">−{change.deletions}</span>}
+          </span>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-2">

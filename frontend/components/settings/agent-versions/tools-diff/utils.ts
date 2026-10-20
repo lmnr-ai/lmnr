@@ -1,3 +1,5 @@
+import { diffLines } from "diff";
+
 export type ToolChangeStatus = "added" | "removed" | "modified";
 
 export interface ToolChange {
@@ -6,6 +8,9 @@ export interface ToolChange {
   /** Pretty JSON of the tool; empty on the side where it doesn't exist. */
   oldText: string;
   newText: string;
+  /** Changed line counts of the tool's JSON diff. */
+  additions: number;
+  deletions: number;
 }
 
 export interface ToolsDiff {
@@ -45,6 +50,16 @@ function toolsByName(text: string): Map<string, string> {
   return byName;
 }
 
+function toolChange(name: string, status: ToolChangeStatus, oldText: string, newText: string): ToolChange {
+  let additions = 0;
+  let deletions = 0;
+  for (const part of diffLines(oldText, newText, { ignoreNewlineAtEof: true })) {
+    if (part.added) additions += part.count ?? 0;
+    else if (part.removed) deletions += part.count ?? 0;
+  }
+  return { name, status, oldText, newText, additions, deletions };
+}
+
 const STATUS_ORDER: Record<ToolChangeStatus, number> = { modified: 0, added: 1, removed: 2 };
 
 /** Per-tool changes between two stored tool sets, matched by name. */
@@ -56,12 +71,12 @@ export function diffTools(oldText: string, newText: string): ToolsDiff {
 
   for (const [name, newTool] of after) {
     const oldTool = before.get(name);
-    if (oldTool === undefined) changes.push({ name, status: "added", oldText: "", newText: newTool });
-    else if (oldTool !== newTool) changes.push({ name, status: "modified", oldText: oldTool, newText: newTool });
+    if (oldTool === undefined) changes.push(toolChange(name, "added", "", newTool));
+    else if (oldTool !== newTool) changes.push(toolChange(name, "modified", oldTool, newTool));
     else unchanged++;
   }
   for (const [name, oldTool] of before) {
-    if (!after.has(name)) changes.push({ name, status: "removed", oldText: oldTool, newText: "" });
+    if (!after.has(name)) changes.push(toolChange(name, "removed", oldTool, ""));
   }
 
   changes.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
