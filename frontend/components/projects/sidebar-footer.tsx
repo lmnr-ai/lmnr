@@ -1,7 +1,8 @@
 "use client";
 
-import { Book } from "lucide-react";
+import { Book, Settings } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
@@ -18,7 +19,9 @@ import {
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const SidebarFooterComponent = () => {
+const SidebarFooterComponent = ({ projectId }: { projectId: string }) => {
+  const pathname = usePathname();
+  const settingsHref = `/project/${projectId}/settings`;
   const { open, openMobile } = useSidebar();
   const features = useFeatureFlags();
   const logo = open || openMobile ? laminarWordmark : laminarIcon;
@@ -28,6 +31,14 @@ const SidebarFooterComponent = () => {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
+            <SidebarMenuItem className="h-7">
+              <SidebarMenuButton asChild isActive={pathname.startsWith(settingsHref)} tooltip="settings">
+                <Link href={settingsHref}>
+                  <Settings />
+                  <span>settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Docs" asChild>
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">

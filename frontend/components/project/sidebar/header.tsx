@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ChevronsUpDown, Plus } from "lucide-react";
+import { ArrowLeft, ChevronDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
@@ -91,7 +91,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   return (
     <SidebarHeader className="px-0 mt-1.5">
       <SidebarMenu>
-        <SidebarMenuItem className="m-0 px-3 flex items-center gap-0.5">
+        <SidebarMenuItem className="m-0 pl-3 pr-2 flex items-center gap-0.5">
           <div className="flex-1 overflow-hidden">
             <DropdownMenu
               onOpenChange={(o) => {
@@ -105,9 +105,12 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
             >
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
-                  className={cn("flex items-center justify-center pl-2 pr-1.5 data-[state=open]:overlay-selected", {
-                    border: !open && !openMobile,
-                  })}
+                  className={cn(
+                    "flex w-auto max-w-full items-center justify-center px-2 data-[state=open]:overlay-selected",
+                    {
+                      border: !open && !openMobile,
+                    }
+                  )}
                 >
                   <AnimatePresence mode="wait" initial={false}>
                     {!open && !openMobile ? (
@@ -128,10 +131,10 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.5 }}
                         transition={{ duration: 0.1 }}
-                        className="flex items-center w-full"
+                        className="flex min-w-0 items-center"
                       >
                         <span className="truncate font-medium leading-tight">{project?.name}</span>
-                        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-secondary-foreground" />
+                        <ChevronDown className="ml-1 size-4 shrink-0 text-secondary-foreground" />
                       </motion.div>
                     )}
                   </AnimatePresence>

@@ -588,8 +588,6 @@
   .dark {
     --radius: 0.5rem;
 
-    --primary: 18 59% 55%;
-
     --destructive: hsl(0 72% 60%);
     --destructive-text: hsl(0 72% 60%);
     --destructive-border: hsl(0 72% 60%);
@@ -612,7 +610,7 @@
 
     /* Declared above .light so the app theme wrapper inherits DialKit's body override. */
     --light-surface-base: oklch(0.94 0 0);
-    --light-border-delta: 0.08;
+    --light-border-delta: 0.04;
     /* Sidebar fill; ThemeDialKit overrides it on <body>. */
     --sidebar-surface: var(--color-surface-100);
 
@@ -742,11 +740,9 @@
     --red-text: hsl(2 100% 79%);
     --red-icon-background: hsl(0 72% 60%);
     --foreground: 240 10% 15%;
-
-    --primary: 17 64% 43%;
     --primary-foreground: 0 0% 100%;
 
-    --destructive: hsl(0 72% 60%);
+    --destructive: hsl(0 78% 66%);
     --destructive-text: hsl(0 72% 50%);
     --destructive-border: hsl(0 72% 50%);
 
@@ -846,6 +842,8 @@
     --color-primary-100: oklch(0.6 0.155 47.71);
     --color-primary-200: oklch(0.6186 0.15 46.05);
     --color-primary-300: oklch(0.6373 0.145 44.39);
+    --color-primary-400: oklch(0.6559 0.1262 43.33);
+    --color-primary-text: var(--color-primary-100);
 
     /* Redeclare aliases here: inherited custom properties resolve their var() references at the
        element where they are defined, so changing only the ramps would leave dark aliases frozen. */
@@ -856,7 +854,6 @@
     --color-foreground: hsl(var(--foreground));
     --color-primary: var(--color-primary-400);
     --color-primary-foreground: hsl(var(--primary-foreground));
-    --color-primary-text: var(--color-primary-100);
     --color-secondary: var(--color-surface-300);
     --color-secondary-foreground: var(--color-foreground-200);
     --color-muted: var(--color-surface-450);

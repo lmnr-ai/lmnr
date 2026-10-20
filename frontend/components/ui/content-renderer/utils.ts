@@ -19,7 +19,7 @@ export const defaultThemeSettings: CreateThemeOptions["settings"] = {
   gutterForeground: "gray !important",
   selection: "var(--code-selection)",
   selectionMatch: "transparent",
-  caret: "2px solid hsl(var(--primary) / 0.1)",
+  caret: "2px solid oklch(from var(--color-primary) l c h / 0.1)",
 };
 
 export const githubDarkSyntaxHighlighter = {
@@ -89,7 +89,7 @@ export const spanViewStyle: CreateThemeOptions["styles"] = [
   { tag: [t.standard(t.tagName), t.tagName], color: "var(--code-green)" },
   { tag: [t.comment, t.bracket], color: "var(--code-muted)" },
   { tag: [t.className], color: "var(--code-purple)" },
-  { tag: [t.propertyName], color: "hsl(var(--primary))" },
+  { tag: [t.propertyName], color: "var(--color-primary-text)" },
   { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "var(--code-span-text)" },
   { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "var(--code-red)" },
   { tag: [t.string, t.meta, t.regexp], color: "var(--code-span-text)" },
@@ -124,12 +124,12 @@ export const baseExtensions = [
     },
     // Enhanced search match styling
     ".cm-searchMatch": {
-      backgroundColor: "hsl(var(--primary) / 0.3)",
-      border: "1px solid hsl(var(--primary))",
+      backgroundColor: "oklch(from var(--color-primary) l c h / 0.3)",
+      border: "1px solid var(--color-primary)",
       borderRadius: "3px",
     },
     ".cm-searchMatch-selected": {
-      backgroundColor: "hsl(var(--primary))",
+      backgroundColor: "var(--color-primary)",
       color: "var(--color-primary-foreground)",
       fontWeight: "600",
     },

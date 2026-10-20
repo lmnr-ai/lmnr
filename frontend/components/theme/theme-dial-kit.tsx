@@ -8,7 +8,7 @@ const DEFAULT_LIGHT_SURFACE_BASE = "oklch(0.94 0 0)";
 
 // How much darker each light-mode border is than the surface it sits on (OKLCH lightness).
 const LIGHT_BORDER_DELTA_PROPERTY = "--light-border-delta";
-const DEFAULT_LIGHT_BORDER_DELTA = 0.08;
+const DEFAULT_LIGHT_BORDER_DELTA = 0.04;
 
 // Shifts every dark-mode surface step lighter (+) or darker (-) in OKLCH lightness. Set on <html>:
 // the dark ramp is @theme (:root), so a body-level value would never reach it.

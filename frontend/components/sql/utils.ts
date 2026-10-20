@@ -743,12 +743,12 @@ const editorBaseStyles = {
     position: "relative",
   },
   ".cm-searchMatch": {
-    backgroundColor: "hsl(var(--primary) / 0.3)",
-    border: "1px solid hsl(var(--primary))",
+    backgroundColor: "oklch(from var(--color-primary) l c h / 0.3)",
+    border: "1px solid var(--color-primary)",
     borderRadius: "3px",
   },
   ".cm-searchMatch-selected": {
-    backgroundColor: "hsl(var(--primary))",
+    backgroundColor: "var(--color-primary)",
     color: "var(--color-primary-foreground)",
     fontWeight: "600",
   },
@@ -850,7 +850,7 @@ const autocompleteStyles = {
     color: "var(--color-foreground)",
   },
   ".cm-completionMatchedText": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
     textDecoration: "none",
   },
@@ -898,16 +898,16 @@ const signatureHelpStyles = {
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
   },
   ".signature-help .signature-function-name": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
   },
   ".signature-help .signature-param": {
     color: "var(--color-foreground)",
   },
   ".signature-help .signature-param-current": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "700",
-    background: "hsl(var(--primary) / 0.1)",
+    background: "oklch(from var(--color-primary) l c h / 0.1)",
     padding: "1px 3px",
     borderRadius: "3px",
   },

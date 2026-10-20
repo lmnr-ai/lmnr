@@ -43,6 +43,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSectionLabel,
 } from "@/components/ui/sidebar";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
@@ -296,7 +297,7 @@ const SharedSettings = ({
           <Sidebar collapsible="none" className="w-72">
             <SidebarContent className="bg-background pl-2">
               <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Project settings</div>
+                <SidebarSectionLabel>Project settings</SidebarSectionLabel>
                 <SidebarMenu>
                   {projectMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
@@ -324,8 +325,8 @@ const SharedSettings = ({
                 </SidebarMenu>
               </SidebarGroup>
 
-              <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Workspace settings</div>
+              <SidebarGroup className="pt-2">
+                <SidebarSectionLabel>Workspace settings</SidebarSectionLabel>
                 <SidebarMenu>
                   {workspaceMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
@@ -345,8 +346,8 @@ const SharedSettings = ({
                 </SidebarMenu>
               </SidebarGroup>
 
-              <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Appearance</div>
+              <SidebarGroup className="pt-2">
+                <SidebarSectionLabel>Appearance</SidebarSectionLabel>
                 <div className="flex h-8 items-center justify-between px-2 text-sm">
                   <span>Theme</span>
                   <ThemeToggle />

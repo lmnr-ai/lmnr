@@ -192,7 +192,7 @@ export function AlertForm({
     () => ({
       count: {
         label: alertType === ALERT_TYPE.NEW_CLUSTER ? "New clusters" : signalName || "Events",
-        color: "hsl(var(--primary))",
+        color: "var(--color-primary)",
       },
     }),
     [alertType, signalName]

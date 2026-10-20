@@ -301,7 +301,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-4 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
@@ -315,6 +315,20 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-group"
       data-sidebar="group"
       className={cn("relative flex w-full min-w-0 flex-col px-3 py-2", className)}
+      {...props}
+    />
+  );
+}
+
+// px-2 matches SidebarMenuButton's padding so the label lines up with the item icons.
+function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-section-label"
+      className={cn(
+        "px-2 pb-2 text-[13px] font-medium text-foreground-400 group-data-[collapsible=icon]:hidden",
+        className
+      )}
       {...props}
     />
   );
@@ -434,6 +448,7 @@ export {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSectionLabel,
   SidebarTrigger,
   useSidebar,
 };
