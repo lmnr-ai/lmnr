@@ -82,6 +82,15 @@ const pgStr = (value: string) => `'${value.replace(/'/g, "''")}'`;
 const pgIdent = (value: string) => `"${value.replace(/"/g, '""')}"`;
 const chStr = (value: string) => `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 
+function tryGetConfig(context: string): ReturnType<typeof getConfig> | null {
+  try {
+    return getConfig();
+  } catch (error) {
+    warnFailure(context, error);
+    return null;
+  }
+}
+
 function warnFailure(context: string, error: unknown): void {
   console.warn(`${context}:`, error instanceof Error ? error.message : String(error));
 }
@@ -95,34 +104,36 @@ async function tryExec(what: string, query: string): Promise<void> {
   }
 }
 
+const privilegedRoleMessage = (user: string) =>
+  `CLICKHOUSE_POSTGRES_USER=${user} is the app's own or a privileged role; use a dedicated one`;
+
 /**
  * Role setup rewrites this role (password, connection limit, timeout) and the
  * `pg` engine reads as it, so it must never be the app's own or a privileged role.
+ * Throws only when the check itself fails.
  */
-async function assertDedicatedRole(user: string): Promise<void> {
+async function isDedicatedRole(user: string): Promise<boolean> {
   const [existing] = await db.execute<{ privileged: boolean }>(
     sql`SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolname = current_user AS privileged
         FROM pg_roles WHERE rolname = ${user}`
   );
-  if (existing?.privileged || user === getDatabaseConfig().username) {
-    throw new Error(`CLICKHOUSE_POSTGRES_USER=${user} is the app's own or a privileged role; use a dedicated one`);
-  }
+  return !existing?.privileged && user !== getDatabaseConfig().username;
 }
 
 /** `statement_timeout` and `CONNECTION LIMIT` are the load guards — user SQL reaches the primary, not a replica. */
 export async function ensurePostgresReadonlyRole(): Promise<void> {
-  let cfg: ReturnType<typeof getConfig>;
-  try {
-    cfg = getConfig();
-  } catch (error) {
-    warnFailure("Skipped provisioning the ClickHouse Postgres role", error);
+  const cfg = tryGetConfig("Skipped provisioning the ClickHouse Postgres role");
+  if (!cfg) {
     return;
   }
   const role = pgIdent(cfg.user);
   const schema = pgIdent(cfg.schema);
 
   try {
-    await assertDedicatedRole(cfg.user);
+    if (!(await isDedicatedRole(cfg.user))) {
+      warnFailure("Skipped provisioning the ClickHouse Postgres role", privilegedRoleMessage(cfg.user));
+      return;
+    }
   } catch (error) {
     warnFailure("Skipped provisioning the ClickHouse Postgres role", error);
     return;
@@ -178,6 +189,14 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
   }
 }
 
+async function dropPgDatabase(clickhouseClient: ClickHouseClient): Promise<void> {
+  try {
+    await clickhouseClient.command({ query: "DROP DATABASE IF EXISTS pg SYNC" });
+  } catch (error) {
+    warnFailure("Could not drop the ClickHouse `pg` database", error);
+  }
+}
+
 /**
  * Host/port are from the ClickHouse server's perspective (`postgres:5432` under
  * compose, not the host's localhost:5433). Recreated on every boot so it always
@@ -188,11 +207,27 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
  * parameters carry the role password.
  */
 export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHouseClient): Promise<void> {
+  // Unset credentials turn `pg` off.
+  const cfg = tryGetConfig("Turning off the ClickHouse `pg` database");
+  if (!cfg) {
+    await dropPgDatabase(clickhouseClient);
+    return;
+  }
+
+  // So does a refused role. A check that merely failed keeps the existing `pg`.
   try {
-    // First, so a boot without the credentials also turns an earlier `pg` off.
+    if (!(await isDedicatedRole(cfg.user))) {
+      warnFailure("Turning off the ClickHouse `pg` database", privilegedRoleMessage(cfg.user));
+      await dropPgDatabase(clickhouseClient);
+      return;
+    }
+  } catch (error) {
+    warnFailure("Kept the existing ClickHouse `pg` database; could not check CLICKHOUSE_POSTGRES_USER", error);
+    return;
+  }
+
+  try {
     await clickhouseClient.command({ query: "DROP DATABASE IF EXISTS pg SYNC" });
-    const cfg = getConfig();
-    await assertDedicatedRole(cfg.user);
     await clickhouseClient.command({
       query: `
         CREATE DATABASE pg
