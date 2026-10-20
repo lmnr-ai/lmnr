@@ -154,6 +154,8 @@ async function deleteProjectDataFromClickHouse(
     "default.system_prompt_version_defs",
     "default.user_template_versions",
     "default.user_template_version_defs",
+    "default.tool_definition_versions",
+    "default.tool_definition_version_defs",
   ];
 
   // An absent table would otherwise report a false failure on every deletion.

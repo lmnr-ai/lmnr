@@ -144,8 +144,8 @@ pub struct SpVersioningMessage {
     /// window's `seen_count`.
     #[serde(default)]
     pub retry_count: u32,
-    /// Agent-versioning inputs for `span_refs`' spans. System prompts only,
-    /// and only while checkpoints are on.
+    /// Agent-versioning inputs for `span_refs`' spans. System prompts and
+    /// tool definitions only, and only while checkpoints are on.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub agent_spans: Vec<AgentSpan>,
 }
@@ -237,7 +237,7 @@ impl MessageHandler for SpVersioningHandler {
         if let Some(recorder) = &self.checkpoint_recorder
             && !rows.is_empty()
         {
-            recorder.record(&messages, &rows).await;
+            recorder.record(self.kind, &messages, &rows).await;
         }
         Ok(())
     }

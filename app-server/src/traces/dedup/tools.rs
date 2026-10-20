@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    ContentHash, SharedContentBatch, canonical_json, content_hash, is_seen, span_group_id,
-    storage_seen_key, tool_normalize::normalize_tools,
+    ContentHash, SharedContentBatch, content_hash, is_seen, span_group_id, storage_seen_key,
 };
 use crate::{
     cache::Cache,
     db::spans::Span,
     features::{Feature, is_feature_enabled},
+    traces::sp_versioning::tool_text,
     utils::{estimate_json_size, sanitize_string},
 };
 
@@ -33,17 +33,11 @@ pub struct ToolDedup {
     pub content: Option<String>,
     #[serde(default)]
     pub size_bytes: usize,
-    /// [`tool_set_hash`], set only while agent versioning is on. Read on the
-    /// ingest producer, so it never rides the wire.
+    /// The tool set's [`tool_text::render`] form, the input to tool-definition
+    /// versioning. Set only while agent versioning is on. Read on the ingest
+    /// producer, so it never rides the wire.
     #[serde(skip)]
-    pub set_hash: Option<ContentHash>,
-}
-
-/// Identity of a tool set: its [`normalize_tools`] form, which ignores tool
-/// order, key order, provider shape and transport-only fields.
-pub fn tool_set_hash(tools: &[Value]) -> ContentHash {
-    let normalized = Value::Array(normalize_tools(tools));
-    *blake3::hash(canonical_json(&normalized).as_bytes()).as_bytes()
+    pub versioning_text: Option<String>,
 }
 
 /// Pull tool definitions out of `raw_attributes` as one JSON array, trying the
@@ -140,7 +134,8 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         return None;
     }
     let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
-    let set_hash = is_feature_enabled(Feature::Checkpoints).then(|| tool_set_hash(&tools));
+    let versioning_text =
+        is_feature_enabled(Feature::Checkpoints).then(|| tool_text::render(&tools));
     let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);
@@ -153,7 +148,7 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         hash,
         content,
         size_bytes: estimate_json_size(&tools),
-        set_hash,
+        versioning_text,
     })
 }
 
@@ -319,36 +314,11 @@ mod tests {
             hash: [7u8; 32],
             content: Some("[{}]".to_string()),
             size_bytes: 4,
-            set_hash: None,
+            versioning_text: None,
         };
         let mut shared = SharedContentBatch::default();
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 4);
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 0);
         assert_eq!(shared.rows()[0].group_id, span.trace_id.to_string());
-    }
-
-    #[test]
-    fn tool_set_hash_ignores_tool_and_key_order() {
-        let a = json!({"name": "get_weather", "description": "x"});
-        let b = json!({"description": "y", "name": "get_time"});
-        let b_reordered_keys = json!({"name": "get_time", "description": "y"});
-        assert_eq!(
-            tool_set_hash(&[a.clone(), b.clone()]),
-            tool_set_hash(&[b_reordered_keys, a.clone()])
-        );
-        assert_ne!(tool_set_hash(&[a.clone(), b]), tool_set_hash(&[a]));
-    }
-
-    #[test]
-    fn tool_set_hash_ignores_provider_shape_and_transport_fields() {
-        let schema = json!({"type": "object", "properties": {"city": {"type": "string"}}});
-        let openai = json!({"type": "function", "function": {"name": "get_weather", "parameters": schema, "strict": true}});
-        let anthropic = json!({"name": "get_weather", "input_schema": schema, "cache_control": {"type": "ephemeral"}});
-        assert_eq!(tool_set_hash(&[openai]), tool_set_hash(&[anthropic]));
-        let changed = json!({"name": "get_weather", "input_schema": {"type": "object", "properties": {"zip": {"type": "string"}}}});
-        assert_ne!(
-            tool_set_hash(&[changed]),
-            tool_set_hash(&[json!({"name": "get_weather", "input_schema": schema})])
-        );
     }
 }

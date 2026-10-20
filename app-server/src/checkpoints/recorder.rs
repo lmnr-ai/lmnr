@@ -1,4 +1,10 @@
-//! Records one system-prompt versioning batch as agent versions.
+//! Records one system-prompt or tool-definition versioning batch as agent
+//! versions.
+//!
+//! A span's agent version needs both of its versions. Each consumer writes its
+//! own memo before recording and reads the other kind's memo here, so whichever
+//! finishes second sees both and records; when both see both, the second
+//! record is a no-op.
 //!
 //! Best-effort throughout: a failure is logged and the next span presenting
 //! the same version retries it. A version whose tool text isn't readable yet
@@ -37,7 +43,7 @@ use crate::{
     llm::LlmClient,
     traces::{
         dedup::{span_group_id, tool_normalize::normalize_tools, tools::ToolDedup},
-        sp_versioning::consumer::SpVersioningMessage,
+        sp_versioning::{VersionKind, consumer::SpVersioningMessage, similarity, versions},
     },
     utils::{sanitize_string, truncate_chars},
 };
@@ -59,9 +65,17 @@ pub struct AgentSpan {
     /// Response model, else request model; empty when neither is reported.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub model: String,
-    /// Hex order-insensitive tool-set hash; empty without tools.
+    /// Content hash of the tool set's versioning text: the tool-definition
+    /// memo key. Empty without tools.
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub tool_set_hash: String,
+    pub tool_full_hash: String,
+    /// The tool-definition version when the ingest producer resolved it
+    /// finally (memo hit or unprobed subset match).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_version: Option<String>,
+    /// The span's `full_prompt_hash`: the system-prompt memo key.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub system_prompt_full_hash: String,
     /// Hex dedup hash of the tool blob: its `unique_content` key.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tool_content_hash: String,
@@ -70,7 +84,11 @@ pub struct AgentSpan {
 }
 
 impl AgentSpan {
-    pub fn from_span(span: &Span, tools: Option<&ToolDedup>) -> Self {
+    pub fn from_span(
+        span: &Span,
+        tools: Option<&ToolDedup>,
+        system_prompt_full_hash: &str,
+    ) -> Self {
         let model = span
             .attributes
             .response_model()
@@ -78,36 +96,56 @@ impl AgentSpan {
             .or_else(|| span.attributes.request_model())
             .map(|m| truncate_chars(&sanitize_string(m.trim()), MODEL_MAX_CHARS))
             .unwrap_or_default();
-        let (tool_set_hash, tool_content_hash) = tools
-            .and_then(|t| Some((hex::encode(t.set_hash?), hex::encode(t.hash))))
+        // A set that normalizes to nothing counts as no tools.
+        let (tool_full_hash, tool_content_hash) = tools
+            .and_then(|t| {
+                let text = t
+                    .versioning_text
+                    .as_deref()
+                    .filter(|text| !text.is_empty())?;
+                Some((similarity::full_prompt_hash(text), hex::encode(t.hash)))
+            })
             .unwrap_or_default();
         Self {
             span_id: span.span_id,
             start_time: chrono_to_nanoseconds(span.start_time),
             model,
-            tool_set_hash,
+            tool_full_hash,
+            tool_version: None,
+            system_prompt_full_hash: system_prompt_full_hash.to_string(),
             tool_content_hash,
             group_id: span_group_id(span),
         }
     }
 }
 
-/// A span whose system-prompt version is final, joined with its inputs.
+/// A span whose system-prompt and tool-definition versions are both final,
+/// joined with its inputs.
 struct VersionedSpan<'a> {
     project_id: Uuid,
     trace_id: Uuid,
     agent_hash: &'a str,
-    system_prompt_version_hash: &'a str,
+    system_prompt_version_hash: String,
+    /// Empty without tools.
+    tool_version: String,
     version_hash: String,
     inputs: &'a AgentSpan,
     /// The raw prompt when it rode the wire; seeds agent naming.
     system_prompt: &'a str,
 }
 
-fn join_spans<'a>(
+/// Joins `span_versions` (versions of `kind`) with their messages' inputs and
+/// the other kind's version. Spans whose other version isn't known yet are
+/// dropped: the other kind's consumer records them.
+async fn join_spans<'a>(
+    cache: &Cache,
+    kind: VersionKind,
     messages: &'a [SpVersioningMessage],
     span_versions: &'a [SpanVersion],
 ) -> Vec<VersionedSpan<'a>> {
+    if kind == VersionKind::UserTemplate {
+        return Vec::new();
+    }
     let inputs: HashMap<(Uuid, Uuid), (&AgentSpan, &str)> = messages
         .iter()
         .flat_map(|message| {
@@ -119,26 +157,116 @@ fn join_spans<'a>(
             })
         })
         .collect();
-    span_versions
-        .iter()
-        .filter_map(|span_version| {
-            let (inputs, system_prompt) =
-                inputs.get(&(span_version.project_id, span_version.span_id))?;
-            Some(VersionedSpan {
-                project_id: span_version.project_id,
-                trace_id: span_version.trace_id,
-                agent_hash: &span_version.agent_hash,
-                system_prompt_version_hash: &span_version.version_hash,
-                version_hash: version_hash(
-                    &span_version.agent_hash,
-                    &span_version.version_hash,
-                    &inputs.tool_set_hash,
-                ),
-                inputs,
-                system_prompt,
-            })
-        })
-        .collect()
+    let mut memos = MemoLookups::default();
+    let mut spans = Vec::new();
+    for span_version in span_versions {
+        let Some(&(inputs, text)) = inputs.get(&(span_version.project_id, span_version.span_id))
+        else {
+            continue;
+        };
+        let (system_prompt_version_hash, tool_version, system_prompt) = match kind {
+            VersionKind::ToolDefinitions => {
+                // Resolved inline, so the system-prompt side already has it.
+                if inputs.tool_version.is_some() {
+                    continue;
+                }
+                let Some(sp_version) = memos
+                    .get(
+                        cache,
+                        VersionKind::SystemPrompt,
+                        span_version,
+                        &inputs.system_prompt_full_hash,
+                    )
+                    .await
+                else {
+                    continue;
+                };
+                // This message's body is tool text; naming falls back to the
+                // version's static prompt.
+                (sp_version, span_version.version_hash.clone(), "")
+            }
+            _ => {
+                let tool_version = if inputs.tool_full_hash.is_empty() {
+                    // Tools without a versioning hash: a message from before
+                    // tool-definition versioning. Never record it as tool-less.
+                    if !inputs.tool_content_hash.is_empty() {
+                        continue;
+                    }
+                    String::new()
+                } else if let Some(tool_version) = &inputs.tool_version {
+                    tool_version.clone()
+                } else {
+                    let Some(tool_version) = memos
+                        .get(
+                            cache,
+                            VersionKind::ToolDefinitions,
+                            span_version,
+                            &inputs.tool_full_hash,
+                        )
+                        .await
+                    else {
+                        continue;
+                    };
+                    tool_version
+                };
+                (span_version.version_hash.clone(), tool_version, text)
+            }
+        };
+        spans.push(VersionedSpan {
+            project_id: span_version.project_id,
+            trace_id: span_version.trace_id,
+            agent_hash: &span_version.agent_hash,
+            version_hash: version_hash(
+                &span_version.agent_hash,
+                &system_prompt_version_hash,
+                &tool_version,
+            ),
+            system_prompt_version_hash,
+            tool_version,
+            inputs,
+            system_prompt,
+        });
+    }
+    spans
+}
+
+/// Memo reads for one batch, deduped: a batch's spans mostly share texts.
+#[derive(Default)]
+struct MemoLookups {
+    results: HashMap<(Uuid, String, String), Option<String>>,
+}
+
+impl MemoLookups {
+    /// `kind`'s version of the text hashing to `full_hash`, in `span_version`'s agent.
+    async fn get(
+        &mut self,
+        cache: &Cache,
+        kind: VersionKind,
+        span_version: &SpanVersion,
+        full_hash: &str,
+    ) -> Option<String> {
+        if full_hash.is_empty() {
+            return None;
+        }
+        let key = (
+            span_version.project_id,
+            span_version.agent_hash.clone(),
+            full_hash.to_string(),
+        );
+        if let Some(version) = self.results.get(&key) {
+            return version.clone();
+        }
+        let version = versions::memo_get(
+            cache,
+            kind,
+            span_version.project_id,
+            &kind.partition(&span_version.agent_hash, false),
+            full_hash,
+        )
+        .await;
+        self.results.insert(key, version.clone());
+        version
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -172,8 +300,13 @@ impl CheckpointRecorder {
         }
     }
 
-    pub async fn record(&self, messages: &[SpVersioningMessage], span_versions: &[SpanVersion]) {
-        let spans = join_spans(messages, span_versions);
+    pub async fn record(
+        &self,
+        kind: VersionKind,
+        messages: &[SpVersioningMessage],
+        span_versions: &[SpanVersion],
+    ) {
+        let spans = join_spans(&self.cache, kind, messages, span_versions).await;
         if spans.is_empty() {
             return;
         }
@@ -294,8 +427,8 @@ impl CheckpointRecorder {
             project_id: span.project_id,
             agent_id,
             version_hash: &span.version_hash,
-            system_prompt_version_hash: span.system_prompt_version_hash,
-            tool_definitions_hash: &span.inputs.tool_set_hash,
+            system_prompt_version_hash: &span.system_prompt_version_hash,
+            tool_definitions_hash: &span.tool_version,
             tool_definitions: &tool_definitions,
         };
         if let Some(id) = agents::insert_agent_version(&self.db.pool, &version).await? {
@@ -307,23 +440,23 @@ impl CheckpointRecorder {
     }
 
     /// [`normalize_tools`] text of the version's tool set: from another version
-    /// of the agent with the same set, else from the `unique_content` blob of
-    /// the oldest of `spans`. The spans consumer may not have written it yet
-    /// (`None`).
+    /// of the agent with the same tool version, else from the `unique_content`
+    /// blob of the oldest of `spans`. The spans consumer may not have written
+    /// it yet (`None`).
     async fn tool_definitions(
         &self,
         spans: &[&VersionedSpan<'_>],
         agent_id: Uuid,
     ) -> anyhow::Result<Option<String>> {
         let span = spans[0];
-        if span.inputs.tool_set_hash.is_empty() {
+        if span.tool_version.is_empty() {
             return Ok(Some(String::new()));
         }
         if let Some(text) = agents::get_tool_definitions(
             &self.db.pool,
             span.project_id,
             agent_id,
-            &span.inputs.tool_set_hash,
+            &span.tool_version,
         )
         .await?
         {
@@ -456,7 +589,7 @@ impl CheckpointRecorder {
             project_id: span.project_id,
             agent_id,
             agent_hash: span.agent_hash.to_string(),
-            system_prompt_version_hash: span.system_prompt_version_hash.to_string(),
+            system_prompt_version_hash: span.system_prompt_version_hash.clone(),
             system_prompt: span.system_prompt.to_string(),
         };
         tokio::spawn(async move {
@@ -545,15 +678,21 @@ async fn remember<T: Serialize + Send>(cache: &Cache, key: &str, value: T, ttl_s
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traces::sp_versioning::window::SpanRef;
+    use crate::{cache::in_memory::InMemoryCache, traces::sp_versioning::window::SpanRef};
 
-    fn agent_span(span_id: Uuid, tool_set_hash: &str) -> AgentSpan {
+    fn agent_span(span_id: Uuid, tool_full_hash: &str) -> AgentSpan {
         AgentSpan {
             span_id,
             start_time: 1_700_000_000_000_000_000,
             model: "gpt-4o".to_string(),
-            tool_set_hash: tool_set_hash.to_string(),
-            tool_content_hash: String::new(),
+            tool_full_hash: tool_full_hash.to_string(),
+            tool_version: None,
+            system_prompt_full_hash: "spfull".to_string(),
+            tool_content_hash: if tool_full_hash.is_empty() {
+                String::new()
+            } else {
+                "blob".to_string()
+            },
             group_id: "group".to_string(),
         }
     }
@@ -581,52 +720,163 @@ mod tests {
         }
     }
 
-    fn span_version(project_id: Uuid, span_id: Uuid, sp_version: &str) -> SpanVersion {
-        SpanVersion::new(
-            project_id,
-            Uuid::new_v4(),
-            span_id,
-            "agent",
-            false,
-            sp_version,
-        )
+    fn span_version(project_id: Uuid, span_id: Uuid, version: &str) -> SpanVersion {
+        SpanVersion::new(project_id, Uuid::new_v4(), span_id, "agent", false, version)
     }
 
-    #[test]
-    fn join_keeps_only_span_versions_with_inputs_and_hashes_the_tool_set() {
+    fn cache() -> Cache {
+        Cache::InMemory(InMemoryCache::new(None))
+    }
+
+    async fn memo(cache: &Cache, kind: VersionKind, project_id: Uuid, full: &str, version: &str) {
+        versions::memo_set(cache, kind, project_id, "agent", full, version).await;
+    }
+
+    #[tokio::test]
+    async fn system_prompt_side_joins_known_tool_versions_only() {
+        let cache = cache();
         let project_id = Uuid::new_v4();
-        let (with_tools, without_tools, unknown) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let [known, inline, tool_less, pending, legacy, unknown] =
+            std::array::from_fn(|_| Uuid::new_v4());
+        memo(
+            &cache,
+            VersionKind::ToolDefinitions,
+            project_id,
+            "tfull",
+            "t1",
+        )
+        .await;
+        let mut inline_span = agent_span(inline, "other");
+        inline_span.tool_version = Some("t2".to_string());
+        let mut legacy_span = agent_span(legacy, "");
+        legacy_span.tool_content_hash = "blob".to_string();
         let messages = [message(
             project_id,
             vec![
-                agent_span(with_tools, "tools"),
-                agent_span(without_tools, ""),
+                agent_span(known, "tfull"),
+                inline_span,
+                agent_span(tool_less, ""),
+                agent_span(pending, "unmemoized"),
+                legacy_span,
             ],
         )];
-        let span_versions = [
-            span_version(project_id, with_tools, "sp1"),
-            span_version(project_id, without_tools, "sp1"),
-            span_version(project_id, unknown, "sp1"),
-            // Same span id under another project must not borrow the inputs.
-            span_version(Uuid::new_v4(), with_tools, "sp1"),
-        ];
+        let span_versions = [known, inline, tool_less, pending, legacy, unknown]
+            .map(|id| span_version(project_id, id, "sp1"));
+        // Same span id under another project must not borrow the inputs.
+        let other_project = [span_version(Uuid::new_v4(), known, "sp1")];
 
-        let spans = join_spans(&messages, &span_versions);
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0].version_hash, version_hash("agent", "sp1", "tools"));
-        assert_eq!(spans[1].version_hash, version_hash("agent", "sp1", ""));
-        assert_ne!(spans[0].version_hash, spans[1].version_hash);
+        let spans = join_spans(&cache, VersionKind::SystemPrompt, &messages, &span_versions).await;
+        let joined: Vec<(Uuid, &str)> = spans
+            .iter()
+            .map(|s| (s.inputs.span_id, s.tool_version.as_str()))
+            .collect();
+        assert_eq!(joined, vec![(known, "t1"), (inline, "t2"), (tool_less, "")]);
+        assert_eq!(spans[0].version_hash, version_hash("agent", "sp1", "t1"));
+        assert_eq!(spans[2].version_hash, version_hash("agent", "sp1", ""));
         assert_eq!(spans[0].system_prompt, "You are a test agent.");
+        assert!(
+            join_spans(&cache, VersionKind::SystemPrompt, &messages, &other_project)
+                .await
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn tool_side_joins_known_system_prompt_versions_and_leaves_inline_ones() {
+        let cache = cache();
+        let project_id = Uuid::new_v4();
+        let [known, inline, pending] = std::array::from_fn(|_| Uuid::new_v4());
+        memo(
+            &cache,
+            VersionKind::SystemPrompt,
+            project_id,
+            "spfull",
+            "sp1",
+        )
+        .await;
+        let mut inline_span = agent_span(inline, "tfull");
+        inline_span.tool_version = Some("t1".to_string());
+        let mut pending_span = agent_span(pending, "tfull");
+        pending_span.system_prompt_full_hash = "unmemoized".to_string();
+        let messages = [message(
+            project_id,
+            vec![agent_span(known, "tfull"), inline_span, pending_span],
+        )];
+        let span_versions = [known, inline, pending].map(|id| span_version(project_id, id, "t1"));
+
+        let spans = join_spans(
+            &cache,
+            VersionKind::ToolDefinitions,
+            &messages,
+            &span_versions,
+        )
+        .await;
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].inputs.span_id, known);
+        assert_eq!(spans[0].system_prompt_version_hash, "sp1");
+        assert_eq!(spans[0].tool_version, "t1");
+        assert_eq!(spans[0].version_hash, version_hash("agent", "sp1", "t1"));
+        assert_eq!(spans[0].system_prompt, "", "the body is tool text");
+    }
+
+    /// Both sides of one span derive the same agent version, so a double
+    /// record converges on one row.
+    #[tokio::test]
+    async fn both_sides_agree_on_the_agent_version() {
+        let cache = cache();
+        let project_id = Uuid::new_v4();
+        let span_id = Uuid::new_v4();
+        memo(
+            &cache,
+            VersionKind::SystemPrompt,
+            project_id,
+            "spfull",
+            "sp1",
+        )
+        .await;
+        memo(
+            &cache,
+            VersionKind::ToolDefinitions,
+            project_id,
+            "tfull",
+            "t1",
+        )
+        .await;
+        let messages = [message(project_id, vec![agent_span(span_id, "tfull")])];
+
+        let sp_rows = [span_version(project_id, span_id, "sp1")];
+        let tool_rows = [span_version(project_id, span_id, "t1")];
+        let from_sp = join_spans(&cache, VersionKind::SystemPrompt, &messages, &sp_rows).await;
+        let from_tools =
+            join_spans(&cache, VersionKind::ToolDefinitions, &messages, &tool_rows).await;
+        assert_eq!(from_sp[0].version_hash, from_tools[0].version_hash);
+    }
+
+    #[tokio::test]
+    async fn user_templates_are_never_recorded() {
+        let project_id = Uuid::new_v4();
+        let span_id = Uuid::new_v4();
+        let messages = [message(project_id, vec![agent_span(span_id, "")])];
+        let span_versions = [span_version(project_id, span_id, "u1")];
+        assert!(
+            join_spans(
+                &cache(),
+                VersionKind::UserTemplate,
+                &messages,
+                &span_versions
+            )
+            .await
+            .is_empty()
+        );
     }
 
     #[test]
     fn agent_span_wire_format_round_trips() {
         let span = agent_span(Uuid::new_v4(), "");
         let json = serde_json::to_value(&span).unwrap();
-        assert!(
-            json.get("tool_set_hash").is_none(),
-            "empty fields are omitted"
-        );
+        for omitted in ["tool_full_hash", "tool_version", "tool_content_hash"] {
+            assert!(json.get(omitted).is_none(), "empty {omitted} is omitted");
+        }
         let back: AgentSpan = serde_json::from_value(json).unwrap();
         assert_eq!(back, span);
     }

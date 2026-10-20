@@ -1572,6 +1572,7 @@ fn main() -> anyhow::Result<()> {
 
         let num_sp_versioning_workers = env::workers::NUM_SP_VERSIONING.get();
         let num_user_template_versioning_workers = env::user_template::NUM_WORKERS.get();
+        let num_tool_definition_versioning_workers = env::tool_definitions::NUM_WORKERS.get();
 
         let num_sp_regex_extraction_workers = env::workers::NUM_SP_REGEX_EXTRACTION.get();
         let num_user_task_regex_workers = env::workers::NUM_USER_TASK_REGEX.get();
@@ -2255,10 +2256,16 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn versioning classifier workers, one pool per kind.
-                    // LLM-free, so they run unconditionally. System prompts
-                    // also feed agent versioning (CHECKPOINTS_ENABLED), whose
-                    // optional agent naming uses the LLM client when present.
+                    // LLM-free, so they run unconditionally, except tool
+                    // definitions, which only feed agent versioning
+                    // (CHECKPOINTS_ENABLED). System prompts and tool
+                    // definitions both record agent versions, whose optional
+                    // naming uses the LLM client when present.
+                    let checkpoints_enabled = is_feature_enabled(Feature::Checkpoints);
                     for kind in VersionKind::ALL {
+                        if kind == VersionKind::ToolDefinitions && !checkpoints_enabled {
+                            continue;
+                        }
                         let (worker_type, num_workers) = match kind {
                             VersionKind::SystemPrompt => {
                                 (WorkerType::SpVersioning, num_sp_versioning_workers)
@@ -2267,14 +2274,18 @@ fn main() -> anyhow::Result<()> {
                                 WorkerType::UserTemplateVersioning,
                                 num_user_template_versioning_workers,
                             ),
+                            VersionKind::ToolDefinitions => (
+                                WorkerType::ToolDefinitionVersioning,
+                                num_tool_definition_versioning_workers,
+                            ),
                         };
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let queues = kind.queues();
-                        let checkpoint_recorder = (matches!(kind, VersionKind::SystemPrompt)
-                            && is_feature_enabled(Feature::Checkpoints))
-                        .then(|| {
+                        let checkpoint_recorder = (kind != VersionKind::UserTemplate
+                            && checkpoints_enabled)
+                            .then(|| {
                             Arc::new(CheckpointRecorder::new(
                                 db_for_consumer.clone(),
                                 cache_for_consumer.clone(),
