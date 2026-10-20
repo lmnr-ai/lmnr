@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 
-import { ThemeDialKit } from "@/components/theme/theme-dial-kit";
 import { APP_THEME_COOKIE_MAX_AGE, APP_THEME_COOKIE_NAME, type AppTheme } from "@/lib/app-theme";
 
 interface AppThemeContextValue {
@@ -50,7 +49,6 @@ export function AppThemeProvider({ children, initialTheme }: PropsWithChildren<{
   return (
     <AppThemeContext.Provider value={value}>
       <div className={`${theme} contents`}>{children}</div>
-      <ThemeDialKit />
     </AppThemeContext.Provider>
   );
 }

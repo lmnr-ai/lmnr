@@ -268,7 +268,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   }, [id, templates, setCurrentTemplate]);
 
   return (
-    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-(--sidebar-surface)">
+    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-surface-100">
       <div className="flex items-center p-2 px-4 border-b shrink-0">
         <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>

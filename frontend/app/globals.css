@@ -91,27 +91,27 @@
   /* Surface ramp: a 50-step scale. surface-200 is the base plane (page background);
      surface-00..150 are sunken wells below it, surface-250..1000 rise above it. Dark lightness
      moves in ~0.022 steps; surface-250 is an in-between shade off the elevation ladder. */
-  --color-surface-00: oklch(max(0, calc(0.0464 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-50: oklch(max(0, calc(0.0684 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-100: oklch(max(0, calc(0.0904 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-150: oklch(max(0, calc(0.1124 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-200: oklch(max(0, calc(0.1344 + var(--dark-surface-delta, 0))) 0 0); /* background */
-  --color-surface-250: oklch(max(0, calc(0.1583 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-300: oklch(max(0, calc(0.1822 + var(--dark-surface-delta, 0))) 0 0); /* secondary / card / popover */
-  --color-surface-350: oklch(max(0, calc(0.204 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-400: oklch(max(0, calc(0.226 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-450: oklch(max(0, calc(0.248 + var(--dark-surface-delta, 0))) 0 0); /* muted */
-  --color-surface-500: oklch(max(0, calc(0.27 + var(--dark-surface-delta, 0))) 0 0); /* accent + base-plane border */
-  --color-surface-550: oklch(max(0, calc(0.292 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-600: oklch(max(0, calc(0.314 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-650: oklch(max(0, calc(0.336 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-700: oklch(max(0, calc(0.358 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-750: oklch(max(0, calc(0.38 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-800: oklch(max(0, calc(0.402 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-850: oklch(max(0, calc(0.424 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-900: oklch(max(0, calc(0.446 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-950: oklch(max(0, calc(0.468 + var(--dark-surface-delta, 0))) 0 0);
-  --color-surface-1000: oklch(max(0, calc(0.49 + var(--dark-surface-delta, 0))) 0 0);
+  --color-surface-00: oklch(0.0464 0 0);
+  --color-surface-50: oklch(0.0684 0 0);
+  --color-surface-100: oklch(0.0904 0 0);
+  --color-surface-150: oklch(0.1124 0 0);
+  --color-surface-200: oklch(0.1344 0 0); /* background */
+  --color-surface-250: oklch(0.1583 0 0);
+  --color-surface-300: oklch(0.1822 0 0); /* secondary / card / popover */
+  --color-surface-350: oklch(0.204 0 0);
+  --color-surface-400: oklch(0.226 0 0);
+  --color-surface-450: oklch(0.248 0 0); /* muted */
+  --color-surface-500: oklch(0.27 0 0); /* accent + base-plane border */
+  --color-surface-550: oklch(0.292 0 0);
+  --color-surface-600: oklch(0.314 0 0);
+  --color-surface-650: oklch(0.336 0 0);
+  --color-surface-700: oklch(0.358 0 0);
+  --color-surface-750: oklch(0.38 0 0);
+  --color-surface-800: oklch(0.402 0 0);
+  --color-surface-850: oklch(0.424 0 0);
+  --color-surface-900: oklch(0.446 0 0);
+  --color-surface-950: oklch(0.468 0 0);
+  --color-surface-1000: oklch(0.49 0 0);
 
   /* Relative-neighbour surface utilities (`bg-surface` = current fill, `bg-surface-up` / `-up-2` /
      `-up-3` / `-down` / `-down-2` / `-down-3` = steps up/down). These are the BASE-PLANE fallback;
@@ -608,12 +608,6 @@
     --llm-foreground: 272 100% 74%;
     --subagent: 187 94% 43%;
 
-    /* Declared above .light so the app theme wrapper inherits DialKit's body override. */
-    --light-surface-base: oklch(0.94 0 0);
-    --light-border-delta: 0.04;
-    /* Sidebar fill; ThemeDialKit overrides it on <body>. */
-    --sidebar-surface: var(--color-surface-100);
-
     /* Border ramp keyed by surface elevation: border-N is the border drawn ON surface-N (see
        surfaceVars). Dark borders are the surface 5 ladder steps up. Kept out of @theme: Tailwind
        only emits theme vars a utility uses, and these are only read via surfaceVars' inline style. */
@@ -695,8 +689,6 @@
     --overlay-selected: oklch(0 0 0 / 0.07);
 
     /* GitHub Light / VS Code Light+ counterparts of the dark syntax colors. */
-    --sidebar-surface: var(--color-surface-100);
-
     --code-text: #1f2328;
     --code-span-text: #3f3f46;
     --code-muted: #6e7781;
@@ -765,6 +757,9 @@
     --subagent: 187 80% 31%;
 
     /* Same direction as dark: higher elevation steps lighten, clamped at white. */
+    /* Light surfaces step off one base; borders sit this much darker (OKLCH L) than their surface. */
+    --light-surface-base: oklch(0.94 0 0);
+    --light-border-delta: 0.04;
     --color-surface-00: oklch(from var(--light-surface-base) calc(l - 0.06) c h);
     --color-surface-50: oklch(from var(--light-surface-base) calc(l - 0.045) c h);
     --color-surface-100: oklch(from var(--light-surface-base) calc(l - 0.03) c h);

@@ -1,7 +1,6 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
-import Image from "next/image";
 import { type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 
 import logo from "@/assets/logo/laminar-wordmark.svg";
@@ -60,11 +59,20 @@ export default function StepShell({
     <div className="relative h-svh w-full flex items-stretch md:items-center justify-center py-4 md:py-6 lg:py-8 overflow-hidden">
       <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 2xl:gap-8 md:h-[42rem] xl:h-[46rem] 2xl:h-[50rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-4rem)]">
         <div className="flex items-center justify-between gap-3 px-4 shrink-0">
-          <Image
-            alt="Laminar logo"
-            src={logo}
-            className="w-[100px] lg:w-28 2xl:w-32 h-auto md:-translate-y-0.5"
-            priority
+          {/* mask + bg tint: the wordmark SVG has a hard white fill, so next/image can't follow the theme */}
+          <span
+            role="img"
+            aria-label="Laminar logo"
+            className="block w-[100px] lg:w-28 2xl:w-32 bg-foreground md:-translate-y-0.5"
+            style={{
+              maskImage: `url(${logo.src})`,
+              WebkitMaskImage: `url(${logo.src})`,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+              aspectRatio: `${logo.width} / ${logo.height}`,
+            }}
           />
           {isCloud && (
             <span className="text-[11px] xl:text-xs uppercase tracking-[0.08em] text-muted-foreground/80 tabular-nums">
@@ -89,7 +97,7 @@ export default function StepShell({
         )}
         <div className={cn("flex-1 min-h-0 flex flex-col", className)}>
           <div className="flex flex-col gap-2 pt-2 pb-1 xl:pt-3 xl:pb-2 px-4 shrink-0">
-            <h1 className="font-sans-landing text-[24px] font-[500] text-white whitespace-pre-line leading-tight tracking-[-0.015em]">
+            <h1 className="font-sans-landing text-[24px] font-[500] text-foreground whitespace-pre-line leading-tight tracking-[-0.015em]">
               {title}
             </h1>
             {description && <p className="text-sm text-secondary-foreground">{description}</p>}

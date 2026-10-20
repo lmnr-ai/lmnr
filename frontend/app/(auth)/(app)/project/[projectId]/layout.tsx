@@ -56,12 +56,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
           {announcementsEnabled && <AnnouncementDetailsDialog />}
-          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-(--sidebar-surface)">
-            <SidebarProvider
-              cookieName={projectSidebarCookieName}
-              className="bg-(--sidebar-surface)"
-              defaultOpen={defaultOpen}
-            >
+          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-surface-100">
+            <SidebarProvider cookieName={projectSidebarCookieName} className="bg-surface-100" defaultOpen={defaultOpen}>
               <ProjectSidebar
                 dismissedAnnouncementIds={dismissedAnnouncementIds}
                 details={projectDetails}

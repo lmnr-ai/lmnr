@@ -35,7 +35,7 @@ export default function ClusterList({ classified }: ClusterListProps) {
           <div
             className={cn(
               "flex w-7 items-center justify-center bg-surface-550 text-base tabular-nums transition-colors duration-200",
-              justLanded === i ? "text-white" : "text-foreground-300"
+              justLanded === i ? "text-foreground" : "text-foreground-300"
             )}
           >
             {count > 0 ? count : "-"}
