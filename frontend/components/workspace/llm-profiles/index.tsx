@@ -61,7 +61,7 @@ export default function LlmProfiles({ workspaceId }: LlmProfilesProps) {
         {data?.map((profile) => (
           <SettingsTableRow
             key={profile.id}
-            className="cursor-pointer hover:bg-muted/40"
+            className="cursor-pointer hover:overlay-hover"
             onClick={() => openEditor(profile)}
           >
             <td className="px-4 text-sm font-medium">{profile.name}</td>

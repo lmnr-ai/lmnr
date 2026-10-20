@@ -329,20 +329,20 @@ function ModeCard({ icon, title, description, isSelected, isActive, disabled, on
       onClick={onClick}
       className={cn(
         "relative flex flex-col gap-2 rounded-lg border-2 p-4 text-left transition-colors",
-        "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "hover:overlay-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-90",
         isSelected ? "border-primary bg-primary/5" : "border-border"
       )}
     >
       {isActive && (
-        <span className="absolute top-3 right-3 text-[10px] font-medium uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+        <span className="absolute top-3 right-3 text-[10px] font-medium uppercase tracking-wider text-primary-text bg-primary/10 px-2 py-0.5 rounded-full">
           Current
         </span>
       )}
       <div
         className={cn(
           "flex items-center justify-center h-9 w-9 rounded-md",
-          isSelected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+          isSelected ? "bg-primary/10 text-primary-text" : "bg-muted text-muted-foreground"
         )}
       >
         {icon}

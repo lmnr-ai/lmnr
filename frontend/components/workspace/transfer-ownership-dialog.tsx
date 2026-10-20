@@ -119,7 +119,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="workspace-name-input" className="text-secondary-foreground">
-              Type <span className="font-medium text-white">{workspace.name}</span> to confirm
+              Type <span className="font-medium text-foreground">{workspace.name}</span> to confirm
             </Label>
             <div className="space-y-1">
               <Input

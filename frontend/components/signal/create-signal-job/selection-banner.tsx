@@ -36,7 +36,7 @@ const SelectionBanner = ({
   if (selectionMode === "all") {
     return (
       <div className="flex items-center gap-2 px-2">
-        <CheckCircle2 className="size-4 text-primary shrink-0" />
+        <CheckCircle2 className="size-4 text-primary-text shrink-0" />
         <div className="flex-1 text-sm text-secondary-foreground">
           All <span className="font-medium">{traceCount.toLocaleString()}</span> matching traces selected
         </div>

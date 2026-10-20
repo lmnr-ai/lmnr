@@ -102,7 +102,7 @@ export default function StructuredOutputSheet({
             <span className="text-sm">JSON Schema</span>
             <Button
               onClick={() => setValue("structuredOutput", JSON.stringify(exampleStructuredOutput, null, 2))}
-              className="text-primary text-sm p-0"
+              className="text-primary-text text-sm p-0"
               variant="ghost"
             >
               <span className="text-sm">Insert example</span>

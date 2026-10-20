@@ -135,7 +135,7 @@ export default function DeleteProject() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="project-name-input" className="text-secondary-foreground">
-                Type <span className="font-medium text-white">{project?.name}</span> to confirm
+                Type <span className="font-medium text-foreground">{project?.name}</span> to confirm
               </Label>
               <Input
                 id="project-name-input"

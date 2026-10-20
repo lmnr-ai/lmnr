@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 const KINDS = {
   info: { icon: Info, className: "border-blue-400/40 bg-blue-400/5 text-blue-300" },
-  tip: { icon: Lightbulb, className: "border-primary/40 bg-primary/5 text-primary" },
+  tip: { icon: Lightbulb, className: "border-primary/40 bg-primary/5 text-primary-text" },
   warning: { icon: TriangleAlert, className: "border-yellow-400/40 bg-yellow-400/5 text-yellow-300" },
 } as const;
 

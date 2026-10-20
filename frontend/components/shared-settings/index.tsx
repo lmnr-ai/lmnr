@@ -31,6 +31,7 @@ import ProjectApiKeys from "@/components/settings/project-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import { AppearanceThemeSelector } from "@/components/shared-settings/appearance-theme-selector";
 import { Badge } from "@/components/ui/badge";
 import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -301,7 +302,7 @@ const SharedSettings = ({
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:bg-surface-150 active:bg-surface-200 data-[active=true]:bg-surface-200"
+                        className="flex items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
@@ -311,7 +312,7 @@ const SharedSettings = ({
                           {m.badge && (
                             <Badge
                               variant="outline"
-                              className="h-5 px-1.5 text-[11px] font-normal border-primary/30 bg-primary/5 text-primary/80"
+                              className="h-5 px-1.5 text-[11px] font-normal border-primary/30 bg-primary/5 text-primary-text/80"
                             >
                               {m.badge}
                             </Badge>
@@ -330,7 +331,7 @@ const SharedSettings = ({
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:bg-surface-150 active:bg-surface-200 data-[active=true]:bg-surface-200"
+                        className="flex items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
@@ -341,6 +342,15 @@ const SharedSettings = ({
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
+                </SidebarMenu>
+              </SidebarGroup>
+
+              <SidebarGroup className="pt-0">
+                <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Appearance</div>
+                <SidebarMenu>
+                  <SidebarMenuItem className="h-7">
+                    <AppearanceThemeSelector />
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroup>
             </SidebarContent>

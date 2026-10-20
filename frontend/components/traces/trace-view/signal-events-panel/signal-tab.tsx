@@ -23,14 +23,14 @@ import { worstSeverity } from "./utils";
  */
 const TAB = cn(
   "h-5.5 w-full min-w-0 rounded-md px-2 text-[11px]",
-  "data-[state=active]:bg-surface-up-5 dark:data-[state=active]:bg-surface-up-5",
+  "data-[state=active]:overlay-selected dark:data-[state=active]:overlay-selected",
   "data-[state=active]:text-foreground dark:data-[state=active]:text-foreground",
   "data-[state=active]:shadow-none",
   "text-secondary-foreground dark:text-secondary-foreground",
-  "hover:bg-surface-up-2 hover:text-foreground dark:hover:text-foreground",
+  "hover:overlay-hover hover:text-foreground dark:hover:text-foreground",
   // The active tab is already the painted one; lighting it further on hover
   // would promise the click does something.
-  "data-[state=active]:hover:bg-surface-up-5"
+  "data-[state=active]:hover:overlay-selected"
 );
 
 export default function SignalTab({ signal }: { signal: TraceSignal }) {

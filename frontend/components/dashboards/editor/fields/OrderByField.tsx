@@ -85,7 +85,7 @@ const OrderByField = () => {
                             variant="outline"
                             className={cn("text-[10px] py-0 px-1", {
                               "border-success text-success": availableField.type === "string",
-                              "border-primary text-primary": availableField.type === "number",
+                              "border-primary text-primary-text": availableField.type === "number",
                             })}
                           >
                             {availableField.type}
@@ -126,7 +126,7 @@ const OrderByField = () => {
         <Button
           icon="plus"
           size="sm"
-          className="text-primary hover:text-primary/80"
+          className="text-primary-text hover:text-primary-text/80"
           variant="ghost"
           onClick={addOrderBy}
           disabled={unselectedFields.length === 0}

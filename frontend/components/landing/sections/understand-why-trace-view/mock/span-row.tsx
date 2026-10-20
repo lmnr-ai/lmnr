@@ -24,7 +24,7 @@ const SpanRow = ({ span, isSelected, onSelect }: Props) => {
     <div
       onClick={() => onSelect(span.spanId)}
       className={cn(
-        "flex group/message cursor-pointer transition-all border-l-2 hover:bg-secondary",
+        "flex group/message cursor-pointer transition-all border-l-2 hover:overlay-hover",
         isSelected ? "bg-primary/15 border-l-primary hover:bg-primary/20" : "border-l-transparent"
       )}
     >

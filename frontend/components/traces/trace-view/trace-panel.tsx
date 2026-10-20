@@ -155,8 +155,8 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                       <Button
                         variant="ghost"
                         className={cn(
-                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
-                          browserSession && "text-primary hover:text-primary"
+                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:overlay-hover active:overlay-selected",
+                          browserSession && "text-primary-text hover:text-primary-text"
                         )}
                         disabled={!trace}
                         onClick={() => setBrowserSession(!browserSession)}

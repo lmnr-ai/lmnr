@@ -291,7 +291,7 @@ export default function WorkspaceBilling({
                     "text-xs px-2 py-0.5 rounded-md font-medium",
                     subscription.cancelAtPeriodEnd || subscription.trialEnd
                       ? "bg-yellow-500/10 text-yellow-500"
-                      : "bg-primary/10 text-primary"
+                      : "bg-primary/10 text-primary-text"
                   )}
                 >
                   {subscription.trialEnd

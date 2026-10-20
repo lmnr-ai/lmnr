@@ -93,7 +93,7 @@ export default function SignalsPipeline() {
           type="button"
           onClick={replay}
           aria-label="Replay animation"
-          className="absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-full bg-surface-300 text-foreground-400 transition-colors animate-in fade-in duration-200 hover:bg-surface-400 active:bg-surface-450"
+          className="absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-full bg-surface-300 text-foreground-400 transition-colors animate-in fade-in duration-200 hover:overlay-hover active:overlay-selected"
         >
           <RotateCcw className="size-4" strokeWidth={1.5} />
         </button>

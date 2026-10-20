@@ -95,9 +95,9 @@ export function surfaceVars(elevation: number): CSSProperties {
     "--color-surface-down-6": surfaceToken(e - 6),
     "--color-surface-down-7": surfaceToken(e - 7),
     "--color-surface-down-8": surfaceToken(e - 8),
-    // Border = the surface fill 5 elevation-steps up; clamps at the top of the ladder, always a
-    // defined token, so `border-color` can never fall back to currentColor (white).
-    "--color-border": surfaceToken(e + 5),
+    // Per-theme border ramp keyed by this level; always a defined token, so `border-color` can never
+    // fall back to currentColor (white).
+    "--color-border": `var(--color-border-${ELEVATION_TOKEN[e]})`,
   } as CSSProperties;
 }
 

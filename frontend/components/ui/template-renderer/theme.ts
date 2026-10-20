@@ -1,7 +1,7 @@
 /**
  * Laminar design tokens that are injected into the JSX renderer's twind config
  * so user/AI-generated templates can use the same semantic class names as the rest
- * of the platform (e.g. `bg-background`, `text-primary`, `border-border`).
+ * of the platform (e.g. `bg-background`, `text-primary-text`, `border-border`).
  *
  * These values MUST stay in sync with the HSL definitions in `frontend/app/globals.css`
  * (the `:root` block in particular). When you change a token in globals.css, mirror it

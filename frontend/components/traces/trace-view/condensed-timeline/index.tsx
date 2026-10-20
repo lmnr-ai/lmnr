@@ -347,7 +347,7 @@ function CondensedTimeline() {
         <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
           {/* Head */}
           <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
-            <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
+            <div className="px-1.5 py-0.5 bg-primary text-primary-foreground text-[10px] rounded whitespace-nowrap">
               {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
             </div>
           </div>

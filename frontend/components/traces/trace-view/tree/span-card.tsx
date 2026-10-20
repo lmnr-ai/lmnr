@@ -135,7 +135,7 @@ function SpanCardInner({
             )}
             {isExpandable && (
               <button
-                className="p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+                className="p-1 hover:overlay-hover transition-all text-muted-foreground rounded-sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleCollapse(span.spanId);

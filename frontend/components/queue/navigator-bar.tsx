@@ -191,15 +191,15 @@ export default function NavigatorBar() {
       </div>
 
       <div className="flex items-center gap-1 text-xs text-secondary-foreground tabular-nums shrink-0 whitespace-nowrap">
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50 transition-colors">
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:overlay-hover transition-colors">
           <Circle className="size-2.5 text-muted-foreground" />
           {progress.new}
         </span>
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50 transition-colors">
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:overlay-hover transition-colors">
           <Pencil className="size-2.5 text-amber-500" />
           {progress.modified}
         </span>
-        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50 transition-colors">
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:overlay-hover transition-colors">
           <Check className="size-2.5 text-success-bright" />
           {progress.approved}
         </span>

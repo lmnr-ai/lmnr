@@ -110,7 +110,7 @@ const RecentSearchChip = ({
       ref={ref}
       className={cn(
         "inline-flex items-center rounded-md border h-6 text-xs divide-x px-0.5 cursor-pointer shrink-0 transition-colors",
-        isActive ? "bg-accent border-primary/40" : "bg-background hover:bg-accent"
+        isActive ? "bg-accent border-primary/40" : "bg-background hover:overlay-hover"
       )}
       onMouseDown={(e) => {
         e.preventDefault();
@@ -128,7 +128,7 @@ const RecentSearchChip = ({
           <span key={tag.id} className="inline-flex items-center gap-1 px-1.5 h-4">
             <span className="text-secondary-foreground font-medium">{displayName}</span>
             <span className="text-secondary-foreground/80">{operatorLabel}</span>
-            <span className="text-primary">{displayValue}</span>
+            <span className="text-primary-text">{displayValue}</span>
           </span>
         );
       })}
@@ -283,7 +283,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       }}
                       className={cn(
                         "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
-                        isActive ? "bg-accent" : "hover:bg-accent"
+                        isActive ? "bg-accent" : "hover:overlay-hover"
                       )}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -308,7 +308,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       }}
                       className={cn(
                         "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
-                        isActive ? "bg-accent" : "hover:bg-accent"
+                        isActive ? "bg-accent" : "hover:overlay-hover"
                       )}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -330,7 +330,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                     }}
                     className={cn(
                       "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
-                      isActive ? "bg-accent" : "hover:bg-accent"
+                      isActive ? "bg-accent" : "hover:overlay-hover"
                     )}
                     onMouseDown={(e) => {
                       e.preventDefault();

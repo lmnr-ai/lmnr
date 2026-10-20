@@ -124,7 +124,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, tri
           <SettingsSectionHeader size="sm" title="Billing" description="Need to upgrade or manage your subscription?" />
           <Link
             href="?tab=billing"
-            className="text-primary hover:underline inline-flex items-center gap-1 text-sm w-fit"
+            className="text-primary-text hover:underline inline-flex items-center gap-1 text-sm w-fit"
           >
             Go to Billing
             <ArrowRight className="h-3.5 w-3.5" />

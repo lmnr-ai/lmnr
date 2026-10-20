@@ -107,7 +107,7 @@ function SpanItemInner({ span, output, onSpanSelect, isSelected, inGroup = false
     <div
       className={cn(
         "flex group/message cursor-pointer transition-all border-l-2",
-        inGroup ? "hover:bg-muted/80 bg-muted/60" : "hover:bg-secondary",
+        inGroup ? "hover:overlay-hover bg-muted/60" : "hover:overlay-hover",
         isSelected ? "bg-primary/15 border-l-primary hover:bg-primary/20" : "border-l-transparent",
         { "opacity-60": isCached },
         className

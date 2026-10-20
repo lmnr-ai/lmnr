@@ -550,7 +550,7 @@ export function AlertForm({
                             onClick={() => field.onChange(t)}
                             className={cn(
                               "flex flex-col gap-1 rounded-md border p-3 text-left transition-colors",
-                              isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                              isSelected ? "border-primary bg-primary/5" : "hover:overlay-hover",
                               isEditMode && "cursor-not-allowed opacity-60"
                             )}
                           >

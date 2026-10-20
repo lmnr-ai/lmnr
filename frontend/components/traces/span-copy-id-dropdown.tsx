@@ -29,7 +29,7 @@ export default function SpanCopyIdDropdown({ span }: { span: Span }) {
         <Button
           variant="ghost"
           aria-label="Span actions"
-          className="min-w-0 max-w-full justify-start gap-1 overflow-hidden px-1 text-base font-medium hover:bg-surface-up"
+          className="min-w-0 max-w-full justify-start gap-1 overflow-hidden px-1 text-base font-medium hover:overlay-hover"
         >
           <span className="min-w-0 truncate">{span.name}</span>
           <ChevronDown className="size-3.5 shrink-0" />

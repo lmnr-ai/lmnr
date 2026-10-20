@@ -323,7 +323,7 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
           size="sm"
           variant="ghost"
           className={cn(
-            "h-5 gap-1 bg-surface-up-2 px-1.5 text-xs font-medium text-secondary-foreground hover:bg-surface-up-4 active:bg-surface-up-5 data-[state=open]:bg-surface-up-5",
+            "h-5 gap-1 bg-surface-up-2 px-1.5 text-xs font-medium text-secondary-foreground hover:overlay-hover active:overlay-selected data-[state=open]:overlay-selected",
             triggerClassName
           )}
         >

@@ -203,7 +203,9 @@ const FilterSelect = ({
         onClick={() => onOpenChange(!open)}
         onKeyDown={handleKeyDown}
       >
-        <span className="truncate">{selectedOption?.label ?? <span className="text-primary">{placeholder}</span>}</span>
+        <span className="truncate">
+          {selectedOption?.label ?? <span className="text-primary-text">{placeholder}</span>}
+        </span>
       </button>
 
       {open && (
@@ -231,7 +233,7 @@ const FilterSelect = ({
               aria-selected={option.value === value}
               className={cn(
                 "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
-                "hover:bg-accent hover:text-accent-foreground",
+                "hover:overlay-hover hover:text-accent-foreground",
                 index === highlightedIndex && "bg-accent text-accent-foreground",
                 option.value === value && index !== highlightedIndex && "bg-accent/50"
               )}

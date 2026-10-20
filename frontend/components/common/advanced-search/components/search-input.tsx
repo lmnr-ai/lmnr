@@ -395,7 +395,7 @@ const FilterSearchInput = ({
           type="button"
           variant="ghost"
           onClick={() => clearAll()}
-          className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:bg-muted"
+          className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:overlay-hover"
           aria-label="Clear all filters"
         >
           <X className="size-4" />

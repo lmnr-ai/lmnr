@@ -38,7 +38,7 @@ export const EventCell = ({ row }: { row: SignalRunRow }) => {
           href={href}
           className={cn(
             "inline-flex items-center gap-1 text-xs min-w-0 hover:underline",
-            fired ? "text-primary" : "text-muted-foreground"
+            fired ? "text-primary-text" : "text-muted-foreground"
           )}
           onClick={(e) => {
             e.stopPropagation();

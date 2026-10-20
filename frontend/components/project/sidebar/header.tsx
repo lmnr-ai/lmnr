@@ -253,7 +253,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                 <span
                                   className={cn(
                                     "shrink-0 text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                                    { "border-primary bg-primary/10 text-primary": w.tierName === "Pro" }
+                                    { "border-primary bg-primary/10 text-primary-text": w.tierName === "Pro" }
                                   )}
                                 >
                                   {tierDisplayName(w.tierName)}

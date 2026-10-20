@@ -63,7 +63,7 @@ function LlmProfileFields() {
   const settingsLink = (
     <Link
       href={settingsHref("llm-profiles")}
-      className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+      className="inline-flex items-center gap-1 text-xs text-primary-text underline-offset-2 hover:underline"
     >
       Settings
       <ExternalLink className="size-3" />

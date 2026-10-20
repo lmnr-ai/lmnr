@@ -129,7 +129,7 @@ export default function ToolsSheet({
             <span className="text-sm">Tools definition</span>
             <Button
               onClick={() => setValue("tools", JSON.stringify(exampleTools, null, 2))}
-              className="text-primary text-sm p-0"
+              className="text-primary-text text-sm p-0"
               variant="ghost"
             >
               <span className="text-sm">Insert example</span>

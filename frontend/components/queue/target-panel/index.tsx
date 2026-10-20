@@ -77,7 +77,7 @@ export default function TargetPanel() {
       <div className="flex flex-1 flex-col overflow-hidden relative">
         {showOverlay && (
           <div className="z-30 absolute inset-0 bg-background/30 backdrop-blur-xs flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary-text" />
           </div>
         )}
         <Tabs
@@ -137,7 +137,7 @@ export default function TargetPanel() {
 function FieldsEmptyState({ onDefineSchema }: { onDefineSchema: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 px-4 text-center border border-dashed rounded-md">
-      <div className="flex items-center justify-center size-10 rounded-full bg-primary/10 text-primary">
+      <div className="flex items-center justify-center size-10 rounded-full bg-primary/10 text-primary-text">
         <Braces className="size-5" />
       </div>
       <div className="flex flex-col gap-1">

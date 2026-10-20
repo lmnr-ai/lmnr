@@ -124,7 +124,7 @@ export default function TraceItem({
             className={cn(
               "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px] pl-1.5 pr-3 bg-muted/75",
 
-              "hover:bg-muted/90"
+              "hover:overlay-hover"
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -141,7 +141,7 @@ export default function TraceItem({
                     tabIndex={0}
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="inline-flex items-center justify-center rounded hover:bg-secondary cursor-pointer"
+                    className="inline-flex items-center justify-center rounded hover:overlay-hover cursor-pointer"
                   >
                     <ChevronDown className="size-3.5 text-secondary-foreground" />
                   </span>

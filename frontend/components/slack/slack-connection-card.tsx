@@ -155,7 +155,7 @@ export default function SlackConnectionCard({
               <a
                 href={reconnectUrl}
                 onClick={() => track("integrations", "slack_reconnect_clicked")}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted/50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:overlay-hover"
               >
                 <RefreshCw className="h-3 w-3" />
                 Reconnect

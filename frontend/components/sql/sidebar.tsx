@@ -118,9 +118,12 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
 
   return (
     <div
-      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors", {
-        "bg-accent": selected,
-      })}
+      className={cn(
+        "group flex items-center px-2 py-1 rounded-md hover:overlay-hover cursor-pointer transition-colors",
+        {
+          "bg-accent": selected,
+        }
+      )}
       onClick={handleQueryClick}
     >
       {editing ? (
@@ -148,7 +151,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
               aria-label="More options"
               variant="ghost"
               size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:bg-muted"
+              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:overlay-hover"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="h-3 w-3" />

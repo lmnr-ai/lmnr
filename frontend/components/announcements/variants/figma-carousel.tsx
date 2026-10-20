@@ -51,7 +51,7 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
             }
             className={cn(
               "absolute inset-0 flex flex-col items-end justify-end gap-[4px] overflow-hidden rounded-[8px] bg-surface-200 px-[10px] pb-[10px] pt-[8px] transition-colors",
-              current.long_description && !isCloseHovered && "cursor-pointer hover:bg-surface-350"
+              current.long_description && !isCloseHovered && "cursor-pointer hover:overlay-hover"
             )}
           >
             <div
@@ -86,7 +86,7 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
               onPointerLeave={() => setIsCloseHovered(false)}
               className="group/close absolute right-0 top-0 flex items-center p-[8px] text-secondary-foreground hover:text-foreground"
             >
-              <span className="flex size-[24px] items-center justify-center rounded-full bg-surface-300 transition-colors group-hover/close:bg-surface-450">
+              <span className="flex size-[24px] items-center justify-center rounded-full bg-surface-300 transition-colors group-hover/close:overlay-hover">
                 <X className="size-[14px]" />
               </span>
             </button>

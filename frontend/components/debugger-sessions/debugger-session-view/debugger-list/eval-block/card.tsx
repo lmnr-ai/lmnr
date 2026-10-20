@@ -66,7 +66,7 @@ export const EvaluationCard = ({
           onClick={onToggle}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} evaluation ${evaluation.name}`}
-          className="absolute inset-0 h-full w-full bg-muted/75 transition-colors hover:bg-muted/90"
+          className="absolute inset-0 h-full w-full bg-muted/75 transition-colors hover:overlay-hover"
         />
         <div className="pointer-events-none relative flex h-[40px] w-full items-center justify-between gap-2 pl-2 pr-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -89,7 +89,7 @@ export const EvaluationCard = ({
               href={`/project/${projectId}/evaluations/${evaluation.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="pointer-events-auto inline-flex shrink-0 items-center rounded p-0.5 text-secondary-foreground opacity-0 transition-opacity hover:bg-secondary focus-visible:opacity-100 group-hover:opacity-100"
+              className="pointer-events-auto inline-flex shrink-0 items-center rounded p-0.5 text-secondary-foreground opacity-0 transition-opacity hover:overlay-hover focus-visible:opacity-100 group-hover:opacity-100"
               title="Open evaluation"
             >
               <ArrowUpRight className="size-4 shrink-0" />
@@ -158,7 +158,10 @@ const ScoreStat = ({
 }: ScoreWithDelta & { color?: string; onHover?: (name: string | null) => void }) => (
   <div className="flex flex-col gap-0.5" onMouseEnter={() => onHover?.(name)} onMouseLeave={() => onHover?.(null)}>
     <span
-      className={cn("flex items-center gap-1.5 truncate text-xs", isNew ? "text-primary" : "text-muted-foreground")}
+      className={cn(
+        "flex items-center gap-1.5 truncate text-xs",
+        isNew ? "text-primary-text" : "text-muted-foreground"
+      )}
       title={name}
     >
       {/* Color dot matching this score's line in the graph above. */}
@@ -167,7 +170,7 @@ const ScoreStat = ({
     </span>
     <div className="flex items-baseline gap-1.5">
       <span
-        className={cn("text-xl font-semibold tabular-nums", isNew ? "text-primary" : "text-foreground")}
+        className={cn("text-xl font-semibold tabular-nums", isNew ? "text-primary-text" : "text-foreground")}
         title={String(value)}
       >
         {Number.isFinite(value) ? formatScoreValue(value) : "-"}

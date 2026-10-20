@@ -126,7 +126,7 @@ function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
   return (
     <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
       {text.slice(0, start)}
-      <mark className="font-medium text-primary bg-primary/15 rounded px-0.5">{text.slice(start, end)}</mark>
+      <mark className="font-medium text-primary-text bg-primary/15 rounded px-0.5">{text.slice(start, end)}</mark>
       {text.slice(end)}
     </span>
   );

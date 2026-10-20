@@ -258,7 +258,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="workspace-name-input" className="text-secondary-foreground">
-                    Type <span className="font-medium text-white">{workspace.name}</span> to confirm
+                    Type <span className="font-medium text-foreground">{workspace.name}</span> to confirm
                   </Label>
                   <Controller
                     name="confirmationName"

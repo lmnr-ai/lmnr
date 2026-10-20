@@ -17,8 +17,8 @@ interface StringValueInputProps {
 }
 
 const inputClassName = cn(
-  "h-6 px-2 py-0 text-xs bg-transparent outline-none text-primary",
-  "placeholder:text-primary/50 max-w-60"
+  "h-6 px-2 py-0 text-xs bg-transparent outline-none text-primary-text",
+  "placeholder:text-primary-text/50 max-w-60"
 );
 
 const StringValueInput = ({ tagId, suggestions, focused, mode, ref }: StringValueInputProps) => {

@@ -94,7 +94,7 @@ const EmptyRow = (
             href="https://laminar.sh/docs/queues/quickstart"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-primary-text hover:underline"
           >
             Learn more
             <SquareArrowOutUpRight className="h-3.5 w-3.5" />

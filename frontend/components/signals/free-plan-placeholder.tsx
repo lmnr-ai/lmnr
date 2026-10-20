@@ -36,7 +36,7 @@ export default function SignalsFreePlanPlaceholder() {
       <div className="flex-1 overflow-y-auto px-4 pb-8">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pt-8">
           <div className="flex flex-col gap-3">
-            <span className="self-start rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            <span className="self-start rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
               Starter and Pro
             </span>
             <h1 className="text-2xl font-medium">Signals answer any question, from any trace, at scale.</h1>
@@ -82,7 +82,7 @@ export default function SignalsFreePlanPlaceholder() {
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {ONBOARDING_SIGNALS.map(({ name, description, icon: Icon }) => (
                 <ElevatedSurface key={name} level={5} className="flex flex-col gap-3 rounded-md p-3">
-                  <Icon className="size-5 text-primary" />
+                  <Icon className="size-5 text-primary-text" />
                   <div className="flex flex-col gap-1">
                     <span className="text-sm font-medium text-secondary-foreground">{name}</span>
                     <span className="text-xs text-muted-foreground">{description}</span>

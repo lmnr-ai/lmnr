@@ -42,7 +42,7 @@ const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Dat
 
   return (
     <div className="flex items-center space-x-2">
-      <Badge className="pointer-events-none text-xs bg-surface-up group-hover:bg-surface-up-3 py-px px-2 mr-2">
+      <Badge className="pointer-events-none text-xs text-foreground-100 bg-surface-up group-hover:overlay-hover py-px px-2 mr-2">
         {getTimeDifference(displayRange.from, displayRange.to)}
       </Badge>
       <span className="text-muted-foreground">

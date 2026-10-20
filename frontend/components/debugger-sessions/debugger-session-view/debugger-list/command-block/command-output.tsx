@@ -75,7 +75,7 @@ function JsonValue({ value, failed }: { value: unknown; failed?: boolean }) {
         <div className="pl-4">
           {entries.map(([key, child], i) => (
             <div key={key}>
-              <span className={failed ? "text-destructive" : "text-primary"}>&quot;{key}&quot;</span>
+              <span className={failed ? "text-destructive" : "text-primary-text"}>&quot;{key}&quot;</span>
               <span className="text-secondary-foreground">: </span>
               <JsonValue value={child} failed={failed} />
               {i < entries.length - 1 && <span className="text-secondary-foreground">,</span>}

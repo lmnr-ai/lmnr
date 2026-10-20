@@ -58,7 +58,7 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
           <button
             className={cn(
               "group flex w-full items-center gap-1 rounded-lg p-2 text-left text-xs transition-colors",
-              urgent ? "bg-primary/10 hover:bg-primary/15" : "bg-surface-200 hover:bg-surface-300"
+              urgent ? "bg-primary/10 hover:bg-primary/15" : "bg-surface-200 hover:overlay-hover"
             )}
           >
             <span className={cn("flex-1", urgent ? "text-foreground" : "text-muted-foreground")}>Starter trial</span>

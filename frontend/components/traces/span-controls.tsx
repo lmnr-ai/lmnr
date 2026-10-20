@@ -61,7 +61,7 @@ export function SpanControls({
                 variant="ghost"
                 size="icon-sm"
                 // Always-select layouts only stack below STACK_THRESHOLD; that's the only time closing makes sense.
-                className={cn("flex-shrink-0 hover:bg-surface-up", isAlwaysSelectSpan && "@min-[760px]:hidden")}
+                className={cn("flex-shrink-0 hover:overlay-hover", isAlwaysSelectSpan && "@min-[760px]:hidden")}
                 onClick={onClose}
                 aria-label="Close span panel"
               >

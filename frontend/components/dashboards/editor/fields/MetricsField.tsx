@@ -137,7 +137,7 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
                   variant="outline"
                   className={cn("text-[10px] py-0 px-1", {
                     "border-success text-success": col.type === "string",
-                    "border-primary text-primary": col.type === "number",
+                    "border-primary text-primary-text": col.type === "number",
                   })}
                 >
                   {col.type}
