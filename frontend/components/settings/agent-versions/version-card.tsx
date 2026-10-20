@@ -12,6 +12,7 @@ import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import SideBySideDialog from "./side-by-side-dialog";
+import ToolsDiff from "./tools-diff";
 import VersionModels from "./version-models";
 
 interface VersionCardProps {
@@ -113,10 +114,7 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
                     />
                   }
                 >
-                  <DiffView
-                    oldText={prettyJson(previous.toolDefinitions)}
-                    newText={prettyJson(version.toolDefinitions)}
-                  />
+                  <ToolsDiff oldText={previous.toolDefinitions} newText={version.toolDefinitions} />
                 </Field>
               )}
             </>
