@@ -19,6 +19,7 @@ impl ResponseError for Error {
                 SqlQueryError::ValidationError(_) => StatusCode::BAD_REQUEST,
                 SqlQueryError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 SqlQueryError::BadResponseError(_) => StatusCode::BAD_REQUEST,
+                SqlQueryError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             },
         }
     }

@@ -242,6 +242,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint was created" },
       { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "dataset_name", type: "String", description: "Name of the dataset" },
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
@@ -257,6 +258,7 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "When the dataset datapoint version was created",
       },
       { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "dataset_name", type: "String", description: "Name of the dataset" },
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
@@ -267,6 +269,7 @@ export const tableSchemas: Record<string, TableSchema> = {
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
       { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "evaluation_name", type: "String", description: "Name of the evaluation" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
       { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
@@ -361,9 +364,10 @@ export const tableSchemas: Record<string, TableSchema> = {
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
       { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "signal_name", type: "String", description: "Current name of the signal" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
       { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
-      { name: "name", type: "String", description: "Name of the signal event" },
+      { name: "name", type: "String", description: "Alias of signal_name, kept for older queries" },
       { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
       { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
       {
@@ -391,6 +395,48 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "UInt32",
         description: "Signal definition version that produced the event. 0 predates versioning",
       },
+    ],
+  },
+  signals: {
+    description:
+      "Signal definitions stored in Postgres: prompt, output schema, model, and current version. Join to signal_events, signal_runs, or traces.signal_events on signals.id = signal_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "name", type: "String", description: "Signal name, unique per project" },
+      { name: "prompt", type: "String", description: "Signal definition prompt" },
+      {
+        name: "structured_output_schema",
+        type: "String",
+        description: "JSON schema the signal's output conforms to",
+      },
+      { name: "metadata", type: "String", description: "Signal metadata, as a JSON object" },
+      {
+        name: "llm_model",
+        type: "Nullable(String)",
+        description: "Model the signal runs on; NULL when it uses the deployment default",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the signal was created" },
+      { name: "version", type: "Int32", description: "Current definition version" },
+    ],
+  },
+  evaluations: {
+    description:
+      "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "name", type: "String", description: "Evaluation name" },
+      { name: "group_id", type: "String", description: "Group the evaluation belongs to" },
+      { name: "metadata", type: "Nullable(String)", description: "Evaluation metadata, as a JSON object" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the evaluation was created" },
+    ],
+  },
+  datasets: {
+    description: "Datasets stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "name", type: "String", description: "Dataset name" },
+      { name: "indexed_on", type: "Nullable(String)", description: "Legacy indexing setting, unused; usually NULL" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dataset was created" },
     ],
   },
   clusters: {

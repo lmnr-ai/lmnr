@@ -155,6 +155,25 @@ rather than the shared `drizzle` schema. Note that running Laminar alongside
 another Drizzle-managed service in the same database may still require manual
 intervention, since Drizzle's migration journal is versioned per-schema.
 
+### SQL access to Postgres entities (optional)
+
+Some SQL tables are read live from Postgres: `signals`, `evaluations` and `datasets`,
+plus the signal, evaluation and dataset names on `signal_events`, `evaluation_datapoints`
+and `dataset_datapoints`.
+ClickHouse reads them through a dedicated read-only role, which is off until you set
+both of these in your `.env`:
+
+```sh
+CLICKHOUSE_POSTGRES_USER=clickhouse_ro
+CLICKHOUSE_POSTGRES_PASSWORD=<choose a strong password>
+```
+
+On boot the frontend creates that role with `SELECT` on only the columns it needs. Use
+a dedicated role: the frontend refuses to use the app's own Postgres user or a
+privileged role. Without them, those tables and columns return an error. If Postgres
+is not the compose `postgres` service, also set `CLICKHOUSE_POSTGRES_HOST` /
+`CLICKHOUSE_POSTGRES_PORT` as the ClickHouse server reaches it.
+
 ## Anonymous usage telemetry
 
 Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
