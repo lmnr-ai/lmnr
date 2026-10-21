@@ -8,7 +8,7 @@ import { CATEGORICAL_COLOR_PALETTE } from "@/lib/colors";
 // step off the surface ramp rather than a palette entry: it is the ABSENCE of a
 // cluster, and the accent it used to wear made it read as the most important one
 // on screen. 500 sits well clear of the card (100) and of the runs overlay (350).
-export const UNCLUSTERED_COLOR = "var(--color-surface-500)";
+export const UNCLUSTERED_COLOR = "var(--unclustered)";
 
 // Bump to shift every cluster's color into a different palette slot.
 // Stays under FNV's seed (a u32) so the hash domain doesn't degenerate.

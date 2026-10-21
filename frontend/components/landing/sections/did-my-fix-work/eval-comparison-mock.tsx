@@ -270,7 +270,7 @@ const EvalComparisonMock = ({ className }: Props) => {
           <div className="w-[180px] shrink-0 px-2 py-2 pr-3">Metadata</div>
         </div>
         {DATAPOINTS.map((dp, i) => (
-          <div key={i} className="flex border-b text-sm last:border-b-0 hover:bg-muted/40 transition-colors">
+          <div key={i} className="flex border-b text-sm last:border-b-0 hover:overlay-hover transition-colors">
             <div className="w-[56px] shrink-0 px-3 py-2">
               <StatusCheck />
             </div>

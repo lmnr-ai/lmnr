@@ -25,7 +25,7 @@ export function Field({ label, children, as = "label" }: { label: string; childr
 // Subtle single-box code display.
 export function UserCodeDisplay({ code }: { code: string }) {
   return (
-    <div className="w-full select-all rounded-md border bg-muted px-4 py-2 text-center font-mono text-lg tracking-[0.2em] text-foreground">
+    <div className="w-full select-all rounded-md border bg-emphasis-1 px-4 py-2 text-center font-mono text-lg tracking-[0.2em] text-foreground">
       {code}
     </div>
   );

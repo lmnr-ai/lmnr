@@ -30,7 +30,7 @@ const ISSUE_COLOR_BY_CELL = (() => {
 const cellClass = "flex size-full items-center justify-center";
 
 const TraceCell = () => (
-  <div className={cn(cellClass, "bg-surface-350")}>
+  <div className={cn(cellClass, "bg-surface-550")}>
     <span className="size-[3px] rounded-full bg-[#808080]" />
   </div>
 );
@@ -39,8 +39,8 @@ const IssueCell = ({ index }: { index: number }) => {
   const color = ISSUE_COLOR_BY_CELL[index];
   const muted = color === MUTED_COLOR;
   return (
-    <div className={cn(cellClass, muted ? "bg-surface-300" : "bg-surface-350")}>
-      <WarningMark color={color} markColor={muted ? "var(--color-surface-300)" : "var(--color-surface-350)"} />
+    <div className={cn(cellClass, muted ? "bg-surface-500" : "bg-surface-550")}>
+      <WarningMark color={color} markColor={muted ? "var(--color-surface-500)" : "var(--color-surface-550)"} />
     </div>
   );
 };
@@ -55,13 +55,13 @@ interface CellBoxProps {
 
 export const CellBox = ({ rect, kind, count, opacity }: CellBoxProps) => (
   <div
-    className="absolute flex flex-wrap content-start bg-surface-350"
+    className="absolute flex flex-wrap content-start bg-surface-550"
     style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, opacity }}
   >
     {Array.from({ length: BOX_CELLS[kind] }, (_, index) => (
       <div
         key={index}
-        className="border-r border-b border-surface-300"
+        className="border-r border-b border-surface-500"
         style={{ width: CELL, height: CELL, opacity: Math.max(0, Math.min(1, count - index)) }}
       >
         {kind === "traces" ? <TraceCell /> : <IssueCell index={index} />}

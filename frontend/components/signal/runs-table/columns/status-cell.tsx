@@ -18,7 +18,7 @@ const STATUS_DISPLAY: Record<SignalRunStatus, { icon: LucideIcon; className: str
   PENDING: { icon: Clock, className: "text-muted-foreground" },
   PROCESSING: { icon: Loader2, className: "text-muted-foreground" },
   COMPLETED: { icon: Check, className: "text-muted-foreground" },
-  FAILED: { icon: X, className: "text-destructive" },
+  FAILED: { icon: X, className: "text-destructive-text" },
   UNKNOWN: { icon: CircleHelp, className: "text-muted-foreground" },
 };
 

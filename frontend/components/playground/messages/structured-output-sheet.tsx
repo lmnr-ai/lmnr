@@ -102,7 +102,7 @@ export default function StructuredOutputSheet({
             <span className="text-sm">JSON Schema</span>
             <Button
               onClick={() => setValue("structuredOutput", JSON.stringify(exampleStructuredOutput, null, 2))}
-              className="text-primary text-sm p-0"
+              className="text-primary-text text-sm p-0"
               variant="ghost"
             >
               <span className="text-sm">Insert example</span>
@@ -115,7 +115,7 @@ export default function StructuredOutputSheet({
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {
-                    "border border-destructive/75": errors.structuredOutput?.message,
+                    "border border-destructive-border/75": errors.structuredOutput?.message,
                   })}
                   defaultMode="json"
                   modes={["JSON"]}

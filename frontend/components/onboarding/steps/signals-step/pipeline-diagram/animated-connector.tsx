@@ -16,7 +16,7 @@ export default function AnimatedConnector({ time, timing }: AnimatedConnectorPro
 
   return (
     <div className="relative h-0.5 w-15 min-w-6 shrink">
-      <div className="absolute inset-0 origin-left bg-surface-400" style={{ transform: `scaleX(${drawn})` }} />
+      <div className="absolute inset-0 origin-left bg-surface-600" style={{ transform: `scaleX(${drawn})` }} />
       {Array.from({ length: emissionCount }).map((_, i) => {
         const elapsed = time - (timing.emitStart + i / BIT_FREQUENCY);
         if (elapsed < 0 || elapsed >= BIT_TRAVEL) return null;

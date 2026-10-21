@@ -290,10 +290,11 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
         {fields.length > 0 && (
           <div>
             <div className="mb-1">
-              <strong>Navigation:</strong> <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">Tab</kbd> to
-              navigate between dimensions,{" "}
-              <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">Shift+Tab</kbd> to go backwards,{" "}
-              <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">a</kbd> to focus on the first dimension
+              <strong>Navigation:</strong>{" "}
+              <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Tab</kbd> to navigate between
+              dimensions, <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Shift+Tab</kbd> to go
+              backwards, <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">a</kbd> to focus on
+              the first dimension
             </div>
             <div className="mb-1">
               <strong>Keys 0-9:</strong> Select options within the focused dimension

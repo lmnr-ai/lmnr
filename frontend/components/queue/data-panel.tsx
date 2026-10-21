@@ -66,7 +66,7 @@ function SourceBadge({ meta }: { meta: SourceMeta }) {
       title={meta.hoverTitle}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-secondary-foreground",
-        meta.link && "hover:bg-muted hover:text-foreground transition-colors"
+        meta.link && "hover:overlay-hover hover:text-foreground transition-colors"
       )}
     >
       <Icon className="size-3 shrink-0" />

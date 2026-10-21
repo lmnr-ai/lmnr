@@ -129,7 +129,7 @@ export default function ToolsSheet({
             <span className="text-sm">Tools definition</span>
             <Button
               onClick={() => setValue("tools", JSON.stringify(exampleTools, null, 2))}
-              className="text-primary text-sm p-0"
+              className="text-primary-text text-sm p-0"
               variant="ghost"
             >
               <span className="text-sm">Insert example</span>
@@ -142,7 +142,7 @@ export default function ToolsSheet({
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {
-                    "border border-destructive/75": errors.tools?.message,
+                    "border border-destructive-border/75": errors.tools?.message,
                   })}
                   defaultMode="json"
                   modes={["JSON"]}

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ChevronsUpDown, Plus } from "lucide-react";
+import { ArrowLeft, ChevronDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
@@ -89,9 +89,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   }, [otherProjectsError, toast]);
 
   return (
-    <SidebarHeader className="px-0 mt-2">
+    <SidebarHeader className="px-0 mt-1.5">
       <SidebarMenu>
-        <SidebarMenuItem className="m-0 px-2 flex items-center">
+        <SidebarMenuItem className="m-0 pl-3 pr-2 flex items-center gap-0.5 group-data-[collapsible=icon]:px-2">
           <div className="flex-1 overflow-hidden">
             <DropdownMenu
               onOpenChange={(o) => {
@@ -105,7 +105,12 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
             >
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
-                  className={cn("flex items-center justify-center px-1.5", { border: !open && !openMobile })}
+                  className={cn(
+                    "flex w-auto max-w-full items-center justify-center px-2 data-[state=open]:overlay-selected",
+                    {
+                      border: !open && !openMobile,
+                    }
+                  )}
                 >
                   <AnimatePresence mode="wait" initial={false}>
                     {!open && !openMobile ? (
@@ -126,17 +131,17 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.5 }}
                         transition={{ duration: 0.1 }}
-                        className="flex items-center w-full"
+                        className="flex min-w-0 items-center"
                       >
                         <span className="truncate font-medium leading-tight">{project?.name}</span>
-                        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-secondary-foreground" />
+                        <ChevronDown className="ml-1 size-4 shrink-0 text-secondary-foreground" />
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs p-0"
+                className="w-64 rounded-lg text-xs p-0"
                 align="start"
                 sideOffset={4}
                 side={isMobile ? "bottom" : "right"}
@@ -161,7 +166,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                               setDirection(-1);
                               setView("workspaces");
                             }}
-                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:text-primary-foreground"
+                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:text-foreground-100"
                           >
                             <ArrowLeft className="size-3 shrink-0" />
                             <span className="truncate">All workspaces</span>
@@ -190,10 +195,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                 >
                                   <DropdownMenuItem
                                     className={cn("cursor-pointer", {
-                                      "bg-accent": isSelectedCurrent && p.id === projectId,
+                                      "overlay-selected focus:overlay-selected":
+                                        isSelectedCurrent && p.id === projectId,
                                     })}
                                   >
-                                    <span className="min-w-0 truncate text-xs text-sidebar-foreground font-medium">
+                                    <span className="min-w-0 truncate text-xs text-foreground-50 font-medium">
                                       {p.name}
                                     </span>
                                   </DropdownMenuItem>
@@ -245,15 +251,17 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                   setDirection(1);
                                   setView("projects");
                                 }}
-                                className={cn("cursor-pointer", { "bg-accent": w.id === selectedWorkspaceId })}
+                                className={cn("cursor-pointer", {
+                                  "overlay-selected focus:overlay-selected": w.id === selectedWorkspaceId,
+                                })}
                               >
-                                <span className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground font-medium">
+                                <span className="min-w-0 flex-1 truncate text-xs text-foreground-50 font-medium">
                                   {w.name}
                                 </span>
                                 <span
                                   className={cn(
                                     "shrink-0 text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                                    { "border-primary bg-primary/10 text-primary": w.tierName === "Pro" }
+                                    { "border-primary bg-primary/10 text-primary-text": w.tierName === "Pro" }
                                   )}
                                 >
                                   {tierDisplayName(w.tierName)}

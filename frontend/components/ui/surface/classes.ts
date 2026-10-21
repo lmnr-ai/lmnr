@@ -2,9 +2,9 @@ import { clamp } from "lodash";
 import { type CSSProperties } from "react";
 
 /**
- * The elevation ladder: level 1 (base plane) … 16 (most elevated), each naming its step on the
- * 50-step surface scale (surface-00 … surface-800). The in-between shade surface-50 exists for
- * manual use and is not on the ladder.
+ * The elevation ladder: levels 1-4 are sunken (below the page), 5 is the base plane, 6-20 rise
+ * above it. Each level names its step on the 50-step surface scale (surface-00 … surface-1000).
+ * The in-between shade surface-250 exists for manual use and is not on the ladder.
  *
  * Tailwind v4's scanner only emits a utility for literal class strings it sees in source. A
  * template-literal name like `bg-surface-${n}` is invisible to it, so SURFACE_BG spells the names
@@ -14,10 +14,10 @@ import { type CSSProperties } from "react";
  */
 const ELEVATION_TOKEN = {
   1: "00",
-  2: "100",
-  3: "150",
-  4: "200",
-  5: "250",
+  2: "50",
+  3: "100",
+  4: "150",
+  5: "200",
   6: "300",
   7: "350",
   8: "400",
@@ -29,16 +29,20 @@ const ELEVATION_TOKEN = {
   14: "700",
   15: "750",
   16: "800",
+  17: "850",
+  18: "900",
+  19: "950",
+  20: "1000",
 } as const;
 
 type Elevation = keyof typeof ELEVATION_TOKEN;
 
 export const SURFACE_BG: Record<Elevation, string> = {
   1: "bg-surface-00",
-  2: "bg-surface-100",
-  3: "bg-surface-150",
-  4: "bg-surface-200",
-  5: "bg-surface-250",
+  2: "bg-surface-50",
+  3: "bg-surface-100",
+  4: "bg-surface-150",
+  5: "bg-surface-200",
   6: "bg-surface-300",
   7: "bg-surface-350",
   8: "bg-surface-400",
@@ -50,9 +54,15 @@ export const SURFACE_BG: Record<Elevation, string> = {
   14: "bg-surface-700",
   15: "bg-surface-750",
   16: "bg-surface-800",
+  17: "bg-surface-850",
+  18: "bg-surface-900",
+  19: "bg-surface-950",
+  20: "bg-surface-1000",
 };
 
 export const MIN_ELEVATION = 1;
+// The page background. Levels below it are sunken wells (`surface-down` from the base plane).
+export const BASE_ELEVATION = 5;
 // Derived, so adding a rung to the ladder above is the only edit needed to extend the range.
 export const MAX_ELEVATION = Object.keys(ELEVATION_TOKEN).length;
 
@@ -73,7 +83,7 @@ const surfaceToken = (elevation: number): string =>
  * an intermediate: an alias like `--color-surface-up: var(--surface-up)` declared at `:root`
  * resolves its `var()` once at `:root` (frozen to the base plane) and a deeper override of the
  * intermediate never propagates. These values are static ramp tokens, so they can't refreeze.
- * Down-steps clamp at the base plane; up-steps and the border clamp at the top.
+ * Down-steps reach into the sunken levels and clamp at the bottom; up-steps and the border clamp at the top.
  */
 export function surfaceVars(elevation: number): CSSProperties {
   const e = clampElevation(elevation);
@@ -95,9 +105,9 @@ export function surfaceVars(elevation: number): CSSProperties {
     "--color-surface-down-6": surfaceToken(e - 6),
     "--color-surface-down-7": surfaceToken(e - 7),
     "--color-surface-down-8": surfaceToken(e - 8),
-    // Border = the surface fill 5 elevation-steps up; clamps at the top of the ladder, always a
-    // defined token, so `border-color` can never fall back to currentColor (white).
-    "--color-border": surfaceToken(e + 5),
+    // Per-theme border ramp keyed by this level; always a defined token, so `border-color` can never
+    // fall back to currentColor (white).
+    "--color-border": `var(--color-border-${ELEVATION_TOKEN[e]})`,
   } as CSSProperties;
 }
 

@@ -1,15 +1,17 @@
 import { Eye } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { useAppThemeOrDefault } from "@/components/theme/app-theme-provider";
+import { type AppTheme } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 
 import { normalizeTemplateCode } from "./normalize";
-import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
+import { LAMINAR_IFRAME_THEME, laminarIframeThemeCss, laminarIframeThemeJson, tokenCss } from "./theme";
 
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
 const SELECT_SPAN_MESSAGE_TYPE = "__TEMPLATE_SELECT_SPAN__";
 
-const createIframeContent = (templateCode: string): string => {
+const createIframeContent = (templateCode: string, theme: AppTheme): string => {
   const escapedTemplateCode = templateCode
     .replace(/\\/g, "\\\\")
     .replace(/`/g, "\\`")
@@ -20,7 +22,7 @@ const createIframeContent = (templateCode: string): string => {
   const bodyFontFamily = LAMINAR_IFRAME_THEME.fontFamily.sans.map((f) => (f.includes(" ") ? `'${f}'` : f)).join(", ");
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -55,6 +57,7 @@ const createIframeContent = (templateCode: string): string => {
   </script>
   
   <style>
+    ${laminarIframeThemeCss()}
     * { box-sizing: border-box; }
     html, body { min-height: 100%; }
     #root { min-height: 100%; }
@@ -62,17 +65,17 @@ const createIframeContent = (templateCode: string): string => {
       margin: 0; 
       font-family: ${bodyFontFamily};
       line-height: 1.5;
-      background: ${LAMINAR_IFRAME_THEME.colors.background};
-      color: ${LAMINAR_IFRAME_THEME.colors.foreground};
+      background: ${tokenCss("background")};
+      color: ${tokenCss("foreground")};
       overflow-x: hidden;
       overflow-y: auto;
     }
     *::-webkit-scrollbar { width: 6px; height: 1px; }
-    *::-webkit-scrollbar-track { background: ${LAMINAR_IFRAME_THEME.colors.secondary.DEFAULT}; }
-    *::-webkit-scrollbar-thumb { background: ${LAMINAR_IFRAME_THEME.colors.border}; border-radius: 10px; }
-    *::-webkit-scrollbar-thumb:hover { background: ${LAMINAR_IFRAME_THEME.colors.border}CC; }
-    html, body { scrollbar-color: ${LAMINAR_IFRAME_THEME.colors.border} ${LAMINAR_IFRAME_THEME.colors.border}33; }
-    .error { color: ${LAMINAR_IFRAME_THEME.colors["destructive-bright"]}; padding: 1rem; font-size: 0.875rem; }
+    *::-webkit-scrollbar-track { background: ${tokenCss("secondary")}; }
+    *::-webkit-scrollbar-thumb { background: ${tokenCss("border")}; border-radius: 10px; }
+    *::-webkit-scrollbar-thumb:hover { background: ${tokenCss("border", 0.8)}; }
+    html, body { scrollbar-color: ${tokenCss("border")} ${tokenCss("border", 0.2)}; }
+    .error { color: ${tokenCss("destructive-text")}; padding: 1rem; font-size: 0.875rem; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>
 </head>
@@ -209,14 +212,15 @@ const createIframeContent = (templateCode: string): string => {
 </html>`;
 };
 
-const createErrorContent = (message: string): string => `
+const createErrorContent = (message: string, theme: AppTheme): string => `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme}">
 <head>
   <meta charset="utf-8">
   <style>
-    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: ${LAMINAR_IFRAME_THEME.colors.background}; color: ${LAMINAR_IFRAME_THEME.colors.foreground}; }
-    .error { color: ${LAMINAR_IFRAME_THEME.colors["destructive-bright"]}; background: rgba(204, 51, 51, 0.08); padding: 1rem; border-radius: 0.375rem; border: 1px solid ${LAMINAR_IFRAME_THEME.colors.border}; font-size: 0.875rem; }
+    ${laminarIframeThemeCss()}
+    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: ${tokenCss("background")}; color: ${tokenCss("foreground")}; }
+    .error { color: ${tokenCss("destructive-text")}; background: ${tokenCss("destructive", 0.08)}; padding: 1rem; border-radius: 0.375rem; border: 1px solid ${tokenCss("border")}; font-size: 0.875rem; }
   </style>
 </head>
 <body>
@@ -251,6 +255,10 @@ const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }
   // freshly-mounted iframe (e.g. after the empty-state → populated transition)
   // gets queued data even when `data` itself didn't change.
   const latestDataRef = useRef(data);
+  const theme = useAppThemeOrDefault();
+  // Read by the [code] effect so a theme switch restyles in place instead of
+  // rebuilding the iframe (which would reset the template's own state).
+  const themeRef = useRef(theme);
 
   // Keep the latest callback + data available to the [code]-keyed message
   // listener. Declared before the [code] effect so it runs first on each commit.
@@ -258,6 +266,7 @@ const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }
   useEffect(() => {
     onSelectSpanRef.current = onSelectSpan;
     latestDataRef.current = data;
+    themeRef.current = theme;
   });
 
   useEffect(() => {
@@ -286,15 +295,27 @@ const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }
     window.addEventListener("message", handleReady);
 
     try {
-      iframe.srcdoc = createIframeContent(normalizeTemplateCode(code));
+      iframe.srcdoc = createIframeContent(normalizeTemplateCode(code), themeRef.current);
     } catch (error) {
       iframe.srcdoc = createErrorContent(
-        error instanceof Error ? error.message : "Failed to initialize template renderer"
+        error instanceof Error ? error.message : "Failed to initialize template renderer",
+        themeRef.current
       );
     }
 
     return () => window.removeEventListener("message", handleReady);
   }, [code]);
+
+  // Same-origin iframe (`allow-same-origin`), so the theme flips in place.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const apply = () => iframe.contentDocument?.documentElement.setAttribute("data-theme", theme);
+    apply();
+    // Covers a theme switch while a new srcdoc is still loading.
+    iframe.addEventListener("load", apply);
+    return () => iframe.removeEventListener("load", apply);
+  }, [theme]);
 
   useEffect(() => {
     const iframe = iframeRef.current;

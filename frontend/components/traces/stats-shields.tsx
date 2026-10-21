@@ -193,7 +193,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
             <Clock3 size={14} className="min-w-3 min-h-3" />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {formatDurationMs(durationMs)}
             </Label>
           </div>
@@ -211,7 +211,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         <TooltipTrigger>
           <div className="flex space-x-1 items-center">
             <Coins className="min-w-3" size={14} />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {formatTokensCompact(stats.totalTokens)}
             </Label>
           </div>
@@ -235,7 +235,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
             <CircleDollarSign className="min-w-3" size={14} />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {formatCostNumber(stats.totalCost)}
             </Label>
           </div>
@@ -253,7 +253,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
     <div
       className={cn(
         "flex h-6 items-center gap-2.5 px-2 rounded-md overflow-hidden text-xs min-w-0",
-        variant === "outline" ? "border border-muted text-white" : "bg-surface-up-2 text-secondary-foreground",
+        variant === "outline" ? "border border-muted text-foreground" : "bg-emphasis-1 text-secondary-foreground",
         className
       )}
     >

@@ -219,7 +219,7 @@ function SessionTimeline() {
           style={{ left: `${hoverInfo.needleLeftPercent}%` }}
         >
           <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
-            <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
+            <div className="px-1.5 py-0.5 bg-primary text-primary-foreground text-[10px] rounded whitespace-nowrap">
               {formatTimeMarkerLabel(Math.round(hoverInfo.timeMs))}
             </div>
           </div>

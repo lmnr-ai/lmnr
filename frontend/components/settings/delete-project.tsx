@@ -106,7 +106,7 @@ export default function DeleteProject() {
                     onClick={() => setIsDialogOpen(true)}
                     variant="outline"
                     disabled={isOnlyProject}
-                    className="w-fit text-destructive border-destructive"
+                    className="w-fit text-destructive-text border-destructive-border"
                   >
                     Delete project
                   </Button>
@@ -125,7 +125,7 @@ export default function DeleteProject() {
 
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete project</DialogTitle>
+            <DialogTitle className="text-destructive-text">Delete project</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -135,7 +135,7 @@ export default function DeleteProject() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="project-name-input" className="text-secondary-foreground">
-                Type <span className="font-medium text-white">{project?.name}</span> to confirm
+                Type <span className="font-medium text-foreground">{project?.name}</span> to confirm
               </Label>
               <Input
                 id="project-name-input"
@@ -146,11 +146,11 @@ export default function DeleteProject() {
                 className={cn(
                   inputProjectName &&
                     inputProjectName !== project?.name &&
-                    "border-destructive focus-visible:ring-destructive"
+                    "border-destructive-border focus-visible:ring-destructive-border"
                 )}
               />
               {inputProjectName && inputProjectName !== project?.name && (
-                <p className="text-xs text-destructive">Project name does not match</p>
+                <p className="text-xs text-destructive-text">Project name does not match</p>
               )}
             </div>
           </div>

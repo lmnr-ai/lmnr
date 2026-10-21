@@ -246,7 +246,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
       tabIndex={focusState.type !== "idle" && focusState.mode === "nav" ? 0 : -1}
       className={cn(
         "inline-flex items-center rounded-md border bg-background h-6",
-        "divide-x divide-input transition-all outline-none",
+        "divide-x transition-all outline-none",
         "data-[selected=true]:border-primary data-[selected=true]:ring-1 data-[selected=true]:ring-primary/60"
       )}
       data-selected={isSelected}

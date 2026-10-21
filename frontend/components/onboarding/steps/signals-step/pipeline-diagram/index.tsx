@@ -58,7 +58,7 @@ export default function PipelineDiagram() {
   const clusters = arrivalProgress(time, CONNECTORS.eventsToClusters, CLASSIFIED_EVENT_COUNT);
 
   return (
-    <div className="relative bg-surface-200">
+    <div className="relative bg-surface-400">
       {/* Below sm the zoomed diagram spans edge to edge; extra room keeps the replay button off the nodes. */}
       <div ref={ref} className="overflow-hidden max-sm:pb-6">
         <div
@@ -77,7 +77,7 @@ export default function PipelineDiagram() {
           </PipelineNode>
           <AnimatedConnector time={time} timing={CONNECTORS.agentToTraces} />
           <PipelineNode label="Traces" time={time} growAt={NODE_GROW_AT.traces} width={100} height={BOX_HEIGHT}>
-            <div className="flex h-30 w-25 flex-wrap content-start gap-1.5 bg-surface-350 p-2">
+            <div className="flex h-30 w-25 flex-wrap content-start gap-1.5 bg-surface-550 p-2">
               {Array.from({ length: TRACE_COUNT }).map((_, i) => (
                 <div key={i} className="size-1 rounded-full bg-foreground-400" style={pop(itemReveal(traces, i))} />
               ))}
@@ -95,7 +95,7 @@ export default function PipelineDiagram() {
           </PipelineNode>
           <AnimatedConnector time={time} timing={CONNECTORS.signalToEvents} />
           <PipelineNode label="Events" time={time} growAt={NODE_GROW_AT.events} width={100} height={BOX_HEIGHT}>
-            <div className="flex h-30 w-25 flex-wrap content-start gap-2 bg-surface-350 p-2">
+            <div className="flex h-30 w-25 flex-wrap content-start gap-2 bg-surface-550 p-2">
               {Array.from({ length: EVENT_COUNT }).map((_, i) => (
                 <WarningIcon key={i} className="text-foreground-500" style={pop(itemReveal(events, i))} />
               ))}
@@ -112,7 +112,7 @@ export default function PipelineDiagram() {
           type="button"
           onClick={replay}
           aria-label="Replay animation"
-          className="absolute right-3 bottom-3 flex size-8 items-center justify-center rounded-full bg-surface-300 text-foreground-400 transition-colors animate-in fade-in duration-200 hover:bg-surface-400 active:bg-surface-450"
+          className="absolute right-3 bottom-3 flex size-8 items-center justify-center rounded-full bg-surface-500 text-foreground-400 transition-colors animate-in fade-in duration-200 hover:overlay-hover active:overlay-selected"
         >
           <RotateCcw className="size-4" strokeWidth={1.5} />
         </button>

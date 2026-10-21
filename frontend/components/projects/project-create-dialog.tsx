@@ -93,7 +93,7 @@ export default function ProjectCreateDialog({
             <p className="text-xs">Free plan is limited to 1 project per workspace.</p>
             {/* /workspace shim, not settingsHref: this dialog also renders in the project-less
                 /projects surface with no ProjectContext, where settingsHref would degrade. */}
-            <Link href={`/workspace/${workspaceId}?tab=billing`} className="text-xs text-primary hover:underline">
+            <Link href={`/workspace/${workspaceId}?tab=billing`} className="text-xs text-primary-text hover:underline">
               Upgrade to create more projects
             </Link>
           </TooltipContent>

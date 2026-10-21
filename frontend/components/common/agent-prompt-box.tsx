@@ -27,7 +27,7 @@ const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
   a: "text-secondary-foreground",
 };
 
-const INLINE_CODE_CLASS = "rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground";
+const INLINE_CODE_CLASS = "rounded bg-emphasis-2 px-1 py-0.5 font-mono text-[0.85em] text-foreground";
 
 type ElProps = { node?: unknown; className?: string; children?: ReactNode } & Record<string, unknown>;
 

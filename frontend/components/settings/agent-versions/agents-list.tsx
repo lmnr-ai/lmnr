@@ -34,7 +34,7 @@ export default function AgentsList({ projectId, onSelect }: AgentsListProps) {
         {data?.map((agent) => (
           <SettingsTableRow
             key={agent.id}
-            className="cursor-pointer hover:bg-muted/50"
+            className="cursor-pointer hover:overlay-hover"
             onClick={() => onSelect(agent.id)}
           >
             <td className="px-4 text-sm">

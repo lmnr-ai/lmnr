@@ -39,7 +39,7 @@ const Block = ({ step, children }: { step: StepNumber; children?: ReactNode }) =
 // Centring pattern shared by the image panels: `flex` + `mx-auto shrink-0`
 // centres the card when there's room and lets it overflow when there isn't.
 const Panel = ({ className, style, children }: { className?: string; style?: CSSProperties; children: ReactNode }) => (
-  <div className={cn("bg-surface-250 relative w-full overflow-hidden", className)} style={style}>
+  <div className={cn("bg-surface-450 relative w-full overflow-hidden", className)} style={style}>
     {children}
   </div>
 );
@@ -65,7 +65,7 @@ const CroppedPanel = ({ children }: { children: ReactNode }) => (
       </div>
     </div>
     {/* Fades the cropped edge into the frame. */}
-    <div className="absolute inset-x-0 bottom-0 h-[160px] bg-gradient-to-t from-surface-250 to-transparent pointer-events-none z-10" />
+    <div className="absolute inset-x-0 bottom-0 h-[160px] bg-gradient-to-t from-surface-450 to-transparent pointer-events-none z-10" />
   </Panel>
 );
 

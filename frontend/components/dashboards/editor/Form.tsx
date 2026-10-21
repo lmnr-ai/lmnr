@@ -334,7 +334,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </div>
           )}
           {loadError ? (
-            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive max-w-md">
+            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive-text max-w-md">
               <AlertCircle className="w-10 h-10" />
               <div className="text-center">
                 <p className="text-sm font-medium">Couldn't load chart</p>
@@ -354,7 +354,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
               </div>
             </div>
           ) : error ? (
-            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive max-w-md">
+            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive-text max-w-md">
               <AlertCircle className="w-10 h-10" />
               <div className="text-center">
                 <p className="text-sm font-medium">Failed to execute query</p>

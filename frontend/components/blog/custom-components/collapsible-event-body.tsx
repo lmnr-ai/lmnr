@@ -41,7 +41,7 @@ export default function CollapsibleEventBody({ children, className }: { children
       </div>
       {(isOverflowing || isExpanded) && (
         <button
-          className="cursor-pointer text-sm text-muted-foreground transition-colors hover:text-primary-foreground"
+          className="cursor-pointer text-sm text-muted-foreground transition-colors hover:text-foreground-100"
           onClick={() => setIsExpanded((v) => !v)}
         >
           {isExpanded ? "less" : "... more"}

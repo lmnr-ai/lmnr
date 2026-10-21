@@ -26,25 +26,33 @@ interface Integration {
   alt: string;
   href: string;
   iconClassName?: string;
+  /** White-only mark: rendered near-black in light mode. */
+  mono?: boolean;
 }
 
 // Top integrations shown on the landing — see all in the docs.
 const integrations: Integration[] = [
-  { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, iconClassName: "size-3.5" },
+  { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, mono: true, iconClassName: "size-3.5" },
   { src: claude, alt: "Claude Agent SDK", href: `${DOCS_BASE}/claude-agent-sdk` },
-  { src: openaiAgents, alt: "OpenAI Agents SDK", href: `${DOCS_BASE}/openai-agents-sdk`, iconClassName: "size-5" },
+  {
+    src: openaiAgents,
+    alt: "OpenAI Agents SDK",
+    href: `${DOCS_BASE}/openai-agents-sdk`,
+    mono: true,
+    iconClassName: "size-5",
+  },
   { src: langchain, alt: "LangChain DeepAgents", href: `${DOCS_BASE}/deepagents` },
-  { src: opencodeSdk, alt: "OpenCode SDK", href: `${DOCS_BASE}/opencode` },
+  { src: opencodeSdk, alt: "OpenCode SDK", href: `${DOCS_BASE}/opencode`, mono: true },
   { src: lightLlm, alt: "LiteLLM", href: `${DOCS_BASE}/litellm` },
-  { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra` },
-  { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai` },
+  { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra`, mono: true },
+  { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai`, mono: true },
   { src: openHands, alt: "OpenHands SDK", href: `${DOCS_BASE}/openhands-sdk` },
-  { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, iconClassName: "size-5" },
+  { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, mono: true, iconClassName: "size-5" },
   { src: stagehand, alt: "Stagehand", href: `${DOCS_BASE}/stagehand` },
   { src: playwright, alt: "Playwright", href: `${DOCS_BASE}/playwright` },
-  { src: openAi, alt: "OpenAI SDK", href: `${DOCS_BASE}/openai`, iconClassName: "size-5" },
+  { src: openAi, alt: "OpenAI SDK", href: `${DOCS_BASE}/openai`, mono: true, iconClassName: "size-5" },
   { src: gemini, alt: "Gemini API", href: `${DOCS_BASE}/gemini` },
-  { src: anthropic, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic` },
+  { src: anthropic, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic`, mono: true },
 ];
 
 interface Props {
@@ -83,10 +91,14 @@ const FrameworksGrid = ({ className }: Props) => (
           <Image
             src={integration.src}
             alt={integration.alt}
-            className={cn("size-4 object-contain", integration.iconClassName)}
+            className={cn(
+              "size-4 object-contain",
+              integration.mono && "light:brightness-0 light:opacity-85",
+              integration.iconClassName
+            )}
           />
         </div>
-        <p className="text-sm text-foreground-200 transition-colors group-hover:text-white">{integration.alt}</p>
+        <p className="text-sm text-foreground-200 transition-colors group-hover:text-foreground">{integration.alt}</p>
       </Link>
     ))}
     <Link
@@ -97,7 +109,7 @@ const FrameworksGrid = ({ className }: Props) => (
       <div className="flex items-center justify-center size-4 shrink-0">
         <Plus className="text-secondary-foreground" />
       </div>
-      <p className="text-sm text-foreground-200 transition-colors group-hover:text-white">All integrations</p>
+      <p className="text-sm text-foreground-200 transition-colors group-hover:text-foreground">All integrations</p>
     </Link>
   </div>
 );

@@ -216,7 +216,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
                     <p className="text-xs">Inviting members is not available on the Free plan.</p>
-                    <Link href={settingsHref("billing")} className="text-xs text-primary hover:underline">
+                    <Link href={settingsHref("billing")} className="text-xs text-primary-text hover:underline">
                       Upgrade to invite team members
                     </Link>
                   </TooltipContent>

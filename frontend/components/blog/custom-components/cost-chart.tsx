@@ -31,7 +31,7 @@ export function CostChart({ title, children }: { title?: string; children: React
       {title && <figcaption className="text-sm font-medium text-white">{title}</figcaption>}
       {bars.map((bar) => (
         <div key={bar.model} className="grid grid-cols-[120px_1fr] items-center gap-3 sm:grid-cols-[150px_1fr]">
-          <span className={cn("truncate text-sm", bar.isHighlight ? "font-medium text-primary" : "text-white")}>
+          <span className={cn("truncate text-sm", bar.isHighlight ? "font-medium text-primary-text" : "text-white")}>
             {bar.model}
           </span>
           <div className="flex items-center gap-2">

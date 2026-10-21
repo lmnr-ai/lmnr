@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { getRoleColors } from "@/components/traces/span-view/common";
+import { getRoleTextColor } from "@/components/traces/span-view/common";
 import { resolveTools } from "@/components/traces/tool-list";
 import { normalizeToMessages } from "@/lib/spans/types";
 import { type Span, SpanType } from "@/lib/traces/types";
@@ -115,7 +115,7 @@ const estimateShares = (span: Span): EstimatedBucket[] | null => {
   return BUCKET_KEYS.map((key, i) => ({
     key,
     label: BUCKET_META[key].label,
-    color: getRoleColors(BUCKET_META[key].role).badgeText,
+    color: getRoleTextColor(BUCKET_META[key].role),
     pct: pcts[i],
   })).filter((b) => b.pct > 0);
 };
@@ -155,7 +155,7 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
           <span className="tabular-nums">{numberFormat.format(span.inputTokens || 0)}</span>
         </div>
         {cacheReadFallback > 0 && (
-          <div className="flex justify-between text-xs gap-4 text-success-bright">
+          <div className="flex justify-between text-xs gap-4 text-success-text">
             <span>Cache input tokens</span>
             <span className="tabular-nums">{numberFormat.format(cacheReadFallback)}</span>
           </div>
@@ -186,9 +186,9 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
         </div>
         {cacheReadTokens > 0 && (
           <div className="flex flex-col gap-2 pt-1">
-            <div className="flex w-full h-1 gap-0.5 rounded-full bg-surface-400">
+            <div className="flex w-full h-1 gap-0.5 rounded-full bg-surface-600">
               <div
-                className="h-full rounded-full bg-success-bright"
+                className="h-full rounded-full bg-success"
                 style={{ flex: cacheReadTokens }}
                 title={`Cached: ${numberFormat.format(cacheReadTokens)} (${pctOf(cacheReadTokens, inputTokens)}%)`}
               />
@@ -200,7 +200,7 @@ export const InputTokenBreakdown = ({ span }: { span: Span }) => {
             </div>
             <div className="flex items-center justify-between text-xs gap-4">
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-[2px] bg-success-bright" />
+                <span className="size-2 rounded-[2px] bg-success" />
                 <span className="text-secondary-foreground">Cache input tokens</span>
               </span>
               <MeasuredValue tokens={cacheReadTokens} pct={pctOf(cacheReadTokens, inputTokens)} />

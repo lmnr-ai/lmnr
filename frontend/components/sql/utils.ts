@@ -736,37 +736,37 @@ function computeKnownIdentifiers(schemas: Record<string, TableSchema>): Set<stri
 
 const sqlSyntaxHighlightStyle: CreateThemeOptions["styles"] = [
   // Keywords (SELECT, FROM, WHERE, etc.)
-  { tag: t.keyword, color: "#C586C0" },
+  { tag: t.keyword, color: "var(--sql-keyword)" },
 
   // Strings
-  { tag: t.string, color: "#CE9178" },
-  { tag: t.special(t.string), color: "#CE9178" },
+  { tag: t.string, color: "var(--sql-string)" },
+  { tag: t.special(t.string), color: "var(--sql-string)" },
 
   // Numbers
-  { tag: t.number, color: "#B5CEA8" },
-  { tag: t.integer, color: "#B5CEA8" },
-  { tag: t.float, color: "#B5CEA8" },
+  { tag: t.number, color: "var(--sql-number)" },
+  { tag: t.integer, color: "var(--sql-number)" },
+  { tag: t.float, color: "var(--sql-number)" },
 
   // Comments
-  { tag: t.comment, color: "#6A9955" },
-  { tag: t.lineComment, color: "#6A9955" },
-  { tag: t.blockComment, color: "#6A9955" },
+  { tag: t.comment, color: "var(--sql-comment)" },
+  { tag: t.lineComment, color: "var(--sql-comment)" },
+  { tag: t.blockComment, color: "var(--sql-comment)" },
 
   // Operators and punctuation
-  { tag: t.operator, color: "#D4D4D4" },
-  { tag: t.punctuation, color: "#D4D4D4" },
-  { tag: t.separator, color: "#D4D4D4" },
-  { tag: t.bracket, color: "#D4D4D4" },
-  { tag: t.paren, color: "#D4D4D4" },
+  { tag: t.operator, color: "var(--sql-text)" },
+  { tag: t.punctuation, color: "var(--sql-text)" },
+  { tag: t.separator, color: "var(--sql-text)" },
+  { tag: t.bracket, color: "var(--sql-text)" },
+  { tag: t.paren, color: "var(--sql-text)" },
 
   // Types
-  { tag: t.typeName, color: "#4EC9B0" },
-  { tag: t.className, color: "#4EC9B0" },
+  { tag: t.typeName, color: "var(--sql-type)" },
+  { tag: t.className, color: "var(--sql-type)" },
 
   // Special values
-  { tag: t.bool, color: "#569CD6" },
-  { tag: t.null, color: "#569CD6" },
-  { tag: t.self, color: "#569CD6" },
+  { tag: t.bool, color: "var(--sql-constant)" },
+  { tag: t.null, color: "var(--sql-constant)" },
+  { tag: t.self, color: "var(--sql-constant)" },
 ];
 
 export const theme = createTheme({
@@ -789,12 +789,12 @@ const editorBaseStyles = {
     position: "relative",
   },
   ".cm-searchMatch": {
-    backgroundColor: "hsl(var(--primary) / 0.3)",
-    border: "1px solid hsl(var(--primary))",
+    backgroundColor: "oklch(from var(--color-primary) l c h / 0.3)",
+    border: "1px solid var(--color-primary)",
     borderRadius: "3px",
   },
   ".cm-searchMatch-selected": {
-    backgroundColor: "hsl(var(--primary))",
+    backgroundColor: "var(--color-primary)",
     color: "var(--color-primary-foreground)",
     fontWeight: "600",
   },
@@ -803,22 +803,22 @@ const editorBaseStyles = {
 // Syntax highlighting styles for SQL identifiers
 const syntaxHighlightStyles = {
   ".cm-content .cm-sql-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-line .cm-sql-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-content .cm-sql-known-identifier": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-line .cm-sql-known-identifier": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-content .cm-sql-unknown-identifier": {
-    color: "#D4D4D4",
+    color: "var(--sql-text)",
   },
   ".cm-line .cm-sql-unknown-identifier": {
-    color: "#D4D4D4",
+    color: "var(--sql-text)",
   },
 };
 
@@ -842,8 +842,8 @@ const autocompleteStyles = {
     gap: "6px",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "var(--color-accent)",
-    color: "var(--color-accent-foreground)",
+    background: "var(--color-surface-500)",
+    color: "var(--color-foreground-50)",
   },
   ".cm-completionIcon": {
     width: "14px",
@@ -856,7 +856,7 @@ const autocompleteStyles = {
     justifyContent: "center",
   },
   ".cm-completionIcon-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-completionIcon-function::after": {
     content: "'ƒ'",
@@ -864,28 +864,28 @@ const autocompleteStyles = {
     fontSize: "13px",
   },
   ".cm-completionIcon-property": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-completionIcon-property::after": {
     content: "'◇'",
     fontSize: "11px",
   },
   ".cm-completionIcon-keyword": {
-    color: "#C586C0",
+    color: "var(--sql-keyword)",
   },
   ".cm-completionIcon-keyword::after": {
     content: "'⊞'",
     fontSize: "11px",
   },
   ".cm-completionIcon-enum": {
-    color: "#4EC9B0",
+    color: "var(--sql-type)",
   },
   ".cm-completionIcon-enum::after": {
     content: "'◆'",
     fontSize: "11px",
   },
   ".cm-completionIcon-type": {
-    color: "#4EC9B0",
+    color: "var(--sql-type)",
   },
   ".cm-completionIcon-type::after": {
     content: "'T'",
@@ -896,7 +896,7 @@ const autocompleteStyles = {
     color: "var(--color-foreground)",
   },
   ".cm-completionMatchedText": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
     textDecoration: "none",
   },
@@ -944,16 +944,16 @@ const signatureHelpStyles = {
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
   },
   ".signature-help .signature-function-name": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
   },
   ".signature-help .signature-param": {
     color: "var(--color-foreground)",
   },
   ".signature-help .signature-param-current": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "700",
-    background: "hsl(var(--primary) / 0.1)",
+    background: "oklch(from var(--color-primary) l c h / 0.1)",
     padding: "1px 3px",
     borderRadius: "3px",
   },

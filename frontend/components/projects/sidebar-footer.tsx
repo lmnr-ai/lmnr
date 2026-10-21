@@ -1,7 +1,8 @@
 "use client";
 
-import { Book } from "lucide-react";
+import { Book, Settings } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
@@ -18,7 +19,9 @@ import {
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const SidebarFooterComponent = () => {
+const SidebarFooterComponent = ({ projectId }: { projectId: string }) => {
+  const pathname = usePathname();
+  const settingsHref = `/project/${projectId}/settings`;
   const { open, openMobile } = useSidebar();
   const features = useFeatureFlags();
   const logo = open || openMobile ? laminarWordmark : laminarIcon;
@@ -27,9 +30,22 @@ const SidebarFooterComponent = () => {
     <SidebarFooter className="px-0">
       <SidebarGroup>
         <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Docs" asChild>
+          <SidebarMenu className="gap-0.5">
+            <SidebarMenuItem className="h-[30px]">
+              <SidebarMenuButton
+                asChild
+                className="h-[30px]"
+                isActive={pathname.startsWith(settingsHref)}
+                tooltip="settings"
+              >
+                <Link href={settingsHref}>
+                  <Settings />
+                  <span>settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem className="h-[30px]">
+              <SidebarMenuButton tooltip="Docs" asChild className="h-[30px]">
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
                   <Book size={16} />
                   <span>Docs</span>
@@ -42,12 +58,16 @@ const SidebarFooterComponent = () => {
       <SidebarGroup className="pt-0">
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem className="mx-0 px-2">
-              <Link passHref href="/projects" className="flex items-center">
+            <SidebarMenuItem className={cn("mx-0", open || openMobile ? "px-2" : "px-0")}>
+              <Link
+                passHref
+                href="/projects"
+                className={cn("flex items-center", !(open || openMobile) && "justify-center")}
+              >
                 {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
                 <span
                   aria-label="Laminar"
-                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "w-[35px]")}
+                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "size-4")}
                   style={{
                     maskImage: `url(${logo.src})`,
                     WebkitMaskImage: `url(${logo.src})`,

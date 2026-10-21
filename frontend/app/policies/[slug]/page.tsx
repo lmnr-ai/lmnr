@@ -37,7 +37,7 @@ export default async function PolicyPage(props: { params: Promise<{ slug: string
         h2: (props) => <MDHeading props={props} level={1} />,
         h3: (props) => <MDHeading props={props} level={2} />,
         h4: (props) => <MDHeading props={props} level={3} />,
-        a: (props) => <a className="text-white underline hover:text-primary" {...props} />,
+        a: (props) => <a className="text-white underline hover:text-primary-text" {...props} />,
         blockquote: (props) => <blockquote className="border-primary" {...props} />,
         code: (props) => (
           <span className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5" {...props} />

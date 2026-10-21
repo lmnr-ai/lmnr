@@ -38,7 +38,7 @@ export default function RowScoreChip({ name, value, points }: RowScoreChipProps)
         onWheel={hoverable ? closeImmediately : undefined}
         onMouseEnter={hoverable ? handleMouseEnter : undefined}
         onMouseLeave={hoverable ? scheduleClose : undefined}
-        className="flex gap-1.5 rounded-md bg-accent/60 px-2 py-1 items-center"
+        className="flex gap-1.5 rounded-md bg-surface-500/60 px-2 py-1 items-center"
       >
         <span className="text-muted-foreground text-[13px] font-medium">{name}</span>
         <span className="font-medium tabular-nums text-xl">{hasValue ? fmt(value) : "—"}</span>

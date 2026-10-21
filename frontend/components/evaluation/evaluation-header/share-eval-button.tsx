@@ -74,7 +74,7 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button className="relative hover:bg-secondary px-1.5" variant="secondary">
+              <Button className="relative hover:overlay-hover px-1.5" variant="secondary">
                 {visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
               </Button>
             </PopoverTrigger>

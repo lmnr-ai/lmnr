@@ -117,7 +117,7 @@ export default function BottomControls() {
             onClick={onUnapprove}
             disabled={disableNav}
             variant="outline"
-            className="border-success-bright/40 text-success-bright hover:bg-success-bright/10"
+            className="border-success-border/40 text-success-text hover:bg-success/10"
           >
             {ioState === "save" ? (
               <Loader2 className="size-3 animate-spin mr-1" />

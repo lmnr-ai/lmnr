@@ -23,7 +23,7 @@ const Metadata = ({ metadata }: MetadataProps) => {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <HeaderIconButton
-          icon={<FileText className={cn({ "text-primary": open })} size={14} />}
+          icon={<FileText className={cn({ "text-primary-text": open })} size={14} />}
           label="Metadata"
           active={open}
         />

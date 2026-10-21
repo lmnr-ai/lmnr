@@ -23,9 +23,9 @@ const columns: ColumnDef<Trace, any>[] = [
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
         {row.getValue() ? (
-          <X className="self-center text-destructive" size={18} />
+          <X className="self-center text-destructive-text" size={18} />
         ) : (
-          <Check className="text-success" size={18} />
+          <Check className="text-success-text" size={18} />
         )}
       </div>
     ),

@@ -56,7 +56,7 @@ export default function SessionsPlaceholder() {
               href={DOCS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
+              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary-text"
             >
               Debugger docs
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -65,7 +65,7 @@ export default function SessionsPlaceholder() {
               href="https://laminar.sh/docs/tracing/integrations/overview"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
+              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary-text"
             >
               Make sure your agent is instrumented
               <ArrowUpRight className="h-3.5 w-3.5" />

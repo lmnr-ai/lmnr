@@ -102,7 +102,7 @@ const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="hover:bg-secondary">
+                  <Button variant="ghost" size="icon-sm" className="hover:overlay-hover">
                     <ChevronDown className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>

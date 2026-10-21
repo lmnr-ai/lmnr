@@ -185,8 +185,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId: s
                 blocks are still loading into an otherwise-empty session. */}
             {tracesError ? (
               <div className="flex flex-col items-center p-8 text-center">
-                <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-destructive" />
-                <h3 className="mb-2 text-lg font-semibold text-destructive">Error Loading Session</h3>
+                <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-destructive-text" />
+                <h3 className="mb-2 text-lg font-semibold text-destructive-text">Error Loading Session</h3>
                 <p className="text-sm text-muted-foreground">{tracesError}</p>
               </div>
             ) : blocks.length > 0 ? (

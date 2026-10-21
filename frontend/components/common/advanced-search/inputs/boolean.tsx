@@ -21,7 +21,7 @@ const booleanOptions: FilterSelectOption[] = [
   { value: "false", label: "false" },
 ];
 
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary-text text-xs";
 
 const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
   const tags = useAdvancedSearchContext((state) => state.tags);

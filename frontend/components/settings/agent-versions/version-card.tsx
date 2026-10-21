@@ -56,13 +56,13 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
         <div
           role="button"
           tabIndex={0}
-          className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+          className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:overlay-hover transition-colors"
         >
           <ChevronRight
             className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
           />
           <span className="text-sm font-medium">Version {version.versionNumber}</span>
-          {isLatest && <span className="text-xs font-medium text-primary">Latest</span>}
+          {isLatest && <span className="text-xs font-medium text-primary-text">Latest</span>}
           <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
           <div className="flex-1" />
           <div className="flex items-center gap-1.5">

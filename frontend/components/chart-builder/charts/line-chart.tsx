@@ -102,9 +102,9 @@ const LineChart = ({
             <ReferenceArea
               x1={drag.refArea.left}
               x2={drag.refArea.right}
-              stroke="hsl(var(--primary))"
+              stroke="var(--color-primary)"
               strokeOpacity={0.5}
-              fill="hsl(var(--primary))"
+              fill="var(--color-primary)"
               fillOpacity={0.3}
             />
           )}

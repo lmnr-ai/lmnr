@@ -121,8 +121,8 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
           "col-start-1 row-start-1 w-full min-w-0 rounded border border-transparent bg-transparent px-1",
           "text-2xl font-medium text-foreground outline-none transition-colors",
           "placeholder:text-muted-foreground rounded placeholder:font-normal",
-          "hover:ring hover:ring-green-5 hover:ring-offset-[4px] hover:ring-muted-foreground/20 hover:ring-offset-secondary hover:bg-secondary",
-          "focus:ring focus:ring-green-5 focus:ring-offset-[4px] focus:ring-muted-foreground/35 focus:ring-offset-secondary focus:bg-secondary"
+          "hover:ring hover:ring-green-5 hover:ring-offset-[4px] hover:ring-muted-foreground/20 hover:ring-offset-secondary hover:overlay-hover",
+          "focus:ring focus:ring-green-5 focus:ring-offset-[4px] focus:ring-muted-foreground/35 focus:ring-offset-secondary focus:overlay-hover"
         )}
       />
     </div>

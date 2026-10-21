@@ -31,7 +31,7 @@ const CodeEditor = () => {
         />
       </div>
       {errors.code && (
-        <p className="border-t border-destructive/30 bg-destructive/5 px-3 py-1 text-xs text-destructive">
+        <p className="border-t border-destructive-border/30 bg-destructive/5 px-3 py-1 text-xs text-destructive-text">
           {errors.code.message}
         </p>
       )}

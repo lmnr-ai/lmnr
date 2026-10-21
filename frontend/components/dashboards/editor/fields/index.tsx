@@ -187,7 +187,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         </div>
       )}
 
-      {saveError && <div className="text-sm text-destructive">{saveError}</div>}
+      {saveError && <div className="text-sm text-destructive-text">{saveError}</div>}
       <Button
         onClick={handleSaveChart}
         disabled={!isFormValid || !chart.name.trim() || isSaving || !hasChartConfig || !!loadError}

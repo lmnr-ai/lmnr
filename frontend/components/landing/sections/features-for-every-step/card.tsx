@@ -9,7 +9,7 @@ import { ElevatedSurface } from "@/components/ui/surface";
 import CardHoverGlow from "../card-hover-glow";
 import { type CardDef } from "./cards";
 
-/** Card's resting rung on the elevation ladder (surface-250); hover takes it to 6. */
+/** Card's resting rung on the elevation ladder (surface-450); hover takes it to 6. */
 const RESTING_ELEVATION = 5;
 
 // Two masks intersected, so the mock dissolves on the two edges it overruns

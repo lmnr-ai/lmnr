@@ -30,14 +30,14 @@ function PendingIndicator({ startTime }: { startTime: string }) {
   if (isStringDateOld(startTime)) {
     return (
       <NoSpanTooltip>
-        <div className="flex rounded bg-secondary p-1">
+        <div className="flex rounded bg-emphasis-1 p-1">
           <X className="w-4 h-4 text-secondary-foreground" />
         </div>
       </NoSpanTooltip>
     );
   }
 
-  return <Skeleton className="w-10 h-4 bg-secondary rounded-md" />;
+  return <Skeleton className="w-10 h-4 rounded-md" />;
 }
 
 function LLMOutputPreview({
@@ -107,7 +107,7 @@ function SpanItemInner({ span, output, onSpanSelect, isSelected, inGroup = false
     <div
       className={cn(
         "flex group/message cursor-pointer transition-all border-l-2",
-        inGroup ? "hover:bg-muted/80 bg-muted/60" : "hover:bg-secondary",
+        inGroup ? "bg-emphasis-1 hover:bg-emphasis-2" : "hover:bg-emphasis-1",
         isSelected ? "bg-primary/15 border-l-primary hover:bg-primary/20" : "border-l-transparent",
         { "opacity-60": isCached },
         className

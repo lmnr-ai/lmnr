@@ -25,7 +25,7 @@ export default function ProjectSidebar({ dismissedAnnouncementIds, details, anno
         details={details}
         dismissedAnnouncementIds={dismissedAnnouncementIds}
       />
-      <SidebarFooter />
+      <SidebarFooter projectId={details.id} />
     </Sidebar>
   );
 }

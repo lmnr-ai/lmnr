@@ -12,9 +12,9 @@ export const ChangeIndicator = ({
       {originalValue >= comparisonValue ? (
         <span className="text-green-300">&#x25B2;</span>
       ) : (
-        <span className="text-destructive">&#x25BC;</span>
+        <span className="text-destructive-text">&#x25BC;</span>
       )}
-      <span className={originalValue >= comparisonValue ? "text-green-300" : "text-destructive"}>
+      <span className={originalValue >= comparisonValue ? "text-green-300" : "text-destructive-text"}>
         ({calculatePercentageChange(originalValue, comparisonValue)}%)
       </span>
     </span>

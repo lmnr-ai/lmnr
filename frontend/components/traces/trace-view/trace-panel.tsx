@@ -97,15 +97,15 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
         ) : traceError ? (
           <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
             <div className="max-w-md mx-auto">
-              <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-destructive mb-4">Error Loading Trace</h3>
+              <AlertTriangle className="w-12 h-12 text-destructive-text mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-destructive-text mb-4">Error Loading Trace</h3>
               <p className="text-sm text-muted-foreground">{traceError}</p>
             </div>
           </div>
         ) : spansError ? (
           <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
-            <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
-            <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
+            <AlertTriangle className="w-8 h-8 text-destructive-text mb-3" />
+            <h4 className="text-sm font-semibold text-destructive-text mb-2">Error Loading Spans</h4>
             <p className="text-xs text-muted-foreground">{spansError}</p>
           </div>
         ) : (
@@ -155,8 +155,8 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                       <Button
                         variant="ghost"
                         className={cn(
-                          "flex h-6 items-center overflow-hidden bg-surface-up-2 px-1.5 hover:bg-surface-up-4 active:bg-surface-up-5",
-                          browserSession && "text-primary hover:text-primary"
+                          "flex h-6 items-center overflow-hidden bg-emphasis-1 px-1.5 hover:overlay-hover active:overlay-selected",
+                          browserSession && "text-primary-text hover:text-primary-text"
                         )}
                         disabled={!trace}
                         onClick={() => setBrowserSession(!browserSession)}

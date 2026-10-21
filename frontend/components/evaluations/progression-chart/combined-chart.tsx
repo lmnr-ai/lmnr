@@ -4,6 +4,7 @@ import { type Key, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import { type ChartConfig, ChartContainer } from "../../ui/chart";
@@ -276,7 +277,7 @@ function NormalizedTooltip({
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+    <ElevatedSurface offset={3} className="rounded-md border p-2 text-xs shadow-md">
       <div className="font-medium truncate max-w-60">{row.name}</div>
       <div className="text-muted-foreground mb-1">{formatTimestamp(row.timestamp)}</div>
       <div className="space-y-1">
@@ -299,7 +300,7 @@ function NormalizedTooltip({
           );
         })}
       </div>
-    </div>
+    </ElevatedSurface>
   );
 }
 

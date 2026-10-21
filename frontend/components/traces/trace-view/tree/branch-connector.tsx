@@ -22,8 +22,8 @@ export function BranchConnector({ depth, branchMask, isSelected = false }: Branc
             {/* L-connector for the last column */}
             {isLastColumn && (
               <div
-                className={cn("absolute border-l-2 border-b-2 rounded-bl-md group-hover:border-[hsl(240_6%_26%)]", {
-                  "border-[hsl(240_6%_34%)] group-hover:border-[hsl(240_6%_40%)] ": isSelected,
+                className={cn("absolute border-l-2 border-b-2 rounded-bl-md group-hover:border-foreground/20", {
+                  "border-foreground/30 group-hover:border-foreground/40": isSelected,
                 })}
                 style={{
                   height: ROW_HEIGHT / 2,
@@ -36,8 +36,8 @@ export function BranchConnector({ depth, branchMask, isSelected = false }: Branc
             {/* Vertical continuation line if more siblings at this depth */}
             {branchMask[d] && (
               <div
-                className={cn("absolute h-full border-l-2 group-hover:border-[hsl(240_6%_26%)]", {
-                  "border-[hsl(240_6%_34%)] group-hover:border-[hsl(240_6%_40%)] ": isSelected,
+                className={cn("absolute h-full border-l-2 group-hover:border-foreground/20", {
+                  "border-foreground/30 group-hover:border-foreground/40": isSelected,
                 })}
                 style={{ left: TREE_LINE_LEFT_BASE }}
               />

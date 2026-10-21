@@ -11,7 +11,7 @@ export default function AnnouncementBanner() {
   return (
     <aside
       aria-label="Product announcement"
-      className="relative flex h-10 w-full shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-300 px-4 font-sans-landing"
+      className="relative flex h-10 w-full shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-500 px-4 font-sans-landing"
     >
       <div
         aria-hidden
@@ -31,7 +31,7 @@ export default function AnnouncementBanner() {
           className="absolute top-1/2 left-[-27px] h-11 w-[467px] -translate-y-1/2"
           style={{
             backgroundImage:
-              "linear-gradient(to left, var(--color-surface-300) 0%, var(--color-surface-300) 50%, transparent 100%)",
+              "linear-gradient(to left, var(--color-surface-500) 0%, var(--color-surface-500) 50%, transparent 100%)",
           }}
         />
         <div className="relative flex items-center gap-3 sm:gap-5">

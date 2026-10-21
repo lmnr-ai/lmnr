@@ -228,7 +228,7 @@ const UnderstandWhyTraceView = () => {
             <div className="relative min-w-0 flex-1" style={{ height: `${SECTION_VH}vh` }}>
               <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
                 <div className="w-full overflow-hidden relative" style={{ height: FRAME_H }}>
-                  <div className="absolute top-0 left-0 right-0 z-10 h-[100px] bg-gradient-to-b from-surface-150 to-transparent pointer-events-none" />
+                  <div className="absolute top-0 left-0 right-0 z-10 h-[100px] bg-gradient-to-b from-surface-350 to-transparent pointer-events-none" />
 
                   {/* `items-center` puts the stack's centre at the frame's
                       centre when y = 0, which is the origin `useStackStops`
@@ -261,7 +261,7 @@ const UnderstandWhyTraceView = () => {
                     </motion.div>
                   </div>
 
-                  <div className="absolute bottom-0 left-0 right-0 z-10 h-[120px] bg-gradient-to-t from-surface-150 to-transparent pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 z-10 h-[120px] bg-gradient-to-t from-surface-350 to-transparent pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -272,7 +272,7 @@ const UnderstandWhyTraceView = () => {
                 <div
                   data-landing-frame
                   style={{ height: FRAME_H }}
-                  className="rounded-sm bg-surface-250 overflow-hidden relative w-[480px] 2xl:w-[540px]"
+                  className="rounded-sm bg-surface-450 overflow-hidden relative w-[480px] 2xl:w-[540px]"
                 >
                   <motion.div
                     style={{ height: PANEL_H, opacity: trayOpacity }}
@@ -327,13 +327,13 @@ const UnderstandWhyTraceView = () => {
                       than dissolving into the frame. */}
                   <div
                     className={cn(
-                      "absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-surface-250/80 to-transparent pointer-events-none",
+                      "absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-surface-450/80 to-transparent pointer-events-none",
                       EDGE_FADE_W_CLS
                     )}
                   />
                   <div
                     className={cn(
-                      "absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-250/80 to-transparent pointer-events-none",
+                      "absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-surface-450/80 to-transparent pointer-events-none",
                       EDGE_FADE_W_CLS
                     )}
                   />

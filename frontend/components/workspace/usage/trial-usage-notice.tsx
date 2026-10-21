@@ -11,7 +11,7 @@ export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) 
 
   return (
     <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 max-w-4xl">
-      <Gift className="mt-0.5 size-4 shrink-0 text-primary" />
+      <Gift className="mt-0.5 size-4 shrink-0 text-primary-text" />
       <div className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Starter free trial until {endsOn}</span>
         <span className="text-secondary-foreground">

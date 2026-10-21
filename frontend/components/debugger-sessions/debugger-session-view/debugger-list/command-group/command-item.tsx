@@ -59,7 +59,7 @@ export default function CommandItem({ id, command, expanded, isFirst, isLast }: 
         className="group/row relative flex w-full items-center gap-3 py-1.5 pl-1.5 pr-3 text-left"
       >
         <span className="z-10 flex size-5.5 shrink-0 items-center justify-center rounded-full bg-background">
-          {commandIcon(command, cn("size-3.5", failed ? "text-destructive-bright" : "text-muted-foreground"))}
+          {commandIcon(command, cn("size-3.5", failed ? "text-destructive-text" : "text-muted-foreground"))}
         </span>
         <span
           className={cn(

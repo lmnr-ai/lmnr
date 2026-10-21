@@ -73,7 +73,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         description: (
           <span>
             Successfully exported chart to {dashboardName}.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/dashboards/${dashboardId}`}>
+            <Link className="text-primary-text" href={`/project/${projectId}/dashboards/${dashboardId}`}>
               Go to dashboard.
             </Link>
           </span>

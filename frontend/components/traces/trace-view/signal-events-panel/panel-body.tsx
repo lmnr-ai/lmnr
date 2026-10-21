@@ -113,7 +113,7 @@ export default function PanelBody({ traceId, onClose, readOnly }: Props) {
           aria-label="Close"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 hover:bg-surface-up"
+          className="shrink-0 hover:overlay-hover"
           onClick={onClose}
         >
           <X className="size-3.5" />
@@ -167,7 +167,7 @@ export default function PanelBody({ traceId, onClose, readOnly }: Props) {
                       aria-label="Open in AI Chat"
                       variant="ghost"
                       size="icon-sm"
-                      className="shrink-0 hover:bg-surface-up"
+                      className="shrink-0 hover:overlay-hover"
                       onClick={() => laminarAgentStore.getState().open()}
                     >
                       <Sparkles className="size-3.5" />

@@ -4,10 +4,14 @@ import * as React from "react";
 import type { TooltipValueType } from "recharts";
 import * as RechartsPrimitive from "recharts";
 
+import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
-// Format: { THEME_NAME: CSS_SELECTOR }
-const THEMES = { light: "", dark: ".dark" } as const;
+// Format: { THEME_NAME: wrap(rule) }. Dark mirrors the `dark:` variant, including `.system` on a dark OS.
+const THEMES = {
+  light: (rule: string) => rule,
+  dark: (rule: string) => `.dark ${rule}\n@media (prefers-color-scheme: dark) { .system ${rule} }`,
+};
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const;
 type TooltipNameType = number | string;
@@ -60,7 +64,7 @@ function ChartContainer({
         data-slot="chart"
         data-chart={chartId}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke]]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke]]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-polar-grid_[stroke]]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke]]:stroke-border [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke]]:stroke-transparent [&_.recharts-surface]:outline-hidden [&_*:focus]:outline-none [&_*:focus-visible]:outline-none [&_*:focus]:ring-0 [&_.recharts-wrapper]:outline-none",
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke]]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke]]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-polar-grid_[stroke]]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-emphasis-2 [&_.recharts-reference-line_[stroke]]:stroke-border [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke]]:stroke-transparent [&_.recharts-surface]:outline-hidden [&_*:focus]:outline-none [&_*:focus-visible]:outline-none [&_*:focus]:ring-0 [&_.recharts-wrapper]:outline-none",
           className
         )}
         {...props}
@@ -85,17 +89,15 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+          .map(([theme, wrap]) =>
+            wrap(`[data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ?? itemConfig.color;
     return color ? `  --color-${key}: ${color};` : null;
   })
   .join("\n")}
-}
-`
+}`)
           )
           .join("\n"),
       }}
@@ -183,11 +185,9 @@ function ChartTooltipContent({
   const nestLabel = shownPayload.length === 1 && indicator !== "dot";
 
   return (
-    <div
-      className={cn(
-        "grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
-        className
-      )}
+    <ElevatedSurface
+      offset={3}
+      className={cn("grid min-w-32 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-md", className)}
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
@@ -253,7 +253,7 @@ function ChartTooltipContent({
           })}
         {hiddenCount > 0 && <div className="pl-4.5 text-muted-foreground">+{hiddenCount.toLocaleString()} more</div>}
       </div>
-    </div>
+    </ElevatedSurface>
   );
 }
 

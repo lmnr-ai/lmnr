@@ -38,7 +38,7 @@ export default function TraceCollapsedBody({ trace }: TraceCollapsedBodyProps) {
       className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-foreground-100/10 bg-muted/75 divide-y divide-foreground-100/10"
     >
       {spansError ? (
-        <div className="px-3 py-2 text-xs text-destructive text-center">{spansError}</div>
+        <div className="px-3 py-2 text-xs text-destructive-text text-center">{spansError}</div>
       ) : !agentInput && !agentOutput && !outputPending ? (
         <div className="px-3 py-3 text-xs text-muted-foreground text-center">
           No input or output extracted for this trace

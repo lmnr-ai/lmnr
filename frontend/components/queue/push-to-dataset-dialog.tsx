@@ -102,7 +102,7 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
       description: (
         <span>
           {result.pushed} {noun} added to the dataset and removed from the queue.{" "}
-          <Link className="text-primary" href={`/project/${projectId}/datasets/${dataset}`}>
+          <Link className="text-primary-text" href={`/project/${projectId}/datasets/${dataset}`}>
             Go to dataset.
           </Link>
         </span>

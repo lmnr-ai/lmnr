@@ -34,7 +34,7 @@ export default function VersionsSection() {
   }, [versionParam, data]);
 
   if (error) {
-    return <p className="text-sm text-destructive">Couldn&apos;t load versions.</p>;
+    return <p className="text-sm text-destructive-text">Couldn&apos;t load versions.</p>;
   }
 
   if (isLoading || !data) {

@@ -115,7 +115,7 @@ export default function SignalFormFields({
             <Input id="name" placeholder="Signal name" autoFocus={!getValues("id")} size="sm" {...field} />
           )}
         />
-        {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+        {errors.name && <p className="text-xs text-destructive-text">{errors.name.message}</p>}
       </div>
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}
       <LlmProfileSection />
@@ -150,7 +150,7 @@ export default function SignalFormFields({
             />
           )}
         />
-        {errors.prompt && <p className="text-xs text-destructive">{errors.prompt.message}</p>}
+        {errors.prompt && <p className="text-xs text-destructive-text">{errors.prompt.message}</p>}
       </div>
       <SchemaFieldsBuilder />
       <TriggersSection />
