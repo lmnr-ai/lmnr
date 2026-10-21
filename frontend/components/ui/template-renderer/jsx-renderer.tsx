@@ -1,7 +1,7 @@
 import { Eye } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { useAppThemeOrDefault } from "@/components/theme/app-theme-provider";
+import { useResolvedTheme } from "@/components/theme/theme-provider";
 import { type AppTheme } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 
@@ -255,7 +255,7 @@ const JsxRenderer = ({ code, data, className, autoHeight = false, onSelectSpan }
   // freshly-mounted iframe (e.g. after the empty-state → populated transition)
   // gets queued data even when `data` itself didn't change.
   const latestDataRef = useRef(data);
-  const theme = useAppThemeOrDefault();
+  const theme = useResolvedTheme();
   // Read by the [code] effect so a theme switch restyles in place instead of
   // rebuilding the iframe (which would reset the template's own state).
   const themeRef = useRef(theme);

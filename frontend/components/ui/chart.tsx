@@ -7,11 +7,8 @@ import * as RechartsPrimitive from "recharts";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
-// Format: { THEME_NAME: wrap(rule) }. Dark mirrors the `dark:` variant, including `.system` on a dark OS.
-const THEMES = {
-  light: (rule: string) => rule,
-  dark: (rule: string) => `.dark ${rule}\n@media (prefers-color-scheme: dark) { .system ${rule} }`,
-};
+// Format: { THEME_NAME: CSS_SELECTOR }
+const THEMES = { light: "", dark: ".dark" } as const;
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const;
 type TooltipNameType = number | string;
@@ -89,15 +86,17 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
-          .map(([theme, wrap]) =>
-            wrap(`[data-chart=${id}] {
+          .map(
+            ([theme, prefix]) => `
+${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ?? itemConfig.color;
     return color ? `  --color-${key}: ${color};` : null;
   })
   .join("\n")}
-}`)
+}
+`
           )
           .join("\n"),
       }}

@@ -14,29 +14,10 @@
 @source "../components/**/*.{ts,tsx,js,jsx}";
 @source "../node_modules/streamdown/dist/index.js";
 
-/* Theme variants: match the explicit class, or `.system` under the matching OS preference.
-   Never key styles off `.dark`/`.light` directly; `.system` would skip them. */
-@custom-variant dark {
-  &:is(.dark *) {
-    @slot;
-  }
-  @media (prefers-color-scheme: dark) {
-    &:is(.system *) {
-      @slot;
-    }
-  }
-}
+/* next-themes puts `.dark` or `.light` on <html>, resolving "system" before first paint. */
+@custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
 
-@custom-variant light {
-  &:is(.light *) {
-    @slot;
-  }
-  @media (prefers-color-scheme: light) {
-    &:is(.system *) {
-      @slot;
-    }
-  }
-}
 
 /* Session-view collapsed card: header and its body are SEPARATE siblings (R3
    split), so `group-hover` on the header can't see a hover over the body. This
@@ -609,6 +590,7 @@
 @layer base {
   :root,
   .dark {
+    color-scheme: dark;
     --radius: 0.5rem;
 
     --destructive: hsl(0 72% 60%);
@@ -710,195 +692,185 @@
   }
 
   .light {
-    @apply light-palette;
+    color-scheme: light;
+
+    --overlay-hover: oklch(0 0 0 / 0.04);
+    --overlay-selected: oklch(0 0 0 / 0.07);
+
+    /* GitHub Light / VS Code Light+ counterparts of the dark syntax colors. */
+    --code-text: #1f2328;
+    --code-span-text: #3f3f46;
+    --code-muted: #6e7781;
+    --code-purple: #8250df;
+    --code-green: #116329;
+    --code-orange: #953800;
+    --code-blue: #0550ae;
+    --code-string: #0a3069;
+    --code-red: #cf222e;
+    --code-invalid: #82071e;
+    --code-deleted: #82071e;
+    --code-deleted-bg: #ffebe9;
+    --code-gutter-bg: oklch(0 0 0 / 0.03);
+    --code-selection: #b6e3ff;
+
+    --sql-text: #3b3b3b;
+    --sql-keyword: #af00db;
+    --sql-string: #a31515;
+    --sql-number: #098658;
+    --sql-comment: #008000;
+    --sql-type: #267f99;
+    --sql-constant: #0000ff;
+    --sql-function: #795e26;
+    --sql-identifier: #001080;
+
+    /* Light hue tokens (currently mirror dark; tune per mode). */
+    --slate-text: hsl(215 15% 55%);
+    --slate-icon-background: hsl(215 15% 40%);
+    --blue-text: hsl(217 80% 60%);
+    --blue-icon-background: hsl(213 94% 74%);
+    --purple-text: hsl(262 70% 60%);
+    --purple-icon-background: hsl(262 83% 68%);
+    --yellow-text: hsl(42 100% 42%);
+    --yellow-icon-background: hsl(42 93% 52%);
+    --cyan-text: hsl(190 75% 60%);
+    --cyan-icon-background: hsl(187 94% 43% / 0.7);
+    --green-text: hsl(151 65% 54%);
+    --green-icon-background: hsl(160 84% 39% / 0.7);
+    --pink-text: hsl(327 100% 78%);
+    --pink-icon-background: hsl(329 86% 70% / 0.7);
+    --red-text: hsl(2 100% 79%);
+    --red-icon-background: hsl(0 72% 60%);
+
+    --unclustered: oklch(0.72 0 0);
+    --foreground: 240 10% 15%;
+    --primary-foreground: 0 0% 100%;
+
+    --destructive: hsl(0 78% 66%);
+    --destructive-text: hsl(0 72% 50%);
+    --destructive-border: hsl(0 72% 50%);
+
+    --success: hsl(160 55% 48%);
+    --success-text: hsl(160 55% 36%);
+    --success-border: hsl(160 55% 48%);
+
+    --ring: 18 59% 48%;
+
+    --chart-1: 220 70% 48%;
+    --chart-2: 160 60% 36%;
+    --chart-3: 30 80% 48%;
+    --chart-4: 280 58% 50%;
+    --chart-5: 340 68% 48%;
+
+    --tool: 38 90% 35%;
+    --llm: 262 72% 48%;
+    --llm-foreground: 262 67% 43%;
+    --subagent: 187 80% 31%;
+
+    /* Same direction as dark: higher elevation steps lighten, clamped at white. */
+    /* Light surfaces step off one base; borders sit this much darker (OKLCH L) than their surface. */
+    --light-surface-base: oklch(0.94 0 0);
+    --light-border-delta: 0.04;
+    --color-surface-00: oklch(from var(--light-surface-base) calc(l - 0.06) c h);
+    --color-surface-50: oklch(from var(--light-surface-base) calc(l - 0.045) c h);
+    --color-surface-100: oklch(from var(--light-surface-base) calc(l - 0.03) c h);
+    --color-surface-150: oklch(from var(--light-surface-base) calc(l - 0.015) c h);
+    --color-surface-200: var(--light-surface-base);
+    --color-surface-250: oklch(from var(--light-surface-base) min(1, l + 0.005) c h);
+    --color-surface-300: oklch(from var(--light-surface-base) min(1, l + 0.01) c h);
+    --color-surface-350: oklch(from var(--light-surface-base) min(1, l + 0.02) c h);
+    --color-surface-400: oklch(from var(--light-surface-base) min(1, l + 0.03) c h);
+    --color-surface-450: oklch(from var(--light-surface-base) min(1, l + 0.04) c h);
+    --color-surface-500: oklch(from var(--light-surface-base) min(1, l + 0.05) c h);
+    --color-surface-550: oklch(from var(--light-surface-base) min(1, l + 0.06) c h);
+    --color-surface-600: oklch(from var(--light-surface-base) min(1, l + 0.07) c h);
+    --color-surface-650: oklch(from var(--light-surface-base) min(1, l + 0.08) c h);
+    --color-surface-700: oklch(from var(--light-surface-base) min(1, l + 0.09) c h);
+    --color-surface-750: oklch(from var(--light-surface-base) min(1, l + 0.1) c h);
+    --color-surface-800: oklch(from var(--light-surface-base) min(1, l + 0.11) c h);
+    --color-surface-850: oklch(from var(--light-surface-base) min(1, l + 0.12) c h);
+    --color-surface-900: oklch(from var(--light-surface-base) min(1, l + 0.13) c h);
+    --color-surface-950: oklch(from var(--light-surface-base) min(1, l + 0.14) c h);
+    --color-surface-1000: oklch(from var(--light-surface-base) min(1, l + 0.15) c h);
+
+    /* Light borders sit a fixed step darker than their surface, so they stay visible on white. */
+    --color-border-00: oklch(from var(--color-surface-00) calc(l - var(--light-border-delta)) c h);
+    --color-border-50: oklch(from var(--color-surface-50) calc(l - var(--light-border-delta)) c h);
+    --color-border-100: oklch(from var(--color-surface-100) calc(l - var(--light-border-delta)) c h);
+    --color-border-150: oklch(from var(--color-surface-150) calc(l - var(--light-border-delta)) c h);
+    --color-border-200: oklch(from var(--color-surface-200) calc(l - var(--light-border-delta)) c h);
+    --color-border-300: oklch(from var(--color-surface-300) calc(l - var(--light-border-delta)) c h);
+    --color-border-350: oklch(from var(--color-surface-350) calc(l - var(--light-border-delta)) c h);
+    --color-border-400: oklch(from var(--color-surface-400) calc(l - var(--light-border-delta)) c h);
+    --color-border-450: oklch(from var(--color-surface-450) calc(l - var(--light-border-delta)) c h);
+    --color-border-500: oklch(from var(--color-surface-500) calc(l - var(--light-border-delta)) c h);
+    --color-border-550: oklch(from var(--color-surface-550) calc(l - var(--light-border-delta)) c h);
+    --color-border-600: oklch(from var(--color-surface-600) calc(l - var(--light-border-delta)) c h);
+    --color-border-650: oklch(from var(--color-surface-650) calc(l - var(--light-border-delta)) c h);
+    --color-border-700: oklch(from var(--color-surface-700) calc(l - var(--light-border-delta)) c h);
+    --color-border-750: oklch(from var(--color-surface-750) calc(l - var(--light-border-delta)) c h);
+    --color-border-800: oklch(from var(--color-surface-800) calc(l - var(--light-border-delta)) c h);
+    --color-border-850: oklch(from var(--color-surface-850) calc(l - var(--light-border-delta)) c h);
+    --color-border-900: oklch(from var(--color-surface-900) calc(l - var(--light-border-delta)) c h);
+    --color-border-950: oklch(from var(--color-surface-950) calc(l - var(--light-border-delta)) c h);
+    --color-border-1000: oklch(from var(--color-surface-1000) calc(l - var(--light-border-delta)) c h);
+
+    --color-surface: var(--color-surface-200);
+    --color-surface-up: var(--color-surface-300);
+    --color-surface-up-2: var(--color-surface-350);
+    --color-surface-up-3: var(--color-surface-400);
+    --color-surface-up-4: var(--color-surface-450);
+    --color-surface-up-5: var(--color-surface-500);
+    --color-surface-up-6: var(--color-surface-550);
+    --color-surface-up-7: var(--color-surface-600);
+    --color-surface-up-8: var(--color-surface-650);
+    --color-surface-down: var(--color-surface-150);
+    --color-surface-down-2: var(--color-surface-100);
+    --color-surface-down-3: var(--color-surface-50);
+    --color-surface-down-4: var(--color-surface-00);
+    --color-surface-down-5: var(--color-surface-00);
+    --color-surface-down-6: var(--color-surface-00);
+    --color-surface-down-7: var(--color-surface-00);
+    --color-surface-down-8: var(--color-surface-00);
+
+    --color-foreground-50: oklch(0.18 0.006 285);
+    --color-foreground-100: oklch(0.23 0.006 285);
+    --color-foreground-200: oklch(0.34 0.006 285);
+    --color-foreground-300: oklch(0.43 0.006 285);
+    --color-foreground-400: oklch(0.52 0.006 285);
+    --color-foreground-500: oklch(0.64 0.006 285);
+    --color-foreground-600: oklch(0.75 0.006 285);
+
+    /* Primary ramp mirrored around 400 (L_light = L_400 - 0.81*(L_dark - L_400); H kept): steps are
+       contrast with the page, so dark's lighter-toward-100 becomes darker-toward-100 here. Chroma is
+       raised because a darker orange at dark's chroma reads as brown on a light page.
+       400 and its alpha tints are shared with dark. */
+    --color-primary-100: oklch(0.6 0.155 47.71);
+    --color-primary-200: oklch(0.6186 0.15 46.05);
+    --color-primary-300: oklch(0.6373 0.145 44.39);
+    --color-primary-400: oklch(0.6559 0.1262 43.33);
+    --color-primary-text: var(--color-primary-100);
+
+    /* Redeclare aliases here: inherited custom properties resolve their var() references at the
+       element where they are defined, so changing only the ramps would leave dark aliases frozen. */
+    --color-border: var(--color-border-200);
+    --color-ring: hsl(var(--ring));
+    --color-background: var(--color-surface-200);
+    --color-foreground: var(--color-foreground-100);
+    --color-sidebar: var(--color-surface-100);
+    --color-primary: var(--color-primary-400);
+    --color-primary-foreground: hsl(var(--primary-foreground));
+    --color-secondary: var(--color-surface-300);
+    --color-secondary-foreground: var(--color-foreground-200);
+    --color-muted: var(--color-surface-450);
+    --color-emphasis-1: oklch(0 0 0 / 0.04);
+    --color-emphasis-2: oklch(0 0 0 / 0.07);
+    --color-emphasis-3: oklch(0 0 0 / 0.1);
+    --color-muted-foreground: var(--color-foreground-400);
+    --color-tool: hsl(var(--tool));
+    --color-llm: hsl(var(--llm));
+    --color-llm-foreground: hsl(var(--llm-foreground));
+    --color-subagent: hsl(var(--subagent));
   }
-
-  /* System preference: the server knows only "system", so the OS picks the palette in CSS (no flash). */
-  @media (prefers-color-scheme: light) {
-    .system {
-      @apply light-palette;
-    }
-  }
-}
-
-/* Light palette, shared by the explicit `.light` theme and `.system` under a light OS preference. */
-@utility light-palette {
-  --overlay-hover: oklch(0 0 0 / 0.04);
-  --overlay-selected: oklch(0 0 0 / 0.07);
-
-  /* GitHub Light / VS Code Light+ counterparts of the dark syntax colors. */
-  --code-text: #1f2328;
-  --code-span-text: #3f3f46;
-  --code-muted: #6e7781;
-  --code-purple: #8250df;
-  --code-green: #116329;
-  --code-orange: #953800;
-  --code-blue: #0550ae;
-  --code-string: #0a3069;
-  --code-red: #cf222e;
-  --code-invalid: #82071e;
-  --code-deleted: #82071e;
-  --code-deleted-bg: #ffebe9;
-  --code-gutter-bg: oklch(0 0 0 / 0.03);
-  --code-selection: #b6e3ff;
-
-  --sql-text: #3b3b3b;
-  --sql-keyword: #af00db;
-  --sql-string: #a31515;
-  --sql-number: #098658;
-  --sql-comment: #008000;
-  --sql-type: #267f99;
-  --sql-constant: #0000ff;
-  --sql-function: #795e26;
-  --sql-identifier: #001080;
-
-  /* Light hue tokens (currently mirror dark; tune per mode). */
-  --slate-text: hsl(215 15% 55%);
-  --slate-icon-background: hsl(215 15% 40%);
-  --blue-text: hsl(217 80% 60%);
-  --blue-icon-background: hsl(213 94% 74%);
-  --purple-text: hsl(262 70% 60%);
-  --purple-icon-background: hsl(262 83% 68%);
-  --yellow-text: hsl(42 100% 42%);
-  --yellow-icon-background: hsl(42 93% 52%);
-  --cyan-text: hsl(190 75% 60%);
-  --cyan-icon-background: hsl(187 94% 43% / 0.7);
-  --green-text: hsl(151 65% 54%);
-  --green-icon-background: hsl(160 84% 39% / 0.7);
-  --pink-text: hsl(327 100% 78%);
-  --pink-icon-background: hsl(329 86% 70% / 0.7);
-  --red-text: hsl(2 100% 79%);
-  --red-icon-background: hsl(0 72% 60%);
-
-  --unclustered: oklch(0.72 0 0);
-  --foreground: 240 10% 15%;
-  --primary-foreground: 0 0% 100%;
-
-  --destructive: hsl(0 78% 66%);
-  --destructive-text: hsl(0 72% 50%);
-  --destructive-border: hsl(0 72% 50%);
-
-  --success: hsl(160 55% 48%);
-  --success-text: hsl(160 55% 36%);
-  --success-border: hsl(160 55% 48%);
-
-  --ring: 18 59% 48%;
-
-  --chart-1: 220 70% 48%;
-  --chart-2: 160 60% 36%;
-  --chart-3: 30 80% 48%;
-  --chart-4: 280 58% 50%;
-  --chart-5: 340 68% 48%;
-
-  --tool: 38 90% 35%;
-  --llm: 262 72% 48%;
-  --llm-foreground: 262 67% 43%;
-  --subagent: 187 80% 31%;
-
-  /* Same direction as dark: higher elevation steps lighten, clamped at white. */
-  /* Light surfaces step off one base; borders sit this much darker (OKLCH L) than their surface. */
-  --light-surface-base: oklch(0.94 0 0);
-  --light-border-delta: 0.04;
-  --color-surface-00: oklch(from var(--light-surface-base) calc(l - 0.06) c h);
-  --color-surface-50: oklch(from var(--light-surface-base) calc(l - 0.045) c h);
-  --color-surface-100: oklch(from var(--light-surface-base) calc(l - 0.03) c h);
-  --color-surface-150: oklch(from var(--light-surface-base) calc(l - 0.015) c h);
-  --color-surface-200: var(--light-surface-base);
-  --color-surface-250: oklch(from var(--light-surface-base) min(1, l + 0.005) c h);
-  --color-surface-300: oklch(from var(--light-surface-base) min(1, l + 0.01) c h);
-  --color-surface-350: oklch(from var(--light-surface-base) min(1, l + 0.02) c h);
-  --color-surface-400: oklch(from var(--light-surface-base) min(1, l + 0.03) c h);
-  --color-surface-450: oklch(from var(--light-surface-base) min(1, l + 0.04) c h);
-  --color-surface-500: oklch(from var(--light-surface-base) min(1, l + 0.05) c h);
-  --color-surface-550: oklch(from var(--light-surface-base) min(1, l + 0.06) c h);
-  --color-surface-600: oklch(from var(--light-surface-base) min(1, l + 0.07) c h);
-  --color-surface-650: oklch(from var(--light-surface-base) min(1, l + 0.08) c h);
-  --color-surface-700: oklch(from var(--light-surface-base) min(1, l + 0.09) c h);
-  --color-surface-750: oklch(from var(--light-surface-base) min(1, l + 0.1) c h);
-  --color-surface-800: oklch(from var(--light-surface-base) min(1, l + 0.11) c h);
-  --color-surface-850: oklch(from var(--light-surface-base) min(1, l + 0.12) c h);
-  --color-surface-900: oklch(from var(--light-surface-base) min(1, l + 0.13) c h);
-  --color-surface-950: oklch(from var(--light-surface-base) min(1, l + 0.14) c h);
-  --color-surface-1000: oklch(from var(--light-surface-base) min(1, l + 0.15) c h);
-
-  /* Light borders sit a fixed step darker than their surface, so they stay visible on white. */
-  --color-border-00: oklch(from var(--color-surface-00) calc(l - var(--light-border-delta)) c h);
-  --color-border-50: oklch(from var(--color-surface-50) calc(l - var(--light-border-delta)) c h);
-  --color-border-100: oklch(from var(--color-surface-100) calc(l - var(--light-border-delta)) c h);
-  --color-border-150: oklch(from var(--color-surface-150) calc(l - var(--light-border-delta)) c h);
-  --color-border-200: oklch(from var(--color-surface-200) calc(l - var(--light-border-delta)) c h);
-  --color-border-300: oklch(from var(--color-surface-300) calc(l - var(--light-border-delta)) c h);
-  --color-border-350: oklch(from var(--color-surface-350) calc(l - var(--light-border-delta)) c h);
-  --color-border-400: oklch(from var(--color-surface-400) calc(l - var(--light-border-delta)) c h);
-  --color-border-450: oklch(from var(--color-surface-450) calc(l - var(--light-border-delta)) c h);
-  --color-border-500: oklch(from var(--color-surface-500) calc(l - var(--light-border-delta)) c h);
-  --color-border-550: oklch(from var(--color-surface-550) calc(l - var(--light-border-delta)) c h);
-  --color-border-600: oklch(from var(--color-surface-600) calc(l - var(--light-border-delta)) c h);
-  --color-border-650: oklch(from var(--color-surface-650) calc(l - var(--light-border-delta)) c h);
-  --color-border-700: oklch(from var(--color-surface-700) calc(l - var(--light-border-delta)) c h);
-  --color-border-750: oklch(from var(--color-surface-750) calc(l - var(--light-border-delta)) c h);
-  --color-border-800: oklch(from var(--color-surface-800) calc(l - var(--light-border-delta)) c h);
-  --color-border-850: oklch(from var(--color-surface-850) calc(l - var(--light-border-delta)) c h);
-  --color-border-900: oklch(from var(--color-surface-900) calc(l - var(--light-border-delta)) c h);
-  --color-border-950: oklch(from var(--color-surface-950) calc(l - var(--light-border-delta)) c h);
-  --color-border-1000: oklch(from var(--color-surface-1000) calc(l - var(--light-border-delta)) c h);
-
-  --color-surface: var(--color-surface-200);
-  --color-surface-up: var(--color-surface-300);
-  --color-surface-up-2: var(--color-surface-350);
-  --color-surface-up-3: var(--color-surface-400);
-  --color-surface-up-4: var(--color-surface-450);
-  --color-surface-up-5: var(--color-surface-500);
-  --color-surface-up-6: var(--color-surface-550);
-  --color-surface-up-7: var(--color-surface-600);
-  --color-surface-up-8: var(--color-surface-650);
-  --color-surface-down: var(--color-surface-150);
-  --color-surface-down-2: var(--color-surface-100);
-  --color-surface-down-3: var(--color-surface-50);
-  --color-surface-down-4: var(--color-surface-00);
-  --color-surface-down-5: var(--color-surface-00);
-  --color-surface-down-6: var(--color-surface-00);
-  --color-surface-down-7: var(--color-surface-00);
-  --color-surface-down-8: var(--color-surface-00);
-
-  --color-foreground-50: oklch(0.18 0.006 285);
-  --color-foreground-100: oklch(0.23 0.006 285);
-  --color-foreground-200: oklch(0.34 0.006 285);
-  --color-foreground-300: oklch(0.43 0.006 285);
-  --color-foreground-400: oklch(0.52 0.006 285);
-  --color-foreground-500: oklch(0.64 0.006 285);
-  --color-foreground-600: oklch(0.75 0.006 285);
-
-  /* Primary ramp mirrored around 400 (L_light = L_400 - 0.81*(L_dark - L_400); H kept): steps are
-     contrast with the page, so dark's lighter-toward-100 becomes darker-toward-100 here. Chroma is
-     raised because a darker orange at dark's chroma reads as brown on a light page.
-     400 and its alpha tints are shared with dark. */
-  --color-primary-100: oklch(0.6 0.155 47.71);
-  --color-primary-200: oklch(0.6186 0.15 46.05);
-  --color-primary-300: oklch(0.6373 0.145 44.39);
-  --color-primary-400: oklch(0.6559 0.1262 43.33);
-  --color-primary-text: var(--color-primary-100);
-
-  /* Redeclare aliases here: inherited custom properties resolve their var() references at the
-     element where they are defined, so changing only the ramps would leave dark aliases frozen. */
-  --color-border: var(--color-border-200);
-  --color-ring: hsl(var(--ring));
-  --color-background: var(--color-surface-200);
-  --color-foreground: var(--color-foreground-100);
-  --color-sidebar: var(--color-surface-100);
-  --color-primary: var(--color-primary-400);
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: var(--color-surface-300);
-  --color-secondary-foreground: var(--color-foreground-200);
-  --color-muted: var(--color-surface-450);
-  --color-emphasis-1: oklch(0 0 0 / 0.04);
-  --color-emphasis-2: oklch(0 0 0 / 0.07);
-  --color-emphasis-3: oklch(0 0 0 / 0.1);
-  --color-muted-foreground: var(--color-foreground-400);
-  --color-tool: hsl(var(--tool));
-  --color-llm: hsl(var(--llm));
-  --color-llm-foreground: hsl(var(--llm-foreground));
-  --color-subagent: hsl(var(--subagent));
 }
 
 @keyframes landing-caret-blink {
@@ -924,18 +896,9 @@
 
   body {
     @apply bg-background text-foreground;
-    color-scheme: dark;
   }
 
-  body.light {
-    color-scheme: light;
-  }
-
-  body.system {
-    color-scheme: light dark;
-  }
-
-  /* Theme switch cross-fade (see AppThemeProvider's setPreference). */
+  /* Theme switch cross-fade (see ThemeToggle). */
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation-duration: 400ms;
