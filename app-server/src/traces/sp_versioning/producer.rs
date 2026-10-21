@@ -119,18 +119,12 @@ struct InlineResolution {
     version: Option<String>,
 }
 
-/// Spans emitted by our own self-tracing (extraction, signals, agent naming)
-/// land in these projects; feeding them back into versioning would loop.
-pub(crate) fn internal_project_ids() -> Vec<Uuid> {
-    [
-        crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID,
-        crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID,
-        crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
-    ]
-    .iter()
-    .filter_map(|name| std::env::var(name).ok())
-    .filter_map(|s| Uuid::parse_str(&s).ok())
-    .collect()
+/// Agent naming traces into this project on every new agent version, so
+/// versioning it would loop.
+fn checkpoints_internal_project_id() -> Option<Uuid> {
+    std::env::var(crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|s| Uuid::parse_str(&s).ok())
 }
 
 /// Publish a batch's system prompts to the active pipeline's queue.
@@ -141,10 +135,10 @@ pub async fn publish_static_prompt_candidates(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    let internal_ids = internal_project_ids();
+    let checkpoints_project_id = checkpoints_internal_project_id();
     let candidates: Vec<StaticPromptCandidate> = candidates
         .into_iter()
-        .filter(|c| !internal_ids.contains(&c.project_id))
+        .filter(|c| Some(c.project_id) != checkpoints_project_id)
         .collect();
     if candidates.is_empty() {
         return;

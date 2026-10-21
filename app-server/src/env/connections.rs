@@ -17,6 +17,7 @@ pub const CHECKPOINTS_INTERNAL_PROJECT_ID: &str = "CHECKPOINTS_INTERNAL_PROJECT_
 /// Static-prompt extraction self-tracing destination project id.
 pub const STATIC_SP_INTERNAL_PROJECT_ID: &str = "STATIC_SP_INTERNAL_PROJECT_ID";
 /// Signal job self-tracing destination project id.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNALS_INTERNAL_PROJECT_ID: &str = "SIGNAL_JOB_INTERNAL_PROJECT_ID";
 /// Report summary self-tracing destination project id.
 pub const REPORTS_INTERNAL_PROJECT_ID: &str = "REPORTS_INTERNAL_PROJECT_ID";
