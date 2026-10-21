@@ -39,7 +39,7 @@ use crate::{
     },
     llm::LlmClient,
     traces::{
-        dedup::{span_group_id, tools::ToolDedup},
+        dedup::tools::ToolDedup,
         sp_versioning::{VersionKind, consumer::SpVersioningMessage, similarity, versions},
     },
     utils::{sanitize_string, truncate_chars},
@@ -73,13 +73,6 @@ pub struct AgentSpan {
     /// The span's `full_prompt_hash`: the system-prompt memo key.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub system_prompt_full_hash: String,
-    /// Hex dedup hash of the tool blob: its `unique_content` key. Only read by
-    /// the legacy guard in [`join_spans`].
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub tool_content_hash: String,
-    /// The span's `unique_content` group. Unread, but pre-change consumers
-    /// require it.
-    pub group_id: String,
 }
 
 impl AgentSpan {
@@ -96,14 +89,10 @@ impl AgentSpan {
             .map(|m| truncate_chars(&sanitize_string(m.trim()), MODEL_MAX_CHARS))
             .unwrap_or_default();
         // A set that normalizes to nothing counts as no tools.
-        let (tool_full_hash, tool_content_hash) = tools
-            .and_then(|t| {
-                let text = t
-                    .versioning_text
-                    .as_deref()
-                    .filter(|text| !text.is_empty())?;
-                Some((similarity::full_prompt_hash(text), hex::encode(t.hash)))
-            })
+        let tool_full_hash = tools
+            .and_then(|t| t.versioning_text.as_deref())
+            .filter(|text| !text.is_empty())
+            .map(similarity::full_prompt_hash)
             .unwrap_or_default();
         Self {
             span_id: span.span_id,
@@ -112,8 +101,6 @@ impl AgentSpan {
             tool_full_hash,
             tool_version: None,
             system_prompt_full_hash: system_prompt_full_hash.to_string(),
-            tool_content_hash,
-            group_id: span_group_id(span),
         }
     }
 }
@@ -228,11 +215,6 @@ async fn join_spans<'a>(
             }
             _ => {
                 let known = if inputs.tool_full_hash.is_empty() {
-                    // Tools without a versioning hash: a message from before
-                    // tool-definition versioning. Never record it as tool-less.
-                    if !inputs.tool_content_hash.is_empty() {
-                        continue;
-                    }
                     Some(String::new())
                 } else {
                     inputs.tool_version.clone()
@@ -739,12 +721,6 @@ mod tests {
             tool_full_hash: tool_full_hash.to_string(),
             tool_version: None,
             system_prompt_full_hash: "spfull".to_string(),
-            tool_content_hash: if tool_full_hash.is_empty() {
-                String::new()
-            } else {
-                "blob".to_string()
-            },
-            group_id: "group".to_string(),
         }
     }
 
@@ -787,8 +763,7 @@ mod tests {
     async fn system_prompt_side_joins_known_tool_versions_only() {
         let cache = cache();
         let project_id = Uuid::new_v4();
-        let [known, inline, tool_less, pending, legacy, unknown] =
-            std::array::from_fn(|_| Uuid::new_v4());
+        let [known, inline, tool_less, pending, unknown] = std::array::from_fn(|_| Uuid::new_v4());
         memo(
             &cache,
             VersionKind::ToolDefinitions,
@@ -799,8 +774,6 @@ mod tests {
         .await;
         let mut inline_span = agent_span(inline, "other");
         inline_span.tool_version = Some("t2".to_string());
-        let mut legacy_span = agent_span(legacy, "");
-        legacy_span.tool_content_hash = "blob".to_string();
         let messages = [message(
             project_id,
             vec![
@@ -808,10 +781,9 @@ mod tests {
                 inline_span,
                 agent_span(tool_less, ""),
                 agent_span(pending, "unmemoized"),
-                legacy_span,
             ],
         )];
-        let span_versions = [known, inline, tool_less, pending, legacy, unknown]
+        let span_versions = [known, inline, tool_less, pending, unknown]
             .map(|id| span_version(project_id, id, "sp1"));
         // Same span id under another project must not borrow the inputs.
         let other_project = [span_version(Uuid::new_v4(), known, "sp1")];
@@ -828,7 +800,7 @@ mod tests {
         assert_eq!(spans[0].version_hash, version_hash("agent", "sp1", "t1"));
         assert_eq!(spans[2].version_hash, version_hash("agent", "sp1", ""));
         assert_eq!(spans[0].system_prompt, "You are a test agent.");
-        // Legacy and input-less spans never reach the fallback.
+        // Input-less spans never reach the fallback.
         let pending_ids: Vec<Uuid> = pending_spans.iter().map(|p| p.inputs.span_id).collect();
         assert_eq!(pending_ids, vec![pending]);
         let other = join_spans(&cache, VersionKind::SystemPrompt, &messages, &other_project).await;
@@ -989,7 +961,7 @@ mod tests {
     fn agent_span_wire_format_round_trips() {
         let span = agent_span(Uuid::new_v4(), "");
         let json = serde_json::to_value(&span).unwrap();
-        for omitted in ["tool_full_hash", "tool_version", "tool_content_hash"] {
+        for omitted in ["tool_full_hash", "tool_version"] {
             assert!(json.get(omitted).is_none(), "empty {omitted} is omitted");
         }
         let back: AgentSpan = serde_json::from_value(json).unwrap();

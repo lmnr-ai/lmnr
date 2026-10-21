@@ -831,8 +831,8 @@
     {
       "idx": 118,
       "version": "7",
-      "when": 1792589075780,
-      "tag": "0118_agent_versions_tool_text_from_defs",
+      "when": 1792590499138,
+      "tag": "0118_agent_versions_drop_tool_definitions",
       "breakpoints": true
     }
   ]

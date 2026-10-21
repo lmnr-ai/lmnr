@@ -484,15 +484,12 @@ mod tests {
             tool_full_hash: String::new(),
             tool_version: None,
             system_prompt_full_hash: "full".to_string(),
-            tool_content_hash: String::new(),
-            group_id: "group".to_string(),
         }
     }
 
     fn tool_candidate(span_id: Uuid, agent_hash: &str, tool_text: &str) -> StaticPromptCandidate {
         let mut span = agent_span(span_id);
         span.tool_full_hash = similarity::full_prompt_hash(tool_text);
-        span.tool_content_hash = "blob".to_string();
         StaticPromptCandidate {
             agent_hash: agent_hash.to_string(),
             tool_text: tool_text.to_string(),
