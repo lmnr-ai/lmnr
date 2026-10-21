@@ -353,7 +353,6 @@ export const agentVersions = pgTable(
     versionNumber: integer("version_number").notNull(),
     systemPromptVersionHash: text("system_prompt_version_hash").notNull(),
     toolDefinitionsHash: text("tool_definitions_hash").notNull(),
-    toolDefinitions: text("tool_definitions").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
@@ -369,11 +368,6 @@ export const agentVersions = pgTable(
     }).onDelete("cascade"),
     unique("agent_versions_project_id_version_hash_key").on(table.projectId, table.versionHash),
     unique("agent_versions_agent_id_version_number_key").on(table.agentId, table.versionNumber),
-    index("agent_versions_agent_id_tool_definitions_hash_idx").using(
-      "btree",
-      table.agentId.asc().nullsLast().op("uuid_ops"),
-      table.toolDefinitionsHash.asc().nullsLast().op("text_ops")
-    ),
   ]
 );
 

@@ -192,6 +192,18 @@ pub async fn publish_span_messages(
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
         if let Some(verdict) = verdicts.system_prompt {
+            let agent_span = checkpoints_enabled.then(|| {
+                AgentSpan::from_span(
+                    &msg.span,
+                    msg.tool_dedup.as_ref(),
+                    &verdict.full_prompt_hash,
+                )
+            });
+            let tool_text = msg
+                .tool_dedup
+                .as_mut()
+                .and_then(|tools| tools.versioning_text.take())
+                .unwrap_or_default();
             static_prompt_candidates.push(StaticPromptCandidate {
                 project_id,
                 trace_id: msg.span.trace_id,
@@ -200,8 +212,8 @@ pub async fn publish_span_messages(
                 agent_hash: verdict.agent_hash,
                 full_prompt_hash: verdict.full_prompt_hash,
                 system_prompt: verdict.text,
-                agent_span: checkpoints_enabled
-                    .then(|| AgentSpan::from_span(&msg.span, msg.tool_dedup.as_ref())),
+                agent_span,
+                tool_text,
             });
         }
         if verdicts.user_task.is_some() || verdicts.output_candidate.is_some() {
@@ -275,8 +287,8 @@ pub async fn publish_span_messages(
                     None,
                 )
                 .await?;
-            // Agent versioning resolves tool text from the cloud
-            // `unique_content`, which hybrid workspaces never write.
+            // Agent versioning tags the cloud `traces_agg`, but hybrid
+            // traces live in the data plane.
             for candidate in &mut static_prompt_candidates {
                 candidate.agent_span = None;
             }

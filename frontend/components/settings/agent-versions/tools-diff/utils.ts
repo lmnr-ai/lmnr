@@ -5,10 +5,10 @@ export type ToolChangeStatus = "added" | "removed" | "modified";
 export interface ToolChange {
   name: string;
   status: ToolChangeStatus;
-  /** Pretty JSON of the tool; empty on the side where it doesn't exist. */
+  /** The tool's lines of the version text; empty on the side where it doesn't exist. */
   oldText: string;
   newText: string;
-  /** Changed line counts of the tool's JSON diff. */
+  /** Changed line counts of the tool's diff. */
   additions: number;
   deletions: number;
 }
@@ -19,38 +19,55 @@ export interface ToolsDiff {
 }
 
 interface Tool {
-  /** `name`, else `type`, else `id`, like the app-server's `tool_name`. */
+  /** The tool's header line: `name`, else `type`, else `id` (app-server `tool_name`). */
   name: string;
   /** `namespace.name` when namespaced. */
   label: string;
   text: string;
 }
 
-function parseTool(tool: unknown): Tool {
-  const text = JSON.stringify(tool, null, 2);
-  if (!tool || typeof tool !== "object") return { name: "(unnamed)", label: "(unnamed)", text };
-  const fields = tool as Record<string, unknown>;
-  const found = ["name", "type", "id"].map((key) => fields[key]).find((v) => typeof v === "string" && v);
-  const name = typeof found === "string" ? found : "(unnamed)";
-  const namespace = typeof fields.namespace === "string" && fields.namespace ? fields.namespace : "";
-  return { name, label: namespace ? `${namespace}.${name}` : name, text };
+/** Every leaf line has one of these separators; a tool's header line has neither. */
+const isLeaf = (line: string) => line.includes(": ") || line.includes(" = ");
+
+function toTool(name: string, lines: string[]): Tool {
+  const namespace = lines.find((line) => line.startsWith(`${name}.namespace: `))?.slice(`${name}.namespace: `.length);
+  return { name, label: namespace ? `${namespace}.${name}` : name, text: lines.join("\n") };
+}
+
+/**
+ * Splits version text (app-server `tool_text::render`, cut down to the lines a version's
+ * spans share) into tools: a header line with the tool name, then one `name.path` line per
+ * leaf. A leaf that doesn't continue the current tool starts one named by its first path
+ * segment, so nothing is hidden if a header ever drops out.
+ */
+function splitTools(text: string): Tool[] {
+  const groups: { name: string; lines: string[] }[] = [];
+  for (const line of text.split("\n")) {
+    if (!line) continue;
+    const current = groups.at(-1);
+    if (!isLeaf(line)) groups.push({ name: line, lines: [line] });
+    else if (current && line.startsWith(`${current.name}.`)) current.lines.push(line);
+    else groups.push({ name: line.split(".")[0], lines: [line] });
+  }
+  return groups.map(({ name, lines }) => toTool(name, lines));
 }
 
 /** Tools grouped by name; a name can repeat across namespaces or outright. */
 function toolsByName(text: string): Map<string, Tool[]> {
   const byName = new Map<string, Tool[]>();
-  if (!text) return byName;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    byName.set("(unparsed)", [{ name: "(unparsed)", label: "(unparsed)", text }]);
-    return byName;
-  }
-  for (const tool of (Array.isArray(parsed) ? parsed : [parsed]).map(parseTool)) {
+  for (const tool of splitTools(text)) {
     byName.set(tool.name, [...(byName.get(tool.name) ?? []), tool]);
   }
   return byName;
+}
+
+/** Suffixes labels that occur more than once with `#1`, `#2`, … so each row is told apart. */
+function numberRepeats(labels: string[]): string[] {
+  return labels.map((label, i) =>
+    labels.filter((l) => l === label).length > 1
+      ? `${label} #${labels.slice(0, i + 1).filter((l) => l === label).length}`
+      : label
+  );
 }
 
 /** Takes the first tool matching `predicate` out of `tools`. */
@@ -99,17 +116,27 @@ export function diffTools(oldText: string, newText: string): ToolsDiff {
   for (const name of new Set([...beforeByName.keys(), ...afterByName.keys()])) {
     const { pairs, shared } = pairTools(beforeByName.get(name) ?? [], afterByName.get(name) ?? []);
     unchanged += shared;
-    const labels = pairs.map(([oldTool, newTool]) => (newTool ?? oldTool)?.label ?? name);
+    const labels = numberRepeats(pairs.map(([oldTool, newTool]) => (newTool ?? oldTool)?.label ?? name));
     pairs.forEach(([oldTool, newTool], i) => {
-      const repeats = labels.filter((label) => label === labels[i]).length > 1;
-      const label = repeats
-        ? `${labels[i]} #${labels.slice(0, i + 1).filter((l) => l === labels[i]).length}`
-        : labels[i];
       const status: ToolChangeStatus = !oldTool ? "added" : !newTool ? "removed" : "modified";
-      changes.push(toolChange(label, status, oldTool?.text ?? "", newTool?.text ?? ""));
+      changes.push(toolChange(labels[i], status, oldTool?.text ?? "", newTool?.text ?? ""));
     });
   }
 
   changes.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
   return { changes, unchanged };
+}
+
+export interface ListedTool {
+  name: string;
+  /** The tool's lines of the version text. */
+  text: string;
+  lines: number;
+}
+
+/** A version's tools in stored order, labelled like `diffTools` labels them. */
+export function listTools(text: string): ListedTool[] {
+  const tools = splitTools(text);
+  const names = numberRepeats(tools.map((tool) => tool.label));
+  return tools.map((tool, i) => ({ name: names[i], text: tool.text, lines: tool.text.split("\n").length }));
 }

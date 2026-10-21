@@ -1,6 +1,6 @@
 //! Versioning tables. Each [`VersionKind`] has its own pair
-//! (`system_prompt_*`, `user_template_*`), both written by the versioning
-//! consumer:
+//! (`system_prompt_*`, `user_template_*`, `tool_definition_*`), both written
+//! by the versioning consumer:
 //!   - `*_versions` — one row per SPAN, its resolved version. Write-once: rows
 //!     are never corrected after insert (transition-window spans keep the
 //!     version resolved at classification time).
@@ -63,7 +63,7 @@ impl SpanVersion {
 fn version_column(kind: VersionKind) -> &'static str {
     match kind {
         VersionKind::SystemPrompt => "static_prompt_version_hash",
-        VersionKind::UserTemplate => "version_hash",
+        VersionKind::UserTemplate | VersionKind::ToolDefinitions => "version_hash",
     }
 }
 
@@ -121,6 +121,32 @@ impl From<&SpanVersion> for CHUserTemplateVersion {
     }
 }
 
+#[derive(Row, Serialize, Debug, Clone)]
+struct CHToolDefinitionVersion {
+    #[serde(with = "clickhouse::serde::uuid")]
+    project_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    trace_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    span_id: Uuid,
+    agent_hash: String,
+    version_hash: String,
+    created_at: i64,
+}
+
+impl From<&SpanVersion> for CHToolDefinitionVersion {
+    fn from(row: &SpanVersion) -> Self {
+        Self {
+            project_id: row.project_id,
+            trace_id: row.trace_id,
+            span_id: row.span_id,
+            agent_hash: row.agent_hash.clone(),
+            version_hash: row.version_hash.clone(),
+            created_at: row.created_at,
+        }
+    }
+}
+
 pub async fn insert_version_rows(
     clickhouse: &clickhouse::Client,
     kind: VersionKind,
@@ -137,6 +163,10 @@ pub async fn insert_version_rows(
         }
         VersionKind::UserTemplate => {
             let rows: Vec<CHUserTemplateVersion> = rows.iter().map(Into::into).collect();
+            insert_rows(clickhouse, table, &rows).await
+        }
+        VersionKind::ToolDefinitions => {
+            let rows: Vec<CHToolDefinitionVersion> = rows.iter().map(Into::into).collect();
             insert_rows(clickhouse, table, &rows).await
         }
     }
@@ -219,6 +249,7 @@ impl VersionDef {
     }
 }
 
+/// Also the tool-definition def row: the two tables share their columns.
 #[derive(Row, Serialize, Debug, Clone)]
 struct CHSystemPromptVersionDef {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -300,7 +331,7 @@ pub async fn insert_version_def(
 ) -> Result<()> {
     let table = kind.tables().defs;
     match kind {
-        VersionKind::SystemPrompt => {
+        VersionKind::SystemPrompt | VersionKind::ToolDefinitions => {
             insert_rows(clickhouse, table, &[CHSystemPromptVersionDef::from(def)]).await
         }
         VersionKind::UserTemplate => {
@@ -364,6 +395,50 @@ pub async fn fetch_span_version(
         .fetch_optional::<VersionRow>()
         .await?;
     Ok(row.map(|r| r.version_hash))
+}
+
+/// [`fetch_span_version`] for a batch of one project's `(trace_id, span_id)`
+/// refs. Spans without a row (yet) are absent.
+pub async fn fetch_span_versions(
+    clickhouse: &clickhouse::Client,
+    kind: VersionKind,
+    project_id: Uuid,
+    refs: &[(Uuid, Uuid)],
+) -> Result<HashMap<(Uuid, Uuid), String>> {
+    #[derive(Row, Deserialize)]
+    struct VersionRow {
+        #[serde(with = "clickhouse::serde::uuid")]
+        trace_id: Uuid,
+        #[serde(with = "clickhouse::serde::uuid")]
+        span_id: Uuid,
+        version_hash: String,
+    }
+    if refs.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let trace_ids: Vec<Uuid> = refs.iter().map(|(t, _)| *t).collect();
+    let span_ids: Vec<Uuid> = refs.iter().map(|(_, s)| *s).collect();
+    let query = format!(
+        "SELECT trace_id, span_id, argMax({}, created_at) AS version_hash
+         FROM {}
+         WHERE project_id = {{project_id:UUID}}
+           AND trace_id IN {{trace_ids:Array(UUID)}}
+           AND span_id IN {{span_ids:Array(UUID)}}
+         GROUP BY trace_id, span_id",
+        version_column(kind),
+        kind.tables().versions
+    );
+    let rows = clickhouse
+        .query(&query)
+        .param("project_id", project_id)
+        .param("trace_ids", trace_ids)
+        .param("span_ids", span_ids)
+        .fetch_all::<VersionRow>()
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ((r.trace_id, r.span_id), r.version_hash))
+        .collect())
 }
 
 /// Static skeleton of a system-prompt version; `None` when the def isn't

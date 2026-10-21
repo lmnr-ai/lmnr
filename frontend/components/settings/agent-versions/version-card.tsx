@@ -6,13 +6,13 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DiffView from "@/components/ui/diff";
-import { prettyJson } from "@/components/ui/diff/diff";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import SideBySideDialog from "./side-by-side-dialog";
 import ToolsDiff from "./tools-diff";
+import ToolsList from "./tools-diff/tools-list";
 import VersionModels from "./version-models";
 
 interface VersionCardProps {
@@ -109,8 +109,8 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
                       title="Tools"
                       oldLabel={`Version ${previous.versionNumber}`}
                       newLabel={`Version ${version.versionNumber}`}
-                      oldText={prettyJson(previous.toolDefinitions)}
-                      newText={prettyJson(version.toolDefinitions)}
+                      oldText={previous.toolDefinitions}
+                      newText={version.toolDefinitions}
                     />
                   }
                 >
@@ -124,7 +124,7 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
                 <ContentBlock text={version.systemPrompt} />
               </Field>
               <Field label="Tools">
-                <ContentBlock text={prettyJson(version.toolDefinitions)} />
+                <ToolsList text={version.toolDefinitions} />
               </Field>
             </>
           )}

@@ -241,6 +241,17 @@ pub const USER_TEMPLATE_PROBE_CACHE_KEY: &str = "user_template_probe";
 pub const USER_TEMPLATE_VERSION_MEMO_CACHE_KEY: &str = "user_template_version_memo";
 pub const USER_TEMPLATE_VERSION_LOCK_CACHE_KEY: &str = "user_template_version_lock";
 
+// Tool-definition version tracking (`VersionKind::ToolDefinitions`): the same
+// key families, keyed by `(project_id, agent_hash)`; the memo by the content
+// hash of the tool set's line rendering.
+pub const TOOL_DEFINITION_VERSIONS_CACHE_KEY: &str = "tool_definition_versions";
+pub const TOOL_DEFINITION_VERSION_LINES_CACHE_KEY: &str = "tool_definition_version_lines";
+pub const TOOL_DEFINITION_WINDOW_CACHE_KEY: &str = "tool_definition_window";
+pub const TOOL_DEFINITION_WINDOW_LINES_CACHE_KEY: &str = "tool_definition_window_lines";
+pub const TOOL_DEFINITION_PROBE_CACHE_KEY: &str = "tool_definition_probe";
+pub const TOOL_DEFINITION_VERSION_MEMO_CACHE_KEY: &str = "tool_definition_version_memo";
+pub const TOOL_DEFINITION_VERSION_LOCK_CACHE_KEY: &str = "tool_definition_version_lock";
+
 /// Per-version lock serializing the SP-regex extraction worker's agent run
 /// (`static_sp_extraction::worker::run_lock_cache_key`).
 pub const SYSTEM_PROMPT_REGEX_EXTRACTION_LOCK_CACHE_KEY: &str =

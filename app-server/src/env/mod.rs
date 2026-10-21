@@ -48,6 +48,7 @@ pub mod sql;
 pub mod static_sp;
 pub mod storage;
 pub mod streams;
+pub mod tool_definitions;
 pub mod user_task;
 pub mod user_template;
 pub mod workers;
