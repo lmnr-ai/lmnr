@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { type PropsWithChildren } from "react";
 
-import CookieThemeProvider from "@/components/theme/cookie-theme-provider";
 import { getOnboardingState } from "@/lib/actions/onboarding";
 import { getServerSession } from "@/lib/auth-session";
 
@@ -12,5 +11,5 @@ export default async function AppLayout({ children }: PropsWithChildren) {
     return redirect("/onboarding");
   }
 
-  return <CookieThemeProvider>{children}</CookieThemeProvider>;
+  return <>{children}</>;
 }
