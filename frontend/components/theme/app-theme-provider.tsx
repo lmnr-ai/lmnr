@@ -58,3 +58,8 @@ export function useAppTheme(): AppThemeContextValue {
   if (!context) throw new Error("useAppTheme must be used within AppThemeProvider");
   return context;
 }
+
+/** For components that also render outside the provider (e.g. shared trace pages), which stay dark. */
+export function useAppThemeOrDefault(): AppTheme {
+  return useContext(AppThemeContext)?.theme ?? "dark";
+}
