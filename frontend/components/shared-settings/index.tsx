@@ -8,7 +8,6 @@ import {
   CreditCard,
   DollarSign,
   FileBarChart,
-  GitBranch,
   Key,
   type LucideIcon,
   Settings2,
@@ -22,7 +21,6 @@ import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
 import UpgradeNotice from "@/components/common/upgrade-notice";
-import AgentVersions from "@/components/settings/agent-versions";
 import AlertsSettings from "@/components/settings/alerts";
 import CustomModelCosts from "@/components/settings/custom-model-costs";
 import DeleteProject from "@/components/settings/delete-project";
@@ -99,7 +97,6 @@ const VALID_SECTIONS = new Set<Section>([
   "project-api-keys",
   "model-costs",
   "render-templates",
-  "agent-versions",
   "security",
   "alerts",
 ]);
@@ -169,7 +166,6 @@ const SharedSettings = ({
     { label: "Project API Keys", section: "project-api-keys", icon: Key },
     { label: "Model costs", section: "model-costs", icon: DollarSign },
     { label: "Render templates", section: "render-templates", icon: Code2 },
-    { label: "Agent versions", section: "agent-versions", icon: GitBranch, badge: "Beta" },
     { label: "Security", section: "security", icon: ShieldCheck },
     { label: "Alerts", section: "alerts", icon: Bell },
   ];
@@ -260,8 +256,6 @@ const SharedSettings = ({
         return <CustomModelCosts />;
       case "render-templates":
         return <RenderTemplates />;
-      case "agent-versions":
-        return <AgentVersions />;
       case "alerts":
         if (isFree) {
           return (

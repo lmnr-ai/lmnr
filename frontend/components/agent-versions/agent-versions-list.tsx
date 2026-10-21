@@ -4,12 +4,12 @@ import { isEmpty, times } from "lodash";
 import { ArrowLeft } from "lucide-react";
 import useSWR from "swr";
 
+import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionsResult } from "@/lib/actions/agents";
 import { swrFetcher } from "@/lib/utils";
 
-import { SettingsSection, SettingsSectionHeader } from "../settings-section";
 import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";

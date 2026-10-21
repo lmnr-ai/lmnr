@@ -4,10 +4,15 @@ import { isEmpty } from "lodash";
 import { ChevronRight } from "lucide-react";
 import useSWR from "swr";
 
+import {
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsTable,
+  SettingsTableRow,
+} from "@/components/settings/settings-section";
 import { type AgentListItem } from "@/lib/actions/agents";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
-import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import { agentDisplayName } from "./utils";
 
 interface AgentsListProps {

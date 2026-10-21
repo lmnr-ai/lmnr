@@ -69,7 +69,12 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
                   >
                     <Link href={option.href}>
                       <option.icon />
-                      <span>{option.name}</span>
+                      <span className="flex items-start gap-0.5">
+                        {option.name}
+                        {option.badge && (
+                          <span className="text-[9px] font-medium leading-3 text-primary">{option.badge}</span>
+                        )}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
