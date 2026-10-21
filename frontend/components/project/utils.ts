@@ -1,6 +1,7 @@
 import {
   Database,
   FlaskConical,
+  GitBranch,
   GitFork,
   Home,
   LayoutDashboard,
@@ -16,6 +17,7 @@ export interface SidebarMenuOption {
   name: string;
   href: string;
   icon: LucideIcon;
+  badge?: string;
 }
 
 export interface SidebarMenuGroup {
@@ -36,6 +38,7 @@ export const getSidebarMenus = (projectId: string): SidebarMenuGroup[] => [
       { name: "traces", href: `/project/${projectId}/traces`, icon: Rows4 },
       { name: "signals", href: `/project/${projectId}/signals`, icon: Radio },
       { name: "sql editor", href: `/project/${projectId}/sql`, icon: SquareTerminal },
+      { name: "agent versions", href: `/project/${projectId}/agent-versions`, icon: GitBranch, badge: "beta" },
     ],
   },
   {
