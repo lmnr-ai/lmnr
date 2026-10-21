@@ -20,7 +20,6 @@ export type SettingsSection =
   | "project-api-keys"
   | "model-costs"
   | "render-templates"
-  | "agent-versions"
   | "security"
   | "alerts";
 
