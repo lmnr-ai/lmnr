@@ -8,15 +8,12 @@
 //! ClickHouse version row, which outlives the memo.
 //!
 //! Best-effort throughout: a failure is logged and the next span presenting
-//! the same version retries it. A version whose tool text isn't readable yet
-//! is deferred the same way, without a Postgres row.
+//! the same version retries it.
 
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::Context;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::Value;
 use uuid::Uuid;
 
 use super::{naming::generate_agent_name, version::version_hash};
@@ -33,7 +30,6 @@ use crate::{
         cloud::CloudClickhouse,
         system_prompt_versions::{SpanVersion, fetch_span_versions, fetch_version_static_text},
         traces_agg::{CHTraceAgentVersion, CHTraceAgg},
-        unique_content::get_content_by_hash,
         utils::chrono_to_nanoseconds,
     },
     db::{
@@ -43,7 +39,7 @@ use crate::{
     },
     llm::LlmClient,
     traces::{
-        dedup::{span_group_id, tool_normalize::normalize_tools, tools::ToolDedup},
+        dedup::{span_group_id, tools::ToolDedup},
         sp_versioning::{VersionKind, consumer::SpVersioningMessage, similarity, versions},
     },
     utils::{sanitize_string, truncate_chars},
@@ -77,10 +73,12 @@ pub struct AgentSpan {
     /// The span's `full_prompt_hash`: the system-prompt memo key.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub system_prompt_full_hash: String,
-    /// Hex dedup hash of the tool blob: its `unique_content` key.
+    /// Hex dedup hash of the tool blob: its `unique_content` key. Only read by
+    /// the legacy guard in [`join_spans`].
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tool_content_hash: String,
-    /// The span's `unique_content` group.
+    /// The span's `unique_content` group. Unread, but pre-change consumers
+    /// require it.
     pub group_id: String,
 }
 
@@ -387,17 +385,15 @@ impl CheckpointRecorder {
             return;
         }
 
-        let mut spans_by_version: IndexMap<(Uuid, &str), Vec<&VersionedSpan>> = IndexMap::new();
+        let mut span_by_version: IndexMap<(Uuid, &str), &VersionedSpan> = IndexMap::new();
         for span in &spans {
-            spans_by_version
+            span_by_version
                 .entry((span.project_id, span.version_hash.as_str()))
-                .or_default()
-                .push(span);
+                .or_insert(span);
         }
         let mut agents: HashMap<(Uuid, &str), CachedAgent> = HashMap::new();
         let mut version_ids: HashMap<(Uuid, &str), Uuid> = HashMap::new();
-        for version_spans in spans_by_version.into_values() {
-            let span = version_spans[0];
+        for span in span_by_version.into_values() {
             let agent_key = (span.project_id, span.agent_hash);
             let agent = match agents.get(&agent_key) {
                 Some(agent) => *agent,
@@ -412,7 +408,7 @@ impl CheckpointRecorder {
                     }
                 },
             };
-            match self.ensure_version(&version_spans, agent.id).await {
+            match self.ensure_version(span, agent.id).await {
                 Ok(Some(id)) => {
                     version_ids.insert((span.project_id, span.version_hash.as_str()), id);
                     // Naming waits for a version so a deferred-only agent costs no LLM call.
@@ -421,7 +417,7 @@ impl CheckpointRecorder {
                     }
                 }
                 Ok(None) => log::debug!(
-                    "[CHECKPOINTS] Deferring version {}: tool definitions not readable yet or version_number race lost",
+                    "[CHECKPOINTS] Deferring version {}: version_number race lost",
                     span.version_hash
                 ),
                 Err(e) => log::warn!(
@@ -495,14 +491,12 @@ impl CheckpointRecorder {
         Ok(agent)
     }
 
-    /// `spans` all present the same version. `None` defers the version: its
-    /// tool text isn't readable yet, or it lost the `version_number` race.
+    /// `None` defers the version: it lost the `version_number` race.
     async fn ensure_version(
         &self,
-        spans: &[&VersionedSpan<'_>],
+        span: &VersionedSpan<'_>,
         agent_id: Uuid,
     ) -> anyhow::Result<Option<Uuid>> {
-        let span = spans[0];
         let key = format!(
             "{AGENT_VERSION_ID_CACHE_KEY}:{}:{}",
             span.project_id, span.version_hash
@@ -515,7 +509,7 @@ impl CheckpointRecorder {
                 .await?
             {
                 Some(id) => Some(id),
-                None => self.create_version(spans, agent_id).await?,
+                None => self.create_version(span, agent_id).await?,
             };
         if let Some(id) = id {
             remember(&self.cache, &key, id, ENTRY_TTL_SECONDS).await;
@@ -525,20 +519,15 @@ impl CheckpointRecorder {
 
     async fn create_version(
         &self,
-        spans: &[&VersionedSpan<'_>],
+        span: &VersionedSpan<'_>,
         agent_id: Uuid,
     ) -> anyhow::Result<Option<Uuid>> {
-        let span = spans[0];
-        let Some(tool_definitions) = self.tool_definitions(spans, agent_id).await? else {
-            return Ok(None);
-        };
         let version = NewAgentVersion {
             project_id: span.project_id,
             agent_id,
             version_hash: &span.version_hash,
             system_prompt_version_hash: &span.system_prompt_version_hash,
             tool_definitions_hash: &span.tool_version,
-            tool_definitions: &tool_definitions,
         };
         if let Some(id) = agents::insert_agent_version(&self.db.pool, &version).await? {
             return Ok(Some(id));
@@ -546,53 +535,6 @@ impl CheckpointRecorder {
         // A conflict is a concurrent insert of this same version, or a lost race
         // for the next `version_number`, which defers the version.
         agents::get_agent_version_id(&self.db.pool, span.project_id, &span.version_hash).await
-    }
-
-    /// [`normalize_tools`] text of the version's tool set: from another version
-    /// of the agent with the same tool version, else from the `unique_content`
-    /// blob of the oldest of `spans`. The spans consumer may not have written
-    /// it yet (`None`).
-    async fn tool_definitions(
-        &self,
-        spans: &[&VersionedSpan<'_>],
-        agent_id: Uuid,
-    ) -> anyhow::Result<Option<String>> {
-        let span = spans[0];
-        if span.tool_version.is_empty() {
-            return Ok(Some(String::new()));
-        }
-        if let Some(text) = agents::get_tool_definitions(
-            &self.db.pool,
-            span.project_id,
-            agent_id,
-            &span.tool_version,
-        )
-        .await?
-        {
-            return Ok(Some(text));
-        }
-        // The oldest span's blob is the likeliest to be written already.
-        let oldest = spans
-            .iter()
-            .min_by_key(|s| s.inputs.start_time)
-            .unwrap_or(&span);
-        let Some(blob) = get_content_by_hash(
-            &self.clickhouse,
-            oldest.project_id,
-            &oldest.inputs.group_id,
-            &oldest.inputs.tool_content_hash,
-        )
-        .await?
-        else {
-            return Ok(None);
-        };
-        let tools: Vec<Value> = serde_json::from_str(&blob).with_context(|| {
-            format!(
-                "tool blob {} is not a JSON array",
-                oldest.inputs.tool_content_hash
-            )
-        })?;
-        Ok(Some(Value::Array(normalize_tools(&tools)).to_string()))
     }
 
     async fn ensure_model(&self, span: &VersionedSpan<'_>, version_id: Uuid) -> anyhow::Result<()> {

@@ -287,8 +287,8 @@ pub async fn publish_span_messages(
                     None,
                 )
                 .await?;
-            // Agent versioning resolves tool text from the cloud
-            // `unique_content`, which hybrid workspaces never write.
+            // Agent versioning tags the cloud `traces_agg`, but hybrid
+            // traces live in the data plane.
             for candidate in &mut static_prompt_candidates {
                 candidate.agent_span = None;
             }

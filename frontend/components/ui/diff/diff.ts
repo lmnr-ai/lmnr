@@ -172,13 +172,3 @@ export function collapseDiffRows<T extends { type: string }>(rows: T[], context 
 
   return out;
 }
-
-/** Pretty-print a JSON string for readable diffing; returns input unchanged if it isn't JSON. */
-export function prettyJson(value: string): string {
-  if (!value) return "";
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return value;
-  }
-}

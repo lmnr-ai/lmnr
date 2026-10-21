@@ -73,34 +73,12 @@ pub async fn get_agent_version_id(
     Ok(id)
 }
 
-/// Tool definitions text of any of the agent's versions with this tool set.
-pub async fn get_tool_definitions(
-    pool: &PgPool,
-    project_id: Uuid,
-    agent_id: Uuid,
-    tool_definitions_hash: &str,
-) -> Result<Option<String>> {
-    let text = sqlx::query_scalar::<_, String>(
-        "SELECT tool_definitions
-         FROM agent_versions
-         WHERE project_id = $1 AND agent_id = $2 AND tool_definitions_hash = $3
-         LIMIT 1",
-    )
-    .bind(project_id)
-    .bind(agent_id)
-    .bind(tool_definitions_hash)
-    .fetch_optional(pool)
-    .await?;
-    Ok(text)
-}
-
 pub struct NewAgentVersion<'a> {
     pub project_id: Uuid,
     pub agent_id: Uuid,
     pub version_hash: &'a str,
     pub system_prompt_version_hash: &'a str,
     pub tool_definitions_hash: &'a str,
-    pub tool_definitions: &'a str,
 }
 
 /// Insert the version as the agent's next `version_number`. `None` when a
@@ -113,9 +91,9 @@ pub async fn insert_agent_version(
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO agent_versions (
             project_id, agent_id, version_hash, version_number,
-            system_prompt_version_hash, tool_definitions_hash, tool_definitions
+            system_prompt_version_hash, tool_definitions_hash
          )
-         SELECT $1, $2, $3, COALESCE(MAX(version_number), 0) + 1, $4, $5, $6
+         SELECT $1, $2, $3, COALESCE(MAX(version_number), 0) + 1, $4, $5
          FROM agent_versions
          WHERE project_id = $1 AND agent_id = $2
          ON CONFLICT DO NOTHING
@@ -126,7 +104,6 @@ pub async fn insert_agent_version(
     .bind(version.version_hash)
     .bind(version.system_prompt_version_hash)
     .bind(version.tool_definitions_hash)
-    .bind(sanitize_string(version.tool_definitions))
     .fetch_optional(pool)
     .await?;
     Ok(id)

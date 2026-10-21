@@ -53,6 +53,7 @@ export interface AgentVersionItem {
   /** Static part of the system-prompt version; empty until ClickHouse has it. */
   systemPrompt: string;
   toolDefinitionsHash: string;
+  /** Static part of the tool-definition version; empty without tools or until ClickHouse has it. */
   toolDefinitions: string;
   /** Models seen running this version, oldest first. */
   models: string[];
@@ -84,7 +85,6 @@ export async function getAgentVersions(
       versionNumber: agentVersions.versionNumber,
       systemPromptVersionHash: agentVersions.systemPromptVersionHash,
       toolDefinitionsHash: agentVersions.toolDefinitionsHash,
-      toolDefinitions: agentVersions.toolDefinitions,
       createdAt: agentVersions.createdAt,
     })
     .from(agentVersions)
@@ -94,12 +94,23 @@ export async function getAgentVersions(
 
   if (versions.length === 0) return { agent, versions: [] };
 
-  const [models, prompts] = await Promise.all([
+  const [models, prompts, tools] = await Promise.all([
     getVersionModels(
       projectId,
       versions.map((v) => v.id)
     ),
-    getSystemPromptTexts(projectId, agent.agentHash, [...new Set(versions.map((v) => v.systemPromptVersionHash))]),
+    getStaticTexts(
+      "system_prompt_version_defs",
+      projectId,
+      agent.agentHash,
+      versions.map((v) => v.systemPromptVersionHash)
+    ),
+    getStaticTexts(
+      "tool_definition_version_defs",
+      projectId,
+      agent.agentHash,
+      versions.map((v) => v.toolDefinitionsHash)
+    ),
   ]);
 
   return {
@@ -107,6 +118,7 @@ export async function getAgentVersions(
     versions: versions.map((version) => ({
       ...version,
       systemPrompt: prompts.get(version.systemPromptVersionHash) ?? "",
+      toolDefinitions: tools.get(version.toolDefinitionsHash) ?? "",
       models: models.get(version.id) ?? [],
     })),
   };
@@ -126,15 +138,19 @@ async function getVersionModels(projectId: string, versionIds: string[]): Promis
   return models;
 }
 
-async function getSystemPromptTexts(
+async function getStaticTexts(
+  table: "system_prompt_version_defs" | "tool_definition_version_defs",
   projectId: string,
   agentHash: string,
-  versionHashes: string[]
+  hashes: string[]
 ): Promise<Map<string, string>> {
+  // An empty hash is "no tools", which has no def row.
+  const versionHashes = [...new Set(hashes.filter(Boolean))];
+  if (versionHashes.length === 0) return new Map();
   const result = await clickhouseClient.query({
     query: `
       SELECT version_hash, static_text
-      FROM system_prompt_version_defs FINAL
+      FROM ${table} FINAL
       WHERE project_id = {projectId: UUID}
         AND agent_hash = {agentHash: String}
         AND version_hash IN {versionHashes: Array(String)}
