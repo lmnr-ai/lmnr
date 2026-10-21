@@ -4,7 +4,8 @@
 //! A span's agent version needs both of its versions. Each consumer writes its
 //! own memo before recording and reads the other kind's memo here, so whichever
 //! finishes second sees both and records; when both see both, the second
-//! record is a no-op.
+//! record is a no-op. A missing memo falls back to the other kind's
+//! ClickHouse version row, which outlives the memo.
 //!
 //! Best-effort throughout: a failure is logged and the next span presenting
 //! the same version retries it. A version whose tool text isn't readable yet
@@ -30,7 +31,7 @@ use crate::{
     ch::{
         ClickhouseTrait,
         cloud::CloudClickhouse,
-        system_prompt_versions::{SpanVersion, fetch_version_static_text},
+        system_prompt_versions::{SpanVersion, fetch_span_versions, fetch_version_static_text},
         traces_agg::{CHTraceAgentVersion, CHTraceAgg},
         unique_content::get_content_by_hash,
         utils::chrono_to_nanoseconds,
@@ -134,17 +135,73 @@ struct VersionedSpan<'a> {
     system_prompt: &'a str,
 }
 
+/// A span whose other version had no memo, joined with its inputs.
+struct PendingSpan<'a> {
+    span_version: &'a SpanVersion,
+    inputs: &'a AgentSpan,
+    system_prompt: &'a str,
+}
+
+#[derive(Default)]
+struct JoinedSpans<'a> {
+    spans: Vec<VersionedSpan<'a>>,
+    /// For the ClickHouse fallback.
+    pending: Vec<PendingSpan<'a>>,
+}
+
+/// The kind a span's `kind` version is joined with.
+fn other_kind(kind: VersionKind) -> VersionKind {
+    match kind {
+        VersionKind::ToolDefinitions => VersionKind::SystemPrompt,
+        _ => VersionKind::ToolDefinitions,
+    }
+}
+
+fn versioned_span<'a>(
+    kind: VersionKind,
+    span_version: &'a SpanVersion,
+    inputs: &'a AgentSpan,
+    system_prompt: &'a str,
+    other_version: String,
+) -> VersionedSpan<'a> {
+    let (system_prompt_version_hash, tool_version, system_prompt) = match kind {
+        // This message's body is tool text; naming falls back to the
+        // version's static prompt.
+        VersionKind::ToolDefinitions => (other_version, span_version.version_hash.clone(), ""),
+        _ => (
+            span_version.version_hash.clone(),
+            other_version,
+            system_prompt,
+        ),
+    };
+    VersionedSpan {
+        project_id: span_version.project_id,
+        trace_id: span_version.trace_id,
+        agent_hash: &span_version.agent_hash,
+        version_hash: version_hash(
+            &span_version.agent_hash,
+            &system_prompt_version_hash,
+            &tool_version,
+        ),
+        system_prompt_version_hash,
+        tool_version,
+        inputs,
+        system_prompt,
+    }
+}
+
 /// Joins `span_versions` (versions of `kind`) with their messages' inputs and
-/// the other kind's version. Spans whose other version isn't known yet are
-/// dropped: the other kind's consumer records them.
+/// the other kind's version from its memo. Spans without that memo are
+/// `pending`.
 async fn join_spans<'a>(
     cache: &Cache,
     kind: VersionKind,
     messages: &'a [SpVersioningMessage],
     span_versions: &'a [SpanVersion],
-) -> Vec<VersionedSpan<'a>> {
+) -> JoinedSpans<'a> {
+    let mut joined = JoinedSpans::default();
     if kind == VersionKind::UserTemplate {
-        return Vec::new();
+        return joined;
     }
     let inputs: HashMap<(Uuid, Uuid), (&AgentSpan, &str)> = messages
         .iter()
@@ -158,76 +215,90 @@ async fn join_spans<'a>(
         })
         .collect();
     let mut memos = MemoLookups::default();
-    let mut spans = Vec::new();
     for span_version in span_versions {
         let Some(&(inputs, text)) = inputs.get(&(span_version.project_id, span_version.span_id))
         else {
             continue;
         };
-        let (system_prompt_version_hash, tool_version, system_prompt) = match kind {
+        let other_full_hash = match kind {
             VersionKind::ToolDefinitions => {
                 // Resolved inline, so the system-prompt side already has it.
                 if inputs.tool_version.is_some() {
                     continue;
                 }
-                let Some(sp_version) = memos
-                    .get(
-                        cache,
-                        VersionKind::SystemPrompt,
-                        span_version,
-                        &inputs.system_prompt_full_hash,
-                    )
-                    .await
-                else {
-                    continue;
-                };
-                // This message's body is tool text; naming falls back to the
-                // version's static prompt.
-                (sp_version, span_version.version_hash.clone(), "")
+                &inputs.system_prompt_full_hash
             }
             _ => {
-                let tool_version = if inputs.tool_full_hash.is_empty() {
+                let known = if inputs.tool_full_hash.is_empty() {
                     // Tools without a versioning hash: a message from before
                     // tool-definition versioning. Never record it as tool-less.
                     if !inputs.tool_content_hash.is_empty() {
                         continue;
                     }
-                    String::new()
-                } else if let Some(tool_version) = &inputs.tool_version {
-                    tool_version.clone()
+                    Some(String::new())
                 } else {
-                    let Some(tool_version) = memos
-                        .get(
-                            cache,
-                            VersionKind::ToolDefinitions,
-                            span_version,
-                            &inputs.tool_full_hash,
-                        )
-                        .await
-                    else {
-                        continue;
-                    };
-                    tool_version
+                    inputs.tool_version.clone()
                 };
-                (span_version.version_hash.clone(), tool_version, text)
+                if let Some(tool_version) = known {
+                    joined.spans.push(versioned_span(
+                        kind,
+                        span_version,
+                        inputs,
+                        text,
+                        tool_version,
+                    ));
+                    continue;
+                }
+                &inputs.tool_full_hash
             }
         };
-        spans.push(VersionedSpan {
-            project_id: span_version.project_id,
-            trace_id: span_version.trace_id,
-            agent_hash: &span_version.agent_hash,
-            version_hash: version_hash(
-                &span_version.agent_hash,
-                &system_prompt_version_hash,
-                &tool_version,
-            ),
-            system_prompt_version_hash,
-            tool_version,
-            inputs,
-            system_prompt,
-        });
+        match memos
+            .get(cache, other_kind(kind), span_version, other_full_hash)
+            .await
+        {
+            Some(other_version) => joined.spans.push(versioned_span(
+                kind,
+                span_version,
+                inputs,
+                text,
+                other_version,
+            )),
+            None => joined.pending.push(PendingSpan {
+                span_version,
+                inputs,
+                system_prompt: text,
+            }),
+        }
     }
-    spans
+    joined
+}
+
+/// Joins `pending` with the other kind's version rows, keyed by
+/// `(project_id, trace_id, span_id)`. Spans without a row are dropped: the
+/// other kind's consumer hasn't resolved them yet, and records them when it does.
+fn join_pending<'a>(
+    kind: VersionKind,
+    pending: Vec<PendingSpan<'a>>,
+    rows: &HashMap<(Uuid, Uuid, Uuid), String>,
+) -> Vec<VersionedSpan<'a>> {
+    pending
+        .into_iter()
+        .filter_map(|p| {
+            let key = (
+                p.span_version.project_id,
+                p.span_version.trace_id,
+                p.span_version.span_id,
+            );
+            let other_version = rows.get(&key)?.clone();
+            Some(versioned_span(
+                kind,
+                p.span_version,
+                p.inputs,
+                p.system_prompt,
+                other_version,
+            ))
+        })
+        .collect()
 }
 
 /// Memo reads for one batch, deduped: a batch's spans mostly share texts.
@@ -306,7 +377,12 @@ impl CheckpointRecorder {
         messages: &[SpVersioningMessage],
         span_versions: &[SpanVersion],
     ) {
-        let spans = join_spans(&self.cache, kind, messages, span_versions).await;
+        let JoinedSpans { mut spans, pending } =
+            join_spans(&self.cache, kind, messages, span_versions).await;
+        if !pending.is_empty() {
+            let rows = self.other_version_rows(kind, &pending).await;
+            spans.extend(join_pending(kind, pending, &rows));
+        }
         if spans.is_empty() {
             return;
         }
@@ -370,6 +446,39 @@ impl CheckpointRecorder {
         }
 
         self.tag_traces(&spans).await;
+    }
+
+    /// The other kind's version rows for `pending`, one query per project. A
+    /// memo can expire after its consumer recorded, and the span's row outlives
+    /// it; without this the span's trace would never be tagged.
+    async fn other_version_rows(
+        &self,
+        kind: VersionKind,
+        pending: &[PendingSpan<'_>],
+    ) -> HashMap<(Uuid, Uuid, Uuid), String> {
+        let mut refs: HashMap<Uuid, Vec<(Uuid, Uuid)>> = HashMap::new();
+        for p in pending {
+            refs.entry(p.span_version.project_id)
+                .or_default()
+                .push((p.span_version.trace_id, p.span_version.span_id));
+        }
+        let mut rows = HashMap::new();
+        for (project_id, refs) in refs {
+            match fetch_span_versions(&self.clickhouse, other_kind(kind), project_id, &refs).await {
+                Ok(versions) => rows.extend(
+                    versions
+                        .into_iter()
+                        .map(|((trace_id, span_id), v)| ((project_id, trace_id, span_id), v)),
+                ),
+                // Same as a memo miss: the next span presenting these texts records.
+                Err(e) => log::warn!(
+                    "[CHECKPOINTS] Failed to fetch {} rows for {} spans: {e:?}",
+                    other_kind(kind).tables().versions,
+                    refs.len()
+                ),
+            }
+        }
+        rows
     }
 
     async fn ensure_agent(&self, span: &VersionedSpan<'_>) -> anyhow::Result<CachedAgent> {
@@ -765,7 +874,10 @@ mod tests {
         // Same span id under another project must not borrow the inputs.
         let other_project = [span_version(Uuid::new_v4(), known, "sp1")];
 
-        let spans = join_spans(&cache, VersionKind::SystemPrompt, &messages, &span_versions).await;
+        let JoinedSpans {
+            spans,
+            pending: pending_spans,
+        } = join_spans(&cache, VersionKind::SystemPrompt, &messages, &span_versions).await;
         let joined: Vec<(Uuid, &str)> = spans
             .iter()
             .map(|s| (s.inputs.span_id, s.tool_version.as_str()))
@@ -774,11 +886,11 @@ mod tests {
         assert_eq!(spans[0].version_hash, version_hash("agent", "sp1", "t1"));
         assert_eq!(spans[2].version_hash, version_hash("agent", "sp1", ""));
         assert_eq!(spans[0].system_prompt, "You are a test agent.");
-        assert!(
-            join_spans(&cache, VersionKind::SystemPrompt, &messages, &other_project)
-                .await
-                .is_empty()
-        );
+        // Legacy and input-less spans never reach the fallback.
+        let pending_ids: Vec<Uuid> = pending_spans.iter().map(|p| p.inputs.span_id).collect();
+        assert_eq!(pending_ids, vec![pending]);
+        let other = join_spans(&cache, VersionKind::SystemPrompt, &messages, &other_project).await;
+        assert!(other.spans.is_empty() && other.pending.is_empty());
     }
 
     #[tokio::test]
@@ -804,13 +916,20 @@ mod tests {
         )];
         let span_versions = [known, inline, pending].map(|id| span_version(project_id, id, "t1"));
 
-        let spans = join_spans(
+        let JoinedSpans {
+            spans,
+            pending: pending_spans,
+        } = join_spans(
             &cache,
             VersionKind::ToolDefinitions,
             &messages,
             &span_versions,
         )
         .await;
+        // The inline span is the system-prompt side's to record, even without
+        // a memo.
+        let pending_ids: Vec<Uuid> = pending_spans.iter().map(|p| p.inputs.span_id).collect();
+        assert_eq!(pending_ids, vec![pending]);
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].inputs.span_id, known);
         assert_eq!(spans[0].system_prompt_version_hash, "sp1");
@@ -849,7 +968,63 @@ mod tests {
         let from_sp = join_spans(&cache, VersionKind::SystemPrompt, &messages, &sp_rows).await;
         let from_tools =
             join_spans(&cache, VersionKind::ToolDefinitions, &messages, &tool_rows).await;
+        assert_eq!(
+            from_sp.spans[0].version_hash,
+            from_tools.spans[0].version_hash
+        );
+    }
+
+    /// With both memos expired, each side's fallback row yields the agent
+    /// version the memo path would have.
+    #[tokio::test]
+    async fn fallback_rows_resolve_pending_spans_to_the_same_agent_version() {
+        let cache = cache();
+        let project_id = Uuid::new_v4();
+        let [span_id, unresolved] = std::array::from_fn(|_| Uuid::new_v4());
+        let messages = [message(
+            project_id,
+            vec![
+                agent_span(span_id, "tfull"),
+                agent_span(unresolved, "tfull"),
+            ],
+        )];
+        let sp_rows = [
+            span_version(project_id, span_id, "sp1"),
+            span_version(project_id, unresolved, "sp1"),
+        ];
+        let tool_rows = [
+            SpanVersion {
+                trace_id: sp_rows[0].trace_id,
+                ..span_version(project_id, span_id, "t1")
+            },
+            SpanVersion {
+                trace_id: sp_rows[1].trace_id,
+                ..span_version(project_id, unresolved, "t1")
+            },
+        ];
+        let key = |row: &SpanVersion| (row.project_id, row.trace_id, row.span_id);
+        // Only `span_id` has the other kind's row; `unresolved` isn't classified yet.
+        let tool_side_rows = HashMap::from([(key(&tool_rows[0]), "t1".to_string())]);
+        let sp_side_rows = HashMap::from([(key(&sp_rows[0]), "sp1".to_string())]);
+
+        let from_sp = join_spans(&cache, VersionKind::SystemPrompt, &messages, &sp_rows).await;
+        assert!(from_sp.spans.is_empty());
+        let from_sp = join_pending(VersionKind::SystemPrompt, from_sp.pending, &tool_side_rows);
+        let from_tools =
+            join_spans(&cache, VersionKind::ToolDefinitions, &messages, &tool_rows).await;
+        let from_tools = join_pending(
+            VersionKind::ToolDefinitions,
+            from_tools.pending,
+            &sp_side_rows,
+        );
+
+        assert_eq!(from_sp.len(), 1);
+        assert_eq!(from_tools.len(), 1);
+        assert_eq!(from_sp[0].inputs.span_id, span_id);
+        assert_eq!(from_sp[0].version_hash, version_hash("agent", "sp1", "t1"));
         assert_eq!(from_sp[0].version_hash, from_tools[0].version_hash);
+        assert_eq!(from_sp[0].system_prompt, "You are a test agent.");
+        assert_eq!(from_tools[0].system_prompt, "");
     }
 
     #[tokio::test]
@@ -858,16 +1033,14 @@ mod tests {
         let span_id = Uuid::new_v4();
         let messages = [message(project_id, vec![agent_span(span_id, "")])];
         let span_versions = [span_version(project_id, span_id, "u1")];
-        assert!(
-            join_spans(
-                &cache(),
-                VersionKind::UserTemplate,
-                &messages,
-                &span_versions
-            )
-            .await
-            .is_empty()
-        );
+        let joined = join_spans(
+            &cache(),
+            VersionKind::UserTemplate,
+            &messages,
+            &span_versions,
+        )
+        .await;
+        assert!(joined.spans.is_empty() && joined.pending.is_empty());
     }
 
     #[test]
