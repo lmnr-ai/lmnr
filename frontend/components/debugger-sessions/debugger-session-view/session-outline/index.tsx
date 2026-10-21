@@ -166,14 +166,14 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                       row.command,
                       cn(
                         "mr-1.5 size-3 shrink-0 transition-colors",
-                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                        isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                       )
                     )
                   ) : (
                     <SquareTerminal
                       className={cn(
                         "mr-1.5 size-3 shrink-0 transition-colors",
-                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                        isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                       )}
                     />
                   ))}
@@ -181,14 +181,14 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
                   <FileText
                     className={cn(
                       "mr-1.5 size-3 shrink-0 transition-colors",
-                      isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                     )}
                   />
                 )}
                 <span
                   className={cn(
                     "truncate text-sm transition-colors",
-                    isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {row.text}

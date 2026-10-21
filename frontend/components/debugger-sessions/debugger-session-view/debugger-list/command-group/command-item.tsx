@@ -63,7 +63,7 @@ export default function CommandItem({ id, command, expanded, isFirst, isLast }: 
         </span>
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-[13px] leading-[17px] text-secondary-foreground transition-colors group-hover/row:text-primary-foreground",
+            "min-w-0 flex-1 truncate text-[13px] leading-[17px] text-secondary-foreground transition-colors group-hover/row:text-foreground",
             !fromReasoning && "font-mono"
           )}
         >

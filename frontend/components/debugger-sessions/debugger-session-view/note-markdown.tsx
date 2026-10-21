@@ -37,9 +37,9 @@ const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
 // header bar + copy button + shiki highlighting) with a plain, small block.
 // `pre` is the container; block/inline `code` get their own classes.
 const CODE_BLOCK_CLASS =
-  "my-2 block overflow-x-auto rounded-md border border-border bg-muted/40 p-2.5 font-mono text-xs leading-relaxed text-foreground";
+  "my-2 block overflow-x-auto rounded-md border border-border bg-emphasis-1 p-2.5 font-mono text-xs leading-relaxed text-foreground";
 const CODE_BLOCK_CODE_CLASS = "font-mono"; // inside <pre> — container owns the box
-const INLINE_CODE_CLASS = "rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground";
+const INLINE_CODE_CLASS = "rounded bg-emphasis-2 px-1 py-0.5 font-mono text-[0.85em] text-foreground";
 
 type ElProps = { node?: unknown; className?: string; children?: ReactNode } & Record<string, unknown>;
 

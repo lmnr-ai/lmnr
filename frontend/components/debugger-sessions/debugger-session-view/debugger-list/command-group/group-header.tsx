@@ -48,10 +48,10 @@ export default function CommandGroupHeader({ id, count, lastCreatedAt, expanded 
         type="button"
         aria-expanded={expanded}
         onClick={() => toggle(id)}
-        className="group flex h-[40px] w-full items-center gap-2 rounded-lg border border-border bg-muted/80 pl-2 pr-3 text-left transition-colors hover:overlay-hover"
+        className="group flex h-[40px] w-full items-center gap-2 rounded-lg border border-border bg-emphasis-1 pl-2 pr-3 text-left transition-colors hover:overlay-hover"
       >
         <SquareTerminal className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-[13px] leading-[17px] text-primary-foreground">
+        <span className="min-w-0 flex-1 truncate text-[13px] leading-[17px] text-foreground">
           {count === 1 ? (
             "CLI command"
           ) : (

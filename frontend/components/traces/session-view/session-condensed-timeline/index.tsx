@@ -1,7 +1,7 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import CondensedTimelineElement, {
@@ -27,7 +27,6 @@ import {
 } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
-import { cn } from "@/lib/utils";
 
 import { useSessionViewBaseStore } from "../store";
 import CloseButton from "./close-button";
@@ -158,14 +157,9 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
     [setContainerRef]
   );
 
-  const [isScrolled, setIsScrolled] = useState(false);
   const selectedCount = visibleSpanIds.size;
 
   const { needleLeft, hoverTimeMs, handleMouseMove, handleMouseLeave } = useHoverNeedle(scrollRef, totalDurationMs);
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setIsScrolled(e.currentTarget.scrollTop > 0);
-  }, []);
 
   useScrollToSpan(scrollRef, selectedSpanForThisTrace, condensedSpans);
 
@@ -249,7 +243,7 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
         {timeMarkers.map((marker, index) => (
           <div
             key={`marker-${index}`}
-            className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-muted"
+            className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-emphasis-2"
             style={{ left: `${marker.positionPercent}%` }}
           />
         ))}
@@ -257,18 +251,13 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
         {/* Scroll indicator */}
         {scrollIndicator && (
           <div
-            className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
+            className="absolute bottom-[-60px] top-0 bg-emphasis-1 pointer-events-none"
             style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
           />
         )}
 
         {/* Sticky header - time marker labels */}
-        <div
-          className={cn(
-            "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none",
-            isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
-          )}
-        >
+        <div className="sticky top-0 z-30 h-6 text-xs pointer-events-none select-none">
           {timeMarkers.map((marker, index) => (
             <div
               key={index}
@@ -337,10 +326,9 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
     >
       <div
         ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full minimal-scrollbar"
+        className="flex-1 overflow-auto relative min-h-0 bg-emphasis-1 h-full minimal-scrollbar"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        onScroll={handleScroll}
       >
         <div className="px-2 h-full">{renderContent()}</div>
       </div>

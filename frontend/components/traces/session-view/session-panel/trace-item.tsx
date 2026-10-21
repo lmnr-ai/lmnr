@@ -131,9 +131,7 @@ export default function TraceItem({
               <span className="inline-flex items-center justify-center rounded-full border border-foreground-100/10 bg-foreground-100/5 px-2 py-0.5 text-[10px] font-medium leading-[17px] text-secondary-foreground whitespace-nowrap">
                 {traceIndex}/{totalTraces}
               </span>
-              <span className="text-[13px] font-medium leading-[17px] text-primary-foreground whitespace-nowrap">
-                Trace
-              </span>
+              <span className="text-[13px] font-medium leading-[17px] text-foreground whitespace-nowrap">Trace</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <span

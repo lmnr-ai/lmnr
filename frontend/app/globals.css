@@ -657,7 +657,7 @@
     --code-deleted: #ffdcd7;
     --code-deleted-bg: #ffeef0;
     --code-gutter-bg: #18181a;
-    --code-selection: #193860;
+    --code-selection: var(--color-primary-400-50);
 
     --sql-text: #d4d4d4;
     --sql-keyword: #c586c0;
@@ -711,7 +711,7 @@
     --code-deleted: #82071e;
     --code-deleted-bg: #ffebe9;
     --code-gutter-bg: oklch(0 0 0 / 0.03);
-    --code-selection: #b6e3ff;
+    --code-selection: var(--color-primary-400-50);
 
     --sql-text: #3b3b3b;
     --sql-keyword: #af00db;
@@ -910,7 +910,7 @@
 
   ::selection {
     background-color: var(--color-primary-400-50);
-    color: white;
+    color: var(--color-foreground);
   }
 
   .font-sans-landing {

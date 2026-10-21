@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, Rectangle, XAxis, YAxis } from "recharts";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
+import { useResolvedTheme } from "@/components/theme/theme-provider";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ const HorizontalBarChart = ({
   metricColumn,
   onBarClick,
 }: HorizontalBarChartProps) => {
+  const theme = useResolvedTheme();
   const valueColumn = x;
   const categoryColumn = y;
 
@@ -117,7 +119,7 @@ const HorizontalBarChart = ({
             tickLine={false}
             tickFormatter={xAxisFormatter}
             mirror
-            style={{ fill: "#E8E3E3", fontSize: 14 }}
+            style={{ fill: "var(--color-foreground)", fontSize: 14 }}
             tick={{
               transform: `translate(${maxTextWidth}, 0)`,
             }}
@@ -135,6 +137,8 @@ const HorizontalBarChart = ({
                 key={valueColumn}
                 dataKey={valueColumn}
                 fill={config.color}
+                // Labels sit on the bar, so light mode needs a pale bar for dark text to read.
+                fillOpacity={theme === "light" ? 0.3 : 1}
                 shape={(props: any) => {
                   const isClickable = onBarClick && (props.payload?.trace_id || props.payload?.id);
                   return (
@@ -165,7 +169,12 @@ const HorizontalBarChart = ({
                     return (
                       <g className="pointer-events-none">
                         {labelText && (
-                          <text x={(props.x as number) + 8} y={(props.y as number) + 20} fill="#E8E3E3" fontSize={14}>
+                          <text
+                            x={(props.x as number) + 8}
+                            y={(props.y as number) + 20}
+                            className="fill-foreground"
+                            fontSize={14}
+                          >
                             {labelText}
                           </text>
                         )}
@@ -176,7 +185,7 @@ const HorizontalBarChart = ({
                             width={16}
                             height={16}
                           >
-                            <ArrowUpRight className="size-4 text-primary-foreground" />
+                            <ArrowUpRight className="size-4 text-foreground" />
                           </foreignObject>
                         )}
                       </g>

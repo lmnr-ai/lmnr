@@ -66,14 +66,12 @@ export const EvaluationCard = ({
           onClick={onToggle}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} evaluation ${evaluation.name}`}
-          className="absolute inset-0 h-full w-full bg-muted/75 transition-colors hover:overlay-hover"
+          className="absolute inset-0 h-full w-full bg-emphasis-1 transition-colors hover:overlay-hover"
         />
         <div className="pointer-events-none relative flex h-[40px] w-full items-center justify-between gap-2 pl-2 pr-3">
           <div className="flex min-w-0 items-center gap-2">
             <FlaskConical className="size-4 shrink-0 text-emerald-500" />
-            <span className="truncate text-[13px] font-medium leading-[17px] text-primary-foreground">
-              {evaluation.name}
-            </span>
+            <span className="truncate text-[13px] font-medium leading-[17px] text-foreground">{evaluation.name}</span>
             {evaluation.datapointCount > 0 && (
               <span
                 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-muted-foreground"
