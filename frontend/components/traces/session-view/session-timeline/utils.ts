@@ -5,7 +5,7 @@
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { computeSubagentGroups } from "@/components/traces/trace-view/store/utils";
 import { type TraceRow } from "@/lib/traces/types";
-import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import { SPAN_ERROR_COLOR, SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -240,9 +240,7 @@ function packSpansInContainer(
     occupy(targetRow, left, right);
 
     const color =
-      span.status === "error"
-        ? "rgba(204, 51, 51, 1)"
-        : (SPAN_TYPE_TO_COLOR[span.spanType] ?? "rgba(96, 165, 250, 0.7)");
+      span.status === "error" ? SPAN_ERROR_COLOR : (SPAN_TYPE_TO_COLOR[span.spanType] ?? "rgba(96, 165, 250, 0.7)");
 
     result.push({ span, left, width, row: targetRow, color });
   }

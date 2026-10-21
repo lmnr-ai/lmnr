@@ -68,11 +68,6 @@ function SessionTimeline() {
   // Wheel zoom on the parent scroll container
   useWheelZoom(scrollRef, zoom, setZoom);
 
-  const [isScrolled, setIsScrolled] = useState(false);
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setIsScrolled(e.currentTarget.scrollTop > 0);
-  }, []);
-
   // Hover needle — driven by segment callbacks
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
@@ -137,7 +132,7 @@ function SessionTimeline() {
 
   if (isTracesLoading && traces.length === 0) {
     return (
-      <div className="flex flex-col gap-2 py-2 px-2 w-full h-full bg-muted/50">
+      <div className="flex flex-col gap-2 py-2 px-2 w-full h-full bg-emphasis-1">
         <Skeleton className="h-6 w-full" />
         <Skeleton className="h-full w-full" />
       </div>
@@ -146,7 +141,7 @@ function SessionTimeline() {
 
   if (isEmpty(traces)) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-muted-foreground bg-muted/50">
+      <div className="flex items-center justify-center h-full text-sm text-muted-foreground bg-emphasis-1">
         No traces found
       </div>
     );
@@ -165,8 +160,7 @@ function SessionTimeline() {
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full minimal-scrollbar"
-        onScroll={handleScroll}
+        className="flex-1 overflow-auto relative min-h-0 bg-emphasis-1 h-full minimal-scrollbar"
         onMouseLeave={handleMouseLeaveTimeline}
       >
         <div
@@ -194,7 +188,6 @@ function SessionTimeline() {
                   sessionStartMs={sessionStartMs}
                   selectedSpan={selectedSpan}
                   contentHeight={contentHeight}
-                  isScrolled={isScrolled}
                   onTraceBarClick={handleTraceBarClick}
                   onSpanBarClick={handleSpanBarClick}
                   onHover={setHoverInfo}

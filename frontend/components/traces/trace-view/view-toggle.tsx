@@ -69,7 +69,7 @@ export default function ViewToggle({
               <DropdownMenuItem
                 key={option}
                 onClick={() => onTabChange(option)}
-                className={cn(tab === option && "bg-surface-500")}
+                className={cn(tab === option && "overlay-selected focus:overlay-selected")}
               >
                 <OptionIcon size={14} />
                 {view.label}

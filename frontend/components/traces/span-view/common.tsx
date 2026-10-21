@@ -176,7 +176,13 @@ interface RoleHeaderProps {
 export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
     return (
-      <div className={cn("flex items-center px-2 py-1 gap-2 border-b rounded-t", className)}>
+      // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
+      <div
+        className={cn(
+          "flex items-center px-2 py-1 gap-2 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
+          className
+        )}
+      >
         <span className="text-sm font-medium" style={{ color: getRoleTextColor(role) }}>
           {capitalize(role)}
         </span>
@@ -283,10 +289,10 @@ export const MessageWrapper = ({
     // overflow-clip (not hidden): clips to radius without creating a scroll
     // container, so sticky can still pin to the messages list.
     <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
-      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10 bg-surface" : undefined} />
+      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
       <div
         ref={containerRef}
-        className="overflow-hidden bg-surface-down"
+        className="overflow-hidden bg-emphasis-1 dark:bg-transparent"
         style={!isExpanded ? { maxHeight } : undefined}
       >
         <div className="flex flex-col divide-y">{children}</div>

@@ -4,7 +4,6 @@
 import React, { memo, useCallback, useMemo } from "react";
 
 import { useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
-import { cn } from "@/lib/utils";
 
 import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
 import SessionTimelineSpanContainerElement from "./session-timeline-span-container";
@@ -24,7 +23,6 @@ interface SessionTimelineSegmentProps {
   sessionStartMs: number;
   selectedSpan?: SessionViewSelectedSpan;
   contentHeight: number;
-  isScrolled: boolean;
   onTraceBarClick: (traceId: string) => void;
   onSpanBarClick: (traceId: string, spanId: string) => void;
   onHover: (info: HoverInfo | null) => void;
@@ -35,7 +33,6 @@ function SessionTimelineSegment({
   sessionStartMs,
   selectedSpan,
   contentHeight,
-  isScrolled,
   onTraceBarClick,
   onSpanBarClick,
   onHover,
@@ -118,7 +115,7 @@ function SessionTimelineSegment({
       {/* Scroll indicator — clamped to this segment's time domain */}
       {scrollIndicator && (
         <div
-          className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
+          className="absolute bottom-[-60px] top-0 bg-emphasis-1 pointer-events-none"
           style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
         />
       )}
@@ -127,18 +124,13 @@ function SessionTimelineSegment({
       {timeMarkers.map((marker, i) => (
         <div
           key={`line-${i}`}
-          className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-muted"
+          className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-emphasis-2"
           style={{ left: `${marker.positionPercent}%` }}
         />
       ))}
 
       {/* Sticky time labels */}
-      <div
-        className={cn(
-          "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none",
-          isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
-        )}
-      >
+      <div className="sticky top-0 z-30 h-6 text-xs pointer-events-none select-none">
         {timeMarkers.map((marker, i) => (
           <div key={i} className="absolute flex items-center h-full" style={{ left: `${marker.positionPercent}%` }}>
             <div className="text-secondary-foreground truncate text-[10px] whitespace-nowrap pl-1">{marker.label}</div>

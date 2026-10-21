@@ -21,7 +21,7 @@ function SessionTimelineGap({ durationMs, startMs, endMs }: SessionTimelineGapPr
 
   return (
     <div
-      className={cn("flex-shrink-0 h-full sticky top-0 px-2", isInRange && "bg-muted/75")}
+      className={cn("flex-shrink-0 h-full sticky top-0 px-2", isInRange && "bg-emphasis-1")}
       style={{ width: GAP_WIDTH_PX }}
     >
       <div className="h-full border-x grid place-items-center">
