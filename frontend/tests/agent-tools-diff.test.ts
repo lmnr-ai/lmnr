@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { diffTools } from "@/components/settings/agent-versions/tools-diff/utils";
+import { diffTools, listTools } from "@/components/settings/agent-versions/tools-diff/utils";
 
 /** Version text as app-server `tool_text::render` writes it: a name line, then leaf lines. */
 const tool = (name: string, ...leaves: string[]) => [name, ...leaves.map((leaf) => `${name}.${leaf}`)];
@@ -77,5 +77,26 @@ describe("diffTools", () => {
 
   it("keeps leaf lines whose header dropped out under their first path segment", () => {
     assert.deepEqual(summarize("", "orphan.description: x").changes, ["added orphan"]);
+  });
+});
+
+describe("listTools", () => {
+  it("lists tools in stored order with their own lines, labelled like the diff", () => {
+    const text = tools(
+      tool("search", "namespace: jira"),
+      tool("dup", "description: a"),
+      tool("dup"),
+      tool("b", "description: x", 'input_schema.required[] = "q"')
+    );
+    assert.deepEqual(listTools(text), [
+      { name: "jira.search", text: "search\nsearch.namespace: jira", lines: 2 },
+      { name: "dup #1", text: "dup\ndup.description: a", lines: 2 },
+      { name: "dup #2", text: "dup", lines: 1 },
+      { name: "b", text: 'b\nb.description: x\nb.input_schema.required[] = "q"', lines: 3 },
+    ]);
+  });
+
+  it("returns nothing for an empty version", () => {
+    assert.deepEqual(listTools(""), []);
   });
 });

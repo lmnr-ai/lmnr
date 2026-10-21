@@ -61,6 +61,15 @@ function toolsByName(text: string): Map<string, Tool[]> {
   return byName;
 }
 
+/** Suffixes labels that occur more than once with `#1`, `#2`, … so each row is told apart. */
+function numberRepeats(labels: string[]): string[] {
+  return labels.map((label, i) =>
+    labels.filter((l) => l === label).length > 1
+      ? `${label} #${labels.slice(0, i + 1).filter((l) => l === label).length}`
+      : label
+  );
+}
+
 /** Takes the first tool matching `predicate` out of `tools`. */
 function take(tools: Tool[], predicate: (tool: Tool) => boolean): Tool | undefined {
   const idx = tools.findIndex(predicate);
@@ -107,17 +116,27 @@ export function diffTools(oldText: string, newText: string): ToolsDiff {
   for (const name of new Set([...beforeByName.keys(), ...afterByName.keys()])) {
     const { pairs, shared } = pairTools(beforeByName.get(name) ?? [], afterByName.get(name) ?? []);
     unchanged += shared;
-    const labels = pairs.map(([oldTool, newTool]) => (newTool ?? oldTool)?.label ?? name);
+    const labels = numberRepeats(pairs.map(([oldTool, newTool]) => (newTool ?? oldTool)?.label ?? name));
     pairs.forEach(([oldTool, newTool], i) => {
-      const repeats = labels.filter((label) => label === labels[i]).length > 1;
-      const label = repeats
-        ? `${labels[i]} #${labels.slice(0, i + 1).filter((l) => l === labels[i]).length}`
-        : labels[i];
       const status: ToolChangeStatus = !oldTool ? "added" : !newTool ? "removed" : "modified";
-      changes.push(toolChange(label, status, oldTool?.text ?? "", newTool?.text ?? ""));
+      changes.push(toolChange(labels[i], status, oldTool?.text ?? "", newTool?.text ?? ""));
     });
   }
 
   changes.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
   return { changes, unchanged };
+}
+
+export interface ListedTool {
+  name: string;
+  /** The tool's lines of the version text. */
+  text: string;
+  lines: number;
+}
+
+/** A version's tools in stored order, labelled like `diffTools` labels them. */
+export function listTools(text: string): ListedTool[] {
+  const tools = splitTools(text);
+  const names = numberRepeats(tools.map((tool) => tool.label));
+  return tools.map((tool, i) => ({ name: names[i], text: tool.text, lines: tool.text.split("\n").length }));
 }

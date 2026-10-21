@@ -12,6 +12,7 @@ import { cn, formatTimestamp } from "@/lib/utils";
 
 import SideBySideDialog from "./side-by-side-dialog";
 import ToolsDiff from "./tools-diff";
+import ToolsList from "./tools-diff/tools-list";
 import VersionModels from "./version-models";
 
 interface VersionCardProps {
@@ -123,7 +124,7 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
                 <ContentBlock text={version.systemPrompt} />
               </Field>
               <Field label="Tools">
-                <ContentBlock text={version.toolDefinitions} />
+                <ToolsList text={version.toolDefinitions} />
               </Field>
             </>
           )}
