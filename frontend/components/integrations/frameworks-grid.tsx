@@ -93,7 +93,7 @@ const FrameworksGrid = ({ className }: Props) => (
             alt={integration.alt}
             className={cn(
               "size-4 object-contain",
-              integration.mono && "[.light_&]:brightness-0 [.light_&]:opacity-85",
+              integration.mono && "light:brightness-0 light:opacity-85",
               integration.iconClassName
             )}
           />

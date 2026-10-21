@@ -14,11 +14,24 @@
 @source "../components/**/*.{ts,tsx,js,jsx}";
 @source "../node_modules/streamdown/dist/index.js";
 
+/* Theme variants: match the explicit class, or `.system` under the matching OS preference.
+   Never key styles off `.dark`/`.light` directly; `.system` would skip them. */
 @custom-variant dark {
   &:is(.dark *) {
     @slot;
   }
   @media (prefers-color-scheme: dark) {
+    &:is(.system *) {
+      @slot;
+    }
+  }
+}
+
+@custom-variant light {
+  &:is(.light *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: light) {
     &:is(.system *) {
       @slot;
     }

@@ -91,7 +91,7 @@ const FigmaCarousel = ({ announcements, onDismiss, onOpenDetails }: FigmaCarouse
               </span>
             </button>
             <div className="relative flex w-full flex-col items-start gap-[4px] text-[12px] font-normal leading-normal">
-              <p className="w-full whitespace-normal break-words text-white">{current.title}</p>
+              <p className="w-full whitespace-normal break-words text-foreground-50">{current.title}</p>
               <p className="text-secondary-foreground">{current.description}</p>
             </div>
           </motion.div>
