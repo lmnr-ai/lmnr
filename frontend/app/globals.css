@@ -922,6 +922,12 @@
     color-scheme: light dark;
   }
 
+  /* Theme switch cross-fade (see AppThemeProvider's setPreference). */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 400ms;
+  }
+
   button {
     cursor: pointer;
   }

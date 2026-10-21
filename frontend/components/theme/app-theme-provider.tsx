@@ -10,6 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { flushSync } from "react-dom";
 
 import { APP_THEME_COOKIE_MAX_AGE, APP_THEME_COOKIE_NAME, type AppTheme, type ThemePreference } from "@/lib/app-theme";
 
@@ -59,7 +60,13 @@ export function AppThemeProvider({
   );
 
   const setPreference = useCallback((next: ThemePreference) => {
-    setPreferenceState(next);
+    // Cross-fade the whole page; flushSync so the browser snapshots the new theme, not a pending render.
+    const apply = () => flushSync(() => setPreferenceState(next));
+    if (document.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.startViewTransition(apply);
+    } else {
+      apply();
+    }
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `${APP_THEME_COOKIE_NAME}=${next}; Max-Age=${APP_THEME_COOKIE_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
   }, []);
