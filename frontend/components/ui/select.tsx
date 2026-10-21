@@ -25,7 +25,7 @@ const SelectTrigger = React.forwardRef<
     // subtree out of translation. See radix-ui/primitives #2578, #3795.
     translate="no"
     className={cn(
-      "flex h-7 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-2 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      "flex h-7 w-full items-center justify-between whitespace-nowrap rounded-md border bg-transparent px-2 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
       className
     )}
     {...props}

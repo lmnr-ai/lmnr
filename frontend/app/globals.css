@@ -62,10 +62,11 @@
      --color-border inline to its border-N token (see surfaceVars and the border ramp below). This
      is the base-plane fallback for bare elements; `* { @apply border-border }` applies it everywhere. */
   --color-border: var(--color-surface-450);
-  --color-input: var(--color-surface-550);
   --color-ring: hsl(var(--ring));
   --color-background: var(--color-surface-200);
   --color-foreground: var(--color-foreground-100);
+  /* App chrome (sidebar + frame around the main panel): above the page in dark, below it in light. */
+  --color-sidebar: var(--color-surface-300);
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
@@ -742,11 +743,10 @@
     --destructive-text: hsl(0 72% 50%);
     --destructive-border: hsl(0 72% 50%);
 
-    --success: hsl(164 55% 48%);
-    --success-text: hsl(164 55% 36%);
-    --success-border: hsl(164 55% 48%);
+    --success: hsl(160 55% 48%);
+    --success-text: hsl(160 55% 36%);
+    --success-border: hsl(160 55% 48%);
 
-    --input: 240 6% 82%;
     --ring: 18 59% 48%;
 
     --chart-1: 220 70% 48%;
@@ -847,10 +847,10 @@
     /* Redeclare aliases here: inherited custom properties resolve their var() references at the
        element where they are defined, so changing only the ramps would leave dark aliases frozen. */
     --color-border: var(--color-border-200);
-    --color-input: hsl(var(--input));
     --color-ring: hsl(var(--ring));
     --color-background: var(--color-surface-200);
-    --color-foreground: hsl(var(--foreground));
+    --color-foreground: var(--color-foreground-100);
+    --color-sidebar: var(--color-surface-100);
     --color-primary: var(--color-primary-400);
     --color-primary-foreground: hsl(var(--primary-foreground));
     --color-secondary: var(--color-surface-300);

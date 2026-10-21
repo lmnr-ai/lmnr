@@ -16,10 +16,9 @@ import { worstSeverity } from "./utils";
  * that ignores the surface ladder and reads as a hole punched in the header.
  *
  * Both variants on ours, and `data-[state=active]:` on the overrides, because
- * `TabsTrigger`'s own rules are variant-qualified: `dark:data-[state=active]:bg-input/30`
- * and `dark:text-muted-foreground` outrank any plain utility, and
- * `data-[state=active]:shadow-sm` outranks a plain `shadow-none`. Match the
- * variant or the rule never lands.
+ * `TabsTrigger`'s own rules are variant-qualified: `dark:data-[state=active]:bg-background`
+ * outranks any plain utility, and `data-[state=active]:shadow-sm` outranks a
+ * plain `shadow-none`. Match the variant or the rule never lands.
  */
 const TAB = cn(
   "h-5.5 w-full min-w-0 rounded-md px-2 text-[11px]",

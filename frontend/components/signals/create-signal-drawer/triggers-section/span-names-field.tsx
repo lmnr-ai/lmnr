@@ -46,7 +46,7 @@ export default function SpanNamesField() {
       <div
         className={cn(
           // Match AdvancedSearch shell (filters field) — same padding/bg/border.
-          "flex flex-wrap items-center gap-1 rounded-md border border-input bg-muted/80 px-1 py-0.75 cursor-text"
+          "flex flex-wrap items-center gap-1 rounded-md border bg-emphasis-2 dark:bg-emphasis-1 px-1 py-0.75 cursor-text"
         )}
         onClick={() => inputRef.current?.focus()}
       >

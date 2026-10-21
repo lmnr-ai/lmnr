@@ -42,9 +42,9 @@ const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Dat
 
   return (
     <div className="flex items-center space-x-2">
-      <Badge className="pointer-events-none text-xs text-foreground-100 bg-surface-up group-hover:overlay-hover py-px px-2 mr-2">
+      <div className="pointer-events-none text-xs text-foreground-100 bg-emphasis-2 group-hover:overlay-hover py-px px-2 mr-2 rounded-full font-medium">
         {getTimeDifference(displayRange.from, displayRange.to)}
-      </Badge>
+      </div>
       <span className="text-muted-foreground">
         {formatDate(displayRange.from, "MMM d, h:mm a")} - {formatDate(displayRange.to, "MMM d, h:mm a")}
       </span>
@@ -192,7 +192,6 @@ export const DateRangeFilterInner = ({
           className={cn("justify-between text-left font-normal text-xs outline-0 group", className)}
         >
           <DateRangeButton displayRange={getDisplayRange()} />
-          <CalendarIcon className="ml-2 size-3.5 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0 overflow-hidden w-auto" align="start">

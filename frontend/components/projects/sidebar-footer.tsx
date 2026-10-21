@@ -30,17 +30,22 @@ const SidebarFooterComponent = ({ projectId }: { projectId: string }) => {
     <SidebarFooter className="px-0">
       <SidebarGroup>
         <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem className="h-7">
-              <SidebarMenuButton asChild isActive={pathname.startsWith(settingsHref)} tooltip="settings">
+          <SidebarMenu className="gap-0.5">
+            <SidebarMenuItem className="h-[30px]">
+              <SidebarMenuButton
+                asChild
+                className="h-[30px]"
+                isActive={pathname.startsWith(settingsHref)}
+                tooltip="settings"
+              >
                 <Link href={settingsHref}>
                   <Settings />
                   <span>settings</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Docs" asChild>
+            <SidebarMenuItem className="h-[30px]">
+              <SidebarMenuButton tooltip="Docs" asChild className="h-[30px]">
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
                   <Book size={16} />
                   <span>Docs</span>
@@ -53,12 +58,16 @@ const SidebarFooterComponent = ({ projectId }: { projectId: string }) => {
       <SidebarGroup className="pt-0">
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem className="mx-0 px-2">
-              <Link passHref href="/projects" className="flex items-center">
+            <SidebarMenuItem className={cn("mx-0", open || openMobile ? "px-2" : "px-0")}>
+              <Link
+                passHref
+                href="/projects"
+                className={cn("flex items-center", !(open || openMobile) && "justify-center")}
+              >
                 {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
                 <span
                   aria-label="Laminar"
-                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "w-[35px]")}
+                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "size-4")}
                   style={{
                     maskImage: `url(${logo.src})`,
                     WebkitMaskImage: `url(${logo.src})`,

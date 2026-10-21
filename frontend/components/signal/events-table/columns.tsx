@@ -208,16 +208,16 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
 }
 
 const SEVERITY_STYLES: Record<number, string> = {
-  0: "rounded-3xl mr-1 text-muted-foreground/60",
-  1: "rounded-3xl mr-1 text-orange-400/80",
-  2: "rounded-3xl mr-1 text-red-400/100",
+  0: "border-muted-foreground/30 bg-muted-foreground/8 text-muted-foreground",
+  1: "border-yellow-text/30 bg-yellow-text/8 text-yellow-text",
+  2: "border-destructive-border/30 bg-destructive/8 text-destructive-text",
 };
 
 function SeverityCell({ value }: { value: number }) {
   const className = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
   const label = SEVERITY_LABELS[value as keyof typeof SEVERITY_LABELS] ?? "Info";
   return (
-    <Badge variant="outline" className={cn("rounded-full font-medium", className)}>
+    <Badge variant="outline" className={cn("mr-1 rounded-full font-medium", className)}>
       {label}
     </Badge>
   );

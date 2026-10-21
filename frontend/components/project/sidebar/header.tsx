@@ -91,7 +91,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   return (
     <SidebarHeader className="px-0 mt-1.5">
       <SidebarMenu>
-        <SidebarMenuItem className="m-0 pl-3 pr-2 flex items-center gap-0.5">
+        <SidebarMenuItem className="m-0 pl-3 pr-2 flex items-center gap-0.5 group-data-[collapsible=icon]:px-2">
           <div className="flex-1 overflow-hidden">
             <DropdownMenu
               onOpenChange={(o) => {

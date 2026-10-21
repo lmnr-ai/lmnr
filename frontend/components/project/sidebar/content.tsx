@@ -58,10 +58,15 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
         <SidebarGroup key={group.label ?? i} className={cn(i > 0 && "pt-2")}>
           {group.label && <SidebarSectionLabel>{group.label}</SidebarSectionLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-0.5">
               {group.items.map((option) => (
-                <SidebarMenuItem className="h-7" key={option.name}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
+                <SidebarMenuItem className="h-[30px]" key={option.name}>
+                  <SidebarMenuButton
+                    asChild
+                    className="h-[30px]"
+                    isActive={pathname.startsWith(option.href)}
+                    tooltip={option.name}
+                  >
                     <Link href={option.href}>
                       <option.icon />
                       <span>{option.name}</span>

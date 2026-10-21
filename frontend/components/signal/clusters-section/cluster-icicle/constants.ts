@@ -132,7 +132,7 @@ export const EXTRA_LIST_HEIGHT = 470;
  * its own panel.
  */
 export const SURFACE = {
-  band: "bg-emphasis-1",
-  muted: "bg-emphasis-1",
+  band: "bg-emphasis-2",
+  muted: "bg-emphasis-2",
   panel: "bg-emphasis-1",
 } as const;

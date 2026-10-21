@@ -22,7 +22,7 @@ export default function UsageChart({ points, color, format, formatTick }: UsageC
         <CartesianGrid vertical={false} />
         <XAxis dataKey="date" tickLine={false} axisLine={false} tickFormatter={formatDay} minTickGap={24} />
         <YAxis width="auto" tickLine={false} axisLine={false} tickFormatter={formatTick} tickCount={4} />
-        <ChartTooltip cursor={{ fill: "var(--color-surface-up-2)" }} content={<UsageTooltip format={format} />} />
+        <ChartTooltip cursor={{ fill: "var(--color-emphasis-2)" }} content={<UsageTooltip format={format} />} />
         <BarStack radius={[3, 3, 3, 3]}>
           <Bar dataKey="value" stackId="stack" fill={color} isAnimationActive={false} />
           <Bar
