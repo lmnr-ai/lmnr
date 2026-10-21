@@ -50,7 +50,7 @@ export default function EvalsPagePlaceholder() {
               href="https://laminar.sh/docs/evaluations/introduction"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary-text transition-colors"
             >
               Documentation
               <ArrowUpRight className="w-3.5 h-3.5" />
@@ -59,7 +59,7 @@ export default function EvalsPagePlaceholder() {
               href="https://discord.com/invite/nNFUUDAKub"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary-text transition-colors"
             >
               Need help? Join Discord
               <ArrowUpRight className="w-3.5 h-3.5" />

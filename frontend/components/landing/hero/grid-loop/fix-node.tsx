@@ -10,7 +10,7 @@ interface FixNodeProps {
 const FixNode = ({ rect, scale, opacity, rotation }: FixNodeProps) => (
   <div
     data-grid-item
-    className="absolute origin-center bg-surface-250"
+    className="absolute origin-center bg-surface-450"
     style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, opacity, transform: `scale(${scale})` }}
   >
     <svg aria-hidden="true" className="size-full" viewBox="0 0 60 60" fill="none">

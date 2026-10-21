@@ -9,14 +9,14 @@ export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
   if (status === "error") {
     return (
       <div className="flex h-full justify-center items-center w-10">
-        <X className="self-center text-destructive" size={18} />
+        <X className="self-center text-destructive-text" size={18} />
       </div>
     );
   }
   if (status === "success") {
     return (
       <div className="flex h-full justify-center items-center w-10">
-        <Check className="text-success" size={18} />
+        <Check className="text-success-text" size={18} />
       </div>
     );
   }

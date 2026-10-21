@@ -146,7 +146,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
               </SelectContent>
             </Select>
           </div>
-          {error && <p className="text-xs text-destructive break-words">{error}</p>}
+          {error && <p className="text-xs text-destructive-text break-words">{error}</p>}
           <Button className="w-full" onClick={handleSave} disabled={!name.trim() || !sql.trim() || isTesting}>
             {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
             {editingColumn ? "Save" : "Add"}

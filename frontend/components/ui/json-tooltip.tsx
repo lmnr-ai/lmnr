@@ -23,7 +23,7 @@ export const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
     <div className="pl-4 flex flex-col gap-0.5" style={breakStyle}>
       {Object.entries(data).map(([key, value], index, array) => (
         <div key={key} style={breakStyle}>
-          <span className="text-primary" style={breakStyle}>
+          <span className="text-primary-text" style={breakStyle}>
             &quot;{key}&quot;:{" "}
           </span>
           {typeof value === "string" ? (
@@ -46,7 +46,7 @@ export const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={cn(className, "text-primary/80 underline")}
+                      className={cn(className, "text-primary-text/80 underline")}
                       style={breakStyle}
                     >
                       {children}

@@ -69,7 +69,7 @@ const DataTableSorts = ({ columns }: DataTableSortsProps) => {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn("text-secondary-foreground", { "text-primary": sortParams?.length > 0 })}
+          className={cn("text-secondary-foreground", { "text-primary-text": sortParams?.length > 0 })}
         >
           <List size={16} className="mr-2" />
           {sortParams?.length > 0

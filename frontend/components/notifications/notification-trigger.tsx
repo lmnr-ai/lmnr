@@ -31,9 +31,9 @@ const NotificationTrigger = () => {
     <button
       onClick={handleClick}
       className={cn(
-        "relative flex items-center justify-center rounded-md p-1",
-        "text-secondary-foreground hover:bg-secondary/60 transition-colors",
-        isOpen && "bg-secondary/60"
+        "relative flex items-center justify-center size-8 rounded-full",
+        "text-secondary-foreground hover:overlay-hover",
+        isOpen && "overlay-selected"
       )}
     >
       <Bell className="size-4" />

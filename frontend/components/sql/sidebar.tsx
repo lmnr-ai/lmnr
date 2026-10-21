@@ -118,9 +118,12 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
 
   return (
     <div
-      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors", {
-        "bg-accent": selected,
-      })}
+      className={cn(
+        "group flex items-center px-2 py-1 rounded-md hover:overlay-hover cursor-pointer transition-colors",
+        {
+          "bg-surface-500": selected,
+        }
+      )}
       onClick={handleQueryClick}
     >
       {editing ? (
@@ -148,7 +151,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
               aria-label="More options"
               variant="ghost"
               size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:bg-muted"
+              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:overlay-hover"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="h-3 w-3" />
@@ -170,7 +173,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
                 e.stopPropagation();
                 handleDelete();
               }}
-              className="cursor-pointer text-destructive focus:text-destructive"
+              className="cursor-pointer text-destructive-text focus:text-destructive-text"
             >
               <Trash2 className="h-3.5 w-3.5 text-inherit" />
               <span>Delete</span>
@@ -265,7 +268,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   }, [id, templates, setCurrentTemplate]);
 
   return (
-    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-sidebar">
+    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-surface-100">
       <div className="flex items-center p-2 px-4 border-b shrink-0">
         <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>

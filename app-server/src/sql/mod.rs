@@ -44,6 +44,9 @@ pub enum SqlQueryError {
     ValidationError(String),
     BadResponseError(String),
     InternalError(String),
+    /// The deployment cannot serve this query (e.g. Postgres-backed tables not
+    /// configured). Our own message, shown verbatim.
+    Unavailable(String),
 }
 
 const VERSION_REGEX_RAW: &str = r"\s*\(version\s+\d+(?:\.\d+){0,3}(?:\s+\([^)]*\))?\)$";
@@ -61,7 +64,7 @@ const ERROR_END_REGEX: LazyLock<Regex> =
 impl SqlQueryError {
     fn sanitize_error(&self) -> String {
         match self {
-            Self::ValidationError(e) => e.to_string(),
+            Self::ValidationError(e) | Self::Unavailable(e) => e.to_string(),
             Self::InternalError(e) => remove_query_from_error_message(e),
             Self::BadResponseError(e) => remove_query_from_error_message(e),
         }
@@ -73,7 +76,7 @@ impl std::fmt::Display for SqlQueryError {
         let prefix = match self {
             Self::ValidationError(_) => "Query validation failed",
             Self::InternalError(_) => "Error executing query",
-            Self::BadResponseError(_) => "Error executing query",
+            Self::BadResponseError(_) | Self::Unavailable(_) => "Error executing query",
         };
         let error_message = format!("{prefix}: {}", self.sanitize_error());
         write!(f, "{}", json!({"error": error_message}))
@@ -274,5 +277,26 @@ pub async fn route_and_run_query(
             )
             .await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SqlQueryError;
+
+    #[test]
+    fn unavailable_message_is_shown_verbatim() {
+        // The ClickHouse-error sanitizer cuts at the first `AS`/`SELECT`, which
+        // `CLICKHOUSE_POSTGRES_PASSWORD` would trigger; our own message must not go through it.
+        let msg = "set CLICKHOUSE_POSTGRES_USER and CLICKHOUSE_POSTGRES_PASSWORD (see the README).";
+        assert_eq!(
+            SqlQueryError::Unavailable(msg.to_string()).to_string(),
+            serde_json::json!({ "error": format!("Error executing query: {msg}") }).to_string()
+        );
+        assert!(
+            !SqlQueryError::BadResponseError(msg.to_string())
+                .to_string()
+                .contains("PASSWORD")
+        );
     }
 }

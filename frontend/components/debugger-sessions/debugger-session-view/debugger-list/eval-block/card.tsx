@@ -53,7 +53,7 @@ export const EvaluationCard = ({
   return (
     <div
       id={evalAnchorId(evaluation.id)}
-      className="group scroll-mt-4 overflow-hidden rounded-lg border border-foreground-100/10 bg-surface-100"
+      className="group scroll-mt-4 overflow-hidden rounded-lg border border-foreground-100/10 bg-surface-300"
     >
       {/* The collapse toggle is a full-cover button rendered BEHIND the header
           content, so the open-eval Link can be a sibling (not an anchor nested
@@ -66,7 +66,7 @@ export const EvaluationCard = ({
           onClick={onToggle}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} evaluation ${evaluation.name}`}
-          className="absolute inset-0 h-full w-full bg-muted/75 transition-colors hover:bg-muted/90"
+          className="absolute inset-0 h-full w-full bg-muted/75 transition-colors hover:overlay-hover"
         />
         <div className="pointer-events-none relative flex h-[40px] w-full items-center justify-between gap-2 pl-2 pr-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -89,7 +89,7 @@ export const EvaluationCard = ({
               href={`/project/${projectId}/evaluations/${evaluation.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="pointer-events-auto inline-flex shrink-0 items-center rounded p-0.5 text-secondary-foreground opacity-0 transition-opacity hover:bg-secondary focus-visible:opacity-100 group-hover:opacity-100"
+              className="pointer-events-auto inline-flex shrink-0 items-center rounded p-0.5 text-secondary-foreground opacity-0 transition-opacity hover:overlay-hover focus-visible:opacity-100 group-hover:opacity-100"
               title="Open evaluation"
             >
               <ArrowUpRight className="size-4 shrink-0" />
@@ -105,7 +105,7 @@ export const EvaluationCard = ({
               with empty scores (a live eval before backfill), so points.length
               alone would mount a blank plot. */}
           {progression && progression.scores.length > 0 && (
-            <div className="h-32 px-2 py-1 bg-surface-00 border-t">
+            <div className="h-32 px-2 py-1 bg-surface-200 border-t">
               <CombinedChart
                 data={progression.points}
                 scores={progression.scores}
@@ -125,7 +125,7 @@ export const EvaluationCard = ({
             </div>
           )}
           {scores.length > 0 && (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t px-4 py-3 md:grid-cols-3 lg:grid-cols-4 bg-surface-100">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t px-4 py-3 md:grid-cols-3 lg:grid-cols-4 bg-surface-300">
               {scores.map((score) => (
                 <ScoreStat
                   key={score.name}
@@ -158,7 +158,10 @@ const ScoreStat = ({
 }: ScoreWithDelta & { color?: string; onHover?: (name: string | null) => void }) => (
   <div className="flex flex-col gap-0.5" onMouseEnter={() => onHover?.(name)} onMouseLeave={() => onHover?.(null)}>
     <span
-      className={cn("flex items-center gap-1.5 truncate text-xs", isNew ? "text-primary" : "text-muted-foreground")}
+      className={cn(
+        "flex items-center gap-1.5 truncate text-xs",
+        isNew ? "text-primary-text" : "text-muted-foreground"
+      )}
       title={name}
     >
       {/* Color dot matching this score's line in the graph above. */}
@@ -167,7 +170,7 @@ const ScoreStat = ({
     </span>
     <div className="flex items-baseline gap-1.5">
       <span
-        className={cn("text-xl font-semibold tabular-nums", isNew ? "text-primary" : "text-foreground")}
+        className={cn("text-xl font-semibold tabular-nums", isNew ? "text-primary-text" : "text-foreground")}
         title={String(value)}
       >
         {Number.isFinite(value) ? formatScoreValue(value) : "-"}
@@ -181,7 +184,7 @@ const ScoreDelta = ({ delta }: { delta?: number }) => {
   if (delta === undefined || !Number.isFinite(delta) || delta === 0) return null;
   const up = delta > 0;
   return (
-    <span className={cn("text-xs font-medium tabular-nums", up ? "text-success" : "text-destructive")}>
+    <span className={cn("text-xs font-medium tabular-nums", up ? "text-success-text" : "text-destructive-text")}>
       {up ? "▲" : "▼"} {formatScoreValue(Math.abs(delta))}
     </span>
   );

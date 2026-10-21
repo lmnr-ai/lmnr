@@ -89,7 +89,7 @@ export const QuickRangesList = ({
             onKeyDown={handleKeyDown}
           />
         </div>
-        <div role="listbox">
+        <div role="listbox" onMouseLeave={() => setHighlightIndex(-1)}>
           {displayedRanges.length === 0 ? (
             <div className="px-2 py-1.5 text-xs text-muted-foreground">No matching ranges</div>
           ) : (
@@ -108,10 +108,7 @@ export const QuickRangesList = ({
           )}
           {!hideAbsoluteDate && (
             <div
-              className={cn(
-                RANGE_ITEM_CLASS,
-                "cursor-pointer justify-between hover:bg-accent hover:text-accent-foreground font-medium"
-              )}
+              className={cn(RANGE_ITEM_CLASS, "cursor-pointer justify-between hover:overlay-hover font-medium")}
               onClick={onAbsoluteClick}
               onMouseEnter={() => setHighlightIndex(-1)}
             >

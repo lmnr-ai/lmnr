@@ -152,7 +152,7 @@ export default async function PostContent({ data, content, backHref, slug, route
           }
           return (
             <a
-              className="text-white underline hover:text-primary"
+              className="text-white underline hover:text-primary-text"
               target="_blank"
               rel="noopener noreferrer"
               {...props}

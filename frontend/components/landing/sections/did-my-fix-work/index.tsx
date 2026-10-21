@@ -5,7 +5,7 @@ import LearnMoreLink from "../learn-more-link";
 import EvalComparisonMock from "./eval-comparison-mock";
 
 // Vertical stack: title + subtitle + learn-more on top, mock centered inside a
-// surface-250 panel.
+// surface-450 panel.
 const DidMyFixWork = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
@@ -22,7 +22,7 @@ const DidMyFixWork = () => (
         href="https://laminar.sh/docs/evaluations/introduction"
       />
     </div>
-    <div className="bg-surface-250 relative flex items-center w-full md:py-[64px] py-[40px] overflow-hidden px-8">
+    <div className="bg-surface-450 relative flex items-center w-full md:py-[64px] py-[40px] overflow-hidden px-8">
       <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
         <EvalComparisonMock className="w-[720px]" />
       </div>

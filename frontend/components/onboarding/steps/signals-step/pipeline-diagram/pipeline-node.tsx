@@ -34,7 +34,7 @@ export default function PipelineNode({
     <div className="relative shrink-0 flex items-center justify-center" style={{ width, height }}>
       {labelOpacity > 0 && (
         <span
-          className="absolute bottom-full mb-2 text-xs text-white whitespace-nowrap"
+          className="absolute bottom-full mb-2 text-xs text-foreground whitespace-nowrap"
           style={{ opacity: labelOpacity }}
         >
           {label}

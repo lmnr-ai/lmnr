@@ -64,7 +64,7 @@ function SpanCardInner({
 
   const outerClasses = cn(
     "group flex flex-row w-full min-w-full cursor-pointer transition-all border-l-2",
-    "hover:bg-red-100/5",
+    "hover:bg-emphasis-1",
     isSelected ? "bg-primary/15 hover:bg-primary/20 border-l-primary" : "border-l-transparent",
     { "opacity-60": isCached }
   );
@@ -94,8 +94,8 @@ function SpanCardInner({
           />
           {hasChildren && !span.collapsed && (
             <div
-              className={cn("h-full flex-1 border-l-2 group-hover:border-[hsl(240_6%_26%)]", {
-                "border-[hsl(240_6%_34%)] group-hover:border-[hsl(240_6%_40%)] ": isSelected,
+              className={cn("h-full flex-1 border-l-2 group-hover:border-foreground/20", {
+                "border-foreground/30 group-hover:border-foreground/40": isSelected,
               })}
             />
           )}
@@ -116,12 +116,12 @@ function SpanCardInner({
             {span.pending ? (
               isStringDateOld(span.startTime) ? (
                 <NoSpanTooltip>
-                  <div className="flex rounded bg-secondary p-1">
+                  <div className="flex rounded bg-emphasis-1 p-1">
                     <X className="w-4 h-4 text-secondary-foreground" />
                   </div>
                 </NoSpanTooltip>
               ) : (
-                <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-md text-xs" />
+                <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 rounded-md text-xs" />
               )
             ) : (
               <SpanStatsShield
@@ -135,7 +135,7 @@ function SpanCardInner({
             )}
             {isExpandable && (
               <button
-                className="p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+                className="p-1 hover:overlay-hover transition-all text-muted-foreground rounded-sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleCollapse(span.spanId);

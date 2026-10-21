@@ -163,7 +163,7 @@ export default function EditorPanel() {
 
       if (error) {
         return (
-          <div className="flex flex-1 items-center justify-center h-full space-x-2 text-destructive">
+          <div className="flex flex-1 items-center justify-center h-full space-x-2 text-destructive-text">
             <div className="flex gap-2">
               <AlertCircle className="size-5" />
               <div className="whitespace-pre-wrap text-sm">{error}</div>

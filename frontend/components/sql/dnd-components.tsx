@@ -35,7 +35,7 @@ const PureDraggableColumn = ({ column, category, onRemove }: DraggableColumnProp
       ref={setNodeRef}
       className={cn("mb-2", isDragging ? "opacity-30" : "opacity-100")}
     >
-      <div className="flex items-center p-1 border rounded bg-card shadow-md">
+      <div className="flex items-center p-1 border rounded bg-surface-300 shadow-md">
         <Button
           aria-label="Drag to reorder"
           ref={setActivatorNodeRef}
@@ -72,7 +72,7 @@ const PureCategoryDropZone = ({
   return (
     <div
       ref={setNodeRef}
-      className={cn("flex-1 p-4 border rounded-md transition-colors", isOver ? "bg-muted" : "bg-card")}
+      className={cn("flex-1 p-4 border rounded-md transition-colors", isOver ? "bg-muted" : "bg-surface-300")}
     >
       <h3 className="mb-3 font-medium">{title}</h3>
       <div className="min-h-44">

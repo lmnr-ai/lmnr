@@ -181,7 +181,7 @@ const NativeCombobox = ({
           role="listbox"
           className={cn(
             "absolute top-full left-0 mt-1 z-50 w-48 max-h-48 p-1",
-            "bg-popover border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
+            "bg-surface-300 border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
             "animate-in fade-in-0 zoom-in-95",
             dropdownClassName
           )}
@@ -199,8 +199,8 @@ const NativeCombobox = ({
               onMouseEnter={() => setHighlightedIndex(index)}
               className={cn(
                 "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
-                "hover:bg-accent hover:text-accent-foreground",
-                index === highlightedIndex && "bg-accent text-accent-foreground",
+                "hover:overlay-hover hover:text-foreground-50",
+                index === highlightedIndex && "bg-surface-500 text-foreground-50",
                 optionClassName
               )}
             >

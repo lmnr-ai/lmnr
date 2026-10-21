@@ -121,7 +121,7 @@ export default function WorkspaceAddons({
                           isActive ? "bg-primary/10" : "bg-muted"
                         )}
                       >
-                        <Server className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                        <Server className={cn("h-4 w-4", isActive ? "text-primary-text" : "text-muted-foreground")} />
                       </div>
                       <div>
                         <CardTitle className="text-base">{cfg.name}</CardTitle>

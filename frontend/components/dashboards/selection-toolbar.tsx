@@ -115,7 +115,7 @@ export default function SelectionToolbar() {
             <button
               aria-label="Clear selection"
               onClick={clearSelection}
-              className="text-muted-foreground hover:text-primary-foreground transition-colors"
+              className="text-muted-foreground hover:text-foreground-100 transition-colors"
             >
               <X className="size-4" />
             </button>

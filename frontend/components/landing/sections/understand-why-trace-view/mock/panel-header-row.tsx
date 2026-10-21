@@ -37,7 +37,7 @@ const PanelHeaderRow = ({ signalsActive, showSignals, onSignalsToggle }: Props) 
         <Button
           variant="outline"
           onClick={onSignalsToggle}
-          className={cn("h-6 text-xs px-1.5", signalsActive && "border-primary text-primary")}
+          className={cn("h-6 text-xs px-1.5", signalsActive && "border-primary text-primary-text")}
         >
           <Radio data-icon="inline-start" size={14} className="mr-1" />
           Signals (1)

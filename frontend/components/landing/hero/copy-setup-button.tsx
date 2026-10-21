@@ -42,7 +42,7 @@ const CopySetupButton = ({ className }: CopySetupButtonProps) => {
       aria-label={copied ? "Copied" : "Copy setup prompt"}
       onClick={onCopy}
       className={cn(
-        "group flex h-[36px] w-[220px] shrink-0 items-center justify-center gap-1.5 rounded-sm border border-foreground-600 transition-colors hover:bg-surface-200",
+        "group flex h-[36px] w-[220px] shrink-0 items-center justify-center gap-1.5 rounded-sm border border-foreground-600 transition-colors hover:overlay-hover",
         className
       )}
     >

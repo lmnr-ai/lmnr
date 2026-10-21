@@ -131,7 +131,7 @@ export default function SchemaFieldRow({
         </Button>
       </div>
       {fieldErrors && (
-        <p className="text-destructive text-xs">
+        <p className="text-destructive-text text-xs">
           {fieldErrors.name?.message || fieldErrors.description?.message || fieldErrors.type?.message}
         </p>
       )}

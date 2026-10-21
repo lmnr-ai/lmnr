@@ -60,7 +60,7 @@ const columns: ColumnDef<LabelingQueueWithProgress>[] = [
             {progress.modified}
           </span>
           <span className="inline-flex items-center gap-1 text-secondary-foreground">
-            <Check className="size-3 text-success-bright" />
+            <Check className="size-3 text-success-text" />
             {progress.approved}
           </span>
         </div>
@@ -94,7 +94,7 @@ const EmptyRow = (
             href="https://laminar.sh/docs/queues/quickstart"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-primary-text hover:underline"
           >
             Learn more
             <SquareArrowOutUpRight className="h-3.5 w-3.5" />

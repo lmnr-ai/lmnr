@@ -14,7 +14,10 @@
 @source "../components/**/*.{ts,tsx,js,jsx}";
 @source "../node_modules/streamdown/dist/index.js";
 
+/* next-themes puts `.dark` or `.light` on <html>, resolving "system" before first paint. */
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
+
 
 /* Session-view collapsed card: header and its body are SEPARATE siblings (R3
    split), so `group-hover` on the header can't see a hover over the body. This
@@ -59,49 +62,28 @@
   --font-manrope: var(--font-manrope);
 
   /* Base-plane border. `border` is a DYNAMIC surface-bound color: every painted surface overrides
-     --color-border inline to the surface fill 5 elevation-steps up (see surfaceVars), which clamps
-     at the top of the ladder (surface-800). This is the base-plane fallback for bare elements. The global
-     `* { @apply border-border }` means borders lighten with elevation everywhere. */
-  --color-border: var(--color-surface-250);
-  --color-input: var(--color-surface-350);
+     --color-border inline to its border-N token (see surfaceVars and the border ramp below). This
+     is the base-plane fallback for bare elements; `* { @apply border-border }` applies it everywhere. */
+  --color-border: var(--color-surface-450);
   --color-ring: hsl(var(--ring));
-  --color-background: var(--color-surface-00);
+  --color-background: var(--color-surface-200);
   --color-foreground: var(--color-foreground-100);
+  /* App chrome (sidebar + frame around the main panel): above the page in dark, below it in light. */
+  --color-sidebar: var(--color-surface-300);
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
 
-  --color-secondary: var(--color-surface-100);
+  --color-secondary: var(--color-surface-300);
   --color-secondary-foreground: var(--color-foreground-200);
 
-  --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
-
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-
-  --color-success-bright: hsl(var(--success-bright));
-  --color-destructive-bright: hsl(var(--destructive-bright));
-
-  --color-muted: var(--color-surface-250);
+  --color-muted: var(--color-surface-450);
+  /* Emphasis fills for inline elements (pills, chips, placeholders). Translucent so they work on any
+     surface: white lifts in dark, black sinks in light. Floating layers use surface-up instead. */
+  --color-emphasis-1: oklch(1 0 0 / 0.06);
+  --color-emphasis-2: oklch(1 0 0 / 0.1);
+  --color-emphasis-3: oklch(1 0 0 / 0.14);
   --color-muted-foreground: var(--color-foreground-400);
-
-  --color-accent: var(--color-surface-300);
-  --color-accent-foreground: var(--color-foreground-50);
-
-  --color-popover: var(--color-surface-100);
-  --color-popover-foreground: var(--color-foreground-100);
-
-  --color-card: var(--color-surface-100);
-
-  --color-sidebar: var(--color-surface-100);
-  --color-sidebar-foreground: var(--color-foreground-50);
-  --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: var(--color-foreground-50);
-  --color-sidebar-accent: var(--color-surface-300);
-  --color-sidebar-accent-foreground: var(--color-foreground-50);
-  --color-sidebar-border: var(--color-surface-300);
-  --color-sidebar-ring: hsl(var(--sidebar-ring));
 
   --color-tool: hsl(var(--tool));
 
@@ -110,44 +92,48 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /* Surface ramp: a 50-step scale from surface-00 (base plane / darkest) to surface-800
-     (lightest). OKLCH lightness in ~0.022 steps; surface-50 splits the old base→card jump so the
-     ramp is even. surface-450..800 extend past the old top to give room for the dynamic border. */
-  --color-surface-00: oklch(0.1344 0 0); /* background */
-  --color-surface-50: oklch(0.1583 0 0);
-  --color-surface-100: oklch(0.1822 0 0); /* secondary / card / popover */
-  --color-surface-150: oklch(0.204 0 0);
-  --color-surface-200: oklch(0.226 0 0);
-  --color-surface-250: oklch(0.248 0 0); /* muted */
-  --color-surface-300: oklch(0.27 0 0); /* accent + base-plane border */
-  --color-surface-350: oklch(0.292 0 0);
-  --color-surface-400: oklch(0.314 0 0);
-  --color-surface-450: oklch(0.336 0 0);
-  --color-surface-500: oklch(0.358 0 0);
-  --color-surface-550: oklch(0.38 0 0);
-  --color-surface-600: oklch(0.402 0 0);
-  --color-surface-650: oklch(0.424 0 0);
-  --color-surface-700: oklch(0.446 0 0);
-  --color-surface-750: oklch(0.468 0 0);
-  --color-surface-800: oklch(0.49 0 0);
+  /* Surface ramp: a 50-step scale. surface-200 is the base plane (page background);
+     surface-00..150 are sunken wells below it, surface-250..1000 rise above it. Dark lightness
+     moves in ~0.022 steps; surface-250 is an in-between shade off the elevation ladder. */
+  --color-surface-00: oklch(0.0464 0 0);
+  --color-surface-50: oklch(0.0684 0 0);
+  --color-surface-100: oklch(0.0904 0 0);
+  --color-surface-150: oklch(0.1124 0 0);
+  --color-surface-200: oklch(0.1344 0 0); /* background */
+  --color-surface-250: oklch(0.1583 0 0);
+  --color-surface-300: oklch(0.1822 0 0); /* secondary / card / popover */
+  --color-surface-350: oklch(0.204 0 0);
+  --color-surface-400: oklch(0.226 0 0);
+  --color-surface-450: oklch(0.248 0 0); /* muted */
+  --color-surface-500: oklch(0.27 0 0); /* accent + base-plane border */
+  --color-surface-550: oklch(0.292 0 0);
+  --color-surface-600: oklch(0.314 0 0);
+  --color-surface-650: oklch(0.336 0 0);
+  --color-surface-700: oklch(0.358 0 0);
+  --color-surface-750: oklch(0.38 0 0);
+  --color-surface-800: oklch(0.402 0 0);
+  --color-surface-850: oklch(0.424 0 0);
+  --color-surface-900: oklch(0.446 0 0);
+  --color-surface-950: oklch(0.468 0 0);
+  --color-surface-1000: oklch(0.49 0 0);
 
   /* Relative-neighbour surface utilities (`bg-surface` = current fill, `bg-surface-up` / `-up-2` /
      `-up-3` / `-down` / `-down-2` / `-down-3` = steps up/down). These are the BASE-PLANE fallback;
      every painted surface overrides these same `--color-surface-*` vars inline (see surfaceVars) so
      the steps re-scope to whatever surface an element sits on. Values reference the static ramp
      tokens (never an intermediate var) so per-surface overrides can't freeze at :root. */
-  --color-surface: var(--color-surface-00);
-  --color-surface-up: var(--color-surface-100);
-  --color-surface-up-2: var(--color-surface-150);
-  --color-surface-up-3: var(--color-surface-200);
-  --color-surface-up-4: var(--color-surface-250);
-  --color-surface-up-5: var(--color-surface-300);
-  --color-surface-up-6: var(--color-surface-350);
-  --color-surface-up-7: var(--color-surface-400);
-  --color-surface-up-8: var(--color-surface-450);
-  --color-surface-down: var(--color-surface-00);
-  --color-surface-down-2: var(--color-surface-00);
-  --color-surface-down-3: var(--color-surface-00);
+  --color-surface: var(--color-surface-200);
+  --color-surface-up: var(--color-surface-300);
+  --color-surface-up-2: var(--color-surface-350);
+  --color-surface-up-3: var(--color-surface-400);
+  --color-surface-up-4: var(--color-surface-450);
+  --color-surface-up-5: var(--color-surface-500);
+  --color-surface-up-6: var(--color-surface-550);
+  --color-surface-up-7: var(--color-surface-600);
+  --color-surface-up-8: var(--color-surface-650);
+  --color-surface-down: var(--color-surface-150);
+  --color-surface-down-2: var(--color-surface-100);
+  --color-surface-down-3: var(--color-surface-50);
   --color-surface-down-4: var(--color-surface-00);
   --color-surface-down-5: var(--color-surface-00);
   --color-surface-down-6: var(--color-surface-00);
@@ -196,7 +182,46 @@
   --color-primary-400-10: oklch(0.6559 0.1262 43.33 / 0.1);
   --color-primary-400-50: oklch(0.6559 0.1262 43.33 / 0.5);
 
+  /* Text-on-surface brand color; light points it at the darker end of its mirrored ramp. */
+  --color-primary-text: var(--color-primary);
+
   --breakpoint-3xl: 112rem;
+}
+
+/* Inline so utilities emit var(--x) directly and resolve on the element; a plain @theme alias would
+   resolve once at :root (dark) and need redeclaring in .light. Values live in the theme blocks. */
+@theme inline {
+  --color-destructive: var(--destructive);
+  --color-destructive-text: var(--destructive-text);
+  --color-destructive-border: var(--destructive-border);
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-success-border: var(--success-border);
+  --color-slate-text: var(--slate-text);
+  --color-slate-icon-background: var(--slate-icon-background);
+  --color-blue-text: var(--blue-text);
+  --color-blue-icon-background: var(--blue-icon-background);
+  --color-purple-text: var(--purple-text);
+  --color-purple-icon-background: var(--purple-icon-background);
+  --color-yellow-text: var(--yellow-text);
+  --color-yellow-icon-background: var(--yellow-icon-background);
+  --color-cyan-text: var(--cyan-text);
+  --color-cyan-icon-background: var(--cyan-icon-background);
+  --color-green-text: var(--green-text);
+  --color-green-icon-background: var(--green-icon-background);
+  --color-pink-text: var(--pink-text);
+  --color-pink-icon-background: var(--pink-icon-background);
+  --color-red-text: var(--red-text);
+  --color-red-icon-background: var(--red-icon-background);
+}
+
+
+@utility overlay-hover {
+  background-image: linear-gradient(var(--overlay-hover), var(--overlay-hover));
+}
+
+@utility overlay-selected {
+  background-image: linear-gradient(var(--overlay-selected), var(--overlay-selected));
 }
 
 @utility no-scrollbar {
@@ -563,18 +588,17 @@
 }
 
 @layer base {
-  :root {
+  :root,
+  .dark {
+    color-scheme: dark;
     --radius: 0.5rem;
 
-    --primary: 18 59% 55%;
-
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-bright: 0 72% 60%;
-
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 355.7 100% 97.3%;
-    --success-bright: 158 64% 52%;
+    --destructive: hsl(0 72% 60%);
+    --destructive-text: hsl(0 72% 60%);
+    --destructive-border: hsl(0 72% 60%);
+    --success: hsl(158 64% 52%);
+    --success-text: hsl(158 64% 52%);
+    --success-border: hsl(158 64% 52%);
 
     --ring: 212 96% 78%;
 
@@ -584,15 +608,269 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-
     --tool: 42 93% 46%;
     --llm: 262 83% 58%;
     --llm-foreground: 272 100% 74%;
     --subagent: 187 94% 43%;
+
+    /* Border ramp keyed by surface elevation: border-N is the border drawn ON surface-N (see
+       surfaceVars). Dark borders are the surface 5 ladder steps up. Kept out of @theme: Tailwind
+       only emits theme vars a utility uses, and these are only read via surfaceVars' inline style. */
+    --color-border-00: var(--color-surface-300);
+    --color-border-50: var(--color-surface-350);
+    --color-border-100: var(--color-surface-400);
+    --color-border-150: var(--color-surface-450);
+    --color-border-200: var(--color-surface-500);
+    --color-border-300: var(--color-surface-550);
+    --color-border-350: var(--color-surface-600);
+    --color-border-400: var(--color-surface-650);
+    --color-border-450: var(--color-surface-700);
+    --color-border-500: var(--color-surface-750);
+    --color-border-550: var(--color-surface-800);
+    --color-border-600: var(--color-surface-850);
+    --color-border-650: var(--color-surface-900);
+    --color-border-700: var(--color-surface-950);
+    --color-border-750: var(--color-surface-1000);
+    --color-border-800: var(--color-surface-1000);
+    --color-border-850: var(--color-surface-1000);
+    --color-border-900: var(--color-surface-1000);
+    --color-border-950: var(--color-surface-1000);
+    --color-border-1000: var(--color-surface-1000);
+
+    /* Interaction overlays: painted as a background-image ON TOP of whatever fill an element has,
+       so hover/selected work on any surface. White lightens in dark; black darkens in light. */
+    --overlay-hover: oklch(1 0 0 / 0.06);
+    --overlay-selected: oklch(1 0 0 / 0.1);
+
+    /* CodeMirror syntax colors (content renderer: GitHub Dark; SQL editor: VS Code Dark+).
+       Plain vars, not @theme: only CodeMirror theme objects read them. */
+    --code-text: #c9d1d9;
+    --code-span-text: #c9c9cd;
+    --code-muted: #8b949e;
+    --code-purple: #d2a8ff;
+    --code-green: #7ee787;
+    --code-orange: #ffab70;
+    --code-blue: #79c0ff;
+    --code-string: #a5d6ff;
+    --code-red: #ff7b72;
+    --code-invalid: #f97583;
+    --code-deleted: #ffdcd7;
+    --code-deleted-bg: #ffeef0;
+    --code-gutter-bg: #18181a;
+    --code-selection: #193860;
+
+    --sql-text: #d4d4d4;
+    --sql-keyword: #c586c0;
+    --sql-string: #ce9178;
+    --sql-number: #b5cea8;
+    --sql-comment: #6a9955;
+    --sql-type: #4ec9b0;
+    --sql-constant: #569cd6;
+    --sql-function: #dcdcaa;
+    --sql-identifier: #9cdcfe;
+
+    /* Hue tokens: -text for labels, -icon-background for white-icon chips/timeline bars.
+       Role and span-type → hue mapping lives in span-view/common.tsx and lib/traces/utils.ts. */
+    --slate-text: hsl(215 15% 65%);
+    --slate-icon-background: hsl(215 15% 40%);
+    --blue-text: hsl(217 80% 70%);
+    --blue-icon-background: hsl(213 94% 68% / 0.7);
+    --purple-text: hsl(262 70% 70%);
+    --purple-icon-background: hsl(262 83% 58%);
+    --yellow-text: hsl(42 80% 65%);
+    --yellow-icon-background: hsl(42 93% 46% / 0.9);
+    --cyan-text: hsl(190 75% 60%);
+    --cyan-icon-background: hsl(187 94% 43% / 0.7);
+    --green-text: hsl(151 65% 54%);
+    --green-icon-background: hsl(160 84% 39% / 0.7);
+    --pink-text: hsl(327 100% 78%);
+    --pink-icon-background: hsl(329 86% 70% / 0.7);
+    --red-text: hsl(2 100% 79%);
+    --red-icon-background: hsl(0 60% 50%);
+
+    --unclustered: var(--color-surface-700);
   }
 
+  .light {
+    color-scheme: light;
+
+    --overlay-hover: oklch(0 0 0 / 0.04);
+    --overlay-selected: oklch(0 0 0 / 0.07);
+
+    /* GitHub Light / VS Code Light+ counterparts of the dark syntax colors. */
+    --code-text: #1f2328;
+    --code-span-text: #3f3f46;
+    --code-muted: #6e7781;
+    --code-purple: #8250df;
+    --code-green: #116329;
+    --code-orange: #953800;
+    --code-blue: #0550ae;
+    --code-string: #0a3069;
+    --code-red: #cf222e;
+    --code-invalid: #82071e;
+    --code-deleted: #82071e;
+    --code-deleted-bg: #ffebe9;
+    --code-gutter-bg: oklch(0 0 0 / 0.03);
+    --code-selection: #b6e3ff;
+
+    --sql-text: #3b3b3b;
+    --sql-keyword: #af00db;
+    --sql-string: #a31515;
+    --sql-number: #098658;
+    --sql-comment: #008000;
+    --sql-type: #267f99;
+    --sql-constant: #0000ff;
+    --sql-function: #795e26;
+    --sql-identifier: #001080;
+
+    /* Light hue tokens (currently mirror dark; tune per mode). */
+    --slate-text: hsl(215 15% 55%);
+    --slate-icon-background: hsl(215 15% 40%);
+    --blue-text: hsl(217 80% 60%);
+    --blue-icon-background: hsl(213 94% 74%);
+    --purple-text: hsl(262 70% 60%);
+    --purple-icon-background: hsl(262 83% 68%);
+    --yellow-text: hsl(42 100% 42%);
+    --yellow-icon-background: hsl(42 93% 52%);
+    --cyan-text: hsl(190 75% 60%);
+    --cyan-icon-background: hsl(187 94% 43% / 0.7);
+    --green-text: hsl(151 65% 54%);
+    --green-icon-background: hsl(160 84% 39% / 0.7);
+    --pink-text: hsl(327 100% 78%);
+    --pink-icon-background: hsl(329 86% 70% / 0.7);
+    --red-text: hsl(2 100% 79%);
+    --red-icon-background: hsl(0 72% 60%);
+
+    --unclustered: oklch(0.72 0 0);
+    --foreground: 240 10% 15%;
+    --primary-foreground: 0 0% 100%;
+
+    --destructive: hsl(0 78% 66%);
+    --destructive-text: hsl(0 72% 50%);
+    --destructive-border: hsl(0 72% 50%);
+
+    --success: hsl(160 55% 48%);
+    --success-text: hsl(160 55% 36%);
+    --success-border: hsl(160 55% 48%);
+
+    --ring: 18 59% 48%;
+
+    --chart-1: 220 70% 48%;
+    --chart-2: 160 60% 36%;
+    --chart-3: 30 80% 48%;
+    --chart-4: 280 58% 50%;
+    --chart-5: 340 68% 48%;
+
+    --tool: 38 90% 35%;
+    --llm: 262 72% 48%;
+    --llm-foreground: 262 67% 43%;
+    --subagent: 187 80% 31%;
+
+    /* Same direction as dark: higher elevation steps lighten, clamped at white. */
+    /* Light surfaces step off one base; borders sit this much darker (OKLCH L) than their surface. */
+    --light-surface-base: oklch(0.94 0 0);
+    --light-border-delta: 0.04;
+    --color-surface-00: oklch(from var(--light-surface-base) calc(l - 0.06) c h);
+    --color-surface-50: oklch(from var(--light-surface-base) calc(l - 0.045) c h);
+    --color-surface-100: oklch(from var(--light-surface-base) calc(l - 0.03) c h);
+    --color-surface-150: oklch(from var(--light-surface-base) calc(l - 0.015) c h);
+    --color-surface-200: var(--light-surface-base);
+    --color-surface-250: oklch(from var(--light-surface-base) min(1, l + 0.005) c h);
+    --color-surface-300: oklch(from var(--light-surface-base) min(1, l + 0.01) c h);
+    --color-surface-350: oklch(from var(--light-surface-base) min(1, l + 0.02) c h);
+    --color-surface-400: oklch(from var(--light-surface-base) min(1, l + 0.03) c h);
+    --color-surface-450: oklch(from var(--light-surface-base) min(1, l + 0.04) c h);
+    --color-surface-500: oklch(from var(--light-surface-base) min(1, l + 0.05) c h);
+    --color-surface-550: oklch(from var(--light-surface-base) min(1, l + 0.06) c h);
+    --color-surface-600: oklch(from var(--light-surface-base) min(1, l + 0.07) c h);
+    --color-surface-650: oklch(from var(--light-surface-base) min(1, l + 0.08) c h);
+    --color-surface-700: oklch(from var(--light-surface-base) min(1, l + 0.09) c h);
+    --color-surface-750: oklch(from var(--light-surface-base) min(1, l + 0.1) c h);
+    --color-surface-800: oklch(from var(--light-surface-base) min(1, l + 0.11) c h);
+    --color-surface-850: oklch(from var(--light-surface-base) min(1, l + 0.12) c h);
+    --color-surface-900: oklch(from var(--light-surface-base) min(1, l + 0.13) c h);
+    --color-surface-950: oklch(from var(--light-surface-base) min(1, l + 0.14) c h);
+    --color-surface-1000: oklch(from var(--light-surface-base) min(1, l + 0.15) c h);
+
+    /* Light borders sit a fixed step darker than their surface, so they stay visible on white. */
+    --color-border-00: oklch(from var(--color-surface-00) calc(l - var(--light-border-delta)) c h);
+    --color-border-50: oklch(from var(--color-surface-50) calc(l - var(--light-border-delta)) c h);
+    --color-border-100: oklch(from var(--color-surface-100) calc(l - var(--light-border-delta)) c h);
+    --color-border-150: oklch(from var(--color-surface-150) calc(l - var(--light-border-delta)) c h);
+    --color-border-200: oklch(from var(--color-surface-200) calc(l - var(--light-border-delta)) c h);
+    --color-border-300: oklch(from var(--color-surface-300) calc(l - var(--light-border-delta)) c h);
+    --color-border-350: oklch(from var(--color-surface-350) calc(l - var(--light-border-delta)) c h);
+    --color-border-400: oklch(from var(--color-surface-400) calc(l - var(--light-border-delta)) c h);
+    --color-border-450: oklch(from var(--color-surface-450) calc(l - var(--light-border-delta)) c h);
+    --color-border-500: oklch(from var(--color-surface-500) calc(l - var(--light-border-delta)) c h);
+    --color-border-550: oklch(from var(--color-surface-550) calc(l - var(--light-border-delta)) c h);
+    --color-border-600: oklch(from var(--color-surface-600) calc(l - var(--light-border-delta)) c h);
+    --color-border-650: oklch(from var(--color-surface-650) calc(l - var(--light-border-delta)) c h);
+    --color-border-700: oklch(from var(--color-surface-700) calc(l - var(--light-border-delta)) c h);
+    --color-border-750: oklch(from var(--color-surface-750) calc(l - var(--light-border-delta)) c h);
+    --color-border-800: oklch(from var(--color-surface-800) calc(l - var(--light-border-delta)) c h);
+    --color-border-850: oklch(from var(--color-surface-850) calc(l - var(--light-border-delta)) c h);
+    --color-border-900: oklch(from var(--color-surface-900) calc(l - var(--light-border-delta)) c h);
+    --color-border-950: oklch(from var(--color-surface-950) calc(l - var(--light-border-delta)) c h);
+    --color-border-1000: oklch(from var(--color-surface-1000) calc(l - var(--light-border-delta)) c h);
+
+    --color-surface: var(--color-surface-200);
+    --color-surface-up: var(--color-surface-300);
+    --color-surface-up-2: var(--color-surface-350);
+    --color-surface-up-3: var(--color-surface-400);
+    --color-surface-up-4: var(--color-surface-450);
+    --color-surface-up-5: var(--color-surface-500);
+    --color-surface-up-6: var(--color-surface-550);
+    --color-surface-up-7: var(--color-surface-600);
+    --color-surface-up-8: var(--color-surface-650);
+    --color-surface-down: var(--color-surface-150);
+    --color-surface-down-2: var(--color-surface-100);
+    --color-surface-down-3: var(--color-surface-50);
+    --color-surface-down-4: var(--color-surface-00);
+    --color-surface-down-5: var(--color-surface-00);
+    --color-surface-down-6: var(--color-surface-00);
+    --color-surface-down-7: var(--color-surface-00);
+    --color-surface-down-8: var(--color-surface-00);
+
+    --color-foreground-50: oklch(0.18 0.006 285);
+    --color-foreground-100: oklch(0.23 0.006 285);
+    --color-foreground-200: oklch(0.34 0.006 285);
+    --color-foreground-300: oklch(0.43 0.006 285);
+    --color-foreground-400: oklch(0.52 0.006 285);
+    --color-foreground-500: oklch(0.64 0.006 285);
+    --color-foreground-600: oklch(0.75 0.006 285);
+
+    /* Primary ramp mirrored around 400 (L_light = L_400 - 0.81*(L_dark - L_400); H kept): steps are
+       contrast with the page, so dark's lighter-toward-100 becomes darker-toward-100 here. Chroma is
+       raised because a darker orange at dark's chroma reads as brown on a light page.
+       400 and its alpha tints are shared with dark. */
+    --color-primary-100: oklch(0.6 0.155 47.71);
+    --color-primary-200: oklch(0.6186 0.15 46.05);
+    --color-primary-300: oklch(0.6373 0.145 44.39);
+    --color-primary-400: oklch(0.6559 0.1262 43.33);
+    --color-primary-text: var(--color-primary-100);
+
+    /* Redeclare aliases here: inherited custom properties resolve their var() references at the
+       element where they are defined, so changing only the ramps would leave dark aliases frozen. */
+    --color-border: var(--color-border-200);
+    --color-ring: hsl(var(--ring));
+    --color-background: var(--color-surface-200);
+    --color-foreground: var(--color-foreground-100);
+    --color-sidebar: var(--color-surface-100);
+    --color-primary: var(--color-primary-400);
+    --color-primary-foreground: hsl(var(--primary-foreground));
+    --color-secondary: var(--color-surface-300);
+    --color-secondary-foreground: var(--color-foreground-200);
+    --color-muted: var(--color-surface-450);
+    --color-emphasis-1: oklch(0 0 0 / 0.04);
+    --color-emphasis-2: oklch(0 0 0 / 0.07);
+    --color-emphasis-3: oklch(0 0 0 / 0.1);
+    --color-muted-foreground: var(--color-foreground-400);
+    --color-tool: hsl(var(--tool));
+    --color-llm: hsl(var(--llm));
+    --color-llm-foreground: hsl(var(--llm-foreground));
+    --color-subagent: hsl(var(--subagent));
+  }
 }
 
 @keyframes landing-caret-blink {
@@ -614,11 +892,16 @@
 @layer base {
   * {
     @apply border-border;
-    color-scheme: dark;
   }
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Theme switch cross-fade (see ThemeToggle). */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 400ms;
   }
 
   button {
@@ -634,6 +917,44 @@
     letter-spacing: 0.002em;
     font-weight: 450;
   }
+}
+
+/* Prism emits token classes, but its inline One Dark palette has poor contrast in light mode.
+   Keep these selectors scoped to static snippets; CodeMirror uses the same palette via its theme. */
+.code-highlighter .prismjs,
+.code-highlighter .prismjs code {
+  color: var(--code-text);
+  text-shadow: none;
+}
+.code-highlighter .token {
+  font-style: normal;
+}
+.code-highlighter .token:is(.comment, .prolog, .doctype, .cdata, .punctuation) {
+  color: var(--code-muted);
+}
+.code-highlighter .token:is(.property, .function, .class-name) {
+  color: var(--code-purple);
+}
+.code-highlighter .token:is(.tag, .selector, .inserted) {
+  color: var(--code-green);
+}
+.code-highlighter .token:is(.boolean, .constant, .symbol) {
+  color: var(--code-orange);
+}
+.code-highlighter .token:is(.number, .operator, .entity, .url, .variable, .attr-name) {
+  color: var(--code-blue);
+}
+.code-highlighter .token:is(.string, .char, .builtin, .attr-value, .regex) {
+  color: var(--code-string);
+}
+.code-highlighter .token:is(.atrule, .keyword, .important) {
+  color: var(--code-red);
+}
+.code-highlighter .token.deleted {
+  color: var(--code-deleted);
+}
+.code-highlighter .token.important {
+  font-weight: bold;
 }
 
 /* TODO(blog): strip pasted `class="px-2 py-1"` from Strapi posts, then move

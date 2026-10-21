@@ -192,7 +192,7 @@ export function AlertForm({
     () => ({
       count: {
         label: alertType === ALERT_TYPE.NEW_CLUSTER ? "New clusters" : signalName || "Events",
-        color: "hsl(var(--primary))",
+        color: "var(--color-primary)",
       },
     }),
     [alertType, signalName]
@@ -500,9 +500,11 @@ export function AlertForm({
                   <Input
                     {...field}
                     placeholder="e.g. High error rate alert"
-                    className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                    className={cn(
+                      fieldState.error && "border-destructive-border focus-visible:ring-destructive-border"
+                    )}
                   />
-                  {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                  {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
                 </div>
               )}
             />
@@ -516,7 +518,7 @@ export function AlertForm({
                   <div className="grid gap-2">
                     <Label>Signal</Label>
                     <Select value={field.value} onValueChange={(value) => field.onChange(value)}>
-                      <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
+                      <SelectTrigger className={cn(fieldState.error && "border-destructive-border")}>
                         <SelectValue placeholder="Select a signal" />
                       </SelectTrigger>
                       <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
@@ -527,7 +529,7 @@ export function AlertForm({
                         ))}
                       </SelectContent>
                     </Select>
-                    {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                    {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
                   </div>
                 )}
               />
@@ -550,7 +552,7 @@ export function AlertForm({
                             onClick={() => field.onChange(t)}
                             className={cn(
                               "flex flex-col gap-1 rounded-md border p-3 text-left transition-colors",
-                              isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                              isSelected ? "border-primary bg-primary/5" : "hover:overlay-hover",
                               isEditMode && "cursor-not-allowed opacity-60"
                             )}
                           >
@@ -623,7 +625,9 @@ export function AlertForm({
                                 );
                               })}
                             </div>
-                            {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                            {fieldState.error && (
+                              <p className="text-xs text-destructive-text">{fieldState.error.message}</p>
+                            )}
                           </div>
                         );
                       }}
@@ -732,7 +736,9 @@ export function AlertForm({
                                 Test
                               </Button>
                             </div>
-                            {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                            {fieldState.error && (
+                              <p className="text-xs text-destructive-text">{fieldState.error.message}</p>
+                            )}
                           </div>
                         )}
                       />

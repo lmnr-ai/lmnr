@@ -96,13 +96,13 @@ export default function TemplateViewToggle({
   );
 
   return (
-    <div className="flex items-center min-w-0 gap-px bg-surface-00">
+    <div className="flex items-center min-w-0 gap-px bg-surface-200">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
             className={cn(
-              "flex h-[26px] items-center bg-surface-up-2 hover:bg-surface-up-4 active:bg-surface-up-5 data-[state=open]:bg-surface-up-5",
+              "flex h-[26px] items-center bg-emphasis-1 hover:overlay-hover active:overlay-selected data-[state=open]:overlay-selected",
               isTreeView && "rounded-r-none"
             )}
           >
@@ -192,7 +192,7 @@ export default function TemplateViewToggle({
           variant="ghost"
           onClick={onToggleContent}
           className={cn(
-            "flex h-[26px] items-center overflow-hidden rounded-l-none bg-surface-up-2 text-muted-foreground hover:bg-surface-up-4 active:bg-surface-up-5",
+            "flex h-[26px] items-center overflow-hidden rounded-l-none bg-emphasis-1 text-muted-foreground hover:overlay-hover active:overlay-selected",
             showContent && "text-foreground"
           )}
         >

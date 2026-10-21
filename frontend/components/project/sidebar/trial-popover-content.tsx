@@ -35,7 +35,7 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
       <ul className="flex flex-col gap-2 text-[13px] text-secondary-foreground">
         {TRIAL_INCLUDES.map(({ icon: Icon, label }) => (
           <li key={label} className="flex items-center gap-2">
-            <Icon className="size-3.5 shrink-0 text-primary" />
+            <Icon className="size-3.5 shrink-0 text-primary-text" />
             <span>{label}</span>
           </li>
         ))}

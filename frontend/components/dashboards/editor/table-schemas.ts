@@ -66,12 +66,36 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
   signal_events: [
     { name: "id", type: "string", description: "Unique identifier for the signal event" },
     { name: "signal_id", type: "string", description: "Unique identifier for the signal" },
+    { name: "signal_name", type: "string", description: "Current name of the signal" },
     { name: "trace_id", type: "string", description: "Unique identifier for the trace" },
     { name: "run_id", type: "string", description: "Unique identifier for the run" },
-    { name: "name", type: "string", description: "Name of the signal event" },
+    { name: "name", type: "string", description: "Alias of signal_name, kept for older queries" },
     { name: "payload", type: "string", description: "Payload of the signal event as stringified JSON" },
     { name: "timestamp", type: "number", description: "When the signal event occurred" },
     { name: "severity", type: "number", description: "Severity of the signal event" },
+  ],
+  signals: [
+    { name: "id", type: "string", description: "Unique identifier for the signal" },
+    { name: "name", type: "string", description: "Signal name" },
+    { name: "prompt", type: "string", description: "Signal definition prompt" },
+    { name: "structured_output_schema", type: "string", description: "JSON schema of the signal's output" },
+    { name: "metadata", type: "string", description: "Signal metadata, as a JSON object" },
+    { name: "llm_model", type: "string", description: "Model the signal runs on" },
+    { name: "created_at", type: "string", description: "When the signal was created" },
+    { name: "version", type: "number", description: "Current definition version" },
+  ],
+  evaluations: [
+    { name: "id", type: "string", description: "Unique identifier for the evaluation" },
+    { name: "name", type: "string", description: "Evaluation name" },
+    { name: "group_id", type: "string", description: "Group the evaluation belongs to" },
+    { name: "metadata", type: "string", description: "Evaluation metadata, as a JSON object" },
+    { name: "created_at", type: "string", description: "When the evaluation was created" },
+  ],
+  datasets: [
+    { name: "id", type: "string", description: "Unique identifier for the dataset" },
+    { name: "name", type: "string", description: "Dataset name" },
+    { name: "indexed_on", type: "string", description: "Legacy indexing setting, unused; usually NULL" },
+    { name: "created_at", type: "string", description: "When the dataset was created" },
   ],
 };
 

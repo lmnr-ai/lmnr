@@ -174,7 +174,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                   className={cn(
                     "group relative flex cursor-pointer flex-col gap-3 rounded-lg border border-border px-4.5 py-4",
                     "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isDisabled ? "border-dashed bg-muted/20 hover:bg-muted/40" : "hover:bg-muted/40"
+                    isDisabled ? "border-dashed bg-muted/20 hover:overlay-hover" : "hover:overlay-hover"
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -200,7 +200,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                         size="icon"
                         className={cn(
                           "h-5 w-0 shrink-0 overflow-hidden p-0 text-muted-foreground opacity-0 transition-all",
-                          "hover:text-destructive-bright",
+                          "hover:text-destructive-text",
                           "group-hover:mr-2 group-hover:w-5 group-hover:opacity-100",
                           "focus-visible:mr-2 focus-visible:w-5 focus-visible:opacity-100"
                         )}

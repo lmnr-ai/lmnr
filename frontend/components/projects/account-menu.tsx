@@ -48,13 +48,13 @@ const AccountMenu = () => {
       <div className="flex items-center gap-2 px-2 pt-1 pb-1.5">
         <Avatar className="size-6 rounded-md shrink-0">
           <AvatarImage src={user.image ?? ""} alt="avatar" />
-          <AvatarFallback className="rounded-md text-[10px] bg-surface-350">
+          <AvatarFallback className="rounded-md text-[10px]">
             {user.name?.at(0)?.toUpperCase() || user.email?.at(0)?.toUpperCase() || "L"}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1 leading-tight">
           <div className="text-secondary-foreground">Logged in as</div>
-          <div className="truncate text-sidebar-foreground">{user.email}</div>
+          <div className="truncate text-foreground-50">{user.email}</div>
         </div>
       </div>
       {showUpgrade && (

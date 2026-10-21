@@ -25,7 +25,7 @@ export const ClusterContent = ({ formatted, isUnread }: { formatted: NewClusterN
         onClick={(e) => e.stopPropagation()}
       >
         View cluster
-        <ArrowUpRight className="size-3 text-primary" />
+        <ArrowUpRight className="size-3 text-primary-text" />
       </Link>
     </div>
   </>

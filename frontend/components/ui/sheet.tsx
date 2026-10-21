@@ -58,7 +58,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content asChild ref={ref} {...props}>
-        <ElevatedSurface level={2} className={cn(sheetVariants({ side }), className)}>
+        <ElevatedSurface level={6} className={cn(sheetVariants({ side }), className)}>
           {children}
         </ElevatedSurface>
       </SheetPrimitive.Content>

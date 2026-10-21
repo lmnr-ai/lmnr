@@ -63,7 +63,7 @@ function LlmProfileFields() {
   const settingsLink = (
     <Link
       href={settingsHref("llm-profiles")}
-      className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+      className="inline-flex items-center gap-1 text-xs text-primary-text underline-offset-2 hover:underline"
     >
       Settings
       <ExternalLink className="size-3" />
@@ -116,7 +116,7 @@ function LlmProfileFields() {
                   ))}
                 </SelectContent>
               </Select>
-              {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+              {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
             </div>
           )}
         />
@@ -138,7 +138,7 @@ function LlmProfileFields() {
                   ))}
                 </SelectContent>
               </Select>
-              {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+              {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
             </div>
           )}
         />

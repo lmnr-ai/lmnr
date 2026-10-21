@@ -80,7 +80,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
           onClick={handleToggleTimeline}
           variant={isTimelineOpen ? "outlinePrimary" : "outline"}
           size="sm"
-          className={cn("bg-transparent", !isTimelineOpen && "hover:bg-secondary")}
+          className={cn("bg-transparent", !isTimelineOpen && "hover:overlay-hover")}
         >
           <GanttChart data-icon="inline-start" size={14} className="mr-1" />
           Timeline

@@ -44,12 +44,12 @@ export default function Header({
       className={cn("font-medium flex gap-2 items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}
     >
       <div className={cn("flex flex-1 min-w-0 items-center", childrenContainerClassName)}>
-        {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary size-7" />}
+        {showSidebarTrigger && <SidebarTrigger className="hover:overlay-hover size-7" />}
         {segments.map((segment, index) => (
           <div key={index} className="flex items-center">
             {index > 0 && <div className="text-secondary-foreground/40">/</div>}
             {segment.href ? (
-              <Link href={segment.href} className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground">
+              <Link href={segment.href} className="hover:overlay-hover rounded-lg px-2 p-0.5 text-secondary-foreground">
                 {segment.name}
               </Link>
             ) : segment.copyValue !== undefined ? (

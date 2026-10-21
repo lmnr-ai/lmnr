@@ -242,6 +242,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint was created" },
       { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "dataset_name", type: "String", description: "Name of the dataset" },
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
@@ -257,6 +258,7 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "When the dataset datapoint version was created",
       },
       { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "dataset_name", type: "String", description: "Name of the dataset" },
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
@@ -267,6 +269,7 @@ export const tableSchemas: Record<string, TableSchema> = {
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
       { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "evaluation_name", type: "String", description: "Name of the evaluation" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
       { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
@@ -361,9 +364,10 @@ export const tableSchemas: Record<string, TableSchema> = {
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
       { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "signal_name", type: "String", description: "Current name of the signal" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
       { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
-      { name: "name", type: "String", description: "Name of the signal event" },
+      { name: "name", type: "String", description: "Alias of signal_name, kept for older queries" },
       { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
       { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
       {
@@ -391,6 +395,48 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "UInt32",
         description: "Signal definition version that produced the event. 0 predates versioning",
       },
+    ],
+  },
+  signals: {
+    description:
+      "Signal definitions stored in Postgres: prompt, output schema, model, and current version. Join to signal_events, signal_runs, or traces.signal_events on signals.id = signal_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "name", type: "String", description: "Signal name, unique per project" },
+      { name: "prompt", type: "String", description: "Signal definition prompt" },
+      {
+        name: "structured_output_schema",
+        type: "String",
+        description: "JSON schema the signal's output conforms to",
+      },
+      { name: "metadata", type: "String", description: "Signal metadata, as a JSON object" },
+      {
+        name: "llm_model",
+        type: "Nullable(String)",
+        description: "Model the signal runs on; NULL when it uses the deployment default",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the signal was created" },
+      { name: "version", type: "Int32", description: "Current definition version" },
+    ],
+  },
+  evaluations: {
+    description:
+      "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "name", type: "String", description: "Evaluation name" },
+      { name: "group_id", type: "String", description: "Group the evaluation belongs to" },
+      { name: "metadata", type: "Nullable(String)", description: "Evaluation metadata, as a JSON object" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the evaluation was created" },
+    ],
+  },
+  datasets: {
+    description: "Datasets stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "name", type: "String", description: "Dataset name" },
+      { name: "indexed_on", type: "Nullable(String)", description: "Legacy indexing setting, unused; usually NULL" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dataset was created" },
     ],
   },
   clusters: {
@@ -690,37 +736,37 @@ function computeKnownIdentifiers(schemas: Record<string, TableSchema>): Set<stri
 
 const sqlSyntaxHighlightStyle: CreateThemeOptions["styles"] = [
   // Keywords (SELECT, FROM, WHERE, etc.)
-  { tag: t.keyword, color: "#C586C0" },
+  { tag: t.keyword, color: "var(--sql-keyword)" },
 
   // Strings
-  { tag: t.string, color: "#CE9178" },
-  { tag: t.special(t.string), color: "#CE9178" },
+  { tag: t.string, color: "var(--sql-string)" },
+  { tag: t.special(t.string), color: "var(--sql-string)" },
 
   // Numbers
-  { tag: t.number, color: "#B5CEA8" },
-  { tag: t.integer, color: "#B5CEA8" },
-  { tag: t.float, color: "#B5CEA8" },
+  { tag: t.number, color: "var(--sql-number)" },
+  { tag: t.integer, color: "var(--sql-number)" },
+  { tag: t.float, color: "var(--sql-number)" },
 
   // Comments
-  { tag: t.comment, color: "#6A9955" },
-  { tag: t.lineComment, color: "#6A9955" },
-  { tag: t.blockComment, color: "#6A9955" },
+  { tag: t.comment, color: "var(--sql-comment)" },
+  { tag: t.lineComment, color: "var(--sql-comment)" },
+  { tag: t.blockComment, color: "var(--sql-comment)" },
 
   // Operators and punctuation
-  { tag: t.operator, color: "#D4D4D4" },
-  { tag: t.punctuation, color: "#D4D4D4" },
-  { tag: t.separator, color: "#D4D4D4" },
-  { tag: t.bracket, color: "#D4D4D4" },
-  { tag: t.paren, color: "#D4D4D4" },
+  { tag: t.operator, color: "var(--sql-text)" },
+  { tag: t.punctuation, color: "var(--sql-text)" },
+  { tag: t.separator, color: "var(--sql-text)" },
+  { tag: t.bracket, color: "var(--sql-text)" },
+  { tag: t.paren, color: "var(--sql-text)" },
 
   // Types
-  { tag: t.typeName, color: "#4EC9B0" },
-  { tag: t.className, color: "#4EC9B0" },
+  { tag: t.typeName, color: "var(--sql-type)" },
+  { tag: t.className, color: "var(--sql-type)" },
 
   // Special values
-  { tag: t.bool, color: "#569CD6" },
-  { tag: t.null, color: "#569CD6" },
-  { tag: t.self, color: "#569CD6" },
+  { tag: t.bool, color: "var(--sql-constant)" },
+  { tag: t.null, color: "var(--sql-constant)" },
+  { tag: t.self, color: "var(--sql-constant)" },
 ];
 
 export const theme = createTheme({
@@ -743,12 +789,12 @@ const editorBaseStyles = {
     position: "relative",
   },
   ".cm-searchMatch": {
-    backgroundColor: "hsl(var(--primary) / 0.3)",
-    border: "1px solid hsl(var(--primary))",
+    backgroundColor: "oklch(from var(--color-primary) l c h / 0.3)",
+    border: "1px solid var(--color-primary)",
     borderRadius: "3px",
   },
   ".cm-searchMatch-selected": {
-    backgroundColor: "hsl(var(--primary))",
+    backgroundColor: "var(--color-primary)",
     color: "var(--color-primary-foreground)",
     fontWeight: "600",
   },
@@ -757,22 +803,22 @@ const editorBaseStyles = {
 // Syntax highlighting styles for SQL identifiers
 const syntaxHighlightStyles = {
   ".cm-content .cm-sql-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-line .cm-sql-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-content .cm-sql-known-identifier": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-line .cm-sql-known-identifier": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-content .cm-sql-unknown-identifier": {
-    color: "#D4D4D4",
+    color: "var(--sql-text)",
   },
   ".cm-line .cm-sql-unknown-identifier": {
-    color: "#D4D4D4",
+    color: "var(--sql-text)",
   },
 };
 
@@ -796,8 +842,8 @@ const autocompleteStyles = {
     gap: "6px",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "var(--color-accent)",
-    color: "var(--color-accent-foreground)",
+    background: "var(--color-surface-500)",
+    color: "var(--color-foreground-50)",
   },
   ".cm-completionIcon": {
     width: "14px",
@@ -810,7 +856,7 @@ const autocompleteStyles = {
     justifyContent: "center",
   },
   ".cm-completionIcon-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-completionIcon-function::after": {
     content: "'ƒ'",
@@ -818,28 +864,28 @@ const autocompleteStyles = {
     fontSize: "13px",
   },
   ".cm-completionIcon-property": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-completionIcon-property::after": {
     content: "'◇'",
     fontSize: "11px",
   },
   ".cm-completionIcon-keyword": {
-    color: "#C586C0",
+    color: "var(--sql-keyword)",
   },
   ".cm-completionIcon-keyword::after": {
     content: "'⊞'",
     fontSize: "11px",
   },
   ".cm-completionIcon-enum": {
-    color: "#4EC9B0",
+    color: "var(--sql-type)",
   },
   ".cm-completionIcon-enum::after": {
     content: "'◆'",
     fontSize: "11px",
   },
   ".cm-completionIcon-type": {
-    color: "#4EC9B0",
+    color: "var(--sql-type)",
   },
   ".cm-completionIcon-type::after": {
     content: "'T'",
@@ -850,7 +896,7 @@ const autocompleteStyles = {
     color: "var(--color-foreground)",
   },
   ".cm-completionMatchedText": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
     textDecoration: "none",
   },
@@ -898,16 +944,16 @@ const signatureHelpStyles = {
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
   },
   ".signature-help .signature-function-name": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
   },
   ".signature-help .signature-param": {
     color: "var(--color-foreground)",
   },
   ".signature-help .signature-param-current": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "700",
-    background: "hsl(var(--primary) / 0.1)",
+    background: "oklch(from var(--color-primary) l c h / 0.1)",
     padding: "1px 3px",
     borderRadius: "3px",
   },

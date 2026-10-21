@@ -30,7 +30,7 @@ export default function EvalTableSkeleton() {
             </Button>
           </div>
           <div className="flex flex-1 w-full relative">
-            <div className="flex flex-1 items-center gap-2 px-2 h-8 opacity-50 rounded-md border border-input relative bg-muted/80 transition duration-250 py-0.75 w-full">
+            <div className="flex flex-1 items-center gap-2 px-2 h-8 opacity-50 rounded-md border relative bg-emphasis-2 dark:bg-emphasis-1 transition duration-250 py-0.75 w-full">
               <Search size={14} className="text-secondary-foreground" />
               <span className="text-xs text-muted-foreground">Search in data, targets, scores and spans...</span>
             </div>

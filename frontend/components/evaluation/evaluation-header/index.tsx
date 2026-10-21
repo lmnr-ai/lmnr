@@ -51,10 +51,10 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
   return (
     <div className="font-medium flex-none flex gap-2 items-center justify-between w-full h-12 pl-2.5 pr-4">
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <SidebarTrigger className="hover:bg-secondary size-7" />
+        <SidebarTrigger className="hover:overlay-hover size-7" />
         <Link
           href={`/project/${projectId}/evaluations`}
-          className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
+          className="hover:overlay-hover rounded-lg px-2 p-0.5 text-secondary-foreground"
         >
           evaluations
         </Link>
@@ -63,7 +63,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
             <div className="text-secondary-foreground/40">/</div>
             <Link
               href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(groupId)}`}
-              className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground truncate min-w-0"
+              className="hover:overlay-hover rounded-lg px-2 p-0.5 text-secondary-foreground truncate min-w-0"
             >
               {groupId}
             </Link>
@@ -162,8 +162,8 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
             ))}
             <DeleteEvaluationDialog>
               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                <Trash className="size-3.5 text-destructive" />
-                <span className="text-destructive text-xs">Delete</span>
+                <Trash className="size-3.5 text-destructive-text" />
+                <span className="text-destructive-text text-xs">Delete</span>
               </DropdownMenuItem>
             </DeleteEvaluationDialog>
           </DropdownMenuContent>

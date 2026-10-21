@@ -31,7 +31,7 @@ export const AlertContent = ({ formatted, isUnread }: { formatted: NewEventNotif
         onClick={(e) => e.stopPropagation()}
       >
         View trace
-        <ArrowUpRight className="size-3 text-primary" />
+        <ArrowUpRight className="size-3 text-primary-text" />
       </Link>
       {formatted.similarEventsLink && (
         <Link
@@ -40,7 +40,7 @@ export const AlertContent = ({ formatted, isUnread }: { formatted: NewEventNotif
           onClick={(e) => e.stopPropagation()}
         >
           View similar events
-          <ArrowUpRight className="size-3 text-primary" />
+          <ArrowUpRight className="size-3 text-primary-text" />
         </Link>
       )}
     </div>

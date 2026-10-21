@@ -47,7 +47,7 @@ export const defaultTraceTemplateCode = `function({ data }) {
           <pre className="mt-1 text-xs overflow-x-auto">{JSON.stringify(span.output, null, 2)}</pre>
         </div>
       ))}
-      {data.truncated && <div className="text-xs text-destructive">Span list truncated.</div>}
+      {data.truncated && <div className="text-xs text-destructive-text">Span list truncated.</div>}
     </div>
   );
 }`;

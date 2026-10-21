@@ -1,6 +1,5 @@
 import React from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 import { CopyButton } from "@/components/ui/copy-button";
 import { cn } from "@/lib/utils";
@@ -14,7 +13,7 @@ interface CodeProps {
 
 export default function CodeHighlighter({ language, code, className, copyable = false }: CodeProps) {
   return (
-    <div className={cn("relative group", className)}>
+    <div className={cn("code-highlighter relative group", className)}>
       {copyable && (
         <CopyButton
           size="icon"
@@ -25,16 +24,7 @@ export default function CodeHighlighter({ language, code, className, copyable = 
       )}
       <SyntaxHighlighter
         language={language}
-        style={{
-          ...oneDark,
-          ".linenumber": {
-            fontStyle: "normal !important",
-          },
-          span: {
-            fontStyle: "normal !important",
-          },
-        }}
-        useInlineStyles={true}
+        useInlineStyles={false}
         wrapLongLines
         customStyle={{
           backgroundColor: "transparent",
@@ -44,12 +34,7 @@ export default function CodeHighlighter({ language, code, className, copyable = 
           lineHeight: "1.5",
           fontStyle: "normal",
         }}
-        codeTagProps={{
-          style: {
-            backgroundColor: "transparent !important",
-            fontStyle: "normal !important",
-          },
-        }}
+        codeTagProps={{ style: {} }}
       >
         {code}
       </SyntaxHighlighter>

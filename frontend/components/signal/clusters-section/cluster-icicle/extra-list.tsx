@@ -61,7 +61,7 @@ export default function ExtraList({ nodes, selectedId, onHover, onSelect }: Prop
           type="button"
           className={cn(
             "flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left transition-colors",
-            "text-secondary-foreground hover:bg-surface-up-2",
+            "text-secondary-foreground hover:overlay-hover",
             node.id === focusId && "bg-surface-up-3 font-medium text-foreground"
           )}
           onPointerEnter={() => onHover(node.id)}

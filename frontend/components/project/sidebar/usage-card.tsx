@@ -28,7 +28,7 @@ export default function UsageCard({ usageDetails }: UsageCardProps) {
 
   return (
     <SidebarMenuItem>
-      <div className="flex flex-col gap-3 rounded-lg bg-surface-200 p-2 text-xs">
+      <div className="flex flex-col gap-3 rounded-lg bg-surface-400 p-2 text-xs">
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1 text-muted-foreground">Data</span>

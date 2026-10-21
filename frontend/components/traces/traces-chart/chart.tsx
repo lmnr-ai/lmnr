@@ -132,10 +132,10 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
             <ReferenceArea
               x1={refArea.left}
               x2={refArea.right}
-              stroke="hsl(var(--primary))"
+              stroke="var(--color-primary)"
               strokeDasharray="5 5"
               strokeOpacity={0.5}
-              fill="hsl(var(--primary))"
+              fill="var(--color-primary)"
               fillOpacity={0.3}
             />
           )}

@@ -27,7 +27,7 @@ export default function AddToLabelingQueuePopover({
           <Button
             size={buttonSize}
             icon="pen"
-            className={cn("w-fit", buttonVariant === "ghost" && "hover:bg-secondary")}
+            className={cn("w-fit", buttonVariant === "ghost" && "hover:overlay-hover")}
             variant={buttonVariant}
           >
             <span className="text-xs truncate block min-w-0">Add to labeling queue</span>

@@ -69,7 +69,7 @@ export default function InviteStep({ stepIndex, totalSteps, onAdvance }: InviteS
           {emails.map((email) => (
             <li
               key={email}
-              className="flex items-center justify-between rounded-md bg-surface-250 px-3 py-2 text-sm text-secondary-foreground"
+              className="flex items-center justify-between rounded-md bg-surface-450 px-3 py-2 text-sm text-secondary-foreground"
             >
               {email}
               <button

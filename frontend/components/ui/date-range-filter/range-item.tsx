@@ -35,10 +35,10 @@ export const RangeItem = ({
       aria-selected={isHighlighted}
       className={cn(
         RANGE_ITEM_CLASS,
-        locked
-          ? "cursor-not-allowed text-muted-foreground opacity-50"
-          : "cursor-pointer hover:bg-accent hover:text-accent-foreground",
-        (isHighlighted || isSelected) && !locked && "bg-accent text-accent-foreground"
+        locked ? "cursor-not-allowed text-muted-foreground opacity-50" : "cursor-pointer",
+        // Mouse hover drives isHighlighted (onMouseEnter), so it is the only hover state.
+        !locked && isSelected && "overlay-selected",
+        !locked && isHighlighted && !isSelected && "overlay-hover"
       )}
       onMouseEnter={onHighlight}
       onClick={locked ? undefined : () => onSelect(range.value)}
@@ -58,7 +58,7 @@ export const RangeItem = ({
             Data retention is limited to {maxHours != null ? Math.floor(maxHours / 24) : 0} days on your current plan.
           </p>
           {billingHref && (
-            <Link href={billingHref} className="text-xs text-primary hover:underline">
+            <Link href={billingHref} className="text-xs text-primary-text hover:underline">
               Upgrade to see more data
             </Link>
           )}

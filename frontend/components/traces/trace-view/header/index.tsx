@@ -132,7 +132,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                   aria-label="Collapse panel"
                   variant="ghost"
                   size="icon"
-                  className="hover:bg-surface-up"
+                  className="hover:overlay-hover"
                   onClick={handleClose}
                 >
                   <ChevronsRight className="w-4.5 h-4.5" />
@@ -140,7 +140,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               )}
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button aria-label="Expand" variant="ghost" size="icon" className="hover:bg-surface-up">
+                  <Button aria-label="Expand" variant="ghost" size="icon" className="hover:overlay-hover">
                     <Maximize className="w-3.5 h-3.5" />
                   </Button>
                 </NextLink>
@@ -157,7 +157,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <HeaderIconButton
-                icon={<Radio className={cn({ "text-primary": signalsPanelOpen })} size={14} />}
+                icon={<Radio className={cn({ "text-primary-text": signalsPanelOpen })} size={14} />}
                 label={`Signals (${signalCount})`}
                 active={signalsPanelOpen}
                 onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
@@ -167,7 +167,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {featureFlags[Feature.AGENT] && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <HeaderIconButton
-                icon={<Sparkles className={cn({ "text-primary": agentOpen })} size={14} />}
+                icon={<Sparkles className={cn({ "text-primary-text": agentOpen })} size={14} />}
                 label="Chat"
                 active={agentOpen}
                 onClick={() => {

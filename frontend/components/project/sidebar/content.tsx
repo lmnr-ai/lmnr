@@ -16,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSectionLabel,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -33,12 +34,18 @@ interface ProjectSidebarContentProps {
 const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementIds }: ProjectSidebarContentProps) => {
   const pathname = usePathname();
   const featureFlags = useFeatureFlags();
-  const options = useMemo(
+  const groups = useMemo(
     () =>
-      getSidebarMenus(details.id).filter(
-        (m) =>
-          (m.name !== "signals" || featureFlags[Feature.SIGNALS]) && (m.name !== "home" || featureFlags[Feature.AGENT])
-      ),
+      getSidebarMenus(details.id)
+        .map((group) => ({
+          ...group,
+          items: group.items.filter(
+            (m) =>
+              (m.name !== "signals" || featureFlags[Feature.SIGNALS]) &&
+              (m.name !== "home" || featureFlags[Feature.AGENT])
+          ),
+        }))
+        .filter((group) => group.items.length > 0),
     [details.id, featureFlags]
   );
   const { open, openMobile } = useSidebar();
@@ -47,22 +54,30 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
 
   return (
     <SidebarContent>
-      <SidebarGroup>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {options.map((option) => (
-              <SidebarMenuItem className="h-7" key={option.name}>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
-                  <Link href={option.href}>
-                    <option.icon />
-                    <span>{option.name}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
+      {groups.map((group, i) => (
+        <SidebarGroup key={group.label ?? i} className={cn(i > 0 && "pt-2")}>
+          {group.label && <SidebarSectionLabel>{group.label}</SidebarSectionLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-0.5">
+              {group.items.map((option) => (
+                <SidebarMenuItem className="h-[30px]" key={option.name}>
+                  <SidebarMenuButton
+                    asChild
+                    className="h-[30px]"
+                    isActive={pathname.startsWith(option.href)}
+                    tooltip={option.name}
+                  >
+                    <Link href={option.href}>
+                      <option.icon />
+                      <span>{option.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
 
       {(showUsage || showTrial || featureFlags[Feature.LAMINAR_CLOUD]) && (
         <SidebarGroup className={cn("mt-auto py-1 px-2", !(open || openMobile) && "hidden")}>

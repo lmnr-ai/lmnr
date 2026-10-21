@@ -40,7 +40,7 @@ const ISSUE_COLOR_BY_CELL = (() => {
 const cellClass = "flex size-full items-center justify-center";
 
 export const TraceCell = (_props: CellProps) => (
-  <div className={cn(cellClass, "bg-surface-350")}>
+  <div className={cn(cellClass, "bg-surface-550")}>
     <span className="size-[3px] rounded-full bg-[#808080]" />
   </div>
 );
@@ -51,8 +51,8 @@ export const IssueCell = ({ index }: CellProps) => {
   const muted = color === MUTED_COLOR;
 
   return (
-    <div className={cn(cellClass, muted ? "bg-surface-300" : "bg-surface-350")}>
-      <WarningMark color={color} markColor={muted ? "var(--color-surface-300)" : "var(--color-surface-350)"} />
+    <div className={cn(cellClass, muted ? "bg-surface-500" : "bg-surface-550")}>
+      <WarningMark color={color} markColor={muted ? "var(--color-surface-500)" : "var(--color-surface-550)"} />
     </div>
   );
 };
@@ -62,7 +62,7 @@ export const EvalCell = ({ index }: CellProps) => {
   const Icon = passed ? Check : X;
 
   return (
-    <div className={cn(cellClass, passed ? "bg-surface-350" : "bg-surface-300")}>
+    <div className={cn(cellClass, passed ? "bg-surface-550" : "bg-surface-500")}>
       <Icon
         aria-hidden="true"
         className={cn("size-[10px]", passed ? "text-[#1B845E]" : "text-[#DA495A]")}

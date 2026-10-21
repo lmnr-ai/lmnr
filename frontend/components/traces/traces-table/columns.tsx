@@ -36,8 +36,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
-        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
-          "bg-destructive-bright": row.getValue() === "error",
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
+          "bg-destructive": row.getValue() === "error",
         })}
       />
     ),
@@ -93,7 +93,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
               {row.row.original.topSpanName}
             </div>
           ) : (
-            <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
+            <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 rounded-full text-sm" />
           )}
         </div>
       );
