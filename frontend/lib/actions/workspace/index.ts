@@ -6,7 +6,8 @@ import { deleteProject } from "@/lib/actions/project";
 import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
-import { cache, MEMBER_ROLE_CACHE_KEY, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
+import { invalidateMemberAccessCache } from "@/lib/authorization";
+import { cache, MEMBER_ROLE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -282,18 +283,11 @@ export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSc
     .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)));
 
   try {
-    await cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId));
     await cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, userId));
-
-    const workspaceProjects = await db.query.projects.findMany({
-      where: eq(projects.workspaceId, workspaceId),
-      columns: { id: true },
-    });
-
-    await Promise.all(workspaceProjects.map((project) => cache.remove(PROJECT_MEMBER_CACHE_KEY(project.id, userId))));
   } catch (e) {
     console.error("Error clearing cache after user removal", e);
   }
+  await invalidateMemberAccessCache(workspaceId, [userId]);
 
   return { success: true };
 }

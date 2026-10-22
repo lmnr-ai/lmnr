@@ -3,16 +3,13 @@ import { isNil } from "lodash";
 import { notFound, redirect } from "next/navigation";
 
 import { getServerSession } from "@/lib/auth-session";
-import {
-  cache,
-  CLI_PROJECT_MEMBERSHIP_CACHE_KEY,
-  PROJECT_MEMBER_CACHE_KEY,
-  WORKSPACE_MEMBER_CACHE_KEY,
-} from "@/lib/cache.ts";
+import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
 
 import { notTrialLocked, trialLocked } from "./trial-lock";
+
+export { invalidateMemberAccessCache, invalidateWorkspaceMemberAccessCache } from "./member-cache";
 
 // A member blocked only by the trial lock is sent to /trial-ended instead of a 404.
 const redirectIfTrialLocked = async (userId: string, target: { workspaceId: string } | { projectId: string }) => {
@@ -37,30 +34,6 @@ const redirectIfTrialLocked = async (userId: string, target: { workspaceId: stri
           .limit(1);
   if (rows.length > 0) {
     redirect(`/trial-ended?workspaceId=${rows[0].workspaceId}`);
-  }
-};
-
-// Membership results are cached for 30 days; call this whenever the trial lock may have changed.
-export const invalidateWorkspaceMemberAccessCache = async (workspaceId: string) => {
-  try {
-    const [members, workspaceProjects] = await Promise.all([
-      db
-        .select({ userId: membersOfWorkspaces.userId })
-        .from(membersOfWorkspaces)
-        .where(eq(membersOfWorkspaces.workspaceId, workspaceId)),
-      db.select({ id: projects.id }).from(projects).where(eq(projects.workspaceId, workspaceId)),
-    ]);
-    await Promise.all(
-      members.flatMap(({ userId }) => [
-        cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId)),
-        ...workspaceProjects.flatMap((p) => [
-          cache.remove(PROJECT_MEMBER_CACHE_KEY(p.id, userId)),
-          cache.remove(CLI_PROJECT_MEMBERSHIP_CACHE_KEY(userId, p.id)),
-        ]),
-      ])
-    );
-  } catch (e) {
-    console.error(`Failed to invalidate member access cache for workspace ${workspaceId}`, e);
   }
 };
 

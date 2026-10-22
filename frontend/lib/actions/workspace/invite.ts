@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { invalidateMemberAccessCache } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -41,6 +42,7 @@ const createSelfHostedInvitation = async (workspaceId: string, email: string) =>
       workspaceId,
       memberRole: "member",
     });
+    await invalidateMemberAccessCache(workspaceId, [existingUser.id]);
 
     return { success: true, message: "User added to workspace successfully" };
   }
