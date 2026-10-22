@@ -170,3 +170,4 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
+| `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |
