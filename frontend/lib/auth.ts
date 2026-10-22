@@ -10,6 +10,7 @@ import { jwt } from "better-auth/plugins/jwt";
 import { eq } from "drizzle-orm";
 
 import { localEmail } from "@/lib/auth-local-email";
+import { invalidateMemberAccessCache } from "@/lib/authorization/member-cache";
 import { db } from "@/lib/db/drizzle";
 import * as schema from "@/lib/db/migrations/schema";
 import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
@@ -65,6 +66,8 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
+
+  await Promise.all(pendingInvitations.map(({ workspaceId }) => invalidateMemberAccessCache(workspaceId, [userId])));
 };
 
 const trackUserCreated = (email: string): void => {

@@ -131,7 +131,11 @@ pub const INGESTION_RATE_LIMIT_PERIOD_CACHE_KEY: &str = "ingestion_project_rate_
 /// `RATE_LIMIT_PERIOD_SECS` window. Missing key = global `RATE_LIMIT` default.
 pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
 
-pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
+/// `project_member:{project_id}:{user_id}` → bool (true and false both cached).
+/// Shared with the frontend `PROJECT_MEMBER_CACHE_KEY` (`frontend/lib/cache.ts`),
+/// which clears it on every membership change.
+pub const PROJECT_MEMBER_CACHE_KEY: &str = "project_member";
+
 /// `member_role:{workspace_id}:{user_id}` → `members_of_workspaces.member_role`.
 /// Positive entries only; the frontend removes the key on role change and
 /// membership removal (`frontend/lib/actions/workspace`).
