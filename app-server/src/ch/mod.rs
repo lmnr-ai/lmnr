@@ -1,3 +1,4 @@
+pub mod agent_versioning;
 pub mod browser_events;
 pub mod cloud;
 pub mod data_plane;

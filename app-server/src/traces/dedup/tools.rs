@@ -17,6 +17,7 @@ use super::{
     ContentHash, SharedContentBatch, content_hash, is_seen, span_group_id, storage_seen_key,
 };
 use crate::{
+    agent_versioning::document,
     cache::Cache,
     db::spans::Span,
     features::{Feature, is_feature_enabled},
@@ -38,6 +39,10 @@ pub struct ToolDedup {
     /// producer, so it never rides the wire.
     #[serde(skip)]
     pub versioning_text: Option<String>,
+    /// The tool set's [`document::tool_lines`]. Set only while
+    /// `Feature::AgentVersioning` is on; never rides the wire either.
+    #[serde(skip)]
+    pub agent_lines: Option<Vec<String>>,
 }
 
 /// Pull tool definitions out of `raw_attributes` as one JSON array, trying the
@@ -136,6 +141,8 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
     let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
     let versioning_text =
         is_feature_enabled(Feature::Checkpoints).then(|| tool_text::render(&tools));
+    let agent_lines =
+        is_feature_enabled(Feature::AgentVersioning).then(|| document::tool_lines(&tools));
     let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);
@@ -149,6 +156,7 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         content,
         size_bytes: estimate_json_size(&tools),
         versioning_text,
+        agent_lines,
     })
 }
 
@@ -315,6 +323,7 @@ mod tests {
             content: Some("[{}]".to_string()),
             size_bytes: 4,
             versioning_text: None,
+            agent_lines: None,
         };
         let mut shared = SharedContentBatch::default();
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 4);

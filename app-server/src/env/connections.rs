@@ -12,6 +12,9 @@ pub const LAMINAR_CLOUD: BoolEnv = BoolEnv::new("LAMINAR_CLOUD", false);
 pub const REDIS_URL: &str = "REDIS_URL";
 /// pii-redactor gRPC URL. Presence enables the PII redaction feature.
 pub const PII_REDACTOR_URL: &str = "PII_REDACTOR_URL";
+/// Agent versioning's naming self-tracing destination project id; invalid or
+/// unset disables export. Its own calls are never versioned.
+pub const AGENT_VERSIONING_INTERNAL_PROJECT_ID: &str = "AGENT_VERSIONING_INTERNAL_PROJECT_ID";
 /// Agent-naming self-tracing destination project id; invalid or unset disables export.
 pub const CHECKPOINTS_INTERNAL_PROJECT_ID: &str = "CHECKPOINTS_INTERNAL_PROJECT_ID";
 /// Static-prompt extraction self-tracing destination project id.

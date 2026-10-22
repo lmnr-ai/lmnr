@@ -280,3 +280,11 @@ pub const TRACE_SESSION_HINT_CACHE_KEY: &str = "trace_session";
 pub const DEBUGGER_CACHE_KEY: &str = "debugger_replay_cache";
 pub const DEBUGGER_CACHE_READY_KEY: &str = "debugger_replay_ready";
 pub const DEBUGGER_CACHE_LOCK_KEY: &str = "debugger_replay_lock";
+
+/// Held by the one replica running the agent versioning job
+/// (`agent_versioning::job`).
+pub const AGENT_VERSIONING_JOB_LOCK_CACHE_KEY: &str = "agent_versioning_job_lock";
+/// `agent_versioning_doc:{project}:{agent_hash}:{doc_hash}`: set once an agent
+/// call document's line texts are stored, so later calls with the same
+/// document ship line hashes only.
+pub const AGENT_VERSIONING_DOC_CACHE_KEY: &str = "agent_versioning_doc";

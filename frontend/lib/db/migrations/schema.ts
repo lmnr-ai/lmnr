@@ -332,6 +332,8 @@ export const agents = pgTable(
     agentHash: text("agent_hash").notNull(),
     name: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    labelledUntil: timestamp("labelled_until", { withTimezone: true, mode: "string" }),
+    heldUntil: timestamp("held_until", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     foreignKey({
@@ -349,10 +351,11 @@ export const agentVersions = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     agentId: uuid("agent_id").notNull(),
-    versionHash: text("version_hash").notNull(),
     versionNumber: integer("version_number").notNull(),
-    systemPromptVersionHash: text("system_prompt_version_hash").notNull(),
-    toolDefinitionsHash: text("tool_definitions_hash").notNull(),
+    core: bigint({ mode: "bigint" }).array().notNull(),
+    content: text().notNull(),
+    since: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    exampleTraceId: uuid("example_trace_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
@@ -366,8 +369,49 @@ export const agentVersions = pgTable(
       foreignColumns: [projects.id],
       name: "agent_versions_project_id_fkey",
     }).onDelete("cascade"),
-    unique("agent_versions_project_id_version_hash_key").on(table.projectId, table.versionHash),
     unique("agent_versions_agent_id_version_number_key").on(table.agentId, table.versionNumber),
+  ]
+);
+
+export const agentVersionChanges = pgTable(
+  "agent_version_changes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    changeNumber: integer("change_number").notNull(),
+    fromVersionId: uuid("from_version_id"),
+    toVersionId: uuid("to_version_id").notNull(),
+    overlapFrom: timestamp("overlap_from", { withTimezone: true, mode: "string" }).notNull(),
+    since: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    added: bigint({ mode: "bigint" }).array().notNull(),
+    removed: bigint({ mode: "bigint" }).array().notNull(),
+    exampleTraceBefore: uuid("example_trace_before"),
+    exampleTraceAfter: uuid("example_trace_after").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agentId],
+      foreignColumns: [agents.id],
+      name: "agent_version_changes_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_version_changes_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.fromVersionId],
+      foreignColumns: [agentVersions.id],
+      name: "agent_version_changes_from_version_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.toVersionId],
+      foreignColumns: [agentVersions.id],
+      name: "agent_version_changes_to_version_id_fkey",
+    }).onDelete("cascade"),
+    unique("agent_version_changes_agent_id_change_number_key").on(table.agentId, table.changeNumber),
   ]
 );
 

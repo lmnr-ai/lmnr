@@ -1,6 +1,6 @@
 //! Replays a project's real LLM spans through the detector, read-only, and
-//! prints each agent's versions, changes and labels next to the v2 versions
-//! in `traces_agg.agent_versions`.
+//! prints each agent's versions, changes and labels next to the
+//! `sp_versioning` versions in `traces_agg.agent_versions`.
 //!
 //!   cargo test --bin app-server agent_versioning::replay -- --ignored --nocapture
 //!
@@ -129,8 +129,11 @@ async fn load(client: &clickhouse::Client, project: Uuid, days: u32) -> Corpus {
     corpus
 }
 
-/// v2 version hashes per (agent, trace).
-async fn load_v2(client: &clickhouse::Client, project: Uuid) -> HashMap<(String, Uuid), String> {
+/// `sp_versioning` version hashes per (agent, trace).
+async fn load_sp_versions(
+    client: &clickhouse::Client,
+    project: Uuid,
+) -> HashMap<(String, Uuid), String> {
     let sql = format!(
         "SELECT DISTINCT toString(id) AS trace_id, tupleElement(v, 'agent_hash') AS agent_hash, \
          tupleElement(v, 'version_hash') AS version_hash \
@@ -170,7 +173,7 @@ fn report(
     traces: &[Trace],
     config: &Config,
     text: &HashMap<u64, String>,
-    v2: &HashMap<(String, Uuid), String>,
+    sp_versions: &HashMap<(String, Uuid), String>,
 ) -> usize {
     let (state, batch): (AgentState, RunOutput) = simulation::batch(traces, config);
     let (incremental_state, incremental) = simulation::incremental(traces, config);
@@ -222,19 +225,16 @@ fn report(
 
     let mut cross: BTreeMap<(String, Option<usize>), usize> = BTreeMap::new();
     for trace in traces {
-        let Some(v2_version) = v2.get(&(agent_hash.to_string(), trace.trace_id)) else {
+        let Some(sp_version) = sp_versions.get(&(agent_hash.to_string(), trace.trace_id)) else {
             continue;
         };
-        let v3_version = labels.get(&trace.trace_id).copied().flatten();
-        *cross.entry((v2_version.clone(), v3_version)).or_default() += 1;
+        let label = labels.get(&trace.trace_id).copied().flatten();
+        *cross.entry((sp_version.clone(), label)).or_default() += 1;
     }
     if !cross.is_empty() {
-        println!("    v2 version -> v3 label (traces):");
-        for ((v2_version, v3_version), count) in cross {
-            println!(
-                "      {v2_version} -> {}: {count}",
-                version_name(v3_version)
-            );
+        println!("    sp_versioning version -> label (traces):");
+        for ((sp_version, label), count) in cross {
+            println!("      {sp_version} -> {}: {count}", version_name(label));
         }
     }
     mismatches
@@ -252,7 +252,7 @@ async fn replay_project() {
         .collect();
     let client = client();
     let corpus = load(&client, project, days).await;
-    let v2 = load_v2(&client, project).await;
+    let sp_versions = load_sp_versions(&client, project).await;
     println!(
         "project {project}: {} LLM spans, {} without a system prompt, {} agent(s), {} distinct lines",
         corpus.spans,
@@ -285,7 +285,7 @@ async fn replay_project() {
                 min_traces,
                 ..Config::default()
             };
-            if report(agent_hash, &traces, &config, &corpus.text, &v2) > 0 {
+            if report(agent_hash, &traces, &config, &corpus.text, &sp_versions) > 0 {
                 mismatched_agents.push((agent_hash.clone(), min_traces));
             }
         }

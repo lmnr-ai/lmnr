@@ -169,6 +169,7 @@ pub enum WorkerType {
     UserTemplateVersioning,
     ToolDefinitionVersioning,
     SpRegexExtraction,
+    AgentVersioning,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -190,6 +191,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::UserTemplateVersioning => write!(f, "user_template_versioning"),
             WorkerType::ToolDefinitionVersioning => write!(f, "tool_definition_versioning"),
             WorkerType::SpRegexExtraction => write!(f, "sp_regex_extraction"),
+            WorkerType::AgentVersioning => write!(f, "agent_versioning"),
         }
     }
 }

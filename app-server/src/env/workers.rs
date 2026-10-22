@@ -14,6 +14,7 @@ pub const NUM_STATIC_SP: NumEnv<usize> = NumEnv::new("NUM_STATIC_SP_WORKERS", 2)
 pub const NUM_SP_VERSIONING: NumEnv<usize> = NumEnv::new("NUM_SP_VERSIONING_WORKERS", 2);
 pub const NUM_SP_REGEX_EXTRACTION: NumEnv<usize> =
     NumEnv::new("NUM_SP_REGEX_EXTRACTION_WORKERS", 2);
+pub const NUM_AGENT_VERSIONING: NumEnv<usize> = NumEnv::new("NUM_AGENT_VERSIONING_WORKERS", 2);
 
 pub const NUM_INPUT_EXTRACTION: NumEnv<usize> = NumEnv::new("NUM_INPUT_EXTRACTION_WORKERS", 2);
 /// Separate from `NUM_INPUT_EXTRACTION` because an agent run takes minutes

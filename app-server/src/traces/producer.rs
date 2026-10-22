@@ -26,6 +26,10 @@ use super::{
     provider::convert_span_to_provider_format,
 };
 use crate::{
+    agent_versioning::{
+        self, document,
+        producer::{AgentCall, publish_agent_calls},
+    },
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     checkpoints::AgentSpan,
@@ -175,6 +179,8 @@ pub async fn publish_span_messages(
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
     let mut static_prompt_candidates: Vec<StaticPromptCandidate> = Vec::new();
     let checkpoints_enabled = is_feature_enabled(Feature::Checkpoints);
+    let mut agent_calls: Vec<AgentCall> = Vec::new();
+    let records_agent_calls = agent_versioning::producer::records_calls(project_id);
     // (span idx, input candidate, output candidate) for spans carrying
     // either — the input/output extraction passes run after publish.
     let mut extraction_candidates: Vec<(
@@ -192,6 +198,21 @@ pub async fn publish_span_messages(
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
         if let Some(verdict) = verdicts.system_prompt {
+            if records_agent_calls {
+                let tool_lines = msg
+                    .tool_dedup
+                    .as_mut()
+                    .and_then(|tools| tools.agent_lines.take())
+                    .unwrap_or_default();
+                agent_calls.push(AgentCall::new(
+                    project_id,
+                    verdict.agent_hash.clone(),
+                    msg.span.trace_id,
+                    msg.span.span_id,
+                    msg.span.start_time,
+                    document::join(document::prompt_lines(&verdict.text), tool_lines),
+                ));
+            }
             let agent_span = checkpoints_enabled.then(|| {
                 AgentSpan::from_span(
                     &msg.span,
@@ -292,6 +313,7 @@ pub async fn publish_span_messages(
             for candidate in &mut static_prompt_candidates {
                 candidate.agent_span = None;
             }
+            agent_calls.clear();
         }
     }
 
@@ -299,6 +321,7 @@ pub async fn publish_span_messages(
     // best-effort — only after the span publish succeeded, so a rejected
     // batch doesn't feed the accumulator with spans that were never stored.
     publish_static_prompt_candidates(static_prompt_candidates, cache.clone(), queue.clone()).await;
+    publish_agent_calls(agent_calls, &cache, &queue).await;
 
     // Runs after the batch is on the wire so attribute mutation inside the
     // hook can't affect the published payload. Never fails ingestion.

@@ -20,6 +20,10 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use api::v1::browser_sessions::{
     BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
 };
+use agent_versioning::{
+    AGENT_VERSIONING_EXCHANGE, AGENT_VERSIONING_QUEUE, AGENT_VERSIONING_ROUTING_KEY,
+    consumer::AgentCallsHandler,
+};
 use aws_config::BehaviorVersion;
 use browser_events::BrowserEventHandler;
 #[cfg(feature = "signals")]
@@ -1128,6 +1132,34 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.17 Agent versioning calls queue ====
+            // Best-effort: a lost call only thins its agent's traces, so no
+            // delay/retry topology.
+            channel
+                .exchange_declare(
+                    AGENT_VERSIONING_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    AGENT_VERSIONING_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
@@ -1192,6 +1224,8 @@ fn main() -> anyhow::Result<()> {
         }
         // ==== 3.16 SP regex extraction (demand-driven) queue ====
         queue.register_queue(SP_REGEX_EXTRACTION_EXCHANGE, SP_REGEX_EXTRACTION_QUEUE);
+        // ==== 3.17 Agent versioning calls queue ====
+        queue.register_queue(AGENT_VERSIONING_EXCHANGE, AGENT_VERSIONING_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1490,7 +1524,8 @@ fn main() -> anyhow::Result<()> {
     // without silently killing the others' client.
     let llm_client_needed = is_feature_enabled(Feature::Signals)
         || is_feature_enabled(Feature::InputExtraction)
-        || is_feature_enabled(Feature::SignalsGateway);
+        || is_feature_enabled(Feature::SignalsGateway)
+        || is_feature_enabled(Feature::AgentVersioning);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         let llm_profile_store = Arc::new(llm::profiles::LlmProfileStore::new(
@@ -1538,6 +1573,18 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
+        if is_feature_enabled(Feature::AgentVersioning) {
+            log::info!("Agent versioning enabled - starting agent versioning job");
+            let db = db.clone();
+            let cache = cache.clone();
+            let clickhouse = clickhouse.clone();
+            let llm_client = llm_provider_client.clone();
+            runtime_handle.spawn(async move {
+                agent_versioning::job::run_agent_versioning_job(db, cache, clickhouse, llm_client)
+                    .await;
+            });
+        }
+
         let worker_pool = Arc::new(WorkerPool::new(
             queue.clone(),
             shutdown.clone(),
@@ -1579,6 +1626,8 @@ fn main() -> anyhow::Result<()> {
         let num_user_task_regex_workers = env::workers::NUM_USER_TASK_REGEX.get();
 
         let num_input_extraction_workers = env::workers::NUM_INPUT_EXTRACTION.get();
+
+        let num_agent_versioning_workers = env::workers::NUM_AGENT_VERSIONING.get();
 
         log::info!(
             "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Logs workers: {}, Reports workers: {}, Input extraction workers: {}",
@@ -2340,6 +2389,24 @@ fn main() -> anyhow::Result<()> {
                     } else {
                         log::warn!(
                             "LLM provider not available - skipping SP-regex extraction workers"
+                        );
+                    }
+
+                    if is_feature_enabled(Feature::AgentVersioning) {
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::AgentVersioning,
+                            num_agent_versioning_workers,
+                            move || AgentCallsHandler {
+                                cache: cache.clone(),
+                                clickhouse: clickhouse.clone(),
+                            },
+                            QueueConfig::new(
+                                AGENT_VERSIONING_QUEUE,
+                                AGENT_VERSIONING_EXCHANGE,
+                                AGENT_VERSIONING_ROUTING_KEY,
+                            ),
                         );
                     }
 

@@ -16,6 +16,7 @@ import {
   agents,
   agentVersions,
   agentVersionModels,
+  agentVersionChanges,
   renderTemplates,
   tracesAgentChats,
   sharedEvals,
@@ -119,6 +120,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   agents: many(agents),
   agentVersions: many(agentVersions),
   agentVersionModels: many(agentVersionModels),
+  agentVersionChanges: many(agentVersionChanges),
   renderTemplates: many(renderTemplates),
   tracesAgentChats: many(tracesAgentChats),
   sharedEvals: many(sharedEvals),
@@ -249,6 +251,7 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
     references: [projects.id],
   }),
   agentVersions: many(agentVersions),
+  agentVersionChanges: many(agentVersionChanges),
 }));
 
 export const agentVersionsRelations = relations(agentVersions, ({ one, many }) => ({
@@ -270,6 +273,17 @@ export const agentVersionModelsRelations = relations(agentVersionModels, ({ one 
   }),
   project: one(projects, {
     fields: [agentVersionModels.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const agentVersionChangesRelations = relations(agentVersionChanges, ({ one }) => ({
+  agent: one(agents, {
+    fields: [agentVersionChanges.agentId],
+    references: [agents.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersionChanges.projectId],
     references: [projects.id],
   }),
 }));

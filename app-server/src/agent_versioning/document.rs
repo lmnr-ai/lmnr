@@ -3,8 +3,9 @@
 //! change, and each line hashed after masking the values that differ per
 //! call (numbers, ids, dates, day and month names).
 //!
-//! Line `i` of [`render`] hashes to `line_hash(&lines[i])`, so a stored hash
-//! can always be mapped back to display text by re-rendering an example call.
+//! Ingestion stores each call as the hashes of its lines in document order,
+//! plus the text of each hash once per agent, so a version's lines can be
+//! shown as text.
 
 use std::sync::LazyLock;
 
@@ -40,14 +41,25 @@ static DAY_OR_MONTH: LazyLock<Regex> = LazyLock::new(|| {
 
 static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
-/// The display lines of one call: system prompt lines first, then one line
-/// per tool leaf prefixed with `tools.<name>.<path>`. Blank lines are dropped.
-pub fn render(system_prompt: &str, tools: &[Value]) -> Vec<String> {
+/// The display lines of one call from its two halves, which ingestion
+/// computes at different points: system prompt lines first, then one line per
+/// tool leaf prefixed with `tools.<name>.<path>`. Blank lines are dropped.
+pub fn join(mut prompt_lines: Vec<String>, tool_lines: Vec<String>) -> Vec<String> {
+    prompt_lines.extend(tool_lines);
+    prompt_lines.truncate(MAX_LINES);
+    prompt_lines
+}
+
+pub fn prompt_lines(system_prompt: &str) -> Vec<String> {
     let system_prompt = strip_claude_code_billing_header(system_prompt);
-    let mut lines: Vec<String> = split_prose(&system_prompt)
+    split_prose(&system_prompt)
         .into_iter()
         .map(str::to_string)
-        .collect();
+        .collect()
+}
+
+pub fn tool_lines(tools: &[Value]) -> Vec<String> {
+    let mut lines = Vec::new();
     for tool in normalize_tools(tools) {
         let path = format!("tools.{}", tool_name(&tool));
         // A bare-name tool still contributes a line, so adding or removing
@@ -63,8 +75,10 @@ pub fn render(system_prompt: &str, tools: &[Value]) -> Vec<String> {
             }
             other => flatten(&path, other, &mut lines),
         }
+        if lines.len() >= MAX_LINES {
+            break;
+        }
     }
-    lines.truncate(MAX_LINES);
     lines
 }
 
@@ -81,6 +95,12 @@ pub fn line_hash(line: &str) -> u64 {
     u64::from_le_bytes(digest.as_bytes()[..8].try_into().unwrap())
 }
 
+#[cfg(test)]
+pub fn render(system_prompt: &str, tools: &[Value]) -> Vec<String> {
+    join(prompt_lines(system_prompt), tool_lines(tools))
+}
+
+#[cfg(test)]
 pub fn line_set(lines: &[String]) -> LineSet {
     let mut set: LineSet = lines.iter().map(|line| line_hash(line)).collect();
     set.sort_unstable();
