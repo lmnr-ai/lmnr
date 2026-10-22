@@ -135,6 +135,7 @@ use crate::{
 mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
+mod agent_versioning;
 mod api;
 mod auth;
 mod batch_worker;

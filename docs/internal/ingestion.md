@@ -113,6 +113,16 @@
 - **Hybrid (data-plane) workspaces are skipped**: the producer clears `agent_span` after the HYBRID publish, because the `traces_agg` tags would land in the cloud while the traces live in the data plane.
 - Postgres text written here (`name`, `model`) is user span data and can contain NUL (`0x00`), which `text` columns reject. `db/agents.rs` runs it through `crate::utils::sanitize_string` at the write boundary; hashes are hex and left as-is.
 
+## Agent versioning v3 (`agent_versioning/`, not wired in yet)
+
+- **Built to replace `sp_versioning` + checkpoints, and shares nothing with them** beyond `prompt_hash::extract_system_message`, the agent hash (`prompt_hashes(sp).first_sentence`) and `normalize_tools`. Don't import sp_versioning code into it. `document.rs` renders prompt + tools into one line list, masks digit-words and day/month names, and hashes each line. `detector.rs` is a pure `run(state, traces, horizon, config)`; nothing persists or schedules it yet.
+- **Tests:** `cargo test --bin app-server agent_versioning` covers the unit tests plus `simulation.rs`, a synthetic week with known deploys, a rollback, a 90/10 experiment, optional skills/MCP tools and a lone-user stretch (~65s). The staging replay is `cargo test --bin app-server agent_versioning::replay -- --ignored --nocapture`. It reads `app-server/.env`, not the repo-root `.env` (that one points at a local ClickHouse), and only reads. Knobs: `REPLAY_PROJECT`, `REPLAY_DAYS`, `REPLAY_MIN_TRACES=100,25`.
+- **Invariant: incremental runs (every 10 min) must label exactly like one batch run.** The simulation and replay both assert it, and every past violation was a real bug. Anything a run decides must not depend on where the window happens to start or on the horizon:
+  - "absent before" requires a complete lookback (n traces, or the window starts at the agent's first trace), else it waits for a later run;
+  - the context before the watermark is n traces before `watermark − rollout`;
+  - the first version's seed is the first n traces *within `max_hold` of the oldest*, not just the first n. Without the time bound, a sparse agent seeded from months of traces in batch but from one day incrementally (found by the replay).
+- **`none` labels are by design**, for traces after a change with fewer than `min_traces` traces behind it, held past `max_hold` without containing the current core. Staging is mostly short e2e bursts below 100 traces per agent, so at the default `min_traces=100` almost every agent is one version. Run the replay with a lower n to exercise changes.
+
 ## Post-factum Trace Metadata (`POST /v1/traces/metadata`)
 
 - Customers patch trace metadata after ingestion via `POST /v1/traces/metadata` `{ traceId, metadata }`. The handler (`api/v1/traces_metadata.rs`) verifies the trace exists via `ch::traces_agg::trace_exists` (a `count()` probe on `traces_agg`; returns 404 otherwise) and pushes a virtual span carrying the metadata as `lmnr.association.properties.metadata.<key>` attributes plus the `lmnr.internal.metadata_only` marker (`SPAN_METADATA_ONLY`), reusing the regular `observations_queue` via `publish_span_messages`.
