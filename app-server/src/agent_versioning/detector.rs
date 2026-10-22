@@ -17,14 +17,17 @@
 //! Traces are labelled by time: before a change the old version, after it
 //! the new one. In the `rollout` before a change both versions run side by
 //! side, so a trace there gets the version whose core it contains (the
-//! larger one if both). A trace is labelled once `min_traces` traces exist
-//! after it, so any change that could cover it has been seen, or after
-//! `max_hold`, then only if it contains its version's core.
+//! larger one if both). A trace is settled once `min_traces` traces exist
+//! after it, so any change that could cover it has been seen; its label is
+//! final. A trace that waited `max_hold` without settling gets a provisional
+//! label, only if it contains its version's core, and is relabelled whenever
+//! the versions change until it settles.
 //!
 //! [`run`] is incremental: the state carries the versions, the timeline of
-//! changes and the label watermark, and each run reads the traces after the
-//! watermark plus `min_traces` of context before it. Labels are final; a run
-//! never relabels a trace before the watermark.
+//! changes and the settled watermark, and each run reads the traces after the
+//! watermark plus `min_traces` of context before it. A run never relabels a
+//! trace before the watermark, and the latest label of every trace equals
+//! that of one run over the same traces.
 
 use std::collections::HashMap;
 
@@ -85,8 +88,11 @@ pub struct Segment {
 pub struct AgentState {
     pub versions: Vec<Version>,
     pub timeline: Vec<Segment>,
-    /// Every trace at or before this is labelled.
+    /// Every trace at or before this has its final label. Only settled
+    /// traces move it: a flip before it was seen in full by an earlier run.
     pub labelled_until: Option<DateTime<Utc>>,
+    /// Every unsettled trace at or before this has a provisional label.
+    pub held_until: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +115,8 @@ pub struct Label {
     pub trace_id: Uuid,
     /// `None` when a held trace doesn't contain its version's core.
     pub version: Option<usize>,
+    /// Final; otherwise a later run may relabel the trace.
+    pub settled: bool,
 }
 
 #[derive(Debug, Default)]
@@ -150,6 +158,7 @@ pub fn run(
     let traces = &traces[context_start..end];
     let fresh = fresh_start - context_start;
 
+    let before = (state.timeline.len(), cores(state));
     if state.timeline.is_empty()
         && !cold_start(state, &traces[fresh..], horizon, n, config, &mut output)
     {
@@ -162,8 +171,23 @@ pub fn run(
     };
     detect(state, &window, n, config, &mut output);
     fill_diffs(state, &mut output.events);
-    label(state, traces, fresh, horizon, n, config, &mut output);
+    // A held label depends only on the timeline and the cores.
+    let changed = (state.timeline.len(), cores(state)) != before;
+    label(
+        state,
+        traces,
+        fresh,
+        horizon,
+        changed,
+        n,
+        config,
+        &mut output,
+    );
     output
+}
+
+fn cores(state: &AgentState) -> Vec<LineSet> {
+    state.versions.iter().map(|v| v.core.clone()).collect()
 }
 
 /// The traces one run reads: context before the watermark, then fresh ones.
@@ -398,6 +422,7 @@ fn label(
     window: &[Trace],
     fresh: usize,
     horizon: DateTime<Utc>,
+    changed: bool,
     n: usize,
     config: &Config,
     output: &mut RunOutput,
@@ -411,18 +436,26 @@ fn label(
     let held_until = horizon - config.max_hold;
     for trace in &window[fresh..] {
         let version = timeline_version(state, trace);
-        let version = if settled_until.is_some_and(|until| trace.time <= until) {
-            Some(version)
-        } else if trace.time <= held_until {
-            contains(&trace.lines, &state.versions[version].core).then_some(version)
-        } else {
+        if settled_until.is_some_and(|until| trace.time <= until) {
+            output.labels.push(Label {
+                trace_id: trace.trace_id,
+                version: Some(version),
+                settled: true,
+            });
+            state.labelled_until = Some(trace.time);
+            continue;
+        }
+        if trace.time > held_until {
             break;
-        };
-        output.labels.push(Label {
-            trace_id: trace.trace_id,
-            version,
-        });
-        state.labelled_until = Some(trace.time);
+        }
+        if changed || state.held_until.is_none_or(|until| trace.time > until) {
+            output.labels.push(Label {
+                trace_id: trace.trace_id,
+                version: contains(&trace.lines, &state.versions[version].core).then_some(version),
+                settled: false,
+            });
+        }
+        state.held_until = state.held_until.max(Some(trace.time));
     }
 }
 
@@ -536,21 +569,28 @@ mod tests {
         (state, output)
     }
 
-    /// A run every 10 minutes until every trace is labelled.
+    /// A run every 10 minutes until every trace is labelled; the latest
+    /// label of each trace.
     fn incremental(
         traces: &[Trace],
         config: &Config,
     ) -> (AgentState, HashMap<Uuid, Option<usize>>) {
         let mut state = AgentState::default();
-        let mut labels = HashMap::new();
+        let mut labels: HashMap<Uuid, Label> = HashMap::new();
         let mut horizon = traces[0].time;
         let last = traces.last().unwrap().time + config.max_hold + Duration::minutes(10);
         while horizon <= last {
             for label in run(&mut state, traces, horizon, config).labels {
-                assert!(labels.insert(label.trace_id, label.version).is_none());
+                if let Some(previous) = labels.insert(label.trace_id, label) {
+                    assert!(!previous.settled, "settled label relabelled");
+                }
             }
             horizon += Duration::minutes(10);
         }
+        let labels = labels
+            .into_iter()
+            .map(|(trace_id, label)| (trace_id, label.version))
+            .collect();
         (state, labels)
     }
 
@@ -772,6 +812,40 @@ mod tests {
                 incremental_labels.get(&label.trace_id),
                 Some(&label.version)
             );
+        }
+    }
+
+    #[test]
+    fn change_confirmed_after_max_hold_relabels_held_traces() {
+        // Eight traces a day against `min_traces = 10`: a change takes more
+        // than a day to confirm, so its first traces are held first.
+        let config = Config {
+            min_traces: 10,
+            ..Config::default()
+        };
+        let removed = with(base(), &[], &[5]);
+        let added = with(base(), &[21], &[]);
+        for changed in [removed, added] {
+            let traces: Vec<Trace> = stream(60, |i| if i < 30 { base() } else { changed.clone() })
+                .into_iter()
+                .enumerate()
+                .map(|(i, mut t)| {
+                    t.time = t0() + Duration::hours(3 * i as i64);
+                    t
+                })
+                .collect();
+            let (batch_state, batch_output) = batch(&traces, &config);
+            assert_eq!(batch_state.versions.len(), 2);
+            let expected: Vec<_> = (0..60).map(|i| Some(usize::from(i >= 30))).collect();
+            assert_eq!(labels(&batch_output), expected);
+            let (state, incremental_labels) = incremental(&traces, &config);
+            assert_eq!(state.versions.len(), 2);
+            for label in &batch_output.labels {
+                assert_eq!(
+                    incremental_labels.get(&label.trace_id),
+                    Some(&label.version)
+                );
+            }
         }
     }
 }

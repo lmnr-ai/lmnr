@@ -402,18 +402,27 @@ pub(super) fn batch(traces: &[Trace], config: &Config) -> (AgentState, detector:
 }
 
 /// A scheduled job every 10 minutes, then long enough for every trace to
-/// be labelled.
+/// be labelled. Keeps each trace's latest label, in trace order.
 pub(super) fn incremental(traces: &[Trace], config: &Config) -> (AgentState, detector::RunOutput) {
     let mut state = AgentState::default();
     let mut output = detector::RunOutput::default();
+    let mut latest: HashMap<Uuid, Label> = HashMap::new();
     let mut horizon = traces[0].time;
     let last = traces.last().unwrap().time + config.max_hold + Duration::minutes(10);
     while horizon <= last {
         let mut run = detector::run(&mut state, traces, horizon, config);
         output.events.append(&mut run.events);
-        output.labels.append(&mut run.labels);
+        for label in run.labels {
+            if let Some(previous) = latest.insert(label.trace_id, label) {
+                assert!(!previous.settled, "settled label relabelled");
+            }
+        }
         horizon += Duration::minutes(10);
     }
+    output.labels = traces
+        .iter()
+        .filter_map(|t| latest.remove(&t.trace_id))
+        .collect();
     (state, output)
 }
 
