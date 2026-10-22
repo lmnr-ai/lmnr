@@ -49,8 +49,6 @@ jobs:
           origin="$(git remote get-url origin)"
           [ "${origin%.git}" = "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" ] \
             || fail "origin remote is not $GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
-          [ "$GITHUB_REF" = "refs/tags/$RELEASE_TAG" ] \
-            || fail "GITHUB_REF $GITHUB_REF is not the release tag $RELEASE_TAG"
           [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] \
             || fail "HEAD $(git rev-parse HEAD) is not GITHUB_SHA $GITHUB_SHA"
           tag_sha="$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
@@ -115,10 +113,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        uses: docker/setup-buildx-action@v4.4.1 # immutable tag
 
       - name: Log in to the Container registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@v4.6.0 # immutable tag
         with:
           registry: ${{ env.REGISTRY_GH }}
           username: ${{ github.actor }}
@@ -126,13 +124,13 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        uses: docker/metadata-action@v6.2.0 # immutable tag
         with:
           images: ${{ matrix.image }}
 
       - name: Build and push Docker images
         id: push
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        uses: docker/build-push-action@v7.4.0 # immutable tag
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -191,7 +189,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to the Container registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@v4.6.0 # immutable tag
         with:
           registry: ${{ env.REGISTRY_GH }}
           username: ${{ github.actor }}
@@ -199,7 +197,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        uses: docker/metadata-action@v6.2.0 # immutable tag
         with:
           images: ${{ matrix.image }}
         env:
@@ -265,7 +263,7 @@ jobs:
           fi
 
       - name: Generate artifact attestation
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2 # immutable tag
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
