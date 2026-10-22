@@ -434,6 +434,9 @@ fn label(
         .checked_sub(n + 1)
         .map(|i| window[i].time - config.rollout);
     let held_until = horizon - config.max_hold;
+    // Held traces at one instant cross `held_until` in the same run, so the
+    // previous run's watermark is the one that says what was already sent.
+    let sent_until = state.held_until;
     for trace in &window[fresh..] {
         let version = timeline_version(state, trace);
         if settled_until.is_some_and(|until| trace.time <= until) {
@@ -448,7 +451,7 @@ fn label(
         if trace.time > held_until {
             break;
         }
-        if changed || state.held_until.is_none_or(|until| trace.time > until) {
+        if changed || sent_until.is_none_or(|until| trace.time > until) {
             output.labels.push(Label {
                 trace_id: trace.trace_id,
                 version: contains(&trace.lines, &state.versions[version].core).then_some(version),
@@ -806,6 +809,29 @@ mod tests {
         let mut expected = vec![Some(0); 3];
         expected.extend([None; 10]);
         assert_eq!(labels(&batch_output), expected);
+        let (_, incremental_labels) = incremental(&traces, &config);
+        for label in &batch_output.labels {
+            assert_eq!(
+                incremental_labels.get(&label.trace_id),
+                Some(&label.version)
+            );
+        }
+    }
+
+    #[test]
+    fn held_traces_sharing_a_timestamp_are_all_labelled() {
+        // Two traces an hour, each pair at the same instant.
+        let traces: Vec<Trace> = stream(80, |_| base())
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut t)| {
+                t.time = t0() + Duration::hours(i as i64 / 2);
+                t
+            })
+            .collect();
+        let config = Config::default();
+        let (_, batch_output) = batch(&traces, &config);
+        assert_eq!(labels(&batch_output), vec![Some(0); 80]);
         let (_, incremental_labels) = incremental(&traces, &config);
         for label in &batch_output.labels {
             assert_eq!(
