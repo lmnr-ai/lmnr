@@ -3,7 +3,12 @@ import { isNil } from "lodash";
 import { notFound, redirect } from "next/navigation";
 
 import { getServerSession } from "@/lib/auth-session";
-import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache.ts";
+import {
+  cache,
+  MEMBER_ACCESS_CACHE_TTL_SECONDS,
+  PROJECT_MEMBER_CACHE_KEY,
+  WORKSPACE_MEMBER_CACHE_KEY,
+} from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
 
@@ -74,8 +79,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
   const isMember = results?.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -120,8 +124,7 @@ export async function requireProjectAccess(projectId: string) {
   const isMember = results?.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -137,7 +140,7 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
   const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, userId);
 
   // Security-sensitive callers (key mint, device-scope write) pass skipCache so a
-  // membership cached up to 30 days ago can't authorize a since-removed user.
+  // membership cached up to 7 days ago can't authorize a since-removed user.
   if (!opts?.skipCache) {
     try {
       const cached = await cache.get<boolean>(cacheKey);
@@ -157,8 +160,8 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
   const isMember = result.length > 0;
 
   try {
-    // 30 days. Refresh the cache from the fresh read even on skipCache.
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    // Refresh the cache from the fresh read even on skipCache.
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -187,8 +190,7 @@ export const isUserMemberOfWorkspace = async (workspaceId: string, userId: strin
   const isMember = result.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }

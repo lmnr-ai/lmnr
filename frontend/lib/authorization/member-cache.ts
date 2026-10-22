@@ -1,17 +1,12 @@
 import { eq } from "drizzle-orm";
 
-import {
-  cache,
-  CLI_PROJECT_MEMBERSHIP_CACHE_KEY,
-  PROJECT_MEMBER_CACHE_KEY,
-  WORKSPACE_MEMBER_CACHE_KEY,
-} from "@/lib/cache.ts";
+import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
 
 // Kept free of `@/lib/auth-session` so `lib/auth.ts` can import it without a cycle.
 
-// Access checks cache negative results for 30 days, so every membership change (add,
+// Access checks (web and CLI) cache negative results for 7 days, so every membership change (add,
 // remove, trial lock) must clear them, or a user who opened a project link before
 // joining keeps hitting a 404 after accepting the invite.
 export const invalidateMemberAccessCache = async (workspaceId: string, userIds: string[]) => {
@@ -24,10 +19,7 @@ export const invalidateMemberAccessCache = async (workspaceId: string, userIds: 
     await Promise.all(
       userIds.flatMap((userId) => [
         cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId)),
-        ...workspaceProjects.flatMap((p) => [
-          cache.remove(PROJECT_MEMBER_CACHE_KEY(p.id, userId)),
-          cache.remove(CLI_PROJECT_MEMBERSHIP_CACHE_KEY(userId, p.id)),
-        ]),
+        ...workspaceProjects.map((p) => cache.remove(PROJECT_MEMBER_CACHE_KEY(p.id, userId))),
       ])
     );
   } catch (e) {

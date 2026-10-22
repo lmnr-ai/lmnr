@@ -29,17 +29,20 @@ use sqlx::PgPool;
 use url::Url;
 use uuid::Uuid;
 
-use crate::cache::{Cache, CacheTrait, keys::PROJECT_MEMBERSHIP_CACHE_KEY};
+use crate::cache::{Cache, CacheTrait, keys::PROJECT_MEMBER_CACHE_KEY};
 use crate::db::DB;
 
 /// Header carrying the target project id for the CLI user surface. The project
 /// is never in the path; the user picks it per request.
 const PROJECT_ID_HEADER: &str = "x-lmnr-project-id";
 
-/// Membership-cache TTL. Short by design: this is the revocation window —
-/// removing a user from a workspace takes effect within this many seconds,
-/// NOT bounded by the 15m JWT lifetime.
-const PROJECT_MEMBERSHIP_TTL_SECONDS: u64 = 60;
+/// Membership-cache TTL, matching the frontend's `MEMBER_ACCESS_CACHE_TTL_SECONDS`.
+/// Revocation relies on the frontend clearing the shared Redis key, not on expiry.
+const PROJECT_MEMBER_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+
+/// TTL for the in-memory cache (no Redis), which the frontend can't clear, so
+/// expiry is the only revocation path there.
+const PROJECT_MEMBER_IN_MEMORY_TTL_SECONDS: u64 = 60;
 
 /// JWKS cache TTL. `jwks_client_rs` refetches the key set after this interval,
 /// and also on a cache miss (handles rotation between scheduled refreshes).
@@ -290,25 +293,31 @@ impl FromRequest for CliProjectAuth {
     }
 }
 
-/// Cached membership check for the CLI user surface. Mirrors the
-/// `get_api_key_from_raw_value` cache pattern: cache hit → return; miss → query
-/// DB → cache the result (both true and false) with a short TTL. Caching the
-/// negative result is acceptable: a non-member who is later added waits at most
-/// `PROJECT_MEMBERSHIP_TTL_SECONDS`, the same window the positive cache gives a
-/// removed member before access is revoked.
+fn project_member_cache_key(project_id: Uuid, user_id: Uuid) -> String {
+    format!("{PROJECT_MEMBER_CACHE_KEY}:{project_id}:{user_id}")
+}
+
+/// Cached membership check for the CLI user surface. Shares the
+/// `project_member` key with the frontend's `isUserMemberOfProject`, so both
+/// surfaces read one entry and the frontend's `invalidateMemberAccessCache`
+/// clears it on every membership change. Both true and false are cached.
 pub async fn is_user_member_of_project(
     pool: &PgPool,
     cache: &Cache,
     user_id: Uuid,
     project_id: Uuid,
 ) -> anyhow::Result<bool> {
-    let cache_key = format!("{PROJECT_MEMBERSHIP_CACHE_KEY}:{user_id}:{project_id}");
+    let cache_key = project_member_cache_key(project_id, user_id);
     if let Ok(Some(is_member)) = cache.get::<bool>(&cache_key).await {
         return Ok(is_member);
     }
     let is_member = crate::db::projects::project_has_member(pool, &user_id, &project_id).await?;
+    let ttl = match cache {
+        Cache::Redis(_) => PROJECT_MEMBER_TTL_SECONDS,
+        Cache::InMemory(_) => PROJECT_MEMBER_IN_MEMORY_TTL_SECONDS,
+    };
     if let Err(e) = cache
-        .insert_with_ttl::<bool>(&cache_key, is_member, PROJECT_MEMBERSHIP_TTL_SECONDS)
+        .insert_with_ttl::<bool>(&cache_key, is_member, ttl)
         .await
     {
         log::warn!("membership cache write failed: {e}");
@@ -510,12 +519,12 @@ mod tests {
 
     #[test]
     fn membership_cache_key_shape() {
-        let user = Uuid::nil();
-        let project = Uuid::nil();
-        let key = format!("{PROJECT_MEMBERSHIP_CACHE_KEY}:{user}:{project}");
+        // Must match the frontend's `PROJECT_MEMBER_CACHE_KEY(projectId, userId)`.
+        let user = Uuid::from_u128(1);
+        let project = Uuid::from_u128(2);
         assert_eq!(
-            key,
-            "project_membership:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000"
+            project_member_cache_key(project, user),
+            "project_member:00000000-0000-0000-0000-000000000002:00000000-0000-0000-0000-000000000001"
         );
     }
 
