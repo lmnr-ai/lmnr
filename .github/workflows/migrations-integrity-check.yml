@@ -63,22 +63,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The upgrade scenario needs to check out the baseline ref too.
           fetch-depth: 0
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/setup@v3.1.1 # immutable tag
         with:
-          version: 12.8.1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "26" # match the one in frontend/Dockerfile
-          cache: "pnpm"
-          cache-dependency-path: ./frontend/pnpm-lock.yaml
+          version: 12.14.0
+          runtime: node@26 # match the one in frontend/Dockerfile
 
       - name: Start Postgres and ClickHouse
         run: |

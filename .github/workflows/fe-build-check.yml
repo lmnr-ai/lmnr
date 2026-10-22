@@ -14,32 +14,19 @@ jobs:
     runs-on: ubuntu-24.04-arm
 
     steps:
-      # Step 1: Checkout the code
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Step 2: Install pnpm
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/setup@v3.1.1 # immutable tag
         with:
-          # Exact pin: a floating patch release (11.28.3) once broke the standalone build.
-          version: 12.8.1
+          version: 12.14.0
+          runtime: node@24
 
-      # Step 3: Set up Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "26" # match the one in frontend/Dockerfile
-          cache: "pnpm"
-          # Specify the subdirectory containing the lockfile
-          cache-dependency-path: ./frontend/pnpm-lock.yaml
-
-      # Step 4: Install dependencies
       - name: Install dependencies
         working-directory: ./frontend
         run: pnpm install
 
-      # Step 5: Run the build
       - name: Build frontend
         working-directory: ./frontend
         run: pnpm build
