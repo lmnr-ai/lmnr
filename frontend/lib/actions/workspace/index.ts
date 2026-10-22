@@ -260,6 +260,8 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
   ).catch((e) => {
     console.error("Error clearing member role cache after ownership transfer", e);
   });
+  // A trial-locked workspace admits only its owner, so cached access flips for both users.
+  await invalidateMemberAccessCache(workspaceId, [currentOwnerId, newOwnerId]);
 
   return { success: true };
 }
