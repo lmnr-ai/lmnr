@@ -60,6 +60,9 @@ pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
+/// `agent_versioning_lock:{project_id}:{agent_hash}`: one versioning run per
+/// agent per interval across replicas. Expires instead of being released.
+pub const AGENT_VERSIONING_LOCK_CACHE_KEY: &str = "agent_versioning_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
 pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";

@@ -37,7 +37,7 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
       <div className="flex items-start justify-between gap-4">
         <SettingsSectionHeader
           title={data ? agentDisplayName(data.agent.name) : "Agent versions"}
-          description="A new version starts when the stable part of the agent's system prompt or tools changes. Details that differ on every call, like user names or dates, are ignored. Models are tracked per version."
+          description="A version is the part of the system prompt and tools that every call shares. A new version starts when that part changes and stays changed; dates and per-call details are ignored. Models are tracked per version."
         />
         {data && (
           <RenameAgentDialog

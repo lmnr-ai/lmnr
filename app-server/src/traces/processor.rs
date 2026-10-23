@@ -8,10 +8,12 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
+    agent_versioning,
     api::v1::traces::RabbitMqSpanMessage,
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
+        agent_prompts::{CHAgentPrompt, insert_agent_prompts},
         spans::CHSpan,
         traces::TraceAggregation,
         traces_agg::{CHTraceAgg, PATCH_START_TIME_OFFSET_NS},
@@ -253,13 +255,26 @@ pub async fn process_span_messages(
     quickwit_indexing_enabled: bool,
 ) -> Result<(), HandlerError> {
     let messages = enrich_attributes(messages);
-    let (metadata_only, messages): (Vec<RabbitMqSpanMessage>, Vec<RabbitMqSpanMessage>) = messages
-        .into_iter()
-        .partition(|m| m.span.attributes.is_metadata_only());
+    let (metadata_only, mut messages): (Vec<RabbitMqSpanMessage>, Vec<RabbitMqSpanMessage>) =
+        messages
+            .into_iter()
+            .partition(|m| m.span.attributes.is_metadata_only());
     let MetadataOnlySpans {
         raw_trace_io,
         metadata_patches,
     } = classify_metadata_only_spans(&metadata_only);
+
+    // Hybrid traces live in the data plane; agent versioning reads the cloud.
+    let agent_prompts: Vec<CHAgentPrompt> = messages
+        .iter_mut()
+        .filter(|_| config.is_none())
+        .filter_map(|m| {
+            Some(agent_versioning::ingest::row(
+                &m.span,
+                m.agent_prompt.take()?,
+            ))
+        })
+        .collect();
 
     let mut batch = enrich_spans_with_usage(messages, &db, &cache).await;
     let trace_aggregations = TraceAggregation::from_spans(&batch.spans, &batch.usages);
@@ -336,6 +351,14 @@ pub async fn process_span_messages(
     );
     let ((), span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
+
+    if let Err(e) = insert_agent_prompts(&clickhouse, &agent_prompts).await {
+        log::error!(
+            "Failed to insert {} agent prompts: {:?}",
+            agent_prompts.len(),
+            e
+        );
+    }
 
     // Must run AFTER the spans insert: triggers are decided from the in-memory
     // batch delta, but filters read the trace's cumulative state back out of

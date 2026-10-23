@@ -38,6 +38,9 @@ pub enum Feature {
     /// system-prompt and tool-definition versioning consumers resolve, so it
     /// is inert without `SystemPromptVersioning`.
     Checkpoints,
+    /// Scheduled agent versioning (`src/agent_versioning`). Gated behind
+    /// `AGENT_VERSIONING_ENABLED`, default off.
+    AgentVersioning,
     /// v2 static system-prompt extraction: per-agent prompt windows +
     /// line-level version detection replacing the skeleton-hash keying.
     /// Gated behind `SP_VERSIONING_ENABLED`, default off.
@@ -98,6 +101,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
         Feature::Checkpoints => env::checkpoints::ENABLED.get(),
+        Feature::AgentVersioning => env::agent_versioning::ENABLED.get(),
         Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
         Feature::SignalsVersionedPrompts => {
             is_feature_enabled(Feature::SystemPromptVersioning)

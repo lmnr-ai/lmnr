@@ -834,6 +834,13 @@
       "when": 1792590499138,
       "tag": "0118_agent_versions_drop_tool_definitions",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1792721441637,
+      "tag": "0119_agent_versioning_rebuild",
+      "breakpoints": true
     }
   ]
 }

@@ -25,7 +25,7 @@ const NAMING_INSTRUCTION: &str = "You name AI agents. Given an agent's system pr
      most prompts (SDK headers, environment blocks, formatting and tool-use conventions). \
      Respond ONLY by calling the name_agent tool.";
 
-pub(super) async fn generate_agent_name(
+pub(crate) async fn generate_agent_name(
     llm_client: &LlmClient,
     project_id: Uuid,
     agent_id: Uuid,

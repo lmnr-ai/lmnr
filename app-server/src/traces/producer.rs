@@ -26,6 +26,7 @@ use super::{
     provider::convert_span_to_provider_format,
 };
 use crate::{
+    agent_versioning::ingest::agent_prompt,
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     checkpoints::AgentSpan,
@@ -204,6 +205,8 @@ pub async fn publish_span_messages(
                 .as_mut()
                 .and_then(|tools| tools.versioning_text.take())
                 .unwrap_or_default();
+            msg.agent_prompt =
+                agent_prompt(&msg.span, &verdict.agent_hash, &verdict.text, &tool_text);
             static_prompt_candidates.push(StaticPromptCandidate {
                 project_id,
                 trace_id: msg.span.trace_id,
@@ -361,6 +364,7 @@ pub async fn push_spans_to_queue(
                                 input_dedup: None,
                                 output_dedup: None,
                                 tool_dedup: None,
+                                agent_prompt: None,
                             })
                         } else {
                             None

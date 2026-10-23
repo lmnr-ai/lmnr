@@ -16,8 +16,9 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-use super::{naming::generate_agent_name, version::version_hash};
+use super::version::version_hash;
 use crate::{
+    agent_versioning::naming::generate_agent_name,
     cache::{
         Cache, CacheTrait,
         keys::{

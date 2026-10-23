@@ -135,6 +135,7 @@ use crate::{
 mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
+mod agent_versioning;
 mod api;
 mod auth;
 mod batch_worker;
@@ -1535,6 +1536,17 @@ fn main() -> anyhow::Result<()> {
             });
         } else {
             log::info!("Reports feature disabled - skipping reports scheduler");
+        }
+
+        if is_feature_enabled(Feature::AgentVersioning) {
+            log::info!("Agent versioning enabled - starting agent versioning job");
+            let job = agent_versioning::job::Job {
+                db: db.clone(),
+                cache: cache.clone(),
+                clickhouse: clickhouse.clone(),
+                llm_client: llm_provider_client.clone(),
+            };
+            runtime_handle.spawn(job.run());
         }
 
         let worker_pool = Arc::new(WorkerPool::new(

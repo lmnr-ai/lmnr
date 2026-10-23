@@ -134,8 +134,9 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         return None;
     }
     let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
-    let versioning_text =
-        is_feature_enabled(Feature::Checkpoints).then(|| tool_text::render(&tools));
+    let versioning_text = (is_feature_enabled(Feature::Checkpoints)
+        || is_feature_enabled(Feature::AgentVersioning))
+    .then(|| tool_text::render(&tools));
     let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);

@@ -3,7 +3,6 @@
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DiffView from "@/components/ui/diff";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,8 +10,6 @@ import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import SideBySideDialog from "./side-by-side-dialog";
-import ToolsDiff from "./tools-diff";
-import ToolsList from "./tools-diff/tools-list";
 import VersionModels from "./version-models";
 
 interface VersionCardProps {
@@ -46,10 +43,6 @@ function Field({ label, action, children }: { label: string; action?: React.Reac
 export default function VersionCard({ version, previous, isLatest }: VersionCardProps) {
   const [open, setOpen] = useState(isLatest);
 
-  const promptChanged = previous ? version.systemPromptVersionHash !== previous.systemPromptVersionHash : false;
-  const toolsChanged = previous ? version.toolDefinitionsHash !== previous.toolDefinitionsHash : false;
-  const changes = [promptChanged && "System prompt", toolsChanged && "Tools"].filter(Boolean) as string[];
-
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border rounded-md">
       <CollapsibleTrigger asChild>
@@ -65,17 +58,7 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
           {isLatest && <span className="text-xs font-medium text-primary-text">Latest</span>}
           <span className="text-xs text-muted-foreground">{formatTimestamp(version.createdAt)}</span>
           <div className="flex-1" />
-          <div className="flex items-center gap-1.5">
-            {previous ? (
-              changes.map((c) => (
-                <Badge key={c} variant="outline" className="h-5 font-normal text-muted-foreground">
-                  {c}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground">Initial version</span>
-            )}
-          </div>
+          {!previous && <span className="text-xs text-muted-foreground">Initial version</span>}
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -84,49 +67,24 @@ export default function VersionCard({ version, previous, isLatest }: VersionCard
             <VersionModels models={version.models} />
           </Field>
           {previous ? (
-            <>
-              {promptChanged && (
-                <Field
-                  label="System prompt"
-                  action={
-                    <SideBySideDialog
-                      title="System prompt"
-                      oldLabel={`Version ${previous.versionNumber}`}
-                      newLabel={`Version ${version.versionNumber}`}
-                      oldText={previous.systemPrompt}
-                      newText={version.systemPrompt}
-                    />
-                  }
-                >
-                  <DiffView oldText={previous.systemPrompt} newText={version.systemPrompt} />
-                </Field>
-              )}
-              {toolsChanged && (
-                <Field
-                  label="Tools"
-                  action={
-                    <SideBySideDialog
-                      title="Tools"
-                      oldLabel={`Version ${previous.versionNumber}`}
-                      newLabel={`Version ${version.versionNumber}`}
-                      oldText={previous.toolDefinitions}
-                      newText={version.toolDefinitions}
-                    />
-                  }
-                >
-                  <ToolsDiff oldText={previous.toolDefinitions} newText={version.toolDefinitions} />
-                </Field>
-              )}
-            </>
+            <Field
+              label="Agent prompt"
+              action={
+                <SideBySideDialog
+                  title="Agent prompt"
+                  oldLabel={`Version ${previous.versionNumber}`}
+                  newLabel={`Version ${version.versionNumber}`}
+                  oldText={previous.text}
+                  newText={version.text}
+                />
+              }
+            >
+              <DiffView oldText={previous.text} newText={version.text} />
+            </Field>
           ) : (
-            <>
-              <Field label="System prompt">
-                <ContentBlock text={version.systemPrompt} />
-              </Field>
-              <Field label="Tools">
-                <ToolsList text={version.toolDefinitions} />
-              </Field>
-            </>
+            <Field label="Agent prompt">
+              <ContentBlock text={version.text} />
+            </Field>
           )}
         </div>
       </CollapsibleContent>
