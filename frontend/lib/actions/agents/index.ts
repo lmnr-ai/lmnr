@@ -44,6 +44,7 @@ export interface AgentProgress {
   maxWaitMinutes: number;
 }
 
+/** Includes agents with no versions yet; their first version waits for a stable stretch. */
 export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise<AgentListItem[]> {
   const { projectId } = GetAgentsSchema.parse(input);
 
