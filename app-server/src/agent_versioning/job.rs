@@ -190,14 +190,40 @@ impl Job {
         let labeled_until = plan.labeled_until.or(agent.labeled_until);
         save_progress(pool, agent.id, labeled_until, watermark, current_version_id).await?;
 
+        // Retried every run until it sticks, from any recent sample when
+        // nothing was minted this run.
         if agent.name.is_none()
-            && let (Some(llm_client), Some(system_prompt)) = (&self.llm_client, system_prompt)
+            && let Some(llm_client) = &self.llm_client
         {
-            let name =
-                generate_agent_name(llm_client, project_id, agent.id, &system_prompt).await?;
-            set_agent_name(pool, agent.id, &name).await?;
+            let system_prompt = match (system_prompt, pending.last().or(context.last())) {
+                (Some(prompt), _) => Some(prompt),
+                (None, Some(sample)) => self.system_prompt(project_id, sample).await?,
+                (None, None) => None,
+            };
+            if let Some(system_prompt) = system_prompt {
+                let name =
+                    generate_agent_name(llm_client, project_id, agent.id, &system_prompt).await?;
+                set_agent_name(pool, agent.id, &name).await?;
+            }
         }
         Ok(())
+    }
+
+    async fn system_prompt(
+        &self,
+        project_id: Uuid,
+        sample: &TracePrompt,
+    ) -> Result<Option<String>> {
+        let doc = fetch_agent_doc(
+            &self.clickhouse,
+            project_id,
+            sample.trace_id,
+            sample.span_id,
+        )
+        .await?;
+        Ok(doc
+            .map(|(input, _)| system_message(&input))
+            .filter(|prompt| !prompt.is_empty()))
     }
 
     /// Every trace starting in `(from, to]`, by time except where the plan
@@ -246,11 +272,7 @@ impl Job {
         let Some((input, tools)) = doc else {
             return Ok(Default::default());
         };
-        let system_prompt = serde_json::from_str::<Value>(&input)
-            .ok()
-            .and_then(|input| extract_system_message(&input))
-            .map(|(text, _)| text)
-            .unwrap_or_default();
+        let system_prompt = system_message(&input);
         let tool_text = serde_json::from_str::<Vec<Value>>(&tools)
             .map(|tools| tool_text::render(&tools))
             .unwrap_or_default();
@@ -296,4 +318,12 @@ impl Job {
         let (version_ids, models): (Vec<Uuid>, Vec<String>) = models.into_iter().unzip();
         insert_models(&self.db.pool, project_id, &version_ids, &models).await
     }
+}
+
+fn system_message(input: &str) -> String {
+    serde_json::from_str::<Value>(input)
+        .ok()
+        .and_then(|input| extract_system_message(&input))
+        .map(|(text, _)| text)
+        .unwrap_or_default()
 }

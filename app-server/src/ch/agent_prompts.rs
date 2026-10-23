@@ -174,8 +174,9 @@ impl Scope<'_> {
         Ok(rows)
     }
 
-    /// Traces with rows ingested after `since` that start at or before
-    /// `until`, the already-labelled stretch.
+    /// Traces first seen after `since` (every row ingested after it) whose
+    /// first prompt starts at or before `until`, the already-labelled
+    /// stretch. A trace with a row seen earlier was already labelled.
     pub async fn late(
         &self,
         clickhouse: &clickhouse::Client,
@@ -184,9 +185,15 @@ impl Scope<'_> {
     ) -> Result<Vec<TracePrompt>> {
         let sql = trace_prompts_query(
             true,
-            "ingested_at > fromUnixTimestamp64Nano({since:Int64})
-             AND start_time <= fromUnixTimestamp64Nano({until:Int64})",
-            "",
+            "start_time <= fromUnixTimestamp64Nano({until:Int64})
+             AND trace_id IN (
+                 SELECT trace_id FROM agent_prompts
+                 WHERE project_id = {project_id:UUID}
+                   AND agent_hash = {agent_hash:String}
+                   AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
+                   AND ingested_at <= fromUnixTimestamp64Nano({watermark:Int64})
+                   AND start_time <= fromUnixTimestamp64Nano({until:Int64}))",
+            "HAVING min(ingested_at) > fromUnixTimestamp64Nano({since:Int64})",
         );
         let rows = self
             .query(clickhouse, &sql)
