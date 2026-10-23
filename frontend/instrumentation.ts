@@ -379,7 +379,8 @@ export async function register() {
 
       // Run ClickHouse schema application
       console.log("Applying ClickHouse schema. This may take a while...");
-      await initializeClickHouse();
+      // SANDBOX: shared ClickHouse is ahead of this branch
+      if (process.env.SKIP_CLICKHOUSE_MIGRATIONS !== "true") await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
 
       // Backfill historical traces_replacing rows into traces_agg/traces_static

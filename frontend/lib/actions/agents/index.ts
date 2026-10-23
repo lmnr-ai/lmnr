@@ -60,9 +60,17 @@ export interface AgentVersionItem {
   createdAt: string;
 }
 
+export interface AgentVersionTracesPoint {
+  timestamp: string;
+  /** Trace count per version id. */
+  [versionId: string]: number | string;
+}
+
 export interface AgentVersionsResult {
   agent: { id: string; name: string | null; agentHash: string; createdAt: string };
   versions: AgentVersionItem[];
+  /** SANDBOX: daily trace counts per version. */
+  traces?: AgentVersionTracesPoint[];
 }
 
 export async function getAgentVersions(

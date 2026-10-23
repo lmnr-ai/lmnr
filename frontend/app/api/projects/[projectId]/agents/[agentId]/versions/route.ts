@@ -1,12 +1,12 @@
 import { ZodError } from "zod/v4";
 
-import { getAgentVersions } from "@/lib/actions/agents";
+import { mockAgentVersions } from "@/lib/actions/agents/mock";
 
-export async function GET(_req: Request, props: { params: Promise<{ projectId: string; agentId: string }> }) {
+export async function GET(req: Request, props: { params: Promise<{ projectId: string; agentId: string }> }) {
   const { projectId, agentId } = await props.params;
 
   try {
-    const result = await getAgentVersions({ projectId, agentId });
+    const result = mockAgentVersions(agentId, new URL(req.url).searchParams);
     if (!result) {
       return Response.json({ error: "Agent not found" }, { status: 404 });
     }

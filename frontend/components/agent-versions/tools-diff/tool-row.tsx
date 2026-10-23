@@ -25,7 +25,7 @@ export default function ToolRow({ name, badge, meta, children }: ToolRowProps) {
         <div
           role="button"
           tabIndex={0}
-          className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-muted/50 transition-colors"
+          className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-emphasis-1 transition-colors"
         >
           <ChevronRight
             className={cn("size-3.5 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
