@@ -63,6 +63,9 @@ pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 /// `agent_versioning_lock:{project_id}:{agent_hash}`: one versioning run per
 /// agent per interval across replicas. Expires instead of being released.
 pub const AGENT_VERSIONING_LOCK_CACHE_KEY: &str = "agent_versioning_lock";
+/// `agent_versioning_known:{project_id}:{agent_hash}` claim: the consumer has
+/// created the `agents` row (`agent_versioning/registry.rs`).
+pub const AGENT_VERSIONING_KNOWN_CACHE_KEY: &str = "agent_versioning_known";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
 pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";

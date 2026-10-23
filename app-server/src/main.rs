@@ -1490,7 +1490,8 @@ fn main() -> anyhow::Result<()> {
     // without silently killing the others' client.
     let llm_client_needed = is_feature_enabled(Feature::Signals)
         || is_feature_enabled(Feature::InputExtraction)
-        || is_feature_enabled(Feature::SignalsGateway);
+        || is_feature_enabled(Feature::SignalsGateway)
+        || is_feature_enabled(Feature::AgentVersioning);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         let llm_profile_store = Arc::new(llm::profiles::LlmProfileStore::new(
@@ -1616,6 +1617,7 @@ fn main() -> anyhow::Result<()> {
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let pii_redactor_for_consumer = pii_redactor.clone();
+        let llm_client_for_consumer = llm_provider_client.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
         let stream_runtime_for_consumer = stream_runtime.clone();
@@ -1641,6 +1643,7 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let llm_client = llm_client_for_consumer.clone();
                         let indexer_stream_publisher =
                             indexer_stream_publisher_for_consumer.clone();
 
@@ -1657,6 +1660,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                llm_client: llm_client.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
@@ -1766,6 +1770,7 @@ fn main() -> anyhow::Result<()> {
                                     ch: ch_cloud,
                                     pubsub,
                                     pii_redactor,
+                                    llm_client: llm_client_for_consumer.clone(),
                                     indexer_stream_publisher:
                                         indexer_stream_publisher_for_consumer.clone(),
                                     quickwit_indexing_enabled:

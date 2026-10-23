@@ -25,6 +25,7 @@ use crate::{
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
+    llm::LlmClient,
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
         PiiOutcome, PiiRedactorClient, ProjectModes, SpanVerdict, redact_spans_in_place,
@@ -238,6 +239,7 @@ fn collect_static_agent_io_rows(
     pubsub,
     ch,
     pii_redactor,
+    llm_client,
     config,
     indexer_stream_publisher
 ))]
@@ -250,6 +252,7 @@ pub async fn process_span_messages(
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
     pii_redactor: Option<PiiRedactorClient>,
+    llm_client: Option<Arc<LlmClient>>,
     config: Option<&WorkspaceDeployment>,
     indexer_stream_publisher: Option<Arc<StreamPublisher>>,
     quickwit_indexing_enabled: bool,
@@ -359,6 +362,14 @@ pub async fn process_span_messages(
             e
         );
     }
+    agent_versioning::registry::register_new_agents(
+        &db,
+        &cache,
+        &clickhouse,
+        llm_client.as_ref(),
+        &agent_prompts,
+    )
+    .await;
 
     // Must run AFTER the spans insert: triggers are decided from the in-memory
     // batch delta, but filters read the trace's cumulative state back out of

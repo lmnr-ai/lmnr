@@ -15,7 +15,7 @@ use tokio::time::{self, MissedTickBehavior};
 use uuid::Uuid;
 
 use super::{
-    naming::generate_agent_name,
+    naming::{generate_agent_name, span_system_prompt, system_message},
     normalize::{doc_lines, line_hash, version_hash},
     timeline::{self, Input, Params, Sample, Timeline},
 };
@@ -39,7 +39,7 @@ use crate::{
         ROLLOUT_WINDOW_SECONDS, SAMPLES_PER_MINUTE,
     },
     llm::LlmClient,
-    traces::{prompt_hash::extract_system_message, sp_versioning::tool_text},
+    traces::sp_versioning::tool_text,
 };
 
 const NS: i64 = 1_000_000_000;
@@ -202,7 +202,9 @@ impl Job {
         {
             let system_prompt = match (system_prompt, unlabeled.last().or(labeled.last())) {
                 (Some(prompt), _) => Some(prompt),
-                (None, Some(sample)) => self.system_prompt(project_id, sample).await?,
+                (None, Some(sample)) => {
+                    span_system_prompt(ch, project_id, sample.trace_id, sample.span_id).await?
+                }
                 (None, None) => None,
             };
             if let Some(system_prompt) = system_prompt {
@@ -212,23 +214,6 @@ impl Job {
             }
         }
         Ok(())
-    }
-
-    async fn system_prompt(
-        &self,
-        project_id: Uuid,
-        sample: &TracePrompt,
-    ) -> Result<Option<String>> {
-        let doc = fetch_agent_doc(
-            &self.clickhouse,
-            project_id,
-            sample.trace_id,
-            sample.span_id,
-        )
-        .await?;
-        Ok(doc
-            .map(|(input, _)| system_message(&input))
-            .filter(|prompt| !prompt.is_empty()))
     }
 
     /// Every trace starting in `(from, to]`, by time except where the timeline
@@ -323,12 +308,4 @@ impl Job {
         let (version_ids, models): (Vec<Uuid>, Vec<String>) = models.into_iter().unzip();
         insert_models(&self.db.pool, project_id, &version_ids, &models).await
     }
-}
-
-fn system_message(input: &str) -> String {
-    serde_json::from_str::<Value>(input)
-        .ok()
-        .and_then(|input| extract_system_message(&input))
-        .map(|(text, _)| text)
-        .unwrap_or_default()
 }

@@ -5,10 +5,12 @@
 //! hashes in `agent_prompts`. A scheduled job per agent ([`job`]) samples one
 //! prompt per trace, finds sharp line flips ([`timeline`]), mints a version per
 //! new stable core (the lines in every prompt after the flip), and tags every
-//! trace with its version in `traces_agg.agent_versions`.
+//! trace with its version in `traces_agg.agent_versions`. The consumer creates
+//! and names an agent on its first prompt ([`registry`]).
 
 pub mod ingest;
 pub mod job;
 pub mod naming;
 pub mod normalize;
+pub mod registry;
 pub mod timeline;

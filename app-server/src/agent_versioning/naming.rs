@@ -5,6 +5,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::{
+    ch::agent_prompts::fetch_agent_doc,
     env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage},
     llm::{
@@ -12,6 +13,7 @@ use crate::{
         ProviderFunctionDeclaration, ProviderPart, ProviderRequest, ProviderResponse, ProviderTool,
         request_to_span_input, request_to_tools_attr,
     },
+    traces::prompt_hash::extract_system_message,
 };
 
 const INTERNAL_TRACING_TARGET: &str = "lmnr::internal";
@@ -24,6 +26,28 @@ const NAMING_INSTRUCTION: &str = "You name AI agents. Given an agent's system pr
      purpose, e.g. 'Research Analyst' or 'Support Triage Bot'. Ignore boilerplate shared by \
      most prompts (SDK headers, environment blocks, formatting and tool-use conventions). \
      Respond ONLY by calling the name_agent tool.";
+
+/// The span's system prompt, read back from `spans_v1`; `None` when the span
+/// is not stored or has none.
+pub(super) async fn span_system_prompt(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+    span_id: Uuid,
+) -> anyhow::Result<Option<String>> {
+    let doc = fetch_agent_doc(clickhouse, project_id, trace_id, span_id).await?;
+    Ok(doc
+        .map(|(input, _)| system_message(&input))
+        .filter(|prompt| !prompt.is_empty()))
+}
+
+pub(super) fn system_message(input: &str) -> String {
+    serde_json::from_str::<Value>(input)
+        .ok()
+        .and_then(|input| extract_system_message(&input))
+        .map(|(text, _)| text)
+        .unwrap_or_default()
+}
 
 pub(crate) async fn generate_agent_name(
     llm_client: &LlmClient,
