@@ -16,7 +16,6 @@ pub struct Params {
     /// N, in samples.
     pub min_run: usize,
     pub rollout_window: i64,
-    pub max_hold: i64,
 }
 
 /// One trace's first agent prompt.
@@ -32,13 +31,10 @@ pub struct Input<'a> {
     pub labeled: &'a [Sample],
     /// Unlabelled samples, oldest first.
     pub unlabeled: &'a [Sample],
-    /// `unlabeled` hit the per-run cap, so later samples exist unseen.
-    pub truncated: bool,
     /// Core line sets of the agent's versions, each sorted.
     pub cores: &'a [Vec<u64>],
     /// The version at the labelling horizon.
     pub current: Option<usize>,
-    pub now: i64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -71,8 +67,6 @@ pub struct Timeline {
     /// The version before the first change.
     initial: Option<usize>,
     changes: Vec<Change>,
-    /// Traces after this were labelled at max hold, unconfirmed, so by content.
-    unconfirmed_after: i64,
 }
 
 #[derive(Debug)]
@@ -95,22 +89,10 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
         current: input.current,
         initial: input.current,
         changes: Vec::new(),
-        unconfirmed_after: i64::MAX,
     };
 
-    let confirmed = confirmed_until(input.unlabeled, params);
-    let forced = (!input.truncated)
-        .then(|| {
-            input
-                .unlabeled
-                .iter()
-                .rev()
-                .map(|s| s.time)
-                .find(|t| input.now - t >= params.max_hold)
-        })
-        .flatten()
-        .filter(|forced| confirmed.is_none_or(|confirmed| *forced > confirmed));
-    let Some(mut until) = confirmed.max(forced) else {
+    // A trace without N samples after it stays unlabelled until they arrive.
+    let Some(mut until) = confirmed_until(input.unlabeled, params) else {
         return timeline;
     };
 
@@ -157,36 +139,13 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
         until = until.max(settled - 1);
     }
 
-    if let Some(forced) = forced {
-        timeline.unconfirmed_after = confirmed.unwrap_or(i64::MIN);
-        let forced_samples: Vec<usize> = (first_unlabeled..samples.len())
-            .filter(|&i| samples[i].time > timeline.unconfirmed_after && samples[i].time <= forced)
-            .collect();
-        let unmatched: Vec<usize> = forced_samples
-            .iter()
-            .copied()
-            .filter(|&i| {
-                timeline
-                    .contained(&samples[i].lines, 0..timeline.cores.len())
-                    .is_none()
-            })
-            .collect();
-        if let Some(&first) = unmatched.first() {
-            let unmatched: Vec<&Sample> = unmatched.iter().map(|&i| samples[i]).collect();
-            timeline.version_for(intersect(&unmatched), first);
-        }
-        if let Some(&last) = forced_samples.last() {
-            timeline.current = timeline.version_at(samples[last].time, Some(&samples[last].lines));
-        }
-    }
-
     timeline.labeled_until = Some(until);
     timeline
 }
 
 impl Timeline {
     /// The version of a trace at `time`; `lines` (its first prompt) settles
-    /// overlaps and max-hold labels by content.
+    /// overlaps by content.
     pub fn version_at(&self, time: i64, lines: Option<&[u64]>) -> Option<usize> {
         let change = self
             .changes
@@ -201,12 +160,6 @@ impl Timeline {
         let Some(lines) = lines else {
             return by_time;
         };
-        if time > self.unconfirmed_after {
-            if by_time.is_some_and(|v| contains(lines, &self.cores[v])) {
-                return by_time;
-            }
-            return self.contained(lines, 0..self.cores.len()).or(by_time);
-        }
         match overlap {
             Some(c) => self
                 .contained(lines, c.from.into_iter().chain([c.to]))
@@ -223,18 +176,11 @@ impl Timeline {
 
     /// Time ranges `[from, to)` whose traces need their prompt to be labelled.
     pub fn prompt_ranges(&self) -> Vec<(i64, i64)> {
-        let mut ranges: Vec<(i64, i64)> = self
-            .changes
+        self.changes
             .iter()
             .filter(|c| c.start < c.settled)
             .map(|c| (c.start, c.settled))
-            .collect();
-        if let Some(until) = self.labeled_until
-            && self.unconfirmed_after < until
-        {
-            ranges.push((self.unconfirmed_after + 1, until + 1));
-        }
-        ranges
+            .collect()
     }
 
     /// The largest of `candidates`' cores contained in `lines`.
@@ -382,12 +328,10 @@ mod tests {
     use super::*;
 
     const MINUTE: i64 = 60_000_000_000;
-    const HOUR: i64 = 60 * MINUTE;
 
     const PARAMS: Params = Params {
         min_run: 5,
         rollout_window: 30 * MINUTE,
-        max_hold: 24 * HOUR,
     };
 
     const A: &[u64] = &[1, 2, 3];
@@ -417,15 +361,12 @@ mod tests {
         cores: &[Vec<u64>],
         current: Option<usize>,
     ) -> Timeline {
-        let now = unlabeled.last().map(|s| s.time).unwrap_or(0) + MINUTE;
         build(
             &Input {
                 labeled,
                 unlabeled,
-                truncated: false,
                 cores,
                 current,
-                now,
             },
             &PARAMS,
         )
@@ -547,48 +488,14 @@ mod tests {
     }
 
     #[test]
-    fn a_quiet_agent_is_labelled_at_max_hold() {
-        let unlabeled: Vec<Sample> = (0..3).map(|i| sample(i, B)).collect();
-        let mut timeline = run(&[], &unlabeled, &[A.to_vec()], Some(0));
+    fn a_quiet_agent_waits_for_n_more_traces() {
+        let mut unlabeled: Vec<Sample> = (0..3).map(|i| sample(i * 60, A)).collect();
+        let timeline = run(&[], &unlabeled, &[A.to_vec()], Some(0));
         assert_eq!(timeline.labeled_until, None);
 
-        timeline = timeline_at(&unlabeled, 25 * HOUR);
-        assert_eq!(timeline.labeled_until, Some(2 * MINUTE));
-        assert_eq!(timeline.cores[1], B.to_vec());
-        assert_eq!(version_of(&timeline, &unlabeled[1]), Some(1));
-        assert_eq!(timeline.version_at(MINUTE, Some(&[1, 2, 3, 7])), Some(0));
-        assert_eq!(timeline.current, Some(1));
-    }
-
-    fn timeline_at(unlabeled: &[Sample], now: i64) -> Timeline {
-        build(
-            &Input {
-                labeled: &[],
-                unlabeled,
-                truncated: false,
-                cores: &[A.to_vec()],
-                current: Some(0),
-                now,
-            },
-            &PARAMS,
-        )
-    }
-
-    #[test]
-    fn a_truncated_backlog_is_never_forced() {
-        let unlabeled: Vec<Sample> = (0..3).map(|i| sample(i, B)).collect();
-        let timeline = build(
-            &Input {
-                labeled: &[],
-                unlabeled: &unlabeled,
-                truncated: true,
-                cores: &[A.to_vec()],
-                current: Some(0),
-                now: 25 * HOUR,
-            },
-            &PARAMS,
-        );
-        assert_eq!(timeline.labeled_until, None);
+        unlabeled.extend((0..5).map(|i| sample(1000 + i, A)));
+        let timeline = run(&[], &unlabeled, &[A.to_vec()], Some(0));
+        assert_eq!(timeline.labeled_until, Some(120 * MINUTE));
     }
 
     #[test]

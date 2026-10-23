@@ -14,9 +14,10 @@ pub const MIN_RUN: NumEnv<usize> = NumEnv::new("AGENT_VERSIONING_MIN_RUN", 30);
 pub const ROLLOUT_WINDOW_SECONDS: NumEnv<i64> =
     NumEnv::new("AGENT_VERSIONING_ROLLOUT_WINDOW_SECONDS", 10 * 60);
 
-/// A trace waits at most this long for confirmation before it is labelled anyway.
-pub const MAX_HOLD_SECONDS: NumEnv<i64> =
-    NumEnv::new("AGENT_VERSIONING_MAX_HOLD_SECONDS", 24 * 60 * 60);
+/// Agents with prompts ingested this recently are visited each run, long
+/// enough to drain a backlog after their traffic stops.
+pub const ACTIVE_WINDOW_SECONDS: NumEnv<i64> =
+    NumEnv::new("AGENT_VERSIONING_ACTIVE_WINDOW_SECONDS", 24 * 60 * 60);
 
 /// Change detection reads at most this many traces per agent per minute.
 pub const SAMPLES_PER_MINUTE: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_SAMPLES_PER_MINUTE", 100);

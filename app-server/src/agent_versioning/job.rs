@@ -35,7 +35,7 @@ use crate::{
         },
     },
     env::agent_versioning::{
-        INTERVAL_SECONDS, LOOKBACK_SECONDS, MAX_HOLD_SECONDS, MAX_SAMPLES, MIN_RUN,
+        ACTIVE_WINDOW_SECONDS, INTERVAL_SECONDS, LOOKBACK_SECONDS, MAX_SAMPLES, MIN_RUN,
         ROLLOUT_WINDOW_SECONDS, SAMPLES_PER_MINUTE,
     },
     llm::LlmClient,
@@ -62,7 +62,7 @@ impl Job {
         loop {
             ticker.tick().await;
             let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(i64::MAX);
-            let since = now - (MAX_HOLD_SECONDS.get() + 2 * interval as i64) * NS;
+            let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
             let agents = match active_agents(&self.clickhouse, since).await {
                 Ok(agents) => agents,
                 Err(e) => {
@@ -101,7 +101,6 @@ impl Job {
         let params = Params {
             min_run: MIN_RUN.get(),
             rollout_window: ROLLOUT_WINDOW_SECONDS.get() * NS,
-            max_hold: MAX_HOLD_SECONDS.get() * NS,
         };
 
         let agent = upsert_agent(pool, project_id, agent_hash).await?;
@@ -131,9 +130,14 @@ impl Job {
             None => Vec::new(),
         };
         labeled.reverse();
-        let max_samples = MAX_SAMPLES.get();
         let unlabeled = scope
-            .samples(ch, (horizon, watermark), per_minute, max_samples, false)
+            .samples(
+                ch,
+                (horizon, watermark),
+                per_minute,
+                MAX_SAMPLES.get(),
+                false,
+            )
             .await?;
         let to_samples = |prompts: &[TracePrompt]| -> Vec<Sample> {
             prompts
@@ -148,10 +152,8 @@ impl Job {
             &Input {
                 labeled: &to_samples(&labeled),
                 unlabeled: &to_samples(&unlabeled),
-                truncated: unlabeled.len() as u64 >= max_samples,
                 cores: &cores,
                 current,
-                now,
             },
             &params,
         );
