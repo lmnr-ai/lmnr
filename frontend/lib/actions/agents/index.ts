@@ -35,7 +35,7 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
     .leftJoin(agentVersions, eq(agentVersions.agentId, agents.id))
     .where(eq(agents.projectId, projectId))
     .groupBy(agents.id)
-    .orderBy(desc(agents.createdAt))
+    .orderBy(desc(count(agentVersions.id)), desc(agents.createdAt))
     .limit(100);
 }
 
@@ -55,6 +55,12 @@ export interface AgentVersionItem {
   /** Models seen running this version, oldest first. */
   models: string[];
   createdAt: string;
+}
+
+export interface AgentVersionTracesPoint {
+  timestamp: string;
+  /** Trace count per version id. */
+  [versionId: string]: number | string;
 }
 
 export interface AgentVersionsResult {

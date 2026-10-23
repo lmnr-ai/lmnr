@@ -20,7 +20,7 @@ export default function ToolsList({ text }: ToolsListProps) {
   }
 
   return (
-    <div className="flex flex-col divide-y rounded-md border">
+    <div className="flex flex-col divide-y overflow-hidden rounded-md border bg-emphasis-0.5">
       {tools.map((tool) => (
         <ToolRow
           key={tool.name}
@@ -31,7 +31,7 @@ export default function ToolsList({ text }: ToolsListProps) {
             </span>
           }
         >
-          <ScrollArea className="rounded-md border bg-muted/30 max-h-96 [&>div]:max-h-96">
+          <ScrollArea className="rounded-md border bg-emphasis-0.5 max-h-96 [&>div]:max-h-96">
             <div className="px-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words text-muted-foreground">
               {tool.text}
             </div>

@@ -1,11 +1,10 @@
 "use client";
 
 import { isEmpty, times } from "lodash";
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
 import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionsResult } from "@/lib/actions/agents";
 import { swrFetcher } from "@/lib/utils";
@@ -13,38 +12,39 @@ import { swrFetcher } from "@/lib/utils";
 import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
+import VersionTraces from "./version-traces";
 
 interface AgentVersionsListProps {
   projectId: string;
   agentId: string;
-  onBack: () => void;
+  onRenamed: () => void;
 }
 
-export default function AgentVersionsList({ projectId, agentId, onBack }: AgentVersionsListProps) {
+export default function AgentVersionsList({ projectId, agentId, onRenamed }: AgentVersionsListProps) {
   const { data, isLoading, mutate } = useSWR<AgentVersionsResult>(
     `/api/projects/${projectId}/agents/${agentId}/versions`,
     swrFetcher
   );
 
+  // `undefined` until the user toggles a version, so the latest one starts open.
+  const [openId, setOpenId] = useState<string | null>();
+
   const versions = data?.versions ?? [];
+  const expandedId = openId === undefined ? versions[0]?.id : openId;
 
   return (
     <SettingsSection>
-      <Button variant="ghost" className="w-fit -ml-2 h-7 text-muted-foreground" onClick={onBack}>
-        <ArrowLeft data-icon="inline-start" className="size-4 mr-1" />
-        All agents
-      </Button>
-      <div className="flex items-start justify-between gap-4">
-        <SettingsSectionHeader
-          title={data ? agentDisplayName(data.agent.name) : "Agent versions"}
-          description="A new version is created when your agent's system prompt or tools change. Dates and other per-call details are ignored. Models are tracked per version."
-        />
+      <div className="flex items-center justify-start gap-3">
+        <SettingsSectionHeader title={data ? agentDisplayName(data.agent.name) : "Agent versions"} />
         {data && (
           <RenameAgentDialog
             projectId={projectId}
             agentId={agentId}
             currentName={agentDisplayName(data.agent.name)}
-            onRenamed={() => mutate()}
+            onRenamed={() => {
+              mutate();
+              onRenamed();
+            }}
           />
         )}
       </div>
@@ -59,10 +59,21 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
           It takes around 30 traces and 15 minutes for the first version to be created.
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {versions.map((version, i) => (
-            <VersionCard key={version.id} version={version} previous={versions[i + 1]} isLatest={i === 0} />
-          ))}
+        <div className="flex flex-col gap-6">
+          <VersionTraces projectId={projectId} agentId={agentId} versions={versions} />
+          <div className="flex flex-col">
+            {versions.map((version, i) => (
+              <VersionCard
+                key={version.id}
+                version={version}
+                previous={versions[i + 1]}
+                isLatest={i === 0}
+                isLast={i === versions.length - 1}
+                open={version.id === expandedId}
+                onOpenChange={(open) => setOpenId(open ? version.id : null)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </SettingsSection>

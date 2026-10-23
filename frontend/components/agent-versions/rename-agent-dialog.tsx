@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -53,8 +53,8 @@ export default function RenameAgentDialog({ projectId, agentId, currentName, onR
       }}
     >
       <DialogTrigger asChild>
-        <Button icon="edit" variant="outline" className="w-fit">
-          Rename
+        <Button variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground" aria-label="Rename agent">
+          <Pencil className="size-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

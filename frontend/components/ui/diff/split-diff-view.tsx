@@ -43,7 +43,7 @@ export default function SplitDiffView({ oldText, newText, oldLabel, newLabel, ex
 
   return (
     <div className="font-mono text-xs leading-relaxed">
-      <div className="sticky top-0 z-10 grid grid-cols-2 divide-x border-b bg-background text-muted-foreground">
+      <div className="grid grid-cols-2 divide-x border-b bg-emphasis-0.5 text-muted-foreground">
         <div className="px-3 py-1.5 font-sans font-medium">{oldLabel}</div>
         <div className="px-3 py-1.5 font-sans font-medium">{newLabel}</div>
       </div>
