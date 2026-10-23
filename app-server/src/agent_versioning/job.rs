@@ -25,7 +25,7 @@ use crate::{
         ClickhouseTrait,
         agent_prompts::{Scope, TracePrompt, active_agents, fetch_agent_doc},
         cloud::CloudClickhouse,
-        traces_agg::{CHTraceAgentVersion, CHTraceAgg},
+        traces_agg::{CHTraceAgentVersion, CHTraceAgg, trace_start_times},
     },
     db::{
         DB,
@@ -281,11 +281,20 @@ impl Job {
         ids: &[Uuid],
         hashes: &[String],
     ) -> Result<()> {
+        let trace_ids: Vec<Uuid> = labels
+            .iter()
+            .filter(|(version, _)| version.is_some())
+            .map(|(_, trace)| trace.trace_id)
+            .collect();
+        // `trace.time` is the trace's first agent span, not its start, and
+        // `start_time` is the partition key; it is only the fallback.
+        let starts = trace_start_times(&self.clickhouse, project_id, &trace_ids).await?;
         let mut rows = Vec::new();
         let mut models = HashSet::new();
         for (version, trace) in labels {
             let Some(version) = *version else { continue };
-            let mut row = CHTraceAgg::zero_sum_partial(project_id, trace.trace_id, trace.time);
+            let start = starts.get(&trace.trace_id).copied().unwrap_or(trace.time);
+            let mut row = CHTraceAgg::zero_sum_partial(project_id, trace.trace_id, start);
             let tag = |model: &str| CHTraceAgentVersion {
                 agent_hash: agent_hash.to_string(),
                 version_hash: hashes[version].clone(),

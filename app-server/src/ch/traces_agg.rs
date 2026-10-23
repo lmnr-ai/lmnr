@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use clickhouse::Row;
 use clickhouse::insert::Insert;
@@ -29,6 +31,41 @@ pub async fn trace_exists(
         .fetch_optional::<u8>()
         .await?;
     Ok(found.is_some())
+}
+
+const TRACE_START_CHUNK: usize = 1000;
+
+#[derive(Row, Deserialize)]
+struct TraceStart {
+    #[serde(with = "clickhouse::serde::uuid")]
+    id: Uuid,
+    start: i64,
+}
+
+/// Each trace's start in ns (`min(start_time)` over its partials), the value
+/// a [`CHTraceAgg::zero_sum_partial`] must carry. Traces with no partial yet
+/// are absent.
+pub async fn trace_start_times(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    trace_ids: &[Uuid],
+) -> Result<HashMap<Uuid, i64>> {
+    let mut starts = HashMap::new();
+    for chunk in trace_ids.chunks(TRACE_START_CHUNK) {
+        let rows = clickhouse
+            .query(
+                "SELECT id, min(start_time) AS start
+                 FROM traces_agg
+                 WHERE project_id = {project_id:UUID} AND id IN {trace_ids:Array(UUID)}
+                 GROUP BY id",
+            )
+            .param("project_id", project_id)
+            .param("trace_ids", chunk)
+            .fetch_all::<TraceStart>()
+            .await?;
+        starts.extend(rows.into_iter().map(|row| (row.id, row.start)));
+    }
+    Ok(starts)
 }
 
 /// `statuses` Enum8 values; must match the DDL enum
