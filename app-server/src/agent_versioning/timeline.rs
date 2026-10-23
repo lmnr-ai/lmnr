@@ -496,6 +496,20 @@ mod tests {
     }
 
     #[test]
+    fn a_change_at_the_horizon_needs_n_labeled_samples_before_it() {
+        // Hourly traffic: the A run is hours old when B's run completes.
+        let labeled: Vec<Sample> = (0..5).map(|i| sample(i * 60, A)).collect();
+        let unlabeled = stream(300, 60, &[B]);
+        let timeline = run(&labeled, &unlabeled, &[A.to_vec()], Some(0));
+        assert_eq!(timeline.current, Some(1));
+        assert_eq!(timeline.changes.len(), 1);
+
+        // With fewer the change is invisible, so the job widens its lookback.
+        let timeline = run(&labeled[3..], &unlabeled, &[A.to_vec()], Some(0));
+        assert!(timeline.changes.is_empty());
+    }
+
+    #[test]
     fn a_new_day_is_not_a_change() {
         use super::super::normalize::line_set;
         let day = |minute: i64, date: &str| Sample {

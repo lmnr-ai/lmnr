@@ -27,6 +27,6 @@ pub const MAX_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_MAX_SAMPLES",
 
 pub const INTERVAL_SECONDS: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_INTERVAL_SECONDS", 600);
 
-/// How far back a run looks before the labelling horizon for the samples a
-/// change straddling the horizon needs.
+/// How far back a run first looks before the labelling horizon for the samples
+/// a change straddling the horizon needs; widened when it holds too few.
 pub const LOOKBACK_SECONDS: NumEnv<i64> = NumEnv::new("AGENT_VERSIONING_LOOKBACK_SECONDS", 60 * 60);

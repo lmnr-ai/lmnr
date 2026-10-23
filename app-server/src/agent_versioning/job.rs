@@ -46,6 +46,21 @@ const NS: i64 = 1_000_000_000;
 /// Async inserts become readable shortly after `ingested_at`; reading only up
 /// to this far behind now keeps a row from being skipped before it is visible.
 const VISIBILITY_LAG_NS: i64 = 2 * 60 * NS;
+/// `agent_prompts` TTL: nothing older can be read back.
+const RETENTION_NS: i64 = 7 * 24 * 60 * 60 * NS;
+
+/// Labelled-context windows to try in turn: the lookback, widened 8x at a
+/// time up to the retention. A busy agent fills the first; only a quiet
+/// agent, with few rows to scan, reaches the wide ones.
+fn lookbacks(first: i64) -> Vec<i64> {
+    let mut windows = vec![first.clamp(NS, RETENTION_NS)];
+    while let Some(&last) = windows.last()
+        && last < RETENTION_NS
+    {
+        windows.push(last.saturating_mul(8).min(RETENTION_NS));
+    }
+    windows
+}
 
 pub struct Job {
     pub db: Arc<DB>,
@@ -121,14 +136,20 @@ impl Job {
         };
         let horizon = agent.labeled_until.unwrap_or(0);
         let per_minute = SAMPLES_PER_MINUTE.get();
-        let mut labeled = match agent.labeled_until {
-            Some(until) => {
-                let range = (until - LOOKBACK_SECONDS.get() * NS, until);
-                let limit = 2 * params.min_run as u64;
-                scope.samples(ch, range, per_minute, limit, true).await?
+        let mut labeled = Vec::new();
+        if let Some(until) = agent.labeled_until {
+            // A flip needs N samples before it, which a quiet agent may have
+            // produced hours ago: widen until the window holds them.
+            let limit = 2 * params.min_run as u64;
+            for lookback in lookbacks(LOOKBACK_SECONDS.get() * NS) {
+                labeled = scope
+                    .samples(ch, (until - lookback, until), per_minute, limit, true)
+                    .await?;
+                if labeled.len() as u64 >= limit {
+                    break;
+                }
             }
-            None => Vec::new(),
-        };
+        }
         labeled.reverse();
         let unlabeled = scope
             .samples(
@@ -312,5 +333,23 @@ impl Job {
             .await?;
         let (version_ids, models): (Vec<Uuid>, Vec<String>) = models.into_iter().unzip();
         insert_models(&self.db.pool, project_id, &version_ids, &models).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HOUR: i64 = 60 * 60 * NS;
+
+    #[test]
+    fn lookbacks_widen_to_the_retention() {
+        assert_eq!(
+            lookbacks(HOUR),
+            vec![HOUR, 8 * HOUR, 64 * HOUR, RETENTION_NS]
+        );
+        assert_eq!(lookbacks(30 * 24 * HOUR), vec![RETENTION_NS]);
+        // A zero lookback still terminates.
+        assert_eq!(lookbacks(0).last(), Some(&RETENTION_NS));
     }
 }
