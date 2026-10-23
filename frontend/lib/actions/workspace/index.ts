@@ -2,7 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
-import { deleteProject } from "@/lib/actions/project";
+import {
+  deleteProjectApiKeysFromCache,
+  deleteProjectWorkspaceInfoFromCache,
+  purgeProjectData,
+} from "@/lib/actions/project";
 import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
@@ -76,30 +80,40 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     throw new Error("Workspace not found");
   }
 
-  if (workspace.subscriptionId) {
-    const s = stripe();
-    await s.subscriptions
-      .cancel(workspace.subscriptionId)
-      .catch((e) => console.error("Failed to cancel subscription", e));
-  }
-
   const projectsInWorkspace = await db.query.projects.findMany({
     where: eq(projects.workspaceId, workspaceId),
-    columns: {
-      id: true,
-    },
+    columns: { id: true },
+    with: { projectApiKeys: { columns: { hash: true } } },
   });
 
-  await Promise.all(
-    projectsInWorkspace.map(async (project) => {
-      await deleteProject({ projectId: project.id });
-    })
-  );
+  // The purge is re-runnable, so it goes first: a failure leaves the workspace and its billing intact.
+  await Promise.all(projectsInWorkspace.map((project) => purgeProjectData(project.id)));
 
-  await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+  // Cancel inside the transaction: a failed cancel rolls back the delete, and a failed delete never cancels.
+  await db.transaction(async (tx) => {
+    await tx.delete(workspaces).where(eq(workspaces.id, workspaceId));
+    if (workspace.subscriptionId) {
+      await cancelSubscriptionIfLive(workspace.subscriptionId);
+    }
+  });
+
+  const apiKeyHashes = projectsInWorkspace.flatMap((p) => p.projectApiKeys.flatMap((k) => (k.hash ? [k.hash] : [])));
+  await Promise.allSettled([
+    deleteProjectApiKeysFromCache(apiKeyHashes),
+    ...projectsInWorkspace.map((p) => deleteProjectWorkspaceInfoFromCache(p.id)),
+  ]);
 
   return { success: true, message: "Workspace deleted successfully" };
 }
+
+// subscription_id is never cleared, so a workspace back on Free still points at its canceled subscription.
+const cancelSubscriptionIfLive = async (subscriptionId: string) => {
+  const s = stripe();
+  const subscription = await s.subscriptions.retrieve(subscriptionId);
+  if (subscription.status !== "canceled" && subscription.status !== "incomplete_expired") {
+    await s.subscriptions.cancel(subscriptionId);
+  }
+};
 
 export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): Promise<Workspace> => {
   const { workspaceId } = GetWorkspaceSchema.parse(input);
