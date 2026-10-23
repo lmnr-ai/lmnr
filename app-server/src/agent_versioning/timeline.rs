@@ -91,16 +91,17 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
         changes: Vec::new(),
     };
 
-    // A trace without N samples after it stays unlabelled until they arrive.
-    let Some(mut until) = confirmed_until(input.unlabeled, params) else {
-        return timeline;
-    };
-
     let mut flips = flips(&samples, params);
     // A post-run starting in the labeled samples was applied by an earlier run.
     flips.retain(|f| f.post >= first_unlabeled);
 
+    // The first version is minted from its first N samples without waiting
+    // out a rollout window: a flip needs N samples before it, so none can
+    // cut them short. Their labels still wait for `confirmed_until`.
     if timeline.current.is_none() {
+        if input.unlabeled.len() < params.min_run {
+            return timeline;
+        }
         let end = flips
             .first()
             .map(|f| f.pre + 1)
@@ -112,6 +113,11 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
         timeline.initial = Some(version);
         timeline.current = Some(version);
     }
+
+    // A trace without N samples after it stays unlabelled until they arrive.
+    let Some(mut until) = confirmed_until(input.unlabeled, params) else {
+        return timeline;
+    };
 
     for (i, flip) in flips.iter().enumerate() {
         let start = samples[flip.pre + 1].time;
@@ -395,10 +401,25 @@ mod tests {
 
     #[test]
     fn too_few_samples_wait() {
-        let unlabeled = stream(0, 20, &[A]);
+        let unlabeled = stream(0, 4, &[A]);
         let timeline = run(&[], &unlabeled, &[], None);
         assert_eq!(timeline.labeled_until, None);
         assert!(timeline.new_versions.is_empty());
+    }
+
+    #[test]
+    fn the_first_version_does_not_wait_for_the_rollout_window() {
+        let unlabeled = stream(0, 10, &[A]);
+        let timeline = run(&[], &unlabeled, &[], None);
+        assert_eq!(timeline.cores, vec![A.to_vec()]);
+        assert_eq!(timeline.current, Some(0));
+        // Labels still wait for 5 samples after t + 30 min.
+        assert_eq!(timeline.labeled_until, None);
+
+        let unlabeled = stream(0, 60, &[A]);
+        let timeline = run(&[], &unlabeled, &timeline.cores, timeline.current);
+        assert!(timeline.new_versions.is_empty());
+        assert_eq!(timeline.labeled_until, Some(24 * MINUTE));
     }
 
     #[test]

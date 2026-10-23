@@ -9,7 +9,6 @@ const VERSIONS_LIMIT = 50;
 
 // Mirror the app-server's settings of the same names; keep them equal.
 const MIN_RUN = Number(process.env.AGENT_VERSIONING_MIN_RUN ?? 30);
-const ROLLOUT_WINDOW_SECONDS = Number(process.env.AGENT_VERSIONING_ROLLOUT_WINDOW_SECONDS ?? 600);
 const INTERVAL_SECONDS = Number(process.env.AGENT_VERSIONING_INTERVAL_SECONDS ?? 600);
 /** The job reads 2 minutes behind now (`VISIBILITY_LAG_NS`). */
 const VISIBILITY_LAG_SECONDS = 2 * 60;
@@ -27,17 +26,10 @@ export interface AgentListItem {
   versionCount: number;
 }
 
-/**
- * The job mints an agent's first version once `needed` traces start more than a rollout window after
- * its first trace, so a rollout in progress is never taken for a version.
- */
+/** The job mints an agent's first version from its first `needed` traces. */
 export interface AgentProgress {
-  /** When traces start counting: the first trace's start plus the rollout window. */
-  countingFrom: string;
-  /** Traces whose first prompt starts after `countingFrom`. */
   traces: number;
   needed: number;
-  rolloutWindowMinutes: number;
   /** Longest wait from reaching `needed` to the version: a job interval plus its read lag. */
   maxWaitMinutes: number;
 }
@@ -62,32 +54,22 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
     .limit(100);
 }
 
-/** Counts traces the way the job's samples do: a trace's time is its first prompt's start. */
 async function getProgress(projectId: string, agentHash: string): Promise<AgentProgress | null> {
   const result = await clickhouseClient.query({
     query: `
-      SELECT toUnixTimestamp64Milli(counting_from) AS counting_from_ms, countIf(time > counting_from) AS traces
-      FROM (
-        SELECT time, min(time) OVER () + toIntervalSecond({window:UInt32}) AS counting_from
-        FROM (
-          SELECT trace_id, min(start_time) AS time
-          FROM agent_prompts
-          WHERE project_id = {projectId:UUID} AND agent_hash = {agentHash:String}
-          GROUP BY trace_id
-        )
-      )
-      GROUP BY counting_from`,
-    query_params: { projectId, agentHash, window: ROLLOUT_WINDOW_SECONDS },
+      SELECT uniqExact(trace_id) AS traces
+      FROM agent_prompts
+      WHERE project_id = {projectId:UUID} AND agent_hash = {agentHash:String}`,
+    query_params: { projectId, agentHash },
     format: "JSONEachRow",
   });
-  const [row] = await result.json<{ counting_from_ms: string | number; traces: string | number }>();
-  if (!row) return null;
+  const [row] = await result.json<{ traces: string | number }>();
+  const traces = Number(row?.traces ?? 0);
+  if (traces === 0) return null;
 
   return {
-    countingFrom: new Date(Number(row.counting_from_ms)).toISOString(),
-    traces: Number(row.traces),
+    traces,
     needed: MIN_RUN,
-    rolloutWindowMinutes: ROLLOUT_WINDOW_SECONDS / 60,
     maxWaitMinutes: Math.ceil((INTERVAL_SECONDS + VISIBILITY_LAG_SECONDS) / 60),
   };
 }
