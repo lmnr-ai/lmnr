@@ -1,5 +1,5 @@
 {
-  "id": "892d6af5-2f83-4ef6-92b5-d091494619c9",
+  "id": "90a31324-3783-433b-a4ba-46e9f5eae1a7",
   "prevId": "ac309ccc-23ba-47f3-bfa4-0d2fd34175ba",
   "version": "7",
   "dialect": "postgresql",
@@ -3391,6 +3391,80 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.report_projects": {
+      "name": "report_projects",
+      "schema": "",
+      "columns": {
+        "report_id": {
+          "name": "report_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "report_projects_report_id_fkey": {
+          "name": "report_projects_report_id_fkey",
+          "tableFrom": "report_projects",
+          "tableTo": "reports",
+          "columnsFrom": [
+            "report_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "report_projects_project_id_fkey": {
+          "name": "report_projects_project_id_fkey",
+          "tableFrom": "report_projects",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "report_projects_pkey": {
+          "name": "report_projects_pkey",
+          "columns": [
+            "report_id",
+            "project_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.report_targets": {
       "name": "report_targets",
       "schema": "",
@@ -3528,13 +3602,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "excluded_project_ids": {
-          "name": "excluded_project_ids",
-          "type": "uuid[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::uuid[]"
         }
       },
       "indexes": {},

@@ -827,10 +827,6 @@ export const reports = pgTable(
     weekdays: integer().array().notNull(),
     hour: integer().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    excludedProjectIds: uuid("excluded_project_ids")
-      .array()
-      .default(sql`'{}'::uuid[]`)
-      .notNull(),
   },
   (table) => [
     foreignKey({
@@ -838,6 +834,29 @@ export const reports = pgTable(
       foreignColumns: [workspaces.id],
       name: "reports_workspace_id_fkey",
     }).onDelete("cascade"),
+  ]
+);
+
+export const reportProjects = pgTable(
+  "report_projects",
+  {
+    reportId: uuid("report_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    enabled: boolean().default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.reportId],
+      foreignColumns: [reports.id],
+      name: "report_projects_report_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "report_projects_project_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.reportId, table.projectId], name: "report_projects_pkey" }),
   ]
 );
 

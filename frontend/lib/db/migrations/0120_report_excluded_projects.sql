@@ -1,1 +1,0 @@
-ALTER TABLE "reports" ADD COLUMN "excluded_project_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL;

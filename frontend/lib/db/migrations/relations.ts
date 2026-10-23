@@ -30,6 +30,7 @@ import {
   customModelCosts,
   reports,
   reportTargets,
+  reportProjects,
   alerts,
   evaluations,
   membersOfWorkspaces,
@@ -132,6 +133,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   sharedTraces: many(sharedTraces),
   datasetExportJobs: many(datasetExportJobs),
   customModelCosts: many(customModelCosts),
+  reportProjects: many(reportProjects),
   alerts: many(alerts),
   evaluations: many(evaluations),
   projectApiKeys: many(projectApiKeys),
@@ -369,6 +371,18 @@ export const reportsRelations = relations(reports, ({ one, many }) => ({
     references: [workspaces.id],
   }),
   reportTargets: many(reportTargets),
+  reportProjects: many(reportProjects),
+}));
+
+export const reportProjectsRelations = relations(reportProjects, ({ one }) => ({
+  report: one(reports, {
+    fields: [reportProjects.reportId],
+    references: [reports.id],
+  }),
+  project: one(projects, {
+    fields: [reportProjects.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const reportTargetsRelations = relations(reportTargets, ({ one }) => ({

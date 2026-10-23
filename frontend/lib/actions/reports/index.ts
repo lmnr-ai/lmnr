@@ -1,8 +1,8 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, not, notInArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { projects, reports, reportTargets } from "@/lib/db/migrations/schema";
+import { projects, reportProjects, reports, reportTargets } from "@/lib/db/migrations/schema";
 
 import {
   getReportLabel,
@@ -52,7 +52,6 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
       createdAt: reports.createdAt,
       weekdays: reports.weekdays,
       hour: reports.hour,
-      excludedProjectIds: reports.excludedProjectIds,
     })
     .from(reports)
     .where(eq(reports.workspaceId, workspaceId))
@@ -71,6 +70,24 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
     })
     .from(reportTargets)
     .where(eq(reportTargets.workspaceId, workspaceId));
+
+  const excludedRows = await db
+    .select({ reportId: reportProjects.reportId, projectId: reportProjects.projectId })
+    .from(reportProjects)
+    .where(
+      and(
+        inArray(
+          reportProjects.reportId,
+          reportRows.map((r) => r.id)
+        ),
+        not(reportProjects.enabled)
+      )
+    );
+
+  const excludedByReport = new Map<string, string[]>();
+  for (const row of excludedRows) {
+    excludedByReport.set(row.reportId, [...(excludedByReport.get(row.reportId) ?? []), row.projectId]);
+  }
 
   const targetsByReport = new Map<string, ReportTargetRow[]>();
   for (const t of targetRows) {
@@ -98,7 +115,7 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
       createdAt: r.createdAt,
       schedule: { weekdays: r.weekdays, hour: r.hour },
       targets: targetsByReport.get(r.id) ?? [],
-      excludedProjectIds: r.excludedProjectIds,
+      excludedProjectIds: excludedByReport.get(r.id) ?? [],
     };
   });
 }
@@ -220,26 +237,51 @@ export async function setSlackTargets(input: z.infer<typeof SetSlackTargetsSchem
 }
 
 // Replace the set of projects left out of a report. Ids outside the workspace are dropped.
+// Rows are flipped rather than deleted so they can carry other per-project report settings.
 export async function setExcludedProjects(input: z.infer<typeof SetExcludedProjectsSchema>) {
   const { reportId, workspaceId, excludedProjectIds } = SetExcludedProjectsSchema.parse(input);
 
-  const workspaceProjects =
-    excludedProjectIds.length > 0
-      ? await db
-          .select({ id: projects.id })
-          .from(projects)
-          .where(and(eq(projects.workspaceId, workspaceId), inArray(projects.id, excludedProjectIds)))
-      : [];
+  return await db.transaction(async (tx) => {
+    const [report] = await tx
+      .select({ id: reports.id })
+      .from(reports)
+      .where(and(eq(reports.id, reportId), eq(reports.workspaceId, workspaceId)));
 
-  const updated = await db
-    .update(reports)
-    .set({ excludedProjectIds: workspaceProjects.map((p) => p.id) })
-    .where(and(eq(reports.id, reportId), eq(reports.workspaceId, workspaceId)))
-    .returning({ id: reports.id });
+    if (!report) {
+      throw new Error("Report not found.");
+    }
 
-  if (updated.length === 0) {
-    throw new Error("Report not found.");
-  }
+    const excludedIds =
+      excludedProjectIds.length > 0
+        ? (
+            await tx
+              .select({ id: projects.id })
+              .from(projects)
+              .where(and(eq(projects.workspaceId, workspaceId), inArray(projects.id, excludedProjectIds)))
+          ).map((p) => p.id)
+        : [];
 
-  return { success: true, excluded: workspaceProjects.length };
+    await tx
+      .update(reportProjects)
+      .set({ enabled: true })
+      .where(
+        and(
+          eq(reportProjects.reportId, reportId),
+          not(reportProjects.enabled),
+          excludedIds.length > 0 ? notInArray(reportProjects.projectId, excludedIds) : undefined
+        )
+      );
+
+    if (excludedIds.length > 0) {
+      await tx
+        .insert(reportProjects)
+        .values(excludedIds.map((projectId) => ({ reportId, projectId, enabled: false })))
+        .onConflictDoUpdate({
+          target: [reportProjects.reportId, reportProjects.projectId],
+          set: { enabled: false },
+        });
+    }
+
+    return { success: true, excluded: excludedIds.length };
+  });
 }

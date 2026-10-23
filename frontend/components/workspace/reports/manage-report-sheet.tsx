@@ -61,11 +61,7 @@ export default function ManageReportSheet({
     [report]
   );
 
-  // Ignore exclusions for projects that no longer exist; saving drops them.
-  const currentExcludedProjectIds = useMemo(
-    () => projects.filter((p) => report?.excludedProjectIds.includes(p.id)).map((p) => p.id),
-    [report, projects]
-  );
+  const currentExcludedProjectIds = useMemo(() => report?.excludedProjectIds ?? [], [report]);
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [slackChannels, setSlackChannels] = useState<SlackChannelSelection[]>([]);
