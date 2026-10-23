@@ -97,7 +97,8 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
 
     // The first version is minted from its first N samples without waiting
     // out a rollout window: a flip needs N samples before it, so none can
-    // cut them short. Their labels still wait for `confirmed_until`.
+    // begin at or before them, and their traces are labelled right away.
+    let mut minted_until = None;
     if timeline.current.is_none() {
         if input.unlabeled.len() < params.min_run {
             return timeline;
@@ -112,10 +113,16 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
             timeline.version_for(intersect(&samples[first_unlabeled..end]), first_unlabeled);
         timeline.initial = Some(version);
         timeline.current = Some(version);
+        // Up to the N-th sample, short of the next one, where a flip may begin.
+        let nth = samples[first_unlabeled + params.min_run - 1].time;
+        minted_until = Some(match samples.get(first_unlabeled + params.min_run) {
+            Some(next) => nth.min(next.time - 1),
+            None => nth,
+        });
     }
 
     // A trace without N samples after it stays unlabelled until they arrive.
-    let Some(mut until) = confirmed_until(input.unlabeled, params) else {
+    let Some(mut until) = confirmed_until(input.unlabeled, params).max(minted_until) else {
         return timeline;
     };
 
@@ -413,13 +420,53 @@ mod tests {
         let timeline = run(&[], &unlabeled, &[], None);
         assert_eq!(timeline.cores, vec![A.to_vec()]);
         assert_eq!(timeline.current, Some(0));
-        // Labels still wait for 5 samples after t + 30 min.
-        assert_eq!(timeline.labeled_until, None);
+        // Its first 5 traces are final; the rest wait for 5 samples after
+        // t + 30 min.
+        assert_eq!(timeline.labeled_until, Some(4 * MINUTE));
 
-        let unlabeled = stream(0, 60, &[A]);
+        let unlabeled = stream(5, 55, &[A]);
         let timeline = run(&[], &unlabeled, &timeline.cores, timeline.current);
         assert!(timeline.new_versions.is_empty());
         assert_eq!(timeline.labeled_until, Some(24 * MINUTE));
+    }
+
+    #[test]
+    fn a_quiet_agent_labels_its_first_n_traces_when_minted() {
+        let unlabeled: Vec<Sample> = (0..5).map(|i| sample(i * 60, A)).collect();
+        let timeline = run(&[], &unlabeled, &[], None);
+        assert_eq!(timeline.cores, vec![A.to_vec()]);
+        assert_eq!(timeline.labeled_until, Some(240 * MINUTE));
+        assert_eq!(timeline.version_at(240 * MINUTE, None), Some(0));
+    }
+
+    #[test]
+    fn a_change_right_after_the_first_n_waits_for_confirmation() {
+        let mut unlabeled = stream(0, 5, &[A]);
+        unlabeled.extend(stream(5, 10, &[B]));
+        let timeline = run(&[], &unlabeled, &[], None);
+        // The flip begins at sample 5, after the minted traces.
+        assert_eq!(timeline.cores, vec![A.to_vec()]);
+        assert_eq!(timeline.labeled_until, Some(4 * MINUTE));
+        assert!(timeline.changes.is_empty());
+
+        // The next run sees it with the minted samples as `labeled`.
+        let timeline = run(
+            &unlabeled[..5],
+            &stream(5, 60, &[B]),
+            &timeline.cores,
+            timeline.current,
+        );
+        assert_eq!(timeline.cores, vec![A.to_vec(), B.to_vec()]);
+        assert_eq!(timeline.version_at(4 * MINUTE, None), Some(0));
+        assert_eq!(timeline.version_at(5 * MINUTE, None), Some(1));
+    }
+
+    #[test]
+    fn minted_labels_stop_short_of_a_tied_sample() {
+        let mut unlabeled = stream(0, 5, &[A]);
+        unlabeled.push(sample(4, A));
+        let timeline = run(&[], &unlabeled, &[], None);
+        assert_eq!(timeline.labeled_until, Some(4 * MINUTE - 1));
     }
 
     #[test]
