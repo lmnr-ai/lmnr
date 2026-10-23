@@ -66,13 +66,12 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
         isLoading={isLoading}
         isEmpty={isNil(reports) || isEmpty(reports)}
         emptyMessage="No reports available yet. Reports will appear here once they are configured for your workspace."
-        headers={["Report", "Schedule", "Projects", "Send to", ""]}
-        colSpan={5}
+        headers={["Report", "Schedule", "Send to", ""]}
+        colSpan={4}
       >
         {reports?.map((report) => {
           // Only show the current user's own email target + all Slack targets
           const visibleTargets = report.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
-          const includedProjectCount = projects.filter((p) => !report.excludedProjectIds.includes(p.id)).length;
           return (
             <SettingsTableRow key={report.id}>
               <td className="px-4 text-sm font-medium max-w-48">
@@ -82,9 +81,6 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
               </td>
               <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">
                 {formatSchedule(report.schedule)}
-              </td>
-              <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">
-                {includedProjectCount === projects.length ? "All" : `${includedProjectCount} of ${projects.length}`}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />
