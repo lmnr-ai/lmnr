@@ -7,9 +7,6 @@
 //!   summarizer's static resolution, via the removal-regex list).
 //! - `UserTemplate` — the last-turn user group of a trace's winning LLM span.
 //!   Keys user-task extraction regexes (`input_extraction`).
-//! - `ToolDefinitions` — the line rendering of an agent LLM span's tool set
-//!   (`tool_text`). Together with the system-prompt version it keys the agent
-//!   version (`checkpoints`).
 //!
 //! Each kind has its own queue, Redis key space, tunables and ClickHouse tables,
 //! so kinds never share state.
@@ -20,23 +17,16 @@ use crate::cache::keys::{
     SYSTEM_PROMPT_PROBE_CACHE_KEY, SYSTEM_PROMPT_VERSION_LINES_CACHE_KEY,
     SYSTEM_PROMPT_VERSION_LOCK_CACHE_KEY, SYSTEM_PROMPT_VERSION_MEMO_CACHE_KEY,
     SYSTEM_PROMPT_VERSIONS_CACHE_KEY, SYSTEM_PROMPT_WINDOW_CACHE_KEY,
-    SYSTEM_PROMPT_WINDOW_LINES_CACHE_KEY, TOOL_DEFINITION_PROBE_CACHE_KEY,
-    TOOL_DEFINITION_VERSION_LINES_CACHE_KEY, TOOL_DEFINITION_VERSION_LOCK_CACHE_KEY,
-    TOOL_DEFINITION_VERSION_MEMO_CACHE_KEY, TOOL_DEFINITION_VERSIONS_CACHE_KEY,
-    TOOL_DEFINITION_WINDOW_CACHE_KEY, TOOL_DEFINITION_WINDOW_LINES_CACHE_KEY,
-    USER_TEMPLATE_PROBE_CACHE_KEY, USER_TEMPLATE_VERSION_LINES_CACHE_KEY,
-    USER_TEMPLATE_VERSION_LOCK_CACHE_KEY, USER_TEMPLATE_VERSION_MEMO_CACHE_KEY,
-    USER_TEMPLATE_VERSIONS_CACHE_KEY, USER_TEMPLATE_WINDOW_CACHE_KEY,
-    USER_TEMPLATE_WINDOW_LINES_CACHE_KEY,
+    SYSTEM_PROMPT_WINDOW_LINES_CACHE_KEY, USER_TEMPLATE_PROBE_CACHE_KEY,
+    USER_TEMPLATE_VERSION_LINES_CACHE_KEY, USER_TEMPLATE_VERSION_LOCK_CACHE_KEY,
+    USER_TEMPLATE_VERSION_MEMO_CACHE_KEY, USER_TEMPLATE_VERSIONS_CACHE_KEY,
+    USER_TEMPLATE_WINDOW_CACHE_KEY, USER_TEMPLATE_WINDOW_LINES_CACHE_KEY,
 };
 use crate::env;
 
 use super::{
     SP_VERSIONING_DELAY_EXCHANGE, SP_VERSIONING_DELAY_QUEUE, SP_VERSIONING_DELAY_ROUTING_KEY,
     SP_VERSIONING_EXCHANGE, SP_VERSIONING_QUEUE, SP_VERSIONING_ROUTING_KEY,
-    TOOL_DEFINITION_VERSIONING_DELAY_EXCHANGE, TOOL_DEFINITION_VERSIONING_DELAY_QUEUE,
-    TOOL_DEFINITION_VERSIONING_DELAY_ROUTING_KEY, TOOL_DEFINITION_VERSIONING_EXCHANGE,
-    TOOL_DEFINITION_VERSIONING_QUEUE, TOOL_DEFINITION_VERSIONING_ROUTING_KEY,
     USER_TEMPLATE_VERSIONING_DELAY_EXCHANGE, USER_TEMPLATE_VERSIONING_DELAY_QUEUE,
     USER_TEMPLATE_VERSIONING_DELAY_ROUTING_KEY, USER_TEMPLATE_VERSIONING_EXCHANGE,
     USER_TEMPLATE_VERSIONING_QUEUE, USER_TEMPLATE_VERSIONING_ROUTING_KEY,
@@ -46,7 +36,6 @@ use super::{
 pub enum VersionKind {
     SystemPrompt,
     UserTemplate,
-    ToolDefinitions,
 }
 
 /// Redis key prefixes. Every key is `{prefix}:{project_id}:…`.
@@ -107,16 +96,6 @@ const USER_TEMPLATE_KEYS: KeyPrefixes = KeyPrefixes {
     probe: USER_TEMPLATE_PROBE_CACHE_KEY,
 };
 
-const TOOL_DEFINITION_KEYS: KeyPrefixes = KeyPrefixes {
-    registry: TOOL_DEFINITION_VERSIONS_CACHE_KEY,
-    version_lines: TOOL_DEFINITION_VERSION_LINES_CACHE_KEY,
-    window: TOOL_DEFINITION_WINDOW_CACHE_KEY,
-    window_lines: TOOL_DEFINITION_WINDOW_LINES_CACHE_KEY,
-    memo: TOOL_DEFINITION_VERSION_MEMO_CACHE_KEY,
-    mint_lock: TOOL_DEFINITION_VERSION_LOCK_CACHE_KEY,
-    probe: TOOL_DEFINITION_PROBE_CACHE_KEY,
-};
-
 static SYSTEM_PROMPT_TUNABLES: LazyLock<Tunables> = LazyLock::new(|| Tunables {
     window_size: env::static_sp::WINDOW_SIZE.get(),
     window_max_age_seconds: env::static_sp::WINDOW_MAX_AGE_SECONDS.get(),
@@ -133,15 +112,6 @@ static USER_TEMPLATE_TUNABLES: LazyLock<Tunables> = LazyLock::new(|| Tunables {
     min_window: env::user_template::MIN_WINDOW.get(),
     top_k_percent: env::user_template::TOP_K_PERCENT.get(),
     full_run_interval_seconds: env::user_template::FULL_RUN_INTERVAL_SECONDS.get(),
-});
-
-static TOOL_DEFINITION_TUNABLES: LazyLock<Tunables> = LazyLock::new(|| Tunables {
-    window_size: env::tool_definitions::WINDOW_SIZE.get(),
-    window_max_age_seconds: env::tool_definitions::WINDOW_MAX_AGE_SECONDS.get(),
-    window_min_entries: env::tool_definitions::WINDOW_MIN_ENTRIES.get(),
-    min_window: env::tool_definitions::MIN_WINDOW.get(),
-    top_k_percent: env::tool_definitions::TOP_K_PERCENT.get(),
-    full_run_interval_seconds: env::tool_definitions::FULL_RUN_INTERVAL_SECONDS.get(),
 });
 
 const SYSTEM_PROMPT_QUEUES: Queues = Queues {
@@ -162,15 +132,6 @@ const USER_TEMPLATE_QUEUES: Queues = Queues {
     delay_routing_key: USER_TEMPLATE_VERSIONING_DELAY_ROUTING_KEY,
 };
 
-const TOOL_DEFINITION_QUEUES: Queues = Queues {
-    queue: TOOL_DEFINITION_VERSIONING_QUEUE,
-    exchange: TOOL_DEFINITION_VERSIONING_EXCHANGE,
-    routing_key: TOOL_DEFINITION_VERSIONING_ROUTING_KEY,
-    delay_queue: TOOL_DEFINITION_VERSIONING_DELAY_QUEUE,
-    delay_exchange: TOOL_DEFINITION_VERSIONING_DELAY_EXCHANGE,
-    delay_routing_key: TOOL_DEFINITION_VERSIONING_DELAY_ROUTING_KEY,
-};
-
 const SYSTEM_PROMPT_TABLES: Tables = Tables {
     versions: "system_prompt_versions",
     defs: "system_prompt_version_defs",
@@ -181,34 +142,24 @@ const USER_TEMPLATE_TABLES: Tables = Tables {
     defs: "user_template_version_defs",
 };
 
-const TOOL_DEFINITION_TABLES: Tables = Tables {
-    versions: "tool_definition_versions",
-    defs: "tool_definition_version_defs",
-};
-
 impl VersionKind {
-    pub const ALL: [VersionKind; 3] = [
-        VersionKind::SystemPrompt,
-        VersionKind::UserTemplate,
-        VersionKind::ToolDefinitions,
-    ];
+    pub const ALL: [VersionKind; 2] = [VersionKind::SystemPrompt, VersionKind::UserTemplate];
 
     /// Short tag for logs.
     pub fn label(self) -> &'static str {
         match self {
             VersionKind::SystemPrompt => "system_prompt",
             VersionKind::UserTemplate => "user_template",
-            VersionKind::ToolDefinitions => "tool_definitions",
         }
     }
 
-    /// The scope one window and registry cover. System prompts and tool sets
-    /// are versioned per agent. User templates are also split by turn position: a first turn
+    /// The scope one window and registry cover. System prompts are versioned
+    /// per agent. User templates are also split by turn position: a first turn
     /// and a follow-up carry different templates, and mixing them in one
     /// window dilutes each other's clusters.
     pub fn partition(self, agent_hash: &str, has_history: bool) -> String {
         match self {
-            VersionKind::SystemPrompt | VersionKind::ToolDefinitions => agent_hash.to_string(),
+            VersionKind::SystemPrompt => agent_hash.to_string(),
             VersionKind::UserTemplate => {
                 let turn = if has_history { "h" } else { "n" };
                 format!("{agent_hash}:{turn}")
@@ -227,7 +178,6 @@ impl VersionKind {
         match self {
             VersionKind::SystemPrompt => &SYSTEM_PROMPT_KEYS,
             VersionKind::UserTemplate => &USER_TEMPLATE_KEYS,
-            VersionKind::ToolDefinitions => &TOOL_DEFINITION_KEYS,
         }
     }
 
@@ -235,7 +185,6 @@ impl VersionKind {
         match self {
             VersionKind::SystemPrompt => &SYSTEM_PROMPT_TUNABLES,
             VersionKind::UserTemplate => &USER_TEMPLATE_TUNABLES,
-            VersionKind::ToolDefinitions => &TOOL_DEFINITION_TUNABLES,
         }
     }
 
@@ -243,7 +192,6 @@ impl VersionKind {
         match self {
             VersionKind::SystemPrompt => &SYSTEM_PROMPT_QUEUES,
             VersionKind::UserTemplate => &USER_TEMPLATE_QUEUES,
-            VersionKind::ToolDefinitions => &TOOL_DEFINITION_QUEUES,
         }
     }
 
@@ -251,7 +199,6 @@ impl VersionKind {
         match self {
             VersionKind::SystemPrompt => &SYSTEM_PROMPT_TABLES,
             VersionKind::UserTemplate => &USER_TEMPLATE_TABLES,
-            VersionKind::ToolDefinitions => &TOOL_DEFINITION_TABLES,
         }
     }
 }
@@ -287,10 +234,9 @@ mod tests {
 
     #[test]
     fn only_user_templates_split_by_turn() {
-        for kind in [VersionKind::SystemPrompt, VersionKind::ToolDefinitions] {
-            assert_eq!(kind.partition("agent01", false), "agent01");
-            assert_eq!(kind.partition("agent01", true), "agent01");
-        }
+        let sp = VersionKind::SystemPrompt;
+        assert_eq!(sp.partition("agent01", false), "agent01");
+        assert_eq!(sp.partition("agent01", true), "agent01");
 
         let ut = VersionKind::UserTemplate;
         assert_ne!(

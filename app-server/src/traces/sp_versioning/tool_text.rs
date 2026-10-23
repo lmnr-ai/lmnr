@@ -1,4 +1,5 @@
-//! Line rendering of a tool set for `VersionKind::ToolDefinitions`.
+//! Line rendering of a tool set: the tool half of an agent's prompt document
+//! (`agent_versioning`).
 //!
 //! The versioning algorithm works on lines: a version is the ordered set of
 //! lines every member of a cluster shares. Pretty-printed JSON is a poor fit,

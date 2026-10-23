@@ -33,9 +33,9 @@ pub struct ToolDedup {
     pub content: Option<String>,
     #[serde(default)]
     pub size_bytes: usize,
-    /// The tool set's [`tool_text::render`] form, the input to tool-definition
-    /// versioning. Set only while agent versioning is on. Read on the ingest
-    /// producer, so it never rides the wire.
+    /// The tool set's [`tool_text::render`] form, the tool half of the agent
+    /// versioning prompt document. Set only while agent versioning is on. Read
+    /// on the ingest producer, so it never rides the wire.
     #[serde(skip)]
     pub versioning_text: Option<String>,
 }
@@ -134,9 +134,8 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         return None;
     }
     let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
-    let versioning_text = (is_feature_enabled(Feature::Checkpoints)
-        || is_feature_enabled(Feature::AgentVersioning))
-    .then(|| tool_text::render(&tools));
+    let versioning_text =
+        is_feature_enabled(Feature::AgentVersioning).then(|| tool_text::render(&tools));
     let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);

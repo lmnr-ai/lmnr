@@ -28,7 +28,6 @@ use std::str::FromStr;
 
 pub mod agent_versioning;
 pub mod batching;
-pub mod checkpoints;
 pub mod clickhouse;
 pub mod connections;
 pub mod database;
@@ -49,7 +48,6 @@ pub mod sql;
 pub mod static_sp;
 pub mod storage;
 pub mod streams;
-pub mod tool_definitions;
 pub mod user_task;
 pub mod user_template;
 pub mod workers;

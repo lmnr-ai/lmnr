@@ -29,10 +29,8 @@ use crate::{
     agent_versioning::ingest::agent_prompt,
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    checkpoints::AgentSpan,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
-    features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
@@ -175,7 +173,6 @@ pub async fn publish_span_messages(
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
     let mut static_prompt_candidates: Vec<StaticPromptCandidate> = Vec::new();
-    let checkpoints_enabled = is_feature_enabled(Feature::Checkpoints);
     // (span idx, input candidate, output candidate) for spans carrying
     // either — the input/output extraction passes run after publish.
     let mut extraction_candidates: Vec<(
@@ -193,13 +190,6 @@ pub async fn publish_span_messages(
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
         if let Some(verdict) = verdicts.system_prompt {
-            let agent_span = checkpoints_enabled.then(|| {
-                AgentSpan::from_span(
-                    &msg.span,
-                    msg.tool_dedup.as_ref(),
-                    &verdict.full_prompt_hash,
-                )
-            });
             let tool_text = msg
                 .tool_dedup
                 .as_mut()
@@ -215,8 +205,6 @@ pub async fn publish_span_messages(
                 agent_hash: verdict.agent_hash,
                 full_prompt_hash: verdict.full_prompt_hash,
                 system_prompt: verdict.text,
-                agent_span,
-                tool_text,
             });
         }
         if verdicts.user_task.is_some() || verdicts.output_candidate.is_some() {
@@ -290,11 +278,6 @@ pub async fn publish_span_messages(
                     None,
                 )
                 .await?;
-            // Agent versioning tags the cloud `traces_agg`, but hybrid
-            // traces live in the data plane.
-            for candidate in &mut static_prompt_candidates {
-                candidate.agent_span = None;
-            }
         }
     }
 

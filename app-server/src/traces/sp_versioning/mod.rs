@@ -1,6 +1,5 @@
-//! LLM-free version tracking for three kinds of text (see [`kind::VersionKind`]):
-//! system prompts, the user-message templates of winning LLM spans, and the
-//! tool definitions of agent LLM spans.
+//! LLM-free version tracking for two kinds of text (see [`kind::VersionKind`]):
+//! system prompts and the user-message templates of winning LLM spans.
 //!
 //! Classification-only: within an agent (first-sentence hash of the system
 //! prompt, `lmnr.span.agent_hash`), a per-project window of recent distinct
@@ -33,10 +32,6 @@ pub const USER_TEMPLATE_VERSIONING_QUEUE: &str = "user_template_versioning_queue
 pub const USER_TEMPLATE_VERSIONING_EXCHANGE: &str = "user_template_versioning_exchange";
 pub const USER_TEMPLATE_VERSIONING_ROUTING_KEY: &str = "user_template_versioning_routing_key";
 
-pub const TOOL_DEFINITION_VERSIONING_QUEUE: &str = "tool_definition_versioning_queue";
-pub const TOOL_DEFINITION_VERSIONING_EXCHANGE: &str = "tool_definition_versioning_exchange";
-pub const TOOL_DEFINITION_VERSIONING_ROUTING_KEY: &str = "tool_definition_versioning_routing_key";
-
 // Delay (park) queues for messages that can't resolve yet (cold-start window,
 // mint in progress, transient error). No consumer — messages expire via their
 // per-message TTL and dead-letter back into their kind's main exchange. Every
@@ -50,9 +45,3 @@ pub const USER_TEMPLATE_VERSIONING_DELAY_QUEUE: &str = "user_template_versioning
 pub const USER_TEMPLATE_VERSIONING_DELAY_EXCHANGE: &str = "user_template_versioning_delay_exchange";
 pub const USER_TEMPLATE_VERSIONING_DELAY_ROUTING_KEY: &str =
     "user_template_versioning_delay_routing_key";
-
-pub const TOOL_DEFINITION_VERSIONING_DELAY_QUEUE: &str = "tool_definition_versioning_delay_queue";
-pub const TOOL_DEFINITION_VERSIONING_DELAY_EXCHANGE: &str =
-    "tool_definition_versioning_delay_exchange";
-pub const TOOL_DEFINITION_VERSIONING_DELAY_ROUTING_KEY: &str =
-    "tool_definition_versioning_delay_routing_key";
