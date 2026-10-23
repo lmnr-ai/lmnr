@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { diffTools, listTools } from "@/components/settings/agent-versions/tools-diff/utils";
+import { diffTools, listTools } from "@/components/agent-versions/tools-diff/utils";
 
 /** Version text as app-server `tool_text::render` writes it: a name line, then leaf lines. */
 const tool = (name: string, ...leaves: string[]) => [name, ...leaves.map((leaf) => `${name}.${leaf}`)];

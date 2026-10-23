@@ -1,29 +1,26 @@
 "use client";
 
-import { type LucideIcon, SquareMinus, SquarePlus } from "lucide-react";
-
-import DiffView from "@/components/ui/diff";
+import SplitDiffView from "@/components/ui/diff/split-diff-view";
 import { cn } from "@/lib/utils";
 
+import { STATUS_ICONS } from "./status-icons";
 import ToolRow from "./tool-row";
-import { type ToolChange, type ToolChangeStatus } from "./utils";
-
-const STATUS_ICONS: Record<ToolChangeStatus, { icon: LucideIcon; className: string } | null> = {
-  added: { icon: SquarePlus, className: "text-success" },
-  removed: { icon: SquareMinus, className: "text-destructive" },
-  modified: null,
-};
+import { type ToolChange } from "./utils";
 
 interface ToolChangeRowProps {
   change: ToolChange;
+  oldLabel: string;
+  newLabel: string;
+  defaultOpen?: boolean;
 }
 
-export default function ToolChangeRow({ change }: ToolChangeRowProps) {
+export default function ToolChangeRow({ change, oldLabel, newLabel, defaultOpen }: ToolChangeRowProps) {
   const status = STATUS_ICONS[change.status];
 
   return (
     <ToolRow
       name={change.name}
+      defaultOpen={defaultOpen}
       badge={
         status && <status.icon className={cn("size-3.5 flex-shrink-0", status.className)} aria-label={change.status} />
       }
@@ -34,7 +31,9 @@ export default function ToolChangeRow({ change }: ToolChangeRowProps) {
         </>
       }
     >
-      <DiffView oldText={change.oldText} newText={change.newText} />
+      <div className="overflow-hidden rounded-md border bg-emphasis-0.5">
+        <SplitDiffView oldText={change.oldText} newText={change.newText} oldLabel={oldLabel} newLabel={newLabel} />
+      </div>
     </ToolRow>
   );
 }
