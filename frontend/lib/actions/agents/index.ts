@@ -10,7 +10,7 @@ const VERSIONS_LIMIT = 50;
 // Mirror the app-server's settings of the same names; keep them equal.
 const MIN_RUN = Number(process.env.AGENT_VERSIONING_MIN_RUN ?? 30);
 const INTERVAL_SECONDS = Number(process.env.AGENT_VERSIONING_INTERVAL_SECONDS ?? 600);
-/** The job reads 2 minutes behind now (`VISIBILITY_LAG_NS`). */
+/** Async inserts are readable within this; the job reads this far behind now (`VISIBILITY_LAG_NS`). */
 const VISIBILITY_LAG_SECONDS = 2 * 60;
 
 export const GetAgentsSchema = z.object({
@@ -54,18 +54,24 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
     .limit(100);
 }
 
-async function getProgress(projectId: string, agentHash: string): Promise<AgentProgress | null> {
+async function getProgress(
+  projectId: string,
+  agent: { agentHash: string; createdAt: string }
+): Promise<AgentProgress | null> {
   const result = await clickhouseClient.query({
     query: `
       SELECT uniqExact(trace_id) AS traces
       FROM agent_prompts
       WHERE project_id = {projectId:UUID} AND agent_hash = {agentHash:String}`,
-    query_params: { projectId, agentHash },
+    query_params: { projectId, agentHash: agent.agentHash },
     format: "JSONEachRow",
   });
   const [row] = await result.json<{ traces: string | number }>();
   const traces = Number(row?.traces ?? 0);
-  if (traces === 0) return null;
+  // Ingest registers an agent before its async-inserted prompts are readable, so
+  // a new agent with none counted is still waiting; an old one has expired (TTL).
+  const isNew = Date.now() - new Date(agent.createdAt).getTime() < VISIBILITY_LAG_SECONDS * 1000;
+  if (traces === 0 && !isNew) return null;
 
   return {
     traces,
@@ -123,7 +129,7 @@ export async function getAgentVersions(
     .orderBy(desc(agentVersions.versionNumber))
     .limit(VERSIONS_LIMIT);
 
-  if (versions.length === 0) return { agent, versions: [], progress: await getProgress(projectId, agent.agentHash) };
+  if (versions.length === 0) return { agent, versions: [], progress: await getProgress(projectId, agent) };
 
   const models = await getVersionModels(
     projectId,
