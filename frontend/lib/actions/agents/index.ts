@@ -25,8 +25,6 @@ export interface AgentListItem {
   agentHash: string;
   createdAt: string;
   versionCount: number;
-  /** Progress towards the first version; `null` once the agent has one. */
-  progress: AgentProgress | null;
 }
 
 /**
@@ -48,7 +46,7 @@ export interface AgentProgress {
 export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise<AgentListItem[]> {
   const { projectId } = GetAgentsSchema.parse(input);
 
-  const rows = await db
+  return db
     .select({
       id: agents.id,
       name: agents.name,
@@ -62,53 +60,36 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
     .groupBy(agents.id)
     .orderBy(desc(agents.createdAt))
     .limit(100);
-
-  const progress = await getProgress(
-    projectId,
-    rows.filter((row) => row.versionCount === 0).map((row) => row.agentHash)
-  );
-
-  return rows.map((row) => ({
-    ...row,
-    progress: row.versionCount === 0 ? (progress.get(row.agentHash) ?? null) : null,
-  }));
 }
 
 /** Counts traces the way the job's samples do: a trace's time is its first prompt's start. */
-async function getProgress(projectId: string, agentHashes: string[]): Promise<Map<string, AgentProgress>> {
-  if (agentHashes.length === 0) return new Map();
-
+async function getProgress(projectId: string, agentHash: string): Promise<AgentProgress | null> {
   const result = await clickhouseClient.query({
     query: `
-      SELECT agent_hash, toUnixTimestamp64Milli(counting_from) AS counting_from_ms, countIf(time > counting_from) AS traces
+      SELECT toUnixTimestamp64Milli(counting_from) AS counting_from_ms, countIf(time > counting_from) AS traces
       FROM (
-        SELECT agent_hash, time, min(time) OVER (PARTITION BY agent_hash) + toIntervalSecond({window:UInt32}) AS counting_from
+        SELECT time, min(time) OVER () + toIntervalSecond({window:UInt32}) AS counting_from
         FROM (
-          SELECT agent_hash, trace_id, min(start_time) AS time
+          SELECT trace_id, min(start_time) AS time
           FROM agent_prompts
-          WHERE project_id = {projectId:UUID} AND agent_hash IN {agentHashes:Array(String)}
-          GROUP BY agent_hash, trace_id
+          WHERE project_id = {projectId:UUID} AND agent_hash = {agentHash:String}
+          GROUP BY trace_id
         )
       )
-      GROUP BY agent_hash, counting_from`,
-    query_params: { projectId, agentHashes, window: ROLLOUT_WINDOW_SECONDS },
+      GROUP BY counting_from`,
+    query_params: { projectId, agentHash, window: ROLLOUT_WINDOW_SECONDS },
     format: "JSONEachRow",
   });
-  const rows = await result.json<{ agent_hash: string; counting_from_ms: string | number; traces: string | number }>();
+  const [row] = await result.json<{ counting_from_ms: string | number; traces: string | number }>();
+  if (!row) return null;
 
-  const maxWaitMinutes = Math.ceil((INTERVAL_SECONDS + VISIBILITY_LAG_SECONDS) / 60);
-  return new Map(
-    rows.map((row) => [
-      row.agent_hash,
-      {
-        countingFrom: new Date(Number(row.counting_from_ms)).toISOString(),
-        traces: Number(row.traces),
-        needed: MIN_RUN,
-        rolloutWindowMinutes: ROLLOUT_WINDOW_SECONDS / 60,
-        maxWaitMinutes,
-      },
-    ])
-  );
+  return {
+    countingFrom: new Date(Number(row.counting_from_ms)).toISOString(),
+    traces: Number(row.traces),
+    needed: MIN_RUN,
+    rolloutWindowMinutes: ROLLOUT_WINDOW_SECONDS / 60,
+    maxWaitMinutes: Math.ceil((INTERVAL_SECONDS + VISIBILITY_LAG_SECONDS) / 60),
+  };
 }
 
 export const GetAgentVersionsSchema = z.object({
@@ -130,6 +111,8 @@ export interface AgentVersionItem {
 export interface AgentVersionsResult {
   agent: { id: string; name: string | null; agentHash: string; createdAt: string };
   versions: AgentVersionItem[];
+  /** Progress towards the first version while there is none; `null` otherwise or without recent traces. */
+  progress: AgentProgress | null;
 }
 
 export async function getAgentVersions(
@@ -158,7 +141,7 @@ export async function getAgentVersions(
     .orderBy(desc(agentVersions.versionNumber))
     .limit(VERSIONS_LIMIT);
 
-  if (versions.length === 0) return { agent, versions: [] };
+  if (versions.length === 0) return { agent, versions: [], progress: await getProgress(projectId, agent.agentHash) };
 
   const models = await getVersionModels(
     projectId,
@@ -168,6 +151,7 @@ export async function getAgentVersions(
   return {
     agent,
     versions: versions.map((version) => ({ ...version, models: models.get(version.id) ?? [] })),
+    progress: null,
   };
 }
 

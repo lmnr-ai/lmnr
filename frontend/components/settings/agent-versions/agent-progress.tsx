@@ -3,7 +3,6 @@
 import { format } from "date-fns";
 
 import { Progress } from "@/components/ui/progress";
-import { Tooltip, TooltipContent, TooltipPortal, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type AgentProgress as AgentProgressData } from "@/lib/actions/agents";
 
 interface AgentProgressProps {
@@ -20,21 +19,16 @@ export default function AgentProgress({ progress }: AgentProgressProps) {
   const counted = Math.min(progress.traces, progress.needed);
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex w-fit flex-col gap-1">
-            <span>{progressLabel(progress)}</span>
-            <Progress value={(counted / progress.needed) * 100} className="h-1 w-32" />
-          </div>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent className="max-w-xs">
-            The first version is created once {progress.needed} traces start more than {progress.rolloutWindowMinutes}{" "}
-            minutes after the agent&apos;s first trace, so a deploy still rolling out is never taken for a version.
-          </TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </TooltipProvider>
+    <div className="flex flex-col gap-3 rounded-md border p-6 text-sm">
+      <div className="flex items-center justify-between gap-4">
+        <span className="font-medium">Waiting for the first version</span>
+        <span className="text-muted-foreground">{progressLabel(progress)}</span>
+      </div>
+      <Progress value={(counted / progress.needed) * 100} className="h-1.5" />
+      <p className="text-muted-foreground">
+        The first version is created once {progress.needed} traces start more than {progress.rolloutWindowMinutes}{" "}
+        minutes after the agent&apos;s first trace, so a deploy still rolling out is never taken for a version.
+      </p>
+    </div>
   );
 }

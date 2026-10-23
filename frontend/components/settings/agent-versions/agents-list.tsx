@@ -8,7 +8,6 @@ import { type AgentListItem } from "@/lib/actions/agents";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
-import AgentProgress from "./agent-progress";
 import { agentDisplayName } from "./utils";
 
 interface AgentsListProps {
@@ -17,10 +16,7 @@ interface AgentsListProps {
 }
 
 export default function AgentsList({ projectId, onSelect }: AgentsListProps) {
-  // Refreshed while an agent waits for its first version, so its progress keeps up.
-  const { data, isLoading } = useSWR<AgentListItem[]>(`/api/projects/${projectId}/agents`, swrFetcher, {
-    refreshInterval: (latest) => (latest?.some((agent) => agent.progress) ? 30_000 : 0),
-  });
+  const { data, isLoading } = useSWR<AgentListItem[]>(`/api/projects/${projectId}/agents`, swrFetcher);
 
   return (
     <SettingsSection>
@@ -44,9 +40,7 @@ export default function AgentsList({ projectId, onSelect }: AgentsListProps) {
             <td className="px-4 text-sm">
               <span className="font-medium">{agentDisplayName(agent.name)}</span>
             </td>
-            <td className="px-4 text-sm text-muted-foreground">
-              {agent.progress ? <AgentProgress progress={agent.progress} /> : agent.versionCount}
-            </td>
+            <td className="px-4 text-sm text-muted-foreground">{agent.versionCount}</td>
             <td className="px-4 text-sm text-muted-foreground">{formatTimestamp(agent.createdAt)}</td>
             <td className="px-4">
               <div className="flex justify-end">
