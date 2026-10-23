@@ -1,17 +1,10 @@
 import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
 
 const VERSIONS_LIMIT = 50;
-
-// Mirror the app-server's settings of the same names; keep them equal.
-const MIN_RUN = Number(process.env.AGENT_VERSIONING_MIN_RUN ?? 30);
-const INTERVAL_SECONDS = Number(process.env.AGENT_VERSIONING_INTERVAL_SECONDS ?? 600);
-/** Async inserts are readable within this; the job reads this far behind now (`VISIBILITY_LAG_NS`). */
-const VISIBILITY_LAG_SECONDS = 2 * 60;
 
 export const GetAgentsSchema = z.object({
   projectId: z.guid(),
@@ -24,14 +17,6 @@ export interface AgentListItem {
   agentHash: string;
   createdAt: string;
   versionCount: number;
-}
-
-/** The job mints an agent's first version from its first `needed` traces. */
-export interface AgentProgress {
-  traces: number;
-  needed: number;
-  /** Longest wait from reaching `needed` to the version: a job interval plus its read lag. */
-  maxWaitMinutes: number;
 }
 
 /** Includes agents with no versions yet; their first version waits for a stable stretch. */
@@ -54,32 +39,6 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
     .limit(100);
 }
 
-async function getProgress(
-  projectId: string,
-  agent: { agentHash: string; createdAt: string }
-): Promise<AgentProgress | null> {
-  const result = await clickhouseClient.query({
-    query: `
-      SELECT uniqExact(trace_id) AS traces
-      FROM agent_prompts
-      WHERE project_id = {projectId:UUID} AND agent_hash = {agentHash:String}`,
-    query_params: { projectId, agentHash: agent.agentHash },
-    format: "JSONEachRow",
-  });
-  const [row] = await result.json<{ traces: string | number }>();
-  const traces = Number(row?.traces ?? 0);
-  // Ingest registers an agent before its async-inserted prompts are readable, so
-  // a new agent with none counted is still waiting; an old one has expired (TTL).
-  const isNew = Date.now() - new Date(agent.createdAt).getTime() < VISIBILITY_LAG_SECONDS * 1000;
-  if (traces === 0 && !isNew) return null;
-
-  return {
-    traces,
-    needed: MIN_RUN,
-    maxWaitMinutes: Math.ceil((INTERVAL_SECONDS + VISIBILITY_LAG_SECONDS) / 60),
-  };
-}
-
 export const GetAgentVersionsSchema = z.object({
   projectId: z.guid(),
   agentId: z.guid(),
@@ -99,8 +58,6 @@ export interface AgentVersionItem {
 export interface AgentVersionsResult {
   agent: { id: string; name: string | null; agentHash: string; createdAt: string };
   versions: AgentVersionItem[];
-  /** Progress towards the first version while there is none; `null` otherwise or without recent traces. */
-  progress: AgentProgress | null;
 }
 
 export async function getAgentVersions(
@@ -129,7 +86,7 @@ export async function getAgentVersions(
     .orderBy(desc(agentVersions.versionNumber))
     .limit(VERSIONS_LIMIT);
 
-  if (versions.length === 0) return { agent, versions: [], progress: await getProgress(projectId, agent) };
+  if (versions.length === 0) return { agent, versions: [] };
 
   const models = await getVersionModels(
     projectId,
@@ -139,7 +96,6 @@ export async function getAgentVersions(
   return {
     agent,
     versions: versions.map((version) => ({ ...version, models: models.get(version.id) ?? [] })),
-    progress: null,
   };
 }
 

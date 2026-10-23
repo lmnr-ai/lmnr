@@ -10,7 +10,6 @@ import { type AgentVersionsResult } from "@/lib/actions/agents";
 import { swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader } from "../settings-section";
-import AgentProgress from "./agent-progress";
 import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
@@ -24,9 +23,7 @@ interface AgentVersionsListProps {
 export default function AgentVersionsList({ projectId, agentId, onBack }: AgentVersionsListProps) {
   const { data, isLoading, mutate } = useSWR<AgentVersionsResult>(
     `/api/projects/${projectId}/agents/${agentId}/versions`,
-    swrFetcher,
-    // Refreshed while the agent waits for its first version, so its progress keeps up.
-    { refreshInterval: (latest) => (latest?.progress ? 30_000 : 0) }
+    swrFetcher
   );
 
   const versions = data?.versions ?? [];
@@ -57,11 +54,9 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
-      ) : isEmpty(versions) && data?.progress ? (
-        <AgentProgress progress={data.progress} />
       ) : isEmpty(versions) ? (
         <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
-          No versions yet. The first version appears after about 30 traces with the same system prompt and tools.
+          It takes around 30 traces and 15 minutes for the first version to be created.
         </div>
       ) : (
         <div className="flex flex-col gap-2">
