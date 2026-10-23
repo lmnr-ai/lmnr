@@ -33,11 +33,6 @@ pub enum Feature {
     /// features are fine-grained so gating can diverge later.
     InputExtraction,
     Reports,
-    /// Checkpoints / agent-versioning pipeline. Gated behind
-    /// `CHECKPOINTS_ENABLED`, default off. Records only what the v2
-    /// system-prompt and tool-definition versioning consumers resolve, so it
-    /// is inert without `SystemPromptVersioning`.
-    Checkpoints,
     /// Scheduled agent versioning (`src/agent_versioning`). Gated behind
     /// `AGENT_VERSIONING_ENABLED`, default off.
     AgentVersioning,
@@ -100,7 +95,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
-        Feature::Checkpoints => env::checkpoints::ENABLED.get(),
         Feature::AgentVersioning => env::agent_versioning::ENABLED.get(),
         Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
         Feature::SignalsVersionedPrompts => {

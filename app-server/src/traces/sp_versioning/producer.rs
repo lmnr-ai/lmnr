@@ -10,12 +10,10 @@
 //!   `Feature::SystemPromptVersioning` routes to this LLM-free pipeline, off
 //!   routes to the legacy skeleton-hash pipeline
 //!   (`static_sp_extraction::producer`), which needs an LLM client.
-//!   With checkpoints on, the same batch's tool sets go to the tool-definition
-//!   queue, partitioned by the system prompt's agent.
 //! - [`resolve_and_publish`] — a single text whose caller needs the version
 //!   synchronously (the user-task hook keys its regex on the user template's).
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use indexmap::IndexMap;
 use uuid::Uuid;
@@ -23,7 +21,6 @@ use uuid::Uuid;
 use super::{VersionKind, consumer::SpVersioningMessage, similarity, versions, window::SpanRef};
 use crate::{
     cache::{Cache, CacheTrait},
-    checkpoints::AgentSpan,
     features::{Feature, is_feature_enabled},
     llm::llm_client_available,
     mq::{MessageQueue, MessageQueueTrait},
@@ -89,11 +86,6 @@ pub struct StaticPromptCandidate {
     /// Byte-identity hash of the prompt, computed once on the ingest producer.
     pub full_prompt_hash: String,
     pub system_prompt: String,
-    /// Agent-versioning inputs; set only while checkpoints are on.
-    pub agent_span: Option<AgentSpan>,
-    /// The span's tool set rendered for versioning
-    /// ([`super::tool_text::render`]); empty without tools or checkpoints.
-    pub tool_text: String,
 }
 
 /// One distinct text to version, with every span that presented it.
@@ -107,8 +99,6 @@ pub struct VersionCandidate {
     pub full_hash: String,
     pub text: String,
     pub span_refs: Vec<SpanRef>,
-    /// See [`SpVersioningMessage::agent_spans`].
-    pub agent_spans: Vec<AgentSpan>,
 }
 
 /// What [`resolve_inline`] decided for one text.
@@ -119,8 +109,8 @@ struct InlineResolution {
     version: Option<String>,
 }
 
-/// Agent naming traces into this project on every new agent version, so
-/// versioning it would loop.
+/// Agent naming (`agent_versioning::naming`) traces into this project, so
+/// versioning its prompts would loop.
 fn checkpoints_internal_project_id() -> Option<Uuid> {
     std::env::var(crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID)
         .ok()
@@ -158,85 +148,12 @@ pub async fn publish_static_prompt_candidates(
         return;
     }
 
-    let mut candidates = candidates;
-    publish_tool_definitions(&cache, &queue, &mut candidates).await;
-
     let mut messages = Vec::new();
     for candidate in group_by_prompt(candidates) {
         let resolution = resolve_inline(&cache, VersionKind::SystemPrompt, candidate).await;
         messages.push(resolution.message);
     }
     publish_messages(&queue, VersionKind::SystemPrompt, &messages).await;
-}
-
-/// Version the batch's tool sets, one message per distinct set per agent.
-/// Each final inline verdict is stamped on the spans' `tool_version`, so the
-/// system-prompt side records them without waiting on the tool consumer.
-async fn publish_tool_definitions(
-    cache: &Cache,
-    queue: &MessageQueue,
-    candidates: &mut [StaticPromptCandidate],
-) {
-    let mut messages = Vec::new();
-    let mut inline_versions: HashMap<(Uuid, Uuid), String> = HashMap::new();
-    for candidate in group_by_tool_set(candidates) {
-        let resolution = resolve_inline(cache, VersionKind::ToolDefinitions, candidate).await;
-        let mut message = resolution.message;
-        // A probe may mint a newer version, so only an unprobed verdict is final.
-        if let Some(version) = resolution.version.filter(|_| !message.run_full) {
-            for span in &mut message.agent_spans {
-                span.tool_version = Some(version.clone());
-                inline_versions.insert((message.project_id, span.span_id), version.clone());
-            }
-        }
-        messages.push(message);
-    }
-    for candidate in candidates.iter_mut() {
-        if let Some(span) = &mut candidate.agent_span
-            && let Some(version) = inline_versions.get(&(candidate.project_id, span.span_id))
-        {
-            span.tool_version = Some(version.clone());
-        }
-    }
-    publish_messages(queue, VersionKind::ToolDefinitions, &messages).await;
-}
-
-/// One candidate per distinct tool set per agent in the batch. Only spans
-/// feeding agent versioning take part.
-fn group_by_tool_set(candidates: &[StaticPromptCandidate]) -> Vec<VersionCandidate> {
-    let mut groups: IndexMap<(Uuid, &str, &str), VersionCandidate> = IndexMap::new();
-    for candidate in candidates {
-        let Some(agent_span) = &candidate.agent_span else {
-            continue;
-        };
-        if candidate.tool_text.is_empty() || agent_span.tool_full_hash.is_empty() {
-            continue;
-        }
-        let group = groups
-            .entry((
-                candidate.project_id,
-                candidate.agent_hash.as_str(),
-                agent_span.tool_full_hash.as_str(),
-            ))
-            .or_insert_with(|| VersionCandidate {
-                project_id: candidate.project_id,
-                agent_hash: candidate.agent_hash.clone(),
-                has_history: false,
-                full_hash: agent_span.tool_full_hash.clone(),
-                text: candidate.tool_text.clone(),
-                span_refs: Vec::new(),
-                agent_spans: Vec::new(),
-            });
-        let span_ref = SpanRef {
-            trace_id: candidate.trace_id,
-            span_id: candidate.span_id,
-        };
-        if !group.span_refs.contains(&span_ref) {
-            group.span_refs.push(span_ref);
-            group.agent_spans.push(agent_span.clone());
-        }
-    }
-    groups.into_values().collect()
 }
 
 /// Resolve one text's version inline and publish it for classification.
@@ -266,7 +183,6 @@ fn group_by_prompt(candidates: Vec<StaticPromptCandidate>) -> Vec<VersionCandida
                 full_hash: candidate.full_prompt_hash,
                 text: candidate.system_prompt,
                 span_refs: Vec::new(),
-                agent_spans: Vec::new(),
             });
         let span_ref = SpanRef {
             trace_id: candidate.trace_id,
@@ -274,7 +190,6 @@ fn group_by_prompt(candidates: Vec<StaticPromptCandidate>) -> Vec<VersionCandida
         };
         if !group.span_refs.contains(&span_ref) {
             group.span_refs.push(span_ref);
-            group.agent_spans.extend(candidate.agent_span);
         }
     }
     groups.into_values().collect()
@@ -296,7 +211,6 @@ async fn resolve_inline(
         full_hash,
         text,
         span_refs,
-        agent_spans,
     } = candidate;
     let partition = kind.partition(&agent_hash, has_history);
     let line_hashes = similarity::line_hashes(&text);
@@ -345,7 +259,6 @@ async fn resolve_inline(
             cheap_matched_version,
             run_full,
             retry_count: 0,
-            agent_spans,
         },
         version,
     }
@@ -452,11 +365,10 @@ mod tests {
             full_hash: similarity::full_prompt_hash(text),
             text: text.to_string(),
             span_refs: Vec::new(),
-            agent_spans: Vec::new(),
         }
     }
 
-    fn static_candidate(span_id: Uuid, agent_span: Option<AgentSpan>) -> StaticPromptCandidate {
+    fn static_candidate(span_id: Uuid) -> StaticPromptCandidate {
         StaticPromptCandidate {
             project_id: Uuid::nil(),
             trace_id: Uuid::nil(),
@@ -465,101 +377,19 @@ mod tests {
             agent_hash: "agent01".to_string(),
             full_prompt_hash: "full".to_string(),
             system_prompt: "prompt".to_string(),
-            agent_span,
-            tool_text: String::new(),
-        }
-    }
-
-    fn agent_span(span_id: Uuid) -> AgentSpan {
-        AgentSpan {
-            span_id,
-            start_time: 0,
-            model: "gpt-4o".to_string(),
-            tool_full_hash: String::new(),
-            tool_version: None,
-            system_prompt_full_hash: "full".to_string(),
-        }
-    }
-
-    fn tool_candidate(span_id: Uuid, agent_hash: &str, tool_text: &str) -> StaticPromptCandidate {
-        let mut span = agent_span(span_id);
-        span.tool_full_hash = similarity::full_prompt_hash(tool_text);
-        StaticPromptCandidate {
-            agent_hash: agent_hash.to_string(),
-            tool_text: tool_text.to_string(),
-            ..static_candidate(span_id, Some(span))
         }
     }
 
     #[test]
-    fn tool_sets_group_per_agent_and_set_and_need_agent_spans() {
-        let ids: [Uuid; 6] = std::array::from_fn(|_| Uuid::new_v4());
-        let mut no_agent_span = tool_candidate(ids[4], "agent01", "search");
-        no_agent_span.agent_span = None;
-        let groups = group_by_tool_set(&[
-            tool_candidate(ids[0], "agent01", "search"),
-            tool_candidate(ids[1], "agent01", "search"),
-            tool_candidate(ids[2], "agent01", "search\nfetch"),
-            // Same set, another agent: another partition.
-            tool_candidate(ids[3], "agent02", "search"),
-            no_agent_span,
-            static_candidate(ids[5], Some(agent_span(ids[5]))),
-        ]);
-        let shape: Vec<(&str, &str, usize)> = groups
-            .iter()
-            .map(|g| (g.agent_hash.as_str(), g.text.as_str(), g.agent_spans.len()))
-            .collect();
-        assert_eq!(
-            shape,
-            vec![
-                ("agent01", "search", 2),
-                ("agent01", "search\nfetch", 1),
-                ("agent02", "search", 1),
-            ]
-        );
-        assert_eq!(groups[0].full_hash, similarity::full_prompt_hash("search"));
-        assert!(!groups[0].has_history);
-    }
-
-    #[tokio::test]
-    async fn final_inline_tool_versions_are_stamped_on_both_sides() {
-        let cache = cache();
-        let queue = MessageQueue::TokioMpsc(crate::mq::tokio_mpsc::TokioMpscQueue::new());
-        let tools = VersionKind::ToolDefinitions;
-        versions::memo_set(
-            &cache,
-            tools,
-            Uuid::nil(),
-            "agent01",
-            &similarity::full_prompt_hash("search"),
-            "tv1",
-        )
-        .await;
-        let (known, unknown) = (Uuid::new_v4(), Uuid::new_v4());
-        let mut candidates = vec![
-            tool_candidate(known, "agent01", "search"),
-            tool_candidate(unknown, "agent01", "fetch"),
-        ];
-        publish_tool_definitions(&cache, &queue, &mut candidates).await;
-        let stamped: Vec<Option<&str>> = candidates
-            .iter()
-            .map(|c| c.agent_span.as_ref().unwrap().tool_version.as_deref())
-            .collect();
-        assert_eq!(stamped, vec![Some("tv1"), None]);
-    }
-
-    #[test]
-    fn grouping_keeps_one_agent_span_per_span_ref() {
-        let (a, b, c) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    fn grouping_keeps_one_ref_per_span() {
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
         let groups = group_by_prompt(vec![
-            static_candidate(a, Some(agent_span(a))),
-            static_candidate(a, Some(agent_span(a))),
-            static_candidate(b, Some(agent_span(b))),
-            static_candidate(c, None),
+            static_candidate(a),
+            static_candidate(a),
+            static_candidate(b),
         ]);
         assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0].span_refs.len(), 3);
-        let ids: Vec<Uuid> = groups[0].agent_spans.iter().map(|s| s.span_id).collect();
+        let ids: Vec<Uuid> = groups[0].span_refs.iter().map(|r| r.span_id).collect();
         assert_eq!(ids, vec![a, b]);
     }
 

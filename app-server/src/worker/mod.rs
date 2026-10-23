@@ -167,7 +167,6 @@ pub enum WorkerType {
     StaticPrompt,
     SpVersioning,
     UserTemplateVersioning,
-    ToolDefinitionVersioning,
     SpRegexExtraction,
 }
 
@@ -188,7 +187,6 @@ impl std::fmt::Display for WorkerType {
             WorkerType::StaticPrompt => write!(f, "static_prompt"),
             WorkerType::SpVersioning => write!(f, "sp_versioning"),
             WorkerType::UserTemplateVersioning => write!(f, "user_template_versioning"),
-            WorkerType::ToolDefinitionVersioning => write!(f, "tool_definition_versioning"),
             WorkerType::SpRegexExtraction => write!(f, "sp_regex_extraction"),
         }
     }

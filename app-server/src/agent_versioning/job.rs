@@ -85,6 +85,7 @@ impl Job {
                     continue;
                 }
             };
+            log::info!("[AGENT VERSIONING] Woke up: {} active agents", agents.len());
             for agent in agents {
                 let key = format!(
                     "{AGENT_VERSIONING_LOCK_CACHE_KEY}:{}:{}",

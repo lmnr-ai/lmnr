@@ -31,7 +31,6 @@ use crate::{
     ch::system_prompt_versions::{
         SpanVersion, VersionDef, insert_version_def, insert_version_rows,
     },
-    checkpoints::{AgentSpan, CheckpointRecorder},
     env,
     mq::{MessageQueue, MessageQueueTrait},
     worker::{HandlerError, MessageHandler},
@@ -144,10 +143,6 @@ pub struct SpVersioningMessage {
     /// window's `seen_count`.
     #[serde(default)]
     pub retry_count: u32,
-    /// Agent-versioning inputs for `span_refs`' spans. System prompts and
-    /// tool definitions only, and only while checkpoints are on.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub agent_spans: Vec<AgentSpan>,
 }
 
 impl SpVersioningMessage {
@@ -168,8 +163,6 @@ pub struct SpVersioningHandler {
     pub clickhouse: clickhouse::Client,
     /// For parking unresolved messages on the delay queue.
     pub queue: Arc<MessageQueue>,
-    /// Agent versioning, fed every batch's resolved rows.
-    checkpoint_recorder: Option<Arc<CheckpointRecorder>>,
 }
 
 impl SpVersioningHandler {
@@ -184,13 +177,7 @@ impl SpVersioningHandler {
             cache,
             clickhouse,
             queue,
-            checkpoint_recorder: None,
         }
-    }
-
-    pub fn with_checkpoint_recorder(mut self, recorder: Arc<CheckpointRecorder>) -> Self {
-        self.checkpoint_recorder = Some(recorder);
-        self
     }
 }
 
@@ -231,13 +218,6 @@ impl MessageHandler for SpVersioningHandler {
                 rows.len(),
                 self.kind.tables().versions
             );
-        }
-
-        // Check new agents versions.
-        if let Some(recorder) = &self.checkpoint_recorder
-            && !rows.is_empty()
-        {
-            recorder.record(self.kind, &messages, &rows).await;
         }
         Ok(())
     }
@@ -339,16 +319,7 @@ impl SpVersioningHandler {
         )
         .await
         {
-            // An unprobed tool verdict is final: the producer already stamped
-            // it on the spans' agent versions, so a newer memo (a probe mint
-            // in between) must not relabel them. System prompts are not
-            // stamped; the tool side joins on their memo, so the memo wins.
-            let label = message
-                .cheap_matched_version
-                .as_deref()
-                .filter(|_| self.kind == VersionKind::ToolDefinitions && !message.run_full)
-                .unwrap_or(&version_hash);
-            push_message_rows(message, label, rows_out);
+            push_message_rows(message, &version_hash, rows_out);
             return Ok(());
         }
 
@@ -570,15 +541,6 @@ impl SpVersioningHandler {
         } else {
             MintGate::ForcedRetryBudget
         };
-        if last_attempt && available < min_window {
-            log::info!(
-                "[SP_VERSIONING] Retry budget exhausted for {} agent {} (project {}) — minting from partial window of {}",
-                self.kind.label(),
-                message.agent_hash,
-                message.project_id,
-                available
-            );
-        }
 
         let selected = window::select_top_k(
             win,
@@ -603,13 +565,6 @@ impl SpVersioningHandler {
         // text is fully dynamic, so it parks like any unresolved message.
         let intersection = similarity::intersect_ordered(&seqs);
         if intersection.is_empty() && gate != MintGate::Normal {
-            log::info!(
-                "[SP_VERSIONING] Empty intersection over a partial {} window for agent {} (project {}, {} candidates) — skipping mint",
-                self.kind.label(),
-                message.agent_hash,
-                message.project_id,
-                selected.len()
-            );
             if !win[entry_idx].labeled {
                 self.park(message, "empty partial-window intersection")
                     .await;
@@ -757,17 +712,6 @@ impl SpVersioningHandler {
             regexes,
         )
         .await?;
-
-        log::info!(
-            "[SP_VERSIONING] Minted {} version {} for agent {} (project {}, {} static lines, {} cluster samples, gate {})",
-            self.kind.label(),
-            version_hash,
-            message.agent_hash,
-            message.project_id,
-            intersection.len(),
-            selected.len(),
-            gate.as_str()
-        );
 
         self.journal_mint(
             message,
@@ -925,7 +869,6 @@ mod tests {
             cheap_matched_version: None,
             run_full: false,
             retry_count: 0,
-            agent_spans: Vec::new(),
         }
     }
 
@@ -1101,46 +1044,28 @@ mod tests {
         assert_eq!(memo.as_deref(), Some(version_hash.as_str()));
     }
 
-    /// Label of a message whose unprobed inline verdict ("stamped") predates
-    /// a newer memo value ("newer", a probe mint in between).
-    async fn memo_hit_label(kind: VersionKind, run_full: bool) -> String {
-        let handler = handler_for(kind);
+    /// A memo filled while the message sat in the queue (e.g. a probe mint)
+    /// wins over the producer's inline verdict.
+    #[tokio::test]
+    async fn memo_wins_over_a_stale_inline_verdict() {
+        let handler = make_handler();
         let project_id = Uuid::new_v4();
         let mut message = make_message(project_id, &versioned_prompt(999));
         versions::memo_set(
             &handler.cache,
-            kind,
+            VersionKind::SystemPrompt,
             project_id,
             AGENT,
             &message.full_prompt_hash,
             "newer",
         )
         .await;
-        message.cheap_matched_version = Some("stamped".to_string());
-        message.run_full = run_full;
+        message.cheap_matched_version = Some("stale".to_string());
 
         let mut rows = Vec::new();
         handler.process_message(&message, &mut rows).await.unwrap();
         assert_eq!(rows.len(), 1);
-        rows.remove(0).version_hash
-    }
-
-    #[tokio::test]
-    async fn unprobed_tool_verdict_wins_over_a_newer_memo() {
-        assert_eq!(
-            memo_hit_label(VersionKind::ToolDefinitions, false).await,
-            "stamped"
-        );
-        // A probed verdict was never stamped.
-        assert_eq!(
-            memo_hit_label(VersionKind::ToolDefinitions, true).await,
-            "newer"
-        );
-        // The tool side joins on the system-prompt memo, so it must win there.
-        assert_eq!(
-            memo_hit_label(VersionKind::SystemPrompt, false).await,
-            "newer"
-        );
+        assert_eq!(rows[0].version_hash, "newer");
     }
 
     /// Drive `full_algorithm` against a window whose prompts have all dropped

@@ -1,6 +1,6 @@
 //! Versioning tables. Each [`VersionKind`] has its own pair
-//! (`system_prompt_*`, `user_template_*`, `tool_definition_*`), both written
-//! by the versioning consumer:
+//! (`system_prompt_*`, `user_template_*`), both written by the versioning
+//! consumer:
 //!   - `*_versions` — one row per SPAN, its resolved version. Write-once: rows
 //!     are never corrected after insert (transition-window spans keep the
 //!     version resolved at classification time).
@@ -63,7 +63,7 @@ impl SpanVersion {
 fn version_column(kind: VersionKind) -> &'static str {
     match kind {
         VersionKind::SystemPrompt => "static_prompt_version_hash",
-        VersionKind::UserTemplate | VersionKind::ToolDefinitions => "version_hash",
+        VersionKind::UserTemplate => "version_hash",
     }
 }
 
@@ -121,32 +121,6 @@ impl From<&SpanVersion> for CHUserTemplateVersion {
     }
 }
 
-#[derive(Row, Serialize, Debug, Clone)]
-struct CHToolDefinitionVersion {
-    #[serde(with = "clickhouse::serde::uuid")]
-    project_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    trace_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    span_id: Uuid,
-    agent_hash: String,
-    version_hash: String,
-    created_at: i64,
-}
-
-impl From<&SpanVersion> for CHToolDefinitionVersion {
-    fn from(row: &SpanVersion) -> Self {
-        Self {
-            project_id: row.project_id,
-            trace_id: row.trace_id,
-            span_id: row.span_id,
-            agent_hash: row.agent_hash.clone(),
-            version_hash: row.version_hash.clone(),
-            created_at: row.created_at,
-        }
-    }
-}
-
 pub async fn insert_version_rows(
     clickhouse: &clickhouse::Client,
     kind: VersionKind,
@@ -163,10 +137,6 @@ pub async fn insert_version_rows(
         }
         VersionKind::UserTemplate => {
             let rows: Vec<CHUserTemplateVersion> = rows.iter().map(Into::into).collect();
-            insert_rows(clickhouse, table, &rows).await
-        }
-        VersionKind::ToolDefinitions => {
-            let rows: Vec<CHToolDefinitionVersion> = rows.iter().map(Into::into).collect();
             insert_rows(clickhouse, table, &rows).await
         }
     }
@@ -194,8 +164,8 @@ async fn insert_rows<T: RowOwned + RowWrite>(
 /// Journal row written once per version MINT (`*_version_defs`), for either
 /// kind: the static skeleton as text — the registry keeps only one-way line
 /// hashes — plus the provenance needed to audit a mint (which rule allowed it,
-/// how populated the window was, which span triggered it). Within the
-/// pipeline, only agent naming reads them ([`fetch_version_static_text`]).
+/// how populated the window was, which span triggered it). Nothing in the
+/// pipeline reads them.
 #[derive(Debug, Clone)]
 pub struct VersionDef {
     pub project_id: Uuid,
@@ -331,7 +301,7 @@ pub async fn insert_version_def(
 ) -> Result<()> {
     let table = kind.tables().defs;
     match kind {
-        VersionKind::SystemPrompt | VersionKind::ToolDefinitions => {
+        VersionKind::SystemPrompt => {
             insert_rows(clickhouse, table, &[CHSystemPromptVersionDef::from(def)]).await
         }
         VersionKind::UserTemplate => {
@@ -395,73 +365,6 @@ pub async fn fetch_span_version(
         .fetch_optional::<VersionRow>()
         .await?;
     Ok(row.map(|r| r.version_hash))
-}
-
-/// [`fetch_span_version`] for a batch of one project's `(trace_id, span_id)`
-/// refs. Spans without a row (yet) are absent.
-pub async fn fetch_span_versions(
-    clickhouse: &clickhouse::Client,
-    kind: VersionKind,
-    project_id: Uuid,
-    refs: &[(Uuid, Uuid)],
-) -> Result<HashMap<(Uuid, Uuid), String>> {
-    #[derive(Row, Deserialize)]
-    struct VersionRow {
-        #[serde(with = "clickhouse::serde::uuid")]
-        trace_id: Uuid,
-        #[serde(with = "clickhouse::serde::uuid")]
-        span_id: Uuid,
-        version_hash: String,
-    }
-    if refs.is_empty() {
-        return Ok(HashMap::new());
-    }
-    let trace_ids: Vec<Uuid> = refs.iter().map(|(t, _)| *t).collect();
-    let span_ids: Vec<Uuid> = refs.iter().map(|(_, s)| *s).collect();
-    let query = format!(
-        "SELECT trace_id, span_id, argMax({}, created_at) AS version_hash
-         FROM {}
-         WHERE project_id = {{project_id:UUID}}
-           AND trace_id IN {{trace_ids:Array(UUID)}}
-           AND span_id IN {{span_ids:Array(UUID)}}
-         GROUP BY trace_id, span_id",
-        version_column(kind),
-        kind.tables().versions
-    );
-    let rows = clickhouse
-        .query(&query)
-        .param("project_id", project_id)
-        .param("trace_ids", trace_ids)
-        .param("span_ids", span_ids)
-        .fetch_all::<VersionRow>()
-        .await?;
-    Ok(rows
-        .into_iter()
-        .map(|r| ((r.trace_id, r.span_id), r.version_hash))
-        .collect())
-}
-
-/// Static skeleton of a system-prompt version; `None` when the def isn't
-/// visible yet or the version has no static text.
-pub async fn fetch_version_static_text(
-    clickhouse: &clickhouse::Client,
-    project_id: Uuid,
-    agent_hash: &str,
-    version_hash: &str,
-) -> Result<Option<String>> {
-    let text = clickhouse
-        .query(
-            "SELECT static_text
-             FROM system_prompt_version_defs FINAL
-             WHERE project_id = ? AND agent_hash = ? AND version_hash = ?
-             LIMIT 1",
-        )
-        .bind(project_id)
-        .bind(agent_hash)
-        .bind(version_hash)
-        .fetch_optional::<String>()
-        .await?;
-    Ok(text.filter(|t| !t.trim().is_empty()))
 }
 
 /// A uniform random sample of up to `limit` traces that classified to the
