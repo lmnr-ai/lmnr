@@ -1,7 +1,7 @@
-//! The scheduled run: for each agent with recent prompts, read samples, plan,
-//! mint versions, tag traces in `traces_agg`, then save progress. Tags are
-//! written before progress, so a failed run is redone; tags are a set, so a
-//! redo is harmless.
+//! The scheduled run: for each agent with recent prompts, read samples, build
+//! its version timeline, mint versions, tag traces in `traces_agg`, then save
+//! progress. Tags are written before progress, so a failed run is redone; tags
+//! are a set, so a redo is harmless.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -17,7 +17,7 @@ use uuid::Uuid;
 use super::{
     naming::generate_agent_name,
     normalize::{doc_lines, line_hash, version_hash},
-    plan::{Input, Knobs, Plan, Sample, plan},
+    timeline::{self, Input, Params, Sample, Timeline},
 };
 use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_VERSIONING_LOCK_CACHE_KEY},
@@ -98,7 +98,7 @@ impl Job {
     async fn version_agent(&self, project_id: Uuid, agent_hash: &str, now: i64) -> Result<()> {
         let pool = &self.db.pool;
         let ch = &self.clickhouse;
-        let knobs = Knobs {
+        let params = Params {
             min_run: MIN_RUN.get(),
             rollout_window: ROLLOUT_WINDOW_SECONDS.get() * NS,
             max_hold: MAX_HOLD_SECONDS.get() * NS,
@@ -122,17 +122,17 @@ impl Job {
         };
         let horizon = agent.labeled_until.unwrap_or(0);
         let per_minute = SAMPLES_PER_MINUTE.get();
-        let mut context = match agent.labeled_until {
+        let mut labeled = match agent.labeled_until {
             Some(until) => {
                 let range = (until - LOOKBACK_SECONDS.get() * NS, until);
-                let limit = 2 * knobs.min_run as u64;
+                let limit = 2 * params.min_run as u64;
                 scope.samples(ch, range, per_minute, limit, true).await?
             }
             None => Vec::new(),
         };
-        context.reverse();
+        labeled.reverse();
         let max_samples = MAX_SAMPLES.get();
-        let pending = scope
+        let unlabeled = scope
             .samples(ch, (horizon, watermark), per_minute, max_samples, false)
             .await?;
         let to_samples = |prompts: &[TracePrompt]| -> Vec<Sample> {
@@ -144,25 +144,25 @@ impl Job {
                 })
                 .collect()
         };
-        let plan = plan(
+        let timeline = timeline::build(
             &Input {
-                context: &to_samples(&context),
-                pending: &to_samples(&pending),
-                truncated: pending.len() as u64 >= max_samples,
+                labeled: &to_samples(&labeled),
+                unlabeled: &to_samples(&unlabeled),
+                truncated: unlabeled.len() as u64 >= max_samples,
                 cores: &cores,
                 current,
                 now,
             },
-            &knobs,
+            &params,
         );
 
-        // Minted versions are appended to `cores`, so ids and hashes line up.
+        // New versions are appended to `cores`, so ids and hashes line up.
         let mut ids: Vec<Uuid> = versions.iter().map(|v| v.id).collect();
         let mut hashes: Vec<String> = versions.into_iter().map(|v| v.version_hash).collect();
         let mut system_prompt = None;
-        for minted in &plan.minted {
-            let core = &plan.cores[minted.version];
-            let example = context.iter().chain(&pending).nth(minted.example);
+        for new_version in &timeline.new_versions {
+            let core = &timeline.cores[new_version.version];
+            let example = labeled.iter().chain(&unlabeled).nth(new_version.example);
             let (prompt, text) = match example {
                 Some(example) => self.version_text(project_id, example, core).await?,
                 None => Default::default(),
@@ -177,17 +177,20 @@ impl Job {
         let mut labels = Vec::new();
         if let (Some(since), Some(until)) = (agent.watermark, agent.labeled_until) {
             for trace in scope.late(ch, since, until).await? {
-                labels.push((plan.label_late(&trace.lines), trace));
+                labels.push((timeline.version_by_content(&trace.lines), trace));
             }
         }
-        if let Some(until) = plan.labeled_until {
-            labels.extend(self.label_range(&scope, &plan, (horizon, until)).await?);
+        if let Some(until) = timeline.labeled_until {
+            labels.extend(
+                self.label_range(&scope, &timeline, (horizon, until))
+                    .await?,
+            );
         }
         self.write_labels(project_id, agent_hash, &labels, &ids, &hashes)
             .await?;
 
-        let current_version_id = plan.current.map(|v| ids[v]);
-        let labeled_until = plan.labeled_until.or(agent.labeled_until);
+        let current_version_id = timeline.current.map(|v| ids[v]);
+        let labeled_until = timeline.labeled_until.or(agent.labeled_until);
         save_progress(pool, agent.id, labeled_until, watermark, current_version_id).await?;
 
         // Retried every run until it sticks, from any recent sample when
@@ -195,7 +198,7 @@ impl Job {
         if agent.name.is_none()
             && let Some(llm_client) = &self.llm_client
         {
-            let system_prompt = match (system_prompt, pending.last().or(context.last())) {
+            let system_prompt = match (system_prompt, unlabeled.last().or(labeled.last())) {
                 (Some(prompt), _) => Some(prompt),
                 (None, Some(sample)) => self.system_prompt(project_id, sample).await?,
                 (None, None) => None,
@@ -226,16 +229,16 @@ impl Job {
             .filter(|prompt| !prompt.is_empty()))
     }
 
-    /// Every trace starting in `(from, to]`, by time except where the plan
+    /// Every trace starting in `(from, to]`, by time except where the timeline
     /// needs its prompt.
     async fn label_range(
         &self,
         scope: &Scope<'_>,
-        plan: &Plan,
+        timeline: &Timeline,
         range: (i64, i64),
     ) -> Result<Vec<(Option<usize>, TracePrompt)>> {
         let mut by_content = HashMap::new();
-        for (from, to) in plan.content_ranges() {
+        for (from, to) in timeline.prompt_ranges() {
             // `[from, to)` as `(from - 1, to - 1]`, clipped to `range`.
             let clipped = ((from - 1).max(range.0), (to - 1).min(range.1));
             if clipped.0 < clipped.1 {
@@ -248,8 +251,8 @@ impl Job {
         Ok(traces
             .into_iter()
             .map(|trace| match by_content.remove(&trace.trace_id) {
-                Some(trace) => (plan.label(trace.time, Some(&trace.lines)), trace),
-                None => (plan.label(trace.time, None), trace),
+                Some(trace) => (timeline.version_at(trace.time, Some(&trace.lines)), trace),
+                None => (timeline.version_at(trace.time, None), trace),
             })
             .collect())
     }

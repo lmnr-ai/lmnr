@@ -12,14 +12,14 @@ pub const MIN_RUN: NumEnv<usize> = NumEnv::new("AGENT_VERSIONING_MIN_RUN", 30);
 
 /// Longest a rolling deploy may mix old and new prompts and still count as one change.
 pub const ROLLOUT_WINDOW_SECONDS: NumEnv<i64> =
-    NumEnv::new("AGENT_VERSIONING_ROLLOUT_WINDOW_SECONDS", 30 * 60);
+    NumEnv::new("AGENT_VERSIONING_ROLLOUT_WINDOW_SECONDS", 10 * 60);
 
 /// A trace waits at most this long for confirmation before it is labelled anyway.
 pub const MAX_HOLD_SECONDS: NumEnv<i64> =
     NumEnv::new("AGENT_VERSIONING_MAX_HOLD_SECONDS", 24 * 60 * 60);
 
 /// Change detection reads at most this many traces per agent per minute.
-pub const SAMPLES_PER_MINUTE: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_SAMPLES_PER_MINUTE", 20);
+pub const SAMPLES_PER_MINUTE: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_SAMPLES_PER_MINUTE", 100);
 
 /// Cap on unlabelled samples read per agent per run; a backlog drains over runs.
 pub const MAX_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_MAX_SAMPLES", 5000);
