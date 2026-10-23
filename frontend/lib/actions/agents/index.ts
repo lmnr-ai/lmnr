@@ -48,8 +48,10 @@ export interface AgentVersionItem {
   id: string;
   versionHash: string;
   versionNumber: number;
-  /** The version's stable lines of system prompt and tools, in document order. */
-  text: string;
+  /** The system prompt's lines shared by every trace of the version. */
+  systemPrompt: string;
+  /** The same for the tools, as app-server `tool_text::render` writes them; empty without tools. */
+  toolDefinitions: string;
   /** Models seen running this version, oldest first. */
   models: string[];
   createdAt: string;
@@ -78,7 +80,8 @@ export async function getAgentVersions(
       id: agentVersions.id,
       versionHash: agentVersions.versionHash,
       versionNumber: agentVersions.versionNumber,
-      text: agentVersions.text,
+      systemPrompt: agentVersions.systemPrompt,
+      toolDefinitions: agentVersions.toolDefinitions,
       createdAt: agentVersions.createdAt,
     })
     .from(agentVersions)

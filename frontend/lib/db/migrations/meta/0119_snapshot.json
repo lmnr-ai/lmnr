@@ -242,8 +242,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "text": {
-          "name": "text",
+        "system_prompt": {
+          "name": "system_prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "tool_definitions": {
+          "name": "tool_definitions",
           "type": "text",
           "primaryKey": false,
           "notNull": true,

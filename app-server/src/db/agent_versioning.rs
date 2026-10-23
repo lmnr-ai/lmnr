@@ -86,6 +86,14 @@ pub async fn get_versions(pool: &PgPool, agent_id: Uuid) -> Result<Vec<Version>>
     Ok(versions)
 }
 
+/// A version's system prompt and tool text (`tool_text::render`), each cut down
+/// to its core lines.
+#[derive(Debug, Default)]
+pub struct VersionText {
+    pub system_prompt: String,
+    pub tool_definitions: String,
+}
+
 /// Insert the agent's next version, or return the existing one with this hash.
 pub async fn insert_version(
     pool: &PgPool,
@@ -93,12 +101,13 @@ pub async fn insert_version(
     agent_id: Uuid,
     version_hash: &str,
     core_lines: &[i64],
-    text: &str,
+    text: &VersionText,
 ) -> Result<Uuid> {
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO agent_versions
-            (project_id, agent_id, version_number, version_hash, core_lines, text)
-         SELECT $1, $2, COALESCE(MAX(version_number), 0) + 1, $3, $4, $5
+            (project_id, agent_id, version_number, version_hash, core_lines,
+             system_prompt, tool_definitions)
+         SELECT $1, $2, COALESCE(MAX(version_number), 0) + 1, $3, $4, $5, $6
          FROM agent_versions WHERE agent_id = $2
          ON CONFLICT (project_id, version_hash) DO UPDATE SET version_hash = EXCLUDED.version_hash
          RETURNING id",
@@ -107,7 +116,8 @@ pub async fn insert_version(
     .bind(agent_id)
     .bind(version_hash)
     .bind(core_lines)
-    .bind(sanitize_string(text))
+    .bind(sanitize_string(&text.system_prompt))
+    .bind(sanitize_string(&text.tool_definitions))
     .fetch_one(pool)
     .await?;
     Ok(id)

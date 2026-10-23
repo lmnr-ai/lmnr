@@ -20,7 +20,8 @@ CREATE TABLE "agent_versions" (
 	"version_hash" text NOT NULL,
 	"version_number" integer NOT NULL,
 	"core_lines" bigint[] NOT NULL,
-	"text" text DEFAULT '' NOT NULL,
+	"system_prompt" text DEFAULT '' NOT NULL,
+	"tool_definitions" text DEFAULT '' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "agent_versions_project_id_version_hash_key" UNIQUE("project_id","version_hash"),
 	CONSTRAINT "agent_versions_agent_id_version_number_key" UNIQUE("agent_id","version_number")

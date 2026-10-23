@@ -2,7 +2,7 @@
 //! tool set's lines, each hashed after masking dates and times so a clock
 //! ticking inside the prompt is not a change.
 
-use std::sync::LazyLock;
+use std::{collections::HashSet, sync::LazyLock};
 
 use regex::Regex;
 
@@ -42,6 +42,19 @@ pub fn doc_lines<'a>(system_prompt: &'a str, tool_text: &'a str) -> impl Iterato
     hashable_lines(system_prompt).chain(hashable_lines(tool_text))
 }
 
+/// One part of the document cut down to its lines in `core` (sorted), in order,
+/// each line once.
+pub fn core_text(text: &str, core: &[u64]) -> String {
+    let mut seen = HashSet::new();
+    hashable_lines(text)
+        .filter(|line| {
+            let hash = line_hash(line);
+            core.binary_search(&hash).is_ok() && seen.insert(hash)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The document's line hashes as a sorted set.
 pub fn line_set(system_prompt: &str, tool_text: &str) -> Vec<u64> {
     let mut lines: Vec<u64> = doc_lines(system_prompt, tool_text).map(line_hash).collect();
@@ -63,6 +76,20 @@ pub fn version_hash(agent_hash: &str, core: &[u64]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn core_text_keeps_core_lines_in_order_once() {
+        let text = "Be brief.\n\nToday is 2026-10-23.\nUser: Ada\nBe brief.\nEnd.";
+        let mut core: Vec<u64> = ["End.", "Today is 2030-01-01.", "Be brief."]
+            .iter()
+            .map(|line| line_hash(line))
+            .collect();
+        core.sort_unstable();
+        assert_eq!(
+            core_text(text, &core),
+            "Be brief.\nToday is 2026-10-23.\nEnd."
+        );
+    }
 
     #[test]
     fn masks_dates_and_times_only() {

@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use super::{
     naming::{generate_agent_name, span_system_prompt, system_message},
-    normalize::{doc_lines, line_hash, version_hash},
+    normalize::{core_text, version_hash},
     timeline::{self, Input, Params, Sample, Timeline},
 };
 use crate::{
@@ -30,8 +30,8 @@ use crate::{
     db::{
         DB,
         agent_versioning::{
-            get_versions, insert_models, insert_version, save_progress, set_agent_name,
-            upsert_agent,
+            VersionText, get_versions, insert_models, insert_version, save_progress,
+            set_agent_name, upsert_agent,
         },
     },
     env::agent_versioning::{
@@ -245,13 +245,13 @@ impl Job {
     }
 
     /// The example's system prompt, and the version's text: the example's
-    /// lines that are in the core, in document order.
+    /// system prompt and tool lines that are in the core, in document order.
     async fn version_text(
         &self,
         project_id: Uuid,
         example: &TracePrompt,
         core: &[u64],
-    ) -> Result<(Option<String>, String)> {
+    ) -> Result<(Option<String>, VersionText)> {
         let doc = fetch_agent_doc(
             &self.clickhouse,
             project_id,
@@ -266,14 +266,10 @@ impl Job {
         let tool_text = serde_json::from_str::<Vec<Value>>(&tools)
             .map(|tools| tool_text::render(&tools))
             .unwrap_or_default();
-        let mut seen = HashSet::new();
-        let text = doc_lines(&system_prompt, &tool_text)
-            .filter(|line| {
-                let hash = line_hash(line);
-                core.binary_search(&hash).is_ok() && seen.insert(hash)
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+        let text = VersionText {
+            system_prompt: core_text(&system_prompt, core),
+            tool_definitions: core_text(&tool_text, core),
+        };
         Ok((Some(system_prompt), text))
     }
 

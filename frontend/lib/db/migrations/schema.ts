@@ -355,7 +355,8 @@ export const agentVersions = pgTable(
     versionHash: text("version_hash").notNull(),
     versionNumber: integer("version_number").notNull(),
     coreLines: bigint("core_lines", { mode: "number" }).array().notNull(),
-    text: text().default("").notNull(),
+    systemPrompt: text("system_prompt").default("").notNull(),
+    toolDefinitions: text("tool_definitions").default("").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
