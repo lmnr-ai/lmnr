@@ -2,6 +2,7 @@
 
 import { isEmpty, times } from "lodash";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import {
   Sidebar,
@@ -25,6 +26,15 @@ interface AgentsSidebarProps {
 }
 
 export default function AgentsSidebar({ projectId, agents, isLoading, selectedId }: AgentsSidebarProps) {
+  const searchParams = useSearchParams();
+
+  // Keeps the chart's range params across agents.
+  const agentHref = (agentId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("agentId", agentId);
+    return `/project/${projectId}/agent-versions?${params.toString()}`;
+  };
+
   return (
     <Sidebar collapsible="none" className="w-72">
       <SidebarContent className="bg-background pl-2">
@@ -43,7 +53,7 @@ export default function AgentsSidebar({ projectId, agents, isLoading, selectedId
               {agents.map((agent) => (
                 <SidebarMenuItem className="h-[30px]" key={agent.id}>
                   <SidebarMenuButton asChild className="h-[30px] pr-3" isActive={agent.id === selectedId}>
-                    <Link href={`/project/${projectId}/agent-versions?agentId=${agent.id}`}>
+                    <Link href={agentHref(agent.id)}>
                       <span className="truncate">{agentDisplayName(agent.name)}</span>
                       <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
                         {agent.versionCount}
