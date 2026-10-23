@@ -837,6 +837,29 @@ export const reports = pgTable(
   ]
 );
 
+export const reportProjects = pgTable(
+  "report_projects",
+  {
+    reportId: uuid("report_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    enabled: boolean().default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.reportId],
+      foreignColumns: [reports.id],
+      name: "report_projects_report_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "report_projects_project_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.reportId, table.projectId], name: "report_projects_pkey" }),
+  ]
+);
+
 export const reportTargets = pgTable(
   "report_targets",
   {

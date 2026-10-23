@@ -32,6 +32,7 @@ export interface ReportWithDetails {
   createdAt: string;
   schedule: ReportSchedule;
   targets: ReportTargetRow[];
+  excludedProjectIds: string[];
 }
 
 export function getReportLabel(schedule: ReportSchedule): string {
