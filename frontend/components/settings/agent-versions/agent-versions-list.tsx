@@ -37,7 +37,7 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
       <div className="flex items-start justify-between gap-4">
         <SettingsSectionHeader
           title={data ? agentDisplayName(data.agent.name) : "Agent versions"}
-          description="A version is the part of the system prompt and tools that every call shares. A new version starts when that part changes and stays changed; dates and per-call details are ignored. Models are tracked per version."
+          description="A new version is created when your agent's system prompt or tools change. Dates and other per-call details are ignored. Models are tracked per version."
         />
         {data && (
           <RenameAgentDialog
@@ -56,7 +56,7 @@ export default function AgentVersionsList({ projectId, agentId, onBack }: AgentV
         </div>
       ) : isEmpty(versions) ? (
         <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
-          No versions found for this agent.
+          No versions yet. The first version appears after about 30 traces with the same system prompt and tools.
         </div>
       ) : (
         <div className="flex flex-col gap-2">
