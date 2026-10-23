@@ -40,6 +40,8 @@
 
 - **The binary must be launched with `app-server/` as the cwd.** `NameGenerator::new()` reads `data/adjectives.txt` / `data/nouns.txt` relative to the process cwd and `unwrap()`s, so running `./app-server/target/debug/app-server` from the repo root panics the `http` thread (`NotFound`) while the rest of the process keeps running — same symptom as the `PORT` quirk above: gRPC and 8002 come up, 8000 never binds, and the only trace is one `panicked at src/names/mod.rs` line in the log.
 
+- **ClickHouse ≥ 26 breaks every app-server read: "decompression error: incorrect magic number".** Its default `network_compression_method` is ZSTD, while `clickhouse` 0.15 (the Rust client) asks for compressed responses and only decodes LZ4. Inserts still succeed, so it looks like data is written and never readable. Fix it on the server side with `ALTER USER <user> SETTINGS network_compression_method='lz4'` (or the same key in the user's settings profile). Check this before any ClickHouse upgrade in Cloud.
+
 ## Local `/v1/cli/*` testing in the sandbox
 
 - **CLI-auth JWKS defaults to `https://laminar.sh`**, so every `/v1/cli/*` request 401s locally with an otherwise-valid token. Launch app-server with `NEXT_PUBLIC_URL=http://localhost:3000 NEXT_INTERNAL_URL=http://localhost:3000` (the JWKS URL is derived as `{base}/api/auth/jwks`). Mint a token with `POST /api/auth/sign-in/local-email` (`{"email":"agent@lmnr.ai"}`, `FORCE_EMAIL_AUTH=true` is set) then `GET /api/auth/token` with the session token as bearer.

@@ -332,6 +332,9 @@ export const agents = pgTable(
     agentHash: text("agent_hash").notNull(),
     name: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    labeledUntil: bigint("labeled_until", { mode: "number" }),
+    watermark: bigint({ mode: "number" }),
+    currentVersionId: uuid("current_version_id"),
   },
   (table) => [
     foreignKey({
@@ -351,8 +354,9 @@ export const agentVersions = pgTable(
     agentId: uuid("agent_id").notNull(),
     versionHash: text("version_hash").notNull(),
     versionNumber: integer("version_number").notNull(),
-    systemPromptVersionHash: text("system_prompt_version_hash").notNull(),
-    toolDefinitionsHash: text("tool_definitions_hash").notNull(),
+    coreLines: bigint("core_lines", { mode: "number" }).array().notNull(),
+    systemPrompt: text("system_prompt").default("").notNull(),
+    toolDefinitions: text("tool_definitions").default("").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [

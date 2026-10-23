@@ -5,6 +5,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    agent_versioning::ingest::AgentPrompt,
     db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, stream::StreamPublisher},
@@ -47,6 +48,9 @@ pub struct RabbitMqSpanMessage {
     /// Single hash per span, stored in the same group-scoped table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_dedup: Option<ToolDedup>,
+    /// The span's agent prompt as line hashes, for agent versioning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_prompt: Option<AgentPrompt>,
 }
 
 // /v1/traces

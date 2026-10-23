@@ -7,7 +7,6 @@
 //! tags its trace with `(agent_hash, version_hash, model)` in
 //! `traces_agg.agent_versions`.
 
-mod naming;
 mod recorder;
 mod version;
 

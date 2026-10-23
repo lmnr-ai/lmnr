@@ -46,8 +46,8 @@ function Field({ label, action, children }: { label: string; action?: React.Reac
 export default function VersionCard({ version, previous, isLatest }: VersionCardProps) {
   const [open, setOpen] = useState(isLatest);
 
-  const promptChanged = previous ? version.systemPromptVersionHash !== previous.systemPromptVersionHash : false;
-  const toolsChanged = previous ? version.toolDefinitionsHash !== previous.toolDefinitionsHash : false;
+  const promptChanged = previous ? version.systemPrompt !== previous.systemPrompt : false;
+  const toolsChanged = previous ? version.toolDefinitions !== previous.toolDefinitions : false;
   const changes = [promptChanged && "System prompt", toolsChanged && "Tools"].filter(Boolean) as string[];
 
   return (

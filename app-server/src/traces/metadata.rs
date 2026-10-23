@@ -78,6 +78,7 @@ fn publish_metadata_only_span(
             input_dedup: None,
             output_dedup: None,
             tool_dedup: None,
+            agent_prompt: None,
         }];
 
         publish_span_messages(
