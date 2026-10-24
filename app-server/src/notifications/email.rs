@@ -712,15 +712,8 @@ fn render_usage_hard_limit_email(
 /// Render an HTML email for a signals report notification.
 fn render_report_email(data: &ReportData) -> String {
     let base = frontend_url_email();
-    let mut signals: Vec<_> = data
-        .projects
-        .iter()
-        .flat_map(|project| project.signals.iter().map(move |signal| (project, signal)))
-        .collect();
-    signals.sort_by(|(_, a), (_, b)| b.current_count.cmp(&a.current_count));
-
     let mut cards = String::new();
-    for (project, signal) in signals {
+    for (project, signal) in data.signals_by_volume() {
         cards.push_str(&render_signal_card(project, signal, &base));
     }
     let cards = if cards.is_empty() {
@@ -769,21 +762,7 @@ fn render_signal_card(
         "signals_report",
         "view_signal",
     );
-    let mut clusters: Vec<_> = signal
-        .clusters
-        .iter()
-        .filter(|row| row.count + row.previous_count >= 5)
-        .collect();
-    clusters.sort_by(
-        |a, b| match (a.previous_count == 0, b.previous_count == 0) {
-            (true, false) => std::cmp::Ordering::Greater,
-            (false, true) => std::cmp::Ordering::Less,
-            _ => cluster_score(b)
-                .partial_cmp(&cluster_score(a))
-                .unwrap_or(std::cmp::Ordering::Equal),
-        },
-    );
-    clusters.truncate(5);
+    let clusters = signal.notable_clusters();
     let max_count = clusters
         .iter()
         .map(|row| row.count)
@@ -798,14 +777,7 @@ fn render_signal_card(
             .map(|row| cluster_row(project.project_id, signal.signal_id, row, max_count, base))
             .collect()
     };
-    let summary = if signal.summary.is_empty() {
-        format!(
-            "{} events were detected during this period.",
-            signal.current_count
-        )
-    } else {
-        signal.summary.clone()
-    };
+    let summary = signal.summary_or_default();
     format!(
         r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
@@ -819,12 +791,6 @@ fn render_signal_card(
         TEXT,
         clusters_html
     )
-}
-
-fn cluster_score(row: &&crate::reports::ReportClusterData) -> f64 {
-    ((row.count as f64 - row.previous_count as f64)
-        / ((row.count + row.previous_count) as f64).sqrt())
-    .abs()
 }
 
 fn delta(current: u64, previous: u64) -> String {
