@@ -34,6 +34,8 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   onZoom?: (startDate: string, endDate: string) => void;
   formatValue?: (value: number) => string;
   showTotal?: boolean;
+  /** Approximate number of Y-axis ticks; lower it for short charts so labels do not collide. */
+  yTickCount?: number;
   showTooltip?: boolean;
   /** Milliseconds the pointer must dwell on the plot before the tooltip appears.
    *  0 (the default) is recharts' own behaviour — it opens on the first move. */
