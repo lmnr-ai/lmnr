@@ -1,13 +1,18 @@
 use backon::Retryable;
-use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
+use deadpool::managed::{Manager, Object, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
-    Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
-    options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
+    Acker, BasicProperties, Channel, Confirmation, Connection, ConnectionStatus, Consumer,
+    options::{
+        BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, ConfirmSelectOptions,
+        QueueBindOptions,
+    },
     types::{AMQPValue, FieldTable, ShortString},
 };
+use std::future::Future;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
@@ -31,6 +36,11 @@ enum PublishError {
 /// can leave channel ops stalled for tens of seconds before the alarm clears.
 static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
+
+const PUBLISHER_CHANNEL_SETUP_TIMEOUT: Duration = Duration::from_secs(10);
+const PUBLISH_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(10);
+const RETIRED_CHANNEL_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+const RETIRED_CHANNEL_POLL_INTERVAL: Duration = Duration::from_millis(200);
 
 /// Carries the delayed-retry count across a retry-queue round trip. RabbitMQ
 /// preserves headers through dead-lettering, so the value survives the hop back
@@ -74,8 +84,196 @@ fn retry_attempt_of(properties: &BasicProperties) -> u32 {
         .unwrap_or(0)
 }
 
+fn publish_options() -> BasicPublishOptions {
+    BasicPublishOptions {
+        mandatory: true,
+        ..Default::default()
+    }
+}
+
+fn confirmation_result(confirmation: Confirmation) -> Result<(), PublishError> {
+    match confirmation {
+        Confirmation::Ack(None) => Ok(()),
+        Confirmation::Ack(Some(returned)) | Confirmation::Nack(Some(returned)) => {
+            Err(PublishError::Permanent(anyhow::anyhow!(
+                "RabbitMQ returned unroutable message: {} ({})",
+                returned.reply_text,
+                returned.reply_code
+            )))
+        }
+        Confirmation::Nack(None) => Err(PublishError::Transient(anyhow::anyhow!(
+            "RabbitMQ negatively acknowledged published message"
+        ))),
+        Confirmation::NotRequested => Err(PublishError::Permanent(anyhow::anyhow!(
+            "RabbitMQ publisher confirms were not enabled"
+        ))),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum RetiredChannelAction {
+    Wait,
+    Close,
+    Stop,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RetiredConnectionPhase {
+    Connected,
+    Recovering,
+    Terminal,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RetiredChannelPhase {
+    Connected,
+    Recovering,
+    Closing,
+    Terminal,
+}
+
+fn terminal_connection_state(closing: bool, closed: bool, errored: bool) -> bool {
+    closing || closed || errored
+}
+
+fn retired_channel_action_for(
+    connection: RetiredConnectionPhase,
+    channel: RetiredChannelPhase,
+) -> RetiredChannelAction {
+    match (connection, channel) {
+        (RetiredConnectionPhase::Terminal, _)
+        | (RetiredConnectionPhase::Connected, RetiredChannelPhase::Terminal) => {
+            RetiredChannelAction::Stop
+        }
+        (RetiredConnectionPhase::Connected, RetiredChannelPhase::Connected) => {
+            RetiredChannelAction::Close
+        }
+        _ => RetiredChannelAction::Wait,
+    }
+}
+
+fn retired_channel_action(
+    connection: &ConnectionStatus,
+    channel: &Channel,
+) -> RetiredChannelAction {
+    let connection = if terminal_connection_state(
+        connection.closing(),
+        connection.closed(),
+        connection.errored(),
+    ) {
+        RetiredConnectionPhase::Terminal
+    } else if connection.connected() {
+        RetiredConnectionPhase::Connected
+    } else {
+        RetiredConnectionPhase::Recovering
+    };
+    let channel = if channel.status().connected() {
+        RetiredChannelPhase::Connected
+    } else if channel.status().initializing() {
+        RetiredChannelPhase::Recovering
+    } else if channel.status().closing() {
+        RetiredChannelPhase::Closing
+    } else {
+        // Lapin removes channels closed by a protocol error. Closed/Error
+        // cannot be reopened on a connected connection.
+        RetiredChannelPhase::Terminal
+    };
+
+    retired_channel_action_for(connection, channel)
+}
+
+async fn close_retired_channel(channel: Channel, connection: ConnectionStatus) {
+    loop {
+        match retired_channel_action(&connection, &channel) {
+            RetiredChannelAction::Stop => return,
+            RetiredChannelAction::Wait => {}
+            RetiredChannelAction::Close => {
+                match tokio::time::timeout(
+                    RETIRED_CHANNEL_CLOSE_TIMEOUT,
+                    channel.close(200, "OK".into()),
+                )
+                .await
+                {
+                    Ok(Ok(())) => return,
+                    Ok(Err(e)) => log::warn!("Failed to close retired publisher channel: {e}"),
+                    Err(_) => log::warn!("Timed out closing retired publisher channel"),
+                }
+
+                // Keep ownership after a close error or deadline, including
+                // when Lapin still reports Connected. Only a terminal state
+                // or a completed Close-Ok can release its capacity.
+                if retired_channel_action(&connection, &channel) == RetiredChannelAction::Stop {
+                    return;
+                }
+            }
+        }
+        tokio::time::sleep(RETIRED_CHANNEL_POLL_INTERVAL).await;
+    }
+}
+
+async fn run_retired_cleanup<F: Future<Output = ()>>(cleanup: F, permit: OwnedSemaphorePermit) {
+    cleanup.await;
+    drop(permit);
+}
+
+fn retire_channel(channel: Channel, connection: ConnectionStatus, permit: OwnedSemaphorePermit) {
+    // Drop can run while a publish future is being cancelled. Detach first,
+    // then let the cleanup task hold the channel through any reconnect.
+    match tokio::runtime::Handle::try_current() {
+        Ok(runtime) => {
+            runtime.spawn(run_retired_cleanup(
+                close_retired_channel(channel, connection),
+                permit,
+            ));
+        }
+        Err(e) => {
+            log::warn!("Cannot retire RabbitMQ channel without a Tokio runtime: {e}");
+        }
+    }
+}
+
+/// A setup task may outlive its pool request after the setup deadline or caller
+/// cancellation. Its result owns this guard, so even a late channel is retired
+/// instead of being dropped while Lapin can still recover it.
+struct ChannelSetupGuard {
+    channel: Option<Channel>,
+    connection: ConnectionStatus,
+    permit: Option<OwnedSemaphorePermit>,
+}
+
+impl ChannelSetupGuard {
+    fn new(channel: Channel, connection: ConnectionStatus, permit: OwnedSemaphorePermit) -> Self {
+        Self {
+            channel: Some(channel),
+            connection,
+            permit: Some(permit),
+        }
+    }
+
+    fn channel(&self) -> &Channel {
+        self.channel.as_ref().expect("setup channel exists")
+    }
+
+    fn into_channel(mut self) -> Channel {
+        self.channel.take().expect("setup channel exists")
+    }
+}
+
+impl Drop for ChannelSetupGuard {
+    fn drop(&mut self) {
+        if let Some(channel) = self.channel.take() {
+            retire_channel(
+                channel,
+                self.connection.clone(),
+                self.permit.take().expect("setup permit exists"),
+            );
+        }
+    }
+}
+
 struct RabbitChannelManager {
     connection: Arc<Connection>,
+    setup_slots: Arc<Semaphore>,
 }
 
 impl Manager for RabbitChannelManager {
@@ -83,7 +281,29 @@ impl Manager for RabbitChannelManager {
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Channel, Self::Error> {
-        let create_channel = || async { self.connection.create_channel().await };
+        let create_channel = || async {
+            // Timed-out setup tasks keep their permits while Lapin is still
+            // resolving create_channel/confirm_select. Retries cannot create
+            // an unbounded number of detached tasks on a stalled connection.
+            let permit = Arc::clone(&self.setup_slots)
+                .try_acquire_owned()
+                .map_err(|_| anyhow::anyhow!("RabbitMQ publisher channel setup slots exhausted"))?;
+            let connection = Arc::clone(&self.connection);
+            let setup = tokio::spawn(async move {
+                let channel = connection.create_channel().await?;
+                let guard = ChannelSetupGuard::new(channel, connection.status().clone(), permit);
+                guard
+                    .channel()
+                    .confirm_select(ConfirmSelectOptions::default())
+                    .await?;
+                anyhow::Ok(guard)
+            });
+            let result = tokio::time::timeout(PUBLISHER_CHANNEL_SETUP_TIMEOUT, setup)
+                .await
+                .map_err(|_| anyhow::anyhow!("Timed out setting up RabbitMQ publisher channel"))?;
+            let guard = result??;
+            anyhow::Ok(guard.into_channel())
+        };
         let backoff = retry::bounded_delay(
             Duration::from_millis(100),
             Duration::from_secs(5),
@@ -125,10 +345,58 @@ impl Manager for RabbitChannelManager {
     }
 }
 
+/// A publish is unsafe to recycle until a broker confirmation has resolved.
+/// Dropping the caller's future also drops this guard, detaching the channel
+/// from deadpool before its pending confirm can be confused with another use.
+struct PublishChannelGuard {
+    channel: Option<Object<RabbitChannelManager>>,
+    connection: ConnectionStatus,
+    permit: Option<OwnedSemaphorePermit>,
+    confirmed: bool,
+}
+
+impl PublishChannelGuard {
+    fn new(
+        channel: Object<RabbitChannelManager>,
+        connection: ConnectionStatus,
+        permit: OwnedSemaphorePermit,
+    ) -> Self {
+        Self {
+            channel: Some(channel),
+            connection,
+            permit: Some(permit),
+            confirmed: false,
+        }
+    }
+
+    fn channel(&self) -> &Channel {
+        self.channel.as_ref().expect("publisher channel exists")
+    }
+
+    fn mark_confirmed(&mut self) {
+        self.confirmed = true;
+    }
+}
+
+impl Drop for PublishChannelGuard {
+    fn drop(&mut self) {
+        if !self.confirmed {
+            if let Some(channel) = self.channel.take() {
+                retire_channel(
+                    Object::take(channel),
+                    self.connection.clone(),
+                    self.permit.take().expect("publish permit exists"),
+                );
+            }
+        }
+    }
+}
+
 pub struct RabbitMQ {
     publisher_connection: Arc<Connection>,
     consumer_connection: Option<Arc<Connection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
+    publish_slots: Arc<Semaphore>,
 }
 
 pub struct RabbitMQReceiver {
@@ -195,6 +463,7 @@ impl RabbitMQ {
     ) -> Self {
         let manager = RabbitChannelManager {
             connection: Arc::clone(&publisher_connection),
+            setup_slots: Arc::new(Semaphore::new(max_channel_pool_size)),
         };
 
         let pool = Pool::builder(manager)
@@ -206,6 +475,7 @@ impl RabbitMQ {
             publisher_connection,
             consumer_connection,
             publisher_channel_pool: pool,
+            publish_slots: Arc::new(Semaphore::new(max_channel_pool_size)),
         }
     }
 
@@ -219,6 +489,20 @@ impl RabbitMQ {
         properties: BasicProperties,
     ) -> anyhow::Result<()> {
         let publish_with_retry = || async {
+            // A detached channel keeps its permit until cleanup completes.
+            // Waiting is bounded so a persistent broker outage still reaches
+            // the existing retry deadline instead of hanging this attempt.
+            let permit = tokio::time::timeout(
+                PUBLISH_ATTEMPT_TIMEOUT,
+                Arc::clone(&self.publish_slots).acquire_owned(),
+            )
+            .await
+            .map_err(|_| {
+                PublishError::Transient(anyhow::anyhow!(
+                    "Timed out waiting for RabbitMQ publisher capacity"
+                ))
+            })?
+            .map_err(|e| PublishError::Permanent(anyhow::Error::from(e)))?;
             let channel = match self.publisher_channel_pool.get().await {
                 Ok(channel) => channel,
                 Err(PoolError::Backend(e)) => {
@@ -245,26 +529,44 @@ impl RabbitMQ {
                 )));
             }
 
-            match channel
-                .basic_publish(
-                    exchange.into(),
-                    routing_key.into(),
-                    BasicPublishOptions::default(),
-                    message,
-                    properties.clone(),
-                )
-                .await
-            {
-                Ok(promise) => match promise.await {
-                    Ok(_confirmation) => Ok(()),
-                    Err(e) => {
-                        log::warn!("Failed to publish message promise: {:?}", e);
-                        Err(PublishError::Transient(anyhow::Error::from(e)))
+            let mut channel = PublishChannelGuard::new(
+                channel,
+                self.publisher_connection.status().clone(),
+                permit,
+            );
+            let result = tokio::time::timeout(PUBLISH_ATTEMPT_TIMEOUT, async {
+                let promise = channel
+                    .channel()
+                    .basic_publish(
+                        exchange.into(),
+                        routing_key.into(),
+                        publish_options(),
+                        message,
+                        properties.clone(),
+                    )
+                    .await?;
+                promise.await
+            })
+            .await;
+
+            match result {
+                Ok(Ok(confirmation)) => {
+                    if !matches!(&confirmation, Confirmation::NotRequested) {
+                        channel.mark_confirmed();
                     }
-                },
-                Err(e) => {
-                    log::warn!("Failed to get call promise from basic_publish: {:?}", e);
+                    confirmation_result(confirmation)
+                }
+                Ok(Err(e)) => {
+                    log::warn!("Failed to publish message or await confirmation: {:?}", e);
                     Err(PublishError::Transient(anyhow::Error::from(e)))
+                }
+                Err(_) => {
+                    // A timed-out confirm may still arrive. Never lend this
+                    // channel to another publisher while its outcome is unknown.
+                    // The guard also retires it if the caller is cancelled.
+                    Err(PublishError::Transient(anyhow::anyhow!(
+                        "Timed out publishing RabbitMQ message"
+                    )))
                 }
             }
         };
@@ -462,6 +764,360 @@ fn connection_state(status: &ConnectionStatus) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lapin::{
+        ConnectionProperties,
+        message::{BasicReturnMessage, Delivery},
+        options::QueueDeclareOptions,
+    };
+
+    async fn live_broker() -> Option<(Arc<Connection>, Channel, String)> {
+        let url = std::env::var("RABBITMQ_TEST_URL").ok()?;
+        let connection = Arc::new(
+            Connection::connect(&url, ConnectionProperties::default())
+                .await
+                .expect("connect to RabbitMQ test broker"),
+        );
+        let channel = connection.create_channel().await.expect("create channel");
+        let queue_name = format!("lmnr-publish-confirm-{}", uuid::Uuid::new_v4());
+        channel
+            .queue_declare(
+                queue_name.clone().into(),
+                QueueDeclareOptions::exclusive(),
+                FieldTable::default(),
+            )
+            .await
+            .expect("declare test queue");
+        Some((connection, channel, queue_name))
+    }
+
+    #[test]
+    fn only_a_confirmed_routable_publish_succeeds() {
+        assert!(confirmation_result(Confirmation::Ack(None)).is_ok());
+        let returned = BasicReturnMessage {
+            delivery: Delivery::mock(0, "".into(), "missing".into(), false, Vec::new()),
+            reply_code: 312,
+            reply_text: "NO_ROUTE".into(),
+        };
+        assert!(matches!(
+            confirmation_result(Confirmation::Nack(Some(returned))),
+            Err(PublishError::Permanent(_))
+        ));
+        assert!(matches!(
+            confirmation_result(Confirmation::Nack(None)),
+            Err(PublishError::Transient(_))
+        ));
+        assert!(matches!(
+            confirmation_result(Confirmation::NotRequested),
+            Err(PublishError::Permanent(_))
+        ));
+    }
+
+    #[test]
+    fn publishes_require_a_route() {
+        assert!(publish_options().mandatory);
+        assert!(!publish_options().immediate);
+    }
+
+    #[test]
+    fn retired_connection_error_is_terminal_but_recovery_is_not() {
+        assert!(terminal_connection_state(false, false, true));
+        assert!(terminal_connection_state(true, false, false));
+        assert!(terminal_connection_state(false, true, false));
+        assert!(!terminal_connection_state(false, false, false));
+    }
+
+    #[test]
+    fn retired_channel_waits_through_close_timeout_and_recovery() {
+        use RetiredChannelPhase as Channel;
+        use RetiredConnectionPhase as Connection;
+
+        assert_eq!(
+            retired_channel_action_for(Connection::Connected, Channel::Closing),
+            RetiredChannelAction::Wait
+        );
+        assert_eq!(
+            retired_channel_action_for(Connection::Recovering, Channel::Closing),
+            RetiredChannelAction::Wait
+        );
+        assert_eq!(
+            retired_channel_action_for(Connection::Recovering, Channel::Recovering),
+            RetiredChannelAction::Wait
+        );
+        assert_eq!(
+            retired_channel_action_for(Connection::Connected, Channel::Connected),
+            RetiredChannelAction::Close
+        );
+        assert_eq!(
+            retired_channel_action_for(Connection::Connected, Channel::Terminal),
+            RetiredChannelAction::Stop
+        );
+        assert_eq!(
+            retired_channel_action_for(Connection::Terminal, Channel::Connected),
+            RetiredChannelAction::Stop
+        );
+    }
+
+    #[tokio::test]
+    async fn retired_cleanup_keeps_capacity_until_it_finishes() {
+        let slots = Arc::new(Semaphore::new(1));
+        let permit = Arc::clone(&slots)
+            .try_acquire_owned()
+            .expect("acquire only slot");
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        let cleanup = tokio::spawn(run_retired_cleanup(
+            async move {
+                released.await.expect("release cleanup");
+            },
+            permit,
+        ));
+
+        assert!(Arc::clone(&slots).try_acquire_owned().is_err());
+        release.send(()).expect("release cleanup");
+        cleanup.await.expect("cleanup completed");
+        assert!(Arc::clone(&slots).try_acquire_owned().is_ok());
+    }
+
+    #[tokio::test]
+    async fn live_retired_channel_closes_and_nonconnected_status_waits() {
+        let Some((connection, _topology_channel, _)) = live_broker().await else {
+            return;
+        };
+        let rabbit = RabbitMQ::new(Arc::clone(&connection), None, 1);
+        let pooled = rabbit
+            .publisher_channel_pool
+            .get()
+            .await
+            .expect("get confirmed publisher channel");
+        let channel = Object::take(pooled);
+        assert_eq!(rabbit.publisher_channel_pool.status().size, 0);
+        assert_eq!(
+            retired_channel_action(connection.status(), &channel),
+            RetiredChannelAction::Close
+        );
+        assert_eq!(
+            retired_channel_action(&ConnectionStatus::default(), &channel),
+            RetiredChannelAction::Wait
+        );
+
+        let observed = channel.clone();
+        tokio::time::timeout(
+            RETIRED_CHANNEL_CLOSE_TIMEOUT,
+            close_retired_channel(channel, connection.status().clone()),
+        )
+        .await
+        .expect("retired channel cleanup must complete");
+        assert!(!observed.status().connected());
+        assert_eq!(
+            retired_channel_action(connection.status(), &observed),
+            RetiredChannelAction::Stop
+        );
+        assert!(
+            rabbit
+                .publisher_channel_pool
+                .get()
+                .await
+                .expect("create replacement publisher channel")
+                .status()
+                .connected()
+        );
+    }
+
+    #[tokio::test]
+    async fn live_cancelled_close_keeps_channel_until_close_completes() {
+        let Some((connection, channel, _)) = live_broker().await else {
+            return;
+        };
+
+        // Poll once to send Channel.Close and enter Closing. Dropping the
+        // pending future models the cleanup deadline firing before Close-Ok.
+        let mut close = Box::pin(channel.close(200, "OK".into()));
+        assert!(matches!(
+            futures_util::poll!(close.as_mut()),
+            std::task::Poll::Pending
+        ));
+        assert!(channel.status().closing());
+        assert!(!channel.status().reconnecting());
+        drop(close);
+
+        assert_eq!(
+            retired_channel_action(connection.status(), &channel),
+            RetiredChannelAction::Wait
+        );
+        assert_eq!(
+            retired_channel_action(&ConnectionStatus::default(), &channel),
+            RetiredChannelAction::Wait
+        );
+
+        tokio::time::timeout(RETIRED_CHANNEL_CLOSE_TIMEOUT, async {
+            while retired_channel_action(connection.status(), &channel)
+                != RetiredChannelAction::Stop
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("broker should finish the pending channel close");
+        assert!(connection.status().connected());
+        assert!(!channel.status().connected());
+    }
+
+    #[tokio::test]
+    async fn live_cancelled_publish_attempt_cannot_reuse_its_channel() {
+        let Some((connection, _topology_channel, _)) = live_broker().await else {
+            return;
+        };
+        let rabbit = RabbitMQ::new(Arc::clone(&connection), None, 1);
+        let pooled = rabbit
+            .publisher_channel_pool
+            .get()
+            .await
+            .expect("get confirmed publisher channel");
+        let observed = (*pooled).clone();
+        let guard = PublishChannelGuard::new(
+            pooled,
+            connection.status().clone(),
+            Arc::clone(&rabbit.publish_slots)
+                .try_acquire_owned()
+                .expect("publisher slot"),
+        );
+        let (started, polled) = tokio::sync::oneshot::channel();
+
+        // Model cancellation while an attempt awaits a broker confirmation.
+        // The guard must be dropped by the task, not by a successful result.
+        let pending = tokio::spawn(async move {
+            let _guard = guard;
+            started.send(()).expect("signal pending attempt");
+            std::future::pending::<()>().await;
+        });
+        polled.await.expect("attempt has started");
+        pending.abort();
+        assert!(
+            pending
+                .await
+                .expect_err("attempt must be cancelled")
+                .is_cancelled()
+        );
+
+        assert_eq!(rabbit.publisher_channel_pool.status().size, 0);
+        let replacement = rabbit
+            .publisher_channel_pool
+            .get()
+            .await
+            .expect("get replacement publisher channel");
+        assert!(replacement.status().connected());
+        tokio::time::timeout(RETIRED_CHANNEL_CLOSE_TIMEOUT, async {
+            while observed.status().connected() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("cancelled channel must be closed");
+        tokio::time::timeout(RETIRED_CHANNEL_CLOSE_TIMEOUT, async {
+            while rabbit.publish_slots.available_permits() == 0 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("cleanup must release publisher slot");
+    }
+
+    #[tokio::test]
+    async fn live_abandoned_setup_channel_is_retired() {
+        let Some((connection, channel, _)) = live_broker().await else {
+            return;
+        };
+        let observed = channel.clone();
+        let setup_slots = Arc::new(Semaphore::new(1));
+        drop(ChannelSetupGuard::new(
+            channel,
+            connection.status().clone(),
+            Arc::clone(&setup_slots)
+                .try_acquire_owned()
+                .expect("setup slot"),
+        ));
+
+        tokio::time::timeout(RETIRED_CHANNEL_CLOSE_TIMEOUT, async {
+            while observed.status().connected() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("abandoned setup channel must be closed");
+        tokio::time::timeout(RETIRED_CHANNEL_CLOSE_TIMEOUT, async {
+            while setup_slots.available_permits() == 0 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("cleanup must release setup slot");
+    }
+
+    #[tokio::test]
+    async fn live_confirmed_publish_and_unroutable_return() {
+        let Some((connection, channel, queue_name)) = live_broker().await else {
+            return;
+        };
+        let rabbit = RabbitMQ::new(connection, None, 2);
+
+        rabbit
+            .publish(b"routable", "", &queue_name, None)
+            .await
+            .expect("routable message must be confirmed");
+        assert_eq!(rabbit.publisher_channel_pool.status().size, 1);
+        let delivery = channel
+            .basic_get(queue_name.clone().into(), Default::default())
+            .await
+            .expect("get published message")
+            .expect("confirmed message must reach queue");
+        assert_eq!(delivery.data, b"routable");
+
+        let absent_queue = format!("{queue_name}-absent");
+        let error = rabbit
+            .publish(b"unroutable", "", &absent_queue, None)
+            .await
+            .expect_err("mandatory returned publish must fail");
+        assert!(error.to_string().contains("unroutable"), "{error}");
+        assert_eq!(rabbit.publisher_channel_pool.status().size, 1);
+    }
+
+    #[tokio::test]
+    async fn live_concurrent_publishes_all_reach_the_queue() {
+        let Some((connection, channel, queue_name)) = live_broker().await else {
+            return;
+        };
+        let rabbit = Arc::new(RabbitMQ::new(connection, None, 16));
+        let payload = vec![42; 64 * 1024];
+        let mut tasks = Vec::new();
+        for _ in 0..16 {
+            let rabbit = Arc::clone(&rabbit);
+            let queue_name = queue_name.clone();
+            let payload = payload.clone();
+            tasks.push(tokio::spawn(async move {
+                for _ in 0..16 {
+                    rabbit.publish(&payload, "", &queue_name, None).await?;
+                }
+                anyhow::Ok(())
+            }));
+        }
+        for task in tasks {
+            task.await
+                .expect("publisher task panicked")
+                .expect("publish");
+        }
+
+        let queue = channel
+            .queue_declare(
+                queue_name.into(),
+                QueueDeclareOptions {
+                    passive: true,
+                    ..Default::default()
+                },
+                FieldTable::default(),
+            )
+            .await
+            .expect("inspect queue");
+        assert_eq!(queue.message_count(), 256);
+    }
 
     #[test]
     fn retry_attempt_round_trips_through_message_properties() {
