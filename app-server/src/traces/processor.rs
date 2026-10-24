@@ -541,7 +541,6 @@ async fn enrich_spans_with_usage(
                 &mut m.span.attributes,
                 db.clone(),
                 cache.clone(),
-                &m.span.name,
                 &m.span.project_id,
             )
             .await

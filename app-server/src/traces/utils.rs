@@ -43,7 +43,6 @@ pub async fn get_llm_usage_for_span(
     attributes: &mut SpanAttributes,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    span_name: &str,
     project_id: &Uuid,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
@@ -61,7 +60,7 @@ pub async fn get_llm_usage_for_span(
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
     let mut model_name = response_model.clone().or(request_model.clone());
-    let mut provider_name = attributes.provider_name(span_name);
+    let mut provider_name = attributes.provider_name();
 
     // Store the original model and provider names for project custom model pricing lookup
     let (orig_model_name, orig_provider_name) = (model_name.clone(), provider_name.clone());
