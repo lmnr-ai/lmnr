@@ -33,21 +33,41 @@ export const sendUserOnboardedEvent = ({
   hasTraces: boolean;
 }) => sendEvent(USER_ONBOARDED_EVENT, email, { project_id: projectId, has_traces: hasTraces });
 
-// Events are per-contact, so this goes to every workspace owner: the welcomed user created the
-// workspace, but whoever opens the traces page first (and flips has_traces) may be a teammate.
+// Events are per-contact, so this goes to every workspace member: the welcomed user may be a
+// teammate of whoever opens the traces page first (and flips has_traces).
 export const sendProjectHasTracesEvent = async (projectId: string) => {
   if (!isFeatureEnabled(Feature.EMAIL_AUTOMATIONS)) return;
 
   try {
-    const owners = await db
+    const members = await db
       .select({ email: users.email })
       .from(projects)
       .innerJoin(membersOfWorkspaces, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
       .innerJoin(users, eq(users.id, membersOfWorkspaces.userId))
-      .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.memberRole, "owner")));
+      .where(eq(projects.id, projectId));
 
-    await Promise.all(owners.map(({ email }) => sendEvent(PROJECT_HAS_TRACES_EVENT, email, { project_id: projectId })));
+    await Promise.all(
+      members.map(({ email }) => sendEvent(PROJECT_HAS_TRACES_EVENT, email, { project_id: projectId }))
+    );
   } catch (e) {
     console.error(`Failed to send ${PROJECT_HAS_TRACES_EVENT} event for project ${projectId}:`, e);
+  }
+};
+
+// A user joining a workspace that already has traces counts as having traces; the flip-time
+// event above only reaches members present at that moment.
+export const sendWorkspaceJoinedHasTracesEvent = async (workspaceId: string, email: string) => {
+  if (!isFeatureEnabled(Feature.EMAIL_AUTOMATIONS)) return;
+
+  try {
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.workspaceId, workspaceId), eq(projects.hasTraces, true)))
+      .limit(1);
+
+    if (project) await sendEvent(PROJECT_HAS_TRACES_EVENT, email, { project_id: project.id });
+  } catch (e) {
+    console.error(`Failed to send ${PROJECT_HAS_TRACES_EVENT} event for workspace ${workspaceId}:`, e);
   }
 };
