@@ -1,6 +1,6 @@
-//! Shared `rich_text` builders for Slack `table` cells. Table cells accept only
-//! `rich_text` (no buttons/sections), so both the event-identification table and the
-//! signals-report table compose their cells from these run/cell helpers.
+//! `rich_text` builders for Slack `table` cells. Table cells accept only `rich_text`
+//! (no buttons/sections), so the event-identification table composes its cells from
+//! these run/cell helpers.
 
 use std::sync::LazyLock;
 
@@ -14,7 +14,7 @@ static MARKDOWN_LINK_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)\s]+)\)").unwrap());
 
 /// A `rich_text` `text` run, optionally bold and/or italic.
-pub(super) fn text_run(text: &str, bold: bool, italic: bool) -> Value {
+fn text_run(text: &str, bold: bool, italic: bool) -> Value {
     let mut run = json!({ "type": "text", "text": text });
     if bold || italic {
         let mut style = serde_json::Map::new();
@@ -30,13 +30,13 @@ pub(super) fn text_run(text: &str, bold: bool, italic: bool) -> Value {
 }
 
 /// A `rich_text` `link` run (clickable inside a table cell).
-pub(super) fn link_run(url: &str, text: &str) -> Value {
+fn link_run(url: &str, text: &str) -> Value {
     json!({ "type": "link", "url": url, "text": text })
 }
 
 /// Split a string into `rich_text` runs, converting markdown `[text](url)` links into
 /// `link` runs (kept clickable) and leaving the rest as `text` runs.
-pub(super) fn markdown_link_runs(text: &str) -> Vec<Value> {
+fn markdown_link_runs(text: &str) -> Vec<Value> {
     let mut runs = Vec::new();
     let mut last = 0usize;
     for caps in MARKDOWN_LINK_RE.captures_iter(text) {
@@ -57,7 +57,7 @@ pub(super) fn markdown_link_runs(text: &str) -> Vec<Value> {
 }
 
 /// Wrap `rich_text` runs into a single-section `rich_text` table cell.
-pub(super) fn cell(runs: Vec<Value>) -> Value {
+fn cell(runs: Vec<Value>) -> Value {
     json!({
         "type": "rich_text",
         "elements": [{ "type": "rich_text_section", "elements": runs }]

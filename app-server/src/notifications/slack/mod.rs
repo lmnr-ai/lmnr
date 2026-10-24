@@ -354,7 +354,9 @@ mod tests {
         assert!(out.ends_with("..."));
     }
 
-    use crate::reports::{NoteworthyEvent, ProjectReportData, ReportData};
+    use crate::reports::{
+        NoteworthyEvent, ProjectReportData, ReportClusterData, ReportData, SignalReportData,
+    };
     use std::collections::BTreeMap;
 
     fn blocks_of(v: &serde_json::Value) -> &Vec<serde_json::Value> {
@@ -567,9 +569,28 @@ mod tests {
         assert_eq!(actions, 2);
     }
 
-    fn report_with(noteworthy: Vec<NoteworthyEvent>) -> ReportData {
-        let mut counts = BTreeMap::new();
-        counts.insert("Failure Detector".to_string(), 93u64);
+    fn signal(name: &str, current: u64, clusters: Vec<ReportClusterData>) -> SignalReportData {
+        SignalReportData {
+            signal_id: Uuid::from_u128(7),
+            signal_name: name.to_string(),
+            current_count: current,
+            previous_count: 10,
+            summary: String::new(),
+            buckets: Vec::new(),
+            clusters,
+        }
+    }
+
+    fn cluster(name: &str, count: u64, previous_count: u64) -> ReportClusterData {
+        ReportClusterData {
+            id: Uuid::from_u128(9),
+            name: name.to_string(),
+            count,
+            previous_count,
+        }
+    }
+
+    fn report_with(projects: Vec<ProjectReportData>) -> ReportData {
         ReportData {
             workspace_id: Uuid::nil(),
             workspace_name: "WS".to_string(),
@@ -577,117 +598,148 @@ mod tests {
             period_start: "Jun 1".to_string(),
             period_end: "Jun 7".to_string(),
             total_events: 93,
-            projects: vec![ProjectReportData {
-                project_name: "background-agent".to_string(),
-                project_id: Uuid::nil(),
-                signal_event_counts: counts,
-                signals: Vec::new(),
-                ai_summary: "Summary text".to_string(),
-                noteworthy_events: noteworthy,
+            projects,
+        }
+    }
+
+    fn project(name: &str, signals: Vec<SignalReportData>) -> ProjectReportData {
+        ProjectReportData {
+            project_name: name.to_string(),
+            project_id: Uuid::nil(),
+            signal_event_counts: BTreeMap::new(),
+            signals,
+            ai_summary: "legacy summary".to_string(),
+            noteworthy_events: vec![NoteworthyEvent {
+                signal_name: "Failure Detector".to_string(),
+                summary: "noteworthy event".to_string(),
+                timestamp: "Jun 7".to_string(),
+                trace_id: Uuid::nil().to_string(),
+                severity: 2,
             }],
         }
     }
 
-    fn event(sev: u8) -> NoteworthyEvent {
-        NoteworthyEvent {
-            signal_name: "Failure Detector".to_string(),
-            summary: "Something broke".to_string(),
-            timestamp: "Jun 7".to_string(),
-            trace_id: Uuid::nil().to_string(),
-            severity: sev,
-        }
+    fn section_texts(blocks: &[serde_json::Value]) -> Vec<&str> {
+        blocks
+            .iter()
+            .filter(|b| b["type"] == "section")
+            .filter_map(|b| b["text"]["text"].as_str())
+            .collect()
     }
 
     #[test]
-    fn report_builds_noteworthy_table() {
-        let v = format_report_blocks("Weekly report – WS", &report_with(vec![event(2)]));
+    fn report_renders_signal_cards_with_clusters_like_the_email() {
+        let mut detector = signal(
+            "Failure Detector",
+            12,
+            vec![
+                cluster("Tool timeouts", 30, 0),
+                cluster("Bad <args> | retries", 8, 4),
+                cluster("tiny", 2, 2),
+            ],
+        );
+        detector.summary = "Timeouts dominated & rose sharply.".to_string();
+        let v = format_report_blocks(
+            "Weekly report – WS",
+            &report_with(vec![project(
+                "background-agent",
+                vec![detector, signal("Latency", 40, vec![])],
+            )]),
+        );
         let blocks = blocks_of(&v);
-        // title is an H1 markdown block
         assert_eq!(blocks[0]["type"], "markdown");
         assert!(blocks[0]["text"].as_str().unwrap().starts_with("# 📊"));
-        // project name is an H2 markdown block
-        assert!(blocks.iter().any(
-            |b| b["type"] == "markdown" && b["text"].as_str().unwrap() == "## background-agent"
-        ));
-        // noteworthy events render as a table: Signal / Summary header + one data row
-        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
-        let rows = table["rows"].as_array().unwrap();
-        assert_eq!(rows.len(), 2, "header row + 1 event");
-        assert_eq!(table["column_settings"][1]["is_wrapped"], true);
-        // signal cell: severity emoji (Critical 🔴) + bold signal name
-        let sig_runs = rows[1][0]["elements"][0]["elements"].as_array().unwrap();
-        assert!(sig_runs[0]["text"].as_str().unwrap().contains("🔴"));
-        assert_eq!(sig_runs[1]["text"], "Failure Detector");
-        assert_eq!(sig_runs[1]["style"]["bold"], true);
-        // summary cell ends with an italic timestamp + a "View trace" link
-        let sum_runs = rows[1][1]["elements"][0]["elements"].as_array().unwrap();
+
+        let sections = section_texts(blocks);
+        // busiest signal first: Latency (40) before Failure Detector (12)
+        let latency = sections.iter().position(|s| s.contains("Latency")).unwrap();
+        let detector = sections
+            .iter()
+            .position(|s| s.contains("Failure Detector"))
+            .unwrap();
+        assert!(latency < detector);
+
+        let overview = sections[detector];
+        assert!(overview.starts_with("background-agent / *<"));
+        assert!(overview.contains("/signals/"));
+        assert!(overview.contains("*12* events  ▲ 20.0% vs previous period"));
+        assert!(overview.contains("Timeouts dominated &amp; rose sharply."));
+
+        // notable clusters: recurring before new, below-threshold dropped, names escaped
+        let clusters = sections[detector + 1];
+        assert!(clusters.starts_with("*Notable clusters*"));
+        let bad = clusters.find("Bad &lt;args&gt; ¦ retries").unwrap();
+        let new = clusters.find("Tool timeouts").unwrap();
+        assert!(bad < new);
+        assert!(clusters.contains("8 events · ▲ 100.0%"));
+        assert!(clusters.contains("30 events · `NEW`"));
+        assert!(clusters.contains("?clusterId="));
+        assert!(!clusters.contains("tiny"));
+
+        assert!(sections[latency + 1].contains("No notable clusters"));
+        // fallback summary when the signal has none
+        assert!(sections[latency].contains("40 events were detected during this period."));
+
+        // noteworthy events and the legacy project summary are not rendered
+        let all = v.to_string();
+        assert!(!all.contains("oteworthy"));
+        assert!(!all.contains("legacy summary"));
+        assert!(blocks.iter().all(|b| b["type"] != "table"));
+
+        let footer = blocks.last().unwrap();
+        assert_eq!(footer["type"], "context");
         assert!(
-            sum_runs.iter().any(|r| r["type"] == "text"
-                && r["style"]["italic"] == true
-                && r["text"] == "Jun 7")
+            footer["elements"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("tab=reports")
         );
-        let link = sum_runs.iter().find(|r| r["type"] == "link").unwrap();
-        assert_eq!(link["text"], "View trace");
-        assert!(link["url"].as_str().unwrap().contains("/traces/"));
     }
 
     #[test]
-    fn report_table_caps_at_max_events_with_overflow_note() {
-        let events: Vec<NoteworthyEvent> = (0..12).map(|_| event(1)).collect();
-        let v = format_report_blocks("R", &report_with(events));
+    fn report_without_signals_says_no_activity() {
+        let v = format_report_blocks("R", &report_with(vec![project("p", vec![])]));
         let blocks = blocks_of(&v);
-        let table = blocks.iter().find(|b| b["type"] == "table").unwrap();
-        // header row + 10 events (MAX_EVENTS)
-        assert_eq!(table["rows"].as_array().unwrap().len(), 11);
-        // overflow surfaced as a "+N more" context with a signals link
-        assert!(blocks.iter().any(|b| {
-            b["type"] == "context"
-                && b["elements"][0]["text"]
-                    .as_str()
-                    .map(|t| t.contains("+2 more"))
-                    .unwrap_or(false)
-        }));
+        assert!(
+            section_texts(blocks)
+                .iter()
+                .any(|s| s.contains("No signal activity"))
+        );
     }
 
     #[test]
     fn report_stays_under_slack_block_limit_and_truncates() {
-        // Many projects (each ~6 blocks) would blow past Slack's 50-block cap;
-        // the formatter must truncate and stay <= 50.
-        let mut counts = BTreeMap::new();
-        counts.insert("Failure Detector".to_string(), 5u64);
+        // 20 projects x 2 signals x 3 blocks would blow past Slack's 50-block cap.
         let projects: Vec<ProjectReportData> = (0..20)
-            .map(|i| ProjectReportData {
-                project_name: format!("project-{}", i),
-                project_id: Uuid::nil(),
-                signal_event_counts: counts.clone(),
-                signals: Vec::new(),
-                ai_summary: "summary text".to_string(),
-                noteworthy_events: vec![event(2), event(1)],
+            .map(|i| {
+                project(
+                    &format!("project-{}", i),
+                    vec![
+                        signal("A", 5, vec![cluster("c", 5, 5)]),
+                        signal("B", 3, vec![]),
+                    ],
+                )
             })
             .collect();
-        let report = ReportData {
-            workspace_id: Uuid::nil(),
-            workspace_name: "WS".to_string(),
-            period_label: "Weekly".to_string(),
-            period_start: "Jun 1".to_string(),
-            period_end: "Jun 7".to_string(),
-            total_events: 100,
-            projects,
-        };
-        let v = format_report_blocks("Weekly report", &report);
+        let v = format_report_blocks("Weekly report", &report_with(projects));
         let blocks = blocks_of(&v);
         assert!(
             blocks.len() <= 50,
             "expected <= 50 blocks, got {}",
             blocks.len()
         );
-        // a "+N more projects" truncation notice is present
         assert!(blocks.iter().any(|b| {
             b["type"] == "context"
                 && b["elements"][0]["text"]
                     .as_str()
-                    .map(|t| t.contains("more project"))
+                    .map(|t| t.contains("more signals not shown"))
                     .unwrap_or(false)
         }));
+        assert!(
+            blocks.last().unwrap()["elements"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Manage reports")
+        );
     }
 }
