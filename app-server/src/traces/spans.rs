@@ -36,9 +36,10 @@ use super::{
         AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_AGENT_NAME,
         GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
         GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
-        GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
-        GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
-        GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        GEN_AI_PROMPT_TOKENS, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
+        GEN_AI_SYSTEM, GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS,
+        GEN_AI_TOOL_CALL_RESULT, GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST,
+        GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
         GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, GEN_AI_USAGE_INPUT_TOKENS_CACHED,
         GEN_AI_USAGE_OUTPUT_TOKENS_REASONING, GEN_AI_USAGE_REASONING_TOKENS,
@@ -448,6 +449,9 @@ impl SpanAttributes {
                 // handling the cases when provider is sent like "anthropic.messages"
                 provider.split('.').next().map(String::from)
             }
+        } else if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_PROVIDER_NAME)
+        {
+            Some(semconv_provider_to_cost_provider(provider).to_string())
         } else {
             None
         };
@@ -1248,6 +1252,22 @@ impl Span {
             return true;
         }
         false
+    }
+}
+
+/// Maps the OTel well-known `gen_ai.provider.name` values that differ from the provider
+/// prefixes in `model_costs` (e.g. `aws.bedrock` -> `bedrock`). Other values pass through.
+fn semconv_provider_to_cost_provider(provider: &str) -> &str {
+    match provider.to_lowercase().trim() {
+        "aws.bedrock" => "bedrock",
+        "gcp.vertex_ai" => "vertex_ai",
+        "gcp.gemini" => "gemini",
+        "azure.ai.openai" => "azure",
+        "azure.ai.inference" => "azure_ai",
+        "mistral_ai" => "mistral",
+        "x_ai" => "xai",
+        "ibm.watsonx.ai" => "watsonx",
+        _ => provider,
     }
 }
 
@@ -4870,5 +4890,41 @@ mod tests {
         unmarked.remove("trace.metadata.openrouter.provider_name");
         let span = Span::from_otel_span(otel_span("chat", unmarked), Uuid::new_v4());
         assert_eq!(span.span_type, SpanType::LLM);
+    }
+
+    #[test]
+    fn test_provider_name_falls_back_to_gen_ai_provider_name() {
+        let provider = |attrs: Vec<(&str, Value)>| {
+            SpanAttributes::new(attrs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+                .provider_name("anthropic.messages.create")
+        };
+
+        // anthropic >= 1.14's native spans set only `gen_ai.provider.name`.
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("anthropic"))]),
+            Some("anthropic".to_string())
+        );
+        // Well-known dotted values map to the `model_costs` provider prefixes.
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("aws.bedrock"))]),
+            Some("bedrock".to_string())
+        );
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("gcp.vertex_ai"))]),
+            Some("vertex_ai".to_string())
+        );
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("azure.ai.openai"))]),
+            Some("azure".to_string())
+        );
+        // `gen_ai.system` still wins when both are set.
+        assert_eq!(
+            provider(vec![
+                (GEN_AI_SYSTEM, json!("Anthropic")),
+                (GEN_AI_PROVIDER_NAME, json!("aws.bedrock")),
+            ]),
+            Some("anthropic".to_string())
+        );
+        assert_eq!(provider(vec![]), None);
     }
 }

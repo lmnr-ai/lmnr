@@ -14,6 +14,8 @@ pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
 pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
 // pub const GEN_AI_REQUEST_IS_STREAM: &str = "gen_ai.request.is_stream";
 pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
+// Current semconv name for `gen_ai.system`; read only when `gen_ai.system` is absent.
+pub const GEN_AI_PROVIDER_NAME: &str = "gen_ai.provider.name";
 
 // This one is not in the open-telemetry specs. See:
 // https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py#L65
