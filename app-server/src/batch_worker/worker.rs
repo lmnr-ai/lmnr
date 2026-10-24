@@ -521,6 +521,86 @@ mod tests {
         assert!(worker.ackers.is_empty());
     }
 
+    struct RetryOnceHandler {
+        attempts: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl BatchMessageHandler for RetryOnceHandler {
+        type Message = TestMessage;
+        type State = ();
+
+        fn interval(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+
+        fn initial_state(&self) -> Self::State {}
+
+        async fn handle_message(
+            &self,
+            delivery: MessageDelivery<Self::Message>,
+            _state: &mut Self::State,
+        ) -> HandlerResult<Self::Message> {
+            if self
+                .attempts
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                == 0
+            {
+                HandlerResult::requeue(vec![delivery])
+            } else {
+                HandlerResult::ack(vec![delivery])
+            }
+        }
+
+        async fn handle_interval(&self, _state: &mut Self::State) -> HandlerResult<Self::Message> {
+            HandlerResult::empty()
+        }
+    }
+
+    #[tokio::test]
+    async fn transient_batch_failure_is_retried_by_the_in_memory_transport() {
+        let queue = create_test_queue();
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let shutdown = CancellationToken::new();
+        let mut worker = BatchQueueWorker::new(
+            BatchWorkerType::BrowserEvents,
+            RetryOnceHandler {
+                attempts: attempts.clone(),
+            },
+            queue.clone(),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            shutdown.clone(),
+        );
+        let running = tokio::spawn(async move { worker.process().await });
+
+        let payload = serde_json::to_vec(&TestMessage {
+            id: "requeue-once".to_string(),
+            value: 1,
+        })
+        .unwrap();
+        while queue
+            .publish(&payload, TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+            .await
+            .is_err()
+        {
+            tokio::task::yield_now().await;
+        }
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while attempts.load(std::sync::atomic::Ordering::SeqCst) < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the requeued message should be acknowledged on its second attempt");
+
+        shutdown.cancel();
+        tokio::time::timeout(Duration::from_secs(5), running)
+            .await
+            .expect("batch worker must stop after shutdown")
+            .unwrap();
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
     #[tokio::test]
     async fn test_handle_result_handles_mixed() {
         let queue = create_test_queue();

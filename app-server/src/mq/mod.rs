@@ -10,7 +10,7 @@ pub mod tokio_mpsc;
 pub mod utils;
 
 use rabbit::{RabbitMQ, RabbitMQDelivery, RabbitMQReceiver};
-use tokio_mpsc::{TokioMpscDelivery, TokioMpscQueue, TokioMpscReceiver};
+use tokio_mpsc::{TokioMpscDelivery, TokioMpscMessage, TokioMpscQueue, TokioMpscReceiver};
 
 #[enum_dispatch]
 pub enum MessageQueue {
@@ -37,22 +37,33 @@ pub trait MessageQueueReceiverTrait {
 
 pub enum MessageQueueAcker {
     RabbitAcker(Acker),
+    #[cfg(test)]
     TokioMpscAcker,
+    TokioMpscInvalidAcker,
+    TokioMpscRequeueAcker {
+        sender: tokio::sync::mpsc::UnboundedSender<TokioMpscMessage>,
+        message: TokioMpscMessage,
+    },
 }
 
 impl MessageQueueAcker {
-    pub async fn ack(&self) -> anyhow::Result<()> {
+    pub async fn ack(self) -> anyhow::Result<()> {
         match self {
             Self::RabbitAcker(acker) => match acker.ack(BasicAckOptions::default()).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow::anyhow!("Failed to ack message: {}", e)),
             },
+            #[cfg(test)]
             Self::TokioMpscAcker => Ok(()),
+            Self::TokioMpscInvalidAcker => Err(anyhow::anyhow!(
+                "In-memory delivery already has a settlement acker"
+            )),
+            Self::TokioMpscRequeueAcker { .. } => Ok(()),
         }
     }
 
     #[allow(unused)]
-    pub async fn nack(&self, requeue: bool) -> anyhow::Result<()> {
+    pub async fn nack(self, requeue: bool) -> anyhow::Result<()> {
         match self {
             Self::RabbitAcker(acker) => match acker
                 .nack(BasicNackOptions {
@@ -64,17 +75,33 @@ impl MessageQueueAcker {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow::anyhow!("Failed to nack message: {}", e)),
             },
+            #[cfg(test)]
             Self::TokioMpscAcker => Ok(()),
+            Self::TokioMpscInvalidAcker => Err(anyhow::anyhow!(
+                "In-memory delivery already has a settlement acker"
+            )),
+            Self::TokioMpscRequeueAcker { sender, message } if requeue => sender
+                .send(message)
+                .map_err(|e| anyhow::anyhow!("Failed to requeue in-memory message: {}", e)),
+            Self::TokioMpscRequeueAcker { .. } => Ok(()),
         }
     }
 
-    pub async fn reject(&self, requeue: bool) -> anyhow::Result<()> {
+    pub async fn reject(self, requeue: bool) -> anyhow::Result<()> {
         match self {
             Self::RabbitAcker(acker) => match acker.reject(BasicRejectOptions { requeue }).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow::anyhow!("Failed to reject message: {}", e)),
             },
+            #[cfg(test)]
             Self::TokioMpscAcker => Ok(()),
+            Self::TokioMpscInvalidAcker => Err(anyhow::anyhow!(
+                "In-memory delivery already has a settlement acker"
+            )),
+            Self::TokioMpscRequeueAcker { sender, message } if requeue => sender
+                .send(message)
+                .map_err(|e| anyhow::anyhow!("Failed to requeue in-memory message: {}", e)),
+            Self::TokioMpscRequeueAcker { .. } => Ok(()),
         }
     }
 }
