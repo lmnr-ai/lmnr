@@ -1,8 +1,8 @@
 //! An agent prompt as one document: the system prompt's lines followed by the
-//! tool set's lines, each hashed after masking dates and times so a clock
-//! ticking inside the prompt is not a change.
+//! tool set's lines, each hashed after masking dates, times and ids, so a
+//! clock ticking or a per-user id inside the prompt is not a change.
 
-use std::{collections::HashSet, sync::LazyLock};
+use std::{borrow::Cow, collections::HashSet, sync::LazyLock};
 
 use regex::Regex;
 
@@ -28,8 +28,38 @@ static DATETIME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&patterns.join("|")).unwrap()
 });
 
-pub fn mask(line: &str) -> std::borrow::Cow<'_, str> {
-    DATETIME.replace_all(line, MASK)
+const ID_MASK: &str = "<id>";
+
+/// UUIDs and long hex strings (object ids, digests) anywhere in a line.
+static ID: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|\b[0-9a-f]{24,}\b",
+    )
+    .unwrap()
+});
+
+/// A value with a digit after an id-named key (`id`, `user_id`, `project-id`,
+/// `projectId`, `ORG_ID`): short numeric ids are only ids by their key, as a
+/// bare number may be a limit. The digit keeps `user_id: string` in tools.
+static ID_VALUE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(\b(?:[\w-]*[_-](?:id|Id|ID)|[a-z][A-Za-z0-9]*Id|id|Id|ID)\b["']?\s*[:=]\s*["']?)[^\s"',;)}\]]*\d[^\s"',;)}\]]*"#,
+    )
+    .unwrap()
+});
+
+pub fn mask(line: &str) -> Cow<'_, str> {
+    // Ids first: an epoch-like id would otherwise become `<datetime>`.
+    let line = ID.replace_all(line, ID_MASK);
+    let line = replace(line, &ID_VALUE, "${1}<id>");
+    replace(line, &DATETIME, MASK)
+}
+
+fn replace<'a>(line: Cow<'a, str>, regex: &Regex, replacement: &str) -> Cow<'a, str> {
+    if !regex.is_match(&line) {
+        return line;
+    }
+    Cow::Owned(regex.replace_all(&line, replacement).into_owned())
 }
 
 pub fn line_hash(line: &str) -> u64 {
@@ -114,6 +144,46 @@ mod tests {
         ] {
             assert_eq!(mask(raw), masked, "{raw}");
         }
+    }
+
+    #[test]
+    fn masks_ids() {
+        for (raw, masked) in [
+            ("project_id=123", "project_id=<id>"),
+            (
+                "Project: 3f2b9c1e-8a4d-4e6f-9b0a-1c2d3e4f5a6b",
+                "Project: <id>",
+            ),
+            (
+                r#"{"userId": "u_42", "name": "Ada"}"#,
+                r#"{"userId": "<id>", "name": "Ada"}"#,
+            ),
+            ("ORG_ID: 7, session-id=s9x", "ORG_ID: <id>, session-id=<id>"),
+            (
+                "id: 99 and ref 65f1a2b3c4d5e6f7a8b9c0d1",
+                "id: <id> and ref <id>",
+            ),
+            // Not ids: no id key, no digit, or a short bare number.
+            ("Return at most 5 items.", "Return at most 5 items."),
+            ("valid: 10 retries", "valid: 10 retries"),
+            ("get_user.user_id: string", "get_user.user_id: string"),
+            ("Use the deadbeef cache", "Use the deadbeef cache"),
+        ] {
+            assert_eq!(mask(raw), masked, "{raw}");
+        }
+    }
+
+    #[test]
+    fn a_new_user_keeps_the_line_hash() {
+        assert_eq!(
+            line_hash("You are helping project_id=123."),
+            line_hash("You are helping project_id=456.")
+        );
+        assert_eq!(line_hash("user_id=42"), line_hash("user_id=1761210900"));
+        assert_eq!(
+            mask("user_id=1761210900, ts=1761210900"),
+            "user_id=<id>, ts=<datetime>"
+        );
     }
 
     #[test]
