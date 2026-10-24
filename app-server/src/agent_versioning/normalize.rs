@@ -49,9 +49,10 @@ static ID_VALUE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 pub fn mask(line: &str) -> Cow<'_, str> {
-    let line = DATETIME.replace_all(line, MASK);
-    let line = replace(line, &ID, ID_MASK);
-    replace(line, &ID_VALUE, "${1}<id>")
+    // Ids first: an epoch-like id would otherwise become `<datetime>`.
+    let line = ID.replace_all(line, ID_MASK);
+    let line = replace(line, &ID_VALUE, "${1}<id>");
+    replace(line, &DATETIME, MASK)
 }
 
 fn replace<'a>(line: Cow<'a, str>, regex: &Regex, replacement: &str) -> Cow<'a, str> {
@@ -177,6 +178,11 @@ mod tests {
         assert_eq!(
             line_hash("You are helping project_id=123."),
             line_hash("You are helping project_id=456.")
+        );
+        assert_eq!(line_hash("user_id=42"), line_hash("user_id=1761210900"));
+        assert_eq!(
+            mask("user_id=1761210900, ts=1761210900"),
+            "user_id=<id>, ts=<datetime>"
         );
     }
 
