@@ -1,6 +1,6 @@
 //! The release path, for agents whose prompts carry the SDK's release. Each
-//! release is decided once, oldest first: it keeps the version of the release
-//! before it unless a core line changed ([`compare`]). Every trace carrying a
+//! release is decided once, oldest first: it keeps the version of the nearest
+//! decided release unless a core line changed ([`compare`]). Every trace carrying a
 //! decided release is tagged with its version, by the job and, once the
 //! decision is cached, at ingest ([`super::ingest::tag_releases`]).
 
@@ -105,8 +105,14 @@ impl Job {
             };
             let side = Side::from_samples(samples.iter().map(|s| s.lines.as_slice()));
 
-            let previous = (0..i).rev().find_map(|j| Some((j, version_of[j]?)));
-            let baseline = match (previous, before_releases) {
+            // The nearest decided release, earlier ones first: a release decided
+            // after a newer one (too few traces, or seen earlier later on) is
+            // still compared against samples rather than bare cores.
+            let neighbour = (0..i)
+                .rev()
+                .chain(i + 1..releases.len())
+                .find_map(|j| Some((j, version_of[j]?)));
+            let baseline = match (neighbour, before_releases) {
                 (Some((j, version)), _) => {
                     let release = &releases[j].release;
                     let limit = count(release).min(params.min_run);
@@ -146,15 +152,6 @@ impl Job {
                     cores.len() - 1
                 }
             };
-            decide_release(pool, release.id, ids[version]).await?;
-            let key = release_cache_key(project_id, agent_hash, &release.release);
-            if let Err(e) = self
-                .cache
-                .insert_with_ttl(&key, hashes[version].clone(), RELEASE_CACHE_TTL_SECONDS)
-                .await
-            {
-                log::warn!("[AGENT VERSIONING] Failed to cache {key}: {e:?}");
-            }
             version_of[i] = Some(version);
             decided_now.insert(i);
         }
@@ -194,6 +191,23 @@ impl Job {
         for chunk in labels.chunks(LABEL_CHUNK) {
             self.write_labels(project_id, agent_hash, chunk, &ids, &hashes)
                 .await?;
+        }
+
+        // Decided only once tagged, so a run that fails before this leaves its
+        // releases undecided and the next one tags all their traces again.
+        for &i in &decided_now {
+            let (release, Some(version)) = (&releases[i], version_of[i]) else {
+                continue;
+            };
+            decide_release(pool, release.id, ids[version]).await?;
+            let key = release_cache_key(project_id, agent_hash, &release.release);
+            if let Err(e) = self
+                .cache
+                .insert_with_ttl(&key, hashes[version].clone(), RELEASE_CACHE_TTL_SECONDS)
+                .await
+            {
+                log::warn!("[AGENT VERSIONING] Failed to cache {key}: {e:?}");
+            }
         }
 
         let current_version_id = version_of
