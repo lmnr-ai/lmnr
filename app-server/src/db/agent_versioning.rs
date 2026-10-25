@@ -164,9 +164,10 @@ pub struct Release {
     pub release: String,
     /// The earliest start of a prompt carrying it, in nanoseconds.
     pub first_seen: i64,
-    /// `None` until decided, or after its version was deleted.
+    /// `None` until chosen, or after its version was deleted.
     pub version_id: Option<Uuid>,
-    /// When the job decided it, in nanoseconds.
+    /// When the job finished tagging its traces, in nanoseconds; `None` with a
+    /// `version_id` while that is pending.
     pub decided_at: Option<i64>,
 }
 
@@ -212,10 +213,18 @@ pub async fn get_releases(pool: &PgPool, agent_id: Uuid) -> Result<Vec<Release>>
     Ok(releases)
 }
 
-pub async fn decide_release(pool: &PgPool, release_id: Uuid, version_id: Uuid) -> Result<()> {
-    sqlx::query("UPDATE agent_releases SET version_id = $2, decided_at = now() WHERE id = $1")
+pub async fn set_release_version(pool: &PgPool, release_id: Uuid, version_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE agent_releases SET version_id = $2 WHERE id = $1")
         .bind(release_id)
         .bind(version_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn decide_release(pool: &PgPool, release_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE agent_releases SET decided_at = now() WHERE id = $1")
+        .bind(release_id)
         .execute(pool)
         .await?;
     Ok(())

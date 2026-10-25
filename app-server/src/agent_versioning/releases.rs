@@ -20,7 +20,7 @@ use crate::{
     ch::agent_prompts::{Scope, TracePrompt},
     db::agent_versioning::{
         Agent, decide_release, get_releases, get_versions, insert_version, save_progress,
-        upsert_releases,
+        set_release_version, upsert_releases,
     },
     env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN, RELEASE_MIN_SAMPLES},
 };
@@ -88,6 +88,12 @@ impl Job {
             if release.decided_at.is_some() {
                 continue;
             }
+            // Chosen by a run that failed before deciding it: tag it again with
+            // the same version rather than re-sampling into another one.
+            if version_of[i].is_some() {
+                decided_now.insert(i);
+                continue;
+            }
             let newer_has_min_run = releases[i + 1..]
                 .iter()
                 .any(|r| count(&r.release) >= params.min_run);
@@ -152,6 +158,7 @@ impl Job {
                     cores.len() - 1
                 }
             };
+            set_release_version(pool, release.id, ids[version]).await?;
             version_of[i] = Some(version);
             decided_now.insert(i);
         }
@@ -199,7 +206,7 @@ impl Job {
             let (release, Some(version)) = (&releases[i], version_of[i]) else {
                 continue;
             };
-            decide_release(pool, release.id, ids[version]).await?;
+            decide_release(pool, release.id).await?;
             let key = release_cache_key(project_id, agent_hash, &release.release);
             if let Err(e) = self
                 .cache
