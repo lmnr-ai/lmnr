@@ -236,30 +236,32 @@ const countSourceTracesSince = async (since: Date): Promise<number> => {
   return Number(value ?? 0);
 };
 
-// `min(start_time)` over an EMPTY table does NOT return NULL — ClickHouse yields
-// the DateTime64 zero value, which arrives as the string "1970-01-01 00:00:00…".
-// That is truthy and parses fine, so a plain `!value` check lets the epoch
-// sentinel through as if it were a real timestamp. Treat it as absent: for the
-// watermark it would otherwise defeat the `?? now` fresh-cutover fallback and
-// make `watermark <= oldestSource` short-circuit the whole backfill, stranding
-// every historical trace on a deployment that has history but no destination
-// rows yet (verified).
-const EPOCH_SENTINEL_MS = 0;
-
-const parseChTimestamp = (value: string | null): Date | null => {
-  if (!value) return null;
-  const parsed = new Date(`${value.replace(" ", "T")}Z`);
-  if (isNaN(parsed.getTime()) || parsed.getTime() === EPOCH_SENTINEL_MS) return null;
-  return parsed;
+// Oldest start_time strictly after the epoch, or null when there is none. Both
+// conditions are needed:
+// - `min()` over an EMPTY table does NOT return NULL — ClickHouse yields the
+//   DateTime64 zero value "1970-01-01 00:00:00…", which is truthy and parses
+//   fine, so "empty" must come from the count, never from the min itself.
+// - Real rows CAN carry a zero start_time (LAM-2413). If one stood in for the
+//   table's bounds, an epoch source min would read as "empty" and record a
+//   permanent `completed` over real history, and an epoch watermark would make
+//   `watermark <= oldestSource` short-circuit the walk. Such rows sit far beyond
+//   MAX_DAYS, so the walk could never migrate them anyway.
+const oldestStartTimeAfterEpoch = async (table: "traces_static" | "traces_replacing"): Promise<Date | null> => {
+  const rs = await ch().query({
+    query: `SELECT count() AS c, min(start_time) AS m FROM ${table} WHERE start_time > ${ts(new Date(0))}`,
+    format: "JSONEachRow",
+  });
+  const [row] = await rs.json<{ c: string | number; m: string }>();
+  if (!row || Number(row.c) === 0) return null;
+  const parsed = new Date(`${row.m.replace(" ", "T")}Z`);
+  return isNaN(parsed.getTime()) ? null : parsed;
 };
 
 // Resume point. The destination is its own progress marker, so a restart
 // re-derives where to continue without trusting the persisted status below.
-const destinationWatermark = async (): Promise<Date | null> =>
-  parseChTimestamp(await scalar(`SELECT min(start_time) AS m FROM traces_static`));
+const destinationWatermark = (): Promise<Date | null> => oldestStartTimeAfterEpoch("traces_static");
 
-const oldestSourceTrace = async (): Promise<Date | null> =>
-  parseChTimestamp(await scalar(`SELECT min(start_time) AS m FROM traces_replacing`));
+const oldestSourceTrace = (): Promise<Date | null> => oldestStartTimeAfterEpoch("traces_replacing");
 
 const manualCommandHint = (w: Window): string =>
   `To finish manually, re-run the backfill for windows at or before ` +
@@ -276,8 +278,9 @@ type BackfillOutcome =
 type BackfillStatus = Exclude<BackfillOutcome, { state: "surrendered" }> & { at: string };
 
 // Bump this key if the backfill's semantics change and every deployment should
-// walk its history again.
-const STATUS_KEY = "traces_agg_backfill_status";
+// walk its history again. v2 (LAM-2413): v1 could record `completed` without
+// migrating anything when traces_replacing held an epoch-dated row.
+const STATUS_KEY = "traces_agg_backfill_status_v2";
 
 // The status is an OPTIMIZATION, not the resume marker — losing it only costs a
 // re-derivation from the destination watermark, which converges to the same
@@ -319,8 +322,8 @@ const runBackfill = async (now: Date, lostLease: () => boolean = () => false): P
 
   const oldestSource = await oldestSourceTrace();
   if (!oldestSource) {
-    console.log("[traces-agg-backfill] traces_replacing has no readable rows; nothing to migrate");
-    return { state: "completed", reason: "traces_replacing has no readable rows" };
+    console.log("[traces-agg-backfill] traces_replacing has no rows dated after the epoch; nothing to migrate");
+    return { state: "completed", reason: "traces_replacing has no rows dated after the epoch" };
   }
 
   // No destination rows yet (fresh cutover) means start from now.
