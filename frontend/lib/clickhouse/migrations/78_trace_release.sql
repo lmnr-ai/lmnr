@@ -5,7 +5,7 @@ ALTER TABLE traces_static ADD COLUMN IF NOT EXISTS release Nullable(String);
 
 -- Per-span release on agent prompts, so agent versioning can group prompts by
 -- release. '' when the span carried none.
-ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS release LowCardinality(String) DEFAULT '' AFTER line_hashes;
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS release LowCardinality(String) DEFAULT '';
 
 -- traces_v0 / traces_v1 as of migration 72, plus `release`.
 DROP VIEW IF EXISTS traces_v0;
