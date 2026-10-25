@@ -280,7 +280,9 @@ pub async fn process_span_messages(
         .collect();
 
     let mut batch = enrich_spans_with_usage(messages, &db, &cache).await;
-    let trace_aggregations = TraceAggregation::from_spans(&batch.spans, &batch.usages);
+    let mut trace_aggregations = TraceAggregation::from_spans(&batch.spans, &batch.usages);
+    agent_versioning::ingest::tag_releases(&db, &cache, &agent_prompts, &mut trace_aggregations)
+        .await;
 
     // Non-recordable spans still bill and aggregate but never reach
     // ClickHouse; every `dedup_idx` downstream is a position in this list.
@@ -1279,6 +1281,7 @@ mod tests {
             has_browser_session: None,
             span_names: HashSet::new(),
             release: None,
+            agent_versions: Vec::new(),
         }
     }
 

@@ -16,8 +16,11 @@ pub struct Agent {
     pub labeled_until: Option<i64>,
     /// Prompts ingested up to here have been read.
     pub watermark: Option<i64>,
-    /// The version at `labeled_until`.
+    /// The version at `labeled_until`; in release mode, the newest decided
+    /// release's.
     pub current_version_id: Option<Uuid>,
+    /// Versioned by the SDK's release instead of inferred from prompts.
+    pub release_mode: bool,
 }
 
 /// Get or create the agent for `agent_hash`.
@@ -27,7 +30,7 @@ pub async fn upsert_agent(pool: &PgPool, project_id: Uuid, agent_hash: &str) -> 
         "INSERT INTO agents (project_id, agent_hash)
          VALUES ($1, $2)
          ON CONFLICT (project_id, agent_hash) DO UPDATE SET agent_hash = EXCLUDED.agent_hash
-         RETURNING id, name, labeled_until, watermark, current_version_id",
+         RETURNING id, name, labeled_until, watermark, current_version_id, release_mode",
     )
     .bind(project_id)
     .bind(agent_hash)
@@ -53,6 +56,15 @@ pub async fn save_progress(
     .bind(current_version_id)
     .execute(pool)
     .await?;
+    Ok(())
+}
+
+/// Switch the agent to release mode, for good.
+pub async fn set_release_mode(pool: &PgPool, agent_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE agents SET release_mode = true WHERE id = $1")
+        .bind(agent_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -144,4 +156,89 @@ pub async fn insert_models(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[derive(Debug, FromRow)]
+pub struct Release {
+    pub id: Uuid,
+    pub release: String,
+    /// The earliest start of a prompt carrying it, in nanoseconds.
+    pub first_seen: i64,
+    /// `None` until decided, or after its version was deleted.
+    pub version_id: Option<Uuid>,
+    /// When the job decided it, in nanoseconds.
+    pub decided_at: Option<i64>,
+}
+
+/// Record the agent's releases, keeping each one's earliest `first_seen`.
+pub async fn upsert_releases(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_id: Uuid,
+    releases: &[String],
+    first_seen: &[i64],
+) -> Result<()> {
+    if releases.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        "INSERT INTO agent_releases (project_id, agent_id, release, first_seen)
+         SELECT $1, $2, * FROM UNNEST($3::text[], $4::bigint[])
+         ON CONFLICT (agent_id, release) DO UPDATE
+         SET first_seen = EXCLUDED.first_seen
+         WHERE EXCLUDED.first_seen < agent_releases.first_seen",
+    )
+    .bind(project_id)
+    .bind(agent_id)
+    .bind(releases)
+    .bind(first_seen)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// The agent's releases, oldest first.
+pub async fn get_releases(pool: &PgPool, agent_id: Uuid) -> Result<Vec<Release>> {
+    let releases = sqlx::query_as::<_, Release>(
+        "SELECT id, release, first_seen, version_id,
+                (EXTRACT(EPOCH FROM decided_at) * 1e9)::bigint AS decided_at
+         FROM agent_releases
+         WHERE agent_id = $1
+         ORDER BY first_seen, release",
+    )
+    .bind(agent_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(releases)
+}
+
+pub async fn decide_release(pool: &PgPool, release_id: Uuid, version_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE agent_releases SET version_id = $2, decided_at = now() WHERE id = $1")
+        .bind(release_id)
+        .bind(version_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// The `version_hash` a release of the agent was decided as, if it was.
+pub async fn release_version_hash(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_hash: &str,
+    release: &str,
+) -> Result<Option<String>> {
+    let hash = sqlx::query_scalar::<_, String>(
+        "SELECT v.version_hash
+         FROM agents a
+         JOIN agent_releases r ON r.agent_id = a.id
+         JOIN agent_versions v ON v.id = r.version_id
+         WHERE a.project_id = $1 AND a.agent_hash = $2 AND r.release = $3",
+    )
+    .bind(project_id)
+    .bind(agent_hash)
+    .bind(release)
+    .fetch_optional(pool)
+    .await?;
+    Ok(hash)
 }

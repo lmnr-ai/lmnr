@@ -78,6 +78,8 @@ pub struct TracePrompt {
     pub lines: Vec<u64>,
     /// Non-empty models across the trace's rows.
     pub models: Vec<String>,
+    /// Any of the rows' releases; empty when they carried none.
+    pub trace_release: String,
 }
 
 pub struct Scope<'a> {
@@ -86,13 +88,14 @@ pub struct Scope<'a> {
     pub watermark: i64,
 }
 
-// `time` and `lines` must not reuse column names: ClickHouse substitutes an
-// alias into `WHERE` and the other aggregates.
+// `time`, `lines` and `trace_release` must not reuse column names: ClickHouse
+// substitutes an alias into `WHERE` and the other aggregates.
 const TRACE_PROMPT_COLUMNS: &str = "trace_id,
     argMin(span_id, start_time) AS span_id,
     min(start_time) AS time,
     {lines} AS lines,
-    groupUniqArrayIf(model, model != '') AS models";
+    groupUniqArrayIf(model, model != '') AS models,
+    any(release) AS trace_release";
 
 fn trace_prompts_query(lines: bool, filter: &str, tail: &str) -> String {
     let lines = if lines {
@@ -201,6 +204,112 @@ impl Scope<'_> {
             .query(clickhouse, &sql)
             .param("since", since)
             .param("until", until)
+            .fetch_all::<TracePrompt>()
+            .await?;
+        Ok(rows)
+    }
+}
+
+/// One release of the agent: its earliest prompt and how many traces carry it.
+#[derive(Row, Deserialize, Debug)]
+pub struct ReleaseStats {
+    pub release: String,
+    pub first_seen: i64,
+    pub traces: u64,
+}
+
+/// Prompts read to choose an agent's mode, newest first.
+const RELEASE_SHARE_ROWS: u64 = 100;
+
+/// Of the agent's latest prompts, how many carry a release.
+#[derive(Row, Deserialize, Debug)]
+pub struct ReleaseShare {
+    pub with_release: u64,
+    pub total: u64,
+}
+
+impl Scope<'_> {
+    /// Each release's stats, oldest first.
+    pub async fn releases(&self, clickhouse: &clickhouse::Client) -> Result<Vec<ReleaseStats>> {
+        let rows = self
+            .query(
+                clickhouse,
+                "SELECT release, min(start_time) AS first_seen, uniqExact(trace_id) AS traces
+                 FROM agent_prompts
+                 WHERE project_id = {project_id:UUID}
+                   AND agent_hash = {agent_hash:String}
+                   AND ingested_at <= fromUnixTimestamp64Nano({watermark:Int64})
+                   AND release != ''
+                 GROUP BY release
+                 ORDER BY first_seen, release",
+            )
+            .fetch_all::<ReleaseStats>()
+            .await?;
+        Ok(rows)
+    }
+
+    pub async fn release_share(&self, clickhouse: &clickhouse::Client) -> Result<ReleaseShare> {
+        let share = self
+            .query(
+                clickhouse,
+                "SELECT countIf(release != '') AS with_release, count() AS total
+                 FROM (
+                     SELECT release FROM agent_prompts
+                     WHERE project_id = {project_id:UUID}
+                       AND agent_hash = {agent_hash:String}
+                       AND ingested_at <= fromUnixTimestamp64Nano({watermark:Int64})
+                     ORDER BY start_time DESC
+                     LIMIT {limit:UInt64})",
+            )
+            .param("limit", RELEASE_SHARE_ROWS)
+            .fetch_one::<ReleaseShare>()
+            .await?;
+        Ok(share)
+    }
+
+    /// Up to `limit` of the release's traces, newest first; with an empty
+    /// `release`, traces without one starting before `before`.
+    pub async fn release_samples(
+        &self,
+        clickhouse: &clickhouse::Client,
+        release: &str,
+        before: i64,
+        limit: u64,
+    ) -> Result<Vec<TracePrompt>> {
+        let sql = trace_prompts_query(
+            true,
+            "release = {release:String}
+             AND start_time < fromUnixTimestamp64Nano({before:Int64})",
+            "ORDER BY time DESC LIMIT {limit:UInt64}",
+        );
+        let rows = self
+            .query(clickhouse, &sql)
+            .param("release", release)
+            .param("before", before)
+            .param("limit", limit)
+            .fetch_all::<TracePrompt>()
+            .await?;
+        Ok(rows)
+    }
+
+    /// The traces of `releases` with a prompt ingested after `since`, without
+    /// their prompts.
+    pub async fn release_traces(
+        &self,
+        clickhouse: &clickhouse::Client,
+        releases: &[&str],
+        since: i64,
+    ) -> Result<Vec<TracePrompt>> {
+        let sql = trace_prompts_query(
+            false,
+            "release IN {releases:Array(String)}
+             AND ingested_at > fromUnixTimestamp64Nano({since:Int64})",
+            "",
+        );
+        let rows = self
+            .query(clickhouse, &sql)
+            .param("releases", releases)
+            .param("since", since)
             .fetch_all::<TracePrompt>()
             .await?;
         Ok(rows)
