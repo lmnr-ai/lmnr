@@ -1,5 +1,6 @@
-//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent's `query_sql`
-//! system prompt (`agent::prompts`) and the MCP `query_laminar_sql` tool description (`api::v1::mcp`).
+//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
+//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
 //! generation. The caller writes LOGICAL table names; the query engine rewrites them to
@@ -682,7 +683,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in both the agent system prompt and the MCP tool description.
+/// Embedded verbatim in the MCP tool description.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
