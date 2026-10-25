@@ -36,6 +36,7 @@ pub struct TraceAggregation {
     pub trace_type: u8,
     pub has_browser_session: Option<bool>,
     pub span_names: HashSet<String>,
+    pub release: Option<String>,
 }
 
 impl TraceAggregation {
@@ -75,6 +76,7 @@ impl TraceAggregation {
                         trace_type: 0,
                         has_browser_session: None,
                         span_names: HashSet::new(),
+                        release: None,
                     });
 
             // Aggregate min start_time
@@ -119,6 +121,9 @@ impl TraceAggregation {
                         entry.user_id = Some(user_id);
                     }
                 }
+            }
+            if entry.release.is_none() {
+                entry.release = span.attributes.release();
             }
             if let Some(status) = &span.status {
                 if status == "error" {
@@ -191,7 +196,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::traces::spans::SpanAttributes;
+    use crate::traces::{span_attributes::SPAN_RELEASE, spans::SpanAttributes};
 
     fn make_span(trace_id: Uuid, span_type: SpanType, output_tokens: i64) -> Span {
         Span {
@@ -271,5 +276,28 @@ mod tests {
         );
         // The span tree itself is untouched.
         assert!(aggregations[0].span_names.contains("LLM Generation"));
+    }
+
+    #[test]
+    fn first_release_in_the_batch_wins() {
+        let trace_id = Uuid::new_v4();
+        let mut spans = vec![
+            make_span(trace_id, SpanType::Default, 0),
+            make_span(trace_id, SpanType::Default, 0),
+            make_span(trace_id, SpanType::Default, 0),
+        ];
+        spans[1]
+            .attributes
+            .raw_attributes
+            .insert(SPAN_RELEASE.to_string(), json!("abc1234"));
+        spans[2]
+            .attributes
+            .raw_attributes
+            .insert(SPAN_RELEASE.to_string(), json!("def5678"));
+        let usage = vec![make_usage(0, 0.0), make_usage(0, 0.0), make_usage(0, 0.0)];
+
+        let aggregations = TraceAggregation::from_spans(&spans, &usage);
+
+        assert_eq!(aggregations[0].release, Some("abc1234".to_string()));
     }
 }

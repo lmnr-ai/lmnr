@@ -20,6 +20,8 @@ pub struct CHAgentPrompt {
     pub start_time: i64,
     pub model: String,
     pub line_hashes: Vec<u64>,
+    /// Empty when the span carried no release.
+    pub release: String,
 }
 
 pub async fn insert_agent_prompts(

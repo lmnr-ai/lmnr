@@ -43,8 +43,8 @@ use super::{
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
         GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, GEN_AI_USAGE_INPUT_TOKENS_CACHED,
         GEN_AI_USAGE_OUTPUT_TOKENS_REASONING, GEN_AI_USAGE_REASONING_TOKENS,
-        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE, TRACE_NAME,
-        USER_ID,
+        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_RELEASE, SPAN_TYPE,
+        TRACE_NAME, USER_ID,
     },
     utils::skip_span_name,
 };
@@ -68,6 +68,8 @@ const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent
 const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
 
 const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
+/// Matches the SDK's cap on `lmnr.span.release`.
+const MAX_RELEASE_CHARS: usize = 128;
 
 static GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap());
@@ -188,6 +190,21 @@ impl SpanAttributes {
     /// Explicit trace name, independent of the root span's name.
     pub fn trace_name(&self) -> Option<String> {
         self.string_attr(TRACE_NAME).filter(|name| !name.is_empty())
+    }
+
+    /// Release of the emitting code. A full 40-hex git SHA is cut to its
+    /// lowercase 7-char short form, so full and short SHAs of the same
+    /// commit are one release.
+    pub fn release(&self) -> Option<String> {
+        let release = self.string_attr(SPAN_RELEASE)?;
+        let release = release.trim();
+        if release.is_empty() {
+            return None;
+        }
+        if release.len() == 40 && release.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Some(release[..7].to_ascii_lowercase());
+        }
+        Some(release.chars().take(MAX_RELEASE_CHARS).collect())
     }
 
     pub fn trace_type(&self) -> Option<TraceType> {
@@ -1725,6 +1742,46 @@ mod tests {
         },
     };
     use serde_json::json;
+
+    fn release_of(value: Value) -> Option<String> {
+        SpanAttributes::new(HashMap::from([(SPAN_RELEASE.to_string(), value)])).release()
+    }
+
+    #[test]
+    fn release_cuts_full_sha_to_short_lowercase() {
+        assert_eq!(
+            release_of(json!("0123456789ABCDEF0123456789abcdef01234567")),
+            Some("0123456".to_string())
+        );
+        assert_eq!(
+            release_of(json!("  0123456789abcdef0123456789abcdef01234567\n")),
+            Some("0123456".to_string())
+        );
+    }
+
+    #[test]
+    fn release_keeps_other_values_verbatim() {
+        assert_eq!(release_of(json!("abc1234")), Some("abc1234".to_string()));
+        assert_eq!(release_of(json!("ABC1234")), Some("ABC1234".to_string()));
+        assert_eq!(release_of(json!("agent:42")), Some("agent:42".to_string()));
+        // 41 hex chars is not a SHA-1.
+        let not_sha = "0".repeat(41);
+        assert_eq!(release_of(json!(not_sha)), Some(not_sha));
+    }
+
+    #[test]
+    fn release_drops_empty_and_non_string_values() {
+        assert_eq!(release_of(json!("")), None);
+        assert_eq!(release_of(json!("   ")), None);
+        assert_eq!(release_of(json!(42)), None);
+        assert_eq!(SpanAttributes::default().release(), None);
+    }
+
+    #[test]
+    fn release_is_capped() {
+        let release = release_of(json!("é".repeat(500))).unwrap();
+        assert_eq!(release.chars().count(), MAX_RELEASE_CHARS);
+    }
 
     #[test]
     fn test_parse_and_enrich_attributes_openai() {

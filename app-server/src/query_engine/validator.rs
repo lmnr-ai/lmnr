@@ -539,6 +539,7 @@ impl TableRegistry {
             "signal_events",
             "clusters",
             "agent_versions",
+            "release",
         ];
 
         // Extracted agent outputs live in their own view (`trace_outputs_v0`,

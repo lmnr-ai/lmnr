@@ -100,6 +100,9 @@ pub struct CHTraceStatic {
     pub has_browser_session: Option<u8>,
     /// Reserved, no writer yet; same SET semantics as `metadata`.
     pub internal_metadata: Option<String>,
+    /// SDK-stamped release (`SpanAttributes::release`). Added by ALTER, so it
+    /// stays the last column.
+    pub release: Option<String>,
 }
 
 /// Empty strings collapse to `None` so a batch that saw no value writes a NULL
@@ -183,6 +186,7 @@ impl CHTraceStatic {
             root_span_type,
             has_browser_session: agg.has_browser_session.map(|v| v as u8),
             internal_metadata: None,
+            release: non_empty(agg.release.as_ref()),
         };
         row.has_any_value().then_some(row)
     }
@@ -225,6 +229,7 @@ impl CHTraceStatic {
             root_span_type: None,
             has_browser_session: None,
             internal_metadata: None,
+            release: None,
         })
     }
 
@@ -260,6 +265,7 @@ impl CHTraceStatic {
             root_span_type: None,
             has_browser_session: None,
             internal_metadata: None,
+            release: None,
         })
     }
 
@@ -277,6 +283,7 @@ impl CHTraceStatic {
             || self.root_span_type.is_some()
             || self.has_browser_session.is_some()
             || self.internal_metadata.is_some()
+            || self.release.is_some()
     }
 }
 
@@ -331,6 +338,7 @@ mod tests {
             trace_type: 0,
             has_browser_session: None,
             span_names: HashSet::new(),
+            release: None,
         }
     }
 
@@ -364,6 +372,20 @@ mod tests {
         let row = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
         assert_eq!(row.session_id.as_deref(), Some("s1"));
         assert_eq!(row.user_id, None, "empty user_id stays a NULL hole");
+    }
+
+    // A release alone is worth a write; batches without one leave a NULL hole.
+    #[test]
+    fn release_is_written_when_present() {
+        let mut agg = empty_agg();
+        agg.release = Some("abc1234".to_string());
+        let row = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        assert_eq!(row.release.as_deref(), Some("abc1234"));
+
+        agg.release = None;
+        agg.session_id = Some("s1".to_string());
+        let row = CHTraceStatic::from_aggregation(&agg, 0).unwrap();
+        assert_eq!(row.release, None);
     }
 
     // `metadata` is written as the whole object (SET semantics), so a batch that

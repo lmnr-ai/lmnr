@@ -37,6 +37,9 @@ pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
 /// key for static-prompt version tracking (blind to structural scaffolding,
 /// unlike the skeleton hash above).
 pub const SPAN_AGENT_HASH: &str = "lmnr.span.agent_hash";
+/// Release of the code that emitted the span (usually the git SHA), stamped
+/// by the SDK. Normalized by `SpanAttributes::release`.
+pub const SPAN_RELEASE: &str = "lmnr.span.release";
 /// Marker on virtual spans produced by `POST /v1/traces/metadata`. The
 /// consumer treats them as a metadata patch against an existing trace:
 /// the row is not written to `spans`, doesn't index in Quickwit, and
