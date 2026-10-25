@@ -4,8 +4,14 @@
 ALTER TABLE traces_static ADD COLUMN IF NOT EXISTS release Nullable(String);
 
 -- Per-span release on agent prompts, so agent versioning can group prompts by
--- release. '' when the span carried none.
-ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS release LowCardinality(String) DEFAULT '';
+-- release. '' when the span carried none. Plain String: releases are
+-- per-commit, so distinct values keep growing across projects.
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS release String DEFAULT '';
+-- Skips granules on per-release lookups (`release = ...` / `IN`) within an
+-- agent's (project_id, agent_hash) range, where a release spans a contiguous
+-- stretch of start_time. Not materialized: existing rows all hold '' and age
+-- out with the 7-day TTL.
+ALTER TABLE agent_prompts ADD INDEX IF NOT EXISTS agent_prompts_release_bf_idx release TYPE bloom_filter;
 
 -- traces_v0 / traces_v1 as of migration 72, plus `release`.
 DROP VIEW IF EXISTS traces_v0;
