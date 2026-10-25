@@ -49,6 +49,51 @@ pub struct SignalReportData {
     pub clusters: Vec<ReportClusterData>,
 }
 
+impl SignalReportData {
+    /// Clusters worth listing in a report, shared by the email and Slack renderers:
+    /// at least 5 events across both periods, recurring clusters ranked by how far
+    /// they moved before brand-new ones, at most 5.
+    pub fn notable_clusters(&self) -> Vec<&ReportClusterData> {
+        let mut clusters: Vec<_> = self
+            .clusters
+            .iter()
+            .filter(|row| row.count + row.previous_count >= 5)
+            .collect();
+        clusters.sort_by(
+            |a, b| match (a.previous_count == 0, b.previous_count == 0) {
+                (true, false) => std::cmp::Ordering::Greater,
+                (false, true) => std::cmp::Ordering::Less,
+                _ => b
+                    .change_score()
+                    .partial_cmp(&a.change_score())
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            },
+        );
+        clusters.truncate(5);
+        clusters
+    }
+
+    /// The signal's AI summary, or a count-only sentence when the summary is missing.
+    pub fn summary_or_default(&self) -> String {
+        if self.summary.is_empty() {
+            format!(
+                "{} events were detected during this period.",
+                self.current_count
+            )
+        } else {
+            self.summary.clone()
+        }
+    }
+}
+
+impl ReportClusterData {
+    fn change_score(&self) -> f64 {
+        ((self.count as f64 - self.previous_count as f64)
+            / ((self.count + self.previous_count) as f64).sqrt())
+        .abs()
+    }
+}
+
 /// Data for a single project section in the report
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProjectReportData {
@@ -76,4 +121,17 @@ pub struct ReportData {
     pub period_end: String,
     pub projects: Vec<ProjectReportData>,
     pub total_events: u64,
+}
+
+impl ReportData {
+    /// Every project's signals, busiest first: the order both renderers list them in.
+    pub fn signals_by_volume(&self) -> Vec<(&ProjectReportData, &SignalReportData)> {
+        let mut signals: Vec<_> = self
+            .projects
+            .iter()
+            .flat_map(|project| project.signals.iter().map(move |signal| (project, signal)))
+            .collect();
+        signals.sort_by(|(_, a), (_, b)| b.current_count.cmp(&a.current_count));
+        signals
+    }
 }
