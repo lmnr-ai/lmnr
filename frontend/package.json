@@ -87,6 +87,7 @@
     "@react-email/tailwind": "^2.0.7",
     "@sentry/nextjs": "^10.70.0",
     "@shadcn/react": "^0.1.0",
+    "@tanstack/charts": "1.1.0",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.14.8",
     "@types/lodash": "^4.17.23",

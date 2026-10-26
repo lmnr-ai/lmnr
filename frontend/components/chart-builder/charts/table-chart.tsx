@@ -2,6 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { isEqual, isNil, isObject } from "lodash";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import ChartEmptyState from "@/components/chart-builder/charts/chart-empty-state";
 import { type TableColumnConfig } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -147,11 +148,7 @@ const TableChart = ({
   );
 
   if (data.length === 0) {
-    return (
-      <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg w-full">
-        <span className="text-muted-foreground">No data</span>
-      </div>
-    );
+    return <ChartEmptyState title="No data during this period" />;
   }
 
   return (

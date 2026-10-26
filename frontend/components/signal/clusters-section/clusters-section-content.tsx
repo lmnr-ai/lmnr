@@ -83,6 +83,8 @@ export default function ClustersSectionContent({ className }: Props) {
   const isCurrentSnapshot = snapshot?.rangeKey === rangeKey;
   const currentSnapshot = isCurrentSnapshot ? snapshot : undefined;
 
+  const missingClusterToasted = useRef<string | null>(null);
+
   // The store remains the shared index for event-table filtering. It receives
   // only complete visualization snapshots, never independently fetched pieces.
   useEffect(() => {
@@ -93,7 +95,19 @@ export default function ClustersSectionContent({ className }: Props) {
       clusteredEventCount: currentSnapshot.clusteredEventCount,
       rangeKey: currentSnapshot.rangeKey,
     });
-  }, [currentSnapshot, setClusters]);
+    // Only clusters with events in the range are loaded, so a linked one may just be outside it.
+    // Once per cluster + range: width-driven refetches swap the snapshot without changing either.
+    const toastKey = `${clusterId}:${currentSnapshot.rangeKey}`;
+    if (
+      clusterId &&
+      clusterId !== UNCLUSTERED_ID &&
+      missingClusterToasted.current !== toastKey &&
+      !currentSnapshot.clusters.some((c) => c.id === clusterId)
+    ) {
+      missingClusterToasted.current = toastKey;
+      toast({ title: "Cluster not found", description: "It may be outside the selected time range." });
+    }
+  }, [currentSnapshot, setClusters, clusterId, toast]);
 
   const clusterStatsData = useMemo(() => {
     if (!currentSnapshot) return EMPTY_STATS;

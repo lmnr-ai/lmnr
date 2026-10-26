@@ -71,7 +71,7 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "run_id", type: "string", description: "Unique identifier for the run" },
     { name: "name", type: "string", description: "Alias of signal_name, kept for older queries" },
     { name: "payload", type: "string", description: "Payload of the signal event as stringified JSON" },
-    { name: "timestamp", type: "number", description: "When the signal event occurred" },
+    { name: "timestamp", type: "string", description: "When the signal event occurred" },
     { name: "severity", type: "number", description: "Severity of the signal event" },
   ],
   signals: [
@@ -122,6 +122,10 @@ export const getTimeColumn = (table: string): string => {
     spans: "start_time",
     traces: "start_time",
     signal_events: "timestamp",
+    // Entity tables have no event time; the dashboard's range filters on when each was created.
+    signals: "created_at",
+    evaluations: "created_at",
+    datasets: "created_at",
   };
 
   return timeColumnMap[table] || "start_time";

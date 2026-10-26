@@ -3,7 +3,6 @@
 import React from "react";
 
 import ProjectSidebarHeader from "@/components/project/sidebar/header.tsx";
-import SidebarFooter from "@/components/projects/sidebar-footer.tsx";
 import { Sidebar } from "@/components/ui/sidebar";
 import { type ProjectDetails } from "@/lib/actions/project";
 import { type Announcement } from "@/lib/announcements/types";
@@ -25,7 +24,6 @@ export default function ProjectSidebar({ dismissedAnnouncementIds, details, anno
         details={details}
         dismissedAnnouncementIds={dismissedAnnouncementIds}
       />
-      <SidebarFooter projectId={details.id} />
     </Sidebar>
   );
 }

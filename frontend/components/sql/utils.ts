@@ -17,6 +17,7 @@ import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
+import { BUILT_IN_PARAMETERS, findParameterRefs } from "@/components/sql/parameters";
 import {
   ClickHouseDialect,
   clickhouseFunctions,
@@ -439,6 +440,30 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "created_at", type: "DateTime64(6)", description: "When the dataset was created" },
     ],
   },
+  dashboards: {
+    description: "Project dashboards stored in Postgres. Join to dashboard_charts on dashboards.id = dashboard_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dashboard" },
+      { name: "name", type: "String", description: "Dashboard name" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dashboard was created" },
+    ],
+  },
+  dashboard_charts: {
+    description:
+      "Charts on project dashboards, stored in Postgres. The grid is 12 columns wide; settings.layout holds {x, y, w, h} in grid units",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the chart" },
+      { name: "dashboard_id", type: "UUID", description: "Id of the dashboard the chart is on" },
+      { name: "name", type: "String", description: "Chart title" },
+      { name: "query", type: "String", description: "SQL the chart runs, with time-range parameters" },
+      {
+        name: "settings",
+        type: "String",
+        description: "Chart settings as a JSON object: {config, layout, queryStructure}",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the chart was created" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [
@@ -553,6 +578,30 @@ const customCompletions = (textBefore: string, searchTerm: string) => {
     if (enumTypes) return buildEnumOptions(enumTypes, searchTerm, (v) => `'${v}'`);
   }
   return [...buildEnumOptions(allEnumTypes, searchTerm, (v) => `'${v}'`), ...clickhouseFunctionCompletions(searchTerm)];
+};
+
+// --- Query parameters ---------------------------------------------------------
+// Completing on `{` is the main way anyone discovers parameters exist, so it offers the built-ins
+// plus any name already in the query, and applies the full `{name:Type}` form.
+const parameterCompletions = (docText: string, partial: string) => {
+  const declared = new Map<string, string>(
+    Object.entries(BUILT_IN_PARAMETERS).map(([name, spec]) => [name, spec.declaredType])
+  );
+  for (const ref of findParameterRefs(docText)) {
+    if (!declared.has(ref.name)) declared.set(ref.name, ref.declaredType);
+  }
+
+  return Array.from(declared.entries())
+    .filter(([name]) => matchesSearch(name, partial))
+    .map(([name, declaredType]) => ({
+      label: `{${name}:${declaredType}}`,
+      type: "variable",
+      detail: "parameter",
+      info:
+        BUILT_IN_PARAMETERS[name]?.description ??
+        "Query parameter. Give it a value in the parameters bar below the editor.",
+      apply: `{${name}:${declaredType}}`,
+    }));
 };
 
 // --- Sorting -----------------------------------------------------------------
@@ -680,6 +729,13 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
         options: sortByRelevance(options, partialText),
         validFor: /^\w*$/,
       };
+    }
+
+    const brace = context.matchBefore(/\{\w*/);
+    if (brace) {
+      const options = parameterCompletions(context.state.doc.toString(), brace.text.slice(1).toLowerCase());
+      if (options.length === 0) return null;
+      return { from: brace.from, options, validFor: /^\{\w*$/ };
     }
 
     const word = context.matchBefore(/\w*/);
@@ -891,6 +947,14 @@ const autocompleteStyles = {
     content: "'T'",
     fontWeight: "600",
     fontSize: "11px",
+  },
+  ".cm-completionIcon-variable": {
+    color: "hsl(var(--primary))",
+  },
+  ".cm-completionIcon-variable::after": {
+    content: "'{}'",
+    fontSize: "10px",
+    fontWeight: "600",
   },
   ".cm-completionLabel": {
     color: "var(--color-foreground)",

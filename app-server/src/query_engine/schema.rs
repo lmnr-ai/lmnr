@@ -1,5 +1,6 @@
-//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent's `query_sql`
-//! system prompt (`agent::prompts`) and the MCP `query_laminar_sql` tool description (`api::v1::mcp`).
+//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
+//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
 //! generation. The caller writes LOGICAL table names; the query engine rewrites them to
@@ -640,6 +641,43 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "dashboards",
+        description: "Project dashboards stored in Postgres. Join to dashboard_charts on dashboards.id = dashboard_id.",
+        columns: &[
+            col("id", "UUID", "Unique id of the dashboard"),
+            col("name", "String", "Dashboard name"),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the dashboard was created",
+            ),
+        ],
+    },
+    Table {
+        name: "dashboard_charts",
+        description: "Charts on project dashboards, stored in Postgres. The grid is 12 columns wide; a chart's position is settings.layout {x, y, w, h} in grid units.",
+        columns: &[
+            col("id", "UUID", "Unique id of the chart"),
+            col(
+                "dashboard_id",
+                "UUID",
+                "Id of the dashboard the chart is on",
+            ),
+            col("name", "String", "Chart title"),
+            col(
+                "query",
+                "String",
+                "SQL the chart runs, with {start_time:DateTime64} / {end_time:DateTime64} / {interval_unit:String} parameters",
+            ),
+            col(
+                "settings",
+                "String",
+                "Chart settings as a JSON object: {config, layout, queryStructure}. Read fields with JSONExtract, e.g. JSONExtractInt(settings, 'layout', 'y')",
+            ),
+            col("created_at", "DateTime64(6)", "When the chart was created"),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -682,7 +720,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in both the agent system prompt and the MCP tool description.
+/// Embedded verbatim in the MCP tool description.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
@@ -724,6 +762,8 @@ mod tests {
             "signals",
             "evaluations",
             "datasets",
+            "dashboards",
+            "dashboard_charts",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

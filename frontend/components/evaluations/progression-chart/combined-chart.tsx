@@ -3,8 +3,8 @@
 import { type Key, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
-import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { ElevatedSurface } from "@/components/ui/surface";
+import { parseUtcTimestamp } from "@/lib/charts/time";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import { type ChartConfig, ChartContainer } from "../../ui/chart";

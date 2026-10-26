@@ -84,6 +84,13 @@
   --color-emphasis-1: oklch(1 0 0 / 0.06);
   --color-emphasis-2: oklch(1 0 0 / 0.1);
   --color-emphasis-3: oklch(1 0 0 / 0.14);
+  --color-emphasis-4: oklch(1 0 0 / 0.2);
+  --color-emphasis-5: oklch(1 0 0 / 0.26);
+  --color-emphasis-6: oklch(1 0 0 / 0.32);
+  --color-emphasis-7: oklch(1 0 0 / 0.4);
+  --color-emphasis-8: oklch(1 0 0 / 0.5);
+  --color-emphasis-9: oklch(1 0 0 / 0.6);
+  --color-emphasis-10: oklch(1 0 0 / 0.7);
   --color-muted-foreground: var(--color-foreground-400);
 
   --color-tool: hsl(var(--tool));
@@ -187,6 +194,48 @@
   --color-primary-text: var(--color-primary);
 
   --breakpoint-3xl: 112rem;
+
+  --animate-collapsible-down: collapsible-down 0.2s ease-out;
+  --animate-collapsible-up: collapsible-up 0.2s ease-out;
+
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height);
+    }
+  }
+
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
 }
 
 /* Inline so utilities emit var(--x) directly and resolve on the element; a plain @theme alias would
@@ -603,11 +652,26 @@
 
     --ring: 212 96% 78%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --chart-1: 218.2 69.8% 52%; /* #2f6dda */
+    --chart-2: 263.5 77.7% 54.3%; /* #7730e5 */
+    --chart-3: 157.9 56.1% 43.7%; /* #31ae80 */
+    --chart-4: 0.8 64% 55.3%; /* #d64644 */
+    --chart-5: 27.7 73.4% 54.3%; /* #e08435 */
+    --chart-6: 280.6 59.6% 56.3%; /* #a74dd2 */
+    --chart-7: 342.7 68.8% 53.5%; /* #da3766 */
+    --chart-8: 192.6 71.5% 46.9%; /* #22a9cd */
+    --chart-9: 47.4 84.6% 40.8%; /* #c09b10 */
+    --chart-10: 232 85.9% 63.9%; /* #5469f2 */
+    --chart-11: 111 47.7% 46.5%; /* #4faf3e */
+    --chart-12: 178.8 93.8% 31.8%; /* #059d9a */
+    --chart-13: 318.6 52.7% 56.9%; /* #cb57a7 */
+    --chart-14: 65.4 97.3% 29%; /* #859202 */
+    --chart-15: 40 100% 35.9%; /* #b77a00 */
+    --chart-16: 198.1 99.1% 41.4%; /* #0193d2 */
+    --chart-17: 18 71.8% 50%; /* #db5b24 */
+    --chart-18: 171.5 96.3% 31.8%; /* #039f89 */
+    --chart-19: 185.5 94.3% 34.1%; /* #059aa9 */
+    --chart-20: 332.8 60.7% 58%; /* #d5538e */
 
     --tool: 42 93% 46%;
     --llm: 262 83% 58%;
@@ -756,11 +820,26 @@
 
     --ring: 18 59% 48%;
 
-    --chart-1: 220 70% 48%;
-    --chart-2: 160 60% 36%;
-    --chart-3: 30 80% 48%;
-    --chart-4: 280 58% 50%;
-    --chart-5: 340 68% 48%;
+    --chart-1: 218.2 69.8% 52%; /* #2f6dda */
+    --chart-2: 263.5 77.7% 54.3%; /* #7730e5 */
+    --chart-3: 157.9 56.1% 43.7%; /* #31ae80 */
+    --chart-4: 0.8 64% 55.3%; /* #d64644 */
+    --chart-5: 27.7 73.4% 54.3%; /* #e08435 */
+    --chart-6: 280.6 59.6% 56.3%; /* #a74dd2 */
+    --chart-7: 342.7 68.8% 53.5%; /* #da3766 */
+    --chart-8: 192.6 71.5% 46.9%; /* #22a9cd */
+    --chart-9: 47.4 84.6% 40.8%; /* #c09b10 */
+    --chart-10: 232 85.9% 63.9%; /* #5469f2 */
+    --chart-11: 111 47.7% 46.5%; /* #4faf3e */
+    --chart-12: 178.8 93.8% 31.8%; /* #059d9a */
+    --chart-13: 318.6 52.7% 56.9%; /* #cb57a7 */
+    --chart-14: 65.4 97.3% 29%; /* #859202 */
+    --chart-15: 40 100% 35.9%; /* #b77a00 */
+    --chart-16: 198.1 99.1% 41.4%; /* #0193d2 */
+    --chart-17: 18 71.8% 50%; /* #db5b24 */
+    --chart-18: 171.5 96.3% 31.8%; /* #039f89 */
+    --chart-19: 185.5 94.3% 34.1%; /* #059aa9 */
+    --chart-20: 332.8 60.7% 58%; /* #d5538e */
 
     --tool: 38 90% 35%;
     --llm: 262 72% 48%;
@@ -867,6 +946,13 @@
     --color-emphasis-1: oklch(0 0 0 / 0.04);
     --color-emphasis-2: oklch(0 0 0 / 0.07);
     --color-emphasis-3: oklch(0 0 0 / 0.1);
+    --color-emphasis-4: oklch(0 0 0 / 0.14);
+    --color-emphasis-5: oklch(0 0 0 / 0.18);
+    --color-emphasis-6: oklch(0 0 0 / 0.24);
+    --color-emphasis-7: oklch(0 0 0 / 0.3);
+    --color-emphasis-8: oklch(0 0 0 / 0.38);
+    --color-emphasis-9: oklch(0 0 0 / 0.46);
+    --color-emphasis-10: oklch(0 0 0 / 0.55);
     --color-muted-foreground: var(--color-foreground-400);
     --color-tool: hsl(var(--tool));
     --color-llm: hsl(var(--llm));

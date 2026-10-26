@@ -7,6 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/dashboards/chart-presets";
+import { useWithTimeRange } from "@/components/dashboards/time-range";
 import { getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -32,6 +33,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
   const dashboardsUrl = getDashboardsUrl(projectId);
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
+  const withTimeRange = useWithTimeRange();
   const [open, setOpen] = useState(false);
   const [activeTable, setActiveTable] = useState<PresetTable>("traces");
 
@@ -79,7 +81,10 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-1 border-b">
-          <Link href={`/project/${projectId}/dashboards/${dashboardId}/charts/new`} onClick={() => setOpen(false)}>
+          <Link
+            href={withTimeRange(`/project/${projectId}/dashboards/${dashboardId}/charts/new`)}
+            onClick={() => setOpen(false)}
+          >
             <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:overlay-hover cursor-pointer">
               <Pen className="size-3.5 text-muted-foreground" />
               Custom

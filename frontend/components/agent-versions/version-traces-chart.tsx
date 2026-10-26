@@ -4,12 +4,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { Bar, BarChart, BarStack, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 
-import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
-import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
-import { isValidZoomRange, normalizeTimeRange } from "@/components/traces/traces-chart/utils";
+import { type CategoricalChartFunc } from "@/components/charts/time-series-chart/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { type AgentVersionItem, type AgentVersionTracesPoint } from "@/lib/actions/agents";
+import { numberFormatter } from "@/lib/charts/format";
+import { isValidZoomRange, normalizeTimeRange, selectNiceTicksFromData } from "@/lib/charts/time";
 
 import { DEFAULT_PAST_HOURS, versionColor } from "./utils";
 

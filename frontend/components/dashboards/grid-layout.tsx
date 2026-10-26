@@ -8,6 +8,8 @@ import useSWR from "swr";
 
 import Chart from "@/components/dashboards/chart";
 import { type DashboardChart, dragHandleKey, getChartsUrl, GRID_COLS } from "@/components/dashboards/types";
+import { useDragToDashboard } from "@/components/dashboards/use-drag-to-dashboard";
+import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
@@ -25,6 +27,7 @@ const GridLayout = () => {
   const { projectId, dashboardId } = useParams<{ projectId: string; dashboardId: string }>();
   const chartsUrl = getChartsUrl(projectId, dashboardId);
   const { data = [], isLoading, mutate, error } = useSWR<DashboardChart[]>(chartsUrl, swrFetcher);
+  const { onDrag, onDragStop } = useDragToDashboard(projectId, dashboardId);
 
   const { toast } = useToast();
 
@@ -42,7 +45,7 @@ const GridLayout = () => {
   const children = useMemo(
     () =>
       (data || []).map((chart) => (
-        <div key={chart.id} className="rounded-lg bg-secondary">
+        <div key={chart.id} className="rounded-md bg-surface-up">
           <Chart chart={chart} />
         </div>
       )),
@@ -51,16 +54,19 @@ const GridLayout = () => {
 
   const onLayoutChange = useCallback<NonNullable<ResponsiveProps["onLayoutChange"]>>(
     async (currentLayout) => {
-      const optimisticData = (data || []).map((item) => ({
-        ...item,
-        settings: {
-          ...item.settings,
-          layout: pick(
-            currentLayout?.find((l) => item.id === l.i),
-            ["x", "y", "w", "h"]
-          ),
-        },
-      })) as DashboardChart[];
+      // Built from the latest cache, not `data`: a chart dropped on another dashboard is gone by the
+      // time this debounced save runs, and must not be put back.
+      const withLayout = (current?: DashboardChart[]) =>
+        (current || []).map((item) => ({
+          ...item,
+          settings: {
+            ...item.settings,
+            layout: pick(
+              currentLayout?.find((l) => item.id === l.i),
+              ["x", "y", "w", "h"]
+            ),
+          },
+        })) as DashboardChart[];
 
       const updates = compact(
         data.map((chart) => {
@@ -86,15 +92,15 @@ const GridLayout = () => {
       if (updates.length > 0) {
         try {
           await mutate(
-            async () => {
+            async (current?: DashboardChart[]) => {
               updateLayout(updates, chartsUrl);
-              return optimisticData;
+              return withLayout(current);
             },
             {
               revalidate: false,
               populateCache: true,
               rollbackOnError: true,
-              optimisticData,
+              optimisticData: withLayout,
             }
           );
         } catch (error) {
@@ -111,16 +117,16 @@ const GridLayout = () => {
     return (
       <div className="grid grid-cols-3 gap-4">
         {Array.from({ length: 9 }).map((_, item) => (
-          <Skeleton key={item} className="w-full h-[296px]" />
+          <Skeleton key={item} className="h-[296px] w-full bg-emphasis-1" />
         ))}
       </div>
     );
   }
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-1 py-24 text-sm text-muted-foreground">
-        <span>This dashboard has no charts yet.</span>
-        <span>Use the Chart button to add one.</span>
+      // Absolute against the ScrollArea root: the viewport's content wrapper can't stretch to full height.
+      <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+        This dashboard has no charts yet.
       </div>
     );
   }
@@ -130,15 +136,22 @@ const GridLayout = () => {
       className="layout"
       useCSSTransforms={false}
       onLayoutChange={debouncedAutoSave}
+      onDrag={onDrag}
+      onDragStop={onDragStop}
       layouts={{ lg: layout, md: layout }}
       breakpoints={{ lg: 1200, md: 996 }}
       cols={{ lg: GRID_COLS, md: GRID_COLS }}
       rowHeight={36}
       isDraggable={true}
       isResizable={true}
-      margin={[16, 16]}
+      margin={[12, 12]}
       draggableHandle={`.${dragHandleKey}`}
       containerPadding={[0, 0]}
+      resizeHandle={
+        <span className="absolute right-2 bottom-2 cursor-se-resize text-foreground-300">
+          <IconResizeHandle className="size-4" />
+        </span>
+      }
     >
       {children}
     </ResponsiveGridLayout>

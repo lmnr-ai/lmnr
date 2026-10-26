@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteDashboard, LastDashboardError, renameDashboard } from "@/lib/actions/dashboard/dashboards";
+import { deleteDashboard, renameDashboard } from "@/lib/actions/dashboard/dashboards";
+import { AppServerError } from "@/lib/app-server";
 
 export async function PATCH(
   req: NextRequest,
@@ -14,14 +15,14 @@ export async function PATCH(
 
     const dashboard = await renameDashboard({ ...body, projectId, dashboardId });
 
-    if (!dashboard) {
-      return Response.json({ error: "Dashboard not found" }, { status: 404 });
-    }
-
     return Response.json(dashboard);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    if (error instanceof AppServerError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
 
     return Response.json(
@@ -46,8 +47,8 @@ export async function DELETE(
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    if (error instanceof LastDashboardError) {
-      return Response.json({ error: error.message }, { status: 409 });
+    if (error instanceof AppServerError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
 
     return Response.json(

@@ -697,6 +697,15 @@ impl TableRegistry {
         ];
         let evaluations_columns = ["id", "name", "group_id", "metadata", "created_at"];
         let datasets_columns = ["id", "name", "indexed_on", "created_at"];
+        let dashboards_columns = ["id", "name", "created_at"];
+        let dashboard_charts_columns = [
+            "id",
+            "dashboard_id",
+            "name",
+            "query",
+            "settings",
+            "created_at",
+        ];
 
         tables.insert("spans", schema(&spans_columns));
         tables.insert("traces", schema(&traces_columns));
@@ -726,6 +735,8 @@ impl TableRegistry {
         tables.insert("signals", schema(&signals_columns));
         tables.insert("evaluations", schema(&evaluations_columns));
         tables.insert("datasets", schema(&datasets_columns));
+        tables.insert("dashboards", schema(&dashboards_columns));
+        tables.insert("dashboard_charts", schema(&dashboard_charts_columns));
 
         Self { tables }
     }

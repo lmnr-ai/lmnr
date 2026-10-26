@@ -3,6 +3,8 @@ import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
+import MoveChartSubmenu from "@/components/dashboards/move-chart-submenu";
+import { useWithTimeRange } from "@/components/dashboards/time-range";
 import { type DashboardChart, dragHandleKey, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +54,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
   // removing a chart has to revalidate it alongside the charts themselves.
   const dashboardsUrl = getDashboardsUrl(projectId);
   const { toast } = useToast();
+  const withTimeRange = useWithTimeRange();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { mutate } = useSWRConfig();
@@ -144,7 +147,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
   }, [isEditing]);
 
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-2 items-center mb-1.5">
       <GripVertical className={cn("w-4 h-4 min-w-4 min-h-4 cursor-pointer text-muted-foreground", dragHandleKey)} />
       {isEditing ? (
         <Input
@@ -157,7 +160,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
           onClick={(e) => e.preventDefault()}
         />
       ) : (
-        <span title={name} className="font-medium text-lg text-secondary-foreground truncate">
+        <span title={name} className="font-medium text-base text-secondary-foreground truncate">
           {name}
         </span>
       )}
@@ -185,7 +188,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
               <Pen className="size-3.5" />
               Rename
             </DropdownMenuItem>
-            <Link passHref href={`/project/${projectId}/dashboards/${dashboardId}/charts/${id}`}>
+            <Link passHref href={withTimeRange(`/project/${projectId}/dashboards/${dashboardId}/charts/${id}`)}>
               <DropdownMenuItem className="cursor-pointer">
                 <Edit className="size-3.5" />
                 Edit
@@ -201,6 +204,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
               <Copy className="size-3.5" />
               Duplicate
             </DropdownMenuItem>
+            <MoveChartSubmenu id={id} projectId={projectId} dashboardId={dashboardId} />
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();

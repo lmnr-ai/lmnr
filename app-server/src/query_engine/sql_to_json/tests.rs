@@ -65,6 +65,32 @@ STEP toInterval(1, {interval_unit:String})
 }
 
 #[test]
+fn test_time_series_keeps_literal_filter_on_time_column() {
+    let sql = r#"
+SELECT
+    toStartOfInterval(timestamp, toInterval(1, {interval_unit:String})) AS time,
+    count(*) AS value
+FROM signal_events
+WHERE
+    timestamp > '2026-10-01 00:00:00'
+  AND timestamp >= {start_time:DateTime64}
+  AND timestamp <= {end_time:DateTime64}
+GROUP BY time
+ORDER BY time
+WITH FILL
+FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+STEP toInterval(1, {interval_unit:String})
+"#;
+    let result = convert_sql_to_json(sql).unwrap();
+
+    assert_eq!(result.time_range.as_ref().unwrap().column, "timestamp");
+    assert_eq!(result.filters.len(), 1);
+    assert_eq!(result.filters[0].field, "timestamp");
+    assert_eq!(result.filters[0].op, "gt");
+}
+
+#[test]
 fn test_complex_raw_expression_not_reduced_to_sub_aggregate() {
     let dialect = ClickHouseDialect {};
 

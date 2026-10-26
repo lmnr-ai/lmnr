@@ -1,12 +1,16 @@
 import React, { useMemo } from "react";
 
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
-import BarChart from "@/components/chart-builder/charts/bar-chart";
+import CartesianChart from "@/components/chart-builder/charts/cartesian-chart";
+import ChartEmptyState from "@/components/chart-builder/charts/chart-empty-state";
+import ChartTotal from "@/components/chart-builder/charts/chart-total";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
-import LineChart, { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
 import TableChart from "@/components/chart-builder/charts/table-chart";
 import {
+  calculateDisplayValue,
   generateChartConfig,
+  SINGLE_BAR_PALETTE,
+  SINGLE_LINE_PALETTE,
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
@@ -24,8 +28,8 @@ interface ChartRendererCoreProps {
   columns: ColumnInfo[];
   hiddenColumns?: string[];
   onBarClick?: (rowData: Record<string, any>) => void;
-  syncId?: string;
-  drag?: ChartDragHandlers;
+  /** Set on dashboards, where dragging across a line or bar chart selects a time range. */
+  selectionChartId?: string;
   onColumnConfigChange?: (config: TableColumnConfig) => void;
   hasMore?: boolean;
   isFetching?: boolean;
@@ -38,8 +42,7 @@ export const ChartRendererCore = ({
   columns,
   hiddenColumns,
   onBarClick,
-  syncId,
-  drag,
+  selectionChartId,
   onColumnConfigChange,
   hasMore,
   isFetching,
@@ -68,8 +71,16 @@ export const ChartRendererCore = ({
       return transformDataForBreakdown(data, config.x, config.y, config.breakdown!);
     }
 
-    return transformDataForSimpleChart(data, config.x, [config.y]);
+    const palette =
+      config.type === ChartType.LineChart
+        ? SINGLE_LINE_PALETTE
+        : config.type === ChartType.BarChart
+          ? SINGLE_BAR_PALETTE
+          : undefined;
+    return transformDataForSimpleChart(data, config.x, [config.y], palette);
   }, [config, data, columns, isTable]);
+  // Stable so the chart only rebuilds its definition when the data changes, not on every hover-store update.
+  const seriesKeys = useMemo(() => Array.from(keys), [keys]);
 
   if (isTable) {
     const tableColumnConfig = config.type === ChartType.Table ? config.tableColumnConfig : undefined;
@@ -89,57 +100,67 @@ export const ChartRendererCore = ({
   }
 
   if (!config.type || !config.x || !config.y) {
+    if (columns.length === 0) {
+      return <ChartEmptyState title="Nothing to plot" hint="This result set has no columns to chart." />;
+    }
+
+    const missing = [!config.type && "a chart type", !config.x && "an X axis", !config.y && "a Y axis"].filter(
+      Boolean
+    ) as string[];
+
     return (
-      <div className="flex items-center justify-center h-full w-full text-muted-foreground">
-        <div className="text-center">
-          <p className="text">Invalid chart configuration</p>
-          {!config.type && <p className="text-sm mt-1">• Chart type is required</p>}
-          {!config.x && <p className="text-sm mt-1">• X-axis column is required</p>}
-          {!config.y && <p className="text-sm mt-1">• Y-axis column is required</p>}
-        </div>
-      </div>
+      <ChartEmptyState
+        title="Nothing to plot yet"
+        hint={`Select ${missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}` : missing[0]}.`}
+      />
     );
   }
 
   const displayMode = resolveDisplayMode(config);
 
-  const props = {
-    data: chartData,
-    x: config.x,
-    y: config.y,
-    breakdown: config.breakdown,
-    displayMode,
-    metricColumn: config.type === ChartType.HorizontalBarChart ? config.x : config.y,
-    keys: Array.from(keys),
-    chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
-    syncId,
-    drag,
-  };
+  const metricColumn = config.type === ChartType.HorizontalBarChart ? config.x : config.y;
 
+  // With a breakdown, only zero-valued WITH FILL rows produce no series (empty values chart as "(none)").
   if (keys.size === 0) {
-    return (
-      <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
-        <span className="text-muted-foreground">No data during this period</span>
-      </div>
+    return data.length === 0 || config.breakdown ? (
+      <ChartEmptyState title="No data during this period" />
+    ) : (
+      <ChartEmptyState title="Nothing to plot" />
     );
   }
 
-  switch (config.type) {
-    case ChartType.LineChart:
-      return <LineChart {...props} />;
-    case ChartType.BarChart:
-      return <BarChart {...props} />;
-    case ChartType.HorizontalBarChart: {
-      const { syncId: _, drag: __, ...horizontalBarProps } = props;
-      return <HorizontalBarChart {...horizontalBarProps} onBarClick={onBarClick} />;
-    }
-    default:
-      return (
-        <div className="flex items-center justify-center h-full w-full text-muted-foreground">
-          <p className="text-sm">Unsupported chart type: {config.type}</p>
-        </div>
-      );
-  }
+  // Horizontal bars plot their value on x, so that's the column to total.
+  const totalKeys = config.type === ChartType.HorizontalBarChart ? [config.x] : seriesKeys;
+  const chart =
+    config.type === ChartType.LineChart || config.type === ChartType.BarChart ? (
+      <CartesianChart
+        kind={config.type === ChartType.LineChart ? "line" : "bar"}
+        data={chartData}
+        x={config.x}
+        keys={seriesKeys}
+        chartConfig={uiChartConfig || generateChartConfig(seriesKeys)}
+        selectionChartId={selectionChartId}
+      />
+    ) : config.type === ChartType.HorizontalBarChart ? (
+      <HorizontalBarChart data={chartData} x={config.x} y={config.y} onBarClick={onBarClick} />
+    ) : (
+      <div className="flex items-center justify-center h-full w-full text-muted-foreground">
+        <p className="text-sm">Unsupported chart type: {config.type}</p>
+      </div>
+    );
+
+  // Siblings, not wrapped: the parent flex column lays out the total and the chart.
+  return (
+    <>
+      {displayMode !== "none" && (
+        <ChartTotal
+          value={calculateDisplayValue(chartData, totalKeys, displayMode).displayValue ?? 0}
+          metricColumn={metricColumn}
+        />
+      )}
+      {chart}
+    </>
+  );
 };
 
 const ChartRenderer = () => {
