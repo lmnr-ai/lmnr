@@ -1,4 +1,4 @@
-import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash";
+import { isEmpty, isNil, isPlainObject, isString, last, map, mapValues, range, sumBy } from "lodash";
 import Mustache from "mustache";
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
@@ -79,9 +79,29 @@ export const METADATA_KEYS: ReadonlySet<string> = new Set([
   "object",
   "system_fingerprint",
   "signature",
+  "encrypted_content",
   "tool_use_id",
   "stop_reason",
 ]);
+
+/**
+ * True for machine payloads that are never a readable preview, whatever key
+ * they sit under: encrypted reasoning, signatures, base64 media, `<Foo at 0x…>` reprs.
+ */
+export const isOpaqueString = (value: string): boolean => {
+  const v = value.trim();
+  if (/^<.+ at 0x[0-9a-fA-F]+>$/.test(v) || /^data:[\w.+-]+\/[\w.+-]+;base64,/.test(v)) return true;
+  if (!/^[A-Za-z0-9+/=_-]{48,}$/.test(v)) return false;
+
+  // Random base64 flips between lowercase, uppercase and digits on ~64% of chars;
+  // camelCase identifiers and paths keep letters in words and stay under ~37%.
+  const kinds = map(v, (c) =>
+    /[a-z]/.test(c) ? "lower" : /[A-Z]/.test(c) ? "upper" : /\d/.test(c) ? "digit" : "symbol"
+  );
+  const flips = sumBy(range(1, kinds.length), (i) => (kinds[i] === kinds[i - 1] ? 0 : 1));
+  const hasAllKinds = (["lower", "upper", "digit"] as const).every((kind) => kinds.includes(kind));
+  return hasAllKinds && flips / (kinds.length - 1) >= 0.42;
+};
 
 const IDENTIFIER_KEYS: ReadonlySet<string> = new Set(["name", "action", "function", "method", "command", "tool"]);
 
@@ -156,8 +176,6 @@ export const generateFingerprint = (spanName: string, data: unknown): string => 
 // Path flattening — used to build the LLM prompt
 // ---------------------------------------------------------------------------
 
-const OPAQUE_VALUE_PATTERN = /^<.+ at 0x[0-9a-fA-F]+>$/;
-
 const SAMPLE_VALUE_MAX_CHARS = 80;
 
 // Short, single-line sample of a scalar value for the LLM prompt. Collapses
@@ -180,7 +198,7 @@ export const flattenPaths = (data: unknown): string[] => {
     if (isString(value) || typeof value === "number" || typeof value === "boolean") {
       const lastKey = last(prefix.split("."))?.replace(/\[\]$/, "") ?? "";
       let tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
-      if (!tag && isString(value) && OPAQUE_VALUE_PATTERN.test(value)) tag = " [meta]";
+      if (!tag && isString(value) && isOpaqueString(value)) tag = " [meta]";
       const sample = tag === " [meta]" ? "" : ` = ${formatSample(value)}`;
       paths.push(`${prefix}: ${typeof value}${tag}${sample}`);
       return;
@@ -240,6 +258,8 @@ export const validateMustacheKey = (key: string, data: unknown): string | null =
     if (!rendered) return null;
     const trimmed = rendered.trim();
     if (trimmed === "" || trimmed.toLowerCase() === "null" || rendered.includes("[object Object]")) return null;
+    // Also invalidates cached templates that point at an opaque field, e.g. `{{#.}}{{{encrypted_content}}}{{/.}}`.
+    if (trimmed.split(/\s+/).every(isOpaqueString)) return null;
     return rendered;
   } catch {
     return null;
