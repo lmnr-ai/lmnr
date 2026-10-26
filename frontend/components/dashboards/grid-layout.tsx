@@ -55,20 +55,18 @@ const GridLayout = () => {
   const onLayoutChange = useCallback<NonNullable<ResponsiveProps["onLayoutChange"]>>(
     async (currentLayout) => {
       // Built from the latest cache, not `data`: a chart dropped on another dashboard is gone by the
-      // time this debounced save runs, and must not be put back. A chart added after this snapshot keeps
-      // its own position.
+      // time this debounced save runs, and must not be put back.
       const withLayout = (current?: DashboardChart[]) =>
-        (current || []).map((item) => {
-          const itemLayout = currentLayout?.find((l) => item.id === l.i);
-          if (!itemLayout) return item;
-          return {
-            ...item,
-            settings: {
-              ...item.settings,
-              layout: pick(itemLayout, ["x", "y", "w", "h"]),
-            },
-          };
-        }) as DashboardChart[];
+        (current || []).map((item) => ({
+          ...item,
+          settings: {
+            ...item.settings,
+            layout: pick(
+              currentLayout?.find((l) => item.id === l.i),
+              ["x", "y", "w", "h"]
+            ),
+          },
+        })) as DashboardChart[];
 
       const updates = compact(
         data.map((chart) => {
