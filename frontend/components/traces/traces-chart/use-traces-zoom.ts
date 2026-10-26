@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isValidZoomRange, normalizeTimeRange } from "@/lib/charts/time";
 
 import { type TraceSeriesRow } from "./definition";
+import { sameZoomGeometry } from "./zoom-scene";
 
 type Scene = ChartScene<TraceSeriesRow, string, number>;
 type Selection = { start: string; end: string };
@@ -35,11 +36,7 @@ export const useTracesZoom = () => {
   }, []);
 
   const onRender = useCallback(({ scene: next }: { scene: Scene }) => {
-    setScene((prev) =>
-      prev && prev.width === next.width && prev.height === next.height && prev.points.length === next.points.length
-        ? prev
-        : next
-    );
+    setScene((prev) => (prev && sameZoomGeometry(prev, next) ? prev : next));
   }, []);
 
   const isSelecting = selection !== null;
