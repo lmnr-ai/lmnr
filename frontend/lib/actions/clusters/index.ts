@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 
+import { getStandaloneLevels, hideStandaloneLevels, MIN_HIDEABLE_LEVEL } from "./standalone-levels";
 import { type EventCluster } from "./types";
 
 export { type EventCluster, UNCLUSTERED_ID } from "./types";
@@ -63,7 +64,17 @@ export async function getEventClusters(
       ${timeClause}
   `;
 
-  const [rows, countResult, unclusteredCountResult] = await Promise.all([
+  // Deliberately not time-scoped: whether a level has siblings is a property of
+  // the signal's whole hierarchy, not of the selected window.
+  const levelCountsQuery = `
+    SELECT level, count() as count
+    FROM clusters
+    WHERE signal_id = {signalId: UUID}
+      AND level >= {minLevel: UInt8}
+    GROUP BY level
+  `;
+
+  const [rows, countResult, unclusteredCountResult, levelCounts] = await Promise.all([
     executeQuery<{
       id: string;
       name: string;
@@ -88,9 +99,14 @@ export async function getEventClusters(
       parameters: { signalId, ...timeParams },
       projectId,
     }),
+    executeQuery<{ level: number; count: number }>({
+      query: levelCountsQuery,
+      parameters: { signalId, minLevel: MIN_HIDEABLE_LEVEL },
+      projectId,
+    }),
   ]);
 
-  const items: EventCluster[] = rows.map((row) => ({
+  const clusters: EventCluster[] = rows.map((row) => ({
     id: row.id,
     name: row.name,
     parentId: row.parentId && row.parentId !== "00000000-0000-0000-0000-000000000000" ? row.parentId : null,
@@ -100,6 +116,10 @@ export async function getEventClusters(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
+  const standaloneLevels = getStandaloneLevels(
+    levelCounts.map((row) => ({ level: Number(row.level), count: Number(row.count) }))
+  );
+  const items = hideStandaloneLevels(clusters, standaloneLevels);
 
   const totalEventCount = Number(countResult[0]?.count ?? 0);
   const unclusteredEventCount = Number(unclusteredCountResult[0]?.count ?? 0);
