@@ -36,9 +36,6 @@ pub const LOOKBACK_SECONDS: NumEnv<i64> = NumEnv::new("AGENT_VERSIONING_LOOKBACK
 pub const RELEASE_MIN_RUN: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_RELEASE_MIN_RUN", 10);
 
 /// Release mode: a release short of `RELEASE_MIN_RUN` traces is decided from
-/// what it has this long after it was first seen.
+/// however many it has (even one) this long after it was first seen.
 pub const RELEASE_DECIDE_AFTER_SECONDS: NumEnv<i64> =
     NumEnv::new("AGENT_VERSIONING_RELEASE_DECIDE_AFTER_SECONDS", 6 * 60 * 60);
-
-/// Release mode: fewest traces a release is ever decided from.
-pub const RELEASE_MIN_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_RELEASE_MIN_SAMPLES", 3);

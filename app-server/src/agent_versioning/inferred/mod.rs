@@ -2,16 +2,15 @@
 //! version timeline from sampled prompts, mint versions, and tag traces by
 //! time up to the labelling horizon.
 
+mod timeline;
+
 use std::collections::HashMap;
 
 use anyhow::Result;
 use uuid::Uuid;
 
-use super::{
-    job::{Job, NS, VISIBILITY_LAG_NS},
-    normalize::version_hash,
-    timeline::{self, Input, Params, Sample, Timeline},
-};
+use self::timeline::{Input, Params, Sample, Timeline};
+use super::{Job, NS, VISIBILITY_LAG_NS, normalize::version_hash};
 use crate::{
     ch::agent_prompts::{Scope, TracePrompt},
     db::agent_versioning::{Agent, get_versions, insert_version, save_progress},

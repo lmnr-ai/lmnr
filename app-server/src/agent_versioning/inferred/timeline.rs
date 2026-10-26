@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn a_new_day_is_not_a_change() {
-        use super::super::normalize::line_set;
+        use crate::agent_versioning::normalize::line_set;
         let day = |minute: i64, date: &str| Sample {
             time: minute * MINUTE,
             lines: line_set(&format!("You are a helpful agent.\nToday is {date}."), ""),

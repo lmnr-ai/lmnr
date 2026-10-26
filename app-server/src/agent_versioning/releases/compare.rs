@@ -79,19 +79,17 @@ pub fn decide(release: &Side, baseline: Option<&Side>, cores: &[Vec<u64>]) -> De
 pub struct Params {
     /// N: traces a release is decided from.
     pub min_run: u64,
-    /// Fewest traces a release is ever decided from.
-    pub min_samples: u64,
     /// Nanoseconds after its first prompt that a short release is decided anyway.
     pub decide_after: i64,
 }
 
 /// How many of an undecided release's `traces` to decide it from now, if it
-/// can be decided: N once it has them, else what it has (at least the minimum)
-/// once a newer release reached N or it is `age` old enough.
+/// can be decided: N once it has them, else however many it has once a newer
+/// release reached N or it is `age` old enough.
 pub fn sample_size(traces: u64, newer_has_min_run: bool, age: i64, params: &Params) -> Option<u64> {
     if traces >= params.min_run {
         Some(params.min_run)
-    } else if (newer_has_min_run || age >= params.decide_after) && traces >= params.min_samples {
+    } else if (newer_has_min_run || age >= params.decide_after) && traces > 0 {
         Some(traces)
     } else {
         None
@@ -104,7 +102,6 @@ mod tests {
 
     const PARAMS: Params = Params {
         min_run: 10,
-        min_samples: 3,
         decide_after: 100,
     };
 
@@ -192,7 +189,8 @@ mod tests {
         // A newer release reached N, or the release timed out.
         assert_eq!(sample_size(5, true, 0, &PARAMS), Some(5));
         assert_eq!(sample_size(5, false, 100, &PARAMS), Some(5));
-        // Never from fewer than the minimum.
-        assert_eq!(sample_size(2, true, 1000, &PARAMS), None);
+        // From any number of traces, but never none (expired from `agent_prompts`).
+        assert_eq!(sample_size(1, false, 100, &PARAMS), Some(1));
+        assert_eq!(sample_size(0, true, 1000, &PARAMS), None);
     }
 }

@@ -97,35 +97,31 @@ pub async fn tag_releases(
     aggregations: &mut [TraceAggregation],
 ) {
     let mut versions: HashMap<(Uuid, &str, &str), Option<String>> = HashMap::new();
+    let mut tags: HashMap<Uuid, HashSet<CHTraceAgentVersion>> = HashMap::new();
     for prompt in prompts.iter().filter(|p| !p.release.is_empty()) {
         let key = (
             prompt.project_id,
             prompt.agent_hash.as_str(),
             prompt.release.as_str(),
         );
-        if versions.contains_key(&key) {
+        let version_hash = match versions.get(&key) {
+            Some(version_hash) => version_hash.clone(),
+            None => {
+                let version_hash = release_version(db, cache, key.0, key.1, key.2).await;
+                versions.insert(key, version_hash.clone());
+                version_hash
+            }
+        };
+        let Some(version_hash) = version_hash else {
             continue;
-        }
-        let version = release_version(db, cache, key.0, key.1, key.2).await;
-        versions.insert(key, version);
-    }
-
-    let mut tags: HashMap<Uuid, HashSet<CHTraceAgentVersion>> = HashMap::new();
-    for prompt in prompts {
-        let key = (
-            prompt.project_id,
-            prompt.agent_hash.as_str(),
-            prompt.release.as_str(),
-        );
-        if let Some(Some(version_hash)) = versions.get(&key) {
-            tags.entry(prompt.trace_id)
-                .or_default()
-                .insert(CHTraceAgentVersion {
-                    agent_hash: prompt.agent_hash.clone(),
-                    version_hash: version_hash.clone(),
-                    model: prompt.model.clone(),
-                });
-        }
+        };
+        tags.entry(prompt.trace_id)
+            .or_default()
+            .insert(CHTraceAgentVersion {
+                agent_hash: prompt.agent_hash.clone(),
+                version_hash,
+                model: prompt.model.clone(),
+            });
     }
     for aggregation in aggregations {
         if let Some(tags) = tags.remove(&aggregation.trace_id) {

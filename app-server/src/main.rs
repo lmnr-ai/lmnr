@@ -1540,7 +1540,7 @@ fn main() -> anyhow::Result<()> {
 
         if is_feature_enabled(Feature::AgentVersioning) {
             log::info!("Agent versioning enabled - starting agent versioning job");
-            let job = agent_versioning::job::Job {
+            let job = agent_versioning::Job {
                 db: db.clone(),
                 cache: cache.clone(),
                 clickhouse: clickhouse.clone(),

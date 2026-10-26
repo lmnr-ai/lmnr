@@ -4,15 +4,17 @@
 //! decided release is tagged with its version, by the job and, once the
 //! decision is cached, at ingest ([`super::ingest::tag_releases`]).
 
+mod compare;
+
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use uuid::Uuid;
 
+use self::compare::{Decision, Params, Side};
 use super::{
-    compare::{self, Decision, Params, Side},
+    Job, NS, VISIBILITY_LAG_NS,
     ingest::{RELEASE_CACHE_TTL_SECONDS, release_cache_key},
-    job::{Job, NS, VISIBILITY_LAG_NS},
     normalize::version_hash,
 };
 use crate::{
@@ -22,7 +24,7 @@ use crate::{
         Agent, decide_release, get_releases, get_versions, insert_version, save_progress,
         set_release_version, upsert_releases,
     },
-    env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN, RELEASE_MIN_SAMPLES},
+    env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN},
 };
 
 /// Traces tagged per `traces_agg` insert.
@@ -40,7 +42,6 @@ impl Job {
         let ch = &self.clickhouse;
         let params = Params {
             min_run: RELEASE_MIN_RUN.get().max(1),
-            min_samples: RELEASE_MIN_SAMPLES.get().max(1),
             decide_after: RELEASE_DECIDE_AFTER_SECONDS.get() * NS,
         };
         let watermark = now - VISIBILITY_LAG_NS;
