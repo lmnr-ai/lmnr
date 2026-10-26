@@ -5,19 +5,19 @@
 
 /// A release's sampled prompts, or a known version's core.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Side {
+pub struct PromptLines {
     /// Lines in every prompt, sorted.
     pub every: Vec<u64>,
     /// Lines in any prompt, sorted.
     pub any: Vec<u64>,
 }
 
-impl Side {
+impl PromptLines {
     /// From prompts whose lines are each sorted and deduplicated.
     pub fn from_samples<'a>(samples: impl IntoIterator<Item = &'a [u64]>) -> Self {
         let mut samples = samples.into_iter();
         let Some(first) = samples.next() else {
-            return Side::from_core(&[]);
+            return PromptLines::from_core(&[]);
         };
         let mut every = first.to_vec();
         let mut any = first.to_vec();
@@ -27,19 +27,19 @@ impl Side {
         }
         any.sort_unstable();
         any.dedup();
-        Side { every, any }
+        PromptLines { every, any }
     }
 
     pub fn from_core(core: &[u64]) -> Self {
-        Side {
+        PromptLines {
             every: core.to_vec(),
             any: core.to_vec(),
         }
     }
 }
 
-/// Lines in every prompt of one side and in none of the other, sorted.
-pub fn changed(a: &Side, b: &Side) -> Vec<u64> {
+/// Lines in every prompt of one and in none of the other, sorted.
+pub fn changed(a: &PromptLines, b: &PromptLines) -> Vec<u64> {
     let mut lines: Vec<u64> = a
         .every
         .iter()
@@ -63,13 +63,17 @@ pub enum Decision {
 
 /// A release's version given the release before it (`baseline`, when it has
 /// a version) and the agent's version cores, oldest first.
-pub fn decide(release: &Side, baseline: Option<&Side>, cores: &[Vec<u64>]) -> Decision {
+pub fn decide(
+    release: &PromptLines,
+    baseline: Option<&PromptLines>,
+    cores: &[Vec<u64>],
+) -> Decision {
     if baseline.is_some_and(|b| changed(release, b).is_empty()) {
         return Decision::Same;
     }
     match cores
         .iter()
-        .rposition(|core| changed(release, &Side::from_core(core)).is_empty())
+        .rposition(|core| changed(release, &PromptLines::from_core(core)).is_empty())
     {
         Some(version) => Decision::Existing(version),
         None => Decision::New(release.every.clone()),
@@ -105,25 +109,25 @@ mod tests {
         decide_after: 100,
     };
 
-    fn side(samples: &[&[u64]]) -> Side {
-        Side::from_samples(samples.iter().copied())
+    fn lines(samples: &[&[u64]]) -> PromptLines {
+        PromptLines::from_samples(samples.iter().copied())
     }
 
     #[test]
     fn identical_releases_do_not_change() {
-        let a = side(&[&[1, 2, 3], &[1, 2, 3]]);
-        let b = side(&[&[1, 2, 3]]);
+        let a = lines(&[&[1, 2, 3], &[1, 2, 3]]);
+        let b = lines(&[&[1, 2, 3]]);
         assert!(changed(&a, &b).is_empty());
         assert_eq!(decide(&b, Some(&a), &[vec![1, 2, 3]]), Decision::Same);
     }
 
     #[test]
     fn an_added_or_removed_line_changes() {
-        let a = side(&[&[1, 2, 3], &[1, 2, 3]]);
-        let b = side(&[&[1, 2, 3, 4], &[1, 2, 3, 4]]);
+        let a = lines(&[&[1, 2, 3], &[1, 2, 3]]);
+        let b = lines(&[&[1, 2, 3, 4], &[1, 2, 3, 4]]);
         assert_eq!(changed(&a, &b), vec![4]);
         assert_eq!(changed(&b, &a), vec![4]);
-        let c = side(&[&[1, 3], &[1, 3]]);
+        let c = lines(&[&[1, 3], &[1, 3]]);
         assert_eq!(changed(&a, &c), vec![2]);
         assert_eq!(
             decide(&b, Some(&a), &[vec![1, 2, 3]]),
@@ -134,20 +138,20 @@ mod tests {
     #[test]
     fn optional_lines_are_noise() {
         // 9 comes and goes in both releases; 8 only in some of the new one's.
-        let a = side(&[&[1, 2, 9], &[1, 2]]);
-        let b = side(&[&[1, 2], &[1, 2, 8, 9], &[1, 2, 9]]);
+        let a = lines(&[&[1, 2, 9], &[1, 2]]);
+        let b = lines(&[&[1, 2], &[1, 2, 8, 9], &[1, 2, 9]]);
         assert!(changed(&a, &b).is_empty());
         // An optional line seen in every one of a few samples still has to be
-        // missing from every prompt of the other side.
-        let c = side(&[&[1, 2, 9], &[1, 2, 9]]);
+        // missing from every prompt of the other release.
+        let c = lines(&[&[1, 2, 9], &[1, 2, 9]]);
         assert!(changed(&a, &c).is_empty());
     }
 
     #[test]
     fn a_rollback_reuses_the_version() {
         let cores = vec![vec![1, 2], vec![1, 2, 3]];
-        let back = side(&[&[1, 2], &[1, 2, 7]]);
-        let previous = side(&[&[1, 2, 3]]);
+        let back = lines(&[&[1, 2], &[1, 2, 7]]);
+        let previous = lines(&[&[1, 2, 3]]);
         assert_eq!(
             decide(&back, Some(&previous), &cores),
             Decision::Existing(0)
@@ -160,12 +164,12 @@ mod tests {
     #[test]
     fn releases_chain_into_versions() {
         // a, then b changes the prompt, then c ships no prompt change.
-        let a = side(&[&[1, 2], &[1, 2, 5]]);
-        let b = side(&[&[1, 2, 3], &[1, 2, 3]]);
-        let c = side(&[&[1, 2, 3, 6], &[1, 2, 3]]);
+        let a = lines(&[&[1, 2], &[1, 2, 5]]);
+        let b = lines(&[&[1, 2, 3], &[1, 2, 3]]);
+        let c = lines(&[&[1, 2, 3, 6], &[1, 2, 3]]);
         let mut cores = Vec::new();
         let mut versions = Vec::new();
-        let mut previous: Option<(&Side, usize)> = None;
+        let mut previous: Option<(&PromptLines, usize)> = None;
         for release in [&a, &b, &c] {
             let version = match decide(release, previous.map(|p| p.0), &cores) {
                 Decision::Same => previous.unwrap().1,

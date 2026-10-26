@@ -9,9 +9,10 @@ mod compare;
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
+use sqlx::PgPool;
 use uuid::Uuid;
 
-use self::compare::{Decision, Params, Side};
+use self::compare::{Decision, Params, PromptLines};
 use super::{
     Job, NS, VISIBILITY_LAG_NS,
     ingest::{RELEASE_CACHE_TTL_SECONDS, release_cache_key},
@@ -21,7 +22,7 @@ use crate::{
     cache::CacheTrait,
     ch::agent_prompts::{Scope, TracePrompt},
     db::agent_versioning::{
-        Agent, decide_release, get_releases, get_versions, insert_version, save_progress,
+        Agent, Release, decide_release, get_releases, get_versions, insert_version, save_progress,
         set_release_version, upsert_releases,
     },
     env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN},
@@ -38,142 +39,277 @@ impl Job {
         agent_hash: &str,
         now: i64,
     ) -> Result<()> {
-        let pool = &self.db.pool;
-        let ch = &self.clickhouse;
-        let params = Params {
-            min_run: RELEASE_MIN_RUN.get().max(1),
-            decide_after: RELEASE_DECIDE_AFTER_SECONDS.get() * NS,
-        };
         let watermark = now - VISIBILITY_LAG_NS;
         let scope = Scope {
             project_id,
             agent_hash,
             watermark,
         };
+        let mut run = Run::load(self, agent, scope, now).await?;
+        let decided_now = run.decide_pending().await?;
+        let labels = run.tag(&decided_now).await?;
+        run.mark_decided(&decided_now).await?;
+        save_progress(
+            &self.db.pool,
+            agent.id,
+            agent.labeled_until,
+            watermark,
+            run.current_version_id(),
+        )
+        .await?;
 
-        let stats = scope.releases(ch).await?;
+        let sample = labels.last().map(|(_, trace)| trace);
+        self.name_agent(agent, project_id, run.system_prompt, sample)
+            .await
+    }
+}
+
+/// The agent's versions, addressed by index; new ones are appended, so
+/// indexes stay valid.
+struct Versions {
+    ids: Vec<Uuid>,
+    hashes: Vec<String>,
+    cores: Vec<Vec<u64>>,
+}
+
+impl Versions {
+    async fn load(pool: &PgPool, agent_id: Uuid) -> Result<Self> {
+        let versions = get_versions(pool, agent_id).await?;
+        let mut loaded = Self {
+            ids: Vec::with_capacity(versions.len()),
+            hashes: Vec::with_capacity(versions.len()),
+            cores: Vec::with_capacity(versions.len()),
+        };
+        for v in versions {
+            let core = v.core_lines.iter().map(|&l| l as u64).collect();
+            loaded.push(v.id, v.version_hash, core);
+        }
+        Ok(loaded)
+    }
+
+    fn index(&self, id: Uuid) -> Option<usize> {
+        self.ids.iter().position(|&v| v == id)
+    }
+
+    fn push(&mut self, id: Uuid, hash: String, core: Vec<u64>) -> usize {
+        self.ids.push(id);
+        self.hashes.push(hash);
+        self.cores.push(core);
+        self.cores.len() - 1
+    }
+}
+
+/// One run of the release path over an agent.
+struct Run<'a> {
+    job: &'a Job,
+    agent: &'a Agent,
+    scope: Scope<'a>,
+    params: Params,
+    now: i64,
+    /// Oldest first.
+    releases: Vec<Release>,
+    /// Traces per release still in `agent_prompts`.
+    counts: HashMap<String, u64>,
+    versions: Versions,
+    /// Index into `versions` per release, once chosen.
+    version_of: Vec<Option<usize>>,
+    /// The version before the first release, while it still is the current one.
+    before_releases: Option<usize>,
+    /// Of the first version minted, for naming the agent.
+    system_prompt: Option<String>,
+}
+
+impl<'a> Run<'a> {
+    /// Records the releases seen in `agent_prompts` and loads them with the
+    /// agent's versions.
+    async fn load(job: &'a Job, agent: &'a Agent, scope: Scope<'a>, now: i64) -> Result<Self> {
+        let pool = &job.db.pool;
+        let stats = scope.releases(&job.clickhouse).await?;
         let (names, first_seen): (Vec<String>, Vec<i64>) = stats
             .iter()
             .map(|s| (s.release.clone(), s.first_seen))
             .unzip();
-        upsert_releases(pool, project_id, agent.id, &names, &first_seen).await?;
-        let counts: HashMap<&str, u64> = stats
-            .iter()
-            .map(|s| (s.release.as_str(), s.traces))
-            .collect();
-        let count = |release: &str| counts.get(release).copied().unwrap_or(0);
-        let releases = get_releases(pool, agent.id).await?;
+        upsert_releases(pool, scope.project_id, agent.id, &names, &first_seen).await?;
+        let counts = stats.into_iter().map(|s| (s.release, s.traces)).collect();
 
-        // New versions are appended to `cores`, so ids and hashes line up.
-        let versions = get_versions(pool, agent.id).await?;
-        let mut cores: Vec<Vec<u64>> = versions
+        let releases = get_releases(pool, agent.id).await?;
+        let versions = Versions::load(pool, agent.id).await?;
+        let version_of = releases
             .iter()
-            .map(|v| v.core_lines.iter().map(|&l| l as u64).collect())
+            .map(|r| r.version_id.and_then(|id| versions.index(id)))
             .collect();
-        let mut ids: Vec<Uuid> = versions.iter().map(|v| v.id).collect();
-        let mut hashes: Vec<String> = versions.into_iter().map(|v| v.version_hash).collect();
-        let index = |ids: &[Uuid], id: Uuid| ids.iter().position(|&v| v == id);
-        let mut version_of: Vec<Option<usize>> = releases
-            .iter()
-            .map(|r| r.version_id.and_then(|id| index(&ids, id)))
-            .collect();
-        // The version before the first release, while it still is the current one.
         let before_releases = match releases.iter().any(|r| r.decided_at.is_some()) {
             true => None,
-            false => agent.current_version_id.and_then(|id| index(&ids, id)),
+            false => agent.current_version_id.and_then(|id| versions.index(id)),
         };
 
+        Ok(Self {
+            job,
+            agent,
+            scope,
+            params: Params {
+                min_run: RELEASE_MIN_RUN.get().max(1),
+                decide_after: RELEASE_DECIDE_AFTER_SECONDS.get() * NS,
+            },
+            now,
+            releases,
+            counts,
+            versions,
+            version_of,
+            before_releases,
+            system_prompt: None,
+        })
+    }
+
+    fn count(&self, release: &str) -> u64 {
+        self.counts.get(release).copied().unwrap_or(0)
+    }
+
+    /// Chooses a version for every undecided release that can have one, oldest
+    /// first, and returns the releases to tag and decide in this run.
+    async fn decide_pending(&mut self) -> Result<HashSet<usize>> {
         let mut decided_now = HashSet::new();
-        let mut system_prompt = None;
-        for (i, release) in releases.iter().enumerate() {
-            if release.decided_at.is_some() {
+        for i in 0..self.releases.len() {
+            if self.releases[i].decided_at.is_some() {
                 continue;
             }
             // Chosen by a run that failed before deciding it: tag it again with
             // the same version rather than re-sampling into another one.
-            if version_of[i].is_some() {
-                decided_now.insert(i);
-                continue;
+            if self.version_of[i].is_none() {
+                let Some(version) = self.choose(i).await? else {
+                    continue;
+                };
+                let version_id = self.versions.ids[version];
+                set_release_version(&self.job.db.pool, self.releases[i].id, version_id).await?;
+                self.version_of[i] = Some(version);
             }
-            let newer_has_min_run = releases[i + 1..]
-                .iter()
-                .any(|r| count(&r.release) >= params.min_run);
-            let age = now - release.first_seen;
-            let Some(limit) =
-                compare::sample_size(count(&release.release), newer_has_min_run, age, &params)
-            else {
-                continue;
-            };
-            let samples = scope
-                .release_samples(ch, &release.release, i64::MAX, limit)
-                .await?;
-            let Some(example) = samples.first() else {
-                continue;
-            };
-            let side = Side::from_samples(samples.iter().map(|s| s.lines.as_slice()));
-
-            // The nearest decided release, earlier ones first: a release decided
-            // after a newer one (too few traces, or seen earlier later on) is
-            // still compared against samples rather than bare cores.
-            let neighbour = (0..i)
-                .rev()
-                .chain(i + 1..releases.len())
-                .find_map(|j| Some((j, version_of[j]?)));
-            let baseline = match (neighbour, before_releases) {
-                (Some((j, version)), _) => {
-                    let release = &releases[j].release;
-                    let limit = count(release).min(params.min_run);
-                    let side = self
-                        .side(&scope, release, i64::MAX, limit, &cores[version])
-                        .await?;
-                    Some((side, version))
-                }
-                (None, Some(version)) => {
-                    let side = self
-                        .side(
-                            &scope,
-                            "",
-                            release.first_seen,
-                            params.min_run,
-                            &cores[version],
-                        )
-                        .await?;
-                    Some((side, version))
-                }
-                (None, None) => None,
-            };
-
-            let version = match compare::decide(&side, baseline.as_ref().map(|b| &b.0), &cores) {
-                Decision::Same => baseline.map(|b| b.1).unwrap_or_default(),
-                Decision::Existing(version) => version,
-                Decision::New(core) => {
-                    let (prompt, text) = self.version_text(project_id, example, &core).await?;
-                    let hash = version_hash(agent_hash, &core);
-                    let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
-                    ids.push(
-                        insert_version(pool, project_id, agent.id, &hash, &lines, &text).await?,
-                    );
-                    hashes.push(hash);
-                    cores.push(core);
-                    system_prompt = system_prompt.or(prompt.filter(|p| !p.is_empty()));
-                    cores.len() - 1
-                }
-            };
-            set_release_version(pool, release.id, ids[version]).await?;
-            version_of[i] = Some(version);
             decided_now.insert(i);
         }
+        Ok(decided_now)
+    }
 
-        // Releases decided now get every trace past the inferred path's horizon;
-        // those before it keep their inferred tag, as a second one would count
-        // them twice. Ingest tags the rest once it sees the decision, but may
-        // have missed traces of releases decided in the previous run, before
-        // its cache entry ([`super::ingest`]).
-        let since = agent.watermark.unwrap_or(0);
+    /// The version of release `i`, or `None` while it has too few traces.
+    async fn choose(&mut self, i: usize) -> Result<Option<usize>> {
+        let Some(limit) = self.sample_size(i) else {
+            return Ok(None);
+        };
+        let samples = self
+            .scope
+            .release_samples(
+                &self.job.clickhouse,
+                &self.releases[i].release,
+                i64::MAX,
+                limit,
+            )
+            .await?;
+        let Some(example) = samples.first() else {
+            return Ok(None);
+        };
+        let lines = PromptLines::from_samples(samples.iter().map(|s| s.lines.as_slice()));
+        let baseline = self.baseline(i).await?;
+
+        let decision = compare::decide(
+            &lines,
+            baseline.as_ref().map(|(lines, _)| lines),
+            &self.versions.cores,
+        );
+        Ok(Some(match decision {
+            Decision::Same => baseline.map(|(_, version)| version).unwrap_or_default(),
+            Decision::Existing(version) => version,
+            Decision::New(core) => self.mint(example, core).await?,
+        }))
+    }
+
+    fn sample_size(&self, i: usize) -> Option<u64> {
+        let release = &self.releases[i];
+        let newer_has_min_run = self.releases[i + 1..]
+            .iter()
+            .any(|r| self.count(&r.release) >= self.params.min_run);
+        let age = self.now - release.first_seen;
+        compare::sample_size(
+            self.count(&release.release),
+            newer_has_min_run,
+            age,
+            &self.params,
+        )
+    }
+
+    /// What release `i` is compared against, with its version: the nearest
+    /// decided release, earlier ones first, else the version before the first
+    /// release. A release decided after a newer one (too few traces, or seen
+    /// earlier later on) is still compared against samples rather than bare
+    /// cores.
+    async fn baseline(&self, i: usize) -> Result<Option<(PromptLines, usize)>> {
+        let neighbour = (0..i)
+            .rev()
+            .chain(i + 1..self.releases.len())
+            .find_map(|j| Some((j, self.version_of[j]?)));
+        let (release, before, limit, version) = match (neighbour, self.before_releases) {
+            (Some((j, version)), _) => {
+                let release = self.releases[j].release.as_str();
+                let limit = self.count(release).min(self.params.min_run);
+                (release, i64::MAX, limit, version)
+            }
+            (None, Some(version)) => {
+                let first_seen = self.releases[i].first_seen;
+                ("", first_seen, self.params.min_run, version)
+            }
+            (None, None) => return Ok(None),
+        };
+        let lines = self.prompt_lines(release, before, limit, version).await?;
+        Ok(Some((lines, version)))
+    }
+
+    /// Up to `limit` sampled prompts of `release` starting before `before`,
+    /// or the core of `version` once they have expired.
+    async fn prompt_lines(
+        &self,
+        release: &str,
+        before: i64,
+        limit: u64,
+        version: usize,
+    ) -> Result<PromptLines> {
+        let samples = match limit {
+            0 => Vec::new(),
+            limit => {
+                self.scope
+                    .release_samples(&self.job.clickhouse, release, before, limit)
+                    .await?
+            }
+        };
+        Ok(match samples.is_empty() {
+            true => PromptLines::from_core(&self.versions.cores[version]),
+            false => PromptLines::from_samples(samples.iter().map(|s| s.lines.as_slice())),
+        })
+    }
+
+    /// Saves a new version with `core`, its text taken from `example`.
+    async fn mint(&mut self, example: &TracePrompt, core: Vec<u64>) -> Result<usize> {
+        let project_id = self.scope.project_id;
+        let (prompt, text) = self.job.version_text(project_id, example, &core).await?;
+        let hash = version_hash(self.scope.agent_hash, &core);
+        let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
+        let pool = &self.job.db.pool;
+        let id = insert_version(pool, project_id, self.agent.id, &hash, &lines, &text).await?;
+        self.system_prompt = self
+            .system_prompt
+            .take()
+            .or(prompt.filter(|p| !p.is_empty()));
+        Ok(self.versions.push(id, hash, core))
+    }
+
+    /// Releases decided now get every trace past the inferred path's horizon;
+    /// those before it keep their inferred tag, as a second one would count
+    /// them twice. Ingest tags the rest once it sees the decision, but may
+    /// have missed traces of releases decided in the previous run, before
+    /// its cache entry ([`super::ingest`]).
+    async fn tag(&self, decided_now: &HashSet<usize>) -> Result<Vec<(Option<usize>, TracePrompt)>> {
+        let ch = &self.job.clickhouse;
+        let since = self.agent.watermark.unwrap_or(0);
         let mut fresh = Vec::new();
         let mut recent = Vec::new();
         let mut version_by_release = HashMap::new();
-        for (i, (release, version)) in releases.iter().zip(&version_of).enumerate() {
+        for (i, (release, version)) in self.releases.iter().zip(&self.version_of).enumerate() {
             let Some(version) = *version else { continue };
             version_by_release.insert(release.release.as_str(), version);
             if decided_now.contains(&i) {
@@ -182,13 +318,14 @@ impl Job {
                 recent.push(release.release.as_str());
             }
         }
+
         let mut traces = Vec::new();
         if !fresh.is_empty() {
-            let after = agent.labeled_until.unwrap_or(0);
-            traces.extend(scope.release_traces(ch, &fresh, 0, after).await?);
+            let after = self.agent.labeled_until.unwrap_or(0);
+            traces.extend(self.scope.release_traces(ch, &fresh, 0, after).await?);
         }
         if !recent.is_empty() {
-            traces.extend(scope.release_traces(ch, &recent, since, 0).await?);
+            traces.extend(self.scope.release_traces(ch, &recent, since, 0).await?);
         }
         let labels: Vec<(Option<usize>, TracePrompt)> = traces
             .into_iter()
@@ -199,68 +336,54 @@ impl Job {
                 (version, trace)
             })
             .collect();
+
+        let Versions { ids, hashes, .. } = &self.versions;
         for chunk in labels.chunks(LABEL_CHUNK) {
-            self.write_labels(project_id, agent_hash, chunk, &ids, &hashes)
+            self.job
+                .write_labels(
+                    self.scope.project_id,
+                    self.scope.agent_hash,
+                    chunk,
+                    ids,
+                    hashes,
+                )
                 .await?;
         }
+        Ok(labels)
+    }
 
-        // Decided only once tagged, so a run that fails before this leaves its
-        // releases undecided and the next one tags all their traces again.
-        for &i in &decided_now {
-            let (release, Some(version)) = (&releases[i], version_of[i]) else {
+    /// Decided only once tagged, so a run that fails before this leaves its
+    /// releases undecided and the next one tags all their traces again.
+    async fn mark_decided(&self, decided_now: &HashSet<usize>) -> Result<()> {
+        for &i in decided_now {
+            let (release, Some(version)) = (&self.releases[i], self.version_of[i]) else {
                 continue;
             };
-            decide_release(pool, release.id).await?;
-            let key = release_cache_key(project_id, agent_hash, &release.release);
+            decide_release(&self.job.db.pool, release.id).await?;
+            let key = release_cache_key(
+                self.scope.project_id,
+                self.scope.agent_hash,
+                &release.release,
+            );
+            let hash = self.versions.hashes[version].clone();
             if let Err(e) = self
+                .job
                 .cache
-                .insert_with_ttl(&key, hashes[version].clone(), RELEASE_CACHE_TTL_SECONDS)
+                .insert_with_ttl(&key, hash, RELEASE_CACHE_TTL_SECONDS)
                 .await
             {
                 log::warn!("[AGENT VERSIONING] Failed to cache {key}: {e:?}");
             }
         }
-
-        let current_version_id = version_of
-            .iter()
-            .rev()
-            .find_map(|v| v.map(|v| ids[v]))
-            .or(agent.current_version_id);
-        save_progress(
-            pool,
-            agent.id,
-            agent.labeled_until,
-            watermark,
-            current_version_id,
-        )
-        .await?;
-
-        let sample = labels.last().map(|(_, trace)| trace);
-        self.name_agent(agent, project_id, system_prompt, sample)
-            .await
+        Ok(())
     }
 
-    /// Up to `limit` sampled prompts of `release` starting before `before`,
-    /// or `core` once they have expired.
-    async fn side(
-        &self,
-        scope: &Scope<'_>,
-        release: &str,
-        before: i64,
-        limit: u64,
-        core: &[u64],
-    ) -> Result<Side> {
-        let samples = match limit {
-            0 => Vec::new(),
-            limit => {
-                scope
-                    .release_samples(&self.clickhouse, release, before, limit)
-                    .await?
-            }
-        };
-        Ok(match samples.is_empty() {
-            true => Side::from_core(core),
-            false => Side::from_samples(samples.iter().map(|s| s.lines.as_slice())),
-        })
+    /// The newest decided release's version.
+    fn current_version_id(&self) -> Option<Uuid> {
+        self.version_of
+            .iter()
+            .rev()
+            .find_map(|v| v.map(|v| self.versions.ids[v]))
+            .or(self.agent.current_version_id)
     }
 }
