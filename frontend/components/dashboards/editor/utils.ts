@@ -1,6 +1,7 @@
-import { ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
-import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types";
+import { type Filter, type Metric, type QueryStructure, type TimeRange } from "@/lib/actions/sql/types";
 
 // ID columns auto-injected for Table and HorizontalBar charts so individual
 // rows remain clickable in the dashboard (wired up by handleBarClick in chart.tsx
@@ -14,6 +15,21 @@ export const ID_COLUMNS_BY_TABLE: Record<string, string[]> = {
 
 export const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
+
+// Raw-column SQL (agent- or hand-written) reverse-parses with no dimension, so the builder's
+// "first metric vs first dimension" guess picks the wrong columns. Saved axes win while the form
+// still selects both of them.
+export const savedHorizontalBarAxes = (
+  config: ChartConfig,
+  metrics: Partial<Pick<Metric, "alias" | "column">>[],
+  dimensions: (string | undefined)[] | undefined
+): { x: string; y: string } | null => {
+  const { x, y } = config;
+  if (config.type !== ChartType.HorizontalBarChart || !x || !y || x === y) return null;
+
+  const metricNames = new Set(metrics.map((m) => m.alias || m.column));
+  return metricNames.has(x) && (metricNames.has(y) || !!dimensions?.includes(y)) ? { x, y } : null;
+};
 
 // Default timeRange for time-series charts — matches the shape the chart
 // engine expects at execute time.
@@ -58,7 +74,7 @@ export const injectIdMetrics = (
   return injected;
 };
 
-// Default blank form state for a new chart, or fallback after load errors.
+// Default blank form state for a new chart (unconvertible saved SQL uses the freeform editor).
 export const getDefaultFormValues = (): QueryStructure => ({
   table: "spans",
   metrics: [{ fn: "count", column: "*", alias: "count", args: [] }],
@@ -68,6 +84,27 @@ export const getDefaultFormValues = (): QueryStructure => ({
   limit: undefined,
   timeRange: undefined,
 });
+
+const isTimeBound = (filter: Filter): boolean =>
+  "stringValue" in filter && /^\{(start_time|end_time):DateTime64\}$/.test(filter.stringValue);
+
+// Form state for a saved or reverse-parsed structure.
+export const toFormValues = (structure: QueryStructure, chartType: ChartType | undefined): QueryStructure => {
+  // Strip the dashboard's own time bounds. The editor re-appends them at execute time for
+  // Table/HorizontalBar charts (see Form.tsx), and SQL reverse-parsed by convertSqlToJson still
+  // carries them, so keeping them would duplicate. A user's own filter on that column stays.
+  const timeColumn = getTimeColumn(structure.table);
+  return {
+    table: structure.table,
+    metrics: structure.metrics,
+    dimensions: structure.dimensions,
+    filters: (structure.filters || []).filter((filter) => !(filter.field === timeColumn && isTimeBound(filter))),
+    timeRange: structure.timeRange,
+    orderBy: structure.orderBy,
+    // Table charts never carry a LIMIT — pagination is applied at fetch time in the executor.
+    limit: chartType === ChartType.Table ? undefined : structure.limit,
+  };
+};
 
 // Maps old form state → new form state when the user switches chart type.
 // Encodes the per-type invariants in one place:
@@ -106,10 +143,8 @@ export const transformFormForChartType = (
   return current;
 };
 
-// Reverse-parses stored SQL into the QueryStructure shape via the backend
-// `/sql/to-json` endpoint. Only used as a legacy fallback when opening charts
-// saved before queryStructure was persisted on `settings`. Remove once a
-// data-migration backfills queryStructure for every dashboard_charts row.
+// Charts without a saved queryStructure (legacy or freeform SQL) can use the visual
+// editor only when the backend can convert their SQL to its QueryStructure shape.
 export const convertSqlToJson = async (projectId: string, sql: string): Promise<QueryStructure> => {
   const response = await fetch(`/api/projects/${projectId}/sql/to-json`, {
     method: "POST",
@@ -125,3 +160,11 @@ export const convertSqlToJson = async (projectId: string, sql: string): Promise<
 
   return JSON.parse(data.jsonStructure);
 };
+
+/**
+ * One table page plus a probe row for `hasMore`. Wrapped in a subquery because freeform SQL can
+ * end in its own LIMIT, and ClickHouse rejects a second top-level one. The newline keeps a trailing
+ * `--` comment from swallowing the closing paren.
+ */
+export const paginateQuery = (query: string, page: number): string =>
+  `SELECT * FROM (${query.trim().replace(/;+$/, "")}\n) LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${page * TABLE_PAGE_SIZE}`;

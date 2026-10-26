@@ -1,66 +1,65 @@
 "use client";
 
 import { debounce } from "lodash";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
-import { ChartRendererCore } from "@/components/chart-builder/charts";
-import {
-  type ChartConfig,
-  ChartType,
-  resolveDisplayMode,
-  type TableColumnConfig,
-} from "@/components/chart-builder/types";
+import { type ChartConfig, ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
+import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
+import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
 import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
+import FreeformForm from "@/components/dashboards/editor/freeform-form";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
-import { getDefaultTimeRange, injectIdMetrics, needsTimeSeries } from "@/components/dashboards/editor/utils";
-import DateRangeFilter from "@/components/ui/date-range-filter";
-import { Label } from "@/components/ui/label.tsx";
+import {
+  getDefaultTimeRange,
+  injectIdMetrics,
+  needsTimeSeries,
+  savedHorizontalBarAxes,
+} from "@/components/dashboards/editor/utils";
+import { toTimeParameters, useDashboardTimeRange } from "@/components/dashboards/time-range";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { type QueryStructure } from "@/lib/actions/sql/types.ts";
 
+// The SQL editor needs more room than the visual builder's fields.
+const SIDEBAR_WIDTH = { visual: 320, sql: 400 };
+
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
+  const editorMode = useDashboardEditorStoreContext((state) => state.editorMode);
+  const sidebarWidth = editorMode === "sql" ? SIDEBAR_WIDTH.sql : SIDEBAR_WIDTH.visual;
+
+  // The grid outlives the mode switch (each form only renders its two grid items), so the
+  // column change transitions instead of remounting at the new width.
+  return (
+    <div
+      className="grid h-full gap-4 overflow-hidden transition-[grid-template-columns] duration-300 ease-out"
+      style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)` }}
+    >
+      {editorMode === "sql" ? <FreeformForm /> : <VisualForm isLoadingChart={isLoadingChart} />}
+    </div>
+  );
+};
+
+const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
   const { control, formState, getValues, handleSubmit } = useFormContext<QueryStructure>();
 
-  const {
-    chart,
-    setQuery,
-    setChartConfig,
-    executeQuery,
-    isLoading,
-    error,
-    loadError,
-    data,
-    setLoading,
-    setError,
-    parameters,
-    setParameterValue,
-    tableHasMore,
-    tableIsFetching,
-    fetchNextTablePage,
-  } = useDashboardEditorStoreContext((state) => ({
-    chart: state.chart,
-    setQuery: state.setQuery,
-    setChartConfig: state.setChartConfig,
-    executeQuery: state.executeQuery,
-    isLoading: state.isLoading,
-    error: state.error,
-    loadError: state.loadError,
-    data: state.data,
-    setLoading: state.setLoading,
-    setError: state.setError,
-    parameters: state.parameters,
-    setParameterValue: state.setParameterValue,
-    tableHasMore: state.tableHasMore,
-    tableIsFetching: state.tableIsFetching,
-    fetchNextTablePage: state.fetchNextTablePage,
-  }));
+  const timeRange = useDashboardTimeRange();
+  const { chart, setQuery, setChartConfig, executeQuery, data, setLoading, setError } = useDashboardEditorStoreContext(
+    (state) => ({
+      chart: state.chart,
+      setQuery: state.setQuery,
+      setChartConfig: state.setChartConfig,
+      executeQuery: state.executeQuery,
+      data: state.data,
+      setLoading: state.setLoading,
+      setError: state.setError,
+    })
+  );
 
   const formValues = useWatch({ control });
 
@@ -73,25 +72,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   }, [chart]);
 
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
-
-  const handleColumnConfigChange = useCallback(
-    (columnConfig: TableColumnConfig) => {
-      const currentConfig = chart.settings.config;
-      if (currentConfig.type === ChartType.Table) {
-        setChartConfig({
-          ...currentConfig,
-          tableColumnConfig: columnConfig,
-        });
-      }
-    },
-    [chart.settings.config, setChartConfig]
-  );
-
-  const handleFetchNextPage = useCallback(() => {
-    if (projectId) {
-      fetchNextTablePage(projectId as string);
-    }
-  }, [projectId, fetchNextTablePage]);
 
   const chartType = chart.settings.config.type;
   const displayMode = resolveDisplayMode(chart.settings.config);
@@ -110,6 +90,16 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         displayMode: "none" as const,
         tableColumnConfig: tableConfig?.tableColumnConfig,
       };
+    }
+
+    // Read through the ref: this memo feeds setChartConfig, so depending on the saved axes would loop.
+    const savedAxes = savedHorizontalBarAxes(
+      { ...chartRef.current.settings.config, type: chartType },
+      metrics.filter((m) => !!m),
+      dimensions
+    );
+    if (savedAxes) {
+      return { type: chartType, ...savedAxes, breakdown: undefined, displayMode: "none" as const };
     }
 
     const isTimeSeries = needsTimeSeries(chartType);
@@ -231,7 +221,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         setChartConfig(updatedConfig as ChartConfig);
       }
 
-      await executeQuery(projectId as string);
+      await executeQuery(projectId as string, toTimeParameters(timeRange));
     } catch (err) {
       console.error("Failed to generate and execute query:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to generate and execute query";
@@ -250,13 +240,13 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setLoading,
     setError,
     chartType,
+    timeRange,
   ]);
 
-  // Single debounced effect that re-executes when form values or
-  // parameters (time range, interval) change. Parameters live in the
-  // zustand store and are read at execution time via getFormattedParameters().
+  // Single debounced effect that re-executes when form values or the URL's time range
+  // (through generateAndExecuteQuery) change.
   useEffect(() => {
-    if (isLoadingChart || loadError) {
+    if (isLoadingChart) {
       return;
     }
 
@@ -271,12 +261,14 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     return () => {
       debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, loadError, parameters]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
 
   return (
-    <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
-      <ScrollArea className="col-span-1 border rounded bg-secondary relative">
-        <QueryBuilderFields isFormValid={formState.isValid} hasChartConfig={!!chartConfig} />
+    <>
+      <ScrollArea className="border rounded bg-secondary relative">
+        <EditorSidebar saveDisabled={!formState.isValid || !chartConfig}>
+          <QueryBuilderFields />
+        </EditorSidebar>
         {isLoadingChart && (
           <div className="absolute inset-0 bg-background/40 z-20 backdrop-blur-xs flex items-center justify-center rounded">
             <div className="flex flex-col items-center space-y-3 text-muted-foreground">
@@ -285,103 +277,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
           </div>
         )}
       </ScrollArea>
-
-      <div className="col-span-3 flex flex-col gap-4">
-        <div className="flex items-center gap-4">
-          <div className="grid gap-1">
-            <Label className="text-xs text-secondary-foreground/80">Time range</Label>
-            <DateRangeFilter
-              className="w-fit"
-              mode="state"
-              onChange={(value) => {
-                if (value.pastHours) {
-                  const now = new Date();
-                  const start = new Date(now.getTime() - Number(value.pastHours) * 60 * 60 * 1000);
-                  setParameterValue("start_time", start);
-                  setParameterValue("end_time", now);
-                } else {
-                  if (value.startDate) {
-                    setParameterValue("start_time", new Date(value.startDate));
-                  }
-                  if (value.endDate) {
-                    setParameterValue("end_time", new Date(value.endDate));
-                  }
-                }
-              }}
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-xs text-secondary-foreground/80">Group by</Label>
-            <Select
-              value={String(parameters.find((p) => p.name === "interval_unit")?.value ?? "HOUR")}
-              onValueChange={(value) => setParameterValue("interval_unit", value)}
-            >
-              <SelectTrigger className="w-fit text-secondary-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MINUTE">By minute</SelectItem>
-                <SelectItem value="HOUR">By hour</SelectItem>
-                <SelectItem value="DAY">By day</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="flex flex-col justify-start items-center w-full flex-1 min-h-0 max-h-[600px] p-4 self-center border rounded border-dashed bg-secondary overflow-hidden">
-          {chart.name && (
-            <div className="w-full mb-2">
-              <span className="font-medium text-lg text-secondary-foreground truncate">{chart.name}</span>
-            </div>
-          )}
-          {loadError ? (
-            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive-text max-w-md">
-              <AlertCircle className="w-10 h-10" />
-              <div className="text-center">
-                <p className="text-sm font-medium">Couldn't load chart</p>
-                <p className="text-xs mt-2 text-muted-foreground">
-                  This chart's saved query couldn't be parsed back into the editor. Saving is disabled to prevent
-                  overwriting it.
-                </p>
-                <p className="text-xs mt-2 text-muted-foreground/70 break-all">{loadError}</p>
-              </div>
-            </div>
-          ) : isLoading ? (
-            <div className="flex flex-1 flex-col items-center justify-center space-y-4 text-muted-foreground">
-              <Loader2 className="w-10 h-10 animate-spin" />
-              <div className="text-center">
-                <p className="text-sm font-medium">Generating chart...</p>
-                <p className="text-xs mt-1 text-muted-foreground/70">This may take a few moments</p>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive-text max-w-md">
-              <AlertCircle className="w-10 h-10" />
-              <div className="text-center">
-                <p className="text-sm font-medium">Failed to execute query</p>
-                <p className="text-xs mt-2 text-muted-foreground">{error}</p>
-              </div>
-            </div>
-          ) : chartConfigForRendering ? (
-            <div className="w-full h-full">
-              <ChartRendererCore
-                config={chartConfigForRendering}
-                data={data}
-                columns={columns}
-                hiddenColumns={hiddenColumns}
-                onColumnConfigChange={handleColumnConfigChange}
-                hasMore={tableHasMore}
-                isFetching={tableIsFetching}
-                fetchNextPage={handleFetchNextPage}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center space-y-3 text-muted-foreground">
-              <p className="text-sm">Unable to render chart</p>
-              <p className="text-xs text-muted-foreground/70">Please check your configuration</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      <ChartPreviewPane name={chart.name}>
+        <ChartPreviewContent config={chartConfigForRendering} hiddenColumns={hiddenColumns} />
+      </ChartPreviewPane>
+    </>
   );
 };

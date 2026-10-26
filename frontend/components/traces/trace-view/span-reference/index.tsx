@@ -7,6 +7,7 @@ import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import { cn } from "@/lib/utils";
 
 import { useReactiveSpanType } from "./use-reactive-span-type";
 
@@ -28,18 +29,18 @@ export interface SpanReferenceCallbacks {
   onSelectSpan: (target: SpanRefTarget) => void;
 }
 
-function SpanChip({
+/** The chip shell shared by span refs and the agent's entity links; `icon` sits before the label. */
+export function LinkChip({
   name,
-  spanType,
+  icon,
   onClick,
   loading,
 }: {
   name: string;
-  spanType: SpanType | undefined;
+  icon?: React.ReactNode;
   onClick: () => void;
   loading?: boolean;
 }) {
-  const resolvedType = spanType ?? SpanType.DEFAULT;
   return (
     <button
       onClick={(e) => {
@@ -53,18 +54,42 @@ function SpanChip({
       // these onto the surface ramp, and the chip has nothing else stable to
       // select on. Purely additive — no rule in shipping CSS matches it.
       data-slot="span-chip"
-      className="inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer"
+      className={cn(
+        "inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer",
+        !icon && "pl-1.5"
+      )}
     >
-      <span
-        className="inline-flex items-center justify-center rounded size-4 shrink-0"
-        style={{ backgroundColor: SPAN_TYPE_TO_COLOR[resolvedType] ?? SPAN_TYPE_TO_COLOR[SpanType.DEFAULT] }}
-      >
-        {createSpanTypeIcon(resolvedType, "w-3 h-3 text-white", 12)}
-      </span>
+      {icon}
       <span className={`text-sm text-secondary-foreground ${loading ? "opacity-60" : ""}`}>{name}</span>
-      <ArrowUpRight className="w-3.5 h-3.5" />
+      <ArrowUpRight className="w-3.5 h-3.5 text-foreground-400" />
     </button>
   );
+}
+
+function SpanTypeIcon({ spanType }: { spanType: SpanType | undefined }) {
+  const resolvedType = spanType ?? SpanType.DEFAULT;
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded size-4 shrink-0"
+      style={{ backgroundColor: SPAN_TYPE_TO_COLOR[resolvedType] ?? SPAN_TYPE_TO_COLOR[SpanType.DEFAULT] }}
+    >
+      {createSpanTypeIcon(resolvedType, "w-3 h-3 text-white", 12)}
+    </span>
+  );
+}
+
+function SpanChip({
+  name,
+  spanType,
+  onClick,
+  loading,
+}: {
+  name: string;
+  spanType: SpanType | undefined;
+  onClick: () => void;
+  loading?: boolean;
+}) {
+  return <LinkChip name={name} icon={<SpanTypeIcon spanType={spanType} />} onClick={onClick} loading={loading} />;
 }
 
 /** Badge for XML span refs — resolves sequential id → uuid+type on mount. */
@@ -131,7 +156,12 @@ export function MarkdownSpanBadge({
   const storeSpanType = useReactiveSpanType(spanUuid);
   const spanType = storeSpanType ?? (spanUuid ? callbacks.getSpanType(spanUuid) : undefined);
   return (
-    <SpanChip name={label} spanType={spanType} onClick={() => callbacks.onSelectSpan({ traceId, spanId: spanUuid })} />
+    <LinkChip
+      name={label}
+      // A trace link has no span type to show.
+      icon={spanUuid ? <SpanTypeIcon spanType={spanType} /> : undefined}
+      onClick={() => callbacks.onSelectSpan({ traceId, spanId: spanUuid })}
+    />
   );
 }
 

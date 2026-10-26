@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { deleteLlmProfile, updateLlmProfile } from "@/lib/actions/llm-profiles";
-import { AppServerError } from "@/lib/actions/llm-profiles/app-server";
+import { AppServerError } from "@/lib/app-server";
 
 type Params = { params: Promise<{ workspaceId: string; profileId: string }> };
 

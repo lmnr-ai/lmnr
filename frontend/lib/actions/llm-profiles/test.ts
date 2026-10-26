@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { callAppServer } from "@/lib/app-server";
 import { type WorkspaceRole } from "@/lib/workspaces/types";
 
-import { callAppServer } from "./app-server";
 import { LLM_PROFILE_PROVIDERS } from "./schema";
 
 const MEMBER_ROLES: WorkspaceRole[] = ["member", "admin", "owner"];

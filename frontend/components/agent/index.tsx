@@ -12,7 +12,7 @@ import { useShallow } from "zustand/react/shallow";
 
 export type AgentViewMode = "collapsed" | "open";
 
-export type AgentContextKey = "trace" | "signal" | "evaluation" | "dataset" | "labelingQueue" | "session";
+export type AgentContextKey = "trace" | "signal" | "evaluation" | "dataset" | "labelingQueue" | "session" | "dashboard";
 
 interface LaminarAgentStore {
   viewMode: AgentViewMode;
@@ -38,10 +38,6 @@ export function RouteAgentContext() {
 }
 
 export function TraceAgentContext(_props: { traceId: string }) {
-  return null;
-}
-
-export function AgentHeaderToggle() {
   return null;
 }
 

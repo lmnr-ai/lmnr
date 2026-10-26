@@ -28,12 +28,14 @@ export interface SQLEditorProps {
   aiButtonVariant?: "icon" | "full";
   /** Extra CodeMirror extensions appended per-usage (e.g. scroll margins). */
   extraExtensions?: Extension[];
+  /** Line numbers and fold markers; false drops the whole gutter. */
+  lineNumbers?: boolean;
 }
 
 export default function SQLEditor({
   value,
   onChange,
-  placeholder = "Enter your SQL query...",
+  placeholder = "Enter a query, then ⌘ + Enter or Ctrl + Enter to run",
   editable = true,
   autoFocus = false,
   className = "size-full",
@@ -43,6 +45,7 @@ export default function SQLEditor({
   projectId,
   aiButtonVariant = "icon",
   extraExtensions,
+  lineNumbers = true,
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -112,6 +115,7 @@ export default function SQLEditor({
         theme={theme}
         className={className}
         extensions={extensions}
+        basicSetup={{ lineNumbers, foldGutter: lineNumbers }}
         editable={editable}
         autoFocus={autoFocus}
         value={value}

@@ -429,10 +429,11 @@ fn walk_filters(expr: &Expr, time_col: Option<&str>, filters: &mut Vec<Filter>) 
                 let Some(col) = column_name(left) else {
                     return;
                 };
-                if time_col == Some(col.as_str()) {
+                let (val, is_placeholder) = extract_rhs_value(right);
+                // The time range's own bounds are placeholders; a literal on that column is a user filter.
+                if is_placeholder && time_col == Some(col.as_str()) {
                     return;
                 }
-                let (val, is_placeholder) = extract_rhs_value(right);
                 let value = if is_placeholder {
                     FilterValue::StringValue(val)
                 } else if let Ok(n) = val.parse::<f64>() {

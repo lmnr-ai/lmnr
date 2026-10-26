@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
+import { AppServerError } from "@/lib/app-server";
 
 export async function GET(
   _req: NextRequest,
@@ -44,6 +45,10 @@ export async function DELETE(
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
+    if (error instanceof AppServerError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to delete chart. Please try again." },
       { status: 500 }
@@ -69,6 +74,10 @@ export async function PATCH(
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
+    if (error instanceof AppServerError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to update chart name. Please try again." },
       { status: 500 }
@@ -91,6 +100,10 @@ export async function PUT(
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    if (error instanceof AppServerError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
 
     return Response.json(

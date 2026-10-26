@@ -1,25 +1,23 @@
 import { debounce } from "lodash";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { type CategoricalChartFunc, type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
 import { ChartType, type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardRefresh } from "@/components/dashboards/dashboard-refresh-context";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
+import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
+import { paginateQuery } from "@/components/dashboards/editor/utils";
 import SelectionToolbar from "@/components/dashboards/selection-toolbar";
+import { toTimeParameters, useDashboardTimeRange } from "@/components/dashboards/time-range";
 import { type DashboardChart, getChartsUrl } from "@/components/dashboards/types";
-import { IconResizeHandle } from "@/components/ui/icons";
+import { useRunDashboardQuery } from "@/components/dashboards/use-run-dashboard-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { useToast } from "@/lib/hooks/use-toast";
-import { convertToTimeParameters } from "@/lib/time";
-
-const TABLE_PAGE_SIZE = 50;
 
 interface ChartProps {
   chart: DashboardChart;
@@ -38,63 +36,24 @@ const Chart = ({ chart }: ChartProps) => {
     [settings.queryStructure]
   );
   const { projectId } = useParams();
-  const searchParams = useSearchParams();
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tableHasMore, setTableHasMore] = useState(false);
   const [tableIsFetching, setTableIsFetching] = useState(false);
   const tablePageRef = useRef(0);
+  const runQuery = useRunDashboardQuery(projectId as string);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
   const { refreshKey } = useDashboardRefresh();
   const { toast } = useToast();
   const { mutate: swrMutate } = useSWRConfig();
   const isTable = settings.config.type === ChartType.Table;
-  const {
-    chartId: selectionChartId,
-    startLabel,
-    endLabel,
-    isDragging,
-    startDrag,
-    updateDrag,
-    endDrag,
-  } = useDashboardSelectionStore((s) => ({
-    chartId: s.chartId,
-    startLabel: s.startLabel,
-    endLabel: s.endLabel,
-    isDragging: s.isDragging,
-    startDrag: s.startDrag,
-    updateDrag: s.updateDrag,
-    endDrag: s.endDrag,
-  }));
+  // Only the owner changing re-renders this card; the drag itself lives in the chart.
+  const selectionChartId = useDashboardSelectionStore((s) => s.chartId);
 
   const columns = useMemo(() => transformDataToColumns(data), [data]);
 
-  const pastHours = searchParams.get("pastHours");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const groupByInterval = searchParams.get("groupByInterval") as GroupByInterval | null;
-
-  const timeParameters = useMemo(() => {
-    if (pastHours) {
-      return {
-        pastHours,
-        ...(groupByInterval && { groupByInterval }),
-      };
-    }
-
-    if (startDate && endDate) {
-      return {
-        startTime: startDate,
-        endTime: endDate,
-        ...(groupByInterval && { groupByInterval }),
-      };
-    }
-    return {
-      pastHours: 24,
-      ...(groupByInterval && { groupByInterval }),
-    };
-  }, [pastHours, startDate, endDate, groupByInterval]);
+  const timeParameters = useDashboardTimeRange();
 
   // Cancels an in-flight pagination fetch when fetchData or a newer scroll
   // supersedes it — otherwise its rows would splice onto fresh page-0 data.
@@ -102,23 +61,11 @@ const Chart = ({ chart }: ChartProps) => {
 
   const fetchTablePage = useCallback(
     async (page: number, parameters: Record<string, string | number>, signal?: AbortSignal) => {
-      const paginatedQuery = `${query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${page * TABLE_PAGE_SIZE}`;
-      const response = await fetch(`/api/projects/${projectId}/sql`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: paginatedQuery, projectId, parameters }),
-        signal,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to execute SQL query");
-      }
-
-      const rows: Record<string, any>[] = await response.json();
+      const rows = await runQuery(paginateQuery(query, page), parameters, signal);
       const hasMore = rows.length > TABLE_PAGE_SIZE;
       return { rows: hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows, hasMore };
     },
-    [projectId, query]
+    [runQuery, query]
   );
 
   const fetchData = useCallback(async () => {
@@ -128,8 +75,7 @@ const Chart = ({ chart }: ChartProps) => {
     setTableIsFetching(false);
 
     try {
-      const { groupByInterval, ...rest } = timeParameters;
-      const parameters = convertToTimeParameters(rest, groupByInterval);
+      const parameters = toTimeParameters(timeParameters);
       setIsLoading(true);
       setError(null);
 
@@ -139,17 +85,7 @@ const Chart = ({ chart }: ChartProps) => {
         setData(rows);
         setTableHasMore(hasMore);
       } else {
-        const response = await fetch(`/api/projects/${projectId}/sql`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query, projectId, parameters }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to execute SQL query");
-        }
-
-        setData(await response.json());
+        setData(await runQuery(query, parameters));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "An error occurred");
@@ -157,7 +93,7 @@ const Chart = ({ chart }: ChartProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, query, timeParameters, isTable, fetchTablePage]);
+  }, [runQuery, query, timeParameters, isTable, fetchTablePage]);
 
   const fetchNextTablePage = useCallback(async () => {
     if (tableIsFetching || !tableHasMore) return;
@@ -169,8 +105,7 @@ const Chart = ({ chart }: ChartProps) => {
 
     setTableIsFetching(true);
     try {
-      const { groupByInterval, ...rest } = timeParameters;
-      const parameters = convertToTimeParameters(rest, groupByInterval);
+      const parameters = toTimeParameters(timeParameters);
       const nextPage = tablePageRef.current + 1;
       const { rows, hasMore } = await fetchTablePage(nextPage, parameters, controller.signal);
       tablePageRef.current = nextPage;
@@ -195,46 +130,7 @@ const Chart = ({ chart }: ChartProps) => {
 
   const supportsSelection = settings.config.type === ChartType.LineChart || settings.config.type === ChartType.BarChart;
 
-  const onMouseDown: CategoricalChartFunc = useCallback(
-    (e) => {
-      if (e?.activeLabel != null) {
-        startDrag(id, String(e.activeLabel));
-      }
-    },
-    [id, startDrag]
-  );
-
-  const onMouseMove: CategoricalChartFunc = useCallback(
-    (e) => {
-      if (isDragging && e?.activeLabel != null) {
-        updateDrag(String(e.activeLabel));
-      }
-    },
-    [isDragging, updateDrag]
-  );
-
-  const onMouseUp = useCallback(() => {
-    if (isDragging) {
-      endDrag();
-    }
-  }, [isDragging, endDrag]);
-
   const isOwner = selectionChartId === id;
-  const drag: ChartDragHandlers | undefined = useMemo(
-    () =>
-      supportsSelection
-        ? {
-            onMouseDown,
-            onMouseMove,
-            onMouseUp,
-            refArea: {
-              left: startLabel ?? undefined,
-              right: endLabel ?? undefined,
-            },
-          }
-        : undefined,
-    [supportsSelection, onMouseDown, onMouseMove, onMouseUp, startLabel, endLabel]
-  );
 
   const persistColumnConfig = useMemo(
     () =>
@@ -298,7 +194,7 @@ const Chart = ({ chart }: ChartProps) => {
 
   return (
     <div className="relative h-full">
-      <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-border relative">
+      <div className="flex flex-col border rounded-lg p-3 h-full border-border relative overflow-hidden">
         <ChartHeader name={name} id={id} projectId={projectId as string} dashboardId={dashboardId} />
         {error ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -306,7 +202,7 @@ const Chart = ({ chart }: ChartProps) => {
             <p className="text-sm text-destructive-text">{error}</p>
           </div>
         ) : isLoading ? (
-          <Skeleton className="h-full w-full" />
+          <Skeleton className="h-full w-full bg-emphasis-1" />
         ) : (
           <ChartRendererCore
             config={settings.config}
@@ -314,15 +210,13 @@ const Chart = ({ chart }: ChartProps) => {
             columns={columns}
             hiddenColumns={hiddenColumns}
             onBarClick={handleBarClick}
-            syncId="dashboard"
-            drag={drag}
+            selectionChartId={supportsSelection ? id : undefined}
             onColumnConfigChange={isTable ? persistColumnConfig : undefined}
             hasMore={tableHasMore}
             isFetching={tableIsFetching}
             fetchNextPage={fetchNextTablePage}
           />
         )}
-        <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
       </div>
       {isOwner && <SelectionToolbar />}
     </div>

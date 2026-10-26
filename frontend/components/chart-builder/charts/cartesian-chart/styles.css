@@ -1,0 +1,9 @@
+/* Our tooltip body paints its own surface, so TanStack's shell only positions it. */
+.ts-dashboard-tooltip {
+  --ts-chart-tooltip-background: transparent;
+  --ts-chart-tooltip-border: none;
+  --ts-chart-tooltip-shadow: none;
+  --ts-chart-tooltip-padding: 0;
+  --ts-chart-tooltip-max-width: none;
+  overflow: visible;
+}

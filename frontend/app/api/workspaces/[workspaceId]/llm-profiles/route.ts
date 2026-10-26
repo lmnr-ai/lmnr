@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createLlmProfile, listLlmProfiles } from "@/lib/actions/llm-profiles";
-import { AppServerError } from "@/lib/actions/llm-profiles/app-server";
+import { AppServerError } from "@/lib/app-server";
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
   try {
