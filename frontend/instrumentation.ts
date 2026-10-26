@@ -478,7 +478,11 @@ export async function register() {
       // LaminarAiSdkTelemetry's constructor calls Laminar.initialize() itself
       // (reading projectApiKey from LMNR_PROJECT_API_KEY), so no explicit init.
       // The env-var guard stays: without a key that self-init would throw.
-      registerTelemetry(new LaminarAiSdkTelemetry());
+      registerTelemetry(
+        new LaminarAiSdkTelemetry({
+          laminarOptions: { httpPort: 8000, grpcPort: 8001, baseUrl: "http://localhost:8000" },
+        })
+      );
     }
 
     // Anonymous self-hosted usage telemetry. No-ops on Laminar Cloud and when
