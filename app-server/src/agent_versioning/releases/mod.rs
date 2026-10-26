@@ -164,9 +164,11 @@ impl Job {
             decided_now.insert(i);
         }
 
-        // Releases decided now get every trace. Ingest tags the rest once it
-        // sees the decision, but may have missed traces of releases decided in
-        // the previous run, before its cache entry ([`super::ingest`]).
+        // Releases decided now get every trace past the inferred path's horizon;
+        // those before it keep their inferred tag, as a second one would count
+        // them twice. Ingest tags the rest once it sees the decision, but may
+        // have missed traces of releases decided in the previous run, before
+        // its cache entry ([`super::ingest`]).
         let since = agent.watermark.unwrap_or(0);
         let mut fresh = Vec::new();
         let mut recent = Vec::new();
@@ -182,10 +184,11 @@ impl Job {
         }
         let mut traces = Vec::new();
         if !fresh.is_empty() {
-            traces.extend(scope.release_traces(ch, &fresh, 0).await?);
+            let after = agent.labeled_until.unwrap_or(0);
+            traces.extend(scope.release_traces(ch, &fresh, 0, after).await?);
         }
         if !recent.is_empty() {
-            traces.extend(scope.release_traces(ch, &recent, since).await?);
+            traces.extend(scope.release_traces(ch, &recent, since, 0).await?);
         }
         let labels: Vec<(Option<usize>, TracePrompt)> = traces
             .into_iter()

@@ -292,24 +292,26 @@ impl Scope<'_> {
         Ok(rows)
     }
 
-    /// The traces of `releases` with a prompt ingested after `since`, without
-    /// their prompts.
+    /// The traces of `releases` starting after `after`, with a prompt ingested
+    /// after `since`, without their prompts.
     pub async fn release_traces(
         &self,
         clickhouse: &clickhouse::Client,
         releases: &[&str],
         since: i64,
+        after: i64,
     ) -> Result<Vec<TracePrompt>> {
         let sql = trace_prompts_query(
             false,
             "release IN {releases:Array(String)}
              AND ingested_at > fromUnixTimestamp64Nano({since:Int64})",
-            "",
+            "HAVING time > fromUnixTimestamp64Nano({after:Int64})",
         );
         let rows = self
             .query(clickhouse, &sql)
             .param("releases", releases)
             .param("since", since)
+            .param("after", after)
             .fetch_all::<TracePrompt>()
             .await?;
         Ok(rows)
