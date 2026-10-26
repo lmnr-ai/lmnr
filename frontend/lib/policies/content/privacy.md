@@ -5,7 +5,7 @@ description: "How Laminar collects, uses, and protects personal data."
 
 # Privacy Notice
 
-**Last updated August 11, 2026**
+**Last updated October 19, 2026**
 
 This Privacy Notice describes how LMNR AI, Inc. (doing business as Laminar) ("**Laminar**," "**we**," "**us**," or "**our**") processes personal data in connection with our websites (including [laminar.sh](https://laminar.sh) and [lmnr.ai](https://lmnr.ai)) and our agent observability platform (together, the "**Services**").
 
@@ -40,6 +40,7 @@ In our capacity as a controller we do not intentionally collect sensitive catego
 - To provide, maintain, and secure the Services, and to prevent fraud and abuse (contract; legitimate interests).
 - To bill for paid plans and send transactional email such as invoices, usage alerts, workspace invitations, and configured platform notifications (contract).
 - To understand how the product is used and improve it (legitimate interests).
+- To produce aggregated, de-identified statistics about how the Services and AI agents are used, which we may publish — see B5 (legitimate interests).
 - To send product updates and marketing you can opt out of at any time (legitimate interests / consent where required).
 - To comply with law and enforce our terms (legal obligation; legitimate interests).
 
@@ -74,7 +75,7 @@ We use appropriate organizational and technical measures to protect personal dat
 
 Depending on where you live, you may have rights to access, correct, delete, restrict, or port your personal data, to object to processing, and to withdraw consent. You can exercise these rights by emailing [founders@lmnr.ai](mailto:founders@lmnr.ai). We will respond in accordance with applicable law. You may also lodge a complaint with your local data protection authority; in the EEA see [your member state authority](https://ec.europa.eu/justice/data-protection/bodies/authorities/index_en.htm), in the UK the [ICO](https://ico.org.uk/make-a-complaint/), and in Switzerland the [FDPIC](https://www.edoeb.admin.ch/).
 
-**US state privacy rights.** Residents of California, Delaware, and other states with comprehensive privacy laws may have the rights to know, access, correct, delete, and obtain a copy of personal data, the right to non-discrimination, and the right to opt out of targeted advertising, sale, or profiling. We do not sell personal data or use it for targeted advertising. In the categories used by California law, we collect: identifiers (name, email, IP address); commercial information (subscription history); and internet activity (product usage). We do not collect sensitive personal information as that term applies to our own collection; Customer Data processed on behalf of customers may contain personal information of any category, including sensitive personal information, as described in Part B — with respect to that data we act as a service provider. To exercise rights, or to appeal a decision, email [founders@lmnr.ai](mailto:founders@lmnr.ai); if your appeal is denied you may contact your state attorney general.
+**US state privacy rights.** Residents of California, Delaware, and other states with comprehensive privacy laws may have the rights to know, access, correct, delete, and obtain a copy of personal data, the right to non-discrimination, and the right to opt out of targeted advertising, sale, or profiling. We do not sell personal data or use it for targeted advertising. Aggregated Statistics described in B5 are de-identified information; we maintain and use them only in de-identified form and do not attempt to re-identify them. In the categories used by California law, we collect: identifiers (name, email, IP address); commercial information (subscription history); and internet activity (product usage). We do not collect sensitive personal information as that term applies to our own collection; Customer Data processed on behalf of customers may contain personal information of any category, including sensitive personal information, as described in Part B — with respect to that data we act as a service provider. To exercise rights, or to appeal a decision, email [founders@lmnr.ai](mailto:founders@lmnr.ai); if your appeal is denied you may contact your state attorney general.
 
 **Do-Not-Track.** There is no standard for DNT signals, and we do not respond to them at this time.
 
@@ -107,7 +108,8 @@ We process Customer Data:
 
 - to provide the platform — ingestion, storage, display, search, analytics, evaluations, and alerting;
 - to run optional AI-assisted features the customer invokes or configures (for example failure detection, signal extraction, summarization, and AI-assisted queries). Some of these features send the relevant Customer Data to a third-party model provider (Google Cloud or AWS Bedrock) to generate a response at the time of use. We do not permit these providers to train on Customer Data. Playground features that use the customer's own model API keys send data to the provider the customer selects;
-- to improve Laminar's own models, **only** using Signal Run Data from workspaces where Privacy Mode is off — see B4; and
+- to improve Laminar's own models, **only** using Signal Run Data from workspaces where Privacy Mode is off — see B4;
+- to create aggregated, de-identified statistics, as our customers instruct and authorize in our Terms of Service — see B5; and
 - to secure the Services, meter usage, and bill.
 
 Customer Data is stored with the cloud infrastructure providers listed in our [trust center](https://compliance.laminar.sh/?tab=subprocessors). Configured alert and report content derived from Customer Data is delivered through our email provider and, where connected, to the customer's Slack workspace.
@@ -118,19 +120,33 @@ Every workspace has a **Privacy Mode** setting. While Privacy Mode is on, we do 
 
 While Privacy Mode is off, we may use that workspace's **Signal Run Data** — the trace content examined by the Signals feature during a run, and the outputs and intermediate reasoning our models produce in that run — to train and improve the models that power Signals, subject to the commitments in our [Terms of Service](/policies/terms) and described on our [Data Use page](/policies/data-use): only Signal Run Data generated on or after September 10, 2026 is used (earlier data requires separate written consent); it is processed through our redaction pipeline — designed to remove detected personal information — before any training use; turning Privacy Mode back on stops future training use and removes the workspace's data from any training dataset that has not yet been used in a completed training run; and models already trained cannot be reversed. Customer Data that Signals has not processed is not used for training. Self-hosted deployments and customer-controlled data planes are never used for training — we have no access to that data at all.
 
-### B5. PII redaction at ingestion
+### B5. Aggregated, de-identified statistics
+
+From November 20, 2026, our [Terms of Service](/policies/terms) instruct and authorize us to derive **Aggregated Statistics** from Customer Data and Signal Run Data generated on or after that date in Laminar-hosted workspaces. We publish these statistics in reports, blog posts, and dashboards — for example, the share of agent failures that fall into broad categories (such as fabricated facts, ignored instructions, or malformed tool calls), broken down by language model, agent harness, or general type of agent.
+
+How we keep these statistics from identifying anyone:
+
+- Automated analysis assigns high-level categorical labels (such as failure category, model, harness, and agent type) to traces. Only those labels and technical metadata enter the statistics dataset; trace content does not. End-user identifiers are removed, and account, workspace, and project identifiers are replaced with tokens used only to count distinct contributors.
+- We publish only relative figures (percentages, shares, and rankings), never absolute volumes such as trace, request, or token counts for any segment.
+- We publish a breakdown only when it reflects data from at least five unrelated workspaces; smaller groups are folded into "other," and private, fine-tuned, or custom model names are never published individually.
+- We never publish excerpts of trace content, the identity of any customer or end user, or details that could hint at how a particular agent is built or run, such as time of day, location, or prompting style.
+
+Published Aggregated Statistics do not relate to an identified or identifiable person, so they are not personal data. We maintain them in de-identified form and will not attempt to re-identify any person or customer from them, and we contractually require anyone with whom we share non-public Aggregated Statistics not to attempt it either. Creating these statistics is not model training, so Privacy Mode does not by itself exclude a workspace; customers with a signed data processing agreement are governed by that agreement. Self-hosted deployments and customer-controlled data planes are never included.
+
+### B6. PII redaction at ingestion
 
 Separately from training, customers on eligible plans can enable a per-project setting that runs incoming span inputs and outputs through a PII redaction model before storage, replacing detected personal information (names, emails, phone numbers, and similar) with placeholders. This filter is applied on a best-effort basis and is scoped to model input/output content; customers should not rely on it as their only safeguard and remain responsible for what their applications send.
 
-### B6. Retention and deletion of Customer Data
+### B7. Retention and deletion of Customer Data
 
 - Customer Data is retained for as long as the customer's project exists. Plan-based retention windows (see our [pricing page](/pricing) for the current window per plan) limit how far back data is accessible in the product.
 - When a customer deletes a project or workspace (or asks us to), the associated Customer Data is deleted from our primary databases. Copies in search indexes, caches, message queues, and backups are deleted or expire on a rolling basis afterward (search-index copies within at most 90 days).
 - Where a workspace had opted into model training under B4, redacted data already incorporated into training datasets and trained models is not retroactively extracted by later deletion or by re-enabling Privacy Mode.
+- Aggregated Statistics created under B5 do not contain or identify Customer Data, so they are not affected by later deletion of the underlying Customer Data.
 
-### B7. Self-hosted deployments
+### B8. Self-hosted deployments
 
-Laminar is open source and can be self-hosted. When you self-host, your data stays on your infrastructure: Laminar receives no Customer Data, this Part B does not apply, and no self-hosted data is ever used for training. Self-hosted deployments send us only an optional, anonymous usage heartbeat (deployment UUID, version, and row counts — no content and no IP address), which operators can disable.
+Laminar is open source and can be self-hosted. When you self-host, your data stays on your infrastructure: Laminar receives no Customer Data, this Part B does not apply, and no self-hosted data is ever used for training or for Aggregated Statistics. Self-hosted deployments send us only an optional, anonymous usage heartbeat (deployment UUID, version, and row counts — no content and no IP address), which operators can disable.
 
 ## Updates to this notice
 
