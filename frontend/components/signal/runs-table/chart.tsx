@@ -3,50 +3,34 @@
 import { type RefObject, useMemo } from "react";
 import useSWR from "swr";
 
-import TimeSeriesChart from "@/components/charts/time-series-chart";
+import CartesianPlot, { type PlotSeries } from "@/components/charts/cartesian-plot";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
-import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
+import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
+import { useChartUrlZoom } from "@/components/charts/use-chart-url-zoom";
 import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
 import { type SignalRunStatsDataPoint } from "@/lib/actions/signal-runs/types";
 import { swrFetcher } from "@/lib/utils";
 
-const chartConfig: TimeSeriesChartConfig = {
-  eventCreated: {
-    label: "Event",
-    color: "var(--color-primary)",
-    stackId: "stack",
-  },
-  noEvent: {
-    label: "No event",
-    color: "color-mix(in srgb, var(--color-muted-foreground) 60%, transparent)",
-    stackId: "stack",
-  },
-  inProgress: {
-    label: "Running",
-    color: "hsl(var(--chart-4))",
-    stackId: "stack",
-  },
-  failed: {
-    label: "Failed",
-    color: "var(--destructive)",
-    stackId: "stack",
-  },
-};
-
-const fields = ["eventCreated", "noEvent", "inProgress", "failed"] as const;
+const series: PlotSeries[] = [
+  { key: "eventCreated", label: "Event", color: "var(--color-primary)" },
+  { key: "noEvent", label: "No event", color: "color-mix(in srgb, var(--color-muted-foreground) 60%, transparent)" },
+  { key: "inProgress", label: "Running", color: "hsl(var(--chart-4))" },
+  { key: "failed", label: "Failed", color: "var(--destructive)" },
+];
+const countNumberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
 
 interface RunsChartProps {
   className?: string;
   containerRef: RefObject<HTMLDivElement | null>;
-  containerWidth: number | null;
   statsUrl: string | null;
 }
 
-export default function RunsChart({ className, containerRef, containerWidth, statsUrl }: RunsChartProps) {
+export default function RunsChart({ className, containerRef, statsUrl }: RunsChartProps) {
   const { data, isLoading } = useSWR<{ items: SignalRunStatsDataPoint[] }>(statsUrl, swrFetcher);
   const markers = useSignalVersionMarkers();
+  const onRangeSelect = useChartUrlZoom();
 
-  // Drop `count` (analyzed-only overlay denominator) so the chart total is the stacked series, not series + subset.
+  // `count` is an analyzed-only denominator, not another part of the stack or total.
   const chartData = useMemo(
     () =>
       (data?.items ?? []).map(({ timestamp, eventCreated, noEvent, inProgress, failed }) => {
@@ -59,20 +43,30 @@ export default function RunsChart({ className, containerRef, containerWidth, sta
       }),
     [data?.items]
   );
+  const total = useMemo(
+    () => chartData.reduce((sum, row) => sum + series.reduce((value, item) => value + row[item.key], 0), 0),
+    [chartData]
+  );
 
   return (
     <div ref={containerRef} className={className}>
       {!data && (isLoading || !statsUrl) ? (
         <ChartSkeleton />
       ) : (
-        <TimeSeriesChart
-          data={chartData}
-          chartConfig={chartConfig}
-          fields={fields}
-          containerWidth={containerWidth}
-          markers={markers}
-          hideZeroValues
-        />
+        <div className="flex flex-col items-start h-full">
+          <CartesianPlot
+            kind="bar"
+            data={chartData}
+            x="timestamp"
+            series={series}
+            markers={markers}
+            className="h-48"
+            onRangeSelect={onRangeSelect}
+          />
+          <div className="text-xs text-muted-foreground text-center" title={String(total)}>
+            Total: {countNumberFormatter.format(total)}
+          </div>
+        </div>
       )}
     </div>
   );
