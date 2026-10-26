@@ -60,7 +60,7 @@ export default function TracePanel({ trace, spans, onClose, onSpanSelect, isComp
     shallow
   );
 
-  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph, spans]);
   const filteredSpansForStats = useMemo(() => {
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
     return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
