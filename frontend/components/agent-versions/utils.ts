@@ -1,5 +1,5 @@
 import { type AgentVersionItem } from "@/lib/actions/agents";
-import { getClusterColorById } from "@/lib/clusters/colors";
+import { CATEGORICAL_COLOR_PALETTE } from "@/lib/colors";
 
 import { diffTools, type ToolChangeStatus } from "./tools-diff/utils";
 
@@ -14,8 +14,21 @@ export function shortHash(hash: string): string {
   return hash.slice(0, 8);
 }
 
-// Same id-hashed categorical palette as signal clusters, so a version keeps its color everywhere.
-export const versionColor = (versionId: string): string => getClusterColorById(versionId);
+// Walk the hue loop in jumps instead of placing similar hues side by side.
+// 29 is coprime with 100, so every palette entry appears before colors repeat.
+const VERSION_PALETTE = CATEGORICAL_COLOR_PALETTE.map(
+  (_, index) => CATEGORICAL_COLOR_PALETTE[(index * 29) % CATEGORICAL_COLOR_PALETTE.length]
+);
+
+export function versionColor(agentId: string, versionNumber: number): string {
+  let hash = 2166136261;
+  for (let i = 0; i < agentId.length; i++) {
+    hash ^= agentId.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const index = ((hash >>> 0) + versionNumber - 1) % VERSION_PALETTE.length;
+  return VERSION_PALETTE[index];
+}
 
 const TOOL_VERBS: Record<ToolChangeStatus, string> = { added: "added", modified: "updated", removed: "removed" };
 

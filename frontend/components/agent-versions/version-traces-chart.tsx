@@ -14,6 +14,7 @@ import { isValidZoomRange, normalizeTimeRange, selectNiceTicksFromData } from "@
 import { DEFAULT_PAST_HOURS, versionColor } from "./utils";
 
 interface VersionTracesChartProps {
+  agentId: string;
   versions: AgentVersionItem[];
   data: AgentVersionTracesPoint[];
 }
@@ -25,7 +26,7 @@ const tooltipFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "numeric",
 });
 
-export default function VersionTracesChart({ versions, data }: VersionTracesChartProps) {
+export default function VersionTracesChart({ agentId, versions, data }: VersionTracesChartProps) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -37,9 +38,12 @@ export default function VersionTracesChart({ versions, data }: VersionTracesChar
   const config = useMemo<ChartConfig>(
     () =>
       Object.fromEntries(
-        ordered.map((v) => [v.id, { label: `Version ${v.versionNumber}`, color: versionColor(v.id) }])
+        ordered.map((v) => [
+          v.id,
+          { label: `Version ${v.versionNumber}`, color: versionColor(agentId, v.versionNumber) },
+        ])
       ),
-    [ordered]
+    [agentId, ordered]
   );
 
   const rangeValue = useMemo(() => {
@@ -125,7 +129,13 @@ export default function VersionTracesChart({ versions, data }: VersionTracesChar
           />
           <BarStack radius={[4, 4, 4, 4]}>
             {ordered.map((v) => (
-              <Bar key={v.id} dataKey={v.id} fill={versionColor(v.id)} fillOpacity={0.7} stackId="stack" />
+              <Bar
+                key={v.id}
+                dataKey={v.id}
+                fill={versionColor(agentId, v.versionNumber)}
+                fillOpacity={0.7}
+                stackId="stack"
+              />
             ))}
           </BarStack>
           {refArea.left && refArea.right && (
