@@ -58,6 +58,9 @@ const Chart = ({ chart }: ChartProps) => {
   // Cancels an in-flight pagination fetch when fetchData or a newer scroll
   // supersedes it — otherwise its rows would splice onto fresh page-0 data.
   const paginationAbortRef = useRef<AbortController | null>(null);
+  // Same for the main load: a newer time range or refresh supersedes it, so a slower
+  // older response can't land last and show rows for the previous range.
+  const queryAbortRef = useRef<AbortController | null>(null);
 
   const fetchTablePage = useCallback(
     async (page: number, parameters: Record<string, string | number>, signal?: AbortSignal) => {
@@ -74,6 +77,10 @@ const Chart = ({ chart }: ChartProps) => {
     paginationAbortRef.current = null;
     setTableIsFetching(false);
 
+    queryAbortRef.current?.abort();
+    const controller = new AbortController();
+    queryAbortRef.current = controller;
+
     try {
       const parameters = toTimeParameters(timeParameters);
       setIsLoading(true);
@@ -81,17 +88,25 @@ const Chart = ({ chart }: ChartProps) => {
 
       if (isTable) {
         tablePageRef.current = 0;
-        const { rows, hasMore } = await fetchTablePage(0, parameters);
+        const { rows, hasMore } = await fetchTablePage(0, parameters, controller.signal);
+        if (controller.signal.aborted) return;
         setData(rows);
         setTableHasMore(hasMore);
       } else {
-        setData(await runQuery(query, parameters));
+        const rows = await runQuery(query, parameters, controller.signal);
+        if (controller.signal.aborted) return;
+        setData(rows);
       }
     } catch (e) {
+      // Aborted — the fetch that replaced us owns state.
+      if (controller.signal.aborted) return;
       setError(e instanceof Error ? e.message : "An error occurred");
       setData([]);
     } finally {
-      setIsLoading(false);
+      if (queryAbortRef.current === controller) {
+        queryAbortRef.current = null;
+        setIsLoading(false);
+      }
     }
   }, [runQuery, query, timeParameters, isTable, fetchTablePage]);
 
@@ -127,6 +142,14 @@ const Chart = ({ chart }: ChartProps) => {
   useEffect(() => {
     fetchData();
   }, [fetchData, refreshKey]);
+
+  useEffect(
+    () => () => {
+      queryAbortRef.current?.abort();
+      paginationAbortRef.current?.abort();
+    },
+    []
+  );
 
   const supportsSelection = settings.config.type === ChartType.LineChart || settings.config.type === ChartType.BarChart;
 

@@ -4,7 +4,7 @@ import { useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
-import { transformFormForChartType } from "@/components/dashboards/editor/utils";
+import { needsTimeSeries, transformFormForChartType } from "@/components/dashboards/editor/utils";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type QueryStructure } from "@/lib/actions/sql/types.ts";
@@ -40,7 +40,12 @@ const ChartTypeField = () => {
 
   const handleChartTypeChange = (newType: ChartType) => {
     const previousType = chart.settings.config.type;
-    setChartConfig({ ...chart.settings.config, type: newType });
+    // Only line and bar charts offer a breakdown; one left over from them would still split the new type.
+    setChartConfig({
+      ...chart.settings.config,
+      type: newType,
+      ...(!needsTimeSeries(newType) && { breakdown: undefined }),
+    });
     // Advanced keeps its SQL as written, so its current rows stay valid for the new type.
     if (editorMode === "sql") return;
     // Clear stale data so the preview doesn't show results from the previous
