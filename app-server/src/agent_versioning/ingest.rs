@@ -89,7 +89,9 @@ pub fn release_cache_key(project_id: Uuid, agent_hash: &str, release: &str) -> S
 }
 
 /// Tags each trace with the versions of its prompts' decided releases. The
-/// job tags the rest once it decides them, so failures only log.
+/// job tags the rest once it decides them, so failures only log. Releases
+/// reaching back past the inferred path's horizon are left to the job, which
+/// can tell whether a trace started past it.
 pub async fn tag_releases(
     db: &DB,
     cache: &Cache,

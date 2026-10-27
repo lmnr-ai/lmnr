@@ -231,7 +231,9 @@ pub async fn set_backfilled(pool: &PgPool, release_id: Uuid) -> Result<()> {
     Ok(())
 }
 
-/// The `version_hash` a release of the agent was decided as, if it was.
+/// The `version_hash` a release of the agent was decided as, if it was and
+/// ingest may tag its traces: not for a release with prompts starting by
+/// `tagged_until`, whose traces may carry an inferred tag.
 pub async fn release_version_hash(
     pool: &PgPool,
     project_id: Uuid,
@@ -243,7 +245,8 @@ pub async fn release_version_hash(
          FROM agents a
          JOIN agent_releases r ON r.agent_id = a.id
          JOIN agent_versions v ON v.id = r.version_id
-         WHERE a.project_id = $1 AND a.agent_hash = $2 AND r.release = $3",
+         WHERE a.project_id = $1 AND a.agent_hash = $2 AND r.release = $3
+           AND (a.tagged_until IS NULL OR r.first_seen > a.tagged_until)",
     )
     .bind(project_id)
     .bind(agent_hash)

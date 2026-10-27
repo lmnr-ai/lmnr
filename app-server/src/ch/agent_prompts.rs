@@ -301,10 +301,24 @@ impl Scope<'_> {
         since: i64,
         after: i64,
     ) -> Result<Vec<TracePrompt>> {
+        // A trace's start is its first prompt, so the traces with a new
+        // prompt are picked first and then read whole.
+        let filter = match since {
+            0 => "release IN {releases:Array(String)}",
+            _ => {
+                "release IN {releases:Array(String)}
+                  AND trace_id IN (
+                      SELECT trace_id FROM agent_prompts
+                      WHERE project_id = {project_id:UUID}
+                        AND agent_hash = {agent_hash:String}
+                        AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
+                        AND ingested_at <= fromUnixTimestamp64Nano({ingested_until:Int64})
+                        AND release IN {releases:Array(String)})"
+            }
+        };
         let sql = trace_prompts_query(
             false,
-            "release IN {releases:Array(String)}
-             AND ingested_at > fromUnixTimestamp64Nano({since:Int64})",
+            filter,
             "HAVING time > fromUnixTimestamp64Nano({after:Int64})",
         );
         let rows = self

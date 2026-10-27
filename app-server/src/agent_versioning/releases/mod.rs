@@ -298,14 +298,26 @@ impl<'a> Run<'a> {
         Ok(self.versions.push(id, hash, core))
     }
 
-    /// Releases backfilled now get every trace past the inferred path's
-    /// `tagged_until`; those before it keep their inferred tag, as a second one
-    /// would count them twice. Ingest tags the rest once it sees the decision,
-    /// but may have missed traces of releases backfilled in the previous run,
-    /// before its cache entry ([`super::ingest`]).
+    /// Whether `release` has prompts starting by the inferred path's
+    /// `tagged_until`, so some of its traces may carry an inferred tag. Every
+    /// such trace was ingested before release mode recorded `first_seen`,
+    /// which only moves earlier, so a release past it has none.
+    fn before_horizon(&self, release: &Release) -> bool {
+        self.agent
+            .tagged_until
+            .is_some_and(|until| release.first_seen <= until)
+    }
+
+    /// Only traces starting after the inferred path's `tagged_until`: those
+    /// before it keep their inferred tag, as a second one would count them
+    /// twice. Releases backfilled now get all of them. Ingest tags later
+    /// traces once it sees the decision, but may have missed traces of releases
+    /// backfilled in the previous run, before its cache entry, and leaves
+    /// releases before the horizon to this ([`super::ingest`]).
     async fn tag(&self, to_backfill: &HashSet<usize>) -> Result<Vec<(Option<usize>, TracePrompt)>> {
         let ch = &self.job.clickhouse;
         let since = self.agent.ingested_until.unwrap_or(0);
+        let after = self.agent.tagged_until.unwrap_or(0);
         let mut fresh = Vec::new();
         let mut recent = Vec::new();
         let mut version_by_release = HashMap::new();
@@ -314,18 +326,19 @@ impl<'a> Run<'a> {
             version_by_release.insert(release.release.as_str(), version);
             if to_backfill.contains(&i) {
                 fresh.push(release.release.as_str());
-            } else if release.backfilled_at.is_some_and(|at| at > since) {
+            } else if release.backfilled_at.is_some_and(|at| at > since)
+                || self.before_horizon(release)
+            {
                 recent.push(release.release.as_str());
             }
         }
 
         let mut traces = Vec::new();
         if !fresh.is_empty() {
-            let after = self.agent.tagged_until.unwrap_or(0);
             traces.extend(self.scope.release_traces(ch, &fresh, 0, after).await?);
         }
         if !recent.is_empty() {
-            traces.extend(self.scope.release_traces(ch, &recent, since, 0).await?);
+            traces.extend(self.scope.release_traces(ch, &recent, since, after).await?);
         }
         let labels: Vec<(Option<usize>, TracePrompt)> = traces
             .into_iter()
@@ -365,7 +378,11 @@ impl<'a> Run<'a> {
                 self.scope.agent_hash,
                 &release.release,
             );
-            let hash = self.versions.hashes[version].clone();
+            // Empty: ingest has no trace starts to check against the horizon.
+            let hash = match self.before_horizon(release) {
+                true => String::new(),
+                false => self.versions.hashes[version].clone(),
+            };
             if let Err(e) = self
                 .job
                 .cache
