@@ -1278,6 +1278,7 @@ mod tests {
             trace_type: 0,
             has_browser_session: None,
             span_names: HashSet::new(),
+            release: None,
         }
     }
 

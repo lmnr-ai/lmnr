@@ -244,6 +244,11 @@ const TABLES: &[Table] = &[
                 "Array(Tuple(agent_hash String, version_hash String, model String))",
                 "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
             ),
+            col(
+                "release",
+                "String",
+                "Release of the code that produced the trace, as sent by the SDK (usually the short git SHA, 7 lowercase hex chars). Empty when the SDK sent none",
+            ),
         ],
     },
     Table {

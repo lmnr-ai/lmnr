@@ -62,6 +62,7 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "top_span_id", type: "string", description: "ID of the top-level span" },
     { name: "top_span_name", type: "string", description: "Name of the top-level span" },
     { name: "top_span_type", type: "string", description: "Type of the top-level span" },
+    { name: "release", type: "string", description: "Release (usually the short git SHA) the trace ran on" },
   ],
   signal_events: [
     { name: "id", type: "string", description: "Unique identifier for the signal event" },

@@ -19,6 +19,9 @@ pub struct AgentPrompt {
     pub agent_hash: String,
     pub line_hashes: Vec<u64>,
     pub model: String,
+    /// `SpanAttributes::release`, empty when the SDK sent none.
+    #[serde(default)]
+    pub release: String,
 }
 
 /// `None` unless the feature is on and the span is production traffic of
@@ -49,6 +52,7 @@ pub fn agent_prompt(
         agent_hash: agent_hash.to_string(),
         line_hashes: line_set(system_prompt, tool_text),
         model,
+        release: span.attributes.release().unwrap_or_default(),
     })
 }
 
@@ -67,5 +71,6 @@ pub fn row(span: &Span, prompt: AgentPrompt) -> CHAgentPrompt {
         start_time: span.start_time.timestamp_nanos_opt().unwrap_or(i64::MAX),
         model: prompt.model,
         line_hashes: prompt.line_hashes,
+        release: prompt.release,
     }
 }

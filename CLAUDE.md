@@ -140,7 +140,7 @@ Comments are welcome when they add a WHY that names cannot: a constraint, invari
 
 ## Pre-commit Hooks
 
-Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
+Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. `✖ Task failed to spawn: oxfmt … ENOENT` means `frontend/node_modules` is partial, and the commit was NOT made: run `pnpm install --frozen-lockfile` in `frontend/` and commit again. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
 
 ## Detailed topic notes (read on demand)
 

@@ -218,6 +218,12 @@ export const tableSchemas: Record<string, TableSchema> = {
         description:
           "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
       },
+      {
+        name: "release",
+        type: "String",
+        description:
+          "Release of the code that produced the trace, as sent by the SDK (usually the short git SHA). Empty when the SDK sent none",
+      },
     ],
   },
   trace_outputs: {
