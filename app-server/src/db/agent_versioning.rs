@@ -12,11 +12,12 @@ pub struct Agent {
     pub id: Uuid,
     /// `None` until generated or set by a user.
     pub name: Option<String>,
-    /// Traces starting up to here are labelled.
-    pub labeled_until: Option<i64>,
-    /// Prompts ingested up to here have been read.
-    pub watermark: Option<i64>,
-    /// The version at `labeled_until`; in release mode, the newest decided
+    /// Traces starting up to here are tagged (by start time); frozen in release
+    /// mode.
+    pub tagged_until: Option<i64>,
+    /// Prompts ingested up to here have been processed (by ingestion time).
+    pub ingested_until: Option<i64>,
+    /// The version at `tagged_until`; in release mode, the newest decided
     /// release's.
     pub current_version_id: Option<Uuid>,
     /// Versioned by the SDK's release instead of inferred from prompts.
@@ -30,7 +31,7 @@ pub async fn upsert_agent(pool: &PgPool, project_id: Uuid, agent_hash: &str) -> 
         "INSERT INTO agents (project_id, agent_hash)
          VALUES ($1, $2)
          ON CONFLICT (project_id, agent_hash) DO UPDATE SET agent_hash = EXCLUDED.agent_hash
-         RETURNING id, name, labeled_until, watermark, current_version_id, release_mode",
+         RETURNING id, name, tagged_until, ingested_until, current_version_id, release_mode",
     )
     .bind(project_id)
     .bind(agent_hash)
@@ -42,17 +43,17 @@ pub async fn upsert_agent(pool: &PgPool, project_id: Uuid, agent_hash: &str) -> 
 pub async fn save_progress(
     pool: &PgPool,
     agent_id: Uuid,
-    labeled_until: Option<i64>,
-    watermark: i64,
+    tagged_until: Option<i64>,
+    ingested_until: i64,
     current_version_id: Option<Uuid>,
 ) -> Result<()> {
     sqlx::query(
-        "UPDATE agents SET labeled_until = $2, watermark = $3, current_version_id = $4
+        "UPDATE agents SET tagged_until = $2, ingested_until = $3, current_version_id = $4
          WHERE id = $1",
     )
     .bind(agent_id)
-    .bind(labeled_until)
-    .bind(watermark)
+    .bind(tagged_until)
+    .bind(ingested_until)
     .bind(current_version_id)
     .execute(pool)
     .await?;
@@ -168,7 +169,7 @@ pub struct Release {
     pub version_id: Option<Uuid>,
     /// When the job finished tagging its traces, in nanoseconds; `None` with a
     /// `version_id` while that is pending.
-    pub decided_at: Option<i64>,
+    pub backfilled_at: Option<i64>,
 }
 
 /// Record the agent's releases, keeping each one's earliest `first_seen`.
@@ -202,7 +203,7 @@ pub async fn upsert_releases(
 pub async fn get_releases(pool: &PgPool, agent_id: Uuid) -> Result<Vec<Release>> {
     let releases = sqlx::query_as::<_, Release>(
         "SELECT id, release, first_seen, version_id,
-                (EXTRACT(EPOCH FROM decided_at) * 1e9)::bigint AS decided_at
+                (EXTRACT(EPOCH FROM backfilled_at) * 1e9)::bigint AS backfilled_at
          FROM agent_releases
          WHERE agent_id = $1
          ORDER BY first_seen, release",
@@ -222,8 +223,8 @@ pub async fn set_release_version(pool: &PgPool, release_id: Uuid, version_id: Uu
     Ok(())
 }
 
-pub async fn decide_release(pool: &PgPool, release_id: Uuid) -> Result<()> {
-    sqlx::query("UPDATE agent_releases SET decided_at = now() WHERE id = $1")
+pub async fn set_backfilled(pool: &PgPool, release_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE agent_releases SET backfilled_at = now() WHERE id = $1")
         .bind(release_id)
         .execute(pool)
         .await?;

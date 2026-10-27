@@ -1,7 +1,7 @@
 //! `agent_prompts`: each production agent LLM span's prompt as masked line
 //! hashes, the input of `crate::agent_versioning`. Times are nanoseconds.
-//! Every read sees only rows ingested by the caller's `watermark`, so a row
-//! ingested later is picked up exactly once, as late.
+//! Every read sees only rows ingested up to the caller's `ingested_until`, so a
+//! row ingested later is picked up exactly once, as late.
 
 use anyhow::Result;
 use clickhouse::Row;
@@ -85,7 +85,7 @@ pub struct TracePrompt {
 pub struct Scope<'a> {
     pub project_id: Uuid,
     pub agent_hash: &'a str,
-    pub watermark: i64,
+    pub ingested_until: i64,
 }
 
 // `time`, `lines` and `trace_release` must not reuse column names: ClickHouse
@@ -108,7 +108,7 @@ fn trace_prompts_query(lines: bool, filter: &str, tail: &str) -> String {
          FROM agent_prompts
          WHERE project_id = {{project_id:UUID}}
            AND agent_hash = {{agent_hash:String}}
-           AND ingested_at <= fromUnixTimestamp64Nano({{watermark:Int64}})
+           AND ingested_at <= fromUnixTimestamp64Nano({{ingested_until:Int64}})
            AND {filter}
          GROUP BY trace_id
          {tail}",
@@ -122,7 +122,7 @@ impl Scope<'_> {
             .query(sql)
             .param("project_id", self.project_id)
             .param("agent_hash", self.agent_hash)
-            .param("watermark", self.watermark)
+            .param("ingested_until", self.ingested_until)
     }
 
     /// Up to `limit` traces starting in `(from, to]`, at most `per_minute`
@@ -196,7 +196,7 @@ impl Scope<'_> {
                  WHERE project_id = {project_id:UUID}
                    AND agent_hash = {agent_hash:String}
                    AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
-                   AND ingested_at <= fromUnixTimestamp64Nano({watermark:Int64})
+                   AND ingested_at <= fromUnixTimestamp64Nano({ingested_until:Int64})
                    AND start_time <= fromUnixTimestamp64Nano({until:Int64}))",
             "HAVING min(ingested_at) > fromUnixTimestamp64Nano({since:Int64})",
         );
@@ -238,7 +238,7 @@ impl Scope<'_> {
                  FROM agent_prompts
                  WHERE project_id = {project_id:UUID}
                    AND agent_hash = {agent_hash:String}
-                   AND ingested_at <= fromUnixTimestamp64Nano({watermark:Int64})
+                   AND ingested_at <= fromUnixTimestamp64Nano({ingested_until:Int64})
                    AND release != ''
                  GROUP BY release
                  ORDER BY first_seen, release",
@@ -257,7 +257,7 @@ impl Scope<'_> {
                      SELECT release FROM agent_prompts
                      WHERE project_id = {project_id:UUID}
                        AND agent_hash = {agent_hash:String}
-                       AND ingested_at <= fromUnixTimestamp64Nano({watermark:Int64})
+                       AND ingested_at <= fromUnixTimestamp64Nano({ingested_until:Int64})
                      ORDER BY start_time DESC
                      LIMIT {limit:UInt64})",
             )

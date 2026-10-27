@@ -59,16 +59,16 @@ impl Job {
             .current_version_id
             .and_then(|id| versions.iter().position(|v| v.id == id));
 
-        let watermark = now - VISIBILITY_LAG_NS;
+        let ingested_until = now - VISIBILITY_LAG_NS;
         let scope = Scope {
             project_id,
             agent_hash,
-            watermark,
+            ingested_until,
         };
-        let horizon = agent.labeled_until.unwrap_or(0);
+        let horizon = agent.tagged_until.unwrap_or(0);
         let per_minute = SAMPLES_PER_MINUTE.get();
         let mut labeled = Vec::new();
-        if let Some(until) = agent.labeled_until {
+        if let Some(until) = agent.tagged_until {
             // A flip needs N samples before it, which a quiet agent may have
             // produced hours ago: widen until the window holds them.
             let limit = 2 * params.min_run as u64;
@@ -85,7 +85,7 @@ impl Job {
         let unlabeled = scope
             .samples(
                 ch,
-                (horizon, watermark),
+                (horizon, ingested_until),
                 per_minute,
                 MAX_SAMPLES.get(),
                 false,
@@ -129,12 +129,12 @@ impl Job {
         }
 
         let mut labels = Vec::new();
-        if let (Some(since), Some(until)) = (agent.watermark, agent.labeled_until) {
+        if let (Some(since), Some(until)) = (agent.ingested_until, agent.tagged_until) {
             for trace in scope.late(ch, since, until).await? {
                 labels.push((timeline.version_by_content(&trace.lines), trace));
             }
         }
-        if let Some(until) = timeline.labeled_until {
+        if let Some(until) = timeline.tagged_until {
             labels.extend(
                 self.label_range(&scope, &timeline, (horizon, until))
                     .await?,
@@ -144,8 +144,15 @@ impl Job {
             .await?;
 
         let current_version_id = timeline.current.map(|v| ids[v]);
-        let labeled_until = timeline.labeled_until.or(agent.labeled_until);
-        save_progress(pool, agent.id, labeled_until, watermark, current_version_id).await?;
+        let tagged_until = timeline.tagged_until.or(agent.tagged_until);
+        save_progress(
+            pool,
+            agent.id,
+            tagged_until,
+            ingested_until,
+            current_version_id,
+        )
+        .await?;
 
         let sample = unlabeled.last().or(labeled.last());
         self.name_agent(agent, project_id, system_prompt, sample)

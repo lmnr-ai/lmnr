@@ -22,7 +22,7 @@ use crate::{
     cache::CacheTrait,
     ch::agent_prompts::{Scope, TracePrompt},
     db::agent_versioning::{
-        Agent, Release, decide_release, get_releases, get_versions, insert_version, save_progress,
+        Agent, Release, get_releases, get_versions, insert_version, save_progress, set_backfilled,
         set_release_version, upsert_releases,
     },
     env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN},
@@ -39,21 +39,21 @@ impl Job {
         agent_hash: &str,
         now: i64,
     ) -> Result<()> {
-        let watermark = now - VISIBILITY_LAG_NS;
+        let ingested_until = now - VISIBILITY_LAG_NS;
         let scope = Scope {
             project_id,
             agent_hash,
-            watermark,
+            ingested_until,
         };
         let mut run = Run::load(self, agent, scope, now).await?;
-        let decided_now = run.decide_pending().await?;
-        let labels = run.tag(&decided_now).await?;
-        run.mark_decided(&decided_now).await?;
+        let to_backfill = run.decide_pending().await?;
+        let labels = run.tag(&to_backfill).await?;
+        run.mark_backfilled(&to_backfill).await?;
         save_progress(
             &self.db.pool,
             agent.id,
-            agent.labeled_until,
-            watermark,
+            agent.tagged_until,
+            ingested_until,
             run.current_version_id(),
         )
         .await?;
@@ -138,7 +138,7 @@ impl<'a> Run<'a> {
             .iter()
             .map(|r| r.version_id.and_then(|id| versions.index(id)))
             .collect();
-        let before_releases = match releases.iter().any(|r| r.decided_at.is_some()) {
+        let before_releases = match releases.iter().any(|r| r.backfilled_at.is_some()) {
             true => None,
             false => agent.current_version_id.and_then(|id| versions.index(id)),
         };
@@ -165,15 +165,15 @@ impl<'a> Run<'a> {
         self.counts.get(release).copied().unwrap_or(0)
     }
 
-    /// Chooses a version for every undecided release that can have one, oldest
-    /// first, and returns the releases to tag and decide in this run.
+    /// Chooses a version for every release not yet backfilled that can have
+    /// one, oldest first, and returns the releases to backfill in this run.
     async fn decide_pending(&mut self) -> Result<HashSet<usize>> {
-        let mut decided_now = HashSet::new();
+        let mut to_backfill = HashSet::new();
         for i in 0..self.releases.len() {
-            if self.releases[i].decided_at.is_some() {
+            if self.releases[i].backfilled_at.is_some() {
                 continue;
             }
-            // Chosen by a run that failed before deciding it: tag it again with
+            // Chosen by a run that failed before backfilling it: tag it again with
             // the same version rather than re-sampling into another one.
             if self.version_of[i].is_none() {
                 let Some(version) = self.choose(i).await? else {
@@ -183,9 +183,9 @@ impl<'a> Run<'a> {
                 set_release_version(&self.job.db.pool, self.releases[i].id, version_id).await?;
                 self.version_of[i] = Some(version);
             }
-            decided_now.insert(i);
+            to_backfill.insert(i);
         }
-        Ok(decided_now)
+        Ok(to_backfill)
     }
 
     /// The version of release `i`, or `None` while it has too few traces.
@@ -298,30 +298,30 @@ impl<'a> Run<'a> {
         Ok(self.versions.push(id, hash, core))
     }
 
-    /// Releases decided now get every trace past the inferred path's horizon;
-    /// those before it keep their inferred tag, as a second one would count
-    /// them twice. Ingest tags the rest once it sees the decision, but may
-    /// have missed traces of releases decided in the previous run, before
-    /// its cache entry ([`super::ingest`]).
-    async fn tag(&self, decided_now: &HashSet<usize>) -> Result<Vec<(Option<usize>, TracePrompt)>> {
+    /// Releases backfilled now get every trace past the inferred path's
+    /// `tagged_until`; those before it keep their inferred tag, as a second one
+    /// would count them twice. Ingest tags the rest once it sees the decision,
+    /// but may have missed traces of releases backfilled in the previous run,
+    /// before its cache entry ([`super::ingest`]).
+    async fn tag(&self, to_backfill: &HashSet<usize>) -> Result<Vec<(Option<usize>, TracePrompt)>> {
         let ch = &self.job.clickhouse;
-        let since = self.agent.watermark.unwrap_or(0);
+        let since = self.agent.ingested_until.unwrap_or(0);
         let mut fresh = Vec::new();
         let mut recent = Vec::new();
         let mut version_by_release = HashMap::new();
         for (i, (release, version)) in self.releases.iter().zip(&self.version_of).enumerate() {
             let Some(version) = *version else { continue };
             version_by_release.insert(release.release.as_str(), version);
-            if decided_now.contains(&i) {
+            if to_backfill.contains(&i) {
                 fresh.push(release.release.as_str());
-            } else if release.decided_at.is_some_and(|at| at > since) {
+            } else if release.backfilled_at.is_some_and(|at| at > since) {
                 recent.push(release.release.as_str());
             }
         }
 
         let mut traces = Vec::new();
         if !fresh.is_empty() {
-            let after = self.agent.labeled_until.unwrap_or(0);
+            let after = self.agent.tagged_until.unwrap_or(0);
             traces.extend(self.scope.release_traces(ch, &fresh, 0, after).await?);
         }
         if !recent.is_empty() {
@@ -352,14 +352,14 @@ impl<'a> Run<'a> {
         Ok(labels)
     }
 
-    /// Decided only once tagged, so a run that fails before this leaves its
-    /// releases undecided and the next one tags all their traces again.
-    async fn mark_decided(&self, decided_now: &HashSet<usize>) -> Result<()> {
-        for &i in decided_now {
+    /// Marked only once tagged, so a run that fails before this leaves its
+    /// releases pending and the next one tags all their traces again.
+    async fn mark_backfilled(&self, to_backfill: &HashSet<usize>) -> Result<()> {
+        for &i in to_backfill {
             let (release, Some(version)) = (&self.releases[i], self.version_of[i]) else {
                 continue;
             };
-            decide_release(&self.job.db.pool, release.id).await?;
+            set_backfilled(&self.job.db.pool, release.id).await?;
             let key = release_cache_key(
                 self.scope.project_id,
                 self.scope.agent_hash,

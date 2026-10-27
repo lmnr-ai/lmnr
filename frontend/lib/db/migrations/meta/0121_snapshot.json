@@ -169,8 +169,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "decided_at": {
-          "name": "decided_at",
+        "backfilled_at": {
+          "name": "backfilled_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -464,14 +464,14 @@
           "notNull": true,
           "default": "now()"
         },
-        "labeled_until": {
-          "name": "labeled_until",
+        "tagged_until": {
+          "name": "tagged_until",
           "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
-        "watermark": {
-          "name": "watermark",
+        "ingested_until": {
+          "name": "ingested_until",
           "type": "bigint",
           "primaryKey": false,
           "notNull": false

@@ -87,7 +87,7 @@ impl Job {
         let scope = Scope {
             project_id,
             agent_hash,
-            watermark: now - VISIBILITY_LAG_NS,
+            ingested_until: now - VISIBILITY_LAG_NS,
         };
         let share = scope.release_share(&self.clickhouse).await?;
         if share.with_release < RELEASE_MIN_RUN.get() || share.with_release * 10 < share.total * 9 {
