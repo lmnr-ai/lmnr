@@ -58,7 +58,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
         </div>
       ) : isEmpty(versions) ? (
         <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
-          It takes around 30 traces and 15 minutes for the first version to be created.
+          It takes around 50 traces and 10 minutes for the first version to be created.
         </div>
       ) : (
         <div className="flex flex-col gap-6">

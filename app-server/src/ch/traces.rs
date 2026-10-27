@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use super::utils::merge_json_objects;
+use super::{traces_agg::CHTraceAgentVersion, utils::merge_json_objects};
 use crate::db::spans::{Span, SpanType};
 use crate::traces::spans::SpanUsage;
 
@@ -37,6 +37,8 @@ pub struct TraceAggregation {
     pub has_browser_session: Option<bool>,
     pub span_names: HashSet<String>,
     pub release: Option<String>,
+    /// Versions of the trace's decided releases, tagged at ingest.
+    pub agent_versions: Vec<CHTraceAgentVersion>,
 }
 
 impl TraceAggregation {
@@ -77,6 +79,7 @@ impl TraceAggregation {
                         has_browser_session: None,
                         span_names: HashSet::new(),
                         release: None,
+                        agent_versions: Vec::new(),
                     });
 
             // Aggregate min start_time

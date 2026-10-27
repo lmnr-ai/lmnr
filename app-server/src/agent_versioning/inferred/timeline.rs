@@ -61,8 +61,8 @@ pub struct Timeline {
     pub cores: Vec<Vec<u64>>,
     pub new_versions: Vec<NewVersion>,
     /// Traces up to here (inclusive) are final; `None` labels nothing.
-    pub labeled_until: Option<i64>,
-    /// The version at `labeled_until`.
+    pub tagged_until: Option<i64>,
+    /// The version at `tagged_until`.
     pub current: Option<usize>,
     /// The version before the first change.
     initial: Option<usize>,
@@ -85,7 +85,7 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
     let mut timeline = Timeline {
         cores: input.cores.to_vec(),
         new_versions: Vec::new(),
-        labeled_until: None,
+        tagged_until: None,
         current: input.current,
         initial: input.current,
         changes: Vec::new(),
@@ -145,7 +145,7 @@ pub fn build(input: &Input, params: &Params) -> Timeline {
         until = until.max(settled - 1);
     }
 
-    timeline.labeled_until = Some(until);
+    timeline.tagged_until = Some(until);
     timeline
 }
 
@@ -395,7 +395,7 @@ mod tests {
             }]
         );
         // 5 samples must follow t + 30 min.
-        assert_eq!(timeline.labeled_until, Some(24 * MINUTE));
+        assert_eq!(timeline.tagged_until, Some(24 * MINUTE));
         assert_eq!(timeline.version_at(10 * MINUTE, None), Some(0));
     }
 
@@ -403,7 +403,7 @@ mod tests {
     fn too_few_samples_wait() {
         let unlabeled = stream(0, 4, &[A]);
         let timeline = run(&[], &unlabeled, &[], None);
-        assert_eq!(timeline.labeled_until, None);
+        assert_eq!(timeline.tagged_until, None);
         assert!(timeline.new_versions.is_empty());
     }
 
@@ -414,12 +414,12 @@ mod tests {
         assert_eq!(timeline.cores, vec![A.to_vec()]);
         assert_eq!(timeline.current, Some(0));
         // Labels still wait for 5 samples after t + 30 min.
-        assert_eq!(timeline.labeled_until, None);
+        assert_eq!(timeline.tagged_until, None);
 
         let unlabeled = stream(0, 60, &[A]);
         let timeline = run(&[], &unlabeled, &timeline.cores, timeline.current);
         assert!(timeline.new_versions.is_empty());
-        assert_eq!(timeline.labeled_until, Some(24 * MINUTE));
+        assert_eq!(timeline.tagged_until, Some(24 * MINUTE));
     }
 
     #[test]
@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn a_new_day_is_not_a_change() {
-        use super::super::normalize::line_set;
+        use crate::agent_versioning::normalize::line_set;
         let day = |minute: i64, date: &str| Sample {
             time: minute * MINUTE,
             lines: line_set(&format!("You are a helpful agent.\nToday is {date}."), ""),
@@ -526,11 +526,11 @@ mod tests {
     fn a_quiet_agent_waits_for_n_more_traces() {
         let mut unlabeled: Vec<Sample> = (0..3).map(|i| sample(i * 60, A)).collect();
         let timeline = run(&[], &unlabeled, &[A.to_vec()], Some(0));
-        assert_eq!(timeline.labeled_until, None);
+        assert_eq!(timeline.tagged_until, None);
 
         unlabeled.extend((0..5).map(|i| sample(1000 + i, A)));
         let timeline = run(&[], &unlabeled, &[A.to_vec()], Some(0));
-        assert_eq!(timeline.labeled_until, Some(120 * MINUTE));
+        assert_eq!(timeline.tagged_until, Some(120 * MINUTE));
     }
 
     #[test]

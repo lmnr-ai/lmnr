@@ -339,6 +339,7 @@ mod tests {
             has_browser_session: None,
             span_names: HashSet::new(),
             release: None,
+            agent_versions: Vec::new(),
         }
     }
 

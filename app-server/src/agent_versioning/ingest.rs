@@ -1,13 +1,17 @@
 //! Ingest side: the producer reduces an LLM span's agent prompt to line
-//! hashes; the consumer stores them in `agent_prompts`.
+//! hashes; the consumer stores them in `agent_prompts` and tags traces whose
+//! release is already decided.
+
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::normalize::line_set;
 use crate::{
-    ch::agent_prompts::CHAgentPrompt,
-    db::{spans::Span, trace::TraceType},
+    cache::{Cache, CacheTrait, keys::AGENT_VERSIONING_RELEASE_CACHE_KEY},
+    ch::{agent_prompts::CHAgentPrompt, traces::TraceAggregation, traces_agg::CHTraceAgentVersion},
+    db::{DB, agent_versioning::release_version_hash, spans::Span, trace::TraceType},
     env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     features::{Feature, is_feature_enabled},
     utils::{sanitize_string, truncate_chars},
@@ -73,4 +77,88 @@ pub fn row(span: &Span, prompt: AgentPrompt) -> CHAgentPrompt {
         line_hashes: prompt.line_hashes,
         release: prompt.release,
     }
+}
+
+/// A decided release's version is fixed, so it caches long; an undecided one
+/// briefly, until the job decides it.
+pub const RELEASE_CACHE_TTL_SECONDS: u64 = 24 * 60 * 60;
+const UNDECIDED_CACHE_TTL_SECONDS: u64 = 60;
+
+pub fn release_cache_key(project_id: Uuid, agent_hash: &str, release: &str) -> String {
+    format!("{AGENT_VERSIONING_RELEASE_CACHE_KEY}:{project_id}:{agent_hash}:{release}")
+}
+
+/// Tags each trace with the versions of its prompts' decided releases. The
+/// job tags the rest once it decides them, so failures only log. Releases
+/// reaching back past the inferred path's horizon are left to the job, which
+/// can tell whether a trace started past it.
+pub async fn tag_releases(
+    db: &DB,
+    cache: &Cache,
+    prompts: &[CHAgentPrompt],
+    aggregations: &mut [TraceAggregation],
+) {
+    let mut versions: HashMap<(Uuid, &str, &str), Option<String>> = HashMap::new();
+    let mut tags: HashMap<Uuid, HashSet<CHTraceAgentVersion>> = HashMap::new();
+    for prompt in prompts.iter().filter(|p| !p.release.is_empty()) {
+        let key = (
+            prompt.project_id,
+            prompt.agent_hash.as_str(),
+            prompt.release.as_str(),
+        );
+        let version_hash = match versions.get(&key) {
+            Some(version_hash) => version_hash.clone(),
+            None => {
+                let version_hash = release_version(db, cache, key.0, key.1, key.2).await;
+                versions.insert(key, version_hash.clone());
+                version_hash
+            }
+        };
+        let Some(version_hash) = version_hash else {
+            continue;
+        };
+        tags.entry(prompt.trace_id)
+            .or_default()
+            .insert(CHTraceAgentVersion {
+                agent_hash: prompt.agent_hash.clone(),
+                version_hash,
+                model: prompt.model.clone(),
+            });
+    }
+    for aggregation in aggregations {
+        if let Some(tags) = tags.remove(&aggregation.trace_id) {
+            aggregation.agent_versions = tags.into_iter().collect();
+        }
+    }
+}
+
+async fn release_version(
+    db: &DB,
+    cache: &Cache,
+    project_id: Uuid,
+    agent_hash: &str,
+    release: &str,
+) -> Option<String> {
+    let key = release_cache_key(project_id, agent_hash, release);
+    match cache.get::<String>(&key).await {
+        Ok(Some(hash)) => return Some(hash).filter(|h| !h.is_empty()),
+        Ok(None) => {}
+        Err(e) => log::warn!("[AGENT VERSIONING] Failed to read {key}: {e:?}"),
+    }
+    let hash = match release_version_hash(&db.pool, project_id, agent_hash, release).await {
+        Ok(hash) => hash,
+        Err(e) => {
+            log::error!("[AGENT VERSIONING] Failed to look up release {release}: {e:?}");
+            return None;
+        }
+    };
+    let ttl = match hash {
+        Some(_) => RELEASE_CACHE_TTL_SECONDS,
+        None => UNDECIDED_CACHE_TTL_SECONDS,
+    };
+    let value = hash.clone().unwrap_or_default();
+    if let Err(e) = cache.insert_with_ttl(&key, value, ttl).await {
+        log::warn!("[AGENT VERSIONING] Failed to cache {key}: {e:?}");
+    }
+    hash
 }

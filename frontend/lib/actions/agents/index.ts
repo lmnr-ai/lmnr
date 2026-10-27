@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
+import { agentReleases, agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
 
 const VERSIONS_LIMIT = 50;
 
@@ -54,6 +54,8 @@ export interface AgentVersionItem {
   toolDefinitions: string;
   /** Models seen running this version, oldest first. */
   models: string[];
+  /** SDK releases (git SHAs) grouped into this version, newest first; empty for inferred versions. */
+  releases: string[];
   createdAt: string;
 }
 
@@ -97,14 +99,19 @@ export async function getAgentVersions(
 
   if (versions.length === 0) return { agent, versions: [] };
 
-  const models = await getVersionModels(
-    projectId,
-    versions.map((v) => v.id)
-  );
+  const versionIds = versions.map((v) => v.id);
+  const [models, releases] = await Promise.all([
+    getVersionModels(projectId, versionIds),
+    getVersionReleases(projectId, versionIds),
+  ]);
 
   return {
     agent,
-    versions: versions.map((version) => ({ ...version, models: models.get(version.id) ?? [] })),
+    versions: versions.map((version) => ({
+      ...version,
+      models: models.get(version.id) ?? [],
+      releases: releases.get(version.id) ?? [],
+    })),
   };
 }
 
@@ -120,6 +127,21 @@ async function getVersionModels(projectId: string, versionIds: string[]): Promis
     models.set(row.agentVersionId, [...(models.get(row.agentVersionId) ?? []), row.model]);
   }
   return models;
+}
+
+async function getVersionReleases(projectId: string, versionIds: string[]): Promise<Map<string, string[]>> {
+  const rows = await db
+    .select({ versionId: agentReleases.versionId, release: agentReleases.release })
+    .from(agentReleases)
+    .where(and(eq(agentReleases.projectId, projectId), inArray(agentReleases.versionId, versionIds)))
+    .orderBy(desc(agentReleases.firstSeen));
+
+  const releases = new Map<string, string[]>();
+  for (const row of rows) {
+    if (!row.versionId) continue;
+    releases.set(row.versionId, [...(releases.get(row.versionId) ?? []), row.release]);
+  }
+  return releases;
 }
 
 export const RenameAgentSchema = z.object({

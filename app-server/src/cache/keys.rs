@@ -66,6 +66,9 @@ pub const AGENT_VERSIONING_LOCK_CACHE_KEY: &str = "agent_versioning_lock";
 /// `agent_versioning_known:{project_id}:{agent_hash}` claim: the consumer has
 /// created the `agents` row (`agent_versioning/registry.rs`).
 pub const AGENT_VERSIONING_KNOWN_CACHE_KEY: &str = "agent_versioning_known";
+/// `agent_versioning_release:{project_id}:{agent_hash}:{release}`: the
+/// release's decided `version_hash`, or empty while undecided (short TTL).
+pub const AGENT_VERSIONING_RELEASE_CACHE_KEY: &str = "agent_versioning_release";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
 pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";
