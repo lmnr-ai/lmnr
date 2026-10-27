@@ -8,7 +8,7 @@ pub const ENABLED: BoolEnv = BoolEnv::new("AGENT_VERSIONING_ENABLED", false);
 
 /// N: traces a line must be present (or absent) in, consecutively, on each
 /// side of a change. Also the number of traces a new version's core is built from.
-pub const MIN_RUN: NumEnv<usize> = NumEnv::new("AGENT_VERSIONING_MIN_RUN", 30);
+pub const MIN_RUN: NumEnv<usize> = NumEnv::new("AGENT_VERSIONING_MIN_RUN", 50);
 
 /// Longest a rolling deploy may mix old and new prompts and still count as one change.
 pub const ROLLOUT_WINDOW_SECONDS: NumEnv<i64> =
