@@ -174,6 +174,40 @@ privileged role. Without them, those tables and columns return an error. If Post
 is not the compose `postgres` service, also set `CLICKHOUSE_POSTGRES_HOST` /
 `CLICKHOUSE_POSTGRES_PORT` as the ClickHouse server reaches it.
 
+#### Externally managed Postgres role
+
+If Terraform or your database administrator provisions the role, set this in the
+frontend environment (or the root `.env` for Docker Compose):
+
+```sh
+CLICKHOUSE_POSTGRES_MANAGE_ROLE=false
+CLICKHOUSE_POSTGRES_USER=clickhouse_ro
+CLICKHOUSE_POSTGRES_PASSWORD=<externally managed password>
+```
+
+`CLICKHOUSE_POSTGRES_MANAGE_ROLE` defaults to `true`. With `false`, the frontend
+skips all Postgres role creation, password changes, role settings, grants, and RLS
+policy creation. The frontend still checks that the configured role is dedicated
+and non-privileged, and configures ClickHouse's `pg` database using the supplied
+credentials. This option does not transfer management of `pg` to infrastructure:
+unset credentials still cause the frontend to drop `pg`.
+
+Before enabling the feature, provision a dedicated `LOGIN` role with `CONNECT` on
+the database, `USAGE` on the configured schema, and column-level `SELECT` matching
+`PG_ENTITY_COLUMNS` in `frontend/lib/clickhouse/postgres-engine.ts`. Tables with RLS
+also need a SELECT policy admitting that role; grants alone are insufficient.
+Configure the load guards on the role externally as well (`statement_timeout`,
+normally `15s`, and `CONNECTION LIMIT`, normally `10`); the frontend does not apply
+`CLICKHOUSE_POSTGRES_STATEMENT_TIMEOUT` or `CLICKHOUSE_POSTGRES_CONNECTION_LIMIT`
+to an externally managed role. Do not reuse the application's login or a role
+with `SUPERUSER`, `BYPASSRLS`, or `CREATEROLE`.
+
+Verify the credentials, required reads, and connectivity from the ClickHouse
+server before enabling the feature, and test a ClickHouse restart in staging.
+The PostgreSQL database engine remains a startup dependency of ClickHouse.
+After rotating the external password, update `CLICKHOUSE_POSTGRES_PASSWORD` and
+restart the frontend so it recreates `pg` with the new credentials.
+
 ## Anonymous usage telemetry
 
 Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.

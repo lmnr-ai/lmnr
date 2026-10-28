@@ -355,7 +355,6 @@ export async function register() {
       console.log("✓ Postgres migrations applied successfully");
       const { ensurePostgresReadonlyRole } = await import("@/lib/clickhouse/postgres-engine.ts");
       await ensurePostgresReadonlyRole();
-      console.log("✓ ClickHouse Postgres read-only role granted");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
 

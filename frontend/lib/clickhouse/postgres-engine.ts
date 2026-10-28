@@ -124,6 +124,11 @@ async function isDedicatedRole(user: string): Promise<boolean> {
 
 /** `statement_timeout` and `CONNECTION LIMIT` are the load guards — user SQL reaches the primary, not a replica. */
 export async function ensurePostgresReadonlyRole(): Promise<void> {
+  // Infrastructure-owned credentials and grants must not be rewritten on boot.
+  if (process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE === "false") {
+    console.log("Using an externally managed ClickHouse Postgres role; skipping role provisioning");
+    return;
+  }
   const cfg = tryGetConfig("Skipped provisioning the ClickHouse Postgres role");
   if (!cfg) {
     return;
@@ -202,7 +207,7 @@ async function dropPgDatabase(clickhouseClient: ClickHouseClient): Promise<void>
 /**
  * Host/port are from the ClickHouse server's perspective (`postgres:5432` under
  * compose, not the host's localhost:5433). Recreated on every boot so it always
- * carries the password `ensurePostgresReadonlyRole` just set; it stores nothing.
+ * carries the configured password, including externally managed rotations; it stores nothing.
  *
  * Migration 73 survives a failure here — ClickHouse does not resolve a view's
  * source database at `CREATE VIEW` time. Never logs the statement: the engine
