@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tarfile
 import urllib.request
+from fnmatch import fnmatch
 from pathlib import Path
 
 import yaml
@@ -70,14 +71,23 @@ def build_job_config(config: dict, params: dict) -> dict:
         config["n_attempts"] = params["nAttempts"]
     if params["nConcurrent"] is not None:
         config["n_concurrent_trials"] = params["nConcurrent"]
-    for dataset in config.get("datasets") or []:
-        if params["tasks"]:
+    if params["tasks"]:
+        for dataset in config.get("datasets") or []:
             dataset["task_names"] = params["tasks"]
+        config["tasks"] = [
+            task for task in config.get("tasks") or []
+            if any(fnmatch(task_name(task), pattern) for pattern in params["tasks"])
+        ]
     for agent in config.get("agents") or []:
         if params["model"]:
             agent["model_name"] = params["model"]
         agent["env"] = {**(agent.get("env") or {}), **params["env"]}
     return config
+
+
+def task_name(task: dict) -> str:
+    # Mirrors Harbor's task ids: registry tasks by name, local and git tasks by directory name.
+    return task.get("name") or Path(task.get("path") or "").name
 
 
 if __name__ == "__main__":
