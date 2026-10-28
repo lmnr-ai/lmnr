@@ -2,7 +2,9 @@ use std::{pin::Pin, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
+use tokio::sync::mpsc::Receiver;
 
 pub mod mock;
 pub mod s3;
@@ -24,12 +26,14 @@ pub enum Storage {
 pub trait StorageTrait {
     async fn get_stream(&self, bucket: &str, key: &str) -> Result<StorageBytesStream>;
     async fn get_size(&self, bucket: &str, key: &str) -> Result<u64>;
-    async fn presigned_put_url(
+    /// Streams `chunks` into `key` and returns the stored size. An `Err` chunk
+    /// aborts the upload, so a cut-off stream never leaves a truncated object.
+    async fn upload_stream(
         &self,
         bucket: &str,
         key: &str,
-        expires_in: Duration,
-    ) -> Result<String>;
+        chunks: Receiver<Result<Bytes>>,
+    ) -> Result<u64>;
     async fn presigned_get_url(
         &self,
         bucket: &str,

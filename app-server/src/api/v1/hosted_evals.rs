@@ -1,11 +1,17 @@
 use std::{sync::Arc, time::Duration};
 
 use actix_web::{
-    HttpResponse, post,
+    HttpResponse,
+    error::PayloadError,
+    post,
     web::{self, Json},
 };
-use serde::{Deserialize, Serialize};
+use anyhow::anyhow;
+use bytes::Bytes;
+use futures_util::StreamExt;
+use serde::Deserialize;
 use serde_json::json;
+use tokio::sync::mpsc::{self, Sender};
 use uuid::Uuid;
 
 use crate::{
@@ -17,17 +23,11 @@ use crate::{
     storage::{Storage, StorageTrait},
 };
 
-const UPLOAD_URL_TTL: Duration = Duration::from_secs(15 * 60);
+// Task build contexts can carry large prebuilt binaries, so the archive gets its
+// own cap instead of the global HTTP payload limit.
+const MAX_ARCHIVE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 // The orchestrator downloads the archive right after it starts.
 const DOWNLOAD_URL_TTL: Duration = Duration::from_secs(60 * 60);
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CreateUploadResponse {
-    upload_id: Uuid,
-    /// Presigned URL to `PUT` the `.tar.gz` of the `evals/` folder to.
-    url: String,
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,8 +37,16 @@ pub struct StartRunRequest {
     options: RunOptions,
 }
 
+enum ArchiveError {
+    Empty,
+    TooLarge,
+    Payload(PayloadError),
+}
+
+/// Body: the `.tar.gz` of the `evals/` folder's contents, streamed to S3.
 #[post("/hosted-evals/uploads")]
 pub async fn create_upload(
+    payload: web::Payload,
     project_api_key: ProjectApiKey,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
@@ -47,10 +55,61 @@ pub async fn create_upload(
     };
     let upload_id = Uuid::new_v4();
     let key = hosted_evals::archive_key(&project_api_key.project_id, &upload_id);
-    let url = storage
-        .presigned_put_url(&bucket, &key, UPLOAD_URL_TTL)
-        .await?;
-    Ok(HttpResponse::Ok().json(CreateUploadResponse { upload_id, url }))
+
+    // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
+    let (tx, rx) = mpsc::channel(4);
+    let (received, stored) = futures_util::join!(
+        forward_archive(payload, tx),
+        storage.upload_stream(&bucket, &key, rx)
+    );
+    match received {
+        Ok(()) => {}
+        Err(ArchiveError::Empty) => {
+            return Ok(HttpResponse::BadRequest().json(json!({ "error": "Empty archive" })));
+        }
+        Err(ArchiveError::TooLarge) => {
+            return Ok(HttpResponse::PayloadTooLarge().json(json!({
+                "error": format!("Archive exceeds {MAX_ARCHIVE_BYTES} bytes")
+            })));
+        }
+        Err(ArchiveError::Payload(e)) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": format!("Failed to read archive: {e}")
+            })));
+        }
+    }
+    stored?;
+
+    Ok(HttpResponse::Ok().json(json!({ "uploadId": upload_id })))
+}
+
+async fn forward_archive(
+    mut payload: web::Payload,
+    tx: Sender<anyhow::Result<Bytes>>,
+) -> Result<(), ArchiveError> {
+    let mut size = 0;
+    let result = loop {
+        match payload.next().await {
+            None if size == 0 => break Err(ArchiveError::Empty),
+            None => break Ok(()),
+            Some(Err(e)) => break Err(ArchiveError::Payload(e)),
+            Some(Ok(chunk)) => {
+                size += chunk.len() as u64;
+                if size > MAX_ARCHIVE_BYTES {
+                    break Err(ArchiveError::TooLarge);
+                }
+                // A closed channel means the upload already failed and reports why.
+                if tx.send(Ok(chunk)).await.is_err() {
+                    break Ok(());
+                }
+            }
+        }
+    };
+    if result.is_err() {
+        // Makes the upload abort instead of storing a partial archive.
+        let _ = tx.send(Err(anyhow!("archive upload aborted"))).await;
+    }
+    result
 }
 
 #[post("/hosted-evals/runs")]

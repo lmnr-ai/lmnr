@@ -8,7 +8,10 @@
 
 ## Flow
 
-1. `POST /v1/hosted-evals/uploads` (project API key) returns `{uploadId, url}`. The client `PUT`s a `.tar.gz` of the `evals/` folder's *contents* to `url`, a presigned S3 PUT (15 min) for `hosted-evals/<project_id>/<upload_id>.tar.gz` in `S3_EXPORTS_BUCKET`.
+1. `POST /v1/hosted-evals/uploads` (project API key). The body is the raw `.tar.gz` of the `evals/` folder's *contents*, and the endpoint returns `{uploadId}`.
+   - The app-server streams the body into `hosted-evals/<project_id>/<upload_id>.tar.gz` in `S3_EXPORTS_BUCKET` as an S3 multipart upload (`StorageTrait::upload_stream`, 8 MiB parts, capped at 2 GiB). There is no client-facing presigned URL.
+   - `web::Payload` isn't limited by the global `HTTP_PAYLOAD_LIMIT`, but an ingress in front of the app-server (nginx `client_max_body_size`) must allow large bodies on this path.
+   - `web::Payload` isn't `Send`, so the handler pumps it through an mpsc channel into the upload. An `Err` sent on that channel (client disconnect, empty body, over the cap) aborts the multipart upload, so a partial archive is never stored.
 2. `POST /v1/hosted-evals/runs` with `{uploadId, datasets?, tasks?, nAttempts?, nConcurrent?, model?, env?}`. It HEADs the archive (400 if absent), presigns a GET, creates a Daytona sandbox on the default snapshot, waits for `started`, then runs the orchestrator command in a toolbox session with `runAsync`. Returns `202 {sandboxId}`.
 3. The orchestrator (`orchestrator.py`, embedded with `include_str!` and passed as env `LMNR_EVAL_SCRIPT`, params as JSON in `LMNR_EVAL_RUN`) downloads and extracts the archive. For each suite (an archive-root dir with `harbor.yaml`, a Harbor JobConfig) it writes an overridden config and runs `harbor run -c … --plugin laminar --pk group_name=<suite>` with trials on Daytona. The sandbox then deletes itself.
 
@@ -32,5 +35,7 @@
   - `cpu`/`memory` on create return 400 "Cannot specify Sandbox resources when using a snapshot". The orchestrator runs on the default 1 vCPU / 1 GB.
   - `autoStopInterval` must be 0: a running background command doesn't count as activity. `HOSTED_EVALS_MAX_RUN_MINUTES` (default 720) is the hard cap via `ttlMinutes`.
   - The toolbox base is `<toolboxProxyUrl>/<sandboxId>` (`toolboxProxyUrl` comes from the create response, so self-hosted Daytona works).
-- **Testing without S3:** the endpoint needs real S3, but the run path can be exercised by calling `hosted_evals::start_run` directly with any public archive URL (e.g. one served from a second Daytona sandbox via `GET /api/sandbox/{id}/ports/{port}/signed-preview-url`). A one-task Harbor suite with `agents: [{name: oracle}]` finishes in about 40 s, including the ~10 s `uv` install. Starting app-server with dummy `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` plus `S3_EXPORTS_BUCKET` enables the feature, and presigning works offline.
+- **Testing without S3:** the endpoint needs real S3, but the run path can be exercised by calling `hosted_evals::start_run` directly with any public archive URL (e.g. one served from a second Daytona sandbox via `GET /api/sandbox/{id}/ports/{port}/signed-preview-url`). A one-task Harbor suite with `agents: [{name: oracle}]` finishes in about 40 s, including the ~10 s `uv` install. Starting app-server with dummy `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` plus `S3_EXPORTS_BUCKET` enables the feature.
+  - For a real local S3, run `uvx --from 'moto[server]' moto_server -p 9100` (the MinIO binary download now returns 410). Start the app-server with `AWS_ENDPOINT_URL=http://127.0.0.1:9100`; the SDK honours it and uses path-style addressing for an IP endpoint.
+  - moto's `list-objects-v2` omits `KeyCount`, so count `Contents` instead.
 - The Daytona org used for testing is shared with other workloads: delete only sandboxes you created (filter by labels, e.g. `lmnr-project-id`).
