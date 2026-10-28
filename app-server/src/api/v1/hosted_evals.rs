@@ -4,13 +4,12 @@ use actix_web::{
     HttpResponse, post,
     web::{self, Json},
 };
-use actix_web_httpauth::extractors::bearer::BearerAuth;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
+    db::{DB, project_api_keys::ProjectApiKey},
     env,
     features::{Feature, is_feature_enabled},
     hosted_evals::{self, RunOptions},
@@ -58,7 +57,7 @@ pub async fn create_upload(
 pub async fn start_run(
     req: Json<StartRunRequest>,
     project_api_key: ProjectApiKey,
-    credentials: BearerAuth,
+    db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
@@ -77,15 +76,8 @@ pub async fn start_run(
         .presigned_get_url(&bucket, &key, DOWNLOAD_URL_TTL)
         .await?;
 
-    // The project key the request authenticated with is the one the run reports with.
-    let sandbox_id = hosted_evals::start_run(
-        &http_client,
-        &project_id,
-        credentials.token(),
-        &archive_url,
-        &req.options,
-    )
-    .await?;
+    let sandbox_id =
+        hosted_evals::start_run(&http_client, &db, &project_id, &archive_url, &req.options).await?;
     log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
 
     Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))

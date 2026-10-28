@@ -6,11 +6,19 @@ pub mod daytona;
 use std::{collections::HashMap, num::NonZeroU32};
 
 use anyhow::Result;
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::env;
+use crate::{
+    db::{self, DB},
+    env, project_api_keys,
+};
 use daytona::{CreateSandbox, Daytona};
+
+/// Name prefix of the per-run project API keys. The frontend hides keys with it
+/// from the project's key list (`frontend/lib/actions/project-api-keys`).
+pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
 
 const ORCHESTRATOR_SCRIPT: &str = include_str!("orchestrator.py");
 // `uv` resolves the environment on every run, so both packages are pinned. The
@@ -52,11 +60,52 @@ pub fn archive_key(project_id: &Uuid, upload_id: &Uuid) -> String {
     format!("hosted-evals/{project_id}/{upload_id}.tar.gz")
 }
 
-/// Creates the orchestrator sandbox and starts the run in it. Returns the sandbox id.
+/// Mints the run's project API key, creates the orchestrator sandbox and starts
+/// the run in it. Returns the sandbox id.
 pub async fn start_run(
+    http: &reqwest::Client,
+    db: &DB,
+    project_id: &Uuid,
+    archive_url: &str,
+    options: &RunOptions,
+) -> Result<String> {
+    // The sandbox (and the user code in it) gets a key of its own that dies with
+    // the run, never one of the project's user-facing keys.
+    let run_key = project_api_keys::generate_api_key();
+    let max_run_minutes = env::hosted_evals::MAX_RUN_MINUTES.get();
+    let now = Utc::now();
+    db::project_api_keys::create_api_key(
+        &db.pool,
+        project_id,
+        &format!("{RUN_KEY_NAME_PREFIX}{}", now.format("%Y%m%dT%H%M%SZ")),
+        &run_key.hash,
+        &run_key.shorthand,
+        now + Duration::minutes(max_run_minutes.into()),
+    )
+    .await?;
+
+    let result = launch_orchestrator(
+        http,
+        project_id,
+        &run_key.value,
+        max_run_minutes,
+        archive_url,
+        options,
+    )
+    .await;
+    if result.is_err()
+        && let Err(e) = db::project_api_keys::delete_api_key_by_hash(&db.pool, &run_key.hash).await
+    {
+        log::error!("Failed to delete hosted eval run key: {e:?}");
+    }
+    result
+}
+
+async fn launch_orchestrator(
     http: &reqwest::Client,
     project_id: &Uuid,
     project_api_key: &str,
+    max_run_minutes: u32,
     archive_url: &str,
     options: &RunOptions,
 ) -> Result<String> {
@@ -96,7 +145,7 @@ pub async fn start_run(
             // A running command doesn't count as activity, so auto-stop would kill long runs.
             auto_stop_interval: 0,
             auto_delete_interval: 0,
-            ttl_minutes: env::hosted_evals::MAX_RUN_MINUTES.get(),
+            ttl_minutes: max_run_minutes,
         })
         .await?;
 

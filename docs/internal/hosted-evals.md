@@ -15,8 +15,15 @@
 ## Invariants and gotchas
 
 - **Routes live under `/hosted-evals`, not `/evals/…`**: `POST /v1/evals/{eval_id}` (update eval) would capture `POST /v1/evals/runs`.
-- **The run reports with the caller's own key.** The auth middleware only keeps the hash in `ProjectApiKey`; the handler re-reads the raw token via `BearerAuth` and passes it as `LMNR_PROJECT_API_KEY`. Ingest-only keys can't reach the route (the `/v1` scope blocks them), and the plugin needs a full key for `/v1/evals` anyway.
+- **Each run reports with its own short-lived key, never a user-facing one.**
+  - `start_run` mints a full (non-ingest-only) project key named `lmnr-internal-evals-<UTC timestamp>` (`RUN_KEY_NAME_PREFIX`) that expires after `HOSTED_EVALS_MAX_RUN_MINUTES`, the same as the sandbox TTL. It's passed in as `LMNR_PROJECT_API_KEY`, and the plugin needs a full key for `/v1/evals`.
+  - The key is deleted if the launch fails. Otherwise nothing revokes it when the run ends: it expires, and the app-server purges the row the next time it's presented.
+  - `getApiKeys` in `frontend/lib/actions/project-api-keys` hides the prefix, so keep the two constants in sync.
+  - `project_api_keys::generate_api_key` uses the same format as the frontend's `createProjectApiKey`.
 - **The same `DAYTONA_API_KEY` goes into the sandbox** (Harbor's `-e daytona` needs it), and user eval code can read it. Use a dedicated Daytona org with a spend limit. Never add other secrets to the sandbox env.
+  - **This key gives access to other customers' runs, so fix it before enabling on Cloud.** Daytona returns a sandbox's `env` from its API, and the org key can run commands in any sandbox. So code in one run can read another run's Laminar key and agent `env` (e.g. LLM keys).
+  - User code does reach the orchestrator: through `agents[].import_path` (custom agents run in the Harbor process), `verifier.import_path`, and the suite directory prepended to `PYTHONPATH` (a suite file can shadow any module Harbor imports).
+  - Planned fix: proxy Harbor's Daytona calls through the app-server with a per-run token, limited to sandboxes labelled with that run.
 - **`harbor run` CLI flags can't override a `-c` config's datasets** (`-i` requires `-p`), and `-m` only applies together with `-a`. That's why the orchestrator edits the loaded YAML (`build_job_config`) instead of passing flags. The `tasks` filter has to cover both `datasets[].task_names` and the top-level `tasks` list, matched the way Harbor names tasks (`fnmatch` on the directory name, or `name` for registry tasks). `orchestrator.py` indexes every `LMNR_EVAL_RUN` key directly; the `hosted_evals::tests` contract test pins them.
 - **Daytona quirks hit while building this:**
   - Harbor needs the `harbor[daytona]` extra; plain `harbor` fails every trial with `MissingExtraError`.

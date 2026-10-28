@@ -1,10 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, notLike, or } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { createProjectApiKey } from "@/lib/api-keys";
 import { cache, PROJECT_API_KEY_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys } from "@/lib/db/migrations/schema";
+
+// Short-lived per-run keys the app-server mints for hosted evals
+// (`RUN_KEY_NAME_PREFIX` in app-server/src/hosted_evals/mod.rs).
+const INTERNAL_EVALS_KEY_PREFIX = "lmnr-internal-evals-";
 
 const CreateProjectApiKeySchema = z.object({
   projectId: z.guid(),
@@ -104,7 +108,12 @@ export async function getApiKeys(input: z.infer<typeof GetProjectApiKeysSchema>)
       expiresAt: projectApiKeys.expiresAt,
     })
     .from(projectApiKeys)
-    .where(eq(projectApiKeys.projectId, projectId));
+    .where(
+      and(
+        eq(projectApiKeys.projectId, projectId),
+        or(isNull(projectApiKeys.name), notLike(projectApiKeys.name, `${INTERNAL_EVALS_KEY_PREFIX}%`))
+      )
+    );
 
   // Convert null to undefined to match the expected type
   return apiKeys.map((key) => ({
