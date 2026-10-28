@@ -8,7 +8,6 @@ import { db } from "@/lib/db/drizzle";
 
 const envKeys = [
   "DATABASE_URL",
-  "CLICKHOUSE_POSTGRES_MANAGE_ROLE",
   "CLICKHOUSE_POSTGRES_USER",
   "CLICKHOUSE_POSTGRES_PASSWORD",
   "CLICKHOUSE_POSTGRES_HOST",
@@ -47,42 +46,35 @@ function clickhouseMock() {
   return { client: { command } as unknown as ClickHouseClient, command };
 }
 
-test("external management performs no Postgres role, password, grant, or policy operations", async () => {
-  process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = "false";
-  const execute = mock.method(db, "execute", async () => {
-    throw new Error("Role provisioning must not access Postgres");
-  });
-
+test("existing roles retain their password, settings, and CONNECT grant while receiving application grants", async () => {
+  const execute = mock.method(db, "execute", async () => [{ privileged: false }]);
   await ensurePostgresReadonlyRole();
-
-  assert.equal(execute.mock.callCount(), 0);
+  const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
+  assert.ok(statements.length > 0);
+  assert.ok(statements.every((query) => !/CREATE ROLE|ALTER ROLE|GRANT CONNECT/.test(query)));
+  assert.ok(statements.some((query) => query.includes("GRANT USAGE ON SCHEMA")));
+  assert.ok(statements.some((query) => query.includes("GRANT SELECT (")));
+  assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
 });
 
-for (const manageRole of [undefined, "true"]) {
-  test(`role provisioning remains enabled with MANAGE_ROLE=${manageRole ?? "unset"}`, async () => {
-    if (manageRole !== undefined) {
-      process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = manageRole;
-    }
-    const execute = mock.method(db, "execute", async () => [{ privileged: false }]);
-
-    await ensurePostgresReadonlyRole();
-
-    const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
-    assert.ok(statements.some((query) => query.includes('CREATE ROLE "external_reader" LOGIN')));
-    assert.ok(statements.some((query) => query.includes('ALTER ROLE "external_reader" LOGIN PASSWORD')));
-    assert.ok(statements.some((query) => query.includes('GRANT CONNECT ON DATABASE "laminar"')));
-    assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
-  });
-}
+test("missing roles still receive login provisioning, settings, CONNECT, and application grants", async () => {
+  const execute = mock.method(db, "execute", async () => []);
+  await ensurePostgresReadonlyRole();
+  const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
+  assert.ok(statements.some((query) => query.includes('CREATE ROLE "external_reader" LOGIN')));
+  assert.ok(statements.some((query) => query.includes('ALTER ROLE "external_reader" LOGIN PASSWORD')));
+  assert.ok(statements.some((query) => query.includes("CONNECTION LIMIT 10")));
+  assert.ok(statements.some((query) => query.includes("statement_timeout = '15s'")));
+  assert.ok(statements.some((query) => query.includes('GRANT CONNECT ON DATABASE "laminar"')));
+  assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
+});
 
 test("external role still configures the ClickHouse connection with the supplied credentials", async () => {
-  process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = "false";
   process.env.CLICKHOUSE_POSTGRES_HOST = "pgbouncer.internal";
   process.env.CLICKHOUSE_POSTGRES_SCHEMA = "laminar";
   const execute = mock.method(db, "execute", async () => [{ privileged: false }]);
   const { client, command } = clickhouseMock();
 
-  await ensurePostgresReadonlyRole();
   await ensureClickhousePostgresDatabase(client);
 
   assert.equal(execute.mock.callCount(), 1); // Read-only dedicated-role check.
@@ -94,8 +86,7 @@ test("external role still configures the ClickHouse connection with the supplied
   assert.ok(statements[1].includes("'test-only-password'"));
 });
 
-test("external management does not bypass rejection of privileged Postgres roles", async () => {
-  process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = "false";
+test("existing roles do not bypass rejection of privileged Postgres roles", async () => {
   mock.method(db, "execute", async () => [{ privileged: true }]);
   const { client, command } = clickhouseMock();
 
@@ -107,8 +98,7 @@ test("external management does not bypass rejection of privileged Postgres roles
   );
 });
 
-test("external management does not permit the application's own Postgres login", async () => {
-  process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = "false";
+test("existing roles do not permit the application's own Postgres login", async () => {
   process.env.CLICKHOUSE_POSTGRES_USER = "migration";
   mock.method(db, "execute", async () => [{ privileged: false }]);
   const { client, command } = clickhouseMock();
@@ -122,7 +112,6 @@ test("external management does not permit the application's own Postgres login",
 });
 
 test("a failed role check preserves the existing ClickHouse connection", async () => {
-  process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = "false";
   mock.method(db, "execute", async () => {
     throw new Error("Postgres unavailable");
   });
@@ -133,8 +122,7 @@ test("a failed role check preserves the existing ClickHouse connection", async (
   assert.equal(command.mock.callCount(), 0);
 });
 
-test("unset credentials still disable the ClickHouse connection with external role management", async () => {
-  process.env.CLICKHOUSE_POSTGRES_MANAGE_ROLE = "false";
+test("unset credentials still disable the ClickHouse connection", async () => {
   delete process.env.CLICKHOUSE_POSTGRES_USER;
   delete process.env.CLICKHOUSE_POSTGRES_PASSWORD;
   const execute = mock.method(db, "execute", async () => {
@@ -150,4 +138,12 @@ test("unset credentials still disable the ClickHouse connection with external ro
     command.mock.calls.map((call) => call.arguments[0].query),
     ["DROP DATABASE IF EXISTS pg SYNC"]
   );
+});
+
+test("a failed role lookup cannot provision or grant privileges", async () => {
+  const execute = mock.method(db, "execute", async () => {
+    throw new Error("Postgres unavailable");
+  });
+  await ensurePostgresReadonlyRole();
+  assert.equal(execute.mock.callCount(), 1);
 });
