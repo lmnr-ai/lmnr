@@ -6,7 +6,10 @@ use crate::{
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
         EvaluationDatapointResult, UpdatedDatapointStrings, insert_evaluation_datapoints,
-        realtime::{RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates},
+        realtime::{
+            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, cache_trace_evaluation_id,
+            send_datapoint_updates,
+        },
         update_evaluation_datapoint,
     },
     names::NameGenerator,
@@ -176,6 +179,7 @@ pub async fn update_eval_datapoint(
     req: Json<UpdateEvalDatapointRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
+    cache: web::Data<Cache>,
     pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
@@ -185,6 +189,12 @@ pub async fn update_eval_datapoint(
     let project_id = project_api_key.project_id;
 
     let group_id = db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_id).await?;
+
+    // The SDK reports the executor's real trace id here, replacing the placeholder
+    // cached at insert; without it the trace's span updates can't route to this eval.
+    if let Some(trace_id) = req.trace_id.filter(|t| !t.is_nil()) {
+        cache_trace_evaluation_id(&cache, &project_id, &trace_id, &eval_id).await;
+    }
 
     let UpdatedDatapointStrings {
         executor_output: ch_executor_output,
