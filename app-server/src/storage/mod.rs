@@ -1,4 +1,4 @@
-use std::pin::Pin;
+use std::{pin::Pin, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -24,4 +24,16 @@ pub enum Storage {
 pub trait StorageTrait {
     async fn get_stream(&self, bucket: &str, key: &str) -> Result<StorageBytesStream>;
     async fn get_size(&self, bucket: &str, key: &str) -> Result<u64>;
+    async fn presigned_put_url(
+        &self,
+        bucket: &str,
+        key: &str,
+        expires_in: Duration,
+    ) -> Result<String>;
+    async fn presigned_get_url(
+        &self,
+        bucket: &str,
+        key: &str,
+        expires_in: Duration,
+    ) -> Result<String>;
 }

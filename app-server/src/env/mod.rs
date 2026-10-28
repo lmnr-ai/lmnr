@@ -32,6 +32,7 @@ pub mod clickhouse;
 pub mod connections;
 pub mod database;
 pub mod debugger;
+pub mod hosted_evals;
 pub mod llm;
 pub mod mock;
 pub mod mq;

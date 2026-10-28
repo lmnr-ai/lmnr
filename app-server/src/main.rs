@@ -150,6 +150,7 @@ mod debugger;
 mod env;
 mod evaluations;
 mod features;
+mod hosted_evals;
 mod instrumentation;
 mod language_model;
 mod llm;
@@ -2684,6 +2685,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_trials)
                                     .service(api::v1::evals::update_eval_trial)
+                                    .service(api::v1::hosted_evals::create_upload)
+                                    .service(api::v1::hosted_evals::start_run)
                                     .service(api::v1::signals::create_signal)
                                     .service(api::v1::signals::list_signals)
                                     .service(api::v1::signals::list_signal_versions)

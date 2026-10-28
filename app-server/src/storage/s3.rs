@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use async_trait::async_trait;
-use aws_sdk_s3::Client;
+use aws_sdk_s3::{Client, presigning::PresigningConfig};
 
 use super::StorageBytesStream;
 
@@ -48,5 +50,37 @@ impl super::StorageTrait for S3Storage {
             .content_length
             .ok_or(anyhow::anyhow!("Content length not found"))
             .map(|l| l as u64)
+    }
+
+    async fn presigned_put_url(
+        &self,
+        bucket: &str,
+        key: &str,
+        expires_in: Duration,
+    ) -> Result<String> {
+        let request = self
+            .client
+            .put_object()
+            .bucket(bucket)
+            .key(key)
+            .presigned(PresigningConfig::expires_in(expires_in)?)
+            .await?;
+        Ok(request.uri().to_string())
+    }
+
+    async fn presigned_get_url(
+        &self,
+        bucket: &str,
+        key: &str,
+        expires_in: Duration,
+    ) -> Result<String> {
+        let request = self
+            .client
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .presigned(PresigningConfig::expires_in(expires_in)?)
+            .await?;
+        Ok(request.uri().to_string())
     }
 }

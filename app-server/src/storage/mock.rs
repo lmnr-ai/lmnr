@@ -1,4 +1,6 @@
-use anyhow::Result;
+use std::time::Duration;
+
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 
 use super::StorageBytesStream;
@@ -15,5 +17,23 @@ impl super::StorageTrait for MockStorage {
 
     async fn get_size(&self, _bucket: &str, _key: &str) -> Result<u64> {
         Ok(0)
+    }
+
+    async fn presigned_put_url(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _expires_in: Duration,
+    ) -> Result<String> {
+        bail!("presigned URLs require S3 storage")
+    }
+
+    async fn presigned_get_url(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _expires_in: Duration,
+    ) -> Result<String> {
+        bail!("presigned URLs require S3 storage")
     }
 }

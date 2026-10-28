@@ -3,6 +3,7 @@ pub mod cli;
 pub mod datasets;
 pub mod debugger;
 pub mod evals;
+pub mod hosted_evals;
 pub mod labeling_queues;
 pub mod llm_profiles;
 pub mod logs;

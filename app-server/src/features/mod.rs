@@ -55,6 +55,9 @@ pub enum Feature {
     /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
     /// (default true).
     Quickwit,
+    /// Hosted Harbor eval runs (`src/hosted_evals/`). Needs a Daytona key for
+    /// the sandboxes and S3 storage for the presigned archive upload.
+    HostedEvals,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -115,6 +118,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
         Feature::Quickwit => env::quickwit::ENABLED.get(),
+        Feature::HostedEvals => {
+            std::env::var(env::hosted_evals::DAYTONA_API_KEY).is_ok_and(|s| !s.is_empty())
+                && is_feature_enabled(Feature::Storage)
+        }
     }
 }
 
