@@ -66,7 +66,14 @@ export interface AgentVersionTracesPoint {
 }
 
 export interface AgentVersionsResult {
-  agent: { id: string; name: string | null; agentHash: string; createdAt: string };
+  agent: {
+    id: string;
+    name: string | null;
+    agentHash: string;
+    createdAt: string;
+    /** Versioned by SDK releases; set once most recent traces carry `LMNR_RELEASE`. */
+    releaseMode: boolean;
+  };
   versions: AgentVersionItem[];
 }
 
@@ -76,7 +83,13 @@ export async function getAgentVersions(
   const { projectId, agentId } = GetAgentVersionsSchema.parse(input);
 
   const [agent] = await db
-    .select({ id: agents.id, name: agents.name, agentHash: agents.agentHash, createdAt: agents.createdAt })
+    .select({
+      id: agents.id,
+      name: agents.name,
+      agentHash: agents.agentHash,
+      createdAt: agents.createdAt,
+      releaseMode: agents.releaseMode,
+    })
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
     .limit(1);
