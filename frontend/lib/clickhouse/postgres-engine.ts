@@ -110,16 +110,19 @@ const privilegedRoleMessage = (user: string) =>
   `CLICKHOUSE_POSTGRES_USER=${user} is the app's own or a privileged role; use a dedicated one`;
 
 /**
- * Role setup rewrites this role (password, connection limit, timeout) and the
+ * Role setup configures new roles (password, connection limit, timeout) and the
  * `pg` engine reads as it, so it must never be the app's own or a privileged role.
  * Throws only when the check itself fails.
  */
-async function isDedicatedRole(user: string): Promise<boolean> {
+async function getPostgresRoleState(user: string): Promise<{ dedicated: boolean; exists: boolean }> {
   const [existing] = await db.execute<{ privileged: boolean }>(
     sql`SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolname = current_user AS privileged
         FROM pg_roles WHERE rolname = ${user}`
   );
-  return !existing?.privileged && user !== getDatabaseConfig().username;
+  return {
+    dedicated: !existing?.privileged && user !== getDatabaseConfig().username,
+    exists: existing !== undefined,
+  };
 }
 
 /** `statement_timeout` and `CONNECTION LIMIT` are the load guards — user SQL reaches the primary, not a replica. */
@@ -131,8 +134,11 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
   const role = pgIdent(cfg.user);
   const schema = pgIdent(cfg.schema);
 
+  let roleExists: boolean;
   try {
-    if (!(await isDedicatedRole(cfg.user))) {
+    const state = await getPostgresRoleState(cfg.user);
+    roleExists = state.exists;
+    if (!state.dedicated) {
       warnFailure("Skipped provisioning the ClickHouse Postgres role", privilegedRoleMessage(cfg.user));
       return;
     }
@@ -141,28 +147,34 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
     return;
   }
 
-  await tryExec(
-    `creating role ${cfg.user}`,
-    `
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = ${pgStr(cfg.user)}) THEN
-          CREATE ROLE ${role} LOGIN PASSWORD ${pgStr(cfg.password)};
-        END IF;
-      END
-      $$
-    `
-  );
-  await tryExec("setting the role password", `ALTER ROLE ${role} LOGIN PASSWORD ${pgStr(cfg.password)}`);
-  await tryExec(
-    `setting statement_timeout = ${cfg.statementTimeout}`,
-    `ALTER ROLE ${role} SET statement_timeout = ${pgStr(cfg.statementTimeout)}`
-  );
-  await tryExec(
-    `setting the connection limit to ${cfg.connectionLimit}`,
-    `ALTER ROLE ${role} CONNECTION LIMIT ${cfg.connectionLimit}`
-  );
-  await tryExec(`granting CONNECT on ${cfg.database}`, `GRANT CONNECT ON DATABASE ${pgIdent(cfg.database)} TO ${role}`);
+  // Existing logins may be managed by infrastructure, including password rotation.
+  if (!roleExists) {
+    await tryExec(
+      `creating role ${cfg.user}`,
+      `
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = ${pgStr(cfg.user)}) THEN
+            CREATE ROLE ${role} LOGIN PASSWORD ${pgStr(cfg.password)};
+          END IF;
+        END
+        $$
+      `
+    );
+    await tryExec("setting the role password", `ALTER ROLE ${role} LOGIN PASSWORD ${pgStr(cfg.password)}`);
+    await tryExec(
+      `setting statement_timeout = ${cfg.statementTimeout}`,
+      `ALTER ROLE ${role} SET statement_timeout = ${pgStr(cfg.statementTimeout)}`
+    );
+    await tryExec(
+      `setting the connection limit to ${cfg.connectionLimit}`,
+      `ALTER ROLE ${role} CONNECTION LIMIT ${cfg.connectionLimit}`
+    );
+    await tryExec(
+      `granting CONNECT on ${cfg.database}`,
+      `GRANT CONNECT ON DATABASE ${pgIdent(cfg.database)} TO ${role}`
+    );
+  }
   await tryExec(`granting USAGE on schema ${cfg.schema}`, `GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
 
   for (const [table, columns] of Object.entries(PG_ENTITY_COLUMNS)) {
@@ -202,7 +214,7 @@ async function dropPgDatabase(clickhouseClient: ClickHouseClient): Promise<void>
 /**
  * Host/port are from the ClickHouse server's perspective (`postgres:5432` under
  * compose, not the host's localhost:5433). Recreated on every boot so it always
- * carries the password `ensurePostgresReadonlyRole` just set; it stores nothing.
+ * carries the configured password, including externally managed rotations; it stores nothing.
  *
  * Migration 73 survives a failure here — ClickHouse does not resolve a view's
  * source database at `CREATE VIEW` time. Never logs the statement: the engine
@@ -218,7 +230,7 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
 
   // So does a refused role. A check that merely failed keeps the existing `pg`.
   try {
-    if (!(await isDedicatedRole(cfg.user))) {
+    if (!(await getPostgresRoleState(cfg.user)).dedicated) {
       warnFailure("Turning off the ClickHouse `pg` database", privilegedRoleMessage(cfg.user));
       await dropPgDatabase(clickhouseClient);
       return;
