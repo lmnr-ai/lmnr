@@ -1,49 +1,48 @@
-# Hosted evals (Harbor runs orchestrated from Daytona)
+# Hosted evals (Harbor trials in Daytona, proxied through the app-server)
 
 <!-- Detailed working notes for coding agents and developers. -->
 <!-- Referenced from the index in the repo-root CLAUDE.md; read when working in this area. -->
 <!-- Sibling files in docs/internal/ may be cross-referenced by section name. -->
 
-`app-server/src/hosted_evals/` runs a project's Harbor `evals/` folder in the cloud (LAM-2427). v0 is start-only: no run status, no evaluation id in the response.
+`app-server/src/hosted_evals/` lets `lmnr-cli eval run --remote` run a project's Harbor suites with every trial in a Daytona sandbox (LAM-2427, LAM-2434). The client side lives in lmnr-ts: `packages/lmnr-cli/src/commands/eval/` and the Harbor environment class `packages/lmnr-cli/assets/lmnr_hosted_env.py`. v0 has no run status API: results arrive as regular evaluations through the Laminar Harbor plugin.
 
-Both endpoints have a CLI user-token twin under `/v1/cli/hosted-evals/*` (`api::v1::cli::hosted_evals`, `CliProjectAuth` with an `x-lmnr-project-id` header). The twins share `handle_create_upload` / `handle_start_run` with the project-API-key routes; only the auth differs.
+## Shape
 
-## Flow
+- **Harbor always runs where `lmnr-cli` runs**, in every mode. Remote trials use a custom Harbor environment (`environment.import_path = "lmnr_hosted_env:LaminarEnvironment"`) whose methods call the app-server's sandbox routes with a project API key. The app-server forwards to Daytona. **The Daytona key never leaves the app-server.**
+- **Attached** (`--remote --attach`): Harbor runs on the user's machine.
+- **Detached** (`--remote`, the default remote mode): the CLI uploads the evals folder and `POST /runs` starts one orchestrator sandbox (Daytona default snapshot) that downloads the archive from the app-server and runs `npx lmnr-cli@<requesting CLI version> eval orchestrate`, i.e. the same attached code path, with a short-lived project key. The run spec (`LMNR_EVAL_RUN`) is opaque to the server: the CLI writes it and the same CLI version reads it.
 
-1. `POST /v1/hosted-evals/uploads` (project API key). The body is the raw `.tar.gz` of the `evals/` folder's *contents*, and the endpoint returns `{uploadId}`.
-   - The app-server streams the body into `hosted-evals/<project_id>/<upload_id>.tar.gz` in `S3_EXPORTS_BUCKET` as an S3 multipart upload (`StorageTrait::upload_stream`, 8 MiB parts, `MAX_ARCHIVE_BYTES` = 100 MiB). There is no client-facing presigned URL.
-   - `web::Payload` isn't limited by the global `HTTP_PAYLOAD_LIMIT`. An nginx in front of the app-server still enforces its own `client_max_body_size` (default 1 MiB) on this path, streamed or not, so it has to be at least the archive cap. nginx also buffers the whole body before proxying unless `proxy_request_buffering off` is set.
-   - `web::Payload` isn't `Send`, so the handler pumps it through an mpsc channel into the upload. An `Err` sent on that channel (client disconnect, empty body, over the cap) aborts the multipart upload, so a partial archive is never stored.
-2. `POST /v1/hosted-evals/runs` with `{uploadId, datasets?, tasks?, nAttempts?, nConcurrent?, model?, env?}`. It HEADs the archive (400 if absent), presigns a GET, creates a Daytona sandbox on the default snapshot, waits for `started`, then runs the orchestrator command in a toolbox session with `runAsync`. Returns `202 {sandboxId}`.
-3. The orchestrator (`orchestrator.py`, embedded with `include_str!` and passed as env `LMNR_EVAL_SCRIPT`, params as JSON in `LMNR_EVAL_RUN`) downloads and extracts the archive. For each suite (an archive-root dir with `harbor.yaml`, a Harbor JobConfig) it writes an overridden config and runs `harbor run -c … --plugin laminar --pk group_name=<suite>`. The sandbox then deletes itself.
-   - Trials run on `HOSTED_EVALS_TRIAL_ENVIRONMENT`: `modal` (default) or `daytona`. The orchestrator is always Daytona.
-   - `TrialEnvironment::job_environment` builds the job config's `environment.type` and `kwargs`, and passes them in as `trialEnvironment`. `orchestrator.py` drops the suite's own `environment.kwargs`, because they could name resources in our provider account (e.g. Modal `secrets` or `volumes`).
-   - Modal trials go to the Modal app `lmnr-hosted-evals`, tagged `lmnr-project-id`. Their `sandbox_timeout_secs` is the run cap, because Harbor's default is 24 h and trials orphaned by a killed orchestrator would otherwise outlive the run.
-   - `Feature::HostedEvals` requires the configured provider's credentials: `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` for `modal`. They're passed into the orchestrator sandbox, where Harbor's Modal client reads them.
+## Routes (`api/v1/hosted_evals.rs`)
+
+All under `/v1/hosted-evals`, project API key. The CLI twins (`api/v1/cli/hosted_evals.rs`, `CliProjectAuth`) exist only for what the CLI itself calls: `contexts/*`, `POST uploads`, `POST runs`.
+
+| Route | What |
+|---|---|
+| `GET/PUT /contexts/{md5}` | Docker build context (uncompressed tar). `PUT` streams it into Daytona's build bucket; the md5 is verified while streaming and a mismatch aborts the multipart upload. |
+| `POST /sandboxes` | `{dockerfile, contextHashes, cpus?, memoryGb?, diskGb?}` → `201 {sandboxId}`. Returns before the build finishes; clients poll `GET`. |
+| `GET/DELETE /sandboxes/{id}` | `{state, errorReason}` / delete. |
+| `POST /sandboxes/{id}/commands` | `{command}` → `{commandId}` (async). |
+| `GET /sandboxes/{id}/commands/{commandId}` | `{exitCode: null}` while running, then `{exitCode, stdout, stderr}`. |
+| `PUT/GET /sandboxes/{id}/files?path=/abs` | Raw file body (512 MiB cap). Directories are tarred by the Python class. |
+| `POST /uploads`, `GET /uploads/{id}` | Detached-run archive (`.tar.gz`, 100 MiB), in `S3_EXPORTS_BUCKET`. The orchestrator downloads with its run key; no presigned URL, so it also works for self-hosted S3 that Daytona can't reach. |
+| `POST /runs` | `{uploadId, cliVersion, spec}` → `202 {sandboxId}`. |
 
 ## Invariants and gotchas
 
-- **Routes live under `/hosted-evals`, not `/evals/…`**: `POST /v1/evals/{eval_id}` (update eval) would capture `POST /v1/evals/runs`.
-- **Each run reports with its own short-lived key, never a user-facing one.**
-  - `start_run` mints a full (non-ingest-only) project key named `lmnr-internal-evals-<UTC timestamp>` (`RUN_KEY_NAME_PREFIX`) that expires after `HOSTED_EVALS_MAX_RUN_MINUTES`, the same as the sandbox TTL. It's passed in as `LMNR_PROJECT_API_KEY`, and the plugin needs a full key for `/v1/evals`.
-  - The key is deleted if the launch fails. Otherwise nothing revokes it when the run ends: it expires, and the app-server purges the row the next time it's presented.
-  - `getApiKeys` in `frontend/lib/actions/project-api-keys` hides the prefix, so keep the two constants in sync.
-  - `project_api_keys::generate_api_key` uses the same format as the frontend's `createProjectApiKey`.
-- **The same `DAYTONA_API_KEY` goes into the sandbox** (self-delete needs it, and so do Daytona trials), and user eval code can read it. The Modal token goes in too for `modal` trials. Use dedicated Daytona and Modal accounts with spend limits. Never add other secrets to the sandbox env.
-  - **These credentials give access to other customers' runs, so fix this before enabling on Cloud.** Daytona returns a sandbox's `env` from its API, and the org key can run commands in any sandbox. So code in one run can read another run's Laminar key and agent `env` (e.g. LLM keys). A Modal token likewise reaches every sandbox in its workspace.
-  - User code does reach the orchestrator: through `agents[].import_path` (custom agents run in the Harbor process), `verifier.import_path`, and the suite directory prepended to `PYTHONPATH` (a suite file can shadow any module Harbor imports).
-  - Planned fix: proxy the provider calls through the app-server with a per-run token, limited to sandboxes labelled with that run.
-- **`harbor run` CLI flags can't override a `-c` config's datasets** (`-i` requires `-p`), and `-m` only applies together with `-a`. That's why the orchestrator edits the loaded YAML (`build_job_config`) instead of passing flags. The `tasks` filter has to cover both `datasets[].task_names` and the top-level `tasks` list, matched the way Harbor names tasks (`fnmatch` on the directory name, or `name` for registry tasks). `orchestrator.py` indexes every `LMNR_EVAL_RUN` key directly; the `hosted_evals::tests` contract test pins them.
-- **Daytona quirks hit while building this:**
-  - Harbor needs the provider extras (`harbor[daytona,modal]`); plain `harbor` fails every trial with `MissingExtraError`.
-  - The toolbox session shell is **zsh**, so an unquoted `harbor[daytona,modal]==…` is a glob that fails with `no matches found`. Keep it quoted.
-  - Self-delete is a `curl -X DELETE` chained after `uv run` in the shell command, not Python, so a failed bootstrap doesn't leave a sandbox idling until `ttlMinutes`. Daytona sets `DAYTONA_SANDBOX_ID` inside every sandbox.
-  - `cpu`/`memory` on create return 400 "Cannot specify Sandbox resources when using a snapshot". The orchestrator runs on the default 1 vCPU / 1 GB.
-  - `autoStopInterval` must be 0: a running background command doesn't count as activity. `HOSTED_EVALS_MAX_RUN_MINUTES` (default 720) is the hard cap via `ttlMinutes`.
-  - The toolbox base is `<toolboxProxyUrl>/<sandboxId>` (`toolboxProxyUrl` comes from the create response, so self-hosted Daytona works).
-- **Testing without S3:** the endpoint needs real S3, but the run path can be exercised by calling `hosted_evals::start_run` (or `launch_orchestrator`, which needs no DB) directly with any public archive URL (e.g. one served from a second Daytona sandbox via `GET /api/sandbox/{id}/ports/{port}/signed-preview-url`). A one-task Harbor suite with `agents: [{name: oracle}]` finishes in about 40 s, including the ~10 s `uv` install. Starting app-server with dummy `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` plus `S3_EXPORTS_BUCKET` enables the feature.
-  - For a real local S3, run `uvx --from 'moto[server]' moto_server -p 9100` (the MinIO binary download now returns 410). Start the app-server with `AWS_ENDPOINT_URL=http://127.0.0.1:9100`; the SDK honours it and uses path-style addressing for an IP endpoint.
-  - moto's `list-objects-v2` omits `KeyCount`, so count `Contents` instead.
-  - To test the CLI twins without the frontend, sign an Ed25519 JWT with a `userId` claim and a `kid`. Serve the matching JWKS at `<NEXT_INTERNAL_URL>/api/auth/jwks`. The user has to be a member of the project in Postgres.
-  - Modal trials appear under the `lmnr-hosted-evals` app (`modal app list`). That app persists with 0 tasks between runs.
-- The Daytona org used for testing is shared with other workloads: delete only sandboxes you created (filter by labels, e.g. `lmnr-project-id`).
+- **Project scoping is a sandbox label.** Every sandbox gets `lmnr-project-id` (+ `lmnr-role` = `trial` / `orchestrator`). `sandboxes::resolve` checks the label before any toolbox call and caches `hosted_evals_sandbox:{project}:{sandbox}` → toolbox URL only after a match. Another project's id answers 404, never 403.
+- **Build contexts are shared org-wide in Daytona's bucket** (`<org>/<hash>/context.tar`). Clients name a context by `md5(tar)`; it is stored under `contexts::stored_hash = md5(project_id ++ hash)`, and `POST /sandboxes` maps hashes the same way. So one project can neither read nor plant another project's context. Keep the derivation in both places.
+- **Images:** `POST /sandboxes` passes `buildInfo {dockerfileContent, contextHashes}` straight to Daytona `POST /sandbox`. Daytona builds and caches by build info (first build ~10 s for a small image, then 1-2 s). Resources ARE allowed with `buildInfo` (unlike with `snapshot`, which 400s "Cannot specify Sandbox resources when using a snapshot"). Public images go through the same path as `FROM <image>`. The context tar's entries are paths relative to the build-context root.
+- **Daytona REST session logs merge stdout and stderr** (the SDK splits only the websocket stream). `start_command` wraps the command as `sh -c '<cmd>' 2>/tmp/.lmnr-exec/<session>` and `command_result` reads that file back. One session per command, as Harbor's Daytona environment does.
+- **`DELETE` on a sandbox that is being destroyed (or still transitioning) answers `409 "Sandbox state change in progress"`.** `Daytona::delete_sandbox` treats gone/destroying as deleted and retries other 409s for up to a minute.
+- **Limits:** `HOSTED_EVALS_MAX_SANDBOXES_PER_PROJECT` (default 50, counted with a label-filtered list on every create, `429` past it), per-sandbox `HOSTED_EVALS_MAX_SANDBOX_{CPUS,MEMORY_GB,DISK_GB}` clamps, and `ttlMinutes = HOSTED_EVALS_MAX_RUN_MINUTES` on every sandbox, so a crashed client can't leak one past the cap. `autoStopInterval` stays 0: a running command doesn't count as activity.
+- **Detached runs mint their own key**: `lmnr-internal-evals-<UTC timestamp>` (`RUN_KEY_NAME_PREFIX`), full (the plugin needs `/v1/evals`), expiring with the TTL, deleted if the launch fails. The frontend's `getApiKeys` hides the prefix: keep the two constants in sync. The key is visible to user code in the orchestrator, which is fine: it only reaches the project that started the run.
+- **The orchestrator command** (`ORCHESTRATOR_COMMAND`) runs in the Daytona session shell, which can be zsh: no bash-only syntax. The npm spec goes through env (`LMNR_CLI_PACKAGE`) rather than being spliced into the command; `cliVersion` must be plain semver characters. It self-deletes through `DELETE /v1/hosted-evals/sandboxes/$DAYTONA_SANDBOX_ID` (Daytona sets that env var) with the run key, however the run ended. The default snapshot (`daytonaio/sandbox:0.8.0`) ships node 25, npx and uv; 1 vCPU / 1 GB.
+- **Harbor semantics to remember when debugging trials:** a task with its own `environment/Dockerfile` (and no `docker_image`) does NOT get `environment/` uploaded after start; its Dockerfile must `COPY` the case data. The Laminar plugin exports spans over gRPC (port 8443 unless `--pk grpc_port=`; the CLI forwards `LMNR_GRPC_PORT`), datapoints over HTTP.
+
+## Testing locally
+
+- Uploads need S3: `uvx --from 'moto[server]' moto_server -p 9100`, create the bucket, and start the app-server with `AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_ENDPOINT_URL=http://127.0.0.1:9100 S3_EXPORTS_BUCKET=<bucket>`. The contexts client builds its own S3 config from Daytona's push-access creds, so `AWS_ENDPOINT_URL` doesn't leak into it. moto's `list-objects-v2` omits `KeyCount`.
+- Attached runs work against `localhost:8000` (`LMNR_BASE_URL=http://localhost:8000`, `LMNR_GRPC_PORT=8001` in the scratch project's `.env`). Without a CLI login the CLI falls back to `LMNR_PROJECT_API_KEY`, which exercises the key routes.
+- Detached runs need the app-server reachable from Daytona: a cloudflared quick tunnel (`cloudflared tunnel --url http://localhost:8000`, binary from GitHub releases) as `HOSTED_EVALS_LMNR_BASE_URL`, and an unreleased CLI via `HOSTED_EVALS_CLI_PACKAGE=<url of a pnpm-packed tgz>` (serve it through a second tunnel). This host caches the DNS miss for a brand-new trycloudflare hostname for a while; Daytona resolves it fine. Traces from detached runs don't reach a tunnelled local server (gRPC), datapoints do.
+- Cross-project checks need a key for a second project: insert an expiring `lmnr-internal-evals-*` row for another project and delete it afterwards.
+- The Daytona org is shared with other workloads: delete only sandboxes you created (filter by `lmnr-project-id`).

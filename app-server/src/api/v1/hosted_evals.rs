@@ -1,13 +1,15 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use actix_web::{
-    HttpResponse,
+    HttpResponse, delete,
     error::PayloadError,
-    post,
+    get,
+    http::StatusCode,
+    post, put,
     web::{self, Json},
 };
 use anyhow::anyhow;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::json;
@@ -15,32 +17,258 @@ use tokio::sync::mpsc::{self, Sender};
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     env,
     features::{Feature, is_feature_enabled},
-    hosted_evals::{self, RunOptions},
+    hosted_evals::{
+        self, RunError, RunRequest,
+        contexts::{ContextHasher, ContextStore},
+        daytona::Daytona,
+        sandboxes::{self, CreateError, CreateTrialSandbox, ProjectSandbox},
+    },
     routes::types::ResponseResult,
     storage::{Storage, StorageTrait},
 };
 
-// The streamed archive isn't covered by the global HTTP payload limit, so it gets its own.
+// Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
 const MAX_ARCHIVE_BYTES: u64 = 100 * 1024 * 1024;
-// The orchestrator downloads the archive right after it starts.
-const DOWNLOAD_URL_TTL: Duration = Duration::from_secs(60 * 60);
+const MAX_CONTEXT_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
+
+enum BodyError {
+    Empty,
+    TooLarge(u64),
+    Payload(PayloadError),
+    HashMismatch(anyhow::Error),
+}
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StartRunRequest {
-    upload_id: Uuid,
-    #[serde(flatten)]
-    options: RunOptions,
+pub struct FilePath {
+    path: String,
 }
 
-enum ArchiveError {
-    Empty,
-    TooLarge,
-    Payload(PayloadError),
+// ---- Build contexts (also under /v1/cli) ----
+
+#[get("/hosted-evals/contexts/{hash}")]
+pub async fn context_exists(
+    path: web::Path<String>,
+    project_api_key: ProjectApiKey,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_context_exists(project_api_key.project_id, &path, &http_client).await
 }
+
+#[put("/hosted-evals/contexts/{hash}")]
+pub async fn upload_context(
+    path: web::Path<String>,
+    payload: web::Payload,
+    project_api_key: ProjectApiKey,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_upload_context(project_api_key.project_id, &path, payload, &http_client).await
+}
+
+/// `{exists}`: whether the project already uploaded a context with this hash.
+pub async fn handle_context_exists(
+    project_id: Uuid,
+    hash: &str,
+    http: &reqwest::Client,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    if !sandboxes::is_context_hash(hash) {
+        return Ok(invalid_hash());
+    }
+    let store = ContextStore::connect(http).await?;
+    Ok(HttpResponse::Ok().json(json!({ "exists": store.exists(&project_id, hash).await })))
+}
+
+/// Body: an uncompressed tar of the build context. `hash` must be its `md5`;
+/// a mismatch aborts the upload.
+pub async fn handle_upload_context(
+    project_id: Uuid,
+    hash: &str,
+    payload: web::Payload,
+    http: &reqwest::Client,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    if !sandboxes::is_context_hash(hash) {
+        return Ok(invalid_hash());
+    }
+    let store = ContextStore::connect(http).await?;
+    if store.exists(&project_id, hash).await {
+        return Ok(HttpResponse::Ok().json(json!({ "hash": hash })));
+    }
+    let (tx, rx) = mpsc::channel(4);
+    let (received, stored) = futures_util::join!(
+        forward_payload(
+            payload,
+            tx,
+            MAX_CONTEXT_BYTES,
+            Some((ContextHasher::default(), hash))
+        ),
+        store.upload(&project_id, hash, rx)
+    );
+    if let Err(e) = received {
+        return Ok(body_error_response(e));
+    }
+    stored?;
+    Ok(HttpResponse::Ok().json(json!({ "hash": hash })))
+}
+
+// ---- Trial sandboxes (project API key only: Harbor's environment class) ----
+
+#[post("/hosted-evals/sandboxes")]
+pub async fn create_sandbox(
+    req: Json<CreateTrialSandbox>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    match sandboxes::create(
+        &http_client,
+        &cache,
+        &project_api_key.project_id,
+        req.into_inner(),
+    )
+    .await
+    {
+        Ok(sandbox_id) => Ok(HttpResponse::Created().json(json!({ "sandboxId": sandbox_id }))),
+        Err(e) => Ok(create_error_response(e)),
+    }
+}
+
+#[get("/hosted-evals/sandboxes/{sandbox_id}")]
+pub async fn get_sandbox(
+    path: web::Path<String>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    let Some((daytona, sandbox)) =
+        resolve_sandbox(&http_client, &cache, &project_api_key, &path).await?
+    else {
+        return Ok(sandbox_not_found());
+    };
+    Ok(HttpResponse::Ok().json(sandboxes::status(&daytona, &sandbox).await?))
+}
+
+#[delete("/hosted-evals/sandboxes/{sandbox_id}")]
+pub async fn delete_sandbox(
+    path: web::Path<String>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    let Some((daytona, sandbox)) =
+        resolve_sandbox(&http_client, &cache, &project_api_key, &path).await?
+    else {
+        return Ok(sandbox_not_found());
+    };
+    sandboxes::delete(&daytona, &cache, &project_api_key.project_id, &sandbox).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+#[derive(Deserialize)]
+pub struct StartCommand {
+    command: String,
+}
+
+#[post("/hosted-evals/sandboxes/{sandbox_id}/commands")]
+pub async fn start_command(
+    path: web::Path<String>,
+    req: Json<StartCommand>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    let Some((daytona, sandbox)) =
+        resolve_sandbox(&http_client, &cache, &project_api_key, &path).await?
+    else {
+        return Ok(sandbox_not_found());
+    };
+    let command_id = sandboxes::start_command(&daytona, &sandbox, &req.command).await?;
+    Ok(HttpResponse::Accepted().json(json!({ "commandId": command_id })))
+}
+
+/// `{exitCode: null}` while running; `{exitCode, stdout, stderr}` once done.
+#[get("/hosted-evals/sandboxes/{sandbox_id}/commands/{command_id}")]
+pub async fn get_command(
+    path: web::Path<(String, String)>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    let (sandbox_id, command_id) = path.into_inner();
+    let Some((daytona, sandbox)) =
+        resolve_sandbox(&http_client, &cache, &project_api_key, &sandbox_id).await?
+    else {
+        return Ok(sandbox_not_found());
+    };
+    match sandboxes::command_result(&daytona, &sandbox, &command_id).await? {
+        Some(result) => Ok(HttpResponse::Ok().json(result)),
+        None => Ok(HttpResponse::NotFound().json(json!({ "error": "Unknown command" }))),
+    }
+}
+
+/// Body: the file's raw bytes, written to `?path=` (absolute) in the sandbox.
+#[put("/hosted-evals/sandboxes/{sandbox_id}/files")]
+pub async fn upload_file(
+    path: web::Path<String>,
+    query: web::Query<FilePath>,
+    payload: web::Payload,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    if !query.path.starts_with('/') {
+        return Ok(relative_path());
+    }
+    let Some((daytona, sandbox)) =
+        resolve_sandbox(&http_client, &cache, &project_api_key, &path).await?
+    else {
+        return Ok(sandbox_not_found());
+    };
+    let content = match collect_payload(payload, MAX_FILE_BYTES).await {
+        Ok(content) => content,
+        Err(e) => return Ok(body_error_response(e)),
+    };
+    sandboxes::upload_file(&daytona, &sandbox, &query.path, content).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+#[get("/hosted-evals/sandboxes/{sandbox_id}/files")]
+pub async fn download_file(
+    path: web::Path<String>,
+    query: web::Query<FilePath>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    if !query.path.starts_with('/') {
+        return Ok(relative_path());
+    }
+    let Some((daytona, sandbox)) =
+        resolve_sandbox(&http_client, &cache, &project_api_key, &path).await?
+    else {
+        return Ok(sandbox_not_found());
+    };
+    match sandboxes::download_file(&daytona, &sandbox, &query.path).await? {
+        Some(response) => Ok(HttpResponse::Ok()
+            .content_type("application/octet-stream")
+            .streaming(response.bytes_stream())),
+        None => Ok(HttpResponse::NotFound().json(json!({ "error": "File not found" }))),
+    }
+}
+
+// ---- Detached runs (uploads and runs also under /v1/cli) ----
 
 /// Body: the `.tar.gz` of the `evals/` folder's contents, streamed to S3.
 #[post("/hosted-evals/uploads")]
@@ -52,11 +280,32 @@ pub async fn create_upload(
     handle_create_upload(project_api_key.project_id, payload, &storage).await
 }
 
+/// The orchestrator sandbox downloads its run's archive here with the run key.
+#[get("/hosted-evals/uploads/{upload_id}")]
+pub async fn download_upload(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    let Some(bucket) = uploads_bucket() else {
+        return Ok(not_enabled());
+    };
+    let key = hosted_evals::archive_key(&project_api_key.project_id, &path);
+    if storage.get_size(&bucket, &key).await.is_err() {
+        return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
+    }
+    let stream = storage.get_stream(&bucket, &key).await?;
+    Ok(HttpResponse::Ok()
+        .content_type("application/gzip")
+        .streaming(stream.map(Ok::<_, actix_web::Error>)))
+}
+
 #[post("/hosted-evals/runs")]
 pub async fn start_run(
-    req: Json<StartRunRequest>,
+    req: Json<RunRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
+    cache: web::Data<Cache>,
     storage: web::Data<Arc<Storage>>,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
@@ -64,6 +313,7 @@ pub async fn start_run(
         project_api_key.project_id,
         req.into_inner(),
         &db,
+        &cache,
         &storage,
         &http_client,
     )
@@ -76,7 +326,7 @@ pub async fn handle_create_upload(
     payload: web::Payload,
     storage: &Storage,
 ) -> ResponseResult {
-    let Some(bucket) = hosted_evals_bucket() else {
+    let Some(bucket) = uploads_bucket() else {
         return Ok(not_enabled());
     };
     let upload_id = Uuid::new_v4();
@@ -85,44 +335,98 @@ pub async fn handle_create_upload(
     // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
     let (tx, rx) = mpsc::channel(4);
     let (received, stored) = futures_util::join!(
-        forward_archive(payload, tx),
+        forward_payload(payload, tx, MAX_ARCHIVE_BYTES, None),
         storage.upload_stream(&bucket, &key, rx)
     );
-    match received {
-        Ok(()) => {}
-        Err(ArchiveError::Empty) => {
-            return Ok(HttpResponse::BadRequest().json(json!({ "error": "Empty archive" })));
-        }
-        Err(ArchiveError::TooLarge) => {
-            return Ok(HttpResponse::PayloadTooLarge().json(json!({
-                "error": format!("Archive exceeds {MAX_ARCHIVE_BYTES} bytes")
-            })));
-        }
-        Err(ArchiveError::Payload(e)) => {
-            return Ok(HttpResponse::BadRequest().json(json!({
-                "error": format!("Failed to read archive: {e}")
-            })));
-        }
+    if let Err(e) = received {
+        return Ok(body_error_response(e));
     }
     stored?;
 
     Ok(HttpResponse::Ok().json(json!({ "uploadId": upload_id })))
 }
 
-async fn forward_archive(
+/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) runs.
+pub async fn handle_start_run(
+    project_id: Uuid,
+    req: RunRequest,
+    db: &DB,
+    cache: &Cache,
+    storage: &Storage,
+    http_client: &reqwest::Client,
+) -> ResponseResult {
+    let Some(bucket) = uploads_bucket() else {
+        return Ok(not_enabled());
+    };
+    let key = hosted_evals::archive_key(&project_id, &req.upload_id);
+    if storage.get_size(&bucket, &key).await.is_err() {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "error": "No archive uploaded for this uploadId"
+        })));
+    }
+
+    let sandbox_id = match hosted_evals::start_run(http_client, db, cache, &project_id, &req).await
+    {
+        Ok(id) => id,
+        Err(RunError::InvalidCliVersion) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": format!("Invalid cliVersion {:?}", req.cli_version)
+            })));
+        }
+        Err(RunError::Sandbox(e)) => return Ok(create_error_response(e)),
+        Err(RunError::Internal(e)) => return Err(e.into()),
+    };
+    log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
+
+    Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))
+}
+
+// ---- Helpers ----
+
+async fn resolve_sandbox<'a>(
+    http: &'a reqwest::Client,
+    cache: &Cache,
+    project_api_key: &ProjectApiKey,
+    sandbox_id: &str,
+) -> anyhow::Result<Option<(Daytona<'a>, ProjectSandbox)>> {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(None);
+    }
+    let daytona = hosted_evals::daytona_client(http)?;
+    let sandbox =
+        sandboxes::resolve(&daytona, cache, &project_api_key.project_id, sandbox_id).await?;
+    Ok(sandbox.map(|s| (daytona, s)))
+}
+
+/// Pumps `payload` into `tx` up to `max_bytes`. With `verify`, the body must
+/// hash to the given context hash. Any failure sends an `Err` down the channel
+/// so the upload aborts instead of storing a partial object.
+async fn forward_payload(
     mut payload: web::Payload,
     tx: Sender<anyhow::Result<Bytes>>,
-) -> Result<(), ArchiveError> {
+    max_bytes: u64,
+    mut verify: Option<(ContextHasher, &str)>,
+) -> Result<(), BodyError> {
     let mut size = 0;
     let result = loop {
         match payload.next().await {
-            None if size == 0 => break Err(ArchiveError::Empty),
-            None => break Ok(()),
-            Some(Err(e)) => break Err(ArchiveError::Payload(e)),
+            None if size == 0 => break Err(BodyError::Empty),
+            None => {
+                break match verify.take() {
+                    Some((hasher, expected)) => {
+                        hasher.verify(expected).map_err(BodyError::HashMismatch)
+                    }
+                    None => Ok(()),
+                };
+            }
+            Some(Err(e)) => break Err(BodyError::Payload(e)),
             Some(Ok(chunk)) => {
                 size += chunk.len() as u64;
-                if size > MAX_ARCHIVE_BYTES {
-                    break Err(ArchiveError::TooLarge);
+                if size > max_bytes {
+                    break Err(BodyError::TooLarge(max_bytes));
+                }
+                if let Some((hasher, _)) = verify.as_mut() {
+                    hasher.update(&chunk);
                 }
                 // A closed channel means the upload already failed and reports why.
                 if tx.send(Ok(chunk)).await.is_err() {
@@ -132,42 +436,59 @@ async fn forward_archive(
         }
     };
     if result.is_err() {
-        // Makes the upload abort instead of storing a partial archive.
-        let _ = tx.send(Err(anyhow!("archive upload aborted"))).await;
+        let _ = tx.send(Err(anyhow!("upload aborted"))).await;
     }
     result
 }
 
-/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) runs.
-pub async fn handle_start_run(
-    project_id: Uuid,
-    req: StartRunRequest,
-    db: &DB,
-    storage: &Storage,
-    http_client: &reqwest::Client,
-) -> ResponseResult {
-    let Some(bucket) = hosted_evals_bucket() else {
-        return Ok(not_enabled());
-    };
-    let key = hosted_evals::archive_key(&project_id, &req.upload_id);
-    if storage.get_size(&bucket, &key).await.is_err() {
-        return Ok(HttpResponse::BadRequest().json(json!({
-            "error": "No archive uploaded for this uploadId"
-        })));
+async fn collect_payload(mut payload: web::Payload, max_bytes: u64) -> Result<Bytes, BodyError> {
+    let mut body = BytesMut::new();
+    while let Some(chunk) = payload.next().await {
+        let chunk = chunk.map_err(BodyError::Payload)?;
+        if (body.len() + chunk.len()) as u64 > max_bytes {
+            return Err(BodyError::TooLarge(max_bytes));
+        }
+        body.extend_from_slice(&chunk);
     }
-    let archive_url = storage
-        .presigned_get_url(&bucket, &key, DOWNLOAD_URL_TTL)
-        .await?;
-
-    let sandbox_id =
-        hosted_evals::start_run(http_client, db, &project_id, &archive_url, &req.options).await?;
-    log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
-
-    Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))
+    Ok(body.freeze())
 }
 
-fn hosted_evals_bucket() -> Option<String> {
-    if !is_feature_enabled(Feature::HostedEvals) {
+fn body_error_response(error: BodyError) -> HttpResponse {
+    match error {
+        BodyError::Empty => HttpResponse::BadRequest().json(json!({ "error": "Empty body" })),
+        BodyError::TooLarge(max) => HttpResponse::PayloadTooLarge().json(json!({
+            "error": format!("Body exceeds {max} bytes")
+        })),
+        BodyError::Payload(e) => HttpResponse::BadRequest().json(json!({
+            "error": format!("Failed to read body: {e}")
+        })),
+        BodyError::HashMismatch(e) => {
+            HttpResponse::BadRequest().json(json!({ "error": e.to_string() }))
+        }
+    }
+}
+
+fn create_error_response(error: CreateError) -> HttpResponse {
+    match error {
+        CreateError::InvalidContextHash(hash) => HttpResponse::BadRequest().json(json!({
+            "error": format!("Invalid context hash {hash:?}")
+        })),
+        CreateError::TooManySandboxes(max) => HttpResponse::TooManyRequests().json(json!({
+            "error": format!(
+                "The project already has {max} hosted-evals sandboxes running. \
+                 Lower n_concurrent_trials or wait for running trials to finish."
+            )
+        })),
+        CreateError::Daytona(e) => {
+            log::error!("Hosted evals sandbox creation failed: {e:?}");
+            HttpResponse::build(StatusCode::BAD_GATEWAY)
+                .json(json!({ "error": format!("Failed to create the sandbox: {e}") }))
+        }
+    }
+}
+
+fn uploads_bucket() -> Option<String> {
+    if !is_feature_enabled(Feature::HostedEvals) || !is_feature_enabled(Feature::Storage) {
         return None;
     }
     std::env::var(env::storage::S3_EXPORTS_BUCKET).ok()
@@ -177,4 +498,18 @@ fn not_enabled() -> HttpResponse {
     HttpResponse::NotFound().json(json!({
         "error": "Hosted evals are not enabled on this deployment"
     }))
+}
+
+fn sandbox_not_found() -> HttpResponse {
+    HttpResponse::NotFound().json(json!({ "error": "Sandbox not found" }))
+}
+
+fn invalid_hash() -> HttpResponse {
+    HttpResponse::BadRequest().json(json!({
+        "error": "A context hash is 32 hex characters"
+    }))
+}
+
+fn relative_path() -> HttpResponse {
+    HttpResponse::BadRequest().json(json!({ "error": "path must be absolute" }))
 }

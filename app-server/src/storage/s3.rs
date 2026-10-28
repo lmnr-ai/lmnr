@@ -1,10 +1,7 @@
-use std::time::Duration;
-
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use aws_sdk_s3::{
     Client,
-    presigning::PresigningConfig,
     primitives::ByteStream,
     types::{CompletedMultipartUpload, CompletedPart},
 };
@@ -174,21 +171,5 @@ impl super::StorageTrait for S3Storage {
                 Err(e)
             }
         }
-    }
-
-    async fn presigned_get_url(
-        &self,
-        bucket: &str,
-        key: &str,
-        expires_in: Duration,
-    ) -> Result<String> {
-        let request = self
-            .client
-            .get_object()
-            .bucket(bucket)
-            .key(key)
-            .presigned(PresigningConfig::expires_in(expires_in)?)
-            .await?;
-        Ok(request.uri().to_string())
     }
 }

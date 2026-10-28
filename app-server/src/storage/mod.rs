@@ -1,4 +1,4 @@
-use std::{pin::Pin, time::Duration};
+use std::pin::Pin;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -34,10 +34,4 @@ pub trait StorageTrait {
         key: &str,
         chunks: Receiver<Result<Bytes>>,
     ) -> Result<u64>;
-    async fn presigned_get_url(
-        &self,
-        bucket: &str,
-        key: &str,
-        expires_in: Duration,
-    ) -> Result<String>;
 }

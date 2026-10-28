@@ -44,6 +44,7 @@ jsonwebtoken = {version = "11", default-features = false, features = ["use_pem",
 jwks_client_rs = "0.6"
 lapin = "4.12"
 log = "0.4.34"
+md-5 = "0.11.0"
 moka = {version = "0.12", features = ["sync", "future"]}
 ndarray = {version = "0.17", optional = true}
 num_cpus = "1.17.0"
@@ -66,7 +67,7 @@ rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "1.6.0", features = ["tokio-comp", "tokio-rustls-comp"]}
 regex = "1.12.3"
-reqwest = {version = "0.13.4", features = ["json", "stream"]}
+reqwest = {version = "0.13.4", features = ["json", "multipart", "stream"]}
 resend-rs = "0.34.0"
 rmcp = {version = "3.3", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
