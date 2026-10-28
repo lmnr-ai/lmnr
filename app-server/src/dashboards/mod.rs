@@ -1,5 +1,6 @@
-//! Dashboard and chart writes, shared by the frontend (via `routes::dashboards`) and the Laminar
-//! agent's dashboard tools. Reads stay in the frontend; the agent reads through `query_sql`.
+//! Dashboard and chart writes, shared by the frontend (via `routes::dashboards`), the CLI (via
+//! `api::v1::cli::dashboards`) and the Laminar agent's dashboard tools. Reads stay in the
+//! frontend; the agent and the CLI read through SQL.
 
 use std::collections::{HashMap, HashSet};
 
@@ -12,6 +13,7 @@ use uuid::Uuid;
 use crate::db::dashboards::{self as db, Dashboard, DashboardChart};
 use layout::{Layout, auto_place, settle};
 
+pub mod chart_query;
 pub mod layout;
 
 #[derive(Debug, thiserror::Error)]

@@ -2588,7 +2588,12 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::llm_profiles::create_llm_profile)
                             .service(api::v1::cli::llm_profiles::get_llm_profile)
                             .service(api::v1::cli::llm_profiles::update_llm_profile)
-                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile)
+                            .service(api::v1::cli::dashboards::create_dashboard)
+                            .service(api::v1::cli::dashboards::rename_dashboard)
+                            .service(api::v1::cli::dashboards::delete_dashboard)
+                            .service(api::v1::cli::dashboards::upsert_charts)
+                            .service(api::v1::cli::dashboards::delete_charts);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
