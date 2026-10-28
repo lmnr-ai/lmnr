@@ -9,8 +9,8 @@
 ## Flow
 
 1. `POST /v1/hosted-evals/uploads` (project API key). The body is the raw `.tar.gz` of the `evals/` folder's *contents*, and the endpoint returns `{uploadId}`.
-   - The app-server streams the body into `hosted-evals/<project_id>/<upload_id>.tar.gz` in `S3_EXPORTS_BUCKET` as an S3 multipart upload (`StorageTrait::upload_stream`, 8 MiB parts, capped at 2 GiB). There is no client-facing presigned URL.
-   - `web::Payload` isn't limited by the global `HTTP_PAYLOAD_LIMIT`, but an ingress in front of the app-server (nginx `client_max_body_size`) must allow large bodies on this path.
+   - The app-server streams the body into `hosted-evals/<project_id>/<upload_id>.tar.gz` in `S3_EXPORTS_BUCKET` as an S3 multipart upload (`StorageTrait::upload_stream`, 8 MiB parts, `MAX_ARCHIVE_BYTES` = 100 MiB). There is no client-facing presigned URL.
+   - `web::Payload` isn't limited by the global `HTTP_PAYLOAD_LIMIT`. An nginx in front of the app-server still enforces its own `client_max_body_size` (default 1 MiB) on this path, streamed or not, so it has to be at least the archive cap. nginx also buffers the whole body before proxying unless `proxy_request_buffering off` is set.
    - `web::Payload` isn't `Send`, so the handler pumps it through an mpsc channel into the upload. An `Err` sent on that channel (client disconnect, empty body, over the cap) aborts the multipart upload, so a partial archive is never stored.
 2. `POST /v1/hosted-evals/runs` with `{uploadId, datasets?, tasks?, nAttempts?, nConcurrent?, model?, env?}`. It HEADs the archive (400 if absent), presigns a GET, creates a Daytona sandbox on the default snapshot, waits for `started`, then runs the orchestrator command in a toolbox session with `runAsync`. Returns `202 {sandboxId}`.
 3. The orchestrator (`orchestrator.py`, embedded with `include_str!` and passed as env `LMNR_EVAL_SCRIPT`, params as JSON in `LMNR_EVAL_RUN`) downloads and extracts the archive. For each suite (an archive-root dir with `harbor.yaml`, a Harbor JobConfig) it writes an overridden config and runs `harbor run -c … --plugin laminar --pk group_name=<suite>` with trials on Daytona. The sandbox then deletes itself.

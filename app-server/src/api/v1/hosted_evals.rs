@@ -23,9 +23,8 @@ use crate::{
     storage::{Storage, StorageTrait},
 };
 
-// Task build contexts can carry large prebuilt binaries, so the archive gets its
-// own cap instead of the global HTTP payload limit.
-const MAX_ARCHIVE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+// The streamed archive isn't covered by the global HTTP payload limit, so it gets its own.
+const MAX_ARCHIVE_BYTES: u64 = 100 * 1024 * 1024;
 // The orchestrator downloads the archive right after it starts.
 const DOWNLOAD_URL_TTL: Duration = Duration::from_secs(60 * 60);
 
