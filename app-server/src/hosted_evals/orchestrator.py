@@ -1,9 +1,9 @@
 """Hosted eval orchestrator, run inside the Daytona sandbox `hosted_evals::start_run` creates.
 
 Downloads the uploaded `evals/` archive and runs `harbor run` once per suite (a directory
-with a `harbor.yaml` JobConfig), with trials on Daytona and results reported to Laminar by
-`--plugin laminar`. Launched through `uv run --with harbor --with lmnr`, so `yaml` and the
-`harbor` CLI are available.
+with a `harbor.yaml` JobConfig), with trials on the provider the app-server picked (Modal or
+Daytona) and results reported to Laminar by `--plugin laminar`. Launched through
+`uv run --with harbor --with lmnr`, so `yaml` and the `harbor` CLI are available.
 """
 
 import json
@@ -64,9 +64,12 @@ def run_suite(suite_dir: Path, params: dict) -> int:
 
 
 def build_job_config(config: dict, params: dict) -> dict:
-    # Trials always run on Daytona, with the key this sandbox was given.
-    environment = {k: v for k, v in (config.get("environment") or {}).items() if k != "import_path"}
-    config["environment"] = {**environment, "type": "daytona"}
+    # Trials run on the app-server's provider, with the credentials this sandbox was given.
+    environment = {
+        k: v for k, v in (config.get("environment") or {}).items()
+        if k not in ("import_path", "kwargs")
+    }
+    config["environment"] = {**environment, **params["trialEnvironment"]}
     if params["nAttempts"] is not None:
         config["n_attempts"] = params["nAttempts"]
     if params["nConcurrent"] is not None:

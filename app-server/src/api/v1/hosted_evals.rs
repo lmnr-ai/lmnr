@@ -49,11 +49,38 @@ pub async fn create_upload(
     project_api_key: ProjectApiKey,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
+    handle_create_upload(project_api_key.project_id, payload, &storage).await
+}
+
+#[post("/hosted-evals/runs")]
+pub async fn start_run(
+    req: Json<StartRunRequest>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+    storage: web::Data<Arc<Storage>>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_start_run(
+        project_api_key.project_id,
+        req.into_inner(),
+        &db,
+        &storage,
+        &http_client,
+    )
+    .await
+}
+
+/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) uploads.
+pub async fn handle_create_upload(
+    project_id: Uuid,
+    payload: web::Payload,
+    storage: &Storage,
+) -> ResponseResult {
     let Some(bucket) = hosted_evals_bucket() else {
         return Ok(not_enabled());
     };
     let upload_id = Uuid::new_v4();
-    let key = hosted_evals::archive_key(&project_api_key.project_id, &upload_id);
+    let key = hosted_evals::archive_key(&project_id, &upload_id);
 
     // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
     let (tx, rx) = mpsc::channel(4);
@@ -111,19 +138,17 @@ async fn forward_archive(
     result
 }
 
-#[post("/hosted-evals/runs")]
-pub async fn start_run(
-    req: Json<StartRunRequest>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-    storage: web::Data<Arc<Storage>>,
-    http_client: web::Data<reqwest::Client>,
+/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) runs.
+pub async fn handle_start_run(
+    project_id: Uuid,
+    req: StartRunRequest,
+    db: &DB,
+    storage: &Storage,
+    http_client: &reqwest::Client,
 ) -> ResponseResult {
     let Some(bucket) = hosted_evals_bucket() else {
         return Ok(not_enabled());
     };
-    let req = req.into_inner();
-    let project_id = project_api_key.project_id;
     let key = hosted_evals::archive_key(&project_id, &req.upload_id);
     if storage.get_size(&bucket, &key).await.is_err() {
         return Ok(HttpResponse::BadRequest().json(json!({
@@ -135,7 +160,7 @@ pub async fn start_run(
         .await?;
 
     let sandbox_id =
-        hosted_evals::start_run(&http_client, &db, &project_id, &archive_url, &req.options).await?;
+        hosted_evals::start_run(http_client, db, &project_id, &archive_url, &req.options).await?;
     log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
 
     Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))

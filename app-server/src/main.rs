@@ -2585,6 +2585,8 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_dataset)
                             .service(api::v1::cli::datasets::update_dataset)
                             .service(api::v1::cli::datasets::delete_dataset)
+                            .service(api::v1::cli::hosted_evals::create_upload)
+                            .service(api::v1::cli::hosted_evals::start_run)
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)

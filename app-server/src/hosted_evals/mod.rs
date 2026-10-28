@@ -1,13 +1,15 @@
-//! Hosted evals: runs a project's Harbor `evals/` folder in a Daytona
-//! orchestrator sandbox. See `docs/internal/hosted-evals.md`.
+//! Hosted evals: runs a project's Harbor `evals/` folder from a Daytona
+//! orchestrator sandbox, with trials on Modal or Daytona. See
+//! `docs/internal/hosted-evals.md`.
 
 pub mod daytona;
 
 use std::{collections::HashMap, num::NonZeroU32};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -19,13 +21,15 @@ use daytona::{CreateSandbox, Daytona};
 /// Name prefix of the per-run project API keys. The frontend hides keys with it
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
+const PROJECT_LABEL: &str = "lmnr-project-id";
+const MODAL_APP_NAME: &str = "lmnr-hosted-evals";
 
 const ORCHESTRATOR_SCRIPT: &str = include_str!("orchestrator.py");
 // `uv` resolves the environment on every run, so both packages are pinned. The
 // session shell is zsh, hence the quoted extra. The sandbox deletes itself
 // however the run ends, so a failed bootstrap doesn't idle until its TTL.
 const ORCHESTRATOR_COMMAND: &str = concat!(
-    r#"uv run --no-project --python 3.13 --with 'harbor[daytona]==0.25.0' --with lmnr==0.8.3 python -c "$LMNR_EVAL_SCRIPT"; "#,
+    r#"uv run --no-project --python 3.13 --with 'harbor[daytona,modal]==0.25.0' --with lmnr==0.8.3 python -c "$LMNR_EVAL_SCRIPT"; "#,
     r#"curl -fsS -X DELETE -H "Authorization: Bearer $DAYTONA_API_KEY" "$DAYTONA_API_URL/sandbox/$DAYTONA_SANDBOX_ID""#,
 );
 const SESSION_ID: &str = "eval";
@@ -48,10 +52,53 @@ pub struct RunOptions {
     pub env: HashMap<String, String>,
 }
 
+/// Where Harbor runs the trials (`HOSTED_EVALS_TRIAL_ENVIRONMENT`).
+#[derive(Clone, Copy)]
+pub enum TrialEnvironment {
+    Modal,
+    Daytona,
+}
+
+impl TrialEnvironment {
+    /// The configured provider, or `None` if it's unknown or its credentials are missing.
+    pub fn configured() -> Option<Self> {
+        match env::hosted_evals::TRIAL_ENVIRONMENT.get().as_str() {
+            "modal" => [
+                env::hosted_evals::MODAL_TOKEN_ID,
+                env::hosted_evals::MODAL_TOKEN_SECRET,
+            ]
+            .iter()
+            .all(|name| std::env::var(name).is_ok_and(|v| !v.is_empty()))
+            .then_some(Self::Modal),
+            "daytona" => Some(Self::Daytona),
+            _ => None,
+        }
+    }
+
+    /// The job config's `environment` overrides. They replace the suite's `kwargs`,
+    /// which could otherwise name resources in our provider account (e.g. Modal secrets).
+    fn job_environment(self, project_id: &Uuid, max_run_minutes: u32) -> Value {
+        match self {
+            // Harbor's default timeout is 24 h; trials orphaned by a killed
+            // orchestrator die with the run instead.
+            Self::Modal => json!({
+                "type": "modal",
+                "kwargs": {
+                    "app_name": MODAL_APP_NAME,
+                    "sandbox_timeout_secs": u64::from(max_run_minutes) * 60,
+                    "labels": { PROJECT_LABEL: project_id },
+                },
+            }),
+            Self::Daytona => json!({ "type": "daytona", "kwargs": {} }),
+        }
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RunParams<'a> {
     archive_url: &'a str,
+    trial_environment: Value,
     #[serde(flatten)]
     options: &'a RunOptions,
 }
@@ -109,12 +156,15 @@ async fn launch_orchestrator(
     archive_url: &str,
     options: &RunOptions,
 ) -> Result<String> {
+    let trial_environment = TrialEnvironment::configured()
+        .ok_or_else(|| anyhow!("No usable hosted evals trial environment configured"))?;
     let api_key = std::env::var(env::hosted_evals::DAYTONA_API_KEY)?;
     let api_url = env::hosted_evals::DAYTONA_API_URL.get();
     let daytona = Daytona::new(http, api_url.clone(), api_key.clone());
 
     let params = serde_json::to_string(&RunParams {
         archive_url,
+        trial_environment: trial_environment.job_environment(project_id, max_run_minutes),
         options,
     })?;
     let mut sandbox_env = HashMap::from([
@@ -131,6 +181,14 @@ async fn launch_orchestrator(
             ORCHESTRATOR_SCRIPT.to_string(),
         ),
     ]);
+    if let TrialEnvironment::Modal = trial_environment {
+        for name in [
+            env::hosted_evals::MODAL_TOKEN_ID,
+            env::hosted_evals::MODAL_TOKEN_SECRET,
+        ] {
+            sandbox_env.insert(name.to_string(), std::env::var(name)?);
+        }
+    }
     if let Some(base_url) = std::env::var(env::hosted_evals::LMNR_BASE_URL)
         .ok()
         .filter(|url| !url.is_empty())
@@ -141,7 +199,7 @@ async fn launch_orchestrator(
     let sandbox = daytona
         .create_sandbox(&CreateSandbox {
             env: sandbox_env,
-            labels: HashMap::from([("lmnr-project-id".to_string(), project_id.to_string())]),
+            labels: HashMap::from([(PROJECT_LABEL.to_string(), project_id.to_string())]),
             // A running command doesn't count as activity, so auto-stop would kill long runs.
             auto_stop_interval: 0,
             auto_delete_interval: 0,
@@ -178,11 +236,13 @@ mod tests {
         let options: RunOptions = serde_json::from_str(r#"{"nAttempts": 2}"#).unwrap();
         let params = serde_json::to_value(RunParams {
             archive_url: "https://example.com/evals.tar.gz",
+            trial_environment: TrialEnvironment::Modal.job_environment(&Uuid::nil(), 60),
             options: &options,
         })
         .unwrap();
         for key in [
             "archiveUrl",
+            "trialEnvironment",
             "datasets",
             "tasks",
             "nAttempts",
@@ -194,6 +254,11 @@ mod tests {
         }
         assert_eq!(params["nAttempts"], 2);
         assert!(params["nConcurrent"].is_null());
+        assert_eq!(params["trialEnvironment"]["type"], "modal");
+        assert_eq!(
+            params["trialEnvironment"]["kwargs"]["sandbox_timeout_secs"],
+            3600
+        );
     }
 
     #[test]

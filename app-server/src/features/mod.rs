@@ -121,6 +121,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::HostedEvals => {
             std::env::var(env::hosted_evals::DAYTONA_API_KEY).is_ok_and(|s| !s.is_empty())
                 && is_feature_enabled(Feature::Storage)
+                && crate::hosted_evals::TrialEnvironment::configured().is_some()
         }
     }
 }
