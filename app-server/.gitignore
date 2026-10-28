@@ -1,3 +1,4 @@
 /target
 .env
-.sqlx__pycache__/
+.sqlx
+__pycache__/
