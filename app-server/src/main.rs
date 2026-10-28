@@ -12,7 +12,7 @@ use actix_web::{
     App, HttpServer,
     body::{BoxBody, EitherBody},
     dev,
-    http::StatusCode,
+    http::{StatusCode, header},
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
@@ -2511,7 +2511,8 @@ fn main() -> anyhow::Result<()> {
                                     )
                                     // Actix's default 413 body depends on the extractor and the
                                     // `Bytes` one ("payload reached size limit") is opaque, so
-                                    // SDKs log it verbatim. Normalize it for every route.
+                                    // SDKs log it verbatim. Normalize it for every route, but keep
+                                    // JSON 413s a handler wrote itself (e.g. hosted-evals' archive cap).
                                     .handler(
                                         StatusCode::PAYLOAD_TOO_LARGE,
                                         |res: dev::ServiceResponse| {
@@ -2519,6 +2520,18 @@ fn main() -> anyhow::Result<()> {
                                                 "Payload too large: {}",
                                                 res.request().path()
                                             );
+                                            if res
+                                                .response()
+                                                .headers()
+                                                .get(header::CONTENT_TYPE)
+                                                .is_some_and(|v| {
+                                                    v.as_bytes().starts_with(b"application/json")
+                                                })
+                                            {
+                                                return Ok(ErrorHandlerResponse::Response(
+                                                    res.map_into_left_body(),
+                                                ));
+                                            }
                                             Ok(ErrorHandlerResponse::Response(res.map_body(
                                                 |_, _| {
                                                     EitherBody::right(BoxBody::new(
