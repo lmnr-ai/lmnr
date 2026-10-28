@@ -67,7 +67,7 @@ export default function VersioningSetup({ projectId, releaseMode }: VersioningSe
               ) : (
                 <>
                   Set <code className="font-mono">LMNR_RELEASE</code> to the git commit SHA in your deployment to pin
-                  each version to the release that shipped it. Recommended for the most accurate version detection.{" "}
+                  each trace to the release that shipped it. Recommended for the most accurate version detection.{" "}
                   <a
                     href={RELEASES_DOCS_URL}
                     target="_blank"
