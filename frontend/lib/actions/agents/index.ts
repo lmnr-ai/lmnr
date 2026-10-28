@@ -61,7 +61,7 @@ export interface AgentVersionItem {
 
 export interface AgentVersionTracesPoint {
   timestamp: string;
-  /** Trace count per version id. */
+  /** Trace count per version id, plus `UNVERSIONED_KEY` from `./types`. */
   [versionId: string]: number | string;
 }
 

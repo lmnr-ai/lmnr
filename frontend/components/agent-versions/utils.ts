@@ -20,6 +20,9 @@ const VERSION_PALETTE = CATEGORICAL_COLOR_PALETTE.map(
   (_, index) => CATEGORICAL_COLOR_PALETTE[(index * 29) % CATEGORICAL_COLOR_PALETTE.length]
 );
 
+/** Same neutral as unclustered signal events: the absence of a version, not another version. */
+export const UNVERSIONED_COLOR = "var(--unclustered)";
+
 export function versionColor(agentId: string, versionNumber: number): string {
   let hash = 2166136261;
   for (let i = 0; i < agentId.length; i++) {
