@@ -13,7 +13,7 @@ use crate::{
 const TRUNCATE_CHARS: usize = 200;
 const TRACE_EVALUATION_ID_TTL_SECONDS: u64 = 86_400;
 
-async fn cache_trace_evaluation_id(
+pub async fn cache_trace_evaluation_id(
     cache: &Cache,
     project_id: &Uuid,
     trace_id: &Uuid,

@@ -119,6 +119,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
+    accessorFn: (row) => new Date(row.endTime).getTime() - new Date(row.startTime).getTime(),
     header: "Duration",
     id: "duration",
     enableSorting: true,

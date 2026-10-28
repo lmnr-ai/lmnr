@@ -105,7 +105,7 @@ export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
     return buildComparisonQuery(options);
   }
 
-  return buildSingleEvalQuery({
+  const inner = buildSingleEvalQuery({
     evaluationId,
     columns,
     traceIds,
@@ -117,7 +117,18 @@ export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
     sortDirection,
     evalIdParam: "evaluationId",
   });
+
+  const outerSelect = columns.map((c, i) => `${colAlias(i)} as ${backtickEscape(c.id)}`).join(", ");
+  const query = `SELECT ${outerSelect} FROM (${inner.query}) ORDER BY ${inner.orderBy.join(", ")}`;
+
+  return { query, parameters: inner.parameters };
 }
+
+// Inner queries select every column under a positional alias. ClickHouse resolves a SELECT alias
+// before a same-named table column, so `substring(data, 1, 200) as data` would feed the truncated
+// value to custom columns, filters and sorts that read `data`.
+const colAlias = (i: number) => `__c${i}`;
+const sortAlias = (i: number) => `__s${i}`;
 
 interface SingleEvalQueryOptions {
   evaluationId: string;
@@ -133,16 +144,26 @@ interface SingleEvalQueryOptions {
   paramPrefix?: string; // prefix for all parameter names to avoid collisions
 }
 
-function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
+interface InnerEvalQuery extends QueryResult {
+  orderBy: string[]; // sort-alias terms, for the outer query to reapply
+}
+
+function buildSingleEvalQuery(options: SingleEvalQueryOptions): InnerEvalQuery {
   const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, evalIdParam } =
     options;
 
   const prefix = options.paramPrefix || "";
   const parameters: QueryParams = {};
 
+  const sortExprs = sortBy ? [resolveSortExpression(sortBy, sortSql, columns)] : ["`index`", "created_at"];
+  const direction = sortBy ? (sortDirection ?? "ASC") : "ASC";
+  const orderBy = sortExprs.map((_, i) => `${sortAlias(i)} ${direction}`);
+
   // SELECT
-  const selectClauses = columns.map((c) => `${c.sql} as ${backtickEscape(c.id)}`);
-  const selectStr = selectClauses.join(", ");
+  const selectStr = [
+    ...columns.map((c, i) => `${c.sql} as ${colAlias(i)}`),
+    ...sortExprs.map((e, i) => `${e} as ${sortAlias(i)}`),
+  ].join(", ");
 
   // WHERE
   const whereConditions: string[] = [];
@@ -165,16 +186,7 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   Object.assign(parameters, filterParams);
 
   const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
-
-  // ORDER BY
-  let orderByStr: string;
-  if (sortBy) {
-    const sortColumn = resolveSortExpression(sortBy, sortSql, columns);
-    const direction = sortDirection ?? "ASC";
-    orderByStr = `ORDER BY ${sortColumn} ${direction}`;
-  } else {
-    orderByStr = "ORDER BY `index` ASC, created_at ASC";
-  }
+  const orderByStr = `ORDER BY ${orderBy.join(", ")}`;
 
   // PAGINATION
   let limitString = "";
@@ -194,7 +206,7 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
       .trim()
       .replace(/\s+/g, " ");
 
-  return { query, parameters };
+  return { query, parameters, orderBy };
 }
 
 function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQueryColumn[]): string {
@@ -240,27 +252,24 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     ...comparedResult.parameters,
   };
 
-  // Determine which columns get compared aliases — uses comparable flag from FE column config
-  const comparableColumns = columns.filter((c) => c.comparable);
+  const indexPos = columns.findIndex((c) => c.id === "index");
+  if (indexPos === -1) {
+    throw new Error("comparison requires the index column");
+  }
+  const indexAlias = colAlias(indexPos);
 
   // Build outer SELECT
-  const primarySelect = columns.map((c) => `p.${backtickEscape(c.id)}`);
-  const comparedSelect = comparableColumns.map(
-    (c) => `c.${backtickEscape(c.id)} as ${backtickEscape(`compared:${c.id}`)}`
-  );
+  const primarySelect = columns.map((c, i) => `p.${colAlias(i)} as ${backtickEscape(c.id)}`);
+  // Compared aliases only for columns the FE config marks comparable
+  const comparedSelect = columns
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => c.comparable)
+    .map(({ c, i }) => `c.${colAlias(i)} as ${backtickEscape(`compared:${c.id}`)}`);
 
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
+  const orderByStr = `ORDER BY ${primaryResult.orderBy.map((o) => `p.${o}`).join(", ")}`;
 
-  let orderByStr: string;
-  if (sortBy && columns.find((c) => c.id === sortBy)) {
-    const sortColumn = backtickEscape(sortBy);
-    const direction = sortDirection ?? "ASC";
-    orderByStr = `ORDER BY p.${sortColumn} ${direction}`;
-  } else {
-    orderByStr = "ORDER BY p.`index` ASC, p.`createdAt` ASC";
-  }
-
-  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.\`index\` = c.\`index\` ${orderByStr}`;
+  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.${indexAlias} = c.${indexAlias} ${orderByStr}`;
 
   return { query, parameters };
 }
