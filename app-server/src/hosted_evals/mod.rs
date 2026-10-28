@@ -93,9 +93,6 @@ pub async fn start_run(
 ) -> Result<String, RunError> {
     let cli_package = cli_package(&request.cli_version).ok_or(RunError::InvalidCliVersion)?;
     let daytona = daytona_client(http)?;
-    sandboxes::ensure_capacity(&daytona, project_id)
-        .await
-        .map_err(RunError::Sandbox)?;
 
     // The sandbox (and the user code in it) gets a key of its own that dies with
     // the run, never one of the project's user-facing keys.
@@ -131,7 +128,7 @@ pub async fn start_run(
     {
         log::error!("Failed to delete hosted eval run key: {e:?}");
     }
-    result.map_err(RunError::Internal)
+    result
 }
 
 /// `lmnr-cli@<version>` for the requesting CLI's version, unless the
@@ -157,15 +154,20 @@ async fn launch_orchestrator(
     cache: &Cache,
     project_id: &Uuid,
     env: HashMap<String, String>,
-) -> Result<String> {
-    let sandbox = daytona
-        .create_sandbox(&CreateSandbox {
+) -> Result<String, RunError> {
+    let sandbox = sandboxes::create_within_capacity(
+        daytona,
+        cache,
+        project_id,
+        &CreateSandbox {
             env,
             labels: sandboxes::project_labels(project_id, "orchestrator"),
             ttl_minutes: env::hosted_evals::MAX_RUN_MINUTES.get(),
             ..Default::default()
-        })
-        .await?;
+        },
+    )
+    .await
+    .map_err(RunError::Sandbox)?;
 
     if let Err(e) = start_orchestrator(daytona, &sandbox.id).await {
         if let Err(delete_err) = daytona.delete_sandbox(&sandbox.id).await {
@@ -174,7 +176,7 @@ async fn launch_orchestrator(
                 sandbox.id
             );
         }
-        return Err(e);
+        return Err(e.into());
     }
     sandboxes::remember(cache, project_id, &sandbox.id, &sandbox.toolbox_proxy_url).await;
     Ok(sandbox.id)

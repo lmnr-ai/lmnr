@@ -8,6 +8,12 @@ pub const PROJECT_CACHE_KEY: &str = "project";
 /// `hosted_evals_sandbox:{project_id}:{sandbox_id}` → the sandbox's Daytona toolbox
 /// URL. Present only once the sandbox was confirmed to carry the project's label.
 pub const HOSTED_EVALS_SANDBOX_CACHE_KEY: &str = "hosted_evals_sandbox";
+/// `hosted_evals_capacity_lock:{project_id}`: held across a project's sandbox
+/// count and create, so concurrent creates can't all pass the same count.
+pub const HOSTED_EVALS_CAPACITY_LOCK_CACHE_KEY: &str = "hosted_evals_capacity_lock";
+/// `hosted_evals_recent_sandboxes:{project_id}` → sandboxes created in the last
+/// few seconds, which Daytona's list doesn't show yet. Written under the lock above.
+pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_sandboxes";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]

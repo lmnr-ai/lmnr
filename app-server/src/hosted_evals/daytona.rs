@@ -12,7 +12,8 @@ use reqwest::{Client, RequestBuilder, Response, StatusCode, multipart};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-const LIST_TIMEOUT: Duration = Duration::from_secs(30);
+pub const LIST_TIMEOUT: Duration = Duration::from_secs(30);
+pub const CREATE_TIMEOUT: Duration = Duration::from_secs(30);
 const START_TIMEOUT: Duration = Duration::from_secs(120);
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
 const DELETE_TIMEOUT: Duration = Duration::from_secs(60);
@@ -118,7 +119,7 @@ impl<'a> Daytona<'a> {
     pub async fn create_sandbox(&self, request: &CreateSandbox) -> Result<Sandbox> {
         let url = format!("{}/sandbox", self.api_url);
         Ok(self
-            .send(self.http.post(url).json(request))
+            .send(self.http.post(url).timeout(CREATE_TIMEOUT).json(request))
             .await?
             .json()
             .await?)

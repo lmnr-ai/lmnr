@@ -479,6 +479,10 @@ fn create_error_response(error: CreateError) -> HttpResponse {
                  Lower n_concurrent_trials or wait for running trials to finish."
             )
         })),
+        CreateError::CapacityBusy => HttpResponse::TooManyRequests().json(json!({
+            "error": "Too many hosted-evals sandboxes are being created for this project \
+                      at once. Retry shortly."
+        })),
         CreateError::Daytona(e) => {
             log::error!("Hosted evals sandbox creation failed: {e:?}");
             HttpResponse::build(StatusCode::BAD_GATEWAY)

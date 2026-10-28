@@ -2,25 +2,46 @@
 //! lmnr-cli) drives these through `/v1/hosted-evals/sandboxes/*`; every call
 //! checks the sandbox carries the caller's project label.
 
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
     PROJECT_LABEL, contexts,
-    daytona::{BuildInfo, CreateSandbox, Daytona, Toolbox},
+    daytona::{self, BuildInfo, CreateSandbox, Daytona, Sandbox, Toolbox},
     daytona_client, shell_quote,
 };
 use crate::{
-    cache::{Cache, CacheTrait, keys::HOSTED_EVALS_SANDBOX_CACHE_KEY},
+    cache::{
+        Cache, CacheTrait,
+        keys::{
+            HOSTED_EVALS_CAPACITY_LOCK_CACHE_KEY, HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY,
+            HOSTED_EVALS_SANDBOX_CACHE_KEY,
+        },
+    },
     env,
 };
 
 const STDERR_DIR: &str = "/tmp/.lmnr-exec";
+/// Outlives the work under the lock (one list, one create), so a lock that is
+/// still held never expires and gets released by someone else.
+const CAPACITY_LOCK_TTL_SECONDS: u64 =
+    daytona::LIST_TIMEOUT.as_secs() + daytona::CREATE_TIMEOUT.as_secs() + 30;
+/// Daytona answers a create in ~100 ms, so a burst of trials queues for seconds.
+/// Past this the client gets a 429 and retries.
+const CAPACITY_LOCK_WAIT: Duration = Duration::from_secs(60);
+const CAPACITY_LOCK_POLL: Duration = Duration::from_millis(100);
+/// Daytona's sandbox list shows a new sandbox ~1 s after the create returns;
+/// creates younger than this are counted from the cache instead.
+const RECENT_CREATE_WINDOW_SECONDS: i64 = 15;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,9 +55,17 @@ pub struct CreateTrialSandbox {
     pub disk_gb: Option<u32>,
 }
 
+/// A sandbox the project created moments ago, possibly not listed yet.
+#[derive(Serialize, Deserialize)]
+struct RecentCreate {
+    id: String,
+    created_at: DateTime<Utc>,
+}
+
 pub enum CreateError {
     InvalidContextHash(String),
     TooManySandboxes(usize),
+    CapacityBusy,
     Daytona(anyhow::Error),
 }
 
@@ -77,10 +106,11 @@ pub async fn create(
         return Err(CreateError::InvalidContextHash(hash.clone()));
     }
     let daytona = daytona_client(http).map_err(CreateError::Daytona)?;
-    ensure_capacity(&daytona, project_id).await?;
-
-    let sandbox = daytona
-        .create_sandbox(&CreateSandbox {
+    let sandbox = create_within_capacity(
+        &daytona,
+        cache,
+        project_id,
+        &CreateSandbox {
             labels: project_labels(project_id, "trial"),
             build_info: Some(BuildInfo {
                 dockerfile_content: request.dockerfile,
@@ -101,9 +131,9 @@ pub async fn create(
                 .map(|d| d.clamp(1, env::hosted_evals::MAX_SANDBOX_DISK_GB.get())),
             ttl_minutes: env::hosted_evals::MAX_RUN_MINUTES.get(),
             ..Default::default()
-        })
-        .await
-        .map_err(CreateError::Daytona)?;
+        },
+    )
+    .await?;
     remember(cache, project_id, &sandbox.id, &sandbox.toolbox_proxy_url).await;
     Ok(sandbox.id)
 }
@@ -116,7 +146,78 @@ pub fn project_labels(project_id: &Uuid, role: &str) -> HashMap<String, String> 
     ])
 }
 
-pub async fn ensure_capacity(daytona: &Daytona<'_>, project_id: &Uuid) -> Result<(), CreateError> {
+/// Creates a sandbox for the project unless it already holds
+/// `HOSTED_EVALS_MAX_SANDBOXES_PER_PROJECT`. The count and the create run under
+/// a per-project lock: Harbor starts trials concurrently, and unlocked they
+/// would all pass the same count. The lock also guards the recent-creates list.
+pub async fn create_within_capacity(
+    daytona: &Daytona<'_>,
+    cache: &Cache,
+    project_id: &Uuid,
+    request: &CreateSandbox,
+) -> Result<Sandbox, CreateError> {
+    let lock_key = format!("{HOSTED_EVALS_CAPACITY_LOCK_CACHE_KEY}:{project_id}");
+    let recent_key = format!("{HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY}:{project_id}");
+    let locked = acquire_capacity_lock(cache, &lock_key).await?;
+    let result = async {
+        let mut recent = recent_creates(cache, &recent_key).await;
+        ensure_capacity(daytona, project_id, &recent).await?;
+        let sandbox = daytona
+            .create_sandbox(request)
+            .await
+            .map_err(CreateError::Daytona)?;
+        recent.push(RecentCreate {
+            id: sandbox.id.clone(),
+            created_at: Utc::now(),
+        });
+        let ttl = RECENT_CREATE_WINDOW_SECONDS as u64 * 4;
+        if let Err(e) = cache.insert_with_ttl(&recent_key, &recent, ttl).await {
+            log::warn!(
+                "Failed to record hosted evals sandbox {}: {e:?}",
+                sandbox.id
+            );
+        }
+        Ok(sandbox)
+    }
+    .await;
+    if locked && let Err(e) = cache.release_lock(&lock_key).await {
+        log::warn!("Failed to release hosted evals capacity lock for project {project_id}: {e:?}");
+    }
+    result
+}
+
+/// `Ok(false)` when the cache itself fails: creates then go ahead unlocked, so
+/// the cap is best-effort during a cache outage rather than hosted evals failing.
+async fn acquire_capacity_lock(cache: &Cache, key: &str) -> Result<bool, CreateError> {
+    let deadline = Instant::now() + CAPACITY_LOCK_WAIT;
+    loop {
+        match cache.try_acquire_lock(key, CAPACITY_LOCK_TTL_SECONDS).await {
+            Ok(true) => return Ok(true),
+            Ok(false) if Instant::now() < deadline => tokio::time::sleep(CAPACITY_LOCK_POLL).await,
+            Ok(false) => return Err(CreateError::CapacityBusy),
+            Err(e) => {
+                log::warn!("Hosted evals capacity lock unavailable, creating without it: {e:?}");
+                return Ok(false);
+            }
+        }
+    }
+}
+
+/// The project's creates within `RECENT_CREATE_WINDOW_SECONDS`.
+async fn recent_creates(cache: &Cache, key: &str) -> Vec<RecentCreate> {
+    let cutoff = Utc::now() - chrono::Duration::seconds(RECENT_CREATE_WINDOW_SECONDS);
+    let recent: Vec<RecentCreate> = cache.get(key).await.ok().flatten().unwrap_or_default();
+    recent
+        .into_iter()
+        .filter(|r| r.created_at > cutoff)
+        .collect()
+}
+
+async fn ensure_capacity(
+    daytona: &Daytona<'_>,
+    project_id: &Uuid,
+    recent: &[RecentCreate],
+) -> Result<(), CreateError> {
     let max = env::hosted_evals::MAX_SANDBOXES_PER_PROJECT.get();
     let existing = daytona
         .list_sandboxes(
@@ -125,10 +226,18 @@ pub async fn ensure_capacity(daytona: &Daytona<'_>, project_id: &Uuid) -> Result
         )
         .await
         .map_err(CreateError::Daytona)?;
-    let live = existing
+    let listed: HashSet<&str> = existing.iter().map(|s| s.id.as_str()).collect();
+    // Deleted sandboxes drop out of the list, so a recent create missing from it
+    // is either not listed yet or already deleted; counting it errs on the safe side.
+    let unlisted = recent
         .iter()
-        .filter(|s| !matches!(s.state.as_str(), "destroyed" | "destroying"))
+        .filter(|r| !listed.contains(r.id.as_str()))
         .count();
+    let live = unlisted
+        + existing
+            .iter()
+            .filter(|s| !matches!(s.state.as_str(), "destroyed" | "destroying"))
+            .count();
     if live >= max {
         return Err(CreateError::TooManySandboxes(max));
     }
