@@ -91,6 +91,8 @@ export interface AgentVersionsResult {
     createdAt: string;
     /** `null` for agents identified by the system prompt's first sentence. */
     definition: AgentDefinition | null;
+    /** Versioned by SDK releases; set once most recent traces carry `LMNR_RELEASE`. */
+    releaseMode: boolean;
   };
   versions: AgentVersionItem[];
 }
@@ -107,6 +109,7 @@ export async function getAgentVersions(
       agentHash: agents.agentHash,
       createdAt: agents.createdAt,
       definition: agents.definition,
+      releaseMode: agents.releaseMode,
     })
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))

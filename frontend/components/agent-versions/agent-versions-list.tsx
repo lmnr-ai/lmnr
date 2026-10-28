@@ -14,6 +14,7 @@ import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
 import VersionTraces from "./version-traces";
+import VersioningSetup from "./versioning-setup";
 
 interface AgentVersionsListProps {
   projectId: string;
@@ -51,6 +52,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
           />
         )}
       </div>
+      {data && <VersioningSetup projectId={projectId} releaseMode={data.agent.releaseMode} />}
       {data && (
         <AgentDefinition
           projectId={projectId}
