@@ -19,6 +19,10 @@ impl super::StorageTrait for MockStorage {
         Ok(0)
     }
 
+    async fn exists(&self, _bucket: &str, _key: &str) -> Result<bool> {
+        Ok(false)
+    }
+
     async fn upload_stream(
         &self,
         _bucket: &str,

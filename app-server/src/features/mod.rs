@@ -55,8 +55,8 @@ pub enum Feature {
     /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
     /// (default true).
     Quickwit,
-    /// Hosted Harbor evals (`src/hosted_evals/`): trial sandboxes proxied to
-    /// Daytona. Detached runs additionally need S3 storage for the upload.
+    /// Hosted Harbor evals (`src/hosted_evals/`): trial sandboxes proxied to the
+    /// sandbox provider (Daytona). Detached runs additionally need S3 storage.
     HostedEvals,
 }
 

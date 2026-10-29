@@ -121,6 +121,21 @@ impl super::StorageTrait for S3Storage {
             .map(|l| l as u64)
     }
 
+    async fn exists(&self, bucket: &str, key: &str) -> Result<bool> {
+        match self
+            .client
+            .head_object()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(e) if e.as_service_error().is_some_and(|e| e.is_not_found()) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     async fn upload_stream(
         &self,
         bucket: &str,

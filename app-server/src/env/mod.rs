@@ -206,6 +206,14 @@ pub fn num_with_default<T: FromStr>(name: &str, default: T) -> T {
         .unwrap_or(default)
 }
 
+/// A string env var with no default: `None` when unset or empty (after trimming).
+pub fn optional_string(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use std::env as std_env;

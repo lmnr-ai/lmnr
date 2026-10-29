@@ -1,6 +1,5 @@
 //! Minimal Daytona REST client: the sandbox, toolbox, private-registry and
-//! snapshot calls hosted evals proxy. The API key never leaves the
-//! app-server.
+//! snapshot calls hosted evals need.
 
 use std::{
     collections::HashMap,
@@ -14,19 +13,21 @@ use reqwest::{Client, RequestBuilder, Response, StatusCode, multipart};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub const LIST_TIMEOUT: Duration = Duration::from_secs(30);
-pub const CREATE_TIMEOUT: Duration = Duration::from_secs(30);
-const START_TIMEOUT: Duration = Duration::from_secs(120);
-const POLL_INTERVAL: Duration = Duration::from_secs(1);
+const LIST_TIMEOUT: Duration = Duration::from_secs(30);
+const CREATE_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Per read, not per request: file transfers stream for longer.
+const READ_TIMEOUT: Duration = Duration::from_secs(120);
 const DELETE_TIMEOUT: Duration = Duration::from_secs(60);
+const DELETE_POLL: Duration = Duration::from_secs(2);
 
-pub struct Daytona<'a> {
-    http: &'a Client,
+pub struct Daytona {
+    http: Client,
     api_url: String,
     api_key: String,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSandbox {
     pub env: HashMap<String, String>,
@@ -68,7 +69,7 @@ pub struct DockerRegistry {
 
 /// Body of creating or updating a `DockerRegistry`.
 #[derive(Serialize)]
-pub struct RegistryCredentials {
+pub struct DockerRegistryRequest {
     pub name: String,
     /// `https://<host>`.
     pub url: String,
@@ -114,21 +115,13 @@ struct CommandStatus {
     exit_code: Option<i32>,
 }
 
-/// The toolbox address of one sandbox: `<toolboxProxyUrl>/<sandboxId>`.
-pub struct Toolbox {
-    base: String,
-}
-
-impl Toolbox {
-    pub fn new(toolbox_proxy_url: &str, sandbox_id: &str) -> Self {
-        Self {
-            base: format!("{toolbox_proxy_url}/{sandbox_id}"),
-        }
-    }
-}
-
-impl<'a> Daytona<'a> {
-    pub fn new(http: &'a Client, api_url: String, api_key: String) -> Self {
+impl Daytona {
+    pub fn new(api_url: String, api_key: String) -> Self {
+        let http = Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
+            .build()
+            .expect("Failed to build the Daytona HTTP client");
         Self {
             http,
             api_url,
@@ -148,35 +141,12 @@ impl<'a> Daytona<'a> {
     /// `None` if Daytona doesn't know the sandbox (already deleted).
     pub async fn get_sandbox(&self, id: &str) -> Result<Option<Sandbox>> {
         let url = format!("{}/sandbox/{id}", self.api_url);
-        let response = self.http.get(url).bearer_auth(&self.api_key).send().await?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(None);
-        }
-        Ok(Some(check(response).await?.json().await?))
-    }
-
-    pub async fn wait_until_started(&self, id: &str) -> Result<Sandbox> {
-        let deadline = Instant::now() + START_TIMEOUT;
-        loop {
-            let Some(sandbox) = self.get_sandbox(id).await? else {
-                bail!("Daytona sandbox {id} disappeared before starting");
-            };
-            match sandbox.state.as_str() {
-                "started" => return Ok(sandbox),
-                "error" | "build_failed" | "destroyed" | "destroying" => bail!(
-                    "Daytona sandbox {id} is {}: {}",
-                    sandbox.state,
-                    sandbox.error_reason.unwrap_or_default()
-                ),
-                _ if Instant::now() >= deadline => {
-                    bail!("Daytona sandbox {id} did not start within {START_TIMEOUT:?}")
-                }
-                _ => tokio::time::sleep(POLL_INTERVAL).await,
-            }
+        match self.send_optional(self.http.get(url)).await? {
+            Some(response) => Ok(Some(response.json().await?)),
+            None => Ok(None),
         }
     }
 
-    /// Deletes the sandbox. One that is gone or already being destroyed counts as deleted.
     pub async fn delete_sandbox(&self, id: &str) -> Result<()> {
         let url = format!("{}/sandbox/{id}", self.api_url);
         let deadline = Instant::now() + DELETE_TIMEOUT;
@@ -201,7 +171,7 @@ impl<'a> Daytona<'a> {
                     if Instant::now() >= deadline {
                         check(response).await?;
                     }
-                    tokio::time::sleep(POLL_INTERVAL * 2).await;
+                    tokio::time::sleep(DELETE_POLL).await;
                 }
                 _ => {
                     check(response).await?;
@@ -231,45 +201,36 @@ impl<'a> Daytona<'a> {
         Ok(self.send(self.http.get(url)).await?.json().await?)
     }
 
-    pub async fn create_registry(&self, credentials: &RegistryCredentials) -> Result<()> {
+    pub async fn create_registry(&self, request: &DockerRegistryRequest) -> Result<()> {
         let url = format!("{}/docker-registry", self.api_url);
-        self.send(self.http.post(url).json(credentials)).await?;
+        self.send(self.http.post(url).json(request)).await?;
         Ok(())
     }
 
-    pub async fn update_registry(&self, id: &str, credentials: &RegistryCredentials) -> Result<()> {
+    pub async fn update_registry(&self, id: &str, request: &DockerRegistryRequest) -> Result<()> {
         let url = format!("{}/docker-registry/{id}", self.api_url);
-        self.send(self.http.patch(url).json(credentials)).await?;
+        self.send(self.http.patch(url).json(request)).await?;
         Ok(())
     }
 
     pub async fn delete_registry(&self, id: &str) -> Result<()> {
         let url = format!("{}/docker-registry/{id}", self.api_url);
-        let response = self
-            .http
-            .delete(url)
-            .bearer_auth(&self.api_key)
-            .send()
-            .await?;
-        if response.status() != StatusCode::NOT_FOUND {
-            check(response).await?;
-        }
+        self.send_optional(self.http.delete(url)).await?;
         Ok(())
     }
 
     /// `None` if no snapshot has this name.
     pub async fn get_snapshot(&self, name: &str) -> Result<Option<Snapshot>> {
         let url = format!("{}/snapshots/{name}", self.api_url);
-        let response = self.http.get(url).bearer_auth(&self.api_key).send().await?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(None);
+        match self.send_optional(self.http.get(url)).await? {
+            Some(response) => Ok(Some(response.json().await?)),
+            None => Ok(None),
         }
-        Ok(Some(check(response).await?.json().await?))
     }
 
-    /// Starts creating the snapshot. `None` if one with this name already exists
-    /// (a concurrent request created it).
-    pub async fn create_snapshot(&self, request: &CreateSnapshot) -> Result<Option<Snapshot>> {
+    /// Starts creating the snapshot. `false` if one with this name already
+    /// exists (a concurrent request created it).
+    pub async fn create_snapshot(&self, request: &CreateSnapshot) -> Result<bool> {
         let url = format!("{}/snapshots", self.api_url);
         let response = self
             .http
@@ -280,9 +241,10 @@ impl<'a> Daytona<'a> {
             .send()
             .await?;
         if response.status() == StatusCode::CONFLICT {
-            return Ok(None);
+            return Ok(false);
         }
-        Ok(Some(check(response).await?.json().await?))
+        check(response).await?;
+        Ok(true)
     }
 
     /// Re-activates a snapshot Daytona deactivated for being unused.
@@ -306,22 +268,15 @@ impl<'a> Daytona<'a> {
 
     pub async fn delete_snapshot(&self, id: &str) -> Result<()> {
         let url = format!("{}/snapshots/{id}", self.api_url);
-        let response = self
-            .http
-            .delete(url)
-            .bearer_auth(&self.api_key)
-            .send()
-            .await?;
-        if response.status() != StatusCode::NOT_FOUND {
-            check(response).await?;
-        }
+        self.send_optional(self.http.delete(url)).await?;
         Ok(())
     }
 
-    pub async fn create_session(&self, toolbox: &Toolbox, session_id: &str) -> Result<()> {
+    /// `toolbox` is `<toolboxProxyUrl>/<sandboxId>`, as for every toolbox call.
+    pub async fn create_session(&self, toolbox: &str, session_id: &str) -> Result<()> {
         self.send(
             self.http
-                .post(format!("{}/process/session", toolbox.base))
+                .post(format!("{toolbox}/process/session"))
                 .json(&json!({ "sessionId": session_id })),
         )
         .await?;
@@ -331,17 +286,14 @@ impl<'a> Daytona<'a> {
     /// Starts `command` in the session and returns its command id without waiting.
     pub async fn exec_async(
         &self,
-        toolbox: &Toolbox,
+        toolbox: &str,
         session_id: &str,
         command: &str,
     ) -> Result<String> {
         let response: ExecResponse = self
             .send(
                 self.http
-                    .post(format!(
-                        "{}/process/session/{session_id}/exec",
-                        toolbox.base
-                    ))
+                    .post(format!("{toolbox}/process/session/{session_id}/exec"))
                     .json(&json!({ "command": command, "runAsync": true })),
             )
             .await?
@@ -353,14 +305,13 @@ impl<'a> Daytona<'a> {
     /// The command's exit code, or `None` while it is still running.
     pub async fn command_exit_code(
         &self,
-        toolbox: &Toolbox,
+        toolbox: &str,
         session_id: &str,
         command_id: &str,
     ) -> Result<Option<i32>> {
         let status: CommandStatus = self
             .send(self.http.get(format!(
-                "{}/process/session/{session_id}/command/{command_id}",
-                toolbox.base
+                "{toolbox}/process/session/{session_id}/command/{command_id}"
             )))
             .await?
             .json()
@@ -371,21 +322,20 @@ impl<'a> Daytona<'a> {
     /// The command's output. The REST endpoint merges stdout and stderr.
     pub async fn command_logs(
         &self,
-        toolbox: &Toolbox,
+        toolbox: &str,
         session_id: &str,
         command_id: &str,
     ) -> Result<String> {
         Ok(self
             .send(self.http.get(format!(
-                "{}/process/session/{session_id}/command/{command_id}/logs",
-                toolbox.base
+                "{toolbox}/process/session/{session_id}/command/{command_id}/logs"
             )))
             .await?
             .text()
             .await?)
     }
 
-    pub async fn upload_file(&self, toolbox: &Toolbox, path: &str, content: Bytes) -> Result<()> {
+    pub async fn upload_file(&self, toolbox: &str, path: &str, content: Bytes) -> Result<()> {
         let length = content.len() as u64;
         let form = multipart::Form::new().part(
             "file",
@@ -394,7 +344,7 @@ impl<'a> Daytona<'a> {
         );
         self.send(
             self.http
-                .post(format!("{}/files/upload", toolbox.base))
+                .post(format!("{toolbox}/files/upload"))
                 .query(&[("path", path)])
                 .multipart(form),
         )
@@ -403,22 +353,26 @@ impl<'a> Daytona<'a> {
     }
 
     /// `None` if the file doesn't exist.
-    pub async fn download_file(&self, toolbox: &Toolbox, path: &str) -> Result<Option<Response>> {
-        let response = self
-            .http
-            .get(format!("{}/files/download", toolbox.base))
-            .query(&[("path", path)])
-            .bearer_auth(&self.api_key)
-            .send()
-            .await?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(None);
-        }
-        Ok(Some(check(response).await?))
+    pub async fn download_file(&self, toolbox: &str, path: &str) -> Result<Option<Response>> {
+        self.send_optional(
+            self.http
+                .get(format!("{toolbox}/files/download"))
+                .query(&[("path", path)]),
+        )
+        .await
     }
 
     async fn send(&self, request: RequestBuilder) -> Result<Response> {
         check(request.bearer_auth(&self.api_key).send().await?).await
+    }
+
+    /// Like [`Self::send`], but a 404 is `None`.
+    async fn send_optional(&self, request: RequestBuilder) -> Result<Option<Response>> {
+        let response = request.bearer_auth(&self.api_key).send().await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        Ok(Some(check(response).await?))
     }
 }
 

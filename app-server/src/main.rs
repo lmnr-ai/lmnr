@@ -1234,6 +1234,9 @@ fn main() -> anyhow::Result<()> {
         Arc::new(MockStorage {}.into())
     };
 
+    // == Hosted evals ==
+    let hosted_evals = web::Data::new(hosted_evals::HostedEvals::from_env(&aws_sdk_config));
+
     // == Query engine ==
     let query_engine: Arc<QueryEngine> = Arc::new(QueryEngine::new());
 
@@ -2555,6 +2558,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
+                            .app_data(hosted_evals.clone())
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
