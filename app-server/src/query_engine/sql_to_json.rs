@@ -45,7 +45,7 @@ pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
 
     let (metrics, dimensions, time_range) =
         parse_select_expressions(select, &query, &grouped_columns);
-    let filters = parse_where_clause(select, time_range.as_ref());
+    let filters = parse_where_clause(select, time_range.as_ref())?;
     let order_by = parse_order_by_clause(&query);
     let limit = parse_limit_clause(&query);
 
@@ -382,14 +382,17 @@ fn walk_time_bounds(expr: &Expr, time_col: &str, from_val: &mut String, to_val: 
     }
 }
 
-fn parse_where_clause(select: &Select, time_range: Option<&TimeRange>) -> Vec<Filter> {
+fn parse_where_clause(
+    select: &Select,
+    time_range: Option<&TimeRange>,
+) -> Result<Vec<Filter>, String> {
     let Some(selection) = &select.selection else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let time_col = time_range.map(|t| t.column.clone());
     let mut filters = Vec::new();
-    walk_filters(selection, time_col.as_deref(), &mut filters);
-    filters
+    walk_filters(selection, time_col.as_deref(), &mut filters)?;
+    Ok(filters)
 }
 
 fn comparison_op(op: &BinaryOperator) -> Option<&'static str> {
@@ -417,56 +420,65 @@ fn extract_rhs_value(expr: &Expr) -> (String, bool) {
     }
 }
 
-fn walk_filters(expr: &Expr, time_col: Option<&str>, filters: &mut Vec<Filter>) {
+/// The builder only emits an AND of `col <op> value` / `has(col, value)`, so any other
+/// predicate is an error: dropping it would show (and re-save) a wider query.
+fn walk_filters(
+    expr: &Expr,
+    time_col: Option<&str>,
+    filters: &mut Vec<Filter>,
+) -> Result<(), String> {
+    let unsupported = || Err(format!("Unsupported WHERE condition: {expr}"));
     match expr {
+        Expr::Nested(inner) => walk_filters(inner, time_col, filters),
         Expr::BinaryOp { left, op, right } => {
-            if matches!(op, BinaryOperator::And | BinaryOperator::Or) {
-                walk_filters(left, time_col, filters);
-                walk_filters(right, time_col, filters);
-                return;
+            if matches!(op, BinaryOperator::And) {
+                walk_filters(left, time_col, filters)?;
+                return walk_filters(right, time_col, filters);
             }
-            if let Some(op_str) = comparison_op(op) {
-                let Some(col) = column_name(left) else {
-                    return;
-                };
-                let (val, is_placeholder) = extract_rhs_value(right);
-                // The time range's own bounds are placeholders; a literal on that column is a user filter.
-                if is_placeholder && time_col == Some(col.as_str()) {
-                    return;
-                }
-                let value = if is_placeholder {
-                    FilterValue::StringValue(val)
-                } else if let Ok(n) = val.parse::<f64>() {
-                    FilterValue::NumberValue(n)
-                } else {
-                    FilterValue::StringValue(val)
-                };
-                filters.push(Filter {
-                    field: col,
-                    op: op_str.to_string(),
-                    value: Some(value),
-                });
+            let (Some(op_str), Some(col)) = (comparison_op(op), column_name(left)) else {
+                return unsupported();
+            };
+            let (val, is_placeholder) = extract_rhs_value(right);
+            // The time range's own bounds are placeholders; a literal on that column is a user filter.
+            if is_placeholder && time_col == Some(col.as_str()) {
+                return Ok(());
             }
+            let value = if is_placeholder {
+                FilterValue::StringValue(val)
+            } else if let Ok(n) = val.parse::<f64>() {
+                FilterValue::NumberValue(n)
+            } else {
+                FilterValue::StringValue(val)
+            };
+            filters.push(Filter {
+                field: col,
+                op: op_str.to_string(),
+                value: Some(value),
+            });
+            Ok(())
         }
         Expr::Function(f) if function_name(f).to_lowercase() == "has" => {
-            let args = function_args(f);
-            if args.len() >= 2 {
-                let col = arg_as_expr(&args[0]).map(extract_column);
-                if let Some(col) = col {
-                    if !col.is_empty() && time_col != Some(col.as_str()) {
-                        let val = arg_as_expr(&args[1])
-                            .map(normalize_value)
-                            .unwrap_or_default();
-                        filters.push(Filter {
-                            field: col,
-                            op: "includes".to_string(),
-                            value: Some(FilterValue::StringValue(val)),
-                        });
-                    }
-                }
+            let [col_arg, val_arg] = function_args(f) else {
+                return unsupported();
+            };
+            let (Some(col_expr), Some(val_expr)) = (arg_as_expr(col_arg), arg_as_expr(val_arg))
+            else {
+                return unsupported();
+            };
+            let col = extract_column(col_expr);
+            if col.is_empty() {
+                return unsupported();
             }
+            if time_col != Some(col.as_str()) {
+                filters.push(Filter {
+                    field: col,
+                    op: "includes".to_string(),
+                    value: Some(FilterValue::StringValue(normalize_value(val_expr))),
+                });
+            }
+            Ok(())
         }
-        _ => {}
+        _ => unsupported(),
     }
 }
 

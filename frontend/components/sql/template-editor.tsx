@@ -1,12 +1,14 @@
 "use client";
 
+import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Plus, SquareTerminal } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { parameterHighlight, type RevealParameter } from "@/components/sql/parameter-highlight";
 import SaveStatusIndicator from "@/components/sql/save-status-indicator";
 import SQLEditor from "@/components/sql/sql-editor";
+import SqlEditorMenu from "@/components/sql/sql-editor-menu";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { useCreateTemplate } from "@/components/sql/use-create-template";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,8 @@ const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => 
     setQuery: state.setQuery,
     flushQuerySave: state.flushQuerySave,
   }));
+
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   // A new array identity reconfigures every CodeMirror extension, so this must not change per render.
   const editorExtensions = useMemo(() => parameterHighlight(onRevealParameter), [onRevealParameter]);
@@ -61,7 +65,10 @@ const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => 
           {template?.name ?? "Query"}
         </span>
         {template && <SaveStatusIndicator status={saveStatus} />}
-        {actions && <div className="ml-auto flex items-center gap-2 pl-2">{actions}</div>}
+        <div className="ml-auto flex items-center gap-2 pl-2">
+          {actions}
+          {template && <SqlEditorMenu query={template.query ?? ""} editorRef={editorRef} />}
+        </div>
       </div>
 
       {template ? (
@@ -73,6 +80,8 @@ const TemplateEditor = ({ actions, onRevealParameter }: TemplateEditorProps) => 
             autoFocus
             projectId={projectId as string}
             aiButtonVariant="full"
+            formattable
+            editorRef={editorRef}
             extraExtensions={editorExtensions}
           />
         </div>
