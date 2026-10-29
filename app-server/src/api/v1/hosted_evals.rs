@@ -151,15 +151,8 @@ pub async fn missing_layers(
     req: Json<LayersRequest>,
     project_api_key: ProjectApiKey,
     cache: web::Data<Cache>,
-    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    handle_missing_layers(
-        project_api_key.project_id,
-        req.into_inner(),
-        &cache,
-        &http_client,
-    )
-    .await
+    handle_missing_layers(project_api_key.project_id, req.into_inner(), &cache).await
 }
 
 #[put("/hosted-evals/images/layers/{diff_id}")]
@@ -168,16 +161,8 @@ pub async fn upload_layer(
     payload: web::Payload,
     project_api_key: ProjectApiKey,
     cache: web::Data<Cache>,
-    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    handle_upload_layer(
-        project_api_key.project_id,
-        &path,
-        payload,
-        &cache,
-        &http_client,
-    )
-    .await
+    handle_upload_layer(project_api_key.project_id, &path, payload, &cache).await
 }
 
 #[post("/hosted-evals/images")]
@@ -185,15 +170,8 @@ pub async fn create_image(
     req: Json<CreateImageRequest>,
     project_api_key: ProjectApiKey,
     cache: web::Data<Cache>,
-    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    handle_create_image(
-        project_api_key.project_id,
-        req.into_inner(),
-        &cache,
-        &http_client,
-    )
-    .await
+    handle_create_image(project_api_key.project_id, req.into_inner(), &cache).await
 }
 
 /// `{diffIds}` → `{missing}`: the layers the project hasn't uploaded yet.
@@ -201,7 +179,6 @@ pub async fn handle_missing_layers(
     project_id: Uuid,
     req: LayersRequest,
     cache: &Cache,
-    http: &reqwest::Client,
 ) -> ResponseResult {
     if !is_feature_enabled(Feature::HostedEvals) {
         return Ok(not_enabled());
@@ -209,7 +186,7 @@ pub async fn handle_missing_layers(
     if req.diff_ids.len() > MAX_LAYERS || !req.diff_ids.iter().all(|d| images::is_digest(d)) {
         return Ok(invalid_digest());
     }
-    let registry = Registry::connect(http, &project_id).await?;
+    let registry = Registry::connect(&project_id).await?;
     let missing = images::missing_layers(&registry, cache, &project_id, &req.diff_ids).await?;
     Ok(HttpResponse::Ok().json(json!({ "missing": missing })))
 }
@@ -221,7 +198,6 @@ pub async fn handle_upload_layer(
     diff_id: &str,
     payload: web::Payload,
     cache: &Cache,
-    http: &reqwest::Client,
 ) -> ResponseResult {
     if !is_feature_enabled(Feature::HostedEvals) {
         return Ok(not_enabled());
@@ -229,7 +205,7 @@ pub async fn handle_upload_layer(
     if !images::is_digest(diff_id) {
         return Ok(invalid_digest());
     }
-    let registry = Registry::connect(http, &project_id).await?;
+    let registry = Registry::connect(&project_id).await?;
     let (tx, rx) = mpsc::channel(4);
     let (received, stored) = futures_util::join!(
         forward_payload(payload, tx, MAX_LAYER_BYTES, None),
@@ -248,12 +224,11 @@ pub async fn handle_create_image(
     project_id: Uuid,
     req: CreateImageRequest,
     cache: &Cache,
-    http: &reqwest::Client,
 ) -> ResponseResult {
     if !is_feature_enabled(Feature::HostedEvals) {
         return Ok(not_enabled());
     }
-    let registry = Registry::connect(http, &project_id).await?;
+    let registry = Registry::connect(&project_id).await?;
     Ok(
         match images::create_image(&registry, cache, &project_id, req.config).await? {
             Ok(image) => HttpResponse::Ok().json(json!({ "image": image })),
@@ -291,14 +266,9 @@ pub async fn ensure_snapshot(
     }
     let daytona = hosted_evals::daytona_client(&http_client)?;
     let resources = Resources::clamped(req.cpus, req.memory_gb, req.disk_gb);
-    let status = images::ensure_snapshot(
-        &http_client,
-        &daytona,
-        &project_api_key.project_id,
-        &req.image,
-        resources,
-    )
-    .await?;
+    let status =
+        images::ensure_snapshot(&daytona, &project_api_key.project_id, &req.image, resources)
+            .await?;
     Ok(HttpResponse::Ok().json(status))
 }
 

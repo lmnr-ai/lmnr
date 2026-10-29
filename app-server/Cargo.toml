@@ -17,6 +17,7 @@ async-stream = "0.3.6"
 async-trait = "0.1"
 aws-config = "1.10.1"
 aws-sdk-bedrockruntime = {version = "1.139.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-ecr = {version = "1.126.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
 aws-sdk-s3 =  {version = "1.141.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
 # Only for `HTTP_BEARER_AUTH_SCHEME_ID`, which the bedrockruntime crate does not re-export.
 aws-smithy-runtime-api = "1.15"

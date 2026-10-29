@@ -47,9 +47,8 @@ pub async fn missing_layers(
     auth: CliProjectAuth,
     req: Json<LayersRequest>,
     cache: web::Data<Cache>,
-    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    handle_missing_layers(auth.project_id, req.into_inner(), &cache, &http_client).await
+    handle_missing_layers(auth.project_id, req.into_inner(), &cache).await
 }
 
 #[put("/hosted-evals/images/layers/{diff_id}")]
@@ -58,9 +57,8 @@ pub async fn upload_layer(
     auth: CliProjectAuth,
     payload: web::Payload,
     cache: web::Data<Cache>,
-    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    handle_upload_layer(auth.project_id, &path, payload, &cache, &http_client).await
+    handle_upload_layer(auth.project_id, &path, payload, &cache).await
 }
 
 #[post("/hosted-evals/images")]
@@ -68,9 +66,8 @@ pub async fn create_image(
     auth: CliProjectAuth,
     req: Json<CreateImageRequest>,
     cache: web::Data<Cache>,
-    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    handle_create_image(auth.project_id, req.into_inner(), &cache, &http_client).await
+    handle_create_image(auth.project_id, req.into_inner(), &cache).await
 }
 
 #[post("/hosted-evals/uploads")]

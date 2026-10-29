@@ -88,17 +88,21 @@ pub struct StorageAccess {
     pub region: String,
 }
 
-/// Temporary push credentials for Daytona's registry (`sbox-transient`), where
-/// images wait to become snapshots.
+/// A private registry Daytona pulls snapshot images from.
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RegistryAccess {
+pub struct DockerRegistry {
+    pub id: String,
+    pub url: String,
+}
+
+/// Body of creating or updating a `DockerRegistry`.
+#[derive(Serialize)]
+pub struct RegistryCredentials {
+    pub name: String,
+    /// `https://<host>`.
+    pub url: String,
     pub username: String,
-    pub secret: String,
-    /// Host, e.g. `cr.app.daytona.io`.
-    pub registry_url: String,
-    /// Registry project the credentials can push to.
-    pub project: String,
+    pub password: String,
 }
 
 #[derive(Serialize)]
@@ -256,9 +260,21 @@ impl<'a> Daytona<'a> {
         Ok(self.send(self.http.get(url)).await?.json().await?)
     }
 
-    pub async fn registry_push_access(&self) -> Result<RegistryAccess> {
-        let url = format!("{}/docker-registry/registry-push-access", self.api_url);
+    pub async fn list_registries(&self) -> Result<Vec<DockerRegistry>> {
+        let url = format!("{}/docker-registry", self.api_url);
         Ok(self.send(self.http.get(url)).await?.json().await?)
+    }
+
+    pub async fn create_registry(&self, credentials: &RegistryCredentials) -> Result<()> {
+        let url = format!("{}/docker-registry", self.api_url);
+        self.send(self.http.post(url).json(credentials)).await?;
+        Ok(())
+    }
+
+    pub async fn update_registry(&self, id: &str, credentials: &RegistryCredentials) -> Result<()> {
+        let url = format!("{}/docker-registry/{id}", self.api_url);
+        self.send(self.http.patch(url).json(credentials)).await?;
+        Ok(())
     }
 
     /// `None` if no snapshot has this name.
