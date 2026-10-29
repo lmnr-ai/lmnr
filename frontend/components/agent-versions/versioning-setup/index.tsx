@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import SetupStep from "./setup-step";
 
 // TODO: point to the release tracking guide once it is published.
-const RELEASES_DOCS_URL = "https://laminar.sh/docs";
+const RELEASES_DOCS_URL = "https://laminar.sh/docs/agent-versions/introduction#attach-a-release";
 
 interface VersioningSetupProps {
   projectId: string;
