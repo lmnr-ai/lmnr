@@ -43,6 +43,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   onZoom,
   formatValue = numberFormatter.format,
   showTotal = true,
+  yTickCount,
   showTooltip = true,
   tooltipDelay = 0,
   tooltipRequireBar = false,
@@ -154,7 +155,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} tickCount={yTickCount} width="auto" />
           {/* Hidden, not removed: the overlay Area needs its own scale so it
               isn't squashed by the bar axis, but its absolute values aren't
               worth a second set of ticks — the tooltip already names them. */}
