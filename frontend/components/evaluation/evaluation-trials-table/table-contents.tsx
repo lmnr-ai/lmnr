@@ -1,7 +1,7 @@
 "use client";
 
-import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { memo, type PropsWithChildren, useMemo } from "react";
+import { type ColumnDef, type ExpandedState, type Row } from "@tanstack/react-table";
+import { memo, type PropsWithChildren, useMemo, useState } from "react";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -75,6 +75,19 @@ export const EvaluationTrialsTableContents = memo(function EvaluationTrialsTable
     [isComparison, isShared, heatmapEnabled, scoreRanges, scoreDirections, onToggleScoreDirection, runningTrials]
   );
 
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  // Open the focused Trial's Task once per focus, so the user can still collapse it.
+  // A lone Trial is a top-level row until a sibling arrives and nests it under a Task row.
+  const [revealedTrialId, setRevealedTrialId] = useState<string>();
+  if (trialId && trialId !== revealedTrialId) {
+    const taskRow = data?.find((r) => (r["subRows"] as EvalRow[] | undefined)?.some((t) => t["id"] === trialId));
+    if (taskRow) {
+      setRevealedTrialId(trialId);
+      setExpanded((prev) => (prev === true ? prev : { ...prev, [taskRow["id"] as string]: true }));
+    }
+  }
+  const tableState = useMemo(() => ({ expanded }), [expanded]);
+
   if (isLoading) return <EvalTableSkeleton />;
 
   return (
@@ -82,6 +95,8 @@ export const EvaluationTrialsTableContents = memo(function EvaluationTrialsTable
       columns={visibleColumnDefs}
       data={data ?? []}
       meta={meta}
+      state={tableState}
+      onExpandedChange={setExpanded}
       hasMore={!isSearchActive && hasMore}
       isFetching={isFetching}
       isLoading={false}
