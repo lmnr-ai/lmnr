@@ -26,16 +26,17 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
-      schema: { tables: ["evaluation_trials"] },
+      // The eval table selects FROM evaluation_datapoints, so a column qualified by the new name would break it.
+      schema: { tables: ["evaluation_datapoints"] },
       generationMode: "eval-expression",
       buildTestQuery: (sql) =>
-        `SELECT ${sql} as \`test\` FROM evaluation_trials WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`,
+        `SELECT ${sql} as \`test\` FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`,
       testQueryParameters: { evaluationId: evaluationId as string },
       getColumnDefs: () => columnDefs,
       namePlaceholder: "e.g. Span Count",
       sqlPlaceholder: "e.g. arrayCount(x -> 1, trace_spans)",
       aiInputPlaceholder: "e.g. Count the number of spans in trace_spans",
-      sqlHint: "Expression is added as a column: SELECT <expr> FROM evaluation_trials",
+      sqlHint: "Expression is added as a column: SELECT <expr> FROM evaluation_datapoints",
     }),
     [evaluationId, columnDefs]
   );
