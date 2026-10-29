@@ -285,22 +285,25 @@ impl<'a> Registry<'a> {
 
     /// Tags in Daytona's registry are immutable (a second push answers 412), so
     /// an existing tag is left alone. Tags are derived from the manifest digest,
-    /// so an existing one already holds this manifest.
+    /// so an existing one already holds this manifest. That includes a 412 from
+    /// a concurrent push of the same image landing between the check and the put.
     async fn put_manifest(&self, tag: &str, manifest: Bytes) -> Result<()> {
         if self.manifest_exists(tag).await? {
             return Ok(());
         }
-        check(
-            self.http
-                .put(self.url(&format!("manifests/{tag}")))
-                .basic_auth(&self.username, Some(&self.secret))
-                .header("Content-Type", MANIFEST_MEDIA_TYPE)
-                .timeout(REGISTRY_TIMEOUT)
-                .body(manifest)
-                .send()
-                .await?,
-        )
-        .await?;
+        let response = self
+            .http
+            .put(self.url(&format!("manifests/{tag}")))
+            .basic_auth(&self.username, Some(&self.secret))
+            .header("Content-Type", MANIFEST_MEDIA_TYPE)
+            .timeout(REGISTRY_TIMEOUT)
+            .body(manifest)
+            .send()
+            .await?;
+        if response.status() == StatusCode::PRECONDITION_FAILED {
+            return Ok(());
+        }
+        check(response).await?;
         Ok(())
     }
 }
