@@ -20,7 +20,7 @@ import { membersOfWorkspaces, users, workspaces } from "@/lib/db/migrations/sche
 import { sendTrialEndingEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-import { TIER_CONFIG, TRIAL_DAYS } from "./types";
+import { TIER_CONFIG, TRIAL_DAYS, TRIAL_UPGRADE_PARAM } from "./types";
 
 // "canceled" also covers an expiry: both put the workspace back on Free.
 type TrialOutcome = "converted" | "canceled";
@@ -33,6 +33,8 @@ const StartTrialSchema = z.object({
 const TrialPaymentSchema = z.object({
   workspaceId: z.guid(),
   returnUrl: z.url(),
+  // Set when the card is collected for an upgrade; the return URL reopens that upgrade for confirmation.
+  tier: z.enum(["hobby", "pro"]).optional(),
 });
 
 // Marks Checkout sessions created by getTrialPaymentUrl for the checkout.session.completed handler.
@@ -203,6 +205,23 @@ export const subscriptionHasPaymentMethod = async (subscription: Stripe.Subscrip
   return !customer.deleted && !!customer.invoice_settings?.default_payment_method;
 };
 
+// Unlike subscriptionHasPaymentMethod, also finds a card that is attached but not yet the default: Stripe
+// attaches it before redirecting back from setup Checkout, and the webhook that makes it the default can land
+// later. Callers that charge must set the returned card as the subscription default.
+export const findPaymentMethod = async (subscription: Stripe.Subscription): Promise<string | null> => {
+  const subscriptionDefault = getIdFromStripeObject(subscription.default_payment_method);
+  if (subscriptionDefault) return subscriptionDefault;
+  const customerId = getIdFromStripeObject(subscription.customer);
+  if (!customerId) return null;
+  const s = stripe();
+  const customer = await s.customers.retrieve(customerId);
+  if (customer.deleted) return null;
+  const customerDefault = getIdFromStripeObject(customer.invoice_settings?.default_payment_method ?? null);
+  if (customerDefault) return customerDefault;
+  const cards = await s.paymentMethods.list({ customer: customerId, type: "card", limit: 1 });
+  return cards.data[0]?.id ?? null;
+};
+
 export const getTrialSubscription = async (workspaceId: string): Promise<Stripe.Subscription | null> => {
   const trial = await getActiveTrial(workspaceId);
   if (!trial) return null;
@@ -227,14 +246,16 @@ const requireTrialSubscription = async (workspaceId: string): Promise<Stripe.Sub
 
 // Stripe setup-mode Checkout: saves a card on the trial, which then converts at trial end.
 export const getTrialPaymentUrl = async (input: z.input<typeof TrialPaymentSchema>): Promise<string> => {
-  const { workspaceId, returnUrl } = TrialPaymentSchema.parse(input);
+  const { workspaceId, returnUrl, tier } = TrialPaymentSchema.parse(input);
   const subscription = await requireTrialSubscription(workspaceId);
+  const successUrl = new URL(returnUrl);
+  if (tier) successUrl.searchParams.set(TRIAL_UPGRADE_PARAM, tier);
   const session = await stripe().checkout.sessions.create({
     mode: "setup",
     currency: "usd",
     customer: getIdFromStripeObject(subscription.customer),
     metadata: { type: TRIAL_PAYMENT_SESSION_TYPE, workspaceId, subscriptionId: subscription.id },
-    success_url: returnUrl,
+    success_url: successUrl.toString(),
     cancel_url: returnUrl,
   });
   return session.url!;
@@ -249,10 +270,15 @@ export const setTrialContinues = async (workspaceId: string, continues: boolean)
 // Ends the trial today; Stripe invoices and the conversion webhook runs.
 export const startStarterNow = async (workspaceId: string): Promise<void> => {
   const subscription = await requireTrialSubscription(workspaceId);
-  if (!(await subscriptionHasPaymentMethod(subscription))) {
+  const paymentMethodId = await findPaymentMethod(subscription);
+  if (!paymentMethodId) {
     throw new Error("Add a payment method first.");
   }
-  await stripe().subscriptions.update(subscription.id, { trial_end: "now", cancel_at_period_end: false });
+  await stripe().subscriptions.update(subscription.id, {
+    trial_end: "now",
+    cancel_at_period_end: false,
+    default_payment_method: paymentMethodId,
+  });
 };
 
 export const handleTrialPaymentSessionCompleted = async (session: Stripe.Checkout.Session) => {
