@@ -7,7 +7,9 @@ use actix_web::{
 
 use crate::{
     api::v1::hosted_evals::{
-        handle_context_exists, handle_create_upload, handle_start_run, handle_upload_context,
+        CreateImageRequest, LayersRequest, handle_context_exists, handle_create_image,
+        handle_create_upload, handle_missing_layers, handle_start_run, handle_upload_context,
+        handle_upload_layer,
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -38,6 +40,37 @@ pub async fn upload_context(
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     handle_upload_context(auth.project_id, &path, payload, &http_client).await
+}
+
+#[post("/hosted-evals/images/layers/missing")]
+pub async fn missing_layers(
+    auth: CliProjectAuth,
+    req: Json<LayersRequest>,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_missing_layers(auth.project_id, req.into_inner(), &cache, &http_client).await
+}
+
+#[put("/hosted-evals/images/layers/{diff_id}")]
+pub async fn upload_layer(
+    path: web::Path<String>,
+    auth: CliProjectAuth,
+    payload: web::Payload,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_upload_layer(auth.project_id, &path, payload, &cache, &http_client).await
+}
+
+#[post("/hosted-evals/images")]
+pub async fn create_image(
+    auth: CliProjectAuth,
+    req: Json<CreateImageRequest>,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_create_image(auth.project_id, req.into_inner(), &cache, &http_client).await
 }
 
 #[post("/hosted-evals/uploads")]

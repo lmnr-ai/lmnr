@@ -5,6 +5,7 @@
 
 pub mod contexts;
 pub mod daytona;
+pub mod images;
 pub mod sandboxes;
 
 use std::collections::HashMap;

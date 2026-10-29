@@ -17,7 +17,9 @@ use uuid::Uuid;
 use super::{
     PROJECT_LABEL, contexts,
     daytona::{self, BuildInfo, CreateSandbox, Daytona, Sandbox, Toolbox},
-    daytona_client, shell_quote,
+    daytona_client,
+    images::{self, Resources},
+    shell_quote,
 };
 use crate::{
     cache::{
@@ -46,10 +48,15 @@ const RECENT_CREATE_WINDOW_SECONDS: i64 = 15;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateTrialSandbox {
-    pub dockerfile: String,
+    /// Built by Daytona from this Dockerfile and `context_hashes`. Exactly one
+    /// of `dockerfile` and `image` is set.
+    pub dockerfile: Option<String>,
     /// `md5` of each context tar uploaded to `/hosted-evals/contexts/{hash}`.
     #[serde(default)]
     pub context_hashes: Vec<String>,
+    /// Manifest digest of an image pushed through `/hosted-evals/images`. Its
+    /// snapshot for these resources must be ready (`/images/snapshots`).
+    pub image: Option<String>,
     pub cpus: Option<u32>,
     pub memory_gb: Option<u32>,
     pub disk_gb: Option<u32>,
@@ -63,7 +70,9 @@ struct RecentCreate {
 }
 
 pub enum CreateError {
+    InvalidRequest(&'static str),
     InvalidContextHash(String),
+    ImageNotReady,
     TooManySandboxes(usize),
     CapacityBusy,
     Daytona(anyhow::Error),
@@ -106,14 +115,32 @@ pub async fn create(
         return Err(CreateError::InvalidContextHash(hash.clone()));
     }
     let daytona = daytona_client(http).map_err(CreateError::Daytona)?;
-    let sandbox = create_within_capacity(
-        &daytona,
-        cache,
-        project_id,
-        &CreateSandbox {
-            labels: project_labels(project_id, "trial"),
+    let base = CreateSandbox {
+        labels: project_labels(project_id, "trial"),
+        ttl_minutes: env::hosted_evals::MAX_RUN_MINUTES.get(),
+        ..Default::default()
+    };
+    let sandbox_request = match (request.image, request.dockerfile) {
+        (Some(image), None) => {
+            if !images::is_digest(&image) {
+                return Err(CreateError::InvalidRequest(
+                    "image must be a sha256 manifest digest",
+                ));
+            }
+            let resources = Resources::clamped(request.cpus, request.memory_gb, request.disk_gb);
+            let snapshot = images::ready_snapshot(&daytona, project_id, &image, resources)
+                .await
+                .map_err(CreateError::Daytona)?
+                .ok_or(CreateError::ImageNotReady)?;
+            // The snapshot carries the resources.
+            CreateSandbox {
+                snapshot: Some(snapshot),
+                ..base
+            }
+        }
+        (None, Some(dockerfile)) => CreateSandbox {
             build_info: Some(BuildInfo {
-                dockerfile_content: request.dockerfile,
+                dockerfile_content: dockerfile,
                 context_hashes: request
                     .context_hashes
                     .iter()
@@ -129,11 +156,15 @@ pub async fn create(
             disk: request
                 .disk_gb
                 .map(|d| d.clamp(1, env::hosted_evals::MAX_SANDBOX_DISK_GB.get())),
-            ttl_minutes: env::hosted_evals::MAX_RUN_MINUTES.get(),
-            ..Default::default()
+            ..base
         },
-    )
-    .await?;
+        _ => {
+            return Err(CreateError::InvalidRequest(
+                "Set exactly one of dockerfile and image",
+            ));
+        }
+    };
+    let sandbox = create_within_capacity(&daytona, cache, project_id, &sandbox_request).await?;
     remember(cache, project_id, &sandbox.id, &sandbox.toolbox_proxy_url).await;
     Ok(sandbox.id)
 }

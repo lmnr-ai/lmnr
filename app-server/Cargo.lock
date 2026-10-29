@@ -421,6 +421,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "sha3",
  "similar",
  "sqlparser",
@@ -818,7 +819,7 @@ dependencies = [
  "lru",
  "percent-encoding",
  "regex-lite",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "tracing",
  "url",
 ]
@@ -922,7 +923,7 @@ dependencies = [
  "http 1.4.0",
  "p256",
  "percent-encoding",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "subtle",
  "time",
  "tracing",
@@ -957,7 +958,7 @@ dependencies = [
  "md-5",
  "pin-project-lite",
  "sha1 0.11.0",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "tracing",
 ]
 
@@ -5879,9 +5880,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+checksum = "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
@@ -6182,7 +6183,7 @@ dependencies = [
  "percent-encoding",
  "serde",
  "sha1 0.11.0",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "sqlx-core",
  "thiserror",
  "tracing",
@@ -6218,7 +6219,7 @@ dependencies = [
  "rand 0.10.2",
  "serde",
  "serde_json",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "smallvec",
  "sqlx-core",
  "stringprep",

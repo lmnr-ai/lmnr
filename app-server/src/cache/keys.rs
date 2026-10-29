@@ -14,6 +14,9 @@ pub const HOSTED_EVALS_CAPACITY_LOCK_CACHE_KEY: &str = "hosted_evals_capacity_lo
 /// `hosted_evals_recent_sandboxes:{project_id}` → sandboxes created in the last
 /// few seconds, which Daytona's list doesn't show yet. Written under the lock above.
 pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_sandboxes";
+/// `hosted_evals_layer:{project_id}:{diff_id}` → the registry blob (digest, size)
+/// holding that image layer, gzip-compressed.
+pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]

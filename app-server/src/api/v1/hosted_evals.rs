@@ -25,6 +25,7 @@ use crate::{
         self, RunError, RunRequest,
         contexts::{ContextHasher, ContextStore},
         daytona::Daytona,
+        images::{self, ImageError, Registry, Resources},
         sandboxes::{self, CreateError, CreateTrialSandbox, ProjectSandbox},
     },
     routes::types::ResponseResult,
@@ -35,6 +36,8 @@ use crate::{
 const MAX_ARCHIVE_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_CONTEXT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+const MAX_LAYERS: usize = 256;
 
 enum BodyError {
     Empty,
@@ -118,6 +121,185 @@ pub async fn handle_upload_context(
     }
     stored?;
     Ok(HttpResponse::Ok().json(json!({ "hash": hash })))
+}
+
+// ---- Prebuilt images (layers and images also under /v1/cli) ----
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayersRequest {
+    diff_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateImageRequest {
+    /// The image config JSON, exactly as `docker save` wrote it.
+    config: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotRequest {
+    image: String,
+    cpus: Option<u32>,
+    memory_gb: Option<u32>,
+    disk_gb: Option<u32>,
+}
+
+#[post("/hosted-evals/images/layers/missing")]
+pub async fn missing_layers(
+    req: Json<LayersRequest>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_missing_layers(
+        project_api_key.project_id,
+        req.into_inner(),
+        &cache,
+        &http_client,
+    )
+    .await
+}
+
+#[put("/hosted-evals/images/layers/{diff_id}")]
+pub async fn upload_layer(
+    path: web::Path<String>,
+    payload: web::Payload,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_upload_layer(
+        project_api_key.project_id,
+        &path,
+        payload,
+        &cache,
+        &http_client,
+    )
+    .await
+}
+
+#[post("/hosted-evals/images")]
+pub async fn create_image(
+    req: Json<CreateImageRequest>,
+    project_api_key: ProjectApiKey,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    handle_create_image(
+        project_api_key.project_id,
+        req.into_inner(),
+        &cache,
+        &http_client,
+    )
+    .await
+}
+
+/// `{diffIds}` → `{missing}`: the layers the project hasn't uploaded yet.
+pub async fn handle_missing_layers(
+    project_id: Uuid,
+    req: LayersRequest,
+    cache: &Cache,
+    http: &reqwest::Client,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    if req.diff_ids.len() > MAX_LAYERS || !req.diff_ids.iter().all(|d| images::is_digest(d)) {
+        return Ok(invalid_digest());
+    }
+    let registry = Registry::connect(http, &project_id).await?;
+    let missing = images::missing_layers(&registry, cache, &project_id, &req.diff_ids).await?;
+    Ok(HttpResponse::Ok().json(json!({ "missing": missing })))
+}
+
+/// Body: one image layer, gzip-compressed. `diff_id` is the digest of its
+/// uncompressed tar, as listed in the image config.
+pub async fn handle_upload_layer(
+    project_id: Uuid,
+    diff_id: &str,
+    payload: web::Payload,
+    cache: &Cache,
+    http: &reqwest::Client,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    if !images::is_digest(diff_id) {
+        return Ok(invalid_digest());
+    }
+    let registry = Registry::connect(http, &project_id).await?;
+    let (tx, rx) = mpsc::channel(4);
+    let (received, stored) = futures_util::join!(
+        forward_payload(payload, tx, MAX_LAYER_BYTES, None),
+        images::upload_layer(&registry, cache, &project_id, diff_id, rx)
+    );
+    if let Err(e) = received {
+        return Ok(body_error_response(e));
+    }
+    let blob = stored?;
+    Ok(HttpResponse::Ok().json(json!({ "digest": blob.digest, "size": blob.size })))
+}
+
+/// `{config}` → `{image}`: pushes the image whose layers were uploaded and
+/// returns its manifest digest. `409 {missing}` lists layers still to upload.
+pub async fn handle_create_image(
+    project_id: Uuid,
+    req: CreateImageRequest,
+    cache: &Cache,
+    http: &reqwest::Client,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    let registry = Registry::connect(http, &project_id).await?;
+    Ok(
+        match images::create_image(&registry, cache, &project_id, req.config).await? {
+            Ok(image) => HttpResponse::Ok().json(json!({ "image": image })),
+            Err(ImageError::InvalidConfig(e)) => HttpResponse::BadRequest().json(json!({
+                "error": format!("Invalid image config: {e}")
+            })),
+            Err(ImageError::WrongPlatform(arch)) => HttpResponse::BadRequest().json(json!({
+                "error": format!(
+                    "The image is built for {arch:?}; Laminar sandboxes run linux/amd64. \
+                     Build it with --platform linux/amd64."
+                )
+            })),
+            Err(ImageError::MissingLayers(missing)) => HttpResponse::Conflict().json(json!({
+                "error": "Upload these layers first",
+                "missing": missing,
+            })),
+        },
+    )
+}
+
+/// `{image, cpus?, memoryGb?, diskGb?}` → `{state: ready | pending | failed}`.
+/// Creates the image's snapshot for these resources on first call; Harbor's
+/// environment class polls it before creating a sandbox from the image.
+#[post("/hosted-evals/images/snapshots")]
+pub async fn ensure_snapshot(
+    req: Json<SnapshotRequest>,
+    project_api_key: ProjectApiKey,
+    http_client: web::Data<reqwest::Client>,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::HostedEvals) {
+        return Ok(not_enabled());
+    }
+    if !images::is_digest(&req.image) {
+        return Ok(invalid_digest());
+    }
+    let daytona = hosted_evals::daytona_client(&http_client)?;
+    let resources = Resources::clamped(req.cpus, req.memory_gb, req.disk_gb);
+    let status = images::ensure_snapshot(
+        &http_client,
+        &daytona,
+        &project_api_key.project_id,
+        &req.image,
+        resources,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(status))
 }
 
 // ---- Trial sandboxes (project API key only: Harbor's environment class) ----
@@ -470,6 +652,13 @@ fn body_error_response(error: BodyError) -> HttpResponse {
 
 fn create_error_response(error: CreateError) -> HttpResponse {
     match error {
+        CreateError::InvalidRequest(message) => {
+            HttpResponse::BadRequest().json(json!({ "error": message }))
+        }
+        CreateError::ImageNotReady => HttpResponse::Conflict().json(json!({
+            "error": "The image's snapshot for these resources isn't ready; \
+                      poll /hosted-evals/images/snapshots until it is"
+        })),
         CreateError::InvalidContextHash(hash) => HttpResponse::BadRequest().json(json!({
             "error": format!("Invalid context hash {hash:?}")
         })),
@@ -511,6 +700,12 @@ fn sandbox_not_found() -> HttpResponse {
 fn invalid_hash() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
         "error": "A context hash is 32 hex characters"
+    }))
+}
+
+fn invalid_digest() -> HttpResponse {
+    HttpResponse::BadRequest().json(json!({
+        "error": format!("Expected sha256:<64 hex> digests, at most {MAX_LAYERS}")
     }))
 }
 

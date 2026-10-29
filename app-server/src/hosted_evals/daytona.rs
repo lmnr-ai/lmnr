@@ -1,5 +1,6 @@
-//! Minimal Daytona REST client: the sandbox, toolbox and build-context storage
-//! calls hosted evals proxy. The API key never leaves the app-server.
+//! Minimal Daytona REST client: the sandbox, toolbox, build-context storage,
+//! registry and snapshot calls hosted evals proxy. The API key never leaves the
+//! app-server.
 
 use std::{
     collections::HashMap,
@@ -8,6 +9,7 @@ use std::{
 
 use anyhow::{Result, bail};
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use reqwest::{Client, RequestBuilder, Response, StatusCode, multipart};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -36,9 +38,13 @@ pub struct BuildInfo {
 pub struct CreateSandbox {
     pub env: HashMap<String, String>,
     pub labels: HashMap<String, String>,
-    /// `None` uses Daytona's default snapshot.
+    /// `None` (with no `snapshot`) uses Daytona's default snapshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub build_info: Option<BuildInfo>,
+    /// Snapshot name. Daytona rejects `cpu` / `memory` / `disk` alongside it:
+    /// a snapshot fixes its sandboxes' resources.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cpu: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -80,6 +86,45 @@ pub struct StorageAccess {
     pub organization_id: String,
     pub bucket: String,
     pub region: String,
+}
+
+/// Temporary push credentials for Daytona's registry (`sbox-transient`), where
+/// images wait to become snapshots.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryAccess {
+    pub username: String,
+    pub secret: String,
+    /// Host, e.g. `cr.app.daytona.io`.
+    pub registry_url: String,
+    /// Registry project the credentials can push to.
+    pub project: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSnapshot {
+    pub name: String,
+    pub image_name: String,
+    pub cpu: u32,
+    pub memory: u32,
+    pub disk: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Snapshot {
+    pub id: String,
+    pub name: String,
+    pub state: String,
+    pub error_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Deserialize)]
+struct SnapshotPage {
+    items: Vec<Snapshot>,
 }
 
 #[derive(Deserialize)]
@@ -209,6 +254,72 @@ impl<'a> Daytona<'a> {
     pub async fn storage_push_access(&self) -> Result<StorageAccess> {
         let url = format!("{}/object-storage/push-access", self.api_url);
         Ok(self.send(self.http.get(url)).await?.json().await?)
+    }
+
+    pub async fn registry_push_access(&self) -> Result<RegistryAccess> {
+        let url = format!("{}/docker-registry/registry-push-access", self.api_url);
+        Ok(self.send(self.http.get(url)).await?.json().await?)
+    }
+
+    /// `None` if no snapshot has this name.
+    pub async fn get_snapshot(&self, name: &str) -> Result<Option<Snapshot>> {
+        let url = format!("{}/snapshots/{name}", self.api_url);
+        let response = self.http.get(url).bearer_auth(&self.api_key).send().await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        Ok(Some(check(response).await?.json().await?))
+    }
+
+    /// Starts creating the snapshot. `None` if one with this name already exists
+    /// (a concurrent request created it).
+    pub async fn create_snapshot(&self, request: &CreateSnapshot) -> Result<Option<Snapshot>> {
+        let url = format!("{}/snapshots", self.api_url);
+        let response = self
+            .http
+            .post(url)
+            .timeout(CREATE_TIMEOUT)
+            .bearer_auth(&self.api_key)
+            .json(request)
+            .send()
+            .await?;
+        if response.status() == StatusCode::CONFLICT {
+            return Ok(None);
+        }
+        Ok(Some(check(response).await?.json().await?))
+    }
+
+    /// Re-activates a snapshot Daytona deactivated for being unused.
+    pub async fn activate_snapshot(&self, id: &str) -> Result<()> {
+        let url = format!("{}/snapshots/{id}/activate", self.api_url);
+        self.send(self.http.post(url)).await?;
+        Ok(())
+    }
+
+    /// Snapshots whose name contains `name`, up to 100.
+    pub async fn list_snapshots(&self, name: &str) -> Result<Vec<Snapshot>> {
+        let url = format!("{}/snapshots", self.api_url);
+        let request = self
+            .http
+            .get(url)
+            .timeout(LIST_TIMEOUT)
+            .query(&[("name", name), ("limit", "100")]);
+        let page: SnapshotPage = self.send(request).await?.json().await?;
+        Ok(page.items)
+    }
+
+    pub async fn delete_snapshot(&self, id: &str) -> Result<()> {
+        let url = format!("{}/snapshots/{id}", self.api_url);
+        let response = self
+            .http
+            .delete(url)
+            .bearer_auth(&self.api_key)
+            .send()
+            .await?;
+        if response.status() != StatusCode::NOT_FOUND {
+            check(response).await?;
+        }
+        Ok(())
     }
 
     pub async fn create_session(&self, toolbox: &Toolbox, session_id: &str) -> Result<()> {
