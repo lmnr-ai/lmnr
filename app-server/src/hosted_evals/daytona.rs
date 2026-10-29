@@ -1,5 +1,5 @@
-//! Minimal Daytona REST client: the sandbox, toolbox, build-context storage,
-//! registry and snapshot calls hosted evals proxy. The API key never leaves the
+//! Minimal Daytona REST client: the sandbox, toolbox, private-registry and
+//! snapshot calls hosted evals proxy. The API key never leaves the
 //! app-server.
 
 use std::{
@@ -26,31 +26,15 @@ pub struct Daytona<'a> {
     api_key: String,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BuildInfo {
-    pub dockerfile_content: String,
-    pub context_hashes: Vec<String>,
-}
-
 #[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSandbox {
     pub env: HashMap<String, String>,
     pub labels: HashMap<String, String>,
-    /// `None` (with no `snapshot`) uses Daytona's default snapshot.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub build_info: Option<BuildInfo>,
-    /// Snapshot name. Daytona rejects `cpu` / `memory` / `disk` alongside it:
-    /// a snapshot fixes its sandboxes' resources.
+    /// Snapshot name, which fixes the sandbox's resources. `None` uses
+    /// Daytona's default snapshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snapshot: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cpu: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memory: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disk: Option<u32>,
     /// Minutes of inactivity before Daytona stops the sandbox; 0 disables it.
     pub auto_stop_interval: u32,
     /// Minutes after stopping before deletion; 0 deletes on stop.
@@ -73,19 +57,6 @@ pub struct Sandbox {
 #[derive(Deserialize)]
 struct SandboxPage {
     items: Vec<Sandbox>,
-}
-
-/// Temporary credentials for Daytona's build-context bucket.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StorageAccess {
-    pub access_key: String,
-    pub secret: String,
-    pub session_token: String,
-    pub storage_url: String,
-    pub organization_id: String,
-    pub bucket: String,
-    pub region: String,
 }
 
 /// A private registry Daytona pulls snapshot images from.
@@ -255,11 +226,6 @@ impl<'a> Daytona<'a> {
         Ok(page.items)
     }
 
-    pub async fn storage_push_access(&self) -> Result<StorageAccess> {
-        let url = format!("{}/object-storage/push-access", self.api_url);
-        Ok(self.send(self.http.get(url)).await?.json().await?)
-    }
-
     pub async fn list_registries(&self) -> Result<Vec<DockerRegistry>> {
         let url = format!("{}/docker-registry", self.api_url);
         Ok(self.send(self.http.get(url)).await?.json().await?)
@@ -274,6 +240,20 @@ impl<'a> Daytona<'a> {
     pub async fn update_registry(&self, id: &str, credentials: &RegistryCredentials) -> Result<()> {
         let url = format!("{}/docker-registry/{id}", self.api_url);
         self.send(self.http.patch(url).json(credentials)).await?;
+        Ok(())
+    }
+
+    pub async fn delete_registry(&self, id: &str) -> Result<()> {
+        let url = format!("{}/docker-registry/{id}", self.api_url);
+        let response = self
+            .http
+            .delete(url)
+            .bearer_auth(&self.api_key)
+            .send()
+            .await?;
+        if response.status() != StatusCode::NOT_FOUND {
+            check(response).await?;
+        }
         Ok(())
     }
 

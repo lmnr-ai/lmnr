@@ -3,7 +3,6 @@
 //! adds one orchestrator sandbox that runs `lmnr-cli eval orchestrate` with a
 //! short-lived project key. See `docs/internal/hosted-evals.md`.
 
-pub mod contexts;
 pub mod daytona;
 pub mod images;
 pub mod sandboxes;

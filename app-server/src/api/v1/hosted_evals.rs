@@ -23,7 +23,6 @@ use crate::{
     features::{Feature, is_feature_enabled},
     hosted_evals::{
         self, RunError, RunRequest,
-        contexts::{ContextHasher, ContextStore},
         daytona::Daytona,
         images::{self, ImageError, Registry, Resources},
         sandboxes::{self, CreateError, CreateTrialSandbox, ProjectSandbox},
@@ -34,7 +33,6 @@ use crate::{
 
 // Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
 const MAX_ARCHIVE_BYTES: u64 = 100 * 1024 * 1024;
-const MAX_CONTEXT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LAYERS: usize = 256;
@@ -43,7 +41,6 @@ enum BodyError {
     Empty,
     TooLarge(u64),
     Payload(PayloadError),
-    HashMismatch(anyhow::Error),
 }
 
 #[derive(Deserialize)]
@@ -51,79 +48,7 @@ pub struct FilePath {
     path: String,
 }
 
-// ---- Build contexts (also under /v1/cli) ----
-
-#[get("/hosted-evals/contexts/{hash}")]
-pub async fn context_exists(
-    path: web::Path<String>,
-    project_api_key: ProjectApiKey,
-    http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    handle_context_exists(project_api_key.project_id, &path, &http_client).await
-}
-
-#[put("/hosted-evals/contexts/{hash}")]
-pub async fn upload_context(
-    path: web::Path<String>,
-    payload: web::Payload,
-    project_api_key: ProjectApiKey,
-    http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    handle_upload_context(project_api_key.project_id, &path, payload, &http_client).await
-}
-
-/// `{exists}`: whether the project already uploaded a context with this hash.
-pub async fn handle_context_exists(
-    project_id: Uuid,
-    hash: &str,
-    http: &reqwest::Client,
-) -> ResponseResult {
-    if !is_feature_enabled(Feature::HostedEvals) {
-        return Ok(not_enabled());
-    }
-    if !sandboxes::is_context_hash(hash) {
-        return Ok(invalid_hash());
-    }
-    let store = ContextStore::connect(http).await?;
-    Ok(HttpResponse::Ok().json(json!({ "exists": store.exists(&project_id, hash).await })))
-}
-
-/// Body: an uncompressed tar of the build context. `hash` must be its `md5`;
-/// a mismatch aborts the upload.
-pub async fn handle_upload_context(
-    project_id: Uuid,
-    hash: &str,
-    payload: web::Payload,
-    http: &reqwest::Client,
-) -> ResponseResult {
-    if !is_feature_enabled(Feature::HostedEvals) {
-        return Ok(not_enabled());
-    }
-    if !sandboxes::is_context_hash(hash) {
-        return Ok(invalid_hash());
-    }
-    let store = ContextStore::connect(http).await?;
-    if store.exists(&project_id, hash).await {
-        return Ok(HttpResponse::Ok().json(json!({ "hash": hash })));
-    }
-    let (tx, rx) = mpsc::channel(4);
-    let (received, stored) = futures_util::join!(
-        forward_payload(
-            payload,
-            tx,
-            MAX_CONTEXT_BYTES,
-            Some((ContextHasher::default(), hash))
-        ),
-        store.upload(&project_id, hash, rx)
-    );
-    if let Err(e) = received {
-        return Ok(body_error_response(e));
-    }
-    stored?;
-    Ok(HttpResponse::Ok().json(json!({ "hash": hash })))
-}
-
-// ---- Prebuilt images (layers and images also under /v1/cli) ----
+// ---- Images (layers and images also under /v1/cli) ----
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -208,7 +133,7 @@ pub async fn handle_upload_layer(
     let registry = Registry::connect(&project_id).await?;
     let (tx, rx) = mpsc::channel(4);
     let (received, stored) = futures_util::join!(
-        forward_payload(payload, tx, MAX_LAYER_BYTES, None),
+        forward_payload(payload, tx, MAX_LAYER_BYTES),
         images::upload_layer(&registry, cache, &project_id, diff_id, rx)
     );
     if let Err(e) = received {
@@ -487,7 +412,7 @@ pub async fn handle_create_upload(
     // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
     let (tx, rx) = mpsc::channel(4);
     let (received, stored) = futures_util::join!(
-        forward_payload(payload, tx, MAX_ARCHIVE_BYTES, None),
+        forward_payload(payload, tx, MAX_ARCHIVE_BYTES),
         storage.upload_stream(&bucket, &key, rx)
     );
     if let Err(e) = received {
@@ -550,35 +475,23 @@ async fn resolve_sandbox<'a>(
     Ok(sandbox.map(|s| (daytona, s)))
 }
 
-/// Pumps `payload` into `tx` up to `max_bytes`. With `verify`, the body must
-/// hash to the given context hash. Any failure sends an `Err` down the channel
-/// so the upload aborts instead of storing a partial object.
+/// Pumps `payload` into `tx` up to `max_bytes`. Any failure sends an `Err`
+/// down the channel so the upload aborts instead of storing a partial object.
 async fn forward_payload(
     mut payload: web::Payload,
     tx: Sender<anyhow::Result<Bytes>>,
     max_bytes: u64,
-    mut verify: Option<(ContextHasher, &str)>,
 ) -> Result<(), BodyError> {
     let mut size = 0;
     let result = loop {
         match payload.next().await {
             None if size == 0 => break Err(BodyError::Empty),
-            None => {
-                break match verify.take() {
-                    Some((hasher, expected)) => {
-                        hasher.verify(expected).map_err(BodyError::HashMismatch)
-                    }
-                    None => Ok(()),
-                };
-            }
+            None => break Ok(()),
             Some(Err(e)) => break Err(BodyError::Payload(e)),
             Some(Ok(chunk)) => {
                 size += chunk.len() as u64;
                 if size > max_bytes {
                     break Err(BodyError::TooLarge(max_bytes));
-                }
-                if let Some((hasher, _)) = verify.as_mut() {
-                    hasher.update(&chunk);
                 }
                 // A closed channel means the upload already failed and reports why.
                 if tx.send(Ok(chunk)).await.is_err() {
@@ -614,23 +527,17 @@ fn body_error_response(error: BodyError) -> HttpResponse {
         BodyError::Payload(e) => HttpResponse::BadRequest().json(json!({
             "error": format!("Failed to read body: {e}")
         })),
-        BodyError::HashMismatch(e) => {
-            HttpResponse::BadRequest().json(json!({ "error": e.to_string() }))
-        }
     }
 }
 
 fn create_error_response(error: CreateError) -> HttpResponse {
     match error {
-        CreateError::InvalidRequest(message) => {
-            HttpResponse::BadRequest().json(json!({ "error": message }))
-        }
+        CreateError::InvalidImage => HttpResponse::BadRequest().json(json!({
+            "error": "image must be a sha256 manifest digest"
+        })),
         CreateError::ImageNotReady => HttpResponse::Conflict().json(json!({
             "error": "The image's snapshot for these resources isn't ready; \
                       poll /hosted-evals/images/snapshots until it is"
-        })),
-        CreateError::InvalidContextHash(hash) => HttpResponse::BadRequest().json(json!({
-            "error": format!("Invalid context hash {hash:?}")
         })),
         CreateError::TooManySandboxes(max) => HttpResponse::TooManyRequests().json(json!({
             "error": format!(
@@ -665,12 +572,6 @@ fn not_enabled() -> HttpResponse {
 
 fn sandbox_not_found() -> HttpResponse {
     HttpResponse::NotFound().json(json!({ "error": "Sandbox not found" }))
-}
-
-fn invalid_hash() -> HttpResponse {
-    HttpResponse::BadRequest().json(json!({
-        "error": "A context hash is 32 hex characters"
-    }))
 }
 
 fn invalid_digest() -> HttpResponse {

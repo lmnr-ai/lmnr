@@ -296,8 +296,7 @@ impl Registry {
 
     /// Lets Daytona pull from the registry with the current credentials: ECR
     /// tokens expire after 12 hours, and Daytona only pulls while it builds a
-    /// snapshot. Every entry for this host is updated, in case concurrent
-    /// requests created more than one.
+    /// snapshot.
     async fn grant_daytona_pull(&self, daytona: &Daytona<'_>) -> Result<()> {
         let credentials = RegistryCredentials {
             name: DAYTONA_REGISTRY_NAME.to_string(),
@@ -305,15 +304,23 @@ impl Registry {
             username: self.access.username.clone(),
             password: self.access.password.clone(),
         };
-        let mut updated = false;
-        for registry in daytona.list_registries().await? {
-            if registry_host(&registry.url) == self.access.host {
-                daytona.update_registry(&registry.id, &credentials).await?;
-                updated = true;
+        let mut entries = daytona
+            .list_registries()
+            .await?
+            .into_iter()
+            .filter(|r| registry_host(&r.url) == self.access.host);
+        let Some(entry) = entries.next() else {
+            return daytona.create_registry(&credentials).await;
+        };
+        daytona.update_registry(&entry.id, &credentials).await?;
+        // The first snapshots of a burst each find no entry and create one.
+        for extra in entries {
+            if let Err(e) = daytona.delete_registry(&extra.id).await {
+                log::warn!(
+                    "Failed to delete duplicate Daytona registry {}: {e:?}",
+                    extra.id
+                );
             }
-        }
-        if !updated {
-            daytona.create_registry(&credentials).await?;
         }
         Ok(())
     }

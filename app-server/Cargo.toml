@@ -45,7 +45,6 @@ jsonwebtoken = {version = "11", default-features = false, features = ["use_pem",
 jwks_client_rs = "0.6"
 lapin = "4.12"
 log = "0.4.34"
-md-5 = "0.11.0"
 moka = {version = "0.12", features = ["sync", "future"]}
 ndarray = {version = "0.17", optional = true}
 num_cpus = "1.17.0"
