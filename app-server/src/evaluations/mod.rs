@@ -13,7 +13,7 @@ use clickhouse::Row;
 
 use crate::{
     ch::{
-        evaluation_datapoints::{CHEvaluationDatapoint, ch_insert_evaluation_datapoints},
+        evaluation_datapoints::{CHEvaluationTrial, ch_insert_evaluation_trials},
         utils::chrono_to_nanoseconds,
     },
     db::{
@@ -34,7 +34,7 @@ pub const DEFAULT_GROUP_NAME: &str = "default";
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct EvaluationDatapointDatasetLink {
+pub struct EvaluationTrialDatasetLink {
     pub dataset_id: Uuid,
     pub datapoint_id: Uuid,
     pub created_at: DateTime<Utc>,
@@ -42,7 +42,7 @@ pub struct EvaluationDatapointDatasetLink {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct EvaluationDatapointResult {
+pub struct EvaluationTrialResult {
     pub data: Value,
     #[serde(default)]
     pub index: i32,
@@ -62,7 +62,7 @@ pub struct EvaluationDatapointResult {
     #[serde(default)]
     pub scores: HashMap<String, Option<f64>>,
     #[serde(default)]
-    pub dataset_link: Option<EvaluationDatapointDatasetLink>,
+    pub dataset_link: Option<EvaluationTrialDatasetLink>,
 }
 
 /// Check if a serde_json::Value is "falsey" for the purposes of not overwriting.
@@ -101,14 +101,14 @@ fn value_to_ch_string(v: &Value) -> String {
     }
 }
 
-pub async fn insert_evaluation_datapoints(
+pub async fn insert_evaluation_trials(
     pool: &PgPool,
     clickhouse: clickhouse::Client,
-    evaluation_datapoints: Vec<EvaluationDatapointResult>,
+    evaluation_datapoints: Vec<EvaluationTrialResult>,
     evaluation_id: Uuid,
     project_id: Uuid,
     group_name: &String,
-) -> Result<Vec<CHEvaluationDatapoint>> {
+) -> Result<Vec<CHEvaluationTrial>> {
     if evaluation_datapoints.is_empty() {
         return Ok(Vec::new());
     }
@@ -126,10 +126,10 @@ pub async fn insert_evaluation_datapoints(
         .await?;
     }
 
-    let ch_rows: Vec<CHEvaluationDatapoint> = evaluation_datapoints
+    let ch_rows: Vec<CHEvaluationTrial> = evaluation_datapoints
         .into_iter()
         .map(|dp| {
-            CHEvaluationDatapoint::from_evaluation_datapoint_result(
+            CHEvaluationTrial::from_evaluation_trial_result(
                 dp,
                 evaluation_id,
                 project_id,
@@ -138,7 +138,7 @@ pub async fn insert_evaluation_datapoints(
         })
         .collect();
 
-    ch_insert_evaluation_datapoints(clickhouse, ch_rows.as_slice()).await?;
+    ch_insert_evaluation_trials(clickhouse, ch_rows.as_slice()).await?;
 
     Ok(ch_rows)
 }
@@ -147,7 +147,7 @@ pub async fn insert_evaluation_datapoints(
 /// bound as SQL literals. Borrows the strings so an unbounded executor output is
 /// not cloned on its way to ClickHouse.
 #[derive(Serialize)]
-struct DatapointUpdate<'a> {
+struct TrialUpdate<'a> {
     trace_id: Uuid,
     updated_at: i64,
     executor_output: &'a str,
@@ -155,21 +155,21 @@ struct DatapointUpdate<'a> {
     scores: &'a str,
 }
 
-/// Update a single evaluation datapoint using INSERT...SELECT pattern.
+/// Update a single evaluation Trial using INSERT...SELECT pattern.
 /// Only updates trace_id, executor_output, and scores columns.
 /// All other columns are preserved from the existing row.
-pub async fn update_evaluation_datapoint(
+pub async fn update_evaluation_trial(
     pool: &PgPool,
     clickhouse: clickhouse::Client,
     evaluation_id: Uuid,
     project_id: Uuid,
-    datapoint_id: Uuid,
+    trial_id: Uuid,
     group_id: &String,
     executor_output: Option<Value>,
     scores: HashMap<String, Option<f64>>,
     trace_id: Option<Uuid>,
-) -> Result<UpdatedDatapointStrings> {
-    // Verify the datapoint exists and get its trace_id for shared evaluation handling.
+) -> Result<UpdatedTrialStrings> {
+    // Verify the Trial exists and get its trace_id for shared evaluation handling.
     // We use prewhere id here, so that we hit the bloom_filter skip index on the
     // project_id, evaluation_id, id BEFORE we execute FINAL
     let existing_row = clickhouse
@@ -177,13 +177,13 @@ pub async fn update_evaluation_datapoint(
             "SELECT trace_id FROM evaluation_datapoints FINAL PREWHERE id = ?
              WHERE project_id = ? AND evaluation_id = ?",
         )
-        .bind(datapoint_id)
+        .bind(trial_id)
         .bind(project_id)
         .bind(evaluation_id)
         .fetch_optional::<TraceIdRow>()
         .await?;
 
-    let existing_row = existing_row.ok_or(anyhow::anyhow!("Evaluation datapoint not found"))?;
+    let existing_row = existing_row.ok_or(anyhow::anyhow!("Evaluation trial not found"))?;
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
         match trace_id {
@@ -220,7 +220,7 @@ pub async fn update_evaluation_datapoint(
             "INSERT INTO evaluation_datapoints (
                 id, evaluation_id, project_id, trace_id, updated_at,
                 data, target, metadata, executor_output, `index`, task_id,
-                dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+                dataset_id, dataset_trial_id, dataset_datapoint_created_at,
                 group_id, scores
             )
             SELECT
@@ -236,7 +236,7 @@ pub async fn update_evaluation_datapoint(
                 existing.`index`,
                 existing.task_id,
                 existing.dataset_id,
-                existing.dataset_datapoint_id,
+                existing.dataset_trial_id,
                 existing.dataset_datapoint_created_at,
                 incoming.group_id,
                 if(empty(incoming.scores),
@@ -249,21 +249,21 @@ pub async fn update_evaluation_datapoint(
                 SELECT
                     id, evaluation_id, project_id, trace_id,
                     data, target, metadata, executor_output, `index`, task_id, scores,
-                    dataset_id, dataset_datapoint_id, dataset_datapoint_created_at
+                    dataset_id, dataset_trial_id, dataset_datapoint_created_at
                 FROM evaluation_datapoints FINAL
                 PREWHERE id = ?
                 WHERE project_id = ? AND evaluation_id = ?
             ) AS existing
             FORMAT JSONEachRow",
         )
-        .bind(datapoint_id)
+        .bind(trial_id)
         .bind(project_id)
         .bind(evaluation_id)
         // sql_display() skips the unbound-argument check, so every `?` above must be bound here.
         .sql_display()
         .to_string();
 
-    let payload = serde_json::to_vec(&DatapointUpdate {
+    let payload = serde_json::to_vec(&TrialUpdate {
         trace_id: new_trace_id,
         updated_at: now_nanos,
         executor_output: &new_executor_output,
@@ -277,15 +277,15 @@ pub async fn update_evaluation_datapoint(
         insert.end().await
     }
     .await
-    .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
+    .map_err(|e| anyhow::anyhow!("Clickhouse evaluation trial update failed: {:?}", e))?;
 
-    Ok(UpdatedDatapointStrings {
+    Ok(UpdatedTrialStrings {
         executor_output: new_executor_output,
         scores: new_scores,
     })
 }
 
-pub struct UpdatedDatapointStrings {
+pub struct UpdatedTrialStrings {
     pub executor_output: String,
     pub scores: String,
 }

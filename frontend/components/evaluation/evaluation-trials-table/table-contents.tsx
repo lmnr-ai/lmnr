@@ -9,7 +9,7 @@ import { type EvalRow } from "@/lib/evaluation/types";
 
 import EvalTableSkeleton from "./eval-table-skeleton";
 
-interface EvaluationDatapointsTableContentsProps {
+interface EvaluationTrialsTableContentsProps {
   data: EvalRow[] | undefined;
   isLoading: boolean;
   isFetching: boolean;
@@ -21,7 +21,7 @@ interface EvaluationDatapointsTableContentsProps {
   scoreRanges: ScoreRanges;
   runningTrials?: number;
   pinnedLeftColumnIds?: string[];
-  datapointId?: string;
+  trialId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string | undefined;
   sortBy?: string;
@@ -35,7 +35,7 @@ interface EvaluationDatapointsTableContentsProps {
 
 const getTaskRowClassName = (row: Row<EvalRow>) => (row.getIsExpanded() ? "eval-task-expanded" : "");
 
-export const EvaluationDatapointsTableContents = memo(function EvaluationDatapointsTableContents({
+export const EvaluationTrialsTableContents = memo(function EvaluationTrialsTableContents({
   children,
   data,
   isLoading,
@@ -48,7 +48,7 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   scoreRanges,
   runningTrials,
   pinnedLeftColumnIds,
-  datapointId,
+  trialId,
   handleRowClick,
   getRowHref,
   sortBy,
@@ -58,7 +58,7 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   scoreDirections,
   onToggleScoreDirection,
   isSearchActive,
-}: PropsWithChildren<EvaluationDatapointsTableContentsProps>) {
+}: PropsWithChildren<EvaluationTrialsTableContentsProps>) {
   // Stable ref so the cell-content token only changes on a real value change (inline object would defeat cell memoization).
   const meta = useMemo(
     () => ({
@@ -87,7 +87,7 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
       isLoading={false}
       fetchNextPage={fetchNextPage}
       getRowId={(row) => row["id"] as string}
-      focusedRowId={datapointId}
+      focusedRowId={trialId}
       onRowClick={handleRowClick}
       getRowHref={getRowHref}
       getRowClassName={getTaskRowClassName}

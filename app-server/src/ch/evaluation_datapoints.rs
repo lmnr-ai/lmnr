@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    evaluations::{DEFAULT_GROUP_NAME, EvaluationDatapointResult},
+    evaluations::{DEFAULT_GROUP_NAME, EvaluationTrialResult},
     utils::json_value_to_string,
 };
 
@@ -18,7 +18,7 @@ fn default_group_id() -> String {
 }
 
 #[derive(Row, Serialize, Deserialize, Debug)]
-pub struct CHEvaluationDatapoint {
+pub struct CHEvaluationTrial {
     #[serde(with = "clickhouse::serde::uuid")]
     pub id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
@@ -44,9 +44,9 @@ pub struct CHEvaluationDatapoint {
     pub task_id: String,
 }
 
-impl CHEvaluationDatapoint {
-    pub fn from_evaluation_datapoint_result(
-        result: EvaluationDatapointResult,
+impl CHEvaluationTrial {
+    pub fn from_evaluation_trial_result(
+        result: EvaluationTrialResult,
         evaluation_id: Uuid,
         project_id: Uuid,
         group_name: &String,
@@ -55,7 +55,7 @@ impl CHEvaluationDatapoint {
             .task_id
             .filter(|task_id| !task_id.is_empty())
             .unwrap_or_else(|| result.index.to_string());
-        CHEvaluationDatapoint {
+        CHEvaluationTrial {
             id: result.id,
             evaluation_id,
             project_id,
@@ -103,16 +103,16 @@ impl CHEvaluationDatapoint {
     }
 }
 
-pub async fn ch_insert_evaluation_datapoints(
+pub async fn ch_insert_evaluation_trials(
     clickhouse: clickhouse::Client,
-    eval_dps: &[CHEvaluationDatapoint],
+    eval_dps: &[CHEvaluationTrial],
 ) -> Result<()> {
     if eval_dps.is_empty() {
         return Ok(());
     }
 
     let ch_insert = clickhouse
-        .insert::<CHEvaluationDatapoint>("evaluation_datapoints")
+        .insert::<CHEvaluationTrial>("evaluation_datapoints")
         .await;
 
     match ch_insert {
@@ -142,8 +142,8 @@ mod tests {
     use super::*;
 
     fn task_id_of(point: serde_json::Value) -> String {
-        let result: EvaluationDatapointResult = serde_json::from_value(point).unwrap();
-        CHEvaluationDatapoint::from_evaluation_datapoint_result(
+        let result: EvaluationTrialResult = serde_json::from_value(point).unwrap();
+        CHEvaluationTrial::from_evaluation_trial_result(
             result,
             Uuid::nil(),
             Uuid::nil(),

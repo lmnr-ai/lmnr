@@ -5,12 +5,12 @@ use crate::{
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
-        EvaluationDatapointResult, UpdatedDatapointStrings, insert_evaluation_datapoints,
+        EvaluationTrialResult, UpdatedTrialStrings, insert_evaluation_trials,
         realtime::{
-            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, cache_trace_evaluation_id,
-            send_datapoint_updates,
+            RealtimeTrial, cache_inserted_trial_trace_ids, cache_trace_evaluation_id,
+            send_trial_updates,
         },
-        update_evaluation_datapoint,
+        update_evaluation_trial,
     },
     names::NameGenerator,
     pubsub::PubSub,
@@ -90,7 +90,7 @@ pub struct UpdateEvalRequest {
 /// Update an evaluation's name and/or metadata. `group_id` is immutable.
 /// Fields omitted from the request are left unchanged. Postgres-only:
 /// evaluation-level name/metadata are not duplicated into ClickHouse
-/// (`evaluation_datapoints.metadata` is per-datapoint).
+/// (`evaluation_datapoints.metadata` is per-Trial).
 #[post("/evals/{eval_id}")]
 pub async fn update_eval(
     eval_id: web::Path<Uuid>,
@@ -116,11 +116,11 @@ pub async fn update_eval(
 #[serde(rename_all = "camelCase")]
 pub struct SaveEvalDatapointsRequest {
     pub group_name: Option<String>,
-    pub points: Vec<EvaluationDatapointResult>,
+    pub points: Vec<EvaluationTrialResult>,
 }
 
 #[post("/evals/{eval_id}/datapoints")]
-pub async fn save_eval_datapoints(
+pub async fn save_eval_trials(
     eval_id: web::Path<Uuid>,
     req: Json<SaveEvalDatapointsRequest>,
     db: web::Data<DB>,
@@ -136,7 +136,7 @@ pub async fn save_eval_datapoints(
     let group_name = req.group_name.unwrap_or("default".to_string());
     let clickhouse = clickhouse.into_inner().as_ref().clone();
 
-    let ch_rows = insert_evaluation_datapoints(
+    let ch_rows = insert_evaluation_trials(
         &db.pool,
         clickhouse,
         points,
@@ -146,14 +146,12 @@ pub async fn save_eval_datapoints(
     )
     .await?;
 
-    cache_inserted_datapoint_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
+    cache_inserted_trial_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
 
-    let realtime_points: Vec<RealtimeDatapoint<'_>> = ch_rows
-        .iter()
-        .map(RealtimeDatapoint::from_ch_insert)
-        .collect();
+    let realtime_points: Vec<RealtimeTrial<'_>> =
+        ch_rows.iter().map(RealtimeTrial::from_ch_insert).collect();
 
-    send_datapoint_updates(
+    send_trial_updates(
         pubsub.get_ref().as_ref(),
         &project_id,
         &eval_id,
@@ -173,8 +171,8 @@ pub struct UpdateEvalDatapointRequest {
     pub trace_id: Option<Uuid>,
 }
 
-#[post("/evals/{eval_id}/datapoints/{datapoint_id}")]
-pub async fn update_eval_datapoint(
+#[post("/evals/{eval_id}/datapoints/{trial_id}")]
+pub async fn update_eval_trial(
     path: web::Path<(Uuid, Uuid)>,
     req: Json<UpdateEvalDatapointRequest>,
     db: web::Data<DB>,
@@ -183,7 +181,7 @@ pub async fn update_eval_datapoint(
     pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
-    let (eval_id, datapoint_id) = path.into_inner();
+    let (eval_id, trial_id) = path.into_inner();
     let req = req.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let project_id = project_api_key.project_id;
@@ -196,15 +194,15 @@ pub async fn update_eval_datapoint(
         cache_trace_evaluation_id(&cache, &project_id, &trace_id, &eval_id).await;
     }
 
-    let UpdatedDatapointStrings {
+    let UpdatedTrialStrings {
         executor_output: ch_executor_output,
         scores: ch_scores,
-    } = update_evaluation_datapoint(
+    } = update_evaluation_trial(
         &db.pool,
         clickhouse,
         eval_id,
         project_id,
-        datapoint_id,
+        trial_id,
         &group_id,
         req.executor_output,
         req.scores,
@@ -212,13 +210,9 @@ pub async fn update_eval_datapoint(
     )
     .await?;
 
-    let realtime_point = RealtimeDatapoint::from_update_strings(
-        datapoint_id,
-        req.trace_id,
-        &ch_executor_output,
-        &ch_scores,
-    );
-    send_datapoint_updates(
+    let realtime_point =
+        RealtimeTrial::from_update_strings(trial_id, req.trace_id, &ch_executor_output, &ch_scores);
+    send_trial_updates(
         pubsub.get_ref().as_ref(),
         &project_id,
         &eval_id,
@@ -226,5 +220,5 @@ pub async fn update_eval_datapoint(
     )
     .await;
 
-    Ok(HttpResponse::Ok().json(datapoint_id))
+    Ok(HttpResponse::Ok().json(trial_id))
 }

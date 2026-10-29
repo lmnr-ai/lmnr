@@ -2,7 +2,7 @@ import { type HeaderContext } from "@tanstack/react-table";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Loader2, X } from "lucide-react";
 
-import { deriveStatus, type EvalDatapointStatus } from "@/components/evaluation/utils";
+import { deriveStatus, type EvalTrialStatus } from "@/components/evaluation/utils";
 import { isTaskGroupRow } from "@/lib/evaluation/task-groups";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -64,7 +64,7 @@ export const StatusHeader = ({ table }: HeaderContext<EvalRow, unknown>) => {
   );
 };
 
-const StatusIcon = ({ status }: { status: EvalDatapointStatus }) => {
+const StatusIcon = ({ status }: { status: EvalTrialStatus }) => {
   if (status === "error") return <X className="shrink-0 text-destructive-text" size={14} />;
   if (status === "success") return <Check className="shrink-0 text-success-text" size={14} />;
   return <Loader2 className="shrink-0 animate-spin text-muted-foreground" size={14} />;

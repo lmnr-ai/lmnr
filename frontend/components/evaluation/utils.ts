@@ -8,11 +8,11 @@ import {
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
 
-export type EvalDatapointStatus = "error" | "pending" | "success";
+export type EvalTrialStatus = "error" | "pending" | "success";
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
-export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
+export const deriveStatus = (row: EvalRow): EvalTrialStatus => {
   if (row["traceStatus"] === "error") return "error";
 
   // `score:*` columns read a missing score as 0, so the raw `scores` JSON wins whenever the row has it.
@@ -134,10 +134,10 @@ export const shouldShowHeatmap = (range: ScoreRange): boolean => hasSignificantR
  * Merge a realtime `datapoint_upsert` payload into the existing rows array.
  *
  * Updates an existing row in place if it matches by id; otherwise inserts the
- * new row at the position implied by `index` (datapoints are conventionally
+ * new row at the position implied by `index` (Trials are conventionally
  * rendered ascending by index).
  */
-export const mergeDatapointUpsertIntoRows = (
+export const mergeTrialUpsertIntoRows = (
   rows: EvalRow[],
   incoming: EvalRow & { id: string },
   flattened: Record<string, number>

@@ -12,7 +12,7 @@ import { shallow } from "zustand/shallow";
 import fullLogo from "@/assets/logo/laminar-wordmark.svg";
 import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Chart from "@/components/evaluation/chart";
-import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
+import EvaluationTrialsTable from "@/components/evaluation/evaluation-trials-table";
 import ScoreCard from "@/components/evaluation/score-card";
 import {
   buildColumnDefs,
@@ -81,7 +81,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
-  const fetchDatapoints = useCallback(
+  const fetchTrials = useCallback(
     async (pageNumber: number) => {
       const urlParams = buildFetchParams(
         { search, filter, sortBy, sortDirection, pageNumber, pageSize: PAGE_SIZE },
@@ -89,7 +89,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
       );
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch datapoints.");
+      if (!response.ok) throw new Error("Failed to fetch trials.");
       const data: EvaluationResultsInfo = await response.json();
       return { items: data.results, count: 0 };
     },
@@ -97,36 +97,34 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   );
 
   const {
-    data: allDatapoints,
+    data: allTrials,
     hasMore,
     isFetching,
-    isLoading: isLoadingDatapoints,
+    isLoading: isLoadingTrials,
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
-    fetchFn: fetchDatapoints,
+    fetchFn: fetchTrials,
     enabled: !isStatsLoading,
     deps: [search, filter, evaluationId, sortBy, sortDirection, columnSqls],
   });
 
   // Score-range heatmap input — derived from current data, no storage needed.
   const scoreRanges = useMemo(() => {
-    if (!allDatapoints) return {};
+    if (!allTrials) return {};
     const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
     return scoreNames.reduce(
       (acc, scoreName) => {
-        const values = allDatapoints.map((row) => row[`score:${scoreName}`]).filter(isValidNumber);
+        const values = allTrials.map((row) => row[`score:${scoreName}`]).filter(isValidNumber);
         if (values.length === 0) return acc;
         return { ...acc, [scoreName]: { min: Math.min(...values), max: Math.max(...values) } };
       },
       {} as Record<string, { min: number; max: number }>
     );
-  }, [allDatapoints, scoreNames]);
+  }, [allTrials, scoreNames]);
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
-  const [datapointId, setDatapointId] = useState<string | undefined>(
-    () => searchParams.get("datapointId") ?? undefined
-  );
+  const [trialId, setTrialId] = useState<string | undefined>(() => searchParams.get("trialId") ?? undefined);
 
   if (!selectedScore && scoreNames.length > 0) {
     setSelectedScore(scoreNames[0]);
@@ -134,15 +132,15 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
-    setDatapointId(undefined);
+    setTrialId(undefined);
     const next = new URLSearchParams(searchParams.toString());
     next.delete("traceId");
-    next.delete("datapointId");
+    next.delete("trialId");
     next.delete("spanId");
     push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
 
-  const taskRows = useMemo(() => (allDatapoints ? groupTrialsIntoTasks(allDatapoints) : undefined), [allDatapoints]);
+  const taskRows = useMemo(() => (allTrials ? groupTrialsIntoTasks(allTrials) : undefined), [allTrials]);
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     if (isTaskGroupRow(row.original)) {
@@ -150,7 +148,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
       return;
     }
     setTraceId(row.original["traceId"] as string);
-    setDatapointId(row.original["id"] as string);
+    setTrialId(row.original["id"] as string);
   }, []);
 
   const getRowHref = useCallback(
@@ -158,7 +156,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
       if (isTaskGroupRow(row.original)) return undefined;
       const next = new URLSearchParams(searchParams.toString());
       next.set("traceId", row.original["traceId"] as string);
-      next.set("datapointId", row.original["id"] as string);
+      next.set("trialId", row.original["id"] as string);
       return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
@@ -233,9 +231,9 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
             </>
           )}
         </div>
-        <EvaluationDatapointsTable
+        <EvaluationTrialsTable
           data={taskRows}
-          isLoading={isStatsLoading || isLoadingDatapoints}
+          isLoading={isStatsLoading || isLoadingTrials}
           isFetching={isFetching}
           hasMore={hasMore}
           fetchNextPage={fetchNextPage}
@@ -243,7 +241,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           visibleColumnDefs={visibleColumnDefs}
           isComparison={false}
           scoreRanges={scoreRanges}
-          datapointId={datapointId}
+          trialId={trialId}
           handleRowClick={handleRowClick}
           getRowHref={getRowHref}
           sortBy={sortBy ?? undefined}

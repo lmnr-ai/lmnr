@@ -41,7 +41,7 @@ export async function getSharedEvaluation({ evaluationId }: { evaluationId: stri
   return { evaluation: evaluation as Evaluation, projectId: publicEval.projectId };
 }
 
-export async function getSharedEvaluationDatapoints({
+export async function getSharedEvaluationTrials({
   evaluationId,
   pageNumber,
   pageSize,

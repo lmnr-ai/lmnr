@@ -5,7 +5,7 @@ import useSWR from "swr";
 
 import RowScoreChip from "@/components/evaluation/row-score-chips/chip";
 import { type RunPoint } from "@/components/evaluation/row-score-chips/history-card";
-import { type EvaluationDatapointComparisonRow } from "@/lib/actions/evaluation";
+import { type EvaluationTrialComparisonRow } from "@/lib/actions/evaluation";
 import { taskMeanScores } from "@/lib/evaluation/task-groups";
 import { type EvalRow, type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
@@ -16,13 +16,13 @@ interface RowScoreChipsProps {
   evaluations: EvaluationType[];
   currentEvaluationId: string;
   scoreNames: string[];
-  /** The selected datapoint whose per-row values the chips show. */
+  /** The selected Trial whose per-row values the chips show. */
   row?: EvalRow;
 }
 
 /**
- * The selected row's scores, shown above the trace view when a datapoint is
- * open. One fetch covers every score: the datapoint-comparison endpoint
+ * The selected row's scores, shown above the trace view when a Trial is
+ * open. One fetch covers every score: the trial-comparison endpoint
  * returns this TASK's scores across all runs in the group, and each chip's
  * hover grows a line card of its score over those runs.
  */
@@ -47,10 +47,10 @@ export default function RowScoreChips({
   const idsKey = useMemo(() => sortedEvals.map((e) => e.id).join(","), [sortedEvals]);
   const swrKey =
     taskId !== undefined && idsKey.length > 0
-      ? ([`/api/projects/${projectId}/evaluations/datapoint-comparison`, idsKey, taskId] as const)
+      ? ([`/api/projects/${projectId}/evaluations/trial-comparison`, idsKey, taskId] as const)
       : null;
 
-  const { data } = useSWR<{ rows: EvaluationDatapointComparisonRow[] }>(
+  const { data } = useSWR<{ rows: EvaluationTrialComparisonRow[] }>(
     swrKey,
     async ([url, ids, task]: readonly [string, string, string]) => {
       const res = await fetch(url, {
@@ -60,7 +60,7 @@ export default function RowScoreChips({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.error ?? "Failed to load datapoint comparison.");
+        throw new Error(err?.error ?? "Failed to load trial comparison.");
       }
       return res.json();
     },
@@ -70,7 +70,7 @@ export default function RowScoreChips({
   // Order fetched rows by run order (oldest first); drop runs that don't contain
   // this task. A run with several Trials of the task contributes their mean.
   const runs = useMemo(() => {
-    const trialsByEval = new Map<string, EvaluationDatapointComparisonRow[]>();
+    const trialsByEval = new Map<string, EvaluationTrialComparisonRow[]>();
     (data?.rows ?? []).forEach((r) =>
       trialsByEval.set(r.evaluationId, [...(trialsByEval.get(r.evaluationId) ?? []), r])
     );
@@ -85,7 +85,7 @@ export default function RowScoreChips({
     );
     return sortedEvals
       .map((ev) => ({ ev, row: byEval.get(ev.id) }))
-      .filter((x): x is { ev: EvaluationType; row: EvaluationDatapointComparisonRow } => !!x.row);
+      .filter((x): x is { ev: EvaluationType; row: EvaluationTrialComparisonRow } => !!x.row);
   }, [data, sortedEvals]);
 
   const pointsByScore = useMemo(() => {

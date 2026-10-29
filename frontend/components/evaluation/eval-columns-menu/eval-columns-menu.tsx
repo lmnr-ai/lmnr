@@ -11,7 +11,7 @@ import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/ta
 import { type EvalRow } from "@/lib/evaluation/types";
 
 interface EvalColumnsMenuProps {
-  /** Derived column defs from the parent — see EvaluationDatapointsTableProps. */
+  /** Derived column defs from the parent — see EvaluationTrialsTableProps. */
   columnDefs: ColumnDef<EvalRow>[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
 }
@@ -26,16 +26,16 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
-      schema: { tables: ["evaluation_datapoints"] },
+      schema: { tables: ["evaluation_trials"] },
       generationMode: "eval-expression",
       buildTestQuery: (sql) =>
-        `SELECT ${sql} as \`test\` FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`,
+        `SELECT ${sql} as \`test\` FROM evaluation_trials WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`,
       testQueryParameters: { evaluationId: evaluationId as string },
       getColumnDefs: () => columnDefs,
       namePlaceholder: "e.g. Span Count",
       sqlPlaceholder: "e.g. arrayCount(x -> 1, trace_spans)",
       aiInputPlaceholder: "e.g. Count the number of spans in trace_spans",
-      sqlHint: "Expression is added as a column: SELECT <expr> FROM evaluation_datapoints",
+      sqlHint: "Expression is added as a column: SELECT <expr> FROM evaluation_trials",
     }),
     [evaluationId, columnDefs]
   );

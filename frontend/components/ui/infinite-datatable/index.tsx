@@ -151,9 +151,11 @@ export function InfiniteDataTable<TData extends RowData>({
   useEffect(() => {
     if (!focusedRowId || revealedRowIdRef.current === focusedRowId) return;
     const row = table.getCoreRowModel().flatRows.find((r) => r.id === focusedRowId);
-    if (!row) return;
+    // A lone Trial is a top-level row until a sibling arrives and nests it, so wait for a parent.
+    const parents = row?.getParentRows() ?? [];
+    if (parents.length === 0) return;
     revealedRowIdRef.current = focusedRowId;
-    row.getParentRows().forEach((parent) => {
+    parents.forEach((parent) => {
       if (!parent.getIsExpanded()) parent.toggleExpanded(true);
     });
   }, [focusedRowId, data, table]);

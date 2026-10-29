@@ -30,10 +30,9 @@ export const parseScores = (scores: unknown): Record<string, number> => {
 };
 
 // `score:<name>` columns come from simpleJSONExtractFloat, which reads a missing score as 0,
-// so the raw `scores` JSON is the source of truth when present.
+// so the raw `scores` JSON is the source of truth whenever the row carries it, even when empty.
 const trialScores = (row: EvalRow): Record<string, number> => {
-  const fromJson = parseScores(row["scores"]);
-  if (Object.keys(fromJson).length > 0) return fromJson;
+  if (row["scores"] != null) return parseScores(row["scores"]);
   return Object.fromEntries(
     Object.entries(row)
       .filter((entry): entry is [string, number] => entry[0].startsWith("score:") && isFiniteNumber(entry[1]))
@@ -47,13 +46,13 @@ const meanScores = (scoreSets: Record<string, number>[]): Record<string, number>
   return Object.fromEntries([...names].map((name) => [name, mean(scoreSets.map((s) => s[name]))!]));
 };
 
-/** Task-level values for `columnIds`: means for numbers and scores, the first Trial's value otherwise. */
+/** Task-level values for `columnIds`: means for numbers and scores, the first present value otherwise. */
 export const meanTrialColumns = (trials: EvalRow[], columnIds: string[]): EvalRow => {
   const scores = meanScores(trials.map(trialScores));
   return Object.fromEntries(
     columnIds.map((id) => {
       if (id.startsWith("score:")) return [id, scores[id.slice("score:".length)]];
-      return [id, mean(trials.map((t) => t[id])) ?? trials[0]?.[id]];
+      return [id, mean(trials.map((t) => t[id])) ?? trials.find((t) => t[id] != null)?.[id]];
     })
   );
 };
@@ -83,10 +82,11 @@ const variesColumnIds = (trials: EvalRow[]): string[] => {
     trials.flatMap((t) => Object.keys(t).filter((k) => SHARED_VALUE_COLUMN_IDS.has(k) || k.startsWith("custom:")))
   );
   return [...ids].filter((id) => {
-    const values = trials.map((t) => t[id]);
+    // A Trial that hasn't reported a value yet (pending, or a realtime insert) doesn't disagree.
+    const values = trials.map((t) => t[id]).filter((v) => v != null);
     // Numeric custom columns are averaged instead.
     if (id.startsWith("custom:") && values.every(isFiniteNumber)) return false;
-    return new Set(values.map((v) => JSON.stringify(v ?? null))).size > 1;
+    return new Set(values.map((v) => JSON.stringify(v))).size > 1;
   });
 };
 
