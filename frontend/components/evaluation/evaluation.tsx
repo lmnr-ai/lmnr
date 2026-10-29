@@ -32,6 +32,7 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { groupTrialsIntoTasks, isTaskGroupRow } from "@/lib/evaluation/task-groups";
 import {
   type EvalRow,
   type Evaluation as EvaluationType,
@@ -52,7 +53,7 @@ interface EvaluationProps {
 }
 
 const PAGE_SIZE = 50;
-const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+const BASE_COLUMN_ORDER = ["status", "taskId", "index", "data", "target", "metadata", "output", "duration", "cost"];
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
@@ -176,6 +177,8 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
+  const taskRows = useMemo(() => (allDatapoints ? groupTrialsIntoTasks(allDatapoints) : undefined), [allDatapoints]);
+
   // Score-range heatmap input — derived from current data, no storage needed.
   const scoreRanges = useMemo(() => {
     if (!allDatapoints) return {};
@@ -262,6 +265,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
 
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
+      if (isTaskGroupRow(row.original)) {
+        row.toggleExpanded();
+        return;
+      }
       setDatapointId(row.original["id"] as string);
       setTraceIdParam(row.original["traceId"] as string);
     },
@@ -270,6 +277,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
+      if (isTaskGroupRow(row.original)) return undefined;
       const next = new URLSearchParams(searchParams.toString());
       next.set("traceId", row.original["traceId"] as string);
       next.set("datapointId", row.original["id"] as string);
@@ -299,7 +307,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
 
   const table = (
     <EvaluationDatapointsTable
-      data={allDatapoints}
+      data={taskRows}
       isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
       isFetching={isFetching}
       hasMore={hasMore}

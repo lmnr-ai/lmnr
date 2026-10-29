@@ -2,18 +2,15 @@ import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import {
-  buildEvalQuery,
-  buildEvalStatsQuery,
-  type EvalFilter,
-  type EvalQueryColumn,
-} from "@/lib/actions/evaluation/query-builder";
+import { buildEvalStatsQuery, type EvalFilter, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
+import { fetchEvalTaskPage } from "@/lib/actions/evaluation/task-page";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
+import { taskMeanScores } from "@/lib/evaluation/task-groups";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
@@ -94,7 +91,7 @@ export async function getSharedEvaluationDatapoints({
     }
   }
 
-  const { query, parameters } = buildEvalQuery({
+  const results = await fetchEvalTaskPage((q) => executeQuery({ ...q, projectId }, { actor: SHARED_ACTOR }), {
     evaluationId,
     columns,
     traceIds: searchTraceIds,
@@ -105,15 +102,6 @@ export async function getSharedEvaluationDatapoints({
     sortSql,
     sortDirection,
   });
-
-  const results = await executeQuery<Record<string, unknown>>(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { actor: SHARED_ACTOR }
-  );
 
   return { evaluation, results };
 }
@@ -163,7 +151,7 @@ export async function getSharedEvaluationStatistics({
     columns,
   });
 
-  const rawResults = await executeQuery<{ scores: string }>(
+  const rawResults = await executeQuery<{ task_id: string; scores: string }>(
     {
       query: statsQuery,
       parameters: statsParams,
@@ -172,16 +160,8 @@ export async function getSharedEvaluationStatistics({
     { actor: SHARED_ACTOR }
   );
 
-  const parsedResults = rawResults.map((row) => {
-    let scores: Record<string, unknown> | undefined;
-    try {
-      const parsed = row.scores ? JSON.parse(row.scores) : {};
-      scores = Object.keys(parsed).length > 0 ? parsed : undefined;
-    } catch {
-      scores = undefined;
-    }
-    return { scores };
-  });
+  // Mean of Task means: a Task with many Trials counts once.
+  const parsedResults = taskMeanScores(rawResults);
 
   const scoreNamesInRows = [...new Set(parsedResults.flatMap((r) => (r.scores ? Object.keys(r.scores) : [])))];
 

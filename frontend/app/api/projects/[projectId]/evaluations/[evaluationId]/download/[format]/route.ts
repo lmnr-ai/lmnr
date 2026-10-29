@@ -33,7 +33,7 @@ export async function GET(
   const chDatapoints = (await executeQuery({
     projectId,
     query: `
-        SELECT id, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
+        SELECT id, task_id taskId, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
         FROM evaluation_datapoints
         WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
@@ -44,6 +44,7 @@ export async function GET(
     },
   })) as {
     id: string;
+    taskId: string;
     index: number;
     executorOutput: string;
     data: string;

@@ -41,6 +41,7 @@ pub struct CHEvaluationDatapoint {
     #[serde(default = "default_group_id")]
     pub group_id: String,
     pub scores: String, // Stringified JSON object from score name to float value
+    pub task_id: String,
 }
 
 impl CHEvaluationDatapoint {
@@ -50,12 +51,17 @@ impl CHEvaluationDatapoint {
         project_id: Uuid,
         group_name: &String,
     ) -> Self {
+        let task_id = result
+            .task_id
+            .filter(|task_id| !task_id.is_empty())
+            .unwrap_or_else(|| result.index.to_string());
         CHEvaluationDatapoint {
             id: result.id,
             evaluation_id,
             project_id,
             trace_id: result.trace_id,
             index: result.index as u64,
+            task_id,
             updated_at: chrono_to_nanoseconds(Utc::now()),
             data: json_value_to_string(&result.data),
             target: json_value_to_string(&result.target),
@@ -128,5 +134,40 @@ pub async fn ch_insert_evaluation_datapoints(
             "Failed to insert evaluation_datapoints batch into Clickhouse: {:?}",
             e
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn task_id_of(point: serde_json::Value) -> String {
+        let result: EvaluationDatapointResult = serde_json::from_value(point).unwrap();
+        CHEvaluationDatapoint::from_evaluation_datapoint_result(
+            result,
+            Uuid::nil(),
+            Uuid::nil(),
+            &DEFAULT_GROUP_NAME.to_string(),
+        )
+        .task_id
+    }
+
+    #[test]
+    fn task_id_falls_back_to_index() {
+        use serde_json::json;
+        // The Python SDK always sends `taskId`, as null when unset.
+        assert_eq!(
+            task_id_of(json!({"data": {}, "index": 3, "taskId": null})),
+            "3"
+        );
+        assert_eq!(task_id_of(json!({"data": {}, "index": 3})), "3");
+        assert_eq!(
+            task_id_of(json!({"data": {}, "index": 3, "taskId": ""})),
+            "3"
+        );
+        assert_eq!(
+            task_id_of(json!({"data": {}, "index": 3, "taskId": "case-a"})),
+            "case-a"
+        );
     }
 }

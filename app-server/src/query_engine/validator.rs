@@ -29,6 +29,15 @@ const VIEW_VERSION: &str = "v0";
 const POLICY_VIEW_VERSION: &str = "v1";
 const SPANS_TABLE: &str = "spans";
 
+/// The table whose view an allowlisted name reads; resolves name aliases.
+fn source_table(table_name: &str) -> &str {
+    if table_name == EVALUATION_TRIALS_TABLE {
+        EVALUATION_DATAPOINTS_TABLE
+    } else {
+        table_name
+    }
+}
+
 /// Whether `table_name` resolves to a `_v1` view that takes `policy`.
 fn takes_policy(table_name: &str) -> bool {
     table_name == SPANS_TABLE || table_name == TRACES_TABLE
@@ -51,6 +60,9 @@ const TRACES_TABLE: &str = "traces";
 /// Takes the same start_time bounds plus `eval_ids`, whose empty-array sentinel
 /// means "no filter" (see [`scalar_ids_arg`]).
 const EVALUATION_DATAPOINTS_TABLE: &str = "evaluation_datapoints";
+/// User-facing name for `evaluation_datapoints` (one row per trial). Both names
+/// are allowlisted and rewrite to the same `evaluation_datapoints_v0` view.
+const EVALUATION_TRIALS_TABLE: &str = "evaluation_trials";
 /// These three all resolve cluster membership through `signal_event_summaries`
 /// internally, whose sort key is `(project_id, signal_id, cluster_id, event_id, ...)`.
 /// They take a `signal_ids` array (same empty-sentinel semantics as `eval_ids`,
@@ -560,6 +572,7 @@ impl TableRegistry {
             "data",
             "target",
             "metadata",
+            "task_id",
         ];
 
         let signal_runs_columns = [
@@ -631,6 +644,7 @@ impl TableRegistry {
             "metadata",
             "executor_output",
             "index",
+            "task_id",
             "trace_id",
             "group_id",
             "scores",
@@ -719,7 +733,11 @@ impl TableRegistry {
             schema(&dataset_datapoints_columns),
         );
         tables.insert(
-            "evaluation_datapoints",
+            EVALUATION_DATAPOINTS_TABLE,
+            schema(&evaluation_datapoints_columns),
+        );
+        tables.insert(
+            EVALUATION_TRIALS_TABLE,
             schema(&evaluation_datapoints_columns),
         );
         tables.insert("signal_runs", schema(&signal_runs_columns));
@@ -1548,7 +1566,10 @@ impl VisitorMut for ViewRewriter<'_> {
                 return ControlFlow::Continue(());
             }
 
-            let view_name = format!("{table_name}_{}", view_version(&table_name));
+            // The default alias keeps the name as written, so `evaluation_trials.col`
+            // qualifiers resolve; only the view is picked by the source table.
+            let source = source_table(&table_name);
+            let view_name = format!("{source}_{}", view_version(source));
             let alias_ident = alias
                 .as_ref()
                 .map(|a| a.name.clone())
@@ -1556,7 +1577,7 @@ impl VisitorMut for ViewRewriter<'_> {
 
             *name = ObjectName(vec![ObjectNamePart::Identifier(Ident::new(view_name))]);
             let mut view_args = vec![named_arg("project_id", string_expr(self.project_id))];
-            if takes_policy(&table_name) {
+            if takes_policy(source) {
                 view_args.push(named_arg("policy", string_expr(self.policy)));
             }
             // `traces_v1` and `evaluation_datapoints_v0` are parameterized by
@@ -1568,11 +1589,11 @@ impl VisitorMut for ViewRewriter<'_> {
             // post-aggregation HAVING predicates are intentionally excluded —
             // they can't be pushed to a pre-scan PREWHERE anyway.
             let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
-            if table_name == TRACES_TABLE {
+            if source == TRACES_TABLE {
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
-            } else if table_name == EVALUATION_DATAPOINTS_TABLE {
+            } else if source == EVALUATION_DATAPOINTS_TABLE {
                 // Same bounds derivation as traces — the view exposes the trace's
                 // `start_time`.
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
@@ -1582,10 +1603,10 @@ impl VisitorMut for ViewRewriter<'_> {
                 ));
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
-            } else if table_name == SIGNAL_EVENTS_TABLE
-                || table_name == SIGNAL_EVENTS_ALL_TABLE
-                || table_name == EVENT_CLUSTERS_ALL_TABLE
-                || table_name == CLUSTERS_TABLE
+            } else if source == SIGNAL_EVENTS_TABLE
+                || source == SIGNAL_EVENTS_ALL_TABLE
+                || source == EVENT_CLUSTERS_ALL_TABLE
+                || source == CLUSTERS_TABLE
             {
                 view_args.push(named_arg(
                     "signal_ids",

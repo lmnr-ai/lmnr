@@ -22,7 +22,7 @@ interface EvaluationDatapointsTableContentsProps {
   pinnedLeftColumnIds?: string[];
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
-  getRowHref?: (row: Row<EvalRow>) => string;
+  getRowHref?: (row: Row<EvalRow>) => string | undefined;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   onSort: (columnId: string, direction: "asc" | "desc") => void;
@@ -31,6 +31,8 @@ interface EvaluationDatapointsTableContentsProps {
   onToggleScoreDirection?: (scoreName: string) => void;
   isSearchActive: boolean;
 }
+
+const getTaskRowClassName = (row: Row<EvalRow>) => (row.getIsExpanded() ? "eval-task-expanded" : "");
 
 export const EvaluationDatapointsTableContents = memo(function EvaluationDatapointsTableContents({
   children,
@@ -85,6 +87,8 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
       focusedRowId={datapointId}
       onRowClick={handleRowClick}
       getRowHref={getRowHref}
+      getRowClassName={getTaskRowClassName}
+      autoResetExpanded={false}
       pinnedLeftColumnIds={pinnedLeftColumnIds}
       className="flex-1"
       sortBy={sortBy}

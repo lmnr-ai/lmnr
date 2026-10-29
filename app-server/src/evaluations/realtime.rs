@@ -66,6 +66,8 @@ pub struct RealtimeDatapoint<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     index: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    task_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     trace_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<&'a str>,
@@ -85,6 +87,7 @@ impl<'a> RealtimeDatapoint<'a> {
         Self {
             id: row.id,
             index: Some(row.index),
+            task_id: Some(&row.task_id),
             trace_id,
             data: non_empty(&row.data).map(|s| clip_str(s, TRUNCATE_CHARS)),
             target: non_empty(&row.target).map(|s| clip_str(s, TRUNCATE_CHARS)),
@@ -104,6 +107,7 @@ impl<'a> RealtimeDatapoint<'a> {
         Self {
             id: datapoint_id,
             index: None,
+            task_id: None,
             trace_id,
             data: None,
             target: None,
@@ -197,6 +201,7 @@ mod tests {
             dataset_datapoint_created_at: 0,
             group_id: "default".into(),
             scores: r#"{"accuracy":0.9}"#.into(),
+            task_id: "0".into(),
         }
     }
 
@@ -221,8 +226,9 @@ mod tests {
         assert!(v.get("target").is_none());
         assert!(v.get("metadata").is_none());
         assert!(v.get("output").is_none());
-        // index always present on inserts.
+        // index and taskId always present on inserts.
         assert_eq!(v["index"], json!(0));
+        assert_eq!(v["taskId"], json!("0"));
     }
 
     #[test]
@@ -251,6 +257,7 @@ mod tests {
         let v = serde_json::to_value(&dp).unwrap();
         assert_eq!(v["id"], json!(id.to_string()));
         assert!(v.get("index").is_none());
+        assert!(v.get("taskId").is_none());
         assert!(v.get("traceId").is_none());
         assert!(v.get("data").is_none());
         assert!(v.get("target").is_none());

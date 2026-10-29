@@ -270,8 +270,9 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
-        name: "evaluation_datapoints",
-        description: "Results from evaluations: scores, executor output, and denormalized trace data.",
+        name: "evaluation_trials",
+        description: "Results from evaluations, one row per trial: scores, executor output, and denormalized trace data. \
+               `evaluation_datapoints` is an alias for this table.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation datapoint"),
             col("evaluation_id", "UUID", "Id of the evaluation"),
@@ -303,6 +304,11 @@ const TABLES: &[Table] = &[
                 "Executor output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col("index", "UInt64", "Index within the evaluation"),
+            col(
+                "task_id",
+                "String",
+                "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+            ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",
@@ -406,6 +412,11 @@ const TABLES: &[Table] = &[
                 "String",
                 "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
+            col(
+                "task_id",
+                "String",
+                "Task id evaluations group trials by; unique within the dataset",
+            ),
         ],
     },
     Table {
@@ -431,6 +442,11 @@ const TABLES: &[Table] = &[
                 "metadata",
                 "String",
                 "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "task_id",
+                "String",
+                "Task id evaluations group trials by; unique within the dataset",
             ),
         ],
     },
@@ -610,7 +626,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "evaluations",
-        description: "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id; for just the name, use evaluation_datapoints.evaluation_name.",
+        description: "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_trials on evaluations.id = evaluation_id; for just the name, use evaluation_trials.evaluation_name.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation"),
             col("name", "String", "Evaluation name"),
@@ -759,7 +775,7 @@ mod tests {
         for table in [
             "spans",
             "traces",
-            "evaluation_datapoints",
+            "evaluation_trials",
             "signal_events",
             "clusters",
             "signal_runs",

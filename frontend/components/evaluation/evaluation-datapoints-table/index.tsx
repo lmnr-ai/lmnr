@@ -24,7 +24,7 @@ interface EvaluationDatapointsTableProps {
   pinnedLeftColumnIds?: string[];
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
-  getRowHref?: (row: Row<EvalRow>) => string;
+  getRowHref?: (row: Row<EvalRow>) => string | undefined;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   onSort: (columnId: string, direction: "asc" | "desc") => void;

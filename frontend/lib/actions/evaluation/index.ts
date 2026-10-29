@@ -3,17 +3,14 @@ import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
-import {
-  buildEvalQuery,
-  buildEvalStatsQuery,
-  EvalFilterSchema,
-  type EvalQueryColumn,
-} from "@/lib/actions/evaluation/query-builder";
+import { buildEvalStatsQuery, EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
+import { fetchEvalTaskPage } from "@/lib/actions/evaluation/task-page";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery, type SqlActor } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { datasets, evaluations } from "@/lib/db/migrations/schema";
+import { taskMeanScores } from "@/lib/evaluation/task-groups";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
@@ -192,8 +189,8 @@ export const getEvaluationDatapoints = async (
     }
   }
 
-  // Step 2: Build and execute single JOIN query
-  const { query, parameters } = buildEvalQuery({
+  // Step 2: Page by Task, then fetch those Tasks' Trials (and the compared run's)
+  const results = await fetchEvalTaskPage((q) => executeQuery({ ...q, projectId }), {
     evaluationId,
     columns,
     traceIds: searchTraceIds,
@@ -204,12 +201,6 @@ export const getEvaluationDatapoints = async (
     sortSql,
     sortDirection,
     targetId: targetId ?? undefined,
-  });
-
-  const results = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
   });
 
   return {
@@ -268,22 +259,14 @@ export const getEvaluationStatistics = async (
     columns,
   });
 
-  const rawResults = await executeQuery<{ scores: string }>({
+  const rawResults = await executeQuery<{ task_id: string; scores: string }>({
     query: statsQuery,
     parameters: statsParams,
     projectId,
   });
 
-  const parsedResults = rawResults.map((row) => {
-    let scores: Record<string, unknown> | undefined;
-    try {
-      const parsed = row.scores ? JSON.parse(row.scores) : {};
-      scores = Object.keys(parsed).length > 0 ? parsed : undefined;
-    } catch {
-      scores = undefined;
-    }
-    return { scores };
-  });
+  // Mean of Task means: a Task with many Trials counts once.
+  const parsedResults = taskMeanScores(rawResults);
 
   const scoreNamesInRows = [...new Set(parsedResults.flatMap((r) => (r.scores ? Object.keys(r.scores) : [])))];
 
@@ -344,22 +327,22 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
 };
 
 /**
- * Fetch the scores JSON for a single datapoint index across a set of evaluations.
- * Used by the datapoint-comparison overview: pivot a single datapoint position
- * across every run in its group.
+ * Fetch the scores JSON for a single task across a set of evaluations.
+ * Used by the datapoint-comparison overview: pivot a single task across every
+ * run in its group.
  *
- * Returns one row per (evaluationId, index) found — evaluations that don't
- * contain this index are simply omitted.
+ * Returns one row per (evaluationId, trial) found — evaluations that don't
+ * contain this task are simply omitted.
  */
 export const GetEvaluationDatapointComparisonSchema = z.object({
   projectId: z.guid(),
   evaluationIds: z.array(z.guid()).min(1),
-  index: z.number().int().nonnegative(),
+  taskId: z.string(),
 });
 
 export type EvaluationDatapointComparisonRow = {
   evaluationId: string;
-  index: number;
+  taskId: string;
   scores: Record<string, number>;
   traceId: string;
 };
@@ -367,7 +350,7 @@ export type EvaluationDatapointComparisonRow = {
 export const getEvaluationDatapointComparison = async (
   input: z.infer<typeof GetEvaluationDatapointComparisonSchema>
 ): Promise<EvaluationDatapointComparisonRow[]> => {
-  const { projectId, evaluationIds, index } = input;
+  const { projectId, evaluationIds, taskId } = input;
 
   // Authz: only consider evaluations that actually belong to this project.
   // Filter at the DB instead of loading every project eval into memory.
@@ -380,17 +363,17 @@ export const getEvaluationDatapointComparison = async (
 
   const rows = await executeQuery<{
     evaluationId: string;
-    index: number | string;
+    taskId: string;
     scores: string | Record<string, unknown>;
     traceId: string;
   }>({
     query: `
-      SELECT evaluation_id evaluationId, \`index\`, scores, trace_id traceId
+      SELECT evaluation_id evaluationId, task_id taskId, scores, trace_id traceId
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
-        AND \`index\` = ${index}
+        AND task_id = {taskId:String}
     `,
-    parameters: { evaluationIds: filteredIds },
+    parameters: { evaluationIds: filteredIds, taskId },
     projectId,
   });
 
@@ -413,7 +396,7 @@ export const getEvaluationDatapointComparison = async (
           )
         )
       : {};
-    return { evaluationId: r.evaluationId, index: Number(r.index), scores, traceId: r.traceId };
+    return { evaluationId: r.evaluationId, taskId: r.taskId, scores, traceId: r.traceId };
   });
 };
 

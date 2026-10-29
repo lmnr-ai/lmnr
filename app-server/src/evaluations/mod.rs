@@ -46,6 +46,9 @@ pub struct EvaluationDatapointResult {
     pub data: Value,
     #[serde(default)]
     pub index: i32,
+    /// Rows sharing a task id within an evaluation are trials of one task.
+    #[serde(default)]
+    pub task_id: Option<String>,
     #[serde(default = "Uuid::new_v4")]
     pub id: Uuid,
     #[serde(default)]
@@ -216,7 +219,7 @@ pub async fn update_evaluation_datapoint(
         .query(
             "INSERT INTO evaluation_datapoints (
                 id, evaluation_id, project_id, trace_id, updated_at,
-                data, target, metadata, executor_output, `index`,
+                data, target, metadata, executor_output, `index`, task_id,
                 dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
                 group_id, scores
             )
@@ -231,6 +234,7 @@ pub async fn update_evaluation_datapoint(
                 existing.metadata,
                 if(empty(incoming.executor_output), existing.executor_output, incoming.executor_output),
                 existing.`index`,
+                existing.task_id,
                 existing.dataset_id,
                 existing.dataset_datapoint_id,
                 existing.dataset_datapoint_created_at,
@@ -244,7 +248,7 @@ pub async fn update_evaluation_datapoint(
             CROSS JOIN (
                 SELECT
                     id, evaluation_id, project_id, trace_id,
-                    data, target, metadata, executor_output, `index`, scores,
+                    data, target, metadata, executor_output, `index`, task_id, scores,
                     dataset_id, dataset_datapoint_id, dataset_datapoint_created_at
                 FROM evaluation_datapoints FINAL
                 PREWHERE id = ?

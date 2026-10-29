@@ -85,8 +85,8 @@ const MCP_SQL_EXTRAS: &str = r#"<joins>
   product, NOT an event-to-cluster match).
 - signals.id = signal_events.signal_id (and signal_runs.signal_id, e.signal_id after ARRAY JOIN traces.signal_events AS e)
   for a signal's prompt, schema, model or version. Likewise evaluations.id =
-  evaluation_datapoints.evaluation_id and datasets.id = dataset_datapoints.dataset_id. Names need no
-  join: signal_events.signal_name, evaluation_datapoints.evaluation_name, dataset_datapoints.dataset_name.
+  evaluation_trials.evaluation_id and datasets.id = dataset_datapoints.dataset_id. Names need no
+  join: signal_events.signal_name, evaluation_trials.evaluation_name, dataset_datapoints.dataset_name.
 - For per-trace signal/cluster questions prefer traces.signal_events and traces.clusters over joining
   signal_events. ARRAY JOIN signal_events AS e, ARRAY JOIN clusters AS c.
 - Top-level clusters have parent_id = the nil UUID '00000000-0000-0000-0000-000000000000' (NOT SQL

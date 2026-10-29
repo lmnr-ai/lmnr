@@ -1,11 +1,37 @@
 import { Check, Loader2, X } from "lucide-react";
 
-import { deriveStatus } from "@/components/evaluation/utils";
+import { deriveStatus, type EvalDatapointStatus } from "@/components/evaluation/utils";
+import { isTaskGroupRow } from "@/lib/evaluation/task-groups";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
-  const status = deriveStatus(row.original);
+// A Task is pending while any Trial is, and errored only when every Trial errored.
+const deriveTaskStatus = (trials: EvalRow[]): { status: EvalDatapointStatus; errors: number } => {
+  const statuses = trials.map(deriveStatus);
+  const errors = statuses.filter((s) => s === "error").length;
+  if (statuses.includes("pending")) return { status: "pending", errors };
+  return { status: errors === trials.length ? "error" : "success", errors };
+};
 
+export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
+  if (isTaskGroupRow(row.original)) {
+    const trials = row.original["subRows"] as EvalRow[];
+    const { status, errors } = deriveTaskStatus(trials);
+    if (status === "success" && errors > 0) {
+      return (
+        <div
+          className="flex h-full justify-center items-center w-10 text-xs text-destructive-text"
+          title={`${errors} of ${trials.length} trials errored`}
+        >
+          {trials.length - errors}/{trials.length}
+        </div>
+      );
+    }
+    return <StatusIcon status={status} />;
+  }
+  return <StatusIcon status={deriveStatus(row.original)} />;
+};
+
+const StatusIcon = ({ status }: { status: EvalDatapointStatus }) => {
   if (status === "error") {
     return (
       <div className="flex h-full justify-center items-center w-10">

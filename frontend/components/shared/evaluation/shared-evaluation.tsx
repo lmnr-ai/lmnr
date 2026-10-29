@@ -28,6 +28,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { groupTrialsIntoTasks, isTaskGroupRow } from "@/lib/evaluation/task-groups";
 import { type EvalRow, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { swrFetcher } from "@/lib/utils";
@@ -140,13 +141,20 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
 
+  const taskRows = useMemo(() => (allDatapoints ? groupTrialsIntoTasks(allDatapoints) : undefined), [allDatapoints]);
+
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
+    if (isTaskGroupRow(row.original)) {
+      row.toggleExpanded();
+      return;
+    }
     setTraceId(row.original["traceId"] as string);
     setDatapointId(row.original["id"] as string);
   }, []);
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
+      if (isTaskGroupRow(row.original)) return undefined;
       const next = new URLSearchParams(searchParams.toString());
       next.set("traceId", row.original["traceId"] as string);
       next.set("datapointId", row.original["id"] as string);
@@ -225,7 +233,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           )}
         </div>
         <EvaluationDatapointsTable
-          data={allDatapoints}
+          data={taskRows}
           isLoading={isStatsLoading || isLoadingDatapoints}
           isFetching={isFetching}
           hasMore={hasMore}

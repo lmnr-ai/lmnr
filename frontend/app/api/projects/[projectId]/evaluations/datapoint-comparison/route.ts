@@ -9,12 +9,12 @@ import { getEvaluationDatapointComparison, GetEvaluationDatapointComparisonSchem
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
 
-  const body = (await req.json().catch(() => null)) as { evaluationIds?: unknown; index?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { evaluationIds?: unknown; taskId?: unknown } | null;
 
   const parseResult = GetEvaluationDatapointComparisonSchema.safeParse({
     projectId,
     evaluationIds: body?.evaluationIds,
-    index: body?.index,
+    taskId: body?.taskId,
   });
 
   if (!parseResult.success) {

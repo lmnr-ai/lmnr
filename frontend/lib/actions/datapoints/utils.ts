@@ -21,6 +21,7 @@ const datapointSelectColumns = [
   "data",
   "target",
   "metadata",
+  "task_id as taskId",
 ];
 
 const datapointSelectColumnsWithSubstring = [
@@ -30,6 +31,7 @@ const datapointSelectColumnsWithSubstring = [
   "substring(data, 1, 1000) as data",
   "substring(target, 1, 1000) as target",
   "metadata",
+  "task_id as taskId",
 ];
 
 // The datapoints query always runs through the query-engine rewrite, which turns

@@ -8,6 +8,7 @@ import { DataCell } from "./data-cell";
 import { DurationCell } from "./duration-cell";
 import { createScoreColumnCell, scoreDirectionDropdownItems } from "./score-cell";
 import { StatusCell } from "./status-cell";
+import { TaskCell } from "./task-cell";
 
 // -- Static column definitions --
 
@@ -34,6 +35,15 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     size: 70,
     enableSorting: false,
     meta: { dataType: "string", filterable: false, comparable: false },
+  },
+  {
+    id: "taskId",
+    accessorFn: (row) => row["taskId"],
+    cell: TaskCell,
+    header: "Task",
+    size: 180,
+    enableSorting: true,
+    meta: { sql: "task_id", dataType: "string", filterable: true, comparable: false, dbType: "String" },
   },
   {
     id: "index",

@@ -32,7 +32,14 @@ export interface EvalQueryOptions {
   sortBy?: string;
   sortSql?: string;
   sortDirection?: "ASC" | "DESC";
-  targetId?: string;
+}
+
+export interface EvalTrialsQueryOptions {
+  evaluationId: string;
+  columns: EvalQueryColumn[];
+  traceIds: string[];
+  filters: EvalFilter[];
+  taskIds: string[];
 }
 
 export interface EvalStatsQueryOptions {
@@ -92,186 +99,93 @@ function buildFilterConditions(
   return { conditions, params };
 }
 
-// -- Main builder --
+// -- Main builders --
 
-export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
+interface WhereClause {
+  whereStr: string;
+  parameters: QueryParams;
+}
 
-  if (columns.length === 0) {
-    throw new Error("columns must not be empty");
+function buildWhere(
+  evaluationId: string,
+  traceIds: string[],
+  filters: EvalFilter[],
+  columns: EvalQueryColumn[]
+): WhereClause {
+  const parameters: QueryParams = { evaluationId };
+  const conditions = ["evaluation_id = {evaluationId:UUID}"];
+
+  if (traceIds.length > 0) {
+    conditions.push("trace_id IN ({traceIds:Array(UUID)})");
+    parameters.traceIds = traceIds;
   }
 
-  if (targetId) {
-    return buildComparisonQuery(options);
+  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns, "f");
+  conditions.push(...filterConditions);
+  Object.assign(parameters, filterParams);
+
+  return { whereStr: `WHERE ${conditions.join(" AND ")}`, parameters };
+}
+
+// Trials repeat a Task, so sorting by a numeric column sorts Tasks by their mean.
+function taskSortExpression(sortBy: string, sortSql: string | undefined, columns: EvalQueryColumn[]): string {
+  if (sortBy === "taskId") return "task_id";
+  const col = columns.find((c) => c.id === sortBy);
+  const expr = sortSql ?? col?.sql ?? "`index`";
+  // simpleJSONExtractFloat reads a missing score as 0; skip those Trials like the displayed mean does.
+  if (sortBy.startsWith("score:")) {
+    const name = sortBy.slice("score:".length).replace(/[\\']/g, "\\$&");
+    return `avgIf(${expr}, simpleJSONHas(scores, '${name}'))`;
   }
+  return col?.dbType === "Float64" ? `avg(${expr})` : `min(${expr})`;
+}
 
-  const inner = buildSingleEvalQuery({
-    evaluationId,
-    columns,
-    traceIds,
-    filters,
-    limit,
-    offset,
-    sortBy,
-    sortSql,
-    sortDirection,
-    evalIdParam: "evaluationId",
-  });
+/**
+ * One page of Task ids. Filters apply to Trials, so a Task is on the page when any Trial matches.
+ * Paging by Task keeps every Trial of a Task on the same page.
+ */
+export function buildEvalTaskPageQuery(options: EvalQueryOptions): QueryResult {
+  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection } = options;
+  const { whereStr, parameters } = buildWhere(evaluationId, traceIds, filters, columns);
 
-  const outerSelect = columns.map((c, i) => `${colAlias(i)} as ${backtickEscape(c.id)}`).join(", ");
-  const query = `SELECT ${outerSelect} FROM (${inner.query}) ORDER BY ${inner.orderBy.join(", ")}`;
+  const orderBy = [
+    ...(sortBy ? [`${taskSortExpression(sortBy, sortSql, columns)} ${sortDirection ?? "ASC"}`] : []),
+    "min(`index`) ASC",
+    "min(created_at) ASC",
+    "task_id ASC",
+  ];
 
-  return { query, parameters: inner.parameters };
+  const query = `SELECT task_id FROM evaluation_datapoints ${whereStr} GROUP BY task_id ORDER BY ${orderBy.join(", ")} LIMIT {limit:UInt32} OFFSET {offset:UInt32}`;
+
+  return { query, parameters: { ...parameters, limit, offset } };
 }
 
 // Inner queries select every column under a positional alias. ClickHouse resolves a SELECT alias
 // before a same-named table column, so `substring(data, 1, 200) as data` would feed the truncated
 // value to custom columns, filters and sorts that read `data`.
 const colAlias = (i: number) => `__c${i}`;
-const sortAlias = (i: number) => `__s${i}`;
 
-interface SingleEvalQueryOptions {
-  evaluationId: string;
-  columns: EvalQueryColumn[];
-  traceIds: string[];
-  filters: EvalFilter[];
-  limit?: number;
-  offset?: number;
-  sortBy?: string;
-  sortSql?: string;
-  sortDirection?: "ASC" | "DESC";
-  evalIdParam: string; // parameter name for the evaluation ID
-  paramPrefix?: string; // prefix for all parameter names to avoid collisions
-}
+/** Every Trial of `taskIds` matching the filters, oldest first within a Task. */
+export function buildEvalTrialsQuery(options: EvalTrialsQueryOptions): QueryResult {
+  const { evaluationId, columns, traceIds, filters, taskIds } = options;
 
-interface InnerEvalQuery extends QueryResult {
-  orderBy: string[]; // sort-alias terms, for the outer query to reapply
-}
+  if (columns.length === 0) {
+    throw new Error("columns must not be empty");
+  }
 
-function buildSingleEvalQuery(options: SingleEvalQueryOptions): InnerEvalQuery {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, evalIdParam } =
-    options;
+  const { whereStr, parameters } = buildWhere(evaluationId, traceIds, filters, columns);
 
-  const prefix = options.paramPrefix || "";
-  const parameters: QueryParams = {};
-
-  const sortExprs = sortBy ? [resolveSortExpression(sortBy, sortSql, columns)] : ["`index`", "created_at"];
-  const direction = sortBy ? (sortDirection ?? "ASC") : "ASC";
-  const orderBy = sortExprs.map((_, i) => `${sortAlias(i)} ${direction}`);
-
-  // SELECT
-  const selectStr = [
+  const innerSelect = [
     ...columns.map((c, i) => `${c.sql} as ${colAlias(i)}`),
-    ...sortExprs.map((e, i) => `${e} as ${sortAlias(i)}`),
+    "`index` as __s0",
+    "created_at as __s1",
   ].join(", ");
+  const inner = `SELECT ${innerSelect} FROM evaluation_datapoints ${whereStr} AND has({taskIds:Array(String)}, task_id)`;
 
-  // WHERE
-  const whereConditions: string[] = [];
+  const outerSelect = columns.map((c, i) => `${colAlias(i)} as ${backtickEscape(c.id)}`).join(", ");
+  const query = `SELECT ${outerSelect} FROM (${inner}) ORDER BY __s0 ASC, __s1 ASC`;
 
-  // Always filter by evaluation_id
-  whereConditions.push(`evaluation_id = {${evalIdParam}:UUID}`);
-  parameters[evalIdParam] = evaluationId;
-
-  // Pre-filter by trace IDs (from search)
-  if (traceIds.length > 0) {
-    const traceIdsKey = `${prefix}traceIds`;
-    whereConditions.push(`trace_id IN ({${traceIdsKey}:Array(UUID)})`);
-    parameters[traceIdsKey] = traceIds;
-  }
-
-  // Apply column filters
-  const filterPrefix = `${prefix}f`;
-  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns, filterPrefix);
-  whereConditions.push(...filterConditions);
-  Object.assign(parameters, filterParams);
-
-  const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
-  const orderByStr = `ORDER BY ${orderBy.join(", ")}`;
-
-  // PAGINATION
-  let limitString = "";
-  if (limit != null) {
-    limitString = `LIMIT {limit:UInt32}`;
-    parameters.limit = limit;
-  }
-
-  let offsetString = "";
-  if (offset != null) {
-    offsetString = `OFFSET {offset:UInt32}`;
-    parameters.offset = offset;
-  }
-
-  const query =
-    `SELECT ${selectStr} FROM evaluation_datapoints ${whereStr} ${orderByStr} ${limitString} ${offsetString}`
-      .trim()
-      .replace(/\s+/g, " ");
-
-  return { query, parameters, orderBy };
-}
-
-function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQueryColumn[]): string {
-  if (sortSql) return sortSql;
-  const col = columns?.find((c) => c.id === sortBy);
-  return col?.sql ?? "`index`";
-}
-
-// -- Comparison builder --
-
-function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
-
-  // Build primary subquery (with pagination)
-  const primaryResult = buildSingleEvalQuery({
-    evaluationId,
-    columns,
-    traceIds,
-    filters,
-    limit,
-    offset,
-    sortBy,
-    sortSql,
-    sortDirection,
-    evalIdParam: "evaluationId",
-    paramPrefix: "p_",
-  });
-
-  // Comparison subquery must fetch all rows (unpaginated) because the two evaluations
-  // may have different indices/sizes — we need the full set for LEFT JOIN matching.
-  const comparedResult = buildSingleEvalQuery({
-    evaluationId: targetId!,
-    columns,
-    traceIds,
-    filters,
-    evalIdParam: "targetId",
-    paramPrefix: "c_",
-  });
-
-  // Merge parameters (no collisions due to unique prefixes: p_ and c_)
-  const parameters: QueryParams = {
-    ...primaryResult.parameters,
-    ...comparedResult.parameters,
-  };
-
-  const indexPos = columns.findIndex((c) => c.id === "index");
-  if (indexPos === -1) {
-    throw new Error("comparison requires the index column");
-  }
-  const indexAlias = colAlias(indexPos);
-
-  // Build outer SELECT
-  const primarySelect = columns.map((c, i) => `p.${colAlias(i)} as ${backtickEscape(c.id)}`);
-  // Compared aliases only for columns the FE config marks comparable
-  const comparedSelect = columns
-    .map((c, i) => ({ c, i }))
-    .filter(({ c }) => c.comparable)
-    .map(({ c, i }) => `c.${colAlias(i)} as ${backtickEscape(`compared:${c.id}`)}`);
-
-  const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
-  const orderByStr = `ORDER BY ${primaryResult.orderBy.map((o) => `p.${o}`).join(", ")}`;
-
-  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.${indexAlias} = c.${indexAlias} ${orderByStr}`;
-
-  return { query, parameters };
+  return { query, parameters: { ...parameters, taskIds } };
 }
 
 // -- Stats query builder --
@@ -297,7 +211,7 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-  const query = `SELECT scores FROM evaluation_datapoints ${whereStr}`;
+  const query = `SELECT task_id, scores FROM evaluation_datapoints ${whereStr}`;
 
   return { query: query.trim(), parameters };
 }
