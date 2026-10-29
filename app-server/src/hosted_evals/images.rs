@@ -166,10 +166,17 @@ struct RegistryAccess {
 
 impl RegistryAccess {
     async fn get() -> Result<Self> {
-        let Ok(url) = std::env::var(env::hosted_evals::REGISTRY_URL) else {
+        // Empty counts as unset, as in `StringEnv` (deployments often template empty keys).
+        let set = |name| {
+            std::env::var(name)
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        };
+        let Some(url) = set(env::hosted_evals::REGISTRY_URL) else {
             return Self::ecr().await;
         };
-        let credential = |name| std::env::var(name).with_context(|| format!("{name} is not set"));
+        let credential = |name| set(name).with_context(|| format!("{name} is not set"));
         Ok(Self {
             host: registry_host(&url),
             username: credential(env::hosted_evals::REGISTRY_USERNAME)?,
