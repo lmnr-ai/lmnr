@@ -211,7 +211,7 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-  const query = `SELECT task_id, scores FROM evaluation_datapoints ${whereStr}`;
+  const query = `SELECT task_id, scores, trace_status, top_span_id FROM evaluation_datapoints ${whereStr}`;
 
   return { query: query.trim(), parameters };
 }

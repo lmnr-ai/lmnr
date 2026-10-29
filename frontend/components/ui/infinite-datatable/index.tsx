@@ -7,7 +7,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import React, { type PropsWithChildren, useMemo } from "react";
+import React, { type PropsWithChildren, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { cn } from "@/lib/utils.ts";
@@ -145,6 +145,18 @@ export function InfiniteDataTable<TData extends RowData>({
     onColumnVisibilityChange: (visibility) => setColumnVisibility(visibility as Record<string, boolean>),
     onColumnOrderChange: (order) => setColumnOrder(order as string[]),
   });
+
+  // Reveal a focused sub-row by expanding its ancestors, once per focus so the user can still collapse them.
+  const revealedRowIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!focusedRowId || revealedRowIdRef.current === focusedRowId) return;
+    const row = table.getCoreRowModel().flatRows.find((r) => r.id === focusedRowId);
+    if (!row) return;
+    revealedRowIdRef.current = focusedRowId;
+    row.getParentRows().forEach((parent) => {
+      if (!parent.getIsExpanded()) parent.toggleExpanded(true);
+    });
+  }, [focusedRowId, data, table]);
 
   const handleClearSelection = () => {
     table.toggleAllRowsSelected(false);

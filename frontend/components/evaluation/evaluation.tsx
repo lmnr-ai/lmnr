@@ -17,7 +17,10 @@ import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
   buildColumnDefs,
   buildFetchParams,
+  BASE_COLUMN_ORDER,
   buildStatsParams,
+  DEFAULT_HIDDEN_COLUMNS,
+  EVAL_LOCKED_COLUMNS,
   EvalStoreProvider,
   selectVisibleColumnDefs,
   useEvalStore,
@@ -53,12 +56,9 @@ interface EvaluationProps {
 }
 
 const PAGE_SIZE = 50;
-const BASE_COLUMN_ORDER = ["status", "taskId", "index", "data", "target", "metadata", "output", "duration", "cost"];
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
-// Default visibility: status + data + score:*.
-const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
   const pathName = usePathname();
@@ -215,9 +215,9 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
           payload.datapoints?.forEach((incoming) => {
             const flattened = flattenScores(incoming["scores"]);
             updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
-            if (Object.keys(flattened).length === 0) return;
-            Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
+            // Stats also carry the running-Trial count, so any upsert can change them.
             debouncedRevalidateStats();
+            Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
           });
         } catch (e) {
           console.warn("Failed to parse realtime datapoint_upsert:", e);
@@ -230,6 +230,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
             traces?: Array<Record<string, unknown> & { id: string }>;
           };
           payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace)));
+          debouncedRevalidateStats();
         } catch (e) {
           console.warn("Failed to parse realtime trace_update:", e);
         }
@@ -316,6 +317,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       visibleColumnDefs={visibleColumnDefs}
       isComparison={isComparison}
       scoreRanges={scoreRanges}
+      runningTrials={targetId ? undefined : statsData?.runningTrials}
       datapointId={(selectedRow?.["id"] as string | undefined) ?? undefined}
       handleRowClick={handleRowClick}
       getRowHref={getRowHref}
@@ -409,6 +411,7 @@ export default function Evaluation(props: EvaluationProps) {
       <InfiniteDataTableProvider
         key={RESOURCE}
         views={{ projectId, resource: RESOURCE }}
+        lockedColumns={EVAL_LOCKED_COLUMNS}
         defaults={{ columnOrder: defaultColumnOrder, columnVisibility: defaultColumnVisibility }}
       >
         <EvaluationContent {...props} />

@@ -21,6 +21,7 @@ interface EvaluationDatapointsTableProps {
   visibleColumnDefs: ColumnDef<EvalRow>[];
   isComparison: boolean;
   scoreRanges: ScoreRanges;
+  runningTrials?: number;
   pinnedLeftColumnIds?: string[];
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
@@ -66,6 +67,7 @@ const EvaluationDatapointsTable = ({
   visibleColumnDefs,
   isComparison,
   scoreRanges,
+  runningTrials,
   pinnedLeftColumnIds,
   datapointId,
   handleRowClick,
@@ -103,6 +105,7 @@ const EvaluationDatapointsTable = ({
         isComparison={isComparison}
         isShared={isShared}
         scoreRanges={scoreRanges}
+        runningTrials={runningTrials}
         pinnedLeftColumnIds={pinnedLeftColumnIds}
         datapointId={datapointId}
         handleRowClick={handleRowClick}

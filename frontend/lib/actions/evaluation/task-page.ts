@@ -4,7 +4,7 @@ import {
   buildEvalTrialsQuery,
   type EvalQueryOptions,
 } from "@/lib/actions/evaluation/query-builder";
-import { meanTrialColumns } from "@/lib/evaluation/task-groups";
+import { attachComparedMeans } from "@/lib/evaluation/task-groups";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 type RunQuery = <T extends Record<string, unknown>>(query: QueryResult) => Promise<T[]>;
@@ -37,21 +37,6 @@ export async function fetchEvalTaskPage(
   const comparedTrials = await runQuery(
     buildEvalTrialsQuery({ evaluationId: targetId, columns, traceIds: [], filters, taskIds })
   );
-  const comparedByTask = new Map<string, EvalRow[]>();
-  for (const t of comparedTrials) {
-    const taskId = String(t["taskId"]);
-    comparedByTask.set(taskId, [...(comparedByTask.get(taskId) ?? []), t]);
-  }
   const comparableIds = columns.filter((c) => c.comparable).map((c) => c.id);
-
-  const comparedMeans = new Map(
-    [...comparedByTask].map(([taskId, group]) => [
-      taskId,
-      Object.fromEntries(
-        Object.entries(meanTrialColumns(group, comparableIds)).map(([id, value]) => [`compared:${id}`, value])
-      ),
-    ])
-  );
-
-  return trials.map((t) => ({ ...t, ...comparedMeans.get(String(t["taskId"])) }));
+  return attachComparedMeans(trials, comparedTrials, comparableIds);
 }

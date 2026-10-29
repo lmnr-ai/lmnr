@@ -19,6 +19,7 @@ interface EvaluationDatapointsTableContentsProps {
   isComparison: boolean;
   isShared: boolean;
   scoreRanges: ScoreRanges;
+  runningTrials?: number;
   pinnedLeftColumnIds?: string[];
   datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
@@ -45,6 +46,7 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
   isComparison,
   isShared,
   scoreRanges,
+  runningTrials,
   pinnedLeftColumnIds,
   datapointId,
   handleRowClick,
@@ -67,9 +69,10 @@ export const EvaluationDatapointsTableContents = memo(function EvaluationDatapoi
         scoreRanges,
         scoreDirections,
         onToggleScoreDirection,
+        runningTrials,
       },
     }),
-    [isComparison, isShared, heatmapEnabled, scoreRanges, scoreDirections, onToggleScoreDirection]
+    [isComparison, isShared, heatmapEnabled, scoreRanges, scoreDirections, onToggleScoreDirection, runningTrials]
   );
 
   if (isLoading) return <EvalTableSkeleton />;

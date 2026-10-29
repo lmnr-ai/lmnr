@@ -3,6 +3,7 @@ import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
 import JsonTooltip from "@/components/ui/json-tooltip";
+import { taskValueVaries } from "@/lib/evaluation/task-groups";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { ComparisonCell } from "./comparison-cell";
@@ -39,6 +40,10 @@ export const DataCell = ({ getValue, column, row, table }: CellContext<EvalRow, 
     const json = await res.json();
     return json.value;
   }, [canFetch, column.id, fullSql, datapointId, projectId, evaluationId]);
+
+  if (taskValueVaries(row.original, column.id)) {
+    return <span className="text-muted-foreground">varies</span>;
+  }
 
   // Custom columns in comparison mode: show side-by-side values
   if (isComparison && isCustom) {
