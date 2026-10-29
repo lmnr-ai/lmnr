@@ -74,6 +74,10 @@ export default function SwitchTierDialog({
           const err = await res.json();
           throw new Error(err.error ?? "Failed to switch tier");
         }
+        if (needsPaymentMethod) {
+          window.location.href = ((await res.json()) as { url: string }).url;
+          return;
+        }
         // sendInstantly bypasses posthog-js's batching queue — router.refresh()
         // below triggers a full RSC re-render that can drop queued events.
         track(
@@ -82,10 +86,6 @@ export default function SwitchTierDialog({
           { from_tier: fromTier, to_tier: targetTier },
           { sendInstantly: true }
         );
-        if (needsPaymentMethod) {
-          window.location.href = ((await res.json()) as { url: string }).url;
-          return;
-        }
         handleOpenChange(false);
         router.refresh();
       } catch (e: any) {
