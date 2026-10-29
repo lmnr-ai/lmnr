@@ -56,7 +56,11 @@ export function formatView(view: EditorView) {
   const sql = view.state.doc.toString();
   if (!sql.trim()) return;
   try {
-    view.dispatch({ changes: whitespaceChanges(sql, formatSql(sql)) });
+    const formatted = formatSql(sql);
+    const changes = view.state.changes(whitespaceChanges(sql, formatted));
+    // Never trust the diff blindly: if it doesn't reproduce the formatted text, replace the document.
+    const exact = changes.apply(view.state.doc).toString() === formatted;
+    view.dispatch({ changes: exact ? changes : { from: 0, to: sql.length, insert: formatted } });
     track("sql_editor", "formatted");
   } catch (error) {
     toast({
