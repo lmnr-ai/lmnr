@@ -4,7 +4,11 @@
 ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT toString(`index`);
 ALTER TABLE dataset_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT toString(id);
 
--- evaluation_datapoints_v0 as of migration 73, plus `task_id`.
+-- When a Trial was first saved; app-server carries it over when the Trial is saved again.
+-- Parts written before this column existed fall back to their last write.
+ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS created_at DateTime64(9, 'UTC') DEFAULT updated_at;
+
+-- evaluation_datapoints_v0 as of migration 73, plus `task_id`, and `created_at` from the new column.
 DROP VIEW IF EXISTS evaluation_datapoints_v0;
 CREATE VIEW IF NOT EXISTS evaluation_datapoints_v0
 SQL SECURITY INVOKER
@@ -23,7 +27,7 @@ AS SELECT
     dictGetOrDefault('evaluations_dict', 'group_id', (edp.project_id, edp.evaluation_id), edp.group_id) group_id,
     edp.scores scores,
     edp.updated_at updated_at,
-    edp.updated_at created_at,
+    edp.created_at created_at,
     edp.dataset_id dataset_id,
     edp.dataset_datapoint_id dataset_datapoint_id,
     edp.dataset_datapoint_created_at dataset_datapoint_created_at,

@@ -28,6 +28,7 @@ pub struct CHEvaluationTrial {
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
     pub updated_at: i64,
+    pub created_at: i64,
     pub data: String,
     pub target: String,
     pub metadata: String,
@@ -50,7 +51,9 @@ impl CHEvaluationTrial {
         evaluation_id: Uuid,
         project_id: Uuid,
         group_name: &String,
+        created_at: Option<i64>,
     ) -> Self {
+        let updated_at = chrono_to_nanoseconds(Utc::now());
         let task_id = result
             .task_id
             .filter(|task_id| !task_id.is_empty())
@@ -62,7 +65,8 @@ impl CHEvaluationTrial {
             trace_id: result.trace_id,
             index: result.index as u64,
             task_id,
-            updated_at: chrono_to_nanoseconds(Utc::now()),
+            updated_at,
+            created_at: created_at.unwrap_or(updated_at),
             data: json_value_to_string(&result.data),
             target: json_value_to_string(&result.target),
             metadata: json_value_to_string(
@@ -101,6 +105,40 @@ impl CHEvaluationTrial {
             ),
         }
     }
+}
+
+#[derive(Row, Deserialize)]
+struct TrialCreatedAt {
+    #[serde(with = "clickhouse::serde::uuid")]
+    id: Uuid,
+    created_at: i64,
+}
+
+/// `created_at` of each already-stored Trial in `ids`. The SDK saves a Trial once before it
+/// runs and again with its output, and the second save must keep the first one's time.
+pub async fn get_trial_created_ats(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    evaluation_id: Uuid,
+    ids: &[Uuid],
+) -> Result<HashMap<Uuid, i64>> {
+    let rows = clickhouse
+        .query(
+            "SELECT id, toUnixTimestamp64Nano(min(created_at)) AS created_at
+             FROM evaluation_datapoints
+             WHERE project_id = {project_id:UUID} AND evaluation_id = {evaluation_id:UUID}
+                AND id IN {ids:Array(UUID)}
+             GROUP BY id",
+        )
+        .param("project_id", project_id)
+        .param("evaluation_id", evaluation_id)
+        .param("ids", ids)
+        .fetch_all::<TrialCreatedAt>()
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| (row.id, row.created_at))
+        .collect())
 }
 
 pub async fn ch_insert_evaluation_trials(
@@ -148,6 +186,7 @@ mod tests {
             Uuid::nil(),
             Uuid::nil(),
             &DEFAULT_GROUP_NAME.to_string(),
+            None,
         )
         .task_id
     }

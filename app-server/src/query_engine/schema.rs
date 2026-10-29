@@ -281,7 +281,7 @@ const TABLES: &[Table] = &[
             col(
                 "created_at",
                 "DateTime64(9,'UTC')",
-                "When the datapoint was created",
+                "When the Trial was first saved",
             ),
             col(
                 "data",
@@ -329,7 +329,7 @@ const TABLES: &[Table] = &[
             col(
                 "updated_at",
                 "DateTime64(9,'UTC')",
-                "When the datapoint was last updated",
+                "When the Trial was last updated",
             ),
             // Everything below is denormalized from the associated trace; all
             // are nil/empty/zero when the datapoint has no trace.

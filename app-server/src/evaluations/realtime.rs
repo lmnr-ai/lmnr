@@ -198,6 +198,7 @@ mod tests {
             project_id: Uuid::nil(),
             trace_id: Uuid::nil(),
             updated_at: 0,
+            created_at: 0,
             data: "{}".into(),
             target: "{}".into(),
             metadata: "{}".into(),

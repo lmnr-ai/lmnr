@@ -289,7 +289,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
       { name: "evaluation_name", type: "String", description: "Name of the evaluation" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was first saved" },
       { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
@@ -306,7 +306,7 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "String",
         description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
       },
-      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the datapoint was last updated" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was last updated" },
       {
         name: "dataset_id",
         type: "UUID",
