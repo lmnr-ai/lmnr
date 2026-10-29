@@ -20,7 +20,7 @@ describe("groupTrialsIntoTasks", () => {
     // Missing from one Trial: averaged over the Trial that has it, not read as 0.
     assert.equal(a["score:q"], 0.5);
     assert.deepEqual(
-      (a["subRows"] as { id: string; trialNumber: number }[]).map((t) => [t.id, t.trialNumber]),
+      (a["subRows"] as { id: string; attempt: number }[]).map((t) => [t.id, t.attempt]),
       [
         ["a1", 1],
         ["a2", 2],

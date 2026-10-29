@@ -8,7 +8,14 @@ ALTER TABLE dataset_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT t
 -- Parts written before this column existed fall back to their last write.
 ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS created_at DateTime64(9, 'UTC') DEFAULT updated_at;
 
--- evaluation_datapoints_v0 as of migration 73, plus `task_id`, and `created_at` from the new column.
+-- Backfill: write the defaults into existing parts, so old rows store their task id and
+-- created_at instead of computing them on every read. Runs as a background mutation.
+-- `index` is untouched and still written on every insert.
+ALTER TABLE evaluation_datapoints MATERIALIZE COLUMN task_id;
+ALTER TABLE evaluation_datapoints MATERIALIZE COLUMN created_at;
+ALTER TABLE dataset_datapoints MATERIALIZE COLUMN task_id;
+
+-- evaluation_datapoints_v0 as of migration 73, plus `task_id`, `attempt`, and `created_at` from the new column.
 DROP VIEW IF EXISTS evaluation_datapoints_v0;
 CREATE VIEW IF NOT EXISTS evaluation_datapoints_v0
 SQL SECURITY INVOKER
@@ -22,6 +29,8 @@ AS SELECT
     edp.executor_output executor_output,
     edp.index `index`,
     edp.task_id task_id,
+    -- 1-based Trial number within its Task in this run, in save order.
+    row_number() OVER (PARTITION BY edp.evaluation_id, edp.task_id ORDER BY edp.created_at, edp.id) attempt,
     edp.trace_id trace_id,
     -- Postgres is the source of truth; the ClickHouse copy covers the dict's reload lag.
     dictGetOrDefault('evaluations_dict', 'group_id', (edp.project_id, edp.evaluation_id), edp.group_id) group_id,

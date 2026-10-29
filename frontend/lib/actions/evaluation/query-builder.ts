@@ -165,7 +165,7 @@ export function buildEvalTaskPageQuery(options: EvalQueryOptions): QueryResult {
 // value to custom columns, filters and sorts that read `data`.
 const colAlias = (i: number) => `__c${i}`;
 
-/** Every Trial of `taskIds` matching the filters, oldest first within a Task. */
+/** Every Trial of `taskIds` matching the filters, in attempt order within a Task. */
 export function buildEvalTrialsQuery(options: EvalTrialsQueryOptions): QueryResult {
   const { evaluationId, columns, traceIds, filters, taskIds } = options;
 
@@ -178,7 +178,7 @@ export function buildEvalTrialsQuery(options: EvalTrialsQueryOptions): QueryResu
   const innerSelect = [
     ...columns.map((c, i) => `${c.sql} as ${colAlias(i)}`),
     "`index` as __s0",
-    "created_at as __s1",
+    "attempt as __s1",
   ].join(", ");
   const inner = `SELECT ${innerSelect} FROM evaluation_datapoints ${whereStr} AND has({taskIds:Array(String)}, task_id)`;
 

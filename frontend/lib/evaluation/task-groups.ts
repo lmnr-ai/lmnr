@@ -110,7 +110,8 @@ const buildTaskRow = (taskId: string, trials: EvalRow[]): EvalRow => {
     // Per-Trial values, shown on the expanded Trial rows.
     output: undefined,
     traceId: undefined,
-    subRows: trials.map((t, i) => ({ ...t, trialNumber: i + 1 })),
+    // Realtime inserts arrive without `attempt`; number them after the Trials that have one.
+    subRows: trials.map((t, i) => ({ ...t, attempt: t["attempt"] ?? i + 1 })),
   };
 };
 
