@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { deriveStatus } from "@/components/evaluation/utils";
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import { buildEvalStatsQuery, EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
@@ -215,6 +216,7 @@ export const getEvaluationStatistics = async (
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+  runningTrials?: number;
 }> => {
   const { projectId, evaluationId, search, searchIn, filter: inputFilters, columns: columnsJson } = input;
 
@@ -259,14 +261,19 @@ export const getEvaluationStatistics = async (
     columns,
   });
 
-  const rawResults = await executeQuery<{ task_id: string; scores: string }>({
-    query: statsQuery,
-    parameters: statsParams,
-    projectId,
-  });
+  const rawResults = await executeQuery<{ task_id: string; scores: string; trace_status: string; top_span_id: string }>(
+    {
+      query: statsQuery,
+      parameters: statsParams,
+      projectId,
+    }
+  );
 
   // Mean of Task means: a Task with many Trials counts once.
   const parsedResults = taskMeanScores(rawResults);
+  const runningTrials = rawResults.filter(
+    (r) => deriveStatus({ traceStatus: r.trace_status, scores: r.scores, topSpanId: r.top_span_id }) === "pending"
+  ).length;
 
   const scoreNamesInRows = [...new Set(parsedResults.flatMap((r) => (r.scores ? Object.keys(r.scores) : [])))];
 
@@ -282,6 +289,7 @@ export const getEvaluationStatistics = async (
     evaluation: evaluation as Evaluation,
     allStatistics,
     allDistributions,
+    runningTrials,
   };
 };
 

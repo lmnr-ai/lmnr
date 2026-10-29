@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useEvalStore } from "@/components/evaluation/store";
+import { EVAL_LOCKED_COLUMNS, useEvalStore } from "@/components/evaluation/store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { type EvalRow } from "@/lib/evaluation/types";
@@ -54,6 +54,7 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
       columnLabels={columnLabels}
       panelConfig={isShared ? undefined : panelConfig}
       columnActions={isShared ? undefined : columnActions}
+      omitColumnIds={EVAL_LOCKED_COLUMNS}
     />
   );
 }

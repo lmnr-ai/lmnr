@@ -18,6 +18,8 @@ import {
   buildColumnDefs,
   buildFetchParams,
   buildStatsParams,
+  BASE_COLUMN_ORDER,
+  EVAL_LOCKED_COLUMNS,
   EvalStoreProvider,
   selectVisibleColumnDefs,
   useEvalStore,
@@ -40,7 +42,6 @@ interface SharedEvaluationProps {
 }
 
 const PAGE_SIZE = 50;
-const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluationProps) {
   const searchParams = useSearchParams();
@@ -273,7 +274,7 @@ export default function SharedEvaluation(props: SharedEvaluationProps) {
 
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames} isShared>
-      <InfiniteDataTableProvider defaults={{ columnOrder: defaultColumnOrder }}>
+      <InfiniteDataTableProvider defaults={{ columnOrder: defaultColumnOrder }} lockedColumns={EVAL_LOCKED_COLUMNS}>
         <SharedEvaluationContent {...props} />
       </InfiniteDataTableProvider>
     </EvalStoreProvider>

@@ -7,7 +7,7 @@ import { CostCell } from "./cost-cell";
 import { DataCell } from "./data-cell";
 import { DurationCell } from "./duration-cell";
 import { createScoreColumnCell, scoreDirectionDropdownItems } from "./score-cell";
-import { StatusCell } from "./status-cell";
+import { StatusCell, StatusHeader } from "./status-cell";
 import { TaskCell } from "./task-cell";
 
 // -- Static column definitions --
@@ -31,8 +31,8 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     id: "status",
     accessorFn: (row) => deriveStatus(row),
     cell: StatusCell,
-    header: "Status",
-    size: 70,
+    header: StatusHeader,
+    size: 110,
     enableSorting: false,
     meta: { dataType: "string", filterable: false, comparable: false },
   },

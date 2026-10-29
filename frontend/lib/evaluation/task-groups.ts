@@ -4,6 +4,8 @@ import { type EvalRow } from "@/lib/evaluation/types";
 
 const TASK_ROW_ID_PREFIX = "task:";
 const MEAN_COLUMN_IDS = new Set(["duration", "cost", "inputCost", "outputCost", "totalCost"]);
+// Per-Trial values a Task row can only show when every Trial agrees.
+const SHARED_VALUE_COLUMN_IDS = new Set(["data", "target", "metadata"]);
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -72,6 +74,22 @@ export const taskMeanScores = (rows: { task_id: string; scores: unknown }[]): { 
 
 export const isTaskGroupRow = (row: EvalRow): boolean => row["isTaskGroup"] === true;
 
+/** Whether a Task row's `columnId` differs across its Trials (rendered as "varies" instead of a value). */
+export const taskValueVaries = (row: EvalRow, columnId: string): boolean =>
+  (row["variesColumnIds"] as string[] | undefined)?.includes(columnId) ?? false;
+
+const variesColumnIds = (trials: EvalRow[]): string[] => {
+  const ids = new Set(
+    trials.flatMap((t) => Object.keys(t).filter((k) => SHARED_VALUE_COLUMN_IDS.has(k) || k.startsWith("custom:")))
+  );
+  return [...ids].filter((id) => {
+    const values = trials.map((t) => t[id]);
+    // Numeric custom columns are averaged instead.
+    if (id.startsWith("custom:") && values.every(isFiniteNumber)) return false;
+    return new Set(values.map((v) => JSON.stringify(v ?? null))).size > 1;
+  });
+};
+
 const buildTaskRow = (taskId: string, trials: EvalRow[]): EvalRow => {
   const meanIds = [
     ...new Set(
@@ -87,6 +105,7 @@ const buildTaskRow = (taskId: string, trials: EvalRow[]): EvalRow => {
     taskId,
     isTaskGroup: true,
     trialCount: trials.length,
+    variesColumnIds: variesColumnIds(trials),
     index: Math.min(...trials.map((t) => Number(t["index"] ?? Number.POSITIVE_INFINITY))),
     // Per-Trial values, shown on the expanded Trial rows.
     output: undefined,
@@ -108,4 +127,22 @@ export const groupTrialsIntoTasks = (rows: EvalRow[]): EvalRow[] => {
     else groups.set(key, [row]);
   }
   return Array.from(groups, ([taskId, trials]) => (trials.length === 1 ? trials[0] : buildTaskRow(taskId, trials)));
+};
+
+/** Give each Trial `compared:<col>` = the mean over the target run's Trials of the same Task (avg vs avg). */
+export const attachComparedMeans = (trials: EvalRow[], comparedTrials: EvalRow[], columnIds: string[]): EvalRow[] => {
+  const comparedByTask = new Map<string, EvalRow[]>();
+  for (const t of comparedTrials) {
+    const taskId = String(t["taskId"]);
+    comparedByTask.set(taskId, [...(comparedByTask.get(taskId) ?? []), t]);
+  }
+  const comparedMeans = new Map(
+    [...comparedByTask].map(([taskId, group]) => [
+      taskId,
+      Object.fromEntries(
+        Object.entries(meanTrialColumns(group, columnIds)).map(([id, value]) => [`compared:${id}`, value])
+      ),
+    ])
+  );
+  return trials.map((t) => ({ ...t, ...comparedMeans.get(String(t["taskId"])) }));
 };
