@@ -47,6 +47,14 @@ pub fn signal_token_cost_micro_usd(
     (input_cost + cache_read_cost + output_cost).round() as u64
 }
 
+/// Public-facing base URL for user-clickable links (notifications, agent answers, CLI
+/// responses). Reads `NEXT_PUBLIC_URL` so self-hosted deployments route users to their own
+/// instance; falls back to the given default for Laminar Cloud.
+pub fn frontend_url_with_default(default: &str) -> String {
+    let raw = std::env::var(crate::env::server::NEXT_PUBLIC_URL).unwrap_or(default.to_string());
+    raw.trim_end_matches('/').to_string()
+}
+
 pub fn json_value_to_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.to_string(),

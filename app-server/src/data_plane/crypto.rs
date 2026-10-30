@@ -29,7 +29,6 @@ pub fn check_key() -> Result<()> {
 
 /// `aad` is bound into the ciphertext: the data plane and Slack use the workspace id,
 /// LLM profiles use the profile id (frontend `lib/crypto.ts` `encryptValue(aad, …)`).
-#[allow(dead_code)]
 pub fn encrypt(aad: &str, val: &str) -> Result<(String, String)> {
     let cipher = cipher_from_env()?;
 

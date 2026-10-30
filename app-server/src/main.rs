@@ -156,6 +156,7 @@ mod llm;
 mod logs;
 mod mq;
 mod names;
+mod next_api;
 mod notifications;
 mod opentelemetry_proto;
 mod pii_redactor;
@@ -2588,7 +2589,12 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::llm_profiles::create_llm_profile)
                             .service(api::v1::cli::llm_profiles::get_llm_profile)
                             .service(api::v1::cli::llm_profiles::update_llm_profile)
-                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile)
+                            .service(api::v1::cli::dashboards::create_dashboard)
+                            .service(api::v1::cli::dashboards::rename_dashboard)
+                            .service(api::v1::cli::dashboards::delete_dashboard)
+                            .service(api::v1::cli::dashboards::upsert_charts)
+                            .service(api::v1::cli::dashboards::delete_charts);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2710,12 +2716,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::update_session_name)
-                                    .service(routes::static_sp::extract_system_prompt)
-                                    .service(routes::dashboards::create_dashboard)
-                                    .service(routes::dashboards::rename_dashboard)
-                                    .service(routes::dashboards::delete_dashboard)
-                                    .service(routes::dashboards::upsert_charts)
-                                    .service(routes::dashboards::delete_chart);
+                                    .service(routes::static_sp::extract_system_prompt);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)
