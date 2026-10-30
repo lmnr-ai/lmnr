@@ -212,6 +212,14 @@ pub async fn create_alert(
             ))
         })?,
     };
+    // Gated on create only: the frontend adds a cluster alert to every signal regardless of
+    // clustering, and those must stay editable (rename, disable, targets).
+    if alert_type == AlertType::NewCluster && !ctx.clustering_enabled {
+        return Err(AlertError::Validation(
+            "NEW_CLUSTER alerts need clustering, which isn't available on this deployment"
+                .to_string(),
+        ));
+    }
     let (signal_name, schema) = db::get_signal_schema(ctx.pool, ctx.project_id, input.signal_id)
         .await?
         .ok_or(AlertError::NotFound("Signal"))?;
@@ -573,12 +581,6 @@ fn build_metadata(
             }
         }
         AlertType::NewCluster => {
-            if !clustering_enabled {
-                return Err(AlertError::Validation(
-                    "NEW_CLUSTER alerts need clustering, which isn't available on this deployment"
-                        .to_string(),
-                ));
-            }
             if patch.skip_similar.is_some() || patch.severities.is_some() {
                 return Err(AlertError::Validation(
                     "severities and skipSimilar only apply to SIGNAL_EVENT alerts".to_string(),
@@ -693,13 +695,16 @@ mod tests {
     }
 
     #[test]
-    fn clustering_gates_skip_similar_and_new_cluster() {
+    fn clustering_gates_skip_similar() {
         let p = patch(None, Some(true), None);
         assert!(build_metadata(AlertType::SignalEvent, &p, &Value::Null, false).is_err());
-        let p = patch(None, None, None);
-        assert!(build_metadata(AlertType::NewCluster, &p, &Value::Null, false).is_err());
+    }
+
+    #[test]
+    fn new_cluster_patch_works_without_clustering() {
+        // The frontend creates these on every signal, so they must stay editable.
         let p = patch(None, None, Some(true));
-        let m = build_metadata(AlertType::NewCluster, &p, &Value::Null, true).unwrap();
+        let m = build_metadata(AlertType::NewCluster, &p, &json!({}), false).unwrap();
         assert_eq!(m, json!({ "disabled": true }));
     }
 
