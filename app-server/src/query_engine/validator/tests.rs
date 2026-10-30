@@ -41,11 +41,13 @@ fn test_default_tables_registered() {
     assert!(reg.is_table_allowed("spans"));
     assert!(reg.is_table_allowed("traces"));
     assert!(reg.is_table_allowed("evaluation_datapoints"));
+    assert!(reg.is_table_allowed("evaluation_trials"));
 
     assert!(!reg.is_table_allowed("unknown_table"));
     assert!(!reg.is_table_allowed("traces_v0"));
     assert!(!reg.is_table_allowed("spans_v0"));
     assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
+    assert!(!reg.is_table_allowed("evaluation_trials_v0"));
     assert!(reg.is_table_allowed("signals"));
     assert!(reg.is_table_allowed("evaluations"));
     assert!(reg.is_table_allowed("datasets"));
@@ -239,6 +241,72 @@ fn test_validate_evaluation_datapoints_select() {
         ),
         "got: {result}"
     );
+}
+
+/// Rewrite `query` once per name and swap the written name back, so the two
+/// outputs are comparable.
+fn rewrite_under_both_eval_names(query: &str) -> (String, String) {
+    let datapoints = validate_ok(&query.replace("{t}", "evaluation_datapoints"));
+    let trials = validate_ok(&query.replace("{t}", "evaluation_trials"))
+        .replace("AS evaluation_trials", "AS evaluation_datapoints")
+        .replace("evaluation_trials.", "evaluation_datapoints.");
+    (datapoints, trials)
+}
+
+#[test]
+fn test_evaluation_trials_alias_rewrites_like_evaluation_datapoints() {
+    for query in [
+        "SELECT id, task_id FROM {t}",
+        "SELECT {t}.task_id, count() FROM {t} \
+         WHERE evaluation_id = {evalId: UUID} AND start_time > '2024-01-01' GROUP BY {t}.task_id",
+        "SELECT e.id FROM {t} AS e WHERE e.evaluation_id IN ('0195b6e0-0000-7000-8000-000000000001')",
+        "SELECT t.id FROM traces AS t JOIN {t} AS e ON e.trace_id = t.id",
+        "SELECT id FROM {t} WHERE trace_id IN (SELECT id FROM traces)",
+    ] {
+        let (datapoints, trials) = rewrite_under_both_eval_names(query);
+        assert_eq!(norm(&datapoints), norm(&trials), "query: {query}");
+    }
+}
+
+#[test]
+fn test_evaluation_trials_alias_is_project_scoped() {
+    let result =
+        validate_ok("SELECT task_id FROM evaluation_trials WHERE evaluation_id = {evalId: UUID}");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 eval_ids = [toUUID({{evalId: UUID}})]"
+            )
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "AS evaluation_trials"),
+        "got: {result}"
+    );
+    // The name never reaches ClickHouse as a bare relation or a made-up view.
+    assert!(!result.contains("evaluation_trials_v0"), "got: {result}");
+    assert!(
+        !contains_ws(&result, "FROM evaluation_trials "),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_evaluation_trials_alias_rejections_match_evaluation_datapoints() {
+    for name in ["evaluation_datapoints", "evaluation_trials"] {
+        // Unknown column, table-function form, shadowing CTE, direct view call.
+        for query in [
+            format!("SELECT {name}.not_a_column FROM {name}"),
+            format!("SELECT id FROM {name}(project_id = 'other-project')"),
+            format!("WITH {name} AS (SELECT 1 AS id) SELECT id FROM {name}"),
+            format!("SELECT id FROM {name}_v0(project_id = 'other-project')"),
+        ] {
+            assert!(validate(&query).is_err(), "should reject: {query}");
+        }
+    }
 }
 
 /// Extract the `eval_ids = [...]` fragment of the rewritten

@@ -61,7 +61,7 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   error?: Error | null;
-  getRowHref?: (row: Row<TData>) => string;
+  getRowHref?: (row: Row<TData>) => string | undefined;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   hideSelectionPanel?: boolean;
   /** Optional per-row className (e.g. dim a row). Merged onto the row's own classes. */
@@ -87,7 +87,7 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   loadMoreRef: RefObject<HTMLTableRowElement | null>;
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
-  getRowHref?: (row: Row<TData>) => string;
+  getRowHref?: (row: Row<TData>) => string | undefined;
   getRowClassName?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   fetchNextPage: () => void;

@@ -396,7 +396,7 @@ async function getScoreAveragesByEvaluationIds(
         SELECT
           evaluation_id AS evaluationId,
           scores
-        FROM evaluation_datapoints FINAL
+        FROM evaluation_trials FINAL
         WHERE evaluation_id IN {evaluationIds: Array(UUID)}
       `,
       projectId,

@@ -30,11 +30,11 @@ export async function GET(
     return Response.json({ error: "Evaluation not found" }, { status: 404 });
   }
 
-  const chDatapoints = (await executeQuery({
+  const chTrials = (await executeQuery({
     projectId,
     query: `
-        SELECT id, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
-        FROM evaluation_datapoints
+        SELECT id, task_id taskId, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
+        FROM evaluation_trials
         WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
       `,
@@ -44,6 +44,7 @@ export async function GET(
     },
   })) as {
     id: string;
+    taskId: string;
     index: number;
     executorOutput: string;
     data: string;
@@ -52,15 +53,15 @@ export async function GET(
     scores: string;
   }[];
 
-  const datapoints = chDatapoints.map((datapoint) => ({
-    ...datapoint,
-    scores: (tryParseJson(datapoint.scores) as Record<string, number | null>) ?? datapoint.scores,
-    data: tryParseJson(datapoint.data) ?? datapoint.data,
-    target: tryParseJson(datapoint.target) ?? datapoint.target,
-    executorOutput: tryParseJson(datapoint.executorOutput) ?? datapoint.executorOutput,
+  const trials = chTrials.map((trial) => ({
+    ...trial,
+    scores: (tryParseJson(trial.scores) as Record<string, number | null>) ?? trial.scores,
+    data: tryParseJson(trial.data) ?? trial.data,
+    target: tryParseJson(trial.target) ?? trial.target,
+    executorOutput: tryParseJson(trial.executorOutput) ?? trial.executorOutput,
   }));
 
-  const flattenedResults = datapoints.map((result) => {
+  const flattenedResults = trials.map((result) => {
     const { scores, ...rest } = result;
     return {
       ...rest,

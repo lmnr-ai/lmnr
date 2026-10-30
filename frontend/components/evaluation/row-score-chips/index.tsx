@@ -5,7 +5,8 @@ import useSWR from "swr";
 
 import RowScoreChip from "@/components/evaluation/row-score-chips/chip";
 import { type RunPoint } from "@/components/evaluation/row-score-chips/history-card";
-import { type EvaluationDatapointComparisonRow } from "@/lib/actions/evaluation";
+import { type EvaluationTrialComparisonRow } from "@/lib/actions/evaluation";
+import { taskMeanScores } from "@/lib/evaluation/task-groups";
 import { type EvalRow, type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
@@ -15,14 +16,14 @@ interface RowScoreChipsProps {
   evaluations: EvaluationType[];
   currentEvaluationId: string;
   scoreNames: string[];
-  /** The selected datapoint whose per-row values the chips show. */
+  /** The selected Trial whose per-row values the chips show. */
   row?: EvalRow;
 }
 
 /**
- * The selected row's scores, shown above the trace view when a datapoint is
- * open. One fetch covers every score: the datapoint-comparison endpoint
- * returns this INDEX's scores across all runs in the group, and each chip's
+ * The selected row's scores, shown above the trace view when a Trial is
+ * open. One fetch covers every score: the trial-comparison endpoint
+ * returns this TASK's scores across all runs in the group, and each chip's
  * hover grows a line card of its score over those runs.
  */
 export default function RowScoreChips({
@@ -32,13 +33,7 @@ export default function RowScoreChips({
   scoreNames,
   row,
 }: RowScoreChipsProps) {
-  // `index` (Int64) comes back as a JSON string from ClickHouse, so coerce.
-  const index = useMemo(() => {
-    const raw = row?.["index"];
-    if (raw == null) return undefined;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : undefined;
-  }, [row]);
+  const taskId = row?.["taskId"] != null ? String(row["taskId"]) : undefined;
 
   // Every run in the group, oldest first — the full history line, no cap. The
   // current run is always present (it's part of the group), so no special-casing.
@@ -51,21 +46,21 @@ export default function RowScoreChips({
   // but the ids ride the POST body (see route — unbounded, so no URL cap).
   const idsKey = useMemo(() => sortedEvals.map((e) => e.id).join(","), [sortedEvals]);
   const swrKey =
-    index !== undefined && idsKey.length > 0
-      ? ([`/api/projects/${projectId}/evaluations/datapoint-comparison`, idsKey, index] as const)
+    taskId !== undefined && idsKey.length > 0
+      ? ([`/api/projects/${projectId}/evaluations/trial-comparison`, idsKey, taskId] as const)
       : null;
 
-  const { data } = useSWR<{ rows: EvaluationDatapointComparisonRow[] }>(
+  const { data } = useSWR<{ rows: EvaluationTrialComparisonRow[] }>(
     swrKey,
-    async ([url, ids, idx]: readonly [string, string, number]) => {
+    async ([url, ids, task]: readonly [string, string, string]) => {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ evaluationIds: ids.split(","), index: idx }),
+        body: JSON.stringify({ evaluationIds: ids.split(","), taskId: task }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.error ?? "Failed to load datapoint comparison.");
+        throw new Error(err?.error ?? "Failed to load trial comparison.");
       }
       return res.json();
     },
@@ -73,13 +68,24 @@ export default function RowScoreChips({
   );
 
   // Order fetched rows by run order (oldest first); drop runs that don't contain
-  // this datapoint index. Dedup by evaluationId (RMT pre-merge).
+  // this task. A run with several Trials of the task contributes their mean.
   const runs = useMemo(() => {
-    const byEval = new Map<string, EvaluationDatapointComparisonRow>();
-    (data?.rows ?? []).forEach((r) => byEval.set(r.evaluationId, r));
+    const trialsByEval = new Map<string, EvaluationTrialComparisonRow[]>();
+    (data?.rows ?? []).forEach((r) =>
+      trialsByEval.set(r.evaluationId, [...(trialsByEval.get(r.evaluationId) ?? []), r])
+    );
+    const byEval = new Map(
+      [...trialsByEval].map(([evaluationId, trials]) => [
+        evaluationId,
+        {
+          ...trials[0],
+          scores: taskMeanScores(trials.map((t) => ({ task_id: t.taskId, scores: t.scores })))[0]?.scores ?? {},
+        },
+      ])
+    );
     return sortedEvals
       .map((ev) => ({ ev, row: byEval.get(ev.id) }))
-      .filter((x): x is { ev: EvaluationType; row: EvaluationDatapointComparisonRow } => !!x.row);
+      .filter((x): x is { ev: EvaluationType; row: EvaluationTrialComparisonRow } => !!x.row);
   }, [data, sortedEvals]);
 
   const pointsByScore = useMemo(() => {

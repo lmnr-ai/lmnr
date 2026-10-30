@@ -52,6 +52,23 @@ export interface EvalStoreState {
   addScoreName: (name: string) => void;
 }
 
+export const BASE_COLUMN_ORDER = [
+  "status",
+  "taskId",
+  "index",
+  "data",
+  "target",
+  "metadata",
+  "output",
+  "duration",
+  "cost",
+];
+// Default visibility: status + task + data + score:*.
+export const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
+
+/** Fixed columns: no header drag/hide, and left out of the Columns menu. */
+export const EVAL_LOCKED_COLUMNS = ["status"];
+
 export const selectVisibleColumnDefs = (columnDefs: ColumnDef<EvalRow>[]): ColumnDef<EvalRow>[] =>
   columnDefs.filter((c) => !c.meta?.hidden);
 
@@ -79,6 +96,8 @@ export function buildColumnDefs({
         meta: {
           sql: cc.sql,
           dataType: cc.dataType,
+          // Numeric typing makes filters compare as numbers and Task sorting average, matching the displayed mean.
+          ...(cc.dataType === "number" && { dbType: "Float64" }),
           filterable: true,
           comparable: true,
           isCustom: true,

@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getEvaluationDatapointComparison, GetEvaluationDatapointComparisonSchema } from "@/lib/actions/evaluation";
+import { getEvaluationTrialComparison, GetEvaluationTrialComparisonSchema } from "@/lib/actions/evaluation";
 
 // POST (not GET): the run-id list is unbounded (a group can have hundreds of
 // runs), so it rides the body rather than a query string that would blow the
@@ -9,12 +9,12 @@ import { getEvaluationDatapointComparison, GetEvaluationDatapointComparisonSchem
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
 
-  const body = (await req.json().catch(() => null)) as { evaluationIds?: unknown; index?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { evaluationIds?: unknown; taskId?: unknown } | null;
 
-  const parseResult = GetEvaluationDatapointComparisonSchema.safeParse({
+  const parseResult = GetEvaluationTrialComparisonSchema.safeParse({
     projectId,
     evaluationIds: body?.evaluationIds,
-    index: body?.index,
+    taskId: body?.taskId,
   });
 
   if (!parseResult.success) {
@@ -22,14 +22,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
   }
 
   try {
-    const rows = await getEvaluationDatapointComparison(parseResult.data);
+    const rows = await getEvaluationTrialComparison(parseResult.data);
     return Response.json({ rows });
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch datapoint comparison." },
+      { error: error instanceof Error ? error.message : "Failed to fetch trial comparison." },
       { status: 500 }
     );
   }

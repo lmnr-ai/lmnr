@@ -38,7 +38,7 @@ export const getEvaluationTimeProgression = async (
         evaluation_id,
         created_at,
         scores
-      FROM evaluation_datapoints FINAL
+      FROM evaluation_trials FINAL
       WHERE group_id = {groupId: String}
         ${scopeById ? "AND evaluation_id IN {ids: Array(UUID)}" : ""}
       ORDER BY created_at ASC
