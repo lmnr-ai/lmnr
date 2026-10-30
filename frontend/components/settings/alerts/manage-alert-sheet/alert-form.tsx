@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import useSWR from "swr";
 
-import TimeSeriesChart from "@/components/charts/time-series-chart";
+import CartesianPlot, { type PlotSeries } from "@/components/charts/cartesian-plot";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
@@ -32,6 +32,7 @@ import {
 import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
+import { isValidZoomRange, normalizeTimeRange } from "@/lib/charts/time";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -40,7 +41,7 @@ import AlertFiltersSection from "../alert-filters-section";
 import SlackChannelPicker from "../slack-channel-picker";
 import { syncAlertFilters } from "../sync-alert-filters";
 import { AlertSection } from "./alert-section";
-import { ALERT_TYPE_DESCRIPTIONS, type AlertFormValues, CHART_FIELDS, SEVERITY_OPTIONS } from "./types";
+import { ALERT_TYPE_DESCRIPTIONS, type AlertFormValues, SEVERITY_OPTIONS } from "./types";
 
 interface AlertFormProps {
   projectId: string;
@@ -188,13 +189,14 @@ export function AlertForm({
     return "selected period";
   }, [dateRange]);
 
-  const chartConfig = useMemo(
-    () => ({
-      count: {
+  const chartSeries = useMemo<PlotSeries[]>(
+    () => [
+      {
+        key: "count",
         label: alertType === ALERT_TYPE.NEW_CLUSTER ? "New clusters" : signalName || "Events",
         color: "var(--color-primary)",
       },
-    }),
+    ],
     [alertType, signalName]
   );
 
@@ -250,7 +252,10 @@ export function AlertForm({
   }, []);
 
   const handleChartZoom = useCallback((startDate: string, endDate: string) => {
-    setDateRange({ startDate, endDate });
+    if (isValidZoomRange(startDate, endDate)) {
+      const { start, end } = normalizeTimeRange(startDate, endDate);
+      setDateRange({ startDate: start, endDate: end });
+    }
   }, []);
 
   const onSubmit = useCallback(
@@ -670,13 +675,19 @@ export function AlertForm({
                         <ChartSkeleton />
                       </div>
                     ) : (
-                      <TimeSeriesChart
-                        data={eventsStats?.items ?? []}
-                        chartConfig={chartConfig}
-                        fields={CHART_FIELDS}
-                        containerWidth={chartContainerWidth}
-                        onZoom={handleChartZoom}
-                      />
+                      <div className="flex flex-col items-start">
+                        <CartesianPlot
+                          kind="bar"
+                          data={eventsStats?.items ?? []}
+                          x="timestamp"
+                          series={chartSeries}
+                          className="h-48"
+                          onRangeSelect={handleChartZoom}
+                        />
+                        <div className="text-xs text-muted-foreground text-center" title={String(totalEventCount)}>
+                          Total: {totalEventCount.toLocaleString()}
+                        </div>
+                      </div>
                     )}
                   </div>
                   {hasMultipleFilterGroups && (

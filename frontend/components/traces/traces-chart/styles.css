@@ -1,0 +1,6 @@
+/* Match the muted axis text from the previous Recharts ChartContainer. */
+.traces-tanstack-chart [data-ts-key^="x-tick-label"],
+.traces-tanstack-chart [data-ts-key^="y-tick-label"] {
+  fill: var(--color-muted-foreground);
+  fill-opacity: 1;
+}

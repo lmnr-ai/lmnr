@@ -15,8 +15,6 @@ export interface AlertFormValues {
   alertFilters: AlertFilterFormItem[];
 }
 
-export const CHART_FIELDS = ["count"] as const;
-
 export const SEVERITY_OPTIONS = [SEVERITY_LEVEL.INFO, SEVERITY_LEVEL.WARNING, SEVERITY_LEVEL.CRITICAL] as const;
 
 export const DEFAULT_VALUES: AlertFormValues = {

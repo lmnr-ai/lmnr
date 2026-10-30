@@ -63,7 +63,6 @@ export function RunsTableControls({
       <RunsChart
         className="w-full bg-secondary rounded border p-2"
         containerRef={chartContainerRef}
-        containerWidth={chartContainerWidth}
         statsUrl={statsUrl}
       />
     </>

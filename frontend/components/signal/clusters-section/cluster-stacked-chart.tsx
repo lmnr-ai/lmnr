@@ -2,8 +2,10 @@
 
 import { type ReactNode, useMemo } from "react";
 
-import TimeSeriesChart from "@/components/charts/time-series-chart";
-import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
+import CartesianPlot, { type PlotSeries } from "@/components/charts/cartesian-plot";
+import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
+import { useChartUrlZoom } from "@/components/charts/use-chart-url-zoom";
+import ClusterChartTooltip from "@/components/signal/clusters-section/cluster-chart-tooltip";
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-icon";
 import { useSignalVersionMarkers } from "@/components/signal/hooks/use-signal-version-markers";
 import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
@@ -16,19 +18,9 @@ import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 // charts and reads hot as a large filled area on a dark surface.
 const BAR_OPACITY = 0.6;
 
-// The icicle strip sits directly above the plot and is a hover target of its
-// own, so crossing the chart on the way to it must not flash a tooltip.
-const TOOLTIP_DELAY_MS = 300;
-
-// A signal can have a hundred top-level clusters, and the tooltip lists one row
-// per series. Uncapped it grows taller than the window, so only the largest
-// contributors to the hovered bucket are named.
-const TOOLTIP_MAX_ITEMS = 12;
-
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
   statsData: ClusterStatsDataPoint[];
-  containerWidth: number | null;
   colorMap: Map<string, string>;
   /** Absolutely-positioned content over the plot — the cluster readout. */
   overlay?: ReactNode;
@@ -42,7 +34,6 @@ interface ClusterStackedChartProps {
 export default function ClusterStackedChart({
   clusters,
   statsData,
-  containerWidth,
   colorMap,
   overlay,
   pastHours,
@@ -52,9 +43,10 @@ export default function ClusterStackedChart({
   showSearchWiderRange,
 }: ClusterStackedChartProps) {
   const markers = useSignalVersionMarkers();
+  const onRangeSelect = useChartUrlZoom();
 
-  const { data, chartConfig, fields } = useMemo(() => {
-    const config: TimeSeriesChartConfig = {};
+  const { data, series } = useMemo(() => {
+    const plotSeries: PlotSeries[] = [];
     const fieldKeys: string[] = [];
 
     clusters.forEach((cluster) => {
@@ -63,12 +55,12 @@ export default function ClusterStackedChart({
       const color = withOpacity(baseColor, BAR_OPACITY);
       const iconVariant: IconVariant =
         key === UNCLUSTERED_ID ? "circle-dashed" : cluster.numChildrenClusters > 0 ? "boxes" : "box";
-      config[key] = {
+      plotSeries.push({
+        key,
         label: cluster.name,
         color,
-        stackId: "stack",
-        icon: () => <ClusterIcon iconVariant={iconVariant} color={baseColor} />,
-      };
+        icon: <ClusterIcon iconVariant={iconVariant} color={baseColor} />,
+      });
       fieldKeys.push(key);
     });
 
@@ -87,13 +79,13 @@ export default function ClusterStackedChart({
         return point;
       });
 
-    return { data: chartData, chartConfig: config, fields: fieldKeys };
+    return { data: chartData, series: plotSeries };
   }, [clusters, statsData, colorMap]);
 
   // Row count is not emptiness: the stats query fills the range, so a window with
   // no events still comes back as a full set of zero buckets and would otherwise
   // render as an axis with nothing on it.
-  const isEmpty = data.every((point) => fields.every((key) => !(point as Record<string, unknown>)[key]));
+  const isEmpty = data.every((point) => series.every((item) => !(point as Record<string, unknown>)[item.key]));
 
   if (isEmpty) {
     return (
@@ -113,23 +105,15 @@ export default function ClusterStackedChart({
 
   return (
     <div className="relative h-full w-full pt-12">
-      <TimeSeriesChart
+      <CartesianPlot
+        kind="bar"
         data={data}
-        chartConfig={chartConfig}
-        fields={fields}
-        containerWidth={containerWidth}
+        x="timestamp"
+        series={series}
         markers={markers}
-        showTotal={false}
-        tooltipDelay={TOOLTIP_DELAY_MS}
-        tooltipMaxItems={TOOLTIP_MAX_ITEMS}
-        // Only over the stack itself: recharts' axis tooltip otherwise fires
-        // anywhere in the column, including the empty space above the bars.
-        tooltipRequireBar
-        // On a stack of ~30 buckets × N clusters the entry transition costs more
-        // main thread than the animation is worth.
-        animate={false}
-        hideZeroValues
-        className="!h-full !w-full"
+        tooltip={ClusterChartTooltip}
+        onRangeSelect={onRangeSelect}
+        className="h-full"
       />
       {overlay}
     </div>

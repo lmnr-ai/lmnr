@@ -219,7 +219,6 @@ export default function ClustersSectionContent({ className }: Props) {
             <ClusterStackedChart
               clusters={chartClusters}
               statsData={clusterStatsData}
-              containerWidth={localChartWidth}
               colorMap={colorMap}
               pastHours={pastHours}
               startDate={startDate}
