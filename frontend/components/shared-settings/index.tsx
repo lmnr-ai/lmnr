@@ -187,21 +187,12 @@ const SharedSettings = ({
       case "deployment":
         return <WorkspaceDeployment workspace={workspace} />;
       case "integrations":
-        if (isFree) {
-          return (
-            <>
-              <SettingsSectionHeader title="Integrations" description="Manage your workspace integrations" />
-              <UpgradeNotice
-                title="Slack alerts aren't included in the Free plan"
-                description="Upgrade to Starter to get Signal events and clusters in Slack."
-                source="integrations"
-              />
-            </>
-          );
-        }
         return (
           <WorkspaceIntegrations
             workspaceId={workspace.id}
+            projectId={projectId}
+            currentUserRole={currentUserRole}
+            slackUpgradeRequired={isFree}
             slackClientId={slackClientId}
             slackRedirectUri={slackRedirectUri}
             slackBrokerEnabled={slackBrokerEnabled}

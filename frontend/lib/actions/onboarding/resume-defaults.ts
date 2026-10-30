@@ -3,7 +3,13 @@ import { eq } from "drizzle-orm";
 import { DEFAULT_SELECTED_TEMPLATE_NAMES } from "@/lib/actions/onboarding/types";
 import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
-import { signals, slackIntegrations, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import {
+  projectGithubRepos,
+  signals,
+  slackIntegrations,
+  subscriptionTiers,
+  workspaces,
+} from "@/lib/db/migrations/schema";
 
 export type OnboardingTier = "free" | "hobby" | "pro";
 
@@ -11,6 +17,7 @@ export interface OnboardingResumeDefaults {
   workspaceName: string | null;
   selectedTemplateNames: string[];
   slackConnected: boolean;
+  githubConnected: boolean;
   selectedTier: OnboardingTier;
 }
 
@@ -53,19 +60,30 @@ async function loadSlackConnected(workspaceId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+async function loadGithubConnected(projectId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: projectGithubRepos.id })
+    .from(projectGithubRepos)
+    .where(eq(projectGithubRepos.projectId, projectId))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function loadOnboardingResumeDefaults({
   workspaceId,
   projectId,
 }: Input): Promise<OnboardingResumeDefaults> {
-  const [workspaceCtx, selectedTemplateNames, slackConnected] = await Promise.all([
+  const [workspaceCtx, selectedTemplateNames, slackConnected, githubConnected] = await Promise.all([
     loadWorkspaceContext(workspaceId),
     loadSelectedTemplateNames(projectId),
     loadSlackConnected(workspaceId),
+    loadGithubConnected(projectId),
   ]);
 
   return {
     ...workspaceCtx,
     selectedTemplateNames,
     slackConnected,
+    githubConnected,
   };
 }

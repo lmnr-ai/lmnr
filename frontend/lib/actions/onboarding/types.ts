@@ -7,21 +7,27 @@ export const ONBOARDING_COOKIE_VERSION = 2 as const;
 export const ONBOARDING_COOKIE_NAME = "onboarding-state";
 
 // The workspace step creates the workspace; leaving the Slack step starts the trial and applies the
-// queued invites and signals.
-export const ONBOARDING_STEPS = ["workspace", "invite", "signals", "slack", "connect"] as const;
+// queued invites and signals. The GitHub step is skipped when Feature.GITHUB is off.
+export const ONBOARDING_STEPS = ["workspace", "invite", "signals", "github", "slack", "connect"] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 // Every step after the workspace one; the workspace exists from then on.
 export const SAVED_ONBOARDING_STEPS = [
   "invite",
   "signals",
+  "github",
   "slack",
   "connect",
 ] as const satisfies readonly OnboardingStep[];
 export type SavedOnboardingStep = (typeof SAVED_ONBOARDING_STEPS)[number];
 
 // Saved by the wizard on entry; the commit saves "connect" itself.
-export const PROGRESS_STEPS = ["invite", "signals", "slack"] as const satisfies readonly SavedOnboardingStep[];
+export const PROGRESS_STEPS = [
+  "invite",
+  "signals",
+  "github",
+  "slack",
+] as const satisfies readonly SavedOnboardingStep[];
 
 export const DEFAULT_SELECTED_TEMPLATE_NAMES = ["Failure Detector"] as const;
 

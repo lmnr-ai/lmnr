@@ -7,6 +7,8 @@ export interface OnboardingFormValues {
   invites: string[];
   selectedTemplateNames: string[];
   slackConnected: boolean;
+  // The project has a linked GitHub repo.
+  githubConnected: boolean;
   selectedTier: OnboardingTier;
   // Workspace's actual tier at hydration; never mutated by the user.
   currentTier: OnboardingTier;

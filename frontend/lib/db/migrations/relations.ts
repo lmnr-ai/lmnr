@@ -9,6 +9,8 @@ import {
   signals,
   tracesAgentMessages,
   slackIntegrations,
+  githubIntegrations,
+  projectGithubRepos,
   evaluators,
   evaluatorSpanPaths,
   evaluatorScores,
@@ -211,6 +213,25 @@ export const slackIntegrationsRelations = relations(slackIntegrations, ({ one })
   workspace: one(workspaces, {
     fields: [slackIntegrations.workspaceId],
     references: [workspaces.id],
+  }),
+}));
+
+export const githubIntegrationsRelations = relations(githubIntegrations, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [githubIntegrations.workspaceId],
+    references: [workspaces.id],
+  }),
+  projectGithubRepos: many(projectGithubRepos),
+}));
+
+export const projectGithubReposRelations = relations(projectGithubRepos, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectGithubRepos.projectId],
+    references: [projects.id],
+  }),
+  githubIntegration: one(githubIntegrations, {
+    fields: [projectGithubRepos.integrationId],
+    references: [githubIntegrations.id],
   }),
 }));
 

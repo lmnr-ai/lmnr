@@ -33,6 +33,7 @@ const EMPTY_DEFAULTS: OnboardingFormValues = {
   invites: [],
   selectedTemplateNames: [...DEFAULT_SELECTED_TEMPLATE_NAMES],
   slackConnected: false,
+  githubConnected: false,
   selectedTier: "free",
   currentTier: "free",
 };
@@ -49,6 +50,7 @@ function buildDefaults(
       invites: pending?.invites ?? [],
       selectedTemplateNames: pending?.templateNames ?? resumeDefaults.selectedTemplateNames,
       slackConnected: resumeDefaults.slackConnected,
+      githubConnected: resumeDefaults.githubConnected,
       selectedTier: resumeDefaults.selectedTier,
       currentTier: resumeDefaults.selectedTier,
     };
@@ -80,9 +82,10 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     return redirect("/api/onboarding?to=/projects");
   }
 
-  // Onboarding keeps the cookie from step 1, so a Slack return without one (finished in another tab)
+  // Onboarding keeps the cookie from step 1, so a Slack or GitHub return without one (finished in another tab)
   // goes to the app instead of a wizard whose first step would create another workspace.
-  const returningFromSlack = searchParams?.slack !== undefined;
+  const oauthReturnStep =
+    searchParams?.slack !== undefined ? "slack" : searchParams?.github !== undefined ? "github" : null;
   if (workspaceCount > 0 && !resume.inProgress) {
     return redirect("/projects");
   }
@@ -104,10 +107,10 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     const initial: OnboardingInitialValues = {
       workspaceId: resume.point?.workspaceId ?? null,
       projectId: resume.point?.projectId ?? null,
-      // The Slack OAuth return lands back on the Slack step even if its progress save lost the race.
+      // An OAuth return lands back on its step even if the step's progress save lost the race.
       step:
-        returningFromSlack && resume.point && resume.point.step !== "connect"
-          ? "slack"
+        oauthReturnStep && resume.point && resume.point.step !== "connect"
+          ? oauthReturnStep
           : (resume.point?.step ?? "workspace"),
       defaultValues: preselectTrial(buildDefaults(resumeDefaults, resume.point?.pending, companyName), trialAvailable),
       companyName,
