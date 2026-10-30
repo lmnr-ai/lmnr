@@ -16,6 +16,7 @@ import {
   type QueryParams,
   type QueryResult,
   type SelectQueryOptions,
+  splitJsonKeyValueFilter,
 } from "@/lib/actions/common/query-builder";
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
 import { type TimeRange } from "@/lib/clickhouse/utils.ts";
@@ -73,7 +74,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
       "metadata",
       createCustomFilter(
         (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
+          const [key, val] = splitJsonKeyValueFilter(filter.value);
           if (key && val) {
             return (
               `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
@@ -83,7 +84,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
           return "";
         },
         (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
+          const [key, val] = splitJsonKeyValueFilter(filter.value);
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
