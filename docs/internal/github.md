@@ -22,7 +22,8 @@
 ## Repos and webhooks
 
 - `PUT /api/projects/[id]/github/repo` validates access by minting a token scoped to that `repository_ids`; GitHub answers 422 for a repo outside the installation. `GET /repos/{id}` is not a valid check, since installation tokens can read any public repo.
-- The repo list is cached for 2 min per installation (picker searches on each keystroke). `installation_repositories` / `repository` webhooks and the callback drop it.
+- The repo list is cached for 2 min per installation ("All repositories" installs page through thousands). `installation_repositories` / `repository` webhooks and the callback drop it.
+- "Change access" links go to `github.com/apps/<slug>/installations/new`, not the installation's `html_url`: the org settings page 404s for non-owners.
 - Webhook verifies `X-Hub-Signature-256` on the raw body, dedups `X-GitHub-Delivery` for a day, handles `installation.{deleted,suspend,unsuspend}`, `installation_repositories.removed`, `repository.{renamed,transferred,deleted}`.
 - Disconnect and workspace delete call `DELETE /app/installations/{id}` (404 is success).
 

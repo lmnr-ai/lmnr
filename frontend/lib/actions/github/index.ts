@@ -5,12 +5,11 @@ import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { githubIntegrations, projectGithubRepos, projects } from "@/lib/db/migrations/schema";
 import { deleteInstallation, getInstallationRepo, type GitHubRepo, listInstallationRepos } from "@/lib/github/client";
+import { githubAppConfig } from "@/lib/github/config";
 
 import { type GithubIntegrationInfo, type GithubRepoOption, type ProjectGithubRepo } from "./types";
 
 export * from "./types";
-
-const MAX_REPO_RESULTS = 50;
 
 const LinkRepoSchema = z.object({
   projectId: z.guid(),
@@ -30,10 +29,10 @@ export async function getGithubIntegrationInfo(workspaceId: string): Promise<Git
   const row = await getGithubIntegration(workspaceId);
   if (!row) return null;
   return {
-    installationId: row.installationId,
     accountLogin: row.accountLogin,
-    accountType: row.accountType,
     suspended: row.suspendedAt !== null,
+    // The org settings page 404s for non-owners; the app's install page offers Configure or Request.
+    manageUrl: `https://github.com/apps/${githubAppConfig.slug()}/installations/new`,
   };
 }
 
@@ -130,14 +129,10 @@ export async function autoLinkSingleRepo(projectId: string): Promise<void> {
   }
 }
 
-export async function searchProjectRepoOptions(projectId: string, query: string): Promise<GithubRepoOption[]> {
+export async function listProjectRepoOptions(projectId: string): Promise<GithubRepoOption[]> {
   const integration = await requireProjectIntegration(projectId);
   const repos = await listInstallationRepos(integration.installationId);
-  const q = query.trim().toLowerCase();
-  return repos
-    .filter((r) => !q || r.full_name.toLowerCase().includes(q))
-    .slice(0, MAX_REPO_RESULTS)
-    .map((r) => ({ id: r.id, fullName: r.full_name, private: r.private }));
+  return repos.map((r) => ({ id: r.id, fullName: r.full_name, private: r.private }));
 }
 
 export async function linkProjectRepo(input: z.infer<typeof LinkRepoSchema>): Promise<ProjectGithubRepo> {

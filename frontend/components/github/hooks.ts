@@ -27,9 +27,3 @@ export function useGithubConnectStatus() {
 export function githubInstallHref(projectId: string, returnTo: string) {
   return withBasePath(`/api/integrations/github/install?${new URLSearchParams({ projectId, returnTo })}`);
 }
-
-export function githubInstallationSettingsUrl(integration: GithubIntegrationInfo) {
-  return integration.accountType === "Organization"
-    ? `https://github.com/organizations/${integration.accountLogin}/settings/installations/${integration.installationId}`
-    : `https://github.com/settings/installations/${integration.installationId}`;
-}

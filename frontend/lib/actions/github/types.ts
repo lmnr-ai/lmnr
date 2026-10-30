@@ -1,8 +1,8 @@
 export interface GithubIntegrationInfo {
-  installationId: number;
   accountLogin: string;
-  accountType: string;
   suspended: boolean;
+  // Where installation access is changed on GitHub; works for owners and members alike.
+  manageUrl: string;
 }
 
 export interface ProjectGithubRepo {

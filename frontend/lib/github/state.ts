@@ -6,6 +6,7 @@ import { type ConnectStatePayload, signConnectState, verifyConnectState } from "
 
 const STATE_TTL_SECONDS = 600;
 const STATE_NONCE_KEY = (nonce: string) => `github_connect_state:${nonce}`;
+const PENDING_STATE_KEY = (userId: string) => `github_connect_pending:${userId}`;
 
 export async function mintConnectState(input: Omit<ConnectStatePayload, "nonce" | "exp">): Promise<string> {
   const payload: ConnectStatePayload = {
@@ -18,7 +19,19 @@ export async function mintConnectState(input: Omit<ConnectStatePayload, "nonce" 
     { userId: payload.userId },
     { expireAfterSeconds: STATE_TTL_SECONDS }
   );
-  return signConnectState(payload, githubAppConfig.stateSecret());
+  const state = signConnectState(payload, githubAppConfig.stateSecret());
+  await cache.set(
+    PENDING_STATE_KEY(payload.userId),
+    { userId: payload.userId, state },
+    { expireAfterSeconds: STATE_TTL_SECONDS }
+  );
+  return state;
+}
+
+// GitHub sometimes drops `state` on the setup redirect; recover the user's latest flow from the session.
+export async function takePendingConnectState(userId: string): Promise<string | null> {
+  const pending = await cache.getAndRemoveIfMatch<{ state: string }>(PENDING_STATE_KEY(userId), "userId", userId);
+  return pending?.state ?? null;
 }
 
 export function verifyState(state: string): ConnectStatePayload | null {

@@ -10,7 +10,7 @@ import { db } from "@/lib/db/drizzle";
 import { githubIntegrations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { exchangeUserCode, findUserInstallation, INSTALLATION_REPOS_CACHE_KEY } from "@/lib/github/client";
-import { consumeConnectState, verifyState } from "@/lib/github/state";
+import { consumeConnectState, takePendingConnectState, verifyState } from "@/lib/github/state";
 import { appUrl } from "@/lib/github/urls";
 
 // GitHub redirects here after install (setup_action=install), after repo access changes on an
@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
   const code = params.get("code");
   const installationId = Number(params.get("installation_id"));
   const setupAction = params.get("setup_action");
-  const stateParam = params.get("state");
+  const session = await getServerSession();
+  const stateParam = params.get("state") ?? (session ? await takePendingConnectState(session.user.id) : null);
 
   // Repo access edited from GitHub's own settings page comes back without our state.
   if (!stateParam) {
@@ -37,7 +38,6 @@ export async function GET(request: NextRequest) {
   }
   const fail = (status: "error" | "taken" | "pending") => NextResponse.redirect(appUrl(state.returnTo, status));
 
-  const session = await getServerSession();
   if (!session || session.user.id !== state.userId || !(await consumeConnectState(state))) {
     return fail("error");
   }

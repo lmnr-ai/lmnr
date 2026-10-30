@@ -2,12 +2,11 @@
 
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { OnboardingProvider } from "@/components/onboarding/context";
 import ConnectStep from "@/components/onboarding/steps/connect-step";
-import GithubStep from "@/components/onboarding/steps/github-step";
 import InviteStep from "@/components/onboarding/steps/invite-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
@@ -129,30 +128,24 @@ const STEP_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 
 function WizardStepsInner({ initialStep }: { initialStep: OnboardingStep }) {
   const form = useFormContext<OnboardingFormValues>();
-  const githubEnabled = useFeatureFlags()[Feature.GITHUB];
-  const steps = useMemo<readonly OnboardingStep[]>(
-    () => (githubEnabled ? ONBOARDING_STEPS : ONBOARDING_STEPS.filter((s) => s !== "github")),
-    [githubEnabled]
-  );
-  // A saved GitHub step resumes on the next one when the feature is off.
-  const [step, setStep] = useState<OnboardingStep>(steps.includes(initialStep) ? initialStep : "slack");
+  const [step, setStep] = useState<OnboardingStep>(initialStep);
   useOnboardingProgress(step);
-  const position = Math.max(0, steps.indexOf(step));
+  const position = Math.max(0, ONBOARDING_STEPS.indexOf(step));
   const onFree = form.watch("currentTier") === "free";
 
   const move = useCallback(
     (delta: 1 | -1) =>
       setStep((current) => {
-        const index = steps.indexOf(current);
-        return steps[Math.min(steps.length - 1, Math.max(0, index + delta))];
+        const index = ONBOARDING_STEPS.indexOf(current);
+        return ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length - 1, Math.max(0, index + delta))];
       }),
-    [steps]
+    []
   );
   const advance = useCallback(() => move(1), [move]);
   const back = useCallback(() => move(-1), [move]);
 
   const renderStep = () => {
-    const shared = { stepIndex: position, totalSteps: steps.length };
+    const shared = { stepIndex: position, totalSteps: ONBOARDING_STEPS.length };
     switch (step) {
       case "workspace":
         return <WorkspaceStep {...shared} isCloud onComplete={advance} />;
@@ -161,8 +154,6 @@ function WizardStepsInner({ initialStep }: { initialStep: OnboardingStep }) {
         return <InviteStep {...shared} onAdvance={advance} />;
       case "signals":
         return <SignalsStep {...shared} onAdvance={advance} onBack={back} />;
-      case "github":
-        return <GithubStep {...shared} onAdvance={advance} onBack={back} />;
       case "slack":
         return <SlackStep {...shared} onAdvance={advance} onBack={back} />;
       // A trial or paid plan has applied the invites and signals, so only Free can go back.
