@@ -529,14 +529,9 @@ pub async fn handle_start_run(
         Err(e) => return Ok(upstream_error("archive check", e)),
     }
 
+    // A failed start keeps the archive: the 429/502 answers invite a retry with
+    // the same uploadId. The bucket's lifecycle rule removes it otherwise.
     let started = hosted_evals::start_run(&hosted.provider, db, cache, &project_id, &req).await;
-    // A run that didn't start never reads its archive, and the CLI uploads a new
-    // one on the next attempt.
-    if started.is_err()
-        && let Err(e) = storage.delete(&bucket, &key).await
-    {
-        log::error!("Failed to delete hosted eval archive {key}: {e:?}");
-    }
     let sandbox_id = match started {
         Ok(id) => id,
         Err(RunError::InvalidCliVersion) => {
