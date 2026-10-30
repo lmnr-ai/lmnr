@@ -8,7 +8,7 @@ export const TaskCell = ({ row, getValue }: CellContext<EvalRow, unknown>) => {
     const trialId = String(row.original["id"]);
     return (
       <CopyTooltip value={trialId} text="Copy Trial id" className="pl-3 font-mono text-secondary-foreground">
-        {trialId.slice(0, 8)}
+        {`${trialId.slice(0, 8)}…`}
       </CopyTooltip>
     );
   }
