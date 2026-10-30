@@ -8,10 +8,11 @@ import { type CategoricalChartFunc } from "@/components/charts/time-series-chart
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { type AgentVersionItem, type AgentVersionTracesPoint } from "@/lib/actions/agents";
+import { UNVERSIONED_KEY } from "@/lib/actions/agents/types";
 import { numberFormatter } from "@/lib/charts/format";
 import { isValidZoomRange, normalizeTimeRange, selectNiceTicksFromData } from "@/lib/charts/time";
 
-import { DEFAULT_PAST_HOURS, versionColor } from "./utils";
+import { DEFAULT_PAST_HOURS, UNVERSIONED_COLOR, versionColor } from "./utils";
 
 interface VersionTracesChartProps {
   agentId: string;
@@ -36,13 +37,15 @@ export default function VersionTracesChart({ agentId, versions, data }: VersionT
   const ordered = useMemo(() => [...versions].reverse(), [versions]);
 
   const config = useMemo<ChartConfig>(
-    () =>
-      Object.fromEntries(
+    () => ({
+      [UNVERSIONED_KEY]: { label: "Unversioned", color: UNVERSIONED_COLOR },
+      ...Object.fromEntries(
         ordered.map((v) => [
           v.id,
           { label: `Version ${v.versionNumber}`, color: versionColor(agentId, v.versionNumber) },
         ])
       ),
+    }),
     [agentId, ordered]
   );
 
@@ -128,6 +131,7 @@ export default function VersionTracesChart({ agentId, versions, data }: VersionT
             }
           />
           <BarStack radius={[4, 4, 4, 4]}>
+            <Bar dataKey={UNVERSIONED_KEY} fill={UNVERSIONED_COLOR} fillOpacity={0.7} stackId="stack" />
             {ordered.map((v) => (
               <Bar
                 key={v.id}
