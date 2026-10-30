@@ -300,11 +300,6 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "String",
         description: "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
       },
-      {
-        name: "attempt",
-        type: "UInt64",
-        description: "1-based Trial number within its Task in this evaluation, in the order Trials were first saved",
-      },
       { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
         name: "scores",

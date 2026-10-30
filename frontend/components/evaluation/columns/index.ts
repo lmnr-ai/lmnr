@@ -46,13 +46,6 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     meta: { sql: "task_id", dataType: "string", filterable: true, comparable: false, dbType: "String" },
   },
   {
-    id: "attempt",
-    accessorFn: (row) => row["attempt"],
-    header: "Attempt",
-    enableSorting: false,
-    meta: { sql: "attempt", dataType: "number", filterable: false, comparable: false, hidden: true },
-  },
-  {
     id: "index",
     accessorFn: (row) => row["index"],
     header: "Index",
