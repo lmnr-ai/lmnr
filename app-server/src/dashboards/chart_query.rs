@@ -1,6 +1,7 @@
-//! Raw-SQL chart writes from the CLI: each query is checked against the parameters a dashboard
-//! binds and test-run before anything is saved. Charts carry no `queryStructure`, like a
-//! SQL-editor export. Mirrors the Laminar agent's `upsert_chart` tool.
+//! Raw-SQL chart writes from the CLI and the Laminar agent's `upsert_chart` tool: each query is
+//! checked against the parameters a dashboard binds and test-run before anything is saved. Charts
+//! carry no `queryStructure`, like a SQL-editor export. Both callers send the same `ChartInput`
+//! entries, so this module is the only place the rules live.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, LazyLock};
