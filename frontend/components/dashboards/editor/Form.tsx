@@ -26,7 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { type QueryStructure } from "@/lib/actions/sql/types.ts";
 
 // The SQL editor needs more room than the visual builder's fields.
-const SIDEBAR_WIDTH = { visual: 320, sql: 400 };
+const SIDEBAR_WIDTH = { visual: 320, sql: 420 };
 
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const editorMode = useDashboardEditorStoreContext((state) => state.editorMode);

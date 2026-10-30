@@ -1,11 +1,12 @@
 "use client";
 
 import { type Extension } from "@codemirror/state";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { motion } from "framer-motion";
 import { Loader2, Sparkles } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type Ref, useCallback, useMemo, useRef, useState } from "react";
 
+import { formatShortcut } from "@/components/sql/format-sql";
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,6 +31,9 @@ export interface SQLEditorProps {
   extraExtensions?: Extension[];
   /** Line numbers and fold markers; false drops the whole gutter. */
   lineNumbers?: boolean;
+  /** Binds Shift+Alt+F to format the query. */
+  formattable?: boolean;
+  editorRef?: Ref<ReactCodeMirrorRef>;
 }
 
 export default function SQLEditor({
@@ -46,15 +50,18 @@ export default function SQLEditor({
   aiButtonVariant = "icon",
   extraExtensions,
   lineNumbers = true,
+  formattable = false,
+  editorRef,
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const canFormat = formattable && editable;
 
   const extensions = useMemo(
-    () => [...createExtensions(schema), ...(extraExtensions ?? [])],
-    [schema, extraExtensions]
+    () => [...createExtensions(schema), ...(canFormat ? [formatShortcut] : []), ...(extraExtensions ?? [])],
+    [schema, canFormat, extraExtensions]
   );
 
   const handleAiGenerate = useCallback(async () => {
@@ -111,6 +118,7 @@ export default function SQLEditor({
   return (
     <div className="relative size-full">
       <CodeMirror
+        ref={editorRef}
         placeholder={placeholder}
         theme={theme}
         className={className}

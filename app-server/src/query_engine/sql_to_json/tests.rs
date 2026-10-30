@@ -91,6 +91,33 @@ STEP toInterval(1, {interval_unit:String})
 }
 
 #[test]
+fn test_rejects_where_conditions_the_builder_cannot_represent() {
+    for condition in [
+        "(startsWith(top_span_name, 'a') OR startsWith(session_id, 'b'))",
+        "top_span_name = 'a' OR top_span_name = 'b'",
+        "startsWith(top_span_name, 'a')",
+        "top_span_name LIKE 'a%'",
+        "top_span_name IN ('a', 'b')",
+        "lower(top_span_name) = 'a'",
+    ] {
+        let sql = format!(
+            "SELECT count(*) AS value FROM traces WHERE start_time >= {{start_time:DateTime64}} AND {condition}"
+        );
+        assert!(convert_sql_to_json(&sql).is_err(), "accepted: {condition}");
+    }
+}
+
+#[test]
+fn test_parenthesized_and_filters_are_kept() {
+    let sql = "SELECT count(*) AS value FROM traces WHERE (status = 'error' AND has(tags, 'x'))";
+    let result = convert_sql_to_json(sql).unwrap();
+
+    assert_eq!(result.filters.len(), 2);
+    assert_eq!(result.filters[0].field, "status");
+    assert_eq!(result.filters[1].op, "includes");
+}
+
+#[test]
 fn test_complex_raw_expression_not_reduced_to_sub_aggregate() {
     let dialect = ClickHouseDialect {};
 

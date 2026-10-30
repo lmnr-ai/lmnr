@@ -1005,6 +1005,8 @@ const signatureHelpStyles = {
   },
   ".signature-help": {
     padding: "6px 10px !important",
+    // The theme is declared dark, so CodeMirror's base tooltip text is white in light mode too.
+    color: "var(--color-foreground)",
     background: "var(--color-background)",
     border: "1px solid var(--color-border)",
     borderRadius: "6px",
