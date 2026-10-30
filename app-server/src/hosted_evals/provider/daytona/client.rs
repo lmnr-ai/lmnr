@@ -319,20 +319,17 @@ impl Daytona {
         Ok(status.exit_code)
     }
 
-    /// The command's output. The REST endpoint merges stdout and stderr.
+    /// The command's output, unread. The REST endpoint merges stdout and stderr.
     pub async fn command_logs(
         &self,
         toolbox: &str,
         session_id: &str,
         command_id: &str,
-    ) -> Result<String> {
-        Ok(self
-            .send(self.http.get(format!(
-                "{toolbox}/process/session/{session_id}/command/{command_id}/logs"
-            )))
-            .await?
-            .text()
-            .await?)
+    ) -> Result<Response> {
+        self.send(self.http.get(format!(
+            "{toolbox}/process/session/{session_id}/command/{command_id}/logs"
+        )))
+        .await
     }
 
     pub async fn upload_file(&self, toolbox: &str, path: &str, content: Bytes) -> Result<()> {

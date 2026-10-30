@@ -12,12 +12,13 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 use futures_util::{StreamExt, TryStreamExt};
+use reqwest::Response;
 use uuid::Uuid;
 
 use super::{
-    ByteStream, CommandResult, CreateFailure, ImageState, PushedImage, RegistryCredentials,
-    Resources, SandboxHandle, SandboxImage, SandboxInfo, SandboxProviderTrait, SandboxSpec,
-    SandboxState, SandboxStatus, registry_host,
+    ByteStream, CommandResult, CreateFailure, ImageState, MAX_COMMAND_OUTPUT_BYTES, PushedImage,
+    RegistryCredentials, Resources, SandboxHandle, SandboxImage, SandboxInfo, SandboxProviderTrait,
+    SandboxSpec, SandboxState, SandboxStatus, read_capped, registry_host,
 };
 use crate::hosted_evals::shell_quote;
 use client::{CreateSandbox, CreateSnapshot, Daytona, DockerRegistryRequest, Snapshot};
@@ -246,22 +247,25 @@ impl SandboxProviderTrait for DaytonaProvider {
         else {
             return Ok(Some(CommandResult::running()));
         };
-        let stdout = self
+        let logs = self
             .client
             .command_logs(&toolbox, session_id, cmd_id)
             .await?;
-        let stderr = match self
+        let (stdout, stdout_truncated) = read_capped(body(logs), MAX_COMMAND_OUTPUT_BYTES).await?;
+        let (stderr, stderr_truncated) = match self
             .client
             .download_file(&toolbox, &format!("{STDERR_DIR}/{session_id}"))
             .await?
         {
-            Some(response) => String::from_utf8_lossy(&response.bytes().await?).into_owned(),
-            None => String::new(),
+            Some(response) => read_capped(body(response), MAX_COMMAND_OUTPUT_BYTES).await?,
+            None => (String::new(), false),
         };
         Ok(Some(CommandResult {
             exit_code: Some(exit_code),
             stdout: Some(stdout),
             stderr: Some(stderr),
+            stdout_truncated,
+            stderr_truncated,
         }))
     }
 
@@ -279,10 +283,12 @@ impl SandboxProviderTrait for DaytonaProvider {
         let Some(response) = self.client.download_file(&toolbox(sandbox), path).await? else {
             return Ok(None);
         };
-        Ok(Some(
-            response.bytes_stream().map_err(anyhow::Error::from).boxed(),
-        ))
+        Ok(Some(body(response)))
     }
+}
+
+fn body(response: Response) -> ByteStream {
+    response.bytes_stream().map_err(anyhow::Error::from).boxed()
 }
 
 fn toolbox(sandbox: &SandboxHandle) -> String {

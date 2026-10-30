@@ -10,7 +10,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
-use futures_util::Stream;
+use futures_util::{Stream, StreamExt};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -18,6 +18,10 @@ use crate::env;
 use daytona::DaytonaProvider;
 
 pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>;
+
+/// Per stream of a command's output: the result is buffered and sent as JSON,
+/// so a trial printing gigabytes must not land in app-server memory.
+pub const MAX_COMMAND_OUTPUT_BYTES: usize = 10 * 1024 * 1024;
 
 #[enum_dispatch]
 pub enum SandboxProvider {
@@ -204,6 +208,11 @@ pub struct CommandResult {
     pub stdout: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<String>,
+    /// The output went past `MAX_COMMAND_OUTPUT_BYTES`; only its start is kept.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub stdout_truncated: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub stderr_truncated: bool,
 }
 
 impl CommandResult {
@@ -212,8 +221,26 @@ impl CommandResult {
             exit_code: None,
             stdout: None,
             stderr: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }
     }
+}
+
+/// The first `max` bytes of `stream` as (lossy) UTF-8, and whether more
+/// followed. Stops reading at the cap.
+pub async fn read_capped(mut stream: ByteStream, max: usize) -> Result<(String, bool)> {
+    let mut buf = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let room = max - buf.len();
+        if chunk.len() > room {
+            buf.extend_from_slice(&chunk[..room]);
+            return Ok((String::from_utf8_lossy(&buf).into_owned(), true));
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok((String::from_utf8_lossy(&buf).into_owned(), false))
 }
 
 #[cfg(test)]
@@ -249,6 +276,38 @@ mod tests {
                 memory_gb: 8,
                 disk_gb: 5
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn command_output_is_capped_and_flagged() {
+        let chunks = |parts: &[&'static str]| -> ByteStream {
+            futures_util::stream::iter(
+                parts
+                    .iter()
+                    .map(|p| Ok(Bytes::from_static(p.as_bytes())))
+                    .collect::<Vec<_>>(),
+            )
+            .boxed()
+        };
+        assert_eq!(
+            read_capped(chunks(&["abc", "def"]), 6).await.unwrap(),
+            ("abcdef".to_string(), false)
+        );
+        assert_eq!(
+            read_capped(chunks(&["abc", "def", "g"]), 5).await.unwrap(),
+            ("abcde".to_string(), true)
+        );
+        let result = CommandResult {
+            exit_code: Some(0),
+            stdout: Some("abcde".to_string()),
+            stderr: Some(String::new()),
+            stdout_truncated: true,
+            stderr_truncated: false,
+        };
+        assert_eq!(
+            serde_json::to_value(result).unwrap(),
+            json!({ "exitCode": 0, "stdout": "abcde", "stderr": "", "stdoutTruncated": true })
         );
     }
 
