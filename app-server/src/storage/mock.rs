@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
 use tokio::sync::mpsc::Receiver;
@@ -33,6 +33,6 @@ impl super::StorageTrait for MockStorage {
         _key: &str,
         _chunks: Receiver<Result<Bytes>>,
     ) -> Result<u64> {
-        bail!("uploads require S3 storage")
+        Ok(0)
     }
 }

@@ -338,4 +338,29 @@ mod tests {
             LockClaim::Held(None)
         );
     }
+
+    /// `acquire_lock_waiting` gives up with `Ok(false)` once `wait` passes, and
+    /// takes the lock as soon as the holder releases it.
+    #[tokio::test]
+    async fn acquire_lock_waiting_times_out_or_takes_a_released_lock() {
+        let cache = Arc::new(InMemoryCache::new(None));
+        let poll = std::time::Duration::from_millis(5);
+        assert!(cache.try_acquire_lock("k", 60).await.unwrap());
+
+        let waited = cache
+            .acquire_lock_waiting("k", 60, std::time::Duration::from_millis(30), poll)
+            .await;
+        assert!(!waited.unwrap());
+
+        let holder = cache.clone();
+        let release = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            holder.release_lock("k").await.unwrap();
+        });
+        let waited = cache
+            .acquire_lock_waiting("k", 60, std::time::Duration::from_secs(5), poll)
+            .await;
+        assert!(waited.unwrap());
+        release.await.unwrap();
+    }
 }

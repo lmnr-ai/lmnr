@@ -176,16 +176,20 @@ pub async fn create(
 /// `Ok(false)` when the cache itself fails: creates then go ahead unlocked, so
 /// the cap is best-effort during a cache outage rather than hosted evals failing.
 async fn acquire_capacity_lock(cache: &Cache, key: &str) -> Result<bool, CreateError> {
-    let deadline = Instant::now() + CAPACITY_LOCK_WAIT;
-    loop {
-        match cache.try_acquire_lock(key, CAPACITY_LOCK_TTL_SECONDS).await {
-            Ok(true) => return Ok(true),
-            Ok(false) if Instant::now() < deadline => tokio::time::sleep(CAPACITY_LOCK_POLL).await,
-            Ok(false) => return Err(CreateError::CapacityBusy),
-            Err(e) => {
-                log::warn!("Hosted evals capacity lock unavailable, creating without it: {e:?}");
-                return Ok(false);
-            }
+    match cache
+        .acquire_lock_waiting(
+            key,
+            CAPACITY_LOCK_TTL_SECONDS,
+            CAPACITY_LOCK_WAIT,
+            CAPACITY_LOCK_POLL,
+        )
+        .await
+    {
+        Ok(true) => Ok(true),
+        Ok(false) => Err(CreateError::CapacityBusy),
+        Err(e) => {
+            log::warn!("Hosted evals capacity lock unavailable, creating without it: {e:?}");
+            Ok(false)
         }
     }
 }
