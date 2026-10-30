@@ -89,7 +89,7 @@ export const getEvaluationScoreNames = async (
     {
       query: `
       SELECT DISTINCT arrayJoin(JSONExtractKeys(scores)) AS name
-      FROM evaluation_datapoints
+      FROM evaluation_trials
       WHERE evaluation_id = {evaluationId:UUID}
         AND length(scores) > 0
       ORDER BY name
@@ -115,7 +115,7 @@ export const getEvaluationDatasets = async ({
   const rows = await executeQuery<{ dataset_id: string }>({
     query: `
       SELECT DISTINCT dataset_id
-      FROM evaluation_datapoints
+      FROM evaluation_trials
       WHERE evaluation_id = {evaluationId:UUID}
     `,
     parameters: { evaluationId },
@@ -377,7 +377,7 @@ export const getEvaluationTrialComparison = async (
   }>({
     query: `
       SELECT evaluation_id evaluationId, task_id taskId, scores, trace_id traceId
-      FROM evaluation_datapoints
+      FROM evaluation_trials
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND task_id = {taskId:String}
     `,

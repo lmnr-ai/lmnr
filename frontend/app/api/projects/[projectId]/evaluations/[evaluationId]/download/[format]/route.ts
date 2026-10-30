@@ -34,7 +34,7 @@ export async function GET(
     projectId,
     query: `
         SELECT id, task_id taskId, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
-        FROM evaluation_datapoints
+        FROM evaluation_trials
         WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
       `,
