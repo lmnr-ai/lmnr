@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::{ChartUpsert, DashboardError, layout::Layout};
+use super::{ChartUpsert, DashboardError, Layout};
 use crate::access_policy::AccessPolicy;
 use crate::cache::Cache;
 use crate::db::DB;
@@ -163,7 +163,6 @@ async fn check_chart(
             id: chart.id,
             name: chart.name,
             query,
-            query_structure: None,
             config,
             layout: chart.layout,
         },

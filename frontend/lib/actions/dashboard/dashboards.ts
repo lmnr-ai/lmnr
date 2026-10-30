@@ -2,9 +2,10 @@ import { and, asc, count, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type Dashboard } from "@/components/dashboards/types";
-import { callAppServer } from "@/lib/app-server";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, dashboards } from "@/lib/db/migrations/schema";
+
+import { DashboardError } from "./errors";
 
 export const DEFAULT_DASHBOARD_NAME = "main";
 
@@ -91,28 +92,42 @@ export const getOrCreateDefaultDashboard = async (input: z.infer<typeof DefaultD
   });
 };
 
-// Writes go through app-server, which the Laminar agent shares; it also enforces that a
-// project keeps at least one dashboard (409).
 export const createDashboard = async (input: z.infer<typeof CreateDashboardSchema>) => {
   const { projectId, name } = CreateDashboardSchema.parse(input);
 
-  return await callAppServer<Omit<Dashboard, "chartCount">>(`/projects/${projectId}/dashboards`, {
-    method: "POST",
-    body: { name },
-  });
+  const [created] = await db.insert(dashboards).values({ projectId, name }).returning();
+
+  return created as Omit<Dashboard, "chartCount">;
 };
 
 export const renameDashboard = async (input: z.infer<typeof RenameDashboardSchema>) => {
   const { projectId, dashboardId, name } = RenameDashboardSchema.parse(input);
 
-  return await callAppServer<Omit<Dashboard, "chartCount">>(`/projects/${projectId}/dashboards/${dashboardId}`, {
-    method: "PATCH",
-    body: { name },
-  });
+  const [renamed] = await db
+    .update(dashboards)
+    .set({ name })
+    .where(and(eq(dashboards.projectId, projectId), eq(dashboards.id, dashboardId)))
+    .returning();
+  if (!renamed) throw DashboardError.notFound("Dashboard");
+
+  return renamed as Omit<Dashboard, "chartCount">;
 };
 
+// Charts go with it via the `dashboard_id` ON DELETE CASCADE. Takes the same lock as
+// `getOrCreateDefaultDashboard`, so deleting the last dashboard and creating the default serialize.
 export const deleteDashboard = async (input: z.infer<typeof DashboardSchema>) => {
   const { projectId, dashboardId } = DashboardSchema.parse(input);
 
-  await callAppServer(`/projects/${projectId}/dashboards/${dashboardId}`, { method: "DELETE" });
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`dashboards:${projectId}`}))`);
+
+    const [{ total }] = await tx.select({ total: count() }).from(dashboards).where(eq(dashboards.projectId, projectId));
+    if (total <= 1) throw DashboardError.lastDashboard();
+
+    const deleted = await tx
+      .delete(dashboards)
+      .where(and(eq(dashboards.projectId, projectId), eq(dashboards.id, dashboardId)))
+      .returning({ id: dashboards.id });
+    if (deleted.length === 0) throw DashboardError.notFound("Dashboard");
+  });
 };

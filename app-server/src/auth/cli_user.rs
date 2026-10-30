@@ -90,15 +90,12 @@ impl JwksCache {
     /// var. The `http` arg is retained for call-site compatibility; `WebSource`
     /// manages its own client.
     pub fn from_env(_http: reqwest::Client) -> Self {
-        let base = std::env::var(crate::env::server::NEXT_INTERNAL_URL)
-            .or(std::env::var(crate::env::server::NEXT_PUBLIC_URL))
-            .map(|v| v.trim_end_matches('/').to_string())
-            .unwrap_or_else(|_| {
-                log::warn!(
-                    "NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; CLI-auth JWKS defaults to https://laminar.sh"
-                );
-                "https://laminar.sh".to_string()
-            });
+        let base = crate::env::server::next_server_url().unwrap_or_else(|| {
+            log::warn!(
+                "NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; CLI-auth JWKS defaults to https://laminar.sh"
+            );
+            "https://laminar.sh".to_string()
+        });
         let jwks_url = format!("{base}/api/auth/jwks");
         Self::from_url(&jwks_url)
     }

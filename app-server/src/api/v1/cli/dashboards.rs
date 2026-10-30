@@ -1,5 +1,5 @@
-//! CLI dashboard and chart writes. Auth via `CliProjectAuth`; writes go through `crate::dashboards`,
-//! the service the frontend uses. Charts are raw SQL, checked and test-run by
+//! CLI dashboard and chart writes. Auth via `CliProjectAuth`; writes go through `crate::dashboards`
+//! to the frontend, which the UI writes through too. Charts are raw SQL, checked and test-run by
 //! `dashboards::chart_query` before anything is saved. Reads go through `lmnr-cli sql query`
 //! (`dashboards` / `dashboard_charts`).
 
@@ -14,10 +14,10 @@ use crate::access_policy::{self, Actor};
 use crate::auth::cli_user::CliProjectAuth;
 use crate::cache::Cache;
 use crate::dashboards::{
-    self, DashboardError,
+    self, Dashboard, DashboardError,
     chart_query::{self, ChartInput, QueryRunner},
 };
-use crate::db::{DB, dashboards::Dashboard};
+use crate::db::DB;
 use crate::query_engine::QueryEngine;
 use crate::routes::types::ResponseResult;
 use crate::sql::ClickhouseReadonlyClient;
@@ -83,9 +83,9 @@ fn dashboard_response(dashboard: Dashboard) -> HttpResponse {
 pub async fn create_dashboard(
     auth: CliProjectAuth,
     body: web::Json<DashboardNameInput>,
-    db: web::Data<DB>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    let result = dashboards::create_dashboard(&db.pool, auth.project_id, &body.name).await;
+    let result = dashboards::create_dashboard(&http_client, auth.project_id, &body.name).await;
     Ok(match result {
         Ok(dashboard) => dashboard_response(dashboard),
         Err(e) => dashboards::error_response(e),
@@ -97,10 +97,10 @@ pub async fn rename_dashboard(
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<DashboardNameInput>,
-    db: web::Data<DB>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let result =
-        dashboards::rename_dashboard(&db.pool, auth.project_id, path.into_inner(), &body.name)
+        dashboards::rename_dashboard(&http_client, auth.project_id, path.into_inner(), &body.name)
             .await;
     Ok(match result {
         Ok(dashboard) => dashboard_response(dashboard),
@@ -112,10 +112,10 @@ pub async fn rename_dashboard(
 pub async fn delete_dashboard(
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
-    db: web::Data<DB>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let dashboard_id = path.into_inner();
-    let result = dashboards::delete_dashboard(&db.pool, auth.project_id, dashboard_id).await;
+    let result = dashboards::delete_dashboard(&http_client, auth.project_id, dashboard_id).await;
     Ok(match result {
         Ok(()) => HttpResponse::Ok().json(json!({ "id": dashboard_id, "deleted": true })),
         Err(e) => dashboards::error_response(e),
@@ -149,7 +149,7 @@ pub async fn upsert_charts(
         policy,
         clickhouse_ro,
         query_engine: query_engine.into_inner().as_ref().clone(),
-        http_client: http_client.into_inner(),
+        http_client: http_client.clone().into_inner(),
         db: db.clone(),
         cache,
     };
@@ -157,7 +157,7 @@ pub async fn upsert_charts(
     let result = async {
         let checked = chart_query::check_charts(body.into_inner().charts, &runner).await?;
         let charts =
-            dashboards::upsert_charts(&db.pool, auth.project_id, dashboard_id, checked.upserts)
+            dashboards::upsert_charts(&http_client, auth.project_id, dashboard_id, checked.upserts)
                 .await?;
         Ok::<_, DashboardError>((charts, checked.warnings))
     }
@@ -188,11 +188,12 @@ pub async fn delete_charts(
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<DeleteChartsInput>,
-    db: web::Data<DB>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let chart_ids = body.into_inner().chart_ids;
     let result =
-        dashboards::delete_charts(&db.pool, auth.project_id, path.into_inner(), &chart_ids).await;
+        dashboards::delete_charts(&http_client, auth.project_id, path.into_inner(), &chart_ids)
+            .await;
     Ok(match result {
         Ok(deleted) => {
             HttpResponse::Ok().json(json!({ "deleted": deleted, "requested": chart_ids.len() }))
