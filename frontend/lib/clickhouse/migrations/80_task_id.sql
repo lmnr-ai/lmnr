@@ -1,11 +1,11 @@
 -- Task (test case) id. Evaluation rows sharing (evaluation_id, task_id) are
--- repeated trials of one task. Parts written before this column existed read
--- it from the DEFAULT expression: an evaluation row's `index`, a dataset row's id.
+-- repeated trials of one task. Existing rows get the DEFAULT (an evaluation row's
+-- `index`, a dataset row's id), written to disk by the MATERIALIZE below.
 ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT toString(`index`);
 ALTER TABLE dataset_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT toString(id);
 
 -- When a Trial was first saved; app-server carries it over when the Trial is saved again.
--- Parts written before this column existed fall back to their last write.
+-- Existing rows get their last write (`updated_at`), written to disk by the MATERIALIZE below.
 ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS created_at DateTime64(9, 'UTC') DEFAULT updated_at;
 
 -- Backfill: write the defaults into existing parts, so old rows store their task id and
