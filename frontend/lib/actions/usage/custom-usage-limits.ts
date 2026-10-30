@@ -13,9 +13,6 @@ import {
   isFreeTierWorkspace,
 } from "./utils";
 
-export { USAGE_LIMIT_TYPES };
-export type { UsageLimitType };
-
 export interface WorkspaceUsageLimit {
   id: string;
   workspaceId: string;

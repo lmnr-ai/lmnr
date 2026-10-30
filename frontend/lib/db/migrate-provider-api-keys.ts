@@ -106,7 +106,7 @@ type Candidate = {
   rowIds: Set<string>;
 };
 
-export type MigrationSummary = {
+type MigrationSummary = {
   legacyRows: number;
   undecryptable: number;
   profilesCreated: number;

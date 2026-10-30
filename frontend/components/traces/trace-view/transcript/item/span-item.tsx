@@ -83,7 +83,7 @@ function LLMOutputPreview({
   return null;
 }
 
-export interface SpanItemProps {
+interface SpanItemProps {
   span: TraceViewListSpan;
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;

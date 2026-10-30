@@ -25,7 +25,7 @@ export type SignalVersion = {
 /** Matches 0109 / CLI create when a signal has no trigger row. */
 const DEFAULT_VERSION_TRIGGER: unknown[] = [{ column: "root_span_finished", operator: "eq", value: "true" }];
 
-export const modeFromI16 = (mode: number): SignalMode => (mode === 0 ? "batch" : "realtime");
+const modeFromI16 = (mode: number): SignalMode => (mode === 0 ? "batch" : "realtime");
 
 export const buildSignalDefinition = ({
   name,
@@ -63,7 +63,7 @@ export const buildSignalDefinition = ({
 });
 
 /** Sorted object keys so filter-array sort is stable across key-order-only diffs. */
-export const canonicalJson = (value: unknown): string => {
+const canonicalJson = (value: unknown): string => {
   if (value !== null && typeof value === "object") {
     if (Array.isArray(value)) {
       return `[${value.map(canonicalJson).join(",")}]`;

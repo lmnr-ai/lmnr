@@ -49,7 +49,7 @@ export const isRunTransparentBlock = (
 // The group KEY for a command block: the first command in its maximal contiguous
 // run (transparent blocks skipped), matching the group id the flat-rows builder
 // emits. Returns `id` itself when it heads its run (run of one / the first one).
-export const firstCommandIdOfRun = (
+const firstCommandIdOfRun = (
   blocks: SessionBlockView[],
   id: string,
   tracesById: Map<string, TraceRow>,
@@ -184,7 +184,7 @@ export type TraceRowState = "loading" | "loaded" | "missing";
 
 // Which kind of block arrived live — drives the "New trace" / "New eval" /
 // "New note" / "New command" pill.
-export type NewBlockNotice = "trace" | "evaluation" | "text" | "command";
+type NewBlockNotice = "trace" | "evaluation" | "text" | "command";
 
 interface DebuggerSessionViewState {
   // The ordered timeline: trace / evaluation / text blocks. Single source of
@@ -322,7 +322,7 @@ interface DebuggerSessionViewActions {
 
 export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionViewState & DebuggerSessionViewActions;
 
-export const createDebuggerSessionViewStore = (options: {
+const createDebuggerSessionViewStore = (options: {
   initialSessionName?: string;
   initialSessionNameRaw?: string | null;
   projectId?: string;
@@ -772,7 +772,7 @@ export const createDebuggerSessionViewStore = (options: {
   );
 
 // Debugger-only context (the base context is provided in parallel for shared children).
-export const DebuggerSessionViewContext = createContext<StoreApi<DebuggerSessionViewStore> | undefined>(undefined);
+const DebuggerSessionViewContext = createContext<StoreApi<DebuggerSessionViewStore> | undefined>(undefined);
 
 interface DebuggerSessionViewStoreProviderProps {
   initialSessionName?: string;

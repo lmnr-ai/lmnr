@@ -18,7 +18,7 @@ const SPAN_REF_REGEX = /<span\s+id='([0-9a-f]{6})'\s+name='([^']+)'(?:\s+referen
  * links (which may point at a different trace than the one being viewed);
  * consumers that select within a single trace can ignore it.
  */
-export interface SpanRefTarget {
+interface SpanRefTarget {
   traceId?: string;
   spanId?: string;
 }

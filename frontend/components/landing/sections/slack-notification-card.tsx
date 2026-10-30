@@ -1,7 +1,3 @@
-import { cn } from "@/lib/utils";
-
-import { SIGNAL_EVENT_SUMMARY } from "./signal-event-card";
-
 export const SLACK_BORDER = "rgb(38 38 38)"; // surface-500
 export const SLACK_BG = "rgb(23 23 23)"; // surface-350
 
@@ -19,64 +15,3 @@ export const LaminarAppAvatar = () => (
     </svg>
   </div>
 );
-
-// Slack notification inner content. No outer frame — callers wrap it in a
-// frame (static border/bg here, animated wrapper on the trace panel).
-export const SlackContent = () => (
-  <div className="flex gap-3 items-start w-full px-3 pt-2 pb-3">
-    <LaminarAppAvatar />
-
-    <div className="flex flex-1 flex-col gap-3 items-start min-w-0 overflow-hidden">
-      <div className="flex flex-col gap-1 w-full">
-        <div className="flex items-center gap-1 w-full whitespace-nowrap font-sans text-xs">
-          <p className="text-foreground-200">Laminar</p>
-          <div className="bg-surface-500 rounded px-1 py-0.5 flex items-center justify-center">
-            <p className="text-[8px] leading-none text-foreground-200">APP</p>
-          </div>
-          <p className="text-foreground-300">3:18 pm</p>
-        </div>
-
-        <div className="flex gap-0.5 items-center font-sans text-xs">
-          <div className="bg-muted border border-surface-600 rounded px-1.5 py-px">
-            <p className="text-primary-400/60 whitespace-nowrap">Failure</p>
-          </div>
-          <p className="text-foreground-200 whitespace-nowrap">: New Event</p>
-        </div>
-      </div>
-
-      {/* Same event the signal card describes — see ./signal-event-card, and
-          keep the two saying the same thing. */}
-      <p className="font-sans text-xs leading-relaxed text-foreground-200 w-full">
-        {SIGNAL_EVENT_SUMMARY}. The agent ran <code>web_search</code> three times for the same question, carried on past
-        a <code>404</code> from <code>fetch_page</code> without retrying, then answered from a snippet without linking
-        the page it read.
-      </p>
-
-      <div className="flex flex-row gap-2 items-center">
-        <div className="bg-surface-500 px-2 py-1 rounded">
-          <p className="font-sans text-xs text-foreground-200">View Trace</p>
-        </div>
-        <div className="bg-surface-500 px-2 py-1 rounded">
-          <p className="font-sans text-xs text-foreground-200">View similar events</p>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-interface Props {
-  className?: string;
-}
-
-// Static slack-notification card (no morph). Used on mobile where each card
-// is rendered standalone instead of cross-fading via the morph wrapper.
-const SlackNotificationCard = ({ className }: Props) => (
-  <div
-    style={{ borderColor: SLACK_BORDER, backgroundColor: SLACK_BG }}
-    className={cn("rounded-md border overflow-hidden", className)}
-  >
-    <SlackContent />
-  </div>
-);
-
-export default SlackNotificationCard;

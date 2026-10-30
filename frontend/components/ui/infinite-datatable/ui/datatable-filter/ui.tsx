@@ -1,9 +1,6 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { find, get, head, isEmpty, isEqual, map } from "lodash";
-import { ListFilter, X } from "lucide-react";
 import { memo, type PropsWithChildren, useCallback, useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import {
   BOOLEAN_OPERATIONS,
@@ -17,7 +14,6 @@ import {
 import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
@@ -329,71 +325,4 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       );
   }
 };
-
-const PureFilterList = ({
-  filters,
-  onRemoveFilter,
-  className,
-}: {
-  filters: Filter[];
-  onRemoveFilter: (filter: Filter) => void;
-  className?: string;
-}) => {
-  if (filters.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex gap-2 flex-wrap">
-      {filters.map((f, index) => (
-        <Tooltip key={`${index}-${f.column}-${f.value}-${f.operator}`}>
-          <TooltipTrigger asChild>
-            <Badge
-              className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
-              variant="outline"
-            >
-              <ListFilter className="w-3 h-3 text-primary-text" />
-              <span className="text-xs text-primary-text truncate font-mono">
-                {f.column}{" "}
-                {get(
-                  find(
-                    [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
-                    ["key", f.operator]
-                  ),
-                  "label",
-                  f.operator
-                )}{" "}
-                {f.value}
-              </span>
-              <Button
-                aria-label={`Remove ${f.column} ${f.value} filter`}
-                onClick={() => onRemoveFilter(f)}
-                className="p-0 h-fit group"
-                variant="ghost"
-              >
-                <X className="w-3 h-3 text-primary-text/70 group-hover:text-primary-text" />
-              </Button>
-            </Badge>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>
-              {f.column}{" "}
-              {get(
-                find(
-                  [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
-                  ["key", f.operator]
-                ),
-                "label",
-                f.operator
-              )}{" "}
-              {f.value}
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-      ))}
-    </div>
-  );
-};
-
-export const FilterList = memo(PureFilterList);
 export default memo(FilterPopover);

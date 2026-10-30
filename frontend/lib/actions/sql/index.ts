@@ -6,7 +6,7 @@ import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
 
 export { SHARED_ACTOR, type SqlActor } from "./actor";
-export type { GenerationMode, GenerationResult } from "./types";
+export type { GenerationMode } from "./types";
 
 const ExecuteQuerySchema = z.object({
   projectId: z.guid(),

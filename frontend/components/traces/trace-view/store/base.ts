@@ -82,7 +82,7 @@ export type TraceSignal = {
   events: TraceSignalEvent[];
 };
 
-export interface BaseTraceViewState {
+interface BaseTraceViewState {
   trace?: TraceViewTrace;
   isTraceLoading: boolean;
   traceError?: string;
@@ -146,7 +146,7 @@ export interface BaseTraceViewState {
   scrollToGroupId: string | null;
 }
 
-export interface BaseTraceViewActions {
+interface BaseTraceViewActions {
   setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void;
   setTraceError: (error?: string) => void;
   setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void;

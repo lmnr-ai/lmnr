@@ -78,10 +78,8 @@ export const DEFAULT_TIMING: ClustersTiming = {
 
 /** Standard-ease out. Used for everything that settles into place. */
 export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
-/** Slightly sharper — the pill dropping behind the card should feel decisive. */
-export const EASE_IN_OUT = [0.65, 0, 0.35, 1] as const;
 
-export const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
+const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
 
 /** Progress through one phase, given the window position. Guarded against a
  *  zero span, which a dial can produce by dragging a bar shut. */

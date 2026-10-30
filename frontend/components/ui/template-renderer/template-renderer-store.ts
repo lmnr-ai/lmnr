@@ -5,7 +5,7 @@ export type TemplateRendererState = {
   presetTemplates: Record<string, string>; // presetKey -> templateId mapping
 };
 
-export type TemplateRendererActions = {
+type TemplateRendererActions = {
   setPresetTemplate: (presetKey: string, templateId: string) => void;
   getPresetTemplate: (presetKey: string) => string | undefined;
   reset: () => void;

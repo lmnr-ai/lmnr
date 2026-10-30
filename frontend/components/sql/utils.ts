@@ -37,9 +37,9 @@ export const enumValues = {
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
-export type EnumType = keyof typeof enumValues;
+type EnumType = keyof typeof enumValues;
 
-export interface ColumnSchema {
+interface ColumnSchema {
   name: string;
   type: string;
   description: string;
@@ -58,7 +58,7 @@ export interface SQLSchemaConfig {
 }
 
 // Source of truth for the SQL editor schema (autocomplete + AI prompt schema text).
-export const tableSchemas: Record<string, TableSchema> = {
+const tableSchemas: Record<string, TableSchema> = {
   spans: {
     description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
     columns: [
@@ -1087,7 +1087,7 @@ const signatureHelpStyles = {
 };
 
 // Combined editor theme
-export const editorTheme = EditorView.theme({
+const editorTheme = EditorView.theme({
   ...editorBaseStyles,
   ...syntaxHighlightStyles,
   ...autocompleteStyles,

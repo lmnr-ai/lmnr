@@ -1,6 +1,6 @@
 import { scaleUtc } from "d3-scale";
 
-export type IntervalUnit = "minute" | "hour" | "day";
+type IntervalUnit = "minute" | "hour" | "day";
 
 export interface Interval {
   value: number;

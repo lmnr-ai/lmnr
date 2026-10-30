@@ -35,7 +35,7 @@ export interface SessionTimelineContainerSpan {
 
 /** Bounding box of a subagent group inside an expanded trace container.
  *  Coordinates are CONTAINER-RELATIVE (same frame as spans). */
-export interface SessionTimelineSubagentGroupBox {
+interface SessionTimelineSubagentGroupBox {
   groupId: string;
   left: number;
   width: number;
@@ -56,7 +56,7 @@ export interface SessionTimelineSpanContainer {
   groupBoxes: SessionTimelineSubagentGroupBox[];
 }
 
-export type SessionTimelineElement = SessionTimelineTraceBar | SessionTimelineSpanContainer;
+type SessionTimelineElement = SessionTimelineTraceBar | SessionTimelineSpanContainer;
 
 export interface SessionTimelineSegmentData {
   elements: SessionTimelineElement[];
@@ -70,7 +70,7 @@ export interface SessionTimelineSegmentData {
   totalRows: number;
 }
 
-export interface SessionTimelineGapData {
+interface SessionTimelineGapData {
   durationMs: number;
   /** Absolute ms time at the end of the previous cluster (= gap start). */
   startMs: number;
@@ -78,7 +78,7 @@ export interface SessionTimelineGapData {
   endMs: number;
 }
 
-export type SessionTimelineSection =
+type SessionTimelineSection =
   | { type: "segment"; segment: SessionTimelineSegmentData }
   | { type: "gap"; gap: SessionTimelineGapData };
 
@@ -94,7 +94,7 @@ export interface SessionTimelineSections {
 // ---------------------------------------------------------------------------
 
 /** Gaps larger than this are collapsed into a divider. */
-export const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
 /** Fixed pixel width for gap dividers INCLUDING the 8px gutters on each side.
  *  The gap component owns the gutters so they participate in the

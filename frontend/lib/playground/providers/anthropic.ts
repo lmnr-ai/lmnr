@@ -1,11 +1,11 @@
 type EffortLevel = "low" | "medium" | "high" | "max";
 
-export interface AnthropicBudgetConfig {
+interface AnthropicBudgetConfig {
   type: "budget";
   min: number;
 }
 
-export interface AnthropicEffortConfig {
+interface AnthropicEffortConfig {
   type: "effort";
   levels: EffortLevel[];
 }

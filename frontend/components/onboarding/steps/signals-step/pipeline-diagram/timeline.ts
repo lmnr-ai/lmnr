@@ -33,7 +33,7 @@ export const NODE_GROW_AT = {
 export const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 // Same curve as the landing system loop: cubic-bezier(0.22, 1, 0.36, 1) ≈ easeOutQuint.
-export const easeOut = (value: number) => 1 - Math.pow(1 - clamp01(value), 5);
+const easeOut = (value: number) => 1 - Math.pow(1 - clamp01(value), 5);
 
 export const stageProgress = (time: number, at: number, duration: number) => easeOut((time - at) / duration);
 

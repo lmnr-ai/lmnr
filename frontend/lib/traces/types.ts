@@ -190,21 +190,6 @@ export type RealtimeAgentInputPayload = {
   agentInput: unknown;
 };
 
-export type TracePreview = {
-  startTime: string;
-  endTime: string;
-  success: boolean;
-  id: string;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  totalTokenCount: number;
-  inputCost: number | null;
-  outputCost: number | null;
-  approximateCost: number | null;
-  metadata: Record<string, string> | null;
-  outputMessageIds: string[];
-};
-
 // We have id and sessionId here because
 // its not possible to make good type intersection,
 // and use it in tanstack table wrappers.

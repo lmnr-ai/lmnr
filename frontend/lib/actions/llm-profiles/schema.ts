@@ -18,14 +18,14 @@ export const LLM_PROFILE_PROVIDERS = [
 
 export type LlmProfileProvider = (typeof LLM_PROFILE_PROVIDERS)[number];
 
-export const OPENAI_PROVIDERS = ["openai_completions", "openai_responses"] as const;
+const OPENAI_PROVIDERS = ["openai_completions", "openai_responses"] as const;
 export type OpenAIProvider = (typeof OPENAI_PROVIDERS)[number];
 
-export const AZURE_PROVIDERS = ["azure_chat_completions", "azure_responses", "azure_anthropic"] as const;
+const AZURE_PROVIDERS = ["azure_chat_completions", "azure_responses", "azure_anthropic"] as const;
 export type AzureProvider = (typeof AZURE_PROVIDERS)[number];
 
 /** OpenAI-compatible gateways: `custom` speaks Chat Completions, `custom_responses` the Responses API. */
-export const CUSTOM_PROVIDERS = ["custom", "custom_responses"] as const;
+const CUSTOM_PROVIDERS = ["custom", "custom_responses"] as const;
 export type CustomProvider = (typeof CUSTOM_PROVIDERS)[number];
 
 /** Providers whose whole config is an API key. */
@@ -111,8 +111,6 @@ export const LlmProfileModelsSchema = z
   .min(1, "Add at least one model")
   .max(64)
   .refine((models) => new Set(models).size === models.length, { message: "Model names must be unique" });
-
-export const LlmProfileNameSchema = z.string().trim().min(1, "Name is required").max(255);
 
 export type SecretKey = "apiKey" | "secretAccessKey" | "token";
 

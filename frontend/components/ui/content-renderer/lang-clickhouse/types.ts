@@ -1,4 +1,4 @@
-export interface FunctionParameter {
+interface FunctionParameter {
   name: string;
   type: string;
   description: string;

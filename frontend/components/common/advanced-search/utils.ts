@@ -4,7 +4,7 @@ const FIELD_ORDER: TagFocusPosition[] = ["field", "operator", "value", "remove"]
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const isUuid = (value: string): boolean => UUID_REGEX.test(value.trim());
+const isUuid = (value: string): boolean => UUID_REGEX.test(value.trim());
 
 // Single source of truth for "does this input resolve to the id suggestion",
 // shared by the suggestion list builder and the store's pre-selection so the

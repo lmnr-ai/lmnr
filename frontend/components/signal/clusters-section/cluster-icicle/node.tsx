@@ -15,7 +15,7 @@ import { BAND, BAND_TINT, PANEL, STEM, SURFACE } from "./constants";
 import ExtraBand from "./extra-band";
 import { childRowGap, type ViewNode } from "./fold";
 
-export interface NodeProps {
+interface NodeProps {
   node: ViewNode;
   /** Finest level in the tree — the only level that pads along the bottom. */
   minLevel: number;

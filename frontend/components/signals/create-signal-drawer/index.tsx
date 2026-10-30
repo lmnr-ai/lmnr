@@ -12,7 +12,7 @@ import ManageSignalContent from "./manage-signal-content";
 import { getDefaultValues, type ManageSignalForm } from "./types";
 
 export { default as ManageSignalPanel } from "./manage-signal-panel";
-export { getDefaultValues, type ManageSignalForm } from "./types";
+export { type ManageSignalForm } from "./types";
 
 export default function CreateSignalDrawer({
   children,

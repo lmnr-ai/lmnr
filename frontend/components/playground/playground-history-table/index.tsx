@@ -118,7 +118,7 @@ const columns: ColumnDef<Trace, any>[] = [
   },
 ];
 
-export const defaultPlaygroundHistoryColumnOrder = [
+const defaultPlaygroundHistoryColumnOrder = [
   "status",
   "id",
   "top_span_type",

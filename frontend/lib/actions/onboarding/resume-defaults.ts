@@ -5,7 +5,7 @@ import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { signals, slackIntegrations, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-export type OnboardingTier = "free" | "hobby" | "pro";
+type OnboardingTier = "free" | "hobby" | "pro";
 
 export interface OnboardingResumeDefaults {
   workspaceName: string | null;

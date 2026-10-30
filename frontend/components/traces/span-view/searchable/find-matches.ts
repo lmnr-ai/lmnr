@@ -1,4 +1,4 @@
-export interface MatchOffset {
+interface MatchOffset {
   start: number;
   end: number;
 }
@@ -20,7 +20,7 @@ export function buildSearchRegex(query: string): RegExp | null {
   return new RegExp(core, "iu");
 }
 
-export function findMatchOffsets(text: string, term: string): MatchOffset[] {
+function findMatchOffsets(text: string, term: string): MatchOffset[] {
   const trimmed = term.trim();
   if (!trimmed) return [];
 

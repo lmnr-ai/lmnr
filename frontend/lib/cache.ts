@@ -241,10 +241,8 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 // and is repopulated from a fresh DB query — no key bump needed.
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
-export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
 export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";

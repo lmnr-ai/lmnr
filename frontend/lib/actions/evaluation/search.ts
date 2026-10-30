@@ -20,7 +20,7 @@ export async function getSearchTraceIds(
   return [...new Set(spanHits.map((span) => span.trace_id))];
 }
 
-export const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
+const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
   if (!evaluationCreatedAt) {
     return {
       start: new Date(Date.now() - 24 * 60 * 60 * 1000),

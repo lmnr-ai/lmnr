@@ -1,7 +1,7 @@
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
 
-export interface NoteworthyEventPayload {
+interface NoteworthyEventPayload {
   signal_name: string;
   summary: string;
   timestamp: string;

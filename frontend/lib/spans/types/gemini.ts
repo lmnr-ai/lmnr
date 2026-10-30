@@ -23,21 +23,21 @@ export const GeminiTextPartSchema = GeminiPartMetadataSchema.extend({
   text: z.string(),
 });
 
-export const GeminiInlineDataPartSchema = GeminiPartMetadataSchema.extend({
+const GeminiInlineDataPartSchema = GeminiPartMetadataSchema.extend({
   inlineData: z.object({
     mimeType: z.string(),
     data: z.string(),
   }),
 });
 
-export const GeminiFileDataPartSchema = GeminiPartMetadataSchema.extend({
+const GeminiFileDataPartSchema = GeminiPartMetadataSchema.extend({
   fileData: z.object({
     mimeType: z.string().optional(),
     fileUri: z.string(),
   }),
 });
 
-export const GeminiFunctionCallPartSchema = GeminiPartMetadataSchema.extend({
+const GeminiFunctionCallPartSchema = GeminiPartMetadataSchema.extend({
   functionCall: z.object({
     id: z.string().optional(),
     name: z.string(),
@@ -45,7 +45,7 @@ export const GeminiFunctionCallPartSchema = GeminiPartMetadataSchema.extend({
   }),
 });
 
-export const GeminiFunctionResponsePartSchema = GeminiPartMetadataSchema.extend({
+const GeminiFunctionResponsePartSchema = GeminiPartMetadataSchema.extend({
   functionResponse: z.object({
     id: z.string().optional(),
     name: z.string(),
@@ -53,14 +53,14 @@ export const GeminiFunctionResponsePartSchema = GeminiPartMetadataSchema.extend(
   }),
 });
 
-export const GeminiExecutableCodePartSchema = GeminiPartMetadataSchema.extend({
+const GeminiExecutableCodePartSchema = GeminiPartMetadataSchema.extend({
   executableCode: z.object({
     language: z.enum(["LANGUAGE_UNSPECIFIED", "PYTHON"]),
     code: z.string(),
   }),
 });
 
-export const GeminiCodeExecutionResultPartSchema = GeminiPartMetadataSchema.extend({
+const GeminiCodeExecutionResultPartSchema = GeminiPartMetadataSchema.extend({
   codeExecutionResult: z.object({
     outcome: z.enum(["OUTCOME_UNSPECIFIED", "OUTCOME_OK", "OUTCOME_FAILED", "OUTCOME_DEADLINE_EXCEEDED"]),
     output: z.string().optional(),
@@ -123,7 +123,7 @@ export const GeminiContentsSchema = z.array(GeminiContentSchema);
 
 // A Candidate wraps a Content with generation metadata.
 // See: https://ai.google.dev/api/generate-content#v1beta.Candidate
-export const GeminiCandidateSchema = z
+const GeminiCandidateSchema = z
   .object({
     content: GeminiContentSchema,
     finish_reason: z.string().optional(),
@@ -132,22 +132,12 @@ export const GeminiCandidateSchema = z
   })
   .passthrough(); // preserve any extra metadata we don't explicitly model
 
-export const GeminiCandidatesSchema = z.array(GeminiCandidateSchema);
-
-/** Helpers **/
-
-/** Find the system message in a Contents array and return its text. */
-export const extractGeminiSystemMessage = (messages: z.infer<typeof GeminiContentsSchema>): string | null => {
-  const system = messages.find((m) => m.role === "system");
-  if (!system) return null;
-  const texts = system.parts.filter((p) => "text" in p).map((p) => (p as { text: string }).text);
-  return texts.length > 0 ? texts.join("\n") : null;
-};
+const GeminiCandidatesSchema = z.array(GeminiCandidateSchema);
 
 /** High-level input / output schemas **/
 
 // Input is always Content(s)
-export const GeminiInputSchema = z.union([GeminiContentSchema, GeminiContentsSchema]);
+const GeminiInputSchema = z.union([GeminiContentSchema, GeminiContentsSchema]);
 
 // Output is always Candidate(s)
 export const GeminiOutputSchema = z.union([GeminiCandidateSchema, GeminiCandidatesSchema]);

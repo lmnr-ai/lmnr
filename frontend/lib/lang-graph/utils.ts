@@ -13,16 +13,11 @@ import {
 const START_ID = "__start__";
 const END_ID = "__end__";
 
-export interface NodeTypeInfo {
+interface NodeTypeInfo {
   readonly isStart: boolean;
   readonly isEnd: boolean;
   readonly nodeType: "schema" | "runnable";
   readonly reactFlowType: string;
-}
-
-export interface ConvertedGraph {
-  nodes: Node[];
-  edges: Edge[];
 }
 
 const getNodeTypeInfo = (node: LangGraphNode): NodeTypeInfo => {

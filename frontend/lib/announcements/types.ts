@@ -19,14 +19,14 @@ export interface Announcement {
 }
 
 export const isInternalAnnouncementLink = (link: string) => link.startsWith("/") && !link.startsWith("//");
-export const isExternalAnnouncementLink = (link: string) => /^https:\/\//i.test(link);
+const isExternalAnnouncementLink = (link: string) => /^https:\/\//i.test(link);
 export const isSupportedAnnouncementLink = (link: string) =>
   isInternalAnnouncementLink(link) || isExternalAnnouncementLink(link);
 
 export const getAnnouncementCtaHref = (link: string, projectId: string) =>
   isInternalAnnouncementLink(link) ? `/project/${encodeURIComponent(projectId)}${link}` : link;
 
-export const isAnnouncementActive = (announcement: Announcement, now: Date = new Date()) =>
+const isAnnouncementActive = (announcement: Announcement, now: Date = new Date()) =>
   new Date(announcement.expires_at).getTime() > now.getTime();
 
 export const getVisibleAnnouncements = (

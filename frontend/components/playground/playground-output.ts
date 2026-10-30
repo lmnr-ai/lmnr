@@ -12,7 +12,7 @@ export type OutputState = {
   error?: Error;
 };
 
-export type OutputActions = {
+type OutputActions = {
   setText: (text: OutputState["text"]) => void;
   setReasoning: (reasoning: OutputState["reasoning"]) => void;
   setToolCalls: (toolCalls: OutputState["toolCalls"]) => void;

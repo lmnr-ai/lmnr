@@ -11,7 +11,7 @@ import { type Tag } from "./types";
 
 export type { Tag };
 
-export interface TagsDropdownCallbacks {
+interface TagsDropdownCallbacks {
   onAttach: (tagClassName: string) => Promise<void>;
   onDetach: (tag: Tag) => Promise<void>;
   onCreateAndAttach: (name: string, color: string) => Promise<void>;

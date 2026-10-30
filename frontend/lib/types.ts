@@ -1,9 +1,9 @@
-export type ChatMessageText = {
+type ChatMessageText = {
   type: "text";
   text: string;
 };
 
-export type ChatMessageImageUrl =
+type ChatMessageImageUrl =
   | {
       type: "image_url";
       url: string;
@@ -17,19 +17,19 @@ export type ChatMessageImageUrl =
       };
     };
 
-export type ChatMessageImage = {
+type ChatMessageImage = {
   type: "image";
   mediaType: string; // e.g. "image/jpeg"
   data: string;
 };
 
-export type ChatMessageDocumentUrl = {
+type ChatMessageDocumentUrl = {
   type: "document_url";
   mediaType: string; // e.g. "application/pdf"
   url: string;
 };
 
-export type ChatMessageToolCall = {
+type ChatMessageToolCall = {
   type: "tool_call";
   id?: string;
   arguments?: Record<string, unknown>;
@@ -43,7 +43,7 @@ export type ChatMessageContentPart =
   | ChatMessageDocumentUrl
   | ChatMessageToolCall;
 
-export type ChatMessageContent = string | ChatMessageContentPart[];
+type ChatMessageContent = string | ChatMessageContentPart[];
 
 export type ChatMessage = {
   content: ChatMessageContent;
