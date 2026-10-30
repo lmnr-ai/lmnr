@@ -10,6 +10,15 @@ pub const NEXT_PUBLIC_URL: &str = "NEXT_PUBLIC_URL";
 /// (e.g. the CLI-auth JWKS fetch).
 pub const NEXT_INTERNAL_URL: &str = "NEXT_INTERNAL_URL";
 
+/// Base URL for server-to-server calls to the frontend: [`NEXT_INTERNAL_URL`], else
+/// [`NEXT_PUBLIC_URL`], without a trailing slash.
+pub fn next_server_url() -> Option<String> {
+    std::env::var(NEXT_INTERNAL_URL)
+        .or(std::env::var(NEXT_PUBLIC_URL))
+        .ok()
+        .map(|v| v.trim_end_matches('/').to_string())
+}
+
 /// Minimum gap between two signal-event notifications for the same alert.
 /// Events that pass the alert gate while the per-alert lock is held are
 /// dropped, so a noisy signal sends at most one notification per window.

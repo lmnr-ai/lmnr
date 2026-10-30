@@ -32,32 +32,6 @@ pub async fn get_integration_by_id(
     Ok(integration)
 }
 
-/// The Slack integration of the project's workspace (at most one per workspace), with its id.
-pub async fn get_integration_for_project(
-    pool: &PgPool,
-    project_id: Uuid,
-) -> Result<Option<(Uuid, SlackIntegration)>> {
-    #[derive(FromRow)]
-    struct Row {
-        id: Uuid,
-        #[sqlx(flatten)]
-        integration: SlackIntegration,
-    }
-    let row = sqlx::query_as::<_, Row>(
-        r#"
-        SELECT si.id, si.token, si.team_id, si.nonce_hex
-        FROM slack_integrations si
-        JOIN projects p ON p.workspace_id = si.workspace_id
-        WHERE p.id = $1
-        "#,
-    )
-    .bind(project_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row.map(|r| (r.id, r.integration)))
-}
-
 /// Look up an arbitrary Slack integration for a Slack `team_id` — only used to obtain a bot token to
 /// REPLY with when a channel has no project binding (the setup-hint nudge). `team_id` is not unique
 /// (a team can be connected to multiple Laminar workspaces), but every such install is the same Slack

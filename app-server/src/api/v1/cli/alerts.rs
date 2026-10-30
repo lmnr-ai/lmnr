@@ -1,124 +1,124 @@
-//! CLI alert CRUD. Auth via `CliProjectAuth`; reads and writes go through `crate::alerts`.
+//! CLI alert CRUD. The frontend is the only alert writer (`lib/actions/alerts`), so these handlers
+//! forward to its `/api/cli/projects/{project_id}/alerts` routes. The caller's bearer token is
+//! passed through and the frontend verifies it again, because those routes are public.
 
-use actix_web::{HttpResponse, delete, get, patch, post, web};
-use serde::Deserialize;
+use actix_web::{HttpRequest, HttpResponse, delete, get, http::StatusCode, patch, post, web};
+use reqwest::Method;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::alerts::{self, AlertWriteContext, CreateAlertInput, UpdateAlertInput};
 use crate::auth::cli_user::CliProjectAuth;
-use crate::cache::Cache;
-use crate::db::{self, DB};
-use crate::features::{Feature, is_feature_enabled};
+use crate::env::notifications::next_server_url;
 use crate::routes::types::ResponseResult;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ListAlertsQuery {
-    #[serde(default)]
-    signal_id: Option<Uuid>,
-}
+async fn forward(
+    req: &HttpRequest,
+    auth: &CliProjectAuth,
+    http_client: &reqwest::Client,
+    method: Method,
+    alert_id: Option<Uuid>,
+    body: Option<web::Bytes>,
+) -> ResponseResult {
+    let Some(base) = next_server_url() else {
+        log::error!("NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; can't reach the frontend for alerts");
+        return Ok(HttpResponse::InternalServerError().json(
+            json!({ "error": "Alerts are unavailable: the frontend URL isn't configured" }),
+        ));
+    };
+    let mut url = format!("{base}/api/cli/projects/{}/alerts", auth.project_id);
+    if let Some(alert_id) = alert_id {
+        url.push_str(&format!("/{alert_id}"));
+    }
+    if !req.query_string().is_empty() {
+        url.push_str(&format!("?{}", req.query_string()));
+    }
 
-async fn user_email(db: &DB, auth: &CliProjectAuth) -> anyhow::Result<Option<String>> {
-    db::users::get_user_email(&db.pool, auth.user_id).await
+    let mut request = http_client.request(method, url);
+    if let Some(authorization) = req.headers().get(actix_web::http::header::AUTHORIZATION) {
+        request = request.header(reqwest::header::AUTHORIZATION, authorization.as_bytes());
+    }
+    if let Some(body) = body {
+        request = request
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body);
+    }
+
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(e) => {
+            log::error!("Alerts request to the frontend failed: {e:?}");
+            return Ok(HttpResponse::BadGateway()
+                .json(json!({ "error": "Couldn't reach the frontend to manage alerts" })));
+        }
+    };
+    let status = StatusCode::from_u16(response.status().as_u16())
+        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response
+        .bytes()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to read the frontend's alerts response: {e}"))?;
+    Ok(HttpResponse::build(status)
+        .content_type("application/json")
+        .body(body))
 }
 
 #[get("alerts")]
 pub async fn list_alerts(
+    req: HttpRequest,
     auth: CliProjectAuth,
-    query: web::Query<ListAlertsQuery>,
-    db: web::Data<DB>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    let email = user_email(&db, &auth).await?;
-    let result =
-        alerts::list_alerts(&db.pool, auth.project_id, query.signal_id, email.as_deref()).await;
-    Ok(match result {
-        Ok(alerts) => HttpResponse::Ok().json(json!({ "alerts": alerts })),
-        Err(e) => alerts::error_response(e),
-    })
+    forward(&req, &auth, &http_client, Method::GET, None, None).await
 }
 
 #[get("alerts/{alert_id}")]
 pub async fn get_alert(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
-    db: web::Data<DB>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    let email = user_email(&db, &auth).await?;
-    let result = alerts::get_alert(
-        &db.pool,
-        auth.project_id,
-        path.into_inner(),
-        email.as_deref(),
-    )
-    .await;
-    Ok(match result {
-        Ok(alert) => HttpResponse::Ok().json(alert),
-        Err(e) => alerts::error_response(e),
-    })
+    let alert_id = Some(path.into_inner());
+    forward(&req, &auth, &http_client, Method::GET, alert_id, None).await
 }
 
 #[post("alerts")]
 pub async fn create_alert(
+    req: HttpRequest,
     auth: CliProjectAuth,
-    body: web::Json<CreateAlertInput>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
+    body: web::Bytes,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    let email = user_email(&db, &auth).await?;
-    let ctx = AlertWriteContext {
-        pool: &db.pool,
-        cache: &cache,
-        http_client: &http_client,
-        project_id: auth.project_id,
-        user_email: email.as_deref(),
-        clustering_enabled: is_feature_enabled(Feature::Clustering),
-    };
-    Ok(match alerts::create_alert(&ctx, body.into_inner()).await {
-        Ok(alert) => HttpResponse::Ok().json(alert),
-        Err(e) => alerts::error_response(e),
-    })
+    forward(&req, &auth, &http_client, Method::POST, None, Some(body)).await
 }
 
 #[patch("alerts/{alert_id}")]
 pub async fn update_alert(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
-    body: web::Json<UpdateAlertInput>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
+    body: web::Bytes,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    let email = user_email(&db, &auth).await?;
-    let ctx = AlertWriteContext {
-        pool: &db.pool,
-        cache: &cache,
-        http_client: &http_client,
-        project_id: auth.project_id,
-        user_email: email.as_deref(),
-        clustering_enabled: is_feature_enabled(Feature::Clustering),
-    };
-    Ok(
-        match alerts::update_alert(&ctx, path.into_inner(), body.into_inner()).await {
-            Ok(alert) => HttpResponse::Ok().json(alert),
-            Err(e) => alerts::error_response(e),
-        },
+    let alert_id = Some(path.into_inner());
+    forward(
+        &req,
+        &auth,
+        &http_client,
+        Method::PATCH,
+        alert_id,
+        Some(body),
     )
+    .await
 }
 
 #[delete("alerts/{alert_id}")]
 pub async fn delete_alert(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
-    let alert_id = path.into_inner();
-    Ok(
-        match alerts::delete_alert(&db.pool, &cache, auth.project_id, alert_id).await {
-            Ok(()) => HttpResponse::Ok().json(json!({ "id": alert_id, "deleted": true })),
-            Err(e) => alerts::error_response(e),
-        },
-    )
+    let alert_id = Some(path.into_inner());
+    forward(&req, &auth, &http_client, Method::DELETE, alert_id, None).await
 }

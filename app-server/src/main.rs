@@ -135,7 +135,6 @@ mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
 mod agent_versioning;
-mod alerts;
 mod api;
 mod auth;
 mod batch_worker;
