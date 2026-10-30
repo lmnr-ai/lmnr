@@ -135,6 +135,7 @@ mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
 mod agent_versioning;
+mod alerts;
 mod api;
 mod auth;
 mod batch_worker;
@@ -2588,7 +2589,12 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::llm_profiles::create_llm_profile)
                             .service(api::v1::cli::llm_profiles::get_llm_profile)
                             .service(api::v1::cli::llm_profiles::update_llm_profile)
-                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile)
+                            .service(api::v1::cli::alerts::list_alerts)
+                            .service(api::v1::cli::alerts::create_alert)
+                            .service(api::v1::cli::alerts::get_alert)
+                            .service(api::v1::cli::alerts::update_alert)
+                            .service(api::v1::cli::alerts::delete_alert);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
