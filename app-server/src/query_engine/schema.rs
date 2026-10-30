@@ -699,6 +699,69 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "alerts",
+        description: "Signal alerts stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id.",
+        columns: &[
+            col("id", "UUID", "Unique id of the alert"),
+            col("name", "String", "Alert name"),
+            col(
+                "type",
+                "String",
+                "SIGNAL_EVENT (notify on each matching signal event) or NEW_CLUSTER (notify when a new cluster forms)",
+            ),
+            col("signal_id", "UUID", "Id of the signal the alert watches"),
+            col(
+                "metadata",
+                "String",
+                "Alert settings as a JSON object: severities (levels 0 info, 1 warning, 2 critical; absent means [2]), skipSimilar and disabled (true when set, absent otherwise)",
+            ),
+            col("created_at", "DateTime64(6)", "When the alert was created"),
+        ],
+    },
+    Table {
+        name: "alert_targets",
+        description: "Where alerts are delivered, stored in Postgres: one row per Slack channel or subscribed member email.",
+        columns: &[
+            col("id", "UUID", "Unique id of the target"),
+            col("alert_id", "UUID", "Id of the alert"),
+            col("type", "String", "SLACK or EMAIL"),
+            col(
+                "channel_id",
+                "Nullable(String)",
+                "Slack channel id; NULL for EMAIL targets",
+            ),
+            col(
+                "channel_name",
+                "Nullable(String)",
+                "Slack channel name; NULL for EMAIL targets",
+            ),
+            col(
+                "email",
+                "Nullable(String)",
+                "Subscribed member's email; NULL for SLACK targets",
+            ),
+            col("created_at", "DateTime64(6)", "When the target was added"),
+        ],
+    },
+    Table {
+        name: "alert_filters",
+        description: "Conditions an alert's signal events must match, stored in Postgres. Conditions within one row are ANDed; an alert fires if any of its rows matches (or always, with no rows).",
+        columns: &[
+            col("id", "UUID", "Unique id of the filter group"),
+            col("alert_id", "UUID", "Id of the alert"),
+            col(
+                "value",
+                "String",
+                "JSON array of conditions {column, operator, value}; column is a field of the signal's output",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the filter group was added",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -785,6 +848,9 @@ mod tests {
             "datasets",
             "dashboards",
             "dashboard_charts",
+            "alerts",
+            "alert_targets",
+            "alert_filters",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

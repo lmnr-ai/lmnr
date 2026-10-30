@@ -9,9 +9,9 @@ import { alertFilters, alerts, alertTargets, projects, signals } from "@/lib/db/
 
 import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } from "./types";
 
-// The `lmnr-cli alert` API (`/api/cli/projects/:projectId/alerts`, reached through app-server's
-// `/v1/cli/alerts`). It writes the same rows as the settings form, and a caller only ever sees or
-// edits their own email target.
+// The `lmnr-cli alert` write API (`/api/cli/projects/:projectId/alerts`, reached through
+// app-server's `/v1/cli/alerts`). It writes the same rows as the settings form. Reads go through
+// SQL (`alerts`, `alert_targets`, `alert_filters`).
 
 export class AlertApiError extends Error {
   constructor(
@@ -54,7 +54,7 @@ export interface CliAlert {
   severities: Severity[];
   skipSimilar: boolean;
   disabled: boolean;
-  /** Whether the caller's email is a target. Other members' emails are never returned. */
+  /** Whether the caller's email is a target. */
   notifyMe: boolean;
   slackChannels: { channelId: string; channelName: string | null }[];
   filters: Filter[][];
@@ -68,13 +68,7 @@ export interface CliAlertContext {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export async function listCliAlerts(ctx: CliAlertContext, signalId?: string): Promise<CliAlert[]> {
-  const conditions = [eq(alerts.projectId, ctx.projectId)];
-  if (signalId) conditions.push(eq(alerts.sourceId, z.guid().parse(signalId)));
-  return queryAlerts(ctx, and(...conditions));
-}
-
-export async function getCliAlert(ctx: CliAlertContext, alertId: string): Promise<CliAlert> {
+async function getCliAlert(ctx: CliAlertContext, alertId: string): Promise<CliAlert> {
   const [alert] = await queryAlerts(ctx, and(eq(alerts.projectId, ctx.projectId), eq(alerts.id, alertId)));
   if (!alert) throw new AlertApiError("Alert not found", 404);
   return alert;

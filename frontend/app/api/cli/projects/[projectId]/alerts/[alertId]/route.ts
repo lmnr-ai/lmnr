@@ -1,21 +1,10 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod/v4";
 
-import { cliAlertErrorResponse, deleteCliAlert, getCliAlert, updateCliAlert } from "@/lib/actions/alerts/cli";
+import { cliAlertErrorResponse, deleteCliAlert, updateCliAlert } from "@/lib/actions/alerts/cli";
 import { authorizeCliProject } from "@/lib/auth-cli";
 
 type Params = { params: Promise<{ projectId: string; alertId: string }> };
-
-export async function GET(request: NextRequest, props: Params) {
-  const { projectId, alertId } = await props.params;
-  try {
-    const auth = await authorizeCliProject(request, projectId);
-    if ("error" in auth) return Response.json({ error: auth.error }, { status: auth.status });
-    return Response.json(await getCliAlert({ projectId, userEmail: auth.user.email }, z.guid().parse(alertId)));
-  } catch (error) {
-    return cliAlertErrorResponse(error);
-  }
-}
 
 export async function PATCH(request: NextRequest, props: Params) {
   const { projectId, alertId } = await props.params;

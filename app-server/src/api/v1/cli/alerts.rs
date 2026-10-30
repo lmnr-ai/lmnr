@@ -1,8 +1,9 @@
-//! CLI alert CRUD. The frontend is the only alert writer (`lib/actions/alerts`), so these handlers
-//! forward to its `/api/cli/projects/{project_id}/alerts` routes. The caller's bearer token is
-//! passed through and the frontend verifies it again, because those routes are public.
+//! CLI alert writes; reads go through SQL (`alerts`, `alert_targets`, `alert_filters`). The
+//! frontend is the only alert writer (`lib/actions/alerts`), so these handlers forward to its
+//! `/api/cli/projects/{project_id}/alerts` routes. The caller's bearer token is passed through
+//! and the frontend verifies it again, because those routes are public.
 
-use actix_web::{HttpRequest, HttpResponse, delete, get, http::StatusCode, patch, post, web};
+use actix_web::{HttpRequest, HttpResponse, delete, http::StatusCode, patch, post, web};
 use reqwest::Method;
 use serde_json::json;
 use uuid::Uuid;
@@ -28,9 +29,6 @@ async fn forward(
     let mut url = format!("{base}/api/cli/projects/{}/alerts", auth.project_id);
     if let Some(alert_id) = alert_id {
         url.push_str(&format!("/{alert_id}"));
-    }
-    if !req.query_string().is_empty() {
-        url.push_str(&format!("?{}", req.query_string()));
     }
 
     let mut request = http_client.request(method, url);
@@ -60,26 +58,6 @@ async fn forward(
     Ok(HttpResponse::build(status)
         .content_type("application/json")
         .body(body))
-}
-
-#[get("alerts")]
-pub async fn list_alerts(
-    req: HttpRequest,
-    auth: CliProjectAuth,
-    http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    forward(&req, &auth, &http_client, Method::GET, None, None).await
-}
-
-#[get("alerts/{alert_id}")]
-pub async fn get_alert(
-    req: HttpRequest,
-    auth: CliProjectAuth,
-    path: web::Path<Uuid>,
-    http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    let alert_id = Some(path.into_inner());
-    forward(&req, &auth, &http_client, Method::GET, alert_id, None).await
 }
 
 #[post("alerts")]
