@@ -1,4 +1,4 @@
-//! Hosted evals (`src/hosted_evals/`): Harbor trial sandboxes and detached run
+//! Hosted evals (`src/hosted_evals/`): Harbor trial sandboxes and remote-run
 //! orchestrators on Daytona, proxied through the app-server.
 
 use super::{NumEnv, StringEnv};
@@ -10,7 +10,7 @@ pub const DAYTONA_API_KEY: &str = "DAYTONA_API_KEY";
 pub const DAYTONA_API_URL: StringEnv =
     StringEnv::new("DAYTONA_API_URL", "https://app.daytona.io/api");
 /// Wall-clock cap on every hosted-evals sandbox (Daytona `ttlMinutes`) and on
-/// a detached run's project key.
+/// a remote run's project key.
 pub const MAX_RUN_MINUTES: NumEnv<u32> = NumEnv::new("HOSTED_EVALS_MAX_RUN_MINUTES", 720);
 /// Sandboxes (trials and orchestrators) a project may hold at once.
 pub const MAX_SANDBOXES_PER_PROJECT: NumEnv<usize> =
@@ -19,7 +19,7 @@ pub const MAX_SANDBOXES_PER_PROJECT: NumEnv<usize> =
 pub const MAX_SANDBOX_CPUS: NumEnv<u32> = NumEnv::new("HOSTED_EVALS_MAX_SANDBOX_CPUS", 4);
 pub const MAX_SANDBOX_MEMORY_GB: NumEnv<u32> = NumEnv::new("HOSTED_EVALS_MAX_SANDBOX_MEMORY_GB", 8);
 pub const MAX_SANDBOX_DISK_GB: NumEnv<u32> = NumEnv::new("HOSTED_EVALS_MAX_SANDBOX_DISK_GB", 10);
-/// Laminar API URL detached-run orchestrators call back to. Unset means Laminar Cloud.
+/// Laminar API URL remote-run orchestrators call back to. Unset means Laminar Cloud.
 pub const LMNR_BASE_URL: StringEnv =
     StringEnv::new("HOSTED_EVALS_LMNR_BASE_URL", "https://api.lmnr.ai");
 /// Registry trial images are pushed to, e.g. `registry.example.com`. Unset means

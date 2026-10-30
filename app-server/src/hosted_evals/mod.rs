@@ -1,6 +1,6 @@
 //! Hosted evals: Harbor trials in provider sandboxes (Daytona today), driven
 //! through app-server proxy routes so provider and registry credentials never
-//! leave the app-server. A detached run adds one orchestrator sandbox that runs
+//! leave the app-server. A remote run adds one orchestrator sandbox that runs
 //! `lmnr-cli eval orchestrate` with a short-lived project key. See
 //! `docs/internal/hosted-evals.md`.
 
@@ -71,7 +71,7 @@ impl HostedEvals {
     }
 }
 
-/// A detached run. `spec` is opaque here: the CLI that requested the run wrote
+/// A remote run (`lmnr-cli eval run --remote`). `spec` is opaque here: the CLI that requested the run wrote
 /// it and the same CLI version reads it back in the orchestrator.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

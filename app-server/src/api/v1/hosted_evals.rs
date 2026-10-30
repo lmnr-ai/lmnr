@@ -400,7 +400,7 @@ pub async fn download_file(
     .await)
 }
 
-// ---- Detached runs (uploads and runs also under /v1/cli) ----
+// ---- Remote runs (uploads and runs also under /v1/cli) ----
 
 /// Body: the `.tar.gz` of the `evals/` folder's contents, streamed to S3.
 #[post("/hosted-evals/uploads")]
