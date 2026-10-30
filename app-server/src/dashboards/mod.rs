@@ -4,7 +4,6 @@
 
 use actix_web::HttpResponse;
 use actix_web::http::StatusCode;
-use chrono::{DateTime, Utc};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -56,7 +55,8 @@ pub struct Dashboard {
     pub id: Uuid,
     pub project_id: Uuid,
     pub name: String,
-    pub created_at: DateTime<Utc>,
+    /// Postgres text form, as the frontend returns it.
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +69,8 @@ pub struct DashboardChart {
     pub query: String,
     /// `{config, layout, queryStructure}`; the frontend's `DashboardChart["settings"]`.
     pub settings: Value,
-    pub created_at: DateTime<Utc>,
+    /// Postgres text form, as the frontend returns it.
+    pub created_at: String,
 }
 
 /// A chart's cell on the 12-column grid; the frontend validates and places it.

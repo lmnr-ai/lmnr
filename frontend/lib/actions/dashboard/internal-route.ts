@@ -1,4 +1,4 @@
-import { prettifyError, ZodError } from "zod/v4";
+import { ZodError } from "zod/v4";
 
 import { isInternalRequest } from "@/lib/internal-auth";
 
@@ -21,7 +21,7 @@ export async function internalDashboardRoute(
     return Response.json(await write());
   } catch (error) {
     if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
+      return Response.json({ error: error.issues.map((issue) => issue.message).join("; ") }, { status: 400 });
     }
     if (error instanceof DashboardError) {
       return Response.json({ error: error.message }, { status: error.status });
