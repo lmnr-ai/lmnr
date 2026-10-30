@@ -32,7 +32,7 @@ use crate::{
 };
 
 // Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
-const MAX_ARCHIVE_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LAYERS: usize = 256;

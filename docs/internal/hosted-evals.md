@@ -35,7 +35,7 @@ All under `/v1/hosted-evals`, project API key. The CLI twins (`api/v1/cli/hosted
 | `POST /sandboxes/{id}/commands` | `{command}` → `{commandId}` (async). |
 | `GET /sandboxes/{id}/commands/{commandId}` | `{exitCode: null}` while running, then `{exitCode, stdout, stderr}`. |
 | `PUT/GET /sandboxes/{id}/files?path=/abs` | Raw file body (512 MiB cap). Directories are tarred by the Python class. |
-| `POST /uploads`, `GET /uploads/{id}` | Detached-run archive (`.tar.gz`, 100 MiB), in `S3_EXPORTS_BUCKET`. The orchestrator downloads with its run key; no presigned URL, so it also works for self-hosted S3 that Daytona can't reach. |
+| `POST /uploads`, `GET /uploads/{id}` | Detached-run archive (`.tar.gz`, 1 GiB), in `S3_EXPORTS_BUCKET`. The orchestrator downloads with its run key; no presigned URL, so it also works for self-hosted S3 that Daytona can't reach. |
 | `POST /runs` | `{uploadId, cliVersion, spec}` → `202 {sandboxId}`. |
 
 Provider, registry and S3 failures answer a generic `502 {error: "Hosted evals <operation> failed upstream. Retry shortly."}` and log the cause (`upstream_error`): their errors can carry upstream response bodies. A missing S3 object is told apart from a transient error (`StorageTrait::exists`).
