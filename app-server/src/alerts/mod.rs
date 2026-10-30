@@ -223,7 +223,7 @@ pub async fn create_alert(
     let metadata = build_metadata(
         alert_type,
         &MetadataPatch {
-            severities: create_severities(alert_type, input.severities),
+            severities: input.severities.or(Some(vec![Severity::Critical])),
             skip_similar: input.skip_similar,
             disabled: input.disabled,
         },
@@ -524,14 +524,6 @@ async fn resolve_slack_channels(
     Ok(channels)
 }
 
-/// A new `SIGNAL_EVENT` alert defaults to critical only; `NEW_CLUSTER` has no severities.
-fn create_severities(alert_type: AlertType, given: Option<Vec<Severity>>) -> Option<Vec<Severity>> {
-    match alert_type {
-        AlertType::SignalEvent => given.or(Some(vec![Severity::Critical])),
-        AlertType::NewCluster => given,
-    }
-}
-
 struct MetadataPatch {
     severities: Option<Vec<Severity>>,
     skip_similar: Option<bool>,
@@ -707,18 +699,6 @@ mod tests {
     fn new_cluster_rejects_event_options() {
         let p = patch(Some(vec![Severity::Info]), None, None);
         assert!(build_metadata(AlertType::NewCluster, &p, &Value::Null, true).is_err());
-    }
-
-    #[test]
-    fn create_defaults_severities_only_for_signal_event() {
-        let event = patch(create_severities(AlertType::SignalEvent, None), None, None);
-        let m = build_metadata(AlertType::SignalEvent, &event, &Value::Null, true).unwrap();
-        assert_eq!(m, json!({ "severities": [2] }));
-
-        // A NEW_CLUSTER create with no severities must not pick up the default and 400.
-        let cluster = patch(create_severities(AlertType::NewCluster, None), None, None);
-        let m = build_metadata(AlertType::NewCluster, &cluster, &Value::Null, true).unwrap();
-        assert_eq!(m, json!({}));
     }
 
     #[test]
