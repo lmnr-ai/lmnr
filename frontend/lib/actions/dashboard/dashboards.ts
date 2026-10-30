@@ -121,13 +121,17 @@ export const deleteDashboard = async (input: z.infer<typeof DashboardSchema>) =>
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`dashboards:${projectId}`}))`);
 
-    const [{ total }] = await tx.select({ total: count() }).from(dashboards).where(eq(dashboards.projectId, projectId));
-    if (total <= 1) throw DashboardError.lastDashboard();
-
     const deleted = await tx
       .delete(dashboards)
       .where(and(eq(dashboards.projectId, projectId), eq(dashboards.id, dashboardId)))
       .returning({ id: dashboards.id });
     if (deleted.length === 0) throw DashboardError.notFound("Dashboard");
+
+    // Throwing rolls the delete back.
+    const [{ remaining }] = await tx
+      .select({ remaining: count() })
+      .from(dashboards)
+      .where(eq(dashboards.projectId, projectId));
+    if (remaining === 0) throw DashboardError.lastDashboard();
   });
 };
