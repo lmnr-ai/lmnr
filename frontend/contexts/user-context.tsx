@@ -2,14 +2,14 @@
 
 import React, { createContext, type PropsWithChildren, useContext } from "react";
 
-export type User = {
+type User = {
   id: string;
   email: string;
   name: string;
   image?: string | null;
 };
 
-export const UserContext = createContext<User | undefined>(undefined);
+const UserContext = createContext<User | undefined>(undefined);
 
 type UserContextProviderProps = {
   user: User;

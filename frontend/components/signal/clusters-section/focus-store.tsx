@@ -11,11 +11,11 @@ import { createContext, type PropsWithChildren, useContext, useState } from "rea
 import { createStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-export type ClusterFocusState = {
+type ClusterFocusState = {
   hoveredId: string | null;
 };
 
-export type ClusterFocusActions = {
+type ClusterFocusActions = {
   setHoveredId: (id: string | null) => void;
 };
 
@@ -74,9 +74,9 @@ export const getNodeFocus = (
 
 // --- Store ---
 
-export type ClusterFocusStoreApi = ReturnType<typeof createClusterFocusStore>;
+type ClusterFocusStoreApi = ReturnType<typeof createClusterFocusStore>;
 
-export const createClusterFocusStore = () =>
+const createClusterFocusStore = () =>
   createStore<ClusterFocusStore>()((set) => ({
     hoveredId: null,
     // Same id is a no-op down to the object identity: the strip delegates hover
@@ -85,7 +85,7 @@ export const createClusterFocusStore = () =>
     setHoveredId: (hoveredId) => set((state) => (state.hoveredId === hoveredId ? state : { hoveredId })),
   }));
 
-export const ClusterFocusContext = createContext<ClusterFocusStoreApi | null>(null);
+const ClusterFocusContext = createContext<ClusterFocusStoreApi | null>(null);
 
 export const useClusterFocusContext = <T,>(
   selector: (state: ClusterFocusStore) => T,

@@ -59,10 +59,6 @@ export interface WorkspaceWithProjects extends Workspace {
   projects: Project[];
 }
 
-export interface WorkspaceWithUsers extends Workspace {
-  users: WorkspaceUser[];
-}
-
 export interface WorkspaceWithOptionalUsers extends Workspace {
   users?: WorkspaceUser[];
 }

@@ -38,13 +38,6 @@ const ChartSettingsSchema = z.object({
   queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
-export const ChartUpdatesSchema = z.array(
-  z.object({
-    id: z.guid(),
-    settings: ChartSettingsSchema,
-  })
-);
-
 const UpdateChartsLayoutSchema = z.object({
   projectId: z.guid(),
   dashboardId: z.guid(),

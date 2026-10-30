@@ -49,13 +49,13 @@ export const formatDay = (d: Date | string) =>
   new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 // Unlike `normalizeTier`, unknown tiers (e.g. self-hosted "unlimited") return null, not "free".
-export const knownTier = (tierName?: string): Tier | null => {
+const knownTier = (tierName?: string): Tier | null => {
   if (!tierName) return null;
   const key = tierName.trim().toLowerCase();
   return ["free", "hobby", "starter", "pro"].includes(key) ? normalizeTier(key) : null;
 };
 
-export interface SignalCredit {
+interface SignalCredit {
   granted: number;
   remaining: number;
 }

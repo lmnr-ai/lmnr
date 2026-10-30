@@ -40,7 +40,7 @@ const PINNED_VH = (STEP_COUNT - 1) * STEP_VH;
 
 /** The section's scroll length: the pinned range plus one viewport of overrun
  *  AFTER the release, which is where Act 2 plays as the section departs. */
-export const SECTION_VH = PINNED_VH + VIEWPORT_VH;
+const SECTION_VH = PINNED_VH + VIEWPORT_VH;
 
 /** Where the sticky children RELEASE. The observer runs to `"end start"`, not
  *  `"end end"`, so there is a coordinate for "after the release" — otherwise

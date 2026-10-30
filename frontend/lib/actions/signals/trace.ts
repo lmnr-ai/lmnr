@@ -12,7 +12,7 @@ export const GetTraceSignalsSchema = z.object({
   traceId: z.guid(),
 });
 
-export type TraceSignalClusterNode = {
+type TraceSignalClusterNode = {
   id: string;
   name: string;
   level: number;
@@ -20,7 +20,7 @@ export type TraceSignalClusterNode = {
 
 // Mirrored by a client-safe copy in components/traces/trace-view/store/base.ts;
 // this module is server-only so its types can't be imported into client code.
-export type TraceSignalEvent = {
+type TraceSignalEvent = {
   id: string;
   signalId: string;
   traceId: string;

@@ -23,7 +23,7 @@ export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | 
   triggers: TriggerFormItem[];
 };
 
-export const getDefaultTriggers = (defaultMode: number): TriggerFormItem[] => [
+const getDefaultTriggers = (defaultMode: number): TriggerFormItem[] => [
   {
     conditions: [{ column: "root_span_finished", operator: Operator.Eq, value: "true" }],
     filters: [{ column: "total_token_count", operator: Operator.Gt, value: 1000 }],

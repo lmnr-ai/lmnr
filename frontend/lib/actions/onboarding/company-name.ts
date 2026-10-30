@@ -28,7 +28,7 @@ const OutputSchema = z.object({
   name: z.string(),
 });
 
-export async function guessCompanyName(domain: string): Promise<string | null> {
+async function guessCompanyName(domain: string): Promise<string | null> {
   const { output } = await generateText({
     model: await getLanguageModel(LlmFeature.ONBOARDING_COMPANY_NAME),
     system: SYSTEM_PROMPT,

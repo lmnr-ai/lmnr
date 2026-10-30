@@ -89,5 +89,5 @@ const PureCategoryDropZone = ({
   );
 };
 
-export const DraggableColumn = memo(PureDraggableColumn);
+const DraggableColumn = memo(PureDraggableColumn);
 export const CategoryDropZone = memo(PureCategoryDropZone);

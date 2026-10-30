@@ -19,7 +19,7 @@ export const datasetFilters: ColumnFilter[] = [
   { name: "Target", key: "target", dataType: "json" },
 ];
 
-export function toColumnsPayload(columnDefs: ColumnDef<Datapoint>[]): DatapointQueryColumn[] {
+function toColumnsPayload(columnDefs: ColumnDef<Datapoint>[]): DatapointQueryColumn[] {
   return columnDefs
     .filter((c) => c.meta?.sql)
     .map((c) => ({

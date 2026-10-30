@@ -10,10 +10,6 @@ export function agentDisplayName(name: string | null): string {
   return name ?? "Unnamed agent";
 }
 
-export function shortHash(hash: string): string {
-  return hash.slice(0, 8);
-}
-
 // Walk the hue loop in jumps instead of placing similar hues side by side.
 // 29 is coprime with 100, so every palette entry appears before colors repeat.
 const VERSION_PALETTE = CATEGORICAL_COLOR_PALETTE.map(

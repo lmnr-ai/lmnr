@@ -20,7 +20,7 @@ const SHARED_TRACE_PATH = new RegExp(`^/shared/traces/(${UUID})/?$`);
 const SHARED_TRACE_SCAN = new RegExp(`/shared/traces/(${UUID})`, "g");
 
 /** Ceiling on distinct traces resolved per post, so one post can't fan out. */
-export const MAX_TRACE_LINKS_PER_POST = 50;
+const MAX_TRACE_LINKS_PER_POST = 50;
 
 export interface SharedTraceLink {
   traceId: string;

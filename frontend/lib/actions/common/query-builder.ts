@@ -13,31 +13,31 @@ export interface QueryResult {
   parameters: QueryParams;
 }
 
-export interface ConditionResult {
+interface ConditionResult {
   condition: string | null;
   params: QueryParams;
 }
 
-export interface TimeRangeOptions {
+interface TimeRangeOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
   timeColumn?: string;
 }
 
-export interface TimeRangeWithFillResult {
+interface TimeRangeWithFillResult {
   condition: string | null;
   params: QueryParams;
   fillFrom: string | null;
   fillTo: string | null;
 }
 
-export interface PaginationOptions {
+interface PaginationOptions {
   limit: number;
   offset: number;
 }
 
-export interface SelectOptions {
+interface SelectOptions {
   columns: string[];
   table: string;
 }
@@ -236,7 +236,7 @@ const buildColumnFilters = (filters: Filter[], config: ColumnFilterConfig): Cond
   };
 };
 
-export interface WhereClauseOptions {
+interface WhereClauseOptions {
   timeRange?: TimeRangeOptions;
   filters?: Filter[];
   columnFilterConfig?: ColumnFilterConfig;
@@ -246,7 +246,7 @@ export interface WhereClauseOptions {
   }>;
 }
 
-export interface HavingClauseOptions {
+interface HavingClauseOptions {
   havingFilters?: Filter[];
   havingColumnFilterConfig?: ColumnFilterConfig;
   customHavingConditions?: Array<{
@@ -363,7 +363,6 @@ const backtickEscape = (id: string): string => `\`${id.replace(/`/g, "``")}\``;
 
 export {
   backtickEscape,
-  buildColumnFilters,
   buildSelectQuery,
   buildTimeRangeWithFill,
   buildWhereClause,

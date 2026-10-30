@@ -2,8 +2,6 @@ import { z } from "zod/v4";
 
 import { FilterSchema } from "./filter-schemas";
 
-export { FilterSchema };
-
 const hasEmptyFilterValue = (value: unknown): boolean => {
   if (typeof value === "string") {
     return value.trim() === "";

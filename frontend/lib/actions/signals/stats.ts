@@ -8,7 +8,7 @@ export const GetSignalsStatsSchema = z.object({
   pastHours: z.coerce.number().positive(),
 });
 
-export interface SignalStatsDataPoint {
+interface SignalStatsDataPoint {
   signal_id: string;
   timestamp: string;
   count: string;

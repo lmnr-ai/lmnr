@@ -173,7 +173,7 @@ interface RoleHeaderProps {
   className?: string;
 }
 
-export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
+const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
     return (
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.

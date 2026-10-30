@@ -5,7 +5,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { SimpleLRU } from "@/lib/simple-lru";
 
 /** Trace metadata needed to issue a preview request. */
-export interface SessionPreviewTrace {
+interface SessionPreviewTrace {
   id: string;
   startTime: string;
   endTime: string;

@@ -105,7 +105,7 @@ const eventsSelectColumns = [
 ];
 
 /** Data type of a payload field being sorted on; drives the JSONExtract cast. */
-export type EventSortType = "number" | "boolean" | "string";
+type EventSortType = "number" | "boolean" | "string";
 
 // Payload field names are interpolated directly into the ORDER BY JSONExtract
 // call (params can't bind ORDER BY expressions cleanly), so the field name is

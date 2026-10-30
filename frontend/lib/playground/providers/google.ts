@@ -2,13 +2,13 @@ import { type GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 
 type ThinkingLevel = NonNullable<NonNullable<GoogleGenerativeAIProviderOptions["thinkingConfig"]>["thinkingLevel"]>;
 
-export interface GoogleBudgetConfig {
+interface GoogleBudgetConfig {
   type: "budget";
   min: number;
   max: number;
 }
 
-export interface GoogleLevelConfig {
+interface GoogleLevelConfig {
   type: "level";
   levels: ThinkingLevel[];
 }

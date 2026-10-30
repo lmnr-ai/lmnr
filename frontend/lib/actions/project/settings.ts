@@ -20,7 +20,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { PII_MODES } from "./types";
 
-export const ProjectSettingsSchema = z
+const ProjectSettingsSchema = z
   .object({
     /// PII handling for span input/output. Pro-tier gated server-side. Only
     /// workspace owners/admins may change it (enforced in the settings route).
@@ -40,7 +40,7 @@ export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
 /// Defaults applied when the row's JSONB is missing a key. Mirror of the
 /// Rust `Default for ProjectSettings`.
-export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
+const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   piiMode: "off",
   scoreDirectionOverrides: {},
 };

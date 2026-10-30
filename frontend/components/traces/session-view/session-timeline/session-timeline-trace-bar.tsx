@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { type SessionTimelineTraceBar } from "./utils";
 
-export const TRACE_BAR_HEIGHT = 14;
+const TRACE_BAR_HEIGHT = 14;
 export const ROW_HEIGHT = 8;
 
 interface SessionTimelineTraceBarElementProps {

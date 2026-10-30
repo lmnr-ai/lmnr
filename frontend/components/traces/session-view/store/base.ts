@@ -8,7 +8,7 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type TraceRow } from "@/lib/traces/types";
 
-export type SessionResizablePanel = "session" | "span";
+type SessionResizablePanel = "session" | "span";
 
 type PanelWidthKey = "sessionPanelWidth" | "spanPanelWidth";
 type PanelDef = { key: PanelWidthKey; min: number; default: number };
@@ -23,7 +23,7 @@ export type SessionViewSelectedSpan = {
   spanId: string;
 };
 
-export interface BaseSessionViewState {
+interface BaseSessionViewState {
   // Project context (set by content component on mount).
   projectId?: string;
 
@@ -88,7 +88,7 @@ export interface BaseSessionViewState {
   maxWidth: number;
 }
 
-export interface BaseSessionViewActions {
+interface BaseSessionViewActions {
   setProjectId: (projectId?: string) => void;
   setTraces: (traces: TraceRow[] | ((prev: TraceRow[]) => TraceRow[])) => void;
   setIsTracesLoading: (loading: boolean) => void;
@@ -584,14 +584,5 @@ export const useSessionViewBaseStore = <T>(
   return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
-export const useSessionViewBaseStoreRaw = () => {
-  const store = useContext(SessionViewContext);
-  if (!store) {
-    throw new Error("useSessionViewBaseStoreRaw must be used within a SessionViewContext provider");
-  }
-  return store;
-};
-
 // Re-export from trace-view base so consumers can import zoom bounds via the
 // session-view store barrel (the concrete store still needs them for the timeline).
-export { MAX_ZOOM, MIN_ZOOM };

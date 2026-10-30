@@ -1,13 +1,13 @@
 import pako from "pako";
 import { type eventWithTime as EventWithTime } from "rrweb";
 
-export interface ProcessedEvent {
+interface ProcessedEvent {
   data: any;
   timestamp: number;
   type: number;
 }
 
-export interface SessionEventData {
+interface SessionEventData {
   text: string;
 }
 

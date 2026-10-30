@@ -11,10 +11,10 @@ import { getClusterColorById } from "@/lib/clusters/colors";
 
 /** Cluster levels kept, coarsest last: L1 (finest) through L3. Deeper levels
  *  exist in the data but have nowhere to go on a three-row strip. */
-export const MAX_LEVELS = 3;
+const MAX_LEVELS = 3;
 
 /** Stand-in for a cluster the namer left blank. */
-export const UNNAMED_CLUSTER = "Unnamed cluster";
+const UNNAMED_CLUSTER = "Unnamed cluster";
 
 export interface ClusterNode {
   id: string;

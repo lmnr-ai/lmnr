@@ -15,7 +15,7 @@ const QUANTILE_FOR: Record<"median" | "p90" | "p95" | "p99", number> = {
 // Linear-interpolation quantile (numpy 'linear' / Excel PERCENTILE.INC), q in [0, 1].
 // `sorted` MUST be ascending and non-empty. median (q=0.5) collapses to the
 // average of the two middle values for even-length inputs.
-export function quantile(sorted: number[], q: number): number {
+function quantile(sorted: number[], q: number): number {
   if (sorted.length === 1) return sorted[0];
   const pos = (sorted.length - 1) * q;
   const lo = Math.floor(pos);

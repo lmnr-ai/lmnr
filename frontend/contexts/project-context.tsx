@@ -38,7 +38,7 @@ type ProjectContextType = {
 
 const noopMutateProject = (async () => undefined) as KeyedMutator<ProjectDetails | undefined>;
 
-export const ProjectContext = createContext<ProjectContextType>({
+const ProjectContext = createContext<ProjectContextType>({
   project: undefined,
   workspace: undefined,
   projects: [],

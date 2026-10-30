@@ -11,7 +11,7 @@ const TIME_INTERVAL_VALUES_MS = [
 
 const MIN_MARKER_SPACING_PX = 70;
 
-export interface TimeMarker {
+interface TimeMarker {
   label: string; // "0s", "1.5s", "2min"
   positionPercent: number; // 0-100
   timeMs: number;

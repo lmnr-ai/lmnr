@@ -13,7 +13,7 @@ import {
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type TraceRow } from "@/lib/traces/types";
 
-export const spanToListSpan = toLightweight;
+const spanToListSpan = toLightweight;
 
 /** Transform a trace's spans into transcript-mode entries. Uses the upstream
  *  buildTranscriptListEntries which handles subagent detection automatically. */

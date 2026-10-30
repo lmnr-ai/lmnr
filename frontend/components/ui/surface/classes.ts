@@ -37,7 +37,7 @@ const ELEVATION_TOKEN = {
 
 type Elevation = keyof typeof ELEVATION_TOKEN;
 
-export const SURFACE_BG: Record<Elevation, string> = {
+const SURFACE_BG: Record<Elevation, string> = {
   1: "bg-surface-00",
   2: "bg-surface-50",
   3: "bg-surface-100",

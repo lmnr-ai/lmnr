@@ -10,7 +10,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 // "trial" also covers a workspace that is already paid; "free" is for owners who can't start a trial.
-export type CommitPlan = { plan: "trial" | "free" };
+type CommitPlan = { plan: "trial" | "free" };
 
 interface UseOnboardingActions {
   isSubmitting: boolean;

@@ -26,7 +26,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 // User-controlled signal settings stored in the `metadata` jsonb column.
 // `disabled` is only persisted when true; absence means enabled (active).
-export type SignalMetadata = {
+type SignalMetadata = {
   sampleRate?: number | null;
   disabled?: boolean;
 };

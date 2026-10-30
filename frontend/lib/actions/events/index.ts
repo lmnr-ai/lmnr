@@ -31,7 +31,7 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function attachSpanTypes(projectId: string, items: EventRow[]): Promise<EventRow[]> {
+async function attachSpanTypes(projectId: string, items: EventRow[]): Promise<EventRow[]> {
   const idsByRow = new Map<string, string[]>();
   const allSpanIds = new Set<string>();
 

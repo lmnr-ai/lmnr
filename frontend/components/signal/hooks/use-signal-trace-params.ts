@@ -2,13 +2,13 @@
 
 import { createSerializer, parseAsString, useQueryStates } from "nuqs";
 
-export const signalTraceParsers = {
+const signalTraceParsers = {
   traceId: parseAsString,
   eventId: parseAsString,
   spanId: parseAsString,
 };
 
-export const serializeSignalTraceQuery = createSerializer(signalTraceParsers);
+const serializeSignalTraceQuery = createSerializer(signalTraceParsers);
 
 export type SignalTraceParams = {
   traceId: string | null;

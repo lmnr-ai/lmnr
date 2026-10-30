@@ -12,12 +12,7 @@ export const ONBOARDING_STEPS = ["workspace", "invite", "signals", "slack", "con
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 // Every step after the workspace one; the workspace exists from then on.
-export const SAVED_ONBOARDING_STEPS = [
-  "invite",
-  "signals",
-  "slack",
-  "connect",
-] as const satisfies readonly OnboardingStep[];
+const SAVED_ONBOARDING_STEPS = ["invite", "signals", "slack", "connect"] as const satisfies readonly OnboardingStep[];
 export type SavedOnboardingStep = (typeof SAVED_ONBOARDING_STEPS)[number];
 
 // Saved by the wizard on entry; the commit saves "connect" itself.

@@ -24,13 +24,10 @@ import {
 import { createSaveOrchestrator } from "./save-orchestrator";
 import { parseAnnotationSchema, type TargetField } from "./schema";
 
-export type { ActionResult, QueueIoState, QueueProgress, TargetSchemaDrift } from "./helpers";
-export { deriveItemState, getEffectiveTarget, getTargetSchemaDrift, isApproved, isDirty } from "./helpers";
-export type { TargetField } from "./schema";
-export { parseAnnotationSchema } from "./schema";
-export type { QueueItemState } from "@/lib/actions/queue";
+export type { TargetSchemaDrift } from "./helpers";
+export { getEffectiveTarget, getTargetSchemaDrift, isApproved, isDirty } from "./helpers";
 
-export interface QueueState {
+interface QueueState {
   queue: LabelingQueue;
   projectId: string;
   idsList: string[];
@@ -53,7 +50,7 @@ export interface QueueState {
   focusedFieldIndex: number;
 }
 
-export interface QueueActions {
+interface QueueActions {
   hydrateIndex: (rows: QueueItemStateRow[]) => void;
   /** Hydrate the body of one or more items (typically a window fetch). */
   hydrateWindow: (items: LabelingQueueItem[]) => void;
@@ -689,7 +686,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
   );
 };
 
-export type QueueStoreApi = StoreApi<QueueStore>;
+type QueueStoreApi = StoreApi<QueueStore>;
 
 const QueueStoreContext = createContext<QueueStoreApi | null>(null);
 

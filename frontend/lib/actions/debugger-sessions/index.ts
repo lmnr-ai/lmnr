@@ -164,10 +164,10 @@ export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessio
   return result;
 }
 
-export const TRACE_BLOCK_TYPE = "trace";
-export const EVALUATION_BLOCK_TYPE = "evaluation";
-export const TEXT_BLOCK_TYPE = "text";
-export const COMMAND_BLOCK_TYPE = "command";
+const TRACE_BLOCK_TYPE = "trace";
+const EVALUATION_BLOCK_TYPE = "evaluation";
+const TEXT_BLOCK_TYPE = "text";
+const COMMAND_BLOCK_TYPE = "command";
 
 // Raw `debugger_session_blocks` row. `content` is jsonb: trace blocks carry
 // `{ traceId, note? }`, evaluation blocks `{ evaluationId, note? }`, text
@@ -216,7 +216,7 @@ const debuggerTraceSelectColumns = [
   "agent_input as agentInput",
 ];
 
-export type SessionEvaluationScore = {
+type SessionEvaluationScore = {
   name: string;
   averageValue: number;
 };

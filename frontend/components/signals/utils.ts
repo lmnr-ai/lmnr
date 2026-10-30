@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 
-export const SchemaFieldTypeSchema = z.enum(["string", "number", "boolean", "enum"]);
+const SchemaFieldTypeSchema = z.enum(["string", "number", "boolean", "enum"]);
 export type SchemaFieldType = z.infer<typeof SchemaFieldTypeSchema>;
 
-export const SchemaFieldSchema = z.object({
+const SchemaFieldSchema = z.object({
   name: z.string(),
   description: z.string(),
   type: SchemaFieldTypeSchema,

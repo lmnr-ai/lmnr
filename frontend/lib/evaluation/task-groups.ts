@@ -14,7 +14,7 @@ const mean = (values: unknown[]): number | undefined => {
   return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : undefined;
 };
 
-export const parseScores = (scores: unknown): Record<string, number> => {
+const parseScores = (scores: unknown): Record<string, number> => {
   let parsed: unknown = scores;
   if (typeof scores === "string") {
     try {
@@ -47,7 +47,7 @@ const meanScores = (scoreSets: Record<string, number>[]): Record<string, number>
 };
 
 /** Task-level values for `columnIds`: means for numbers and scores, the first present value otherwise. */
-export const meanTrialColumns = (trials: EvalRow[], columnIds: string[]): EvalRow => {
+const meanTrialColumns = (trials: EvalRow[], columnIds: string[]): EvalRow => {
   const scores = meanScores(trials.map(trialScores));
   return Object.fromEntries(
     columnIds.map((id) => {

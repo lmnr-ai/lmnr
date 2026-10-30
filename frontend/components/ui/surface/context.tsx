@@ -8,7 +8,7 @@ import { BASE_ELEVATION } from "./classes";
 // inheritance) so it survives Radix portals, which render overlay content at the
 // document root — a portaled popover still reads the elevation it opened from.
 // Elevations are levels; the raw color tokens they map to are the `surface-*` scale.
-export const ElevationContext = createContext<number>(BASE_ELEVATION);
+const ElevationContext = createContext<number>(BASE_ELEVATION);
 
 /** The context provider under a friendly name. Bare, it only bumps the elevation NUMBER (no
  *  paint, no vars) — the low-level escape hatch for re-providing a level onto children of a node

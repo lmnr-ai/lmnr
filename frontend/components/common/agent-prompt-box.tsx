@@ -94,5 +94,3 @@ export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy
     </button>
   );
 }
-
-export default AgentPromptBox;

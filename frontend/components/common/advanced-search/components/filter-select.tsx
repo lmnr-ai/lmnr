@@ -20,7 +20,7 @@ export interface FilterSelectOption {
   label: string;
 }
 
-export interface FocusableRef {
+interface FocusableRef {
   focus: () => void;
 }
 
