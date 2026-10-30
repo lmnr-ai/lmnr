@@ -18,10 +18,10 @@ use crate::dashboards::{
     chart_query::{self, ChartInput, QueryRunner},
 };
 use crate::db::{DB, dashboards::Dashboard};
-use crate::notifications::utils::frontend_url_with_default;
 use crate::query_engine::QueryEngine;
 use crate::routes::types::ResponseResult;
 use crate::sql::ClickhouseReadonlyClient;
+use crate::utils::frontend_url_with_default;
 
 #[derive(Deserialize)]
 pub struct DashboardNameInput {

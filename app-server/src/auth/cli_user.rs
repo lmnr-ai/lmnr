@@ -90,8 +90,8 @@ impl JwksCache {
     /// var. The `http` arg is retained for call-site compatibility; `WebSource`
     /// manages its own client.
     pub fn from_env(_http: reqwest::Client) -> Self {
-        let base = std::env::var(crate::env::notifications::NEXT_INTERNAL_URL)
-            .or(std::env::var(crate::env::notifications::NEXT_PUBLIC_URL))
+        let base = std::env::var(crate::env::server::NEXT_INTERNAL_URL)
+            .or(std::env::var(crate::env::server::NEXT_PUBLIC_URL))
             .map(|v| v.trim_end_matches('/').to_string())
             .unwrap_or_else(|_| {
                 log::warn!(
