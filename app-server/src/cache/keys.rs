@@ -5,6 +5,18 @@ pub const CUSTOM_MODEL_COSTS_CACHE_KEY: &str = "custom_model_costs";
 pub const MODEL_COSTS_CACHE_KEY: &str = "model_costs";
 pub const PROJECT_API_KEY_CACHE_KEY: &str = "project_api_key";
 pub const PROJECT_CACHE_KEY: &str = "project";
+/// `hosted_evals_sandbox:{project_id}:{sandbox_id}` → the sandbox's Daytona toolbox
+/// URL. Present only once the sandbox was confirmed to carry the project's label.
+pub const HOSTED_EVALS_SANDBOX_CACHE_KEY: &str = "hosted_evals_sandbox";
+/// `hosted_evals_capacity_lock:{project_id}`: held across a project's sandbox
+/// count and create, so concurrent creates can't all pass the same count.
+pub const HOSTED_EVALS_CAPACITY_LOCK_CACHE_KEY: &str = "hosted_evals_capacity_lock";
+/// `hosted_evals_recent_sandboxes:{project_id}` → sandboxes created in the last
+/// few seconds, which Daytona's list doesn't show yet. Written under the lock above.
+pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_sandboxes";
+/// `hosted_evals_layer:{project_id}:{diff_id}` → the registry blob (digest, size)
+/// holding that image layer, gzip-compressed.
+pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]

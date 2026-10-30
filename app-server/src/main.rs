@@ -12,7 +12,7 @@ use actix_web::{
     App, HttpServer,
     body::{BoxBody, EitherBody},
     dev,
-    http::StatusCode,
+    http::{StatusCode, header},
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
@@ -150,6 +150,7 @@ mod debugger;
 mod env;
 mod evaluations;
 mod features;
+mod hosted_evals;
 mod instrumentation;
 mod language_model;
 mod llm;
@@ -1232,6 +1233,9 @@ fn main() -> anyhow::Result<()> {
         log::info!("using mock storage");
         Arc::new(MockStorage {}.into())
     };
+
+    // == Hosted evals ==
+    let hosted_evals = web::Data::new(hosted_evals::HostedEvals::from_env(&aws_sdk_config));
 
     // == Query engine ==
     let query_engine: Arc<QueryEngine> = Arc::new(QueryEngine::new());
@@ -2510,7 +2514,8 @@ fn main() -> anyhow::Result<()> {
                                     )
                                     // Actix's default 413 body depends on the extractor and the
                                     // `Bytes` one ("payload reached size limit") is opaque, so
-                                    // SDKs log it verbatim. Normalize it for every route.
+                                    // SDKs log it verbatim. Normalize it for every route, but keep
+                                    // JSON 413s a handler wrote itself (e.g. hosted-evals' archive cap).
                                     .handler(
                                         StatusCode::PAYLOAD_TOO_LARGE,
                                         |res: dev::ServiceResponse| {
@@ -2518,6 +2523,18 @@ fn main() -> anyhow::Result<()> {
                                                 "Payload too large: {}",
                                                 res.request().path()
                                             );
+                                            if res
+                                                .response()
+                                                .headers()
+                                                .get(header::CONTENT_TYPE)
+                                                .is_some_and(|v| {
+                                                    v.as_bytes().starts_with(b"application/json")
+                                                })
+                                            {
+                                                return Ok(ErrorHandlerResponse::Response(
+                                                    res.map_into_left_body(),
+                                                ));
+                                            }
                                             Ok(ErrorHandlerResponse::Response(res.map_body(
                                                 |_, _| {
                                                     EitherBody::right(BoxBody::new(
@@ -2541,6 +2558,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
+                            .app_data(hosted_evals.clone())
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
@@ -2571,6 +2589,11 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_dataset)
                             .service(api::v1::cli::datasets::update_dataset)
                             .service(api::v1::cli::datasets::delete_dataset)
+                            .service(api::v1::cli::hosted_evals::missing_layers)
+                            .service(api::v1::cli::hosted_evals::upload_layer)
+                            .service(api::v1::cli::hosted_evals::create_image)
+                            .service(api::v1::cli::hosted_evals::create_upload)
+                            .service(api::v1::cli::hosted_evals::start_run)
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
@@ -2684,6 +2707,21 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_trials)
                                     .service(api::v1::evals::update_eval_trial)
+                                    .service(api::v1::hosted_evals::missing_layers)
+                                    .service(api::v1::hosted_evals::upload_layer)
+                                    .service(api::v1::hosted_evals::ensure_snapshot)
+                                    .service(api::v1::hosted_evals::create_image)
+                                    .service(api::v1::hosted_evals::create_sandbox)
+                                    .service(api::v1::hosted_evals::get_sandbox)
+                                    .service(api::v1::hosted_evals::delete_sandbox)
+                                    .service(api::v1::hosted_evals::start_command)
+                                    .service(api::v1::hosted_evals::get_command)
+                                    .service(api::v1::hosted_evals::upload_file)
+                                    .service(api::v1::hosted_evals::download_file)
+                                    .service(api::v1::hosted_evals::create_upload)
+                                    .service(api::v1::hosted_evals::download_upload)
+                                    .service(api::v1::hosted_evals::delete_upload)
+                                    .service(api::v1::hosted_evals::start_run)
                                     .service(api::v1::signals::create_signal)
                                     .service(api::v1::signals::list_signals)
                                     .service(api::v1::signals::list_signal_versions)

@@ -52,3 +52,25 @@ pub async fn delete_api_key_by_hash(pool: &PgPool, hash: &String) -> Result<()> 
         .await?;
     Ok(())
 }
+
+pub async fn create_api_key(
+    pool: &PgPool,
+    project_id: &Uuid,
+    name: &str,
+    hash: &str,
+    shorthand: &str,
+    expires_at: DateTime<Utc>,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO project_api_keys (project_id, name, hash, shorthand, is_ingest_only, expires_at)
+        VALUES ($1, $2, $3, $4, false, $5)",
+    )
+    .bind(project_id)
+    .bind(name)
+    .bind(hash)
+    .bind(shorthand)
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
