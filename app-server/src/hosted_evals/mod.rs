@@ -36,8 +36,9 @@ use sandboxes::CreateError;
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
 // Downloads the archive with the run key, runs the CLI, then deletes the
-// sandbox through the app-server however the run ended. Runs under `sh`, with
-// stderr folded into stdout so the provider's command log has everything.
+// archive and the sandbox through the app-server however the run ended. Runs
+// under `sh`, with stderr folded into stdout so the provider's command log has
+// everything.
 const ORCHESTRATOR_COMMAND: &str = concat!(
     r#"exec 2>&1; "#,
     r#"mkdir -p "$HOME/evals" && cd "$HOME/evals" && "#,
@@ -45,6 +46,8 @@ const ORCHESTRATOR_COMMAND: &str = concat!(
     r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID" -o /tmp/evals.tar.gz && "#,
     r#"tar -xzf /tmp/evals.tar.gz && rm /tmp/evals.tar.gz && "#,
     r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; "#,
+    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
+    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID"; "#,
     r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
     r#""$LMNR_BASE_URL/v1/hosted-evals/sandboxes/$LMNR_SANDBOX_ID""#,
 );

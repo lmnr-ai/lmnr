@@ -440,6 +440,24 @@ pub async fn download_upload(
     })
 }
 
+/// The orchestrator deletes its run's archive here when the run ends.
+#[delete("/hosted-evals/uploads/{upload_id}")]
+pub async fn delete_upload(
+    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    hosted: HostedEvalsData,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    let Some(bucket) = uploads_bucket(&hosted) else {
+        return Ok(not_enabled());
+    };
+    let key = hosted_evals::archive_key(&project_api_key.project_id, &path);
+    Ok(match storage.delete(&bucket, &key).await {
+        Ok(()) => HttpResponse::NoContent().finish(),
+        Err(e) => upstream_error("archive delete", e),
+    })
+}
+
 #[post("/hosted-evals/runs")]
 pub async fn start_run(
     req: Json<RunRequest>,
@@ -511,17 +529,24 @@ pub async fn handle_start_run(
         Err(e) => return Ok(upstream_error("archive check", e)),
     }
 
-    let sandbox_id =
-        match hosted_evals::start_run(&hosted.provider, db, cache, &project_id, &req).await {
-            Ok(id) => id,
-            Err(RunError::InvalidCliVersion) => {
-                return Ok(HttpResponse::BadRequest().json(json!({
-                    "error": format!("Invalid cliVersion {:?}", req.cli_version)
-                })));
-            }
-            Err(RunError::Sandbox(e)) => return Ok(create_error_response(e)),
-            Err(RunError::Internal(e)) => return Err(e.into()),
-        };
+    let started = hosted_evals::start_run(&hosted.provider, db, cache, &project_id, &req).await;
+    // A run that didn't start never reads its archive, and the CLI uploads a new
+    // one on the next attempt.
+    if started.is_err()
+        && let Err(e) = storage.delete(&bucket, &key).await
+    {
+        log::error!("Failed to delete hosted eval archive {key}: {e:?}");
+    }
+    let sandbox_id = match started {
+        Ok(id) => id,
+        Err(RunError::InvalidCliVersion) => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": format!("Invalid cliVersion {:?}", req.cli_version)
+            })));
+        }
+        Err(RunError::Sandbox(e)) => return Ok(create_error_response(e)),
+        Err(RunError::Internal(e)) => return Err(e.into()),
+    };
     log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
 
     Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))
