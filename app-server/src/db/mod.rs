@@ -5,6 +5,7 @@ use crate::env;
 
 pub mod agent_versioning;
 pub mod alert_targets;
+pub mod alerts;
 pub mod custom_model_costs;
 pub mod dashboards;
 pub mod datasets;
