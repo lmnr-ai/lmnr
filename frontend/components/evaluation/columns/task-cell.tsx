@@ -7,8 +7,12 @@ export const TaskCell = ({ row, getValue }: CellContext<EvalRow, unknown>) => {
   if (row.depth > 0) {
     const trialId = String(row.original["id"]);
     return (
-      <CopyTooltip value={trialId} text="Copy Trial id" className="pl-3 font-mono text-secondary-foreground">
-        {`${trialId.slice(0, 8)}…`}
+      <CopyTooltip
+        value={trialId}
+        text="Copy Trial id"
+        className="block truncate pl-3 font-mono text-secondary-foreground"
+      >
+        {trialId}
       </CopyTooltip>
     );
   }
