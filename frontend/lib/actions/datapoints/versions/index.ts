@@ -28,6 +28,7 @@ const datapointVersionSelectColumns = [
   "data",
   "target",
   "metadata",
+  "task_id as taskId",
 ];
 
 /**
@@ -154,6 +155,7 @@ export async function createDatapointVersionFromExisting(input: z.infer<typeof C
       target: versionToCopy.target ? (tryParseJson(versionToCopy.target) ?? {}) : {},
       metadata: versionToCopy.metadata ? (tryParseJson(versionToCopy.metadata) ?? {}) : {},
       createdAt: new Date().toISOString(),
+      taskId: versionToCopy.taskId,
     },
   ]);
 

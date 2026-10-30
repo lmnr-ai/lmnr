@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-interface EvaluationDatapointsTableControlsProps {
+interface EvaluationTrialsTableControlsProps {
   columnFilters: ColumnFilter[];
   columnDefs: ColumnDef<EvalRow>[];
   visibleColumnDefs: ColumnDef<EvalRow>[];
@@ -35,7 +35,7 @@ interface EvaluationDatapointsTableControlsProps {
   viewsResource?: string;
 }
 
-export function EvaluationDatapointsTableControls({
+export function EvaluationTrialsTableControls({
   columnFilters,
   columnDefs,
   visibleColumnDefs,
@@ -47,7 +47,7 @@ export function EvaluationDatapointsTableControls({
   searchValue,
   onSearchChange,
   viewsResource,
-}: EvaluationDatapointsTableControlsProps) {
+}: EvaluationTrialsTableControlsProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
   return (
@@ -91,6 +91,7 @@ export function EvaluationDatapointsTableControls({
         <AdvancedSearch
           value={searchValue}
           onChange={onSearchChange}
+          // Pre-rename key, so saved column layouts survive.
           storageKey={`evaluation-datapoints-${projectId}`}
           filters={columnFilters}
           placeholder="Search in data, targets, scores and spans..."

@@ -350,7 +350,7 @@ const SharedSettings = ({
             </SidebarContent>
           </Sidebar>
           <ScrollArea className="flex-1">
-            <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-24">{renderSection()}</div>
+            <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-32">{renderSection()}</div>
           </ScrollArea>
         </div>
       </SidebarProvider>

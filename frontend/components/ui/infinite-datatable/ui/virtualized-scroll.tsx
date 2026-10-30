@@ -44,7 +44,7 @@ interface VirtualizedScrollProps<TData extends RowData> {
   focusedRowId?: string | null;
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
-  getRowHref?: (row: Row<TData>) => string;
+  getRowHref?: (row: Row<TData>) => string | undefined;
   getRowClassName?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   scrollContentClassName?: string;
@@ -69,7 +69,7 @@ interface VirtualizedRowsProps<TData extends RowData> {
   focusedRowId?: string | null;
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
-  getRowHref?: (row: Row<TData>) => string;
+  getRowHref?: (row: Row<TData>) => string | undefined;
   getRowClassName?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
   /** Pixels of content sitting above the rows inside the scroll element. */

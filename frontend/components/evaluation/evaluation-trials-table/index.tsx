@@ -8,10 +8,10 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-import { EvaluationDatapointsTableContents } from "./table-contents";
-import { EvaluationDatapointsTableControls } from "./table-controls";
+import { EvaluationTrialsTableContents } from "./table-contents";
+import { EvaluationTrialsTableControls } from "./table-controls";
 
-interface EvaluationDatapointsTableProps {
+interface EvaluationTrialsTableProps {
   data: EvalRow[] | undefined;
   isLoading: boolean;
   isFetching: boolean;
@@ -21,10 +21,11 @@ interface EvaluationDatapointsTableProps {
   visibleColumnDefs: ColumnDef<EvalRow>[];
   isComparison: boolean;
   scoreRanges: ScoreRanges;
+  runningTrials?: number;
   pinnedLeftColumnIds?: string[];
-  datapointId?: string;
+  trialId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
-  getRowHref?: (row: Row<EvalRow>) => string;
+  getRowHref?: (row: Row<EvalRow>) => string | undefined;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   onSort: (columnId: string, direction: "asc" | "desc") => void;
@@ -56,7 +57,7 @@ const buildColumnFilters = (columnDefs: ColumnDef<EvalRow>[]): ColumnFilter[] =>
             : ("string" as const),
     }));
 
-const EvaluationDatapointsTable = ({
+const EvaluationTrialsTable = ({
   data,
   isLoading,
   isFetching,
@@ -66,8 +67,9 @@ const EvaluationDatapointsTable = ({
   visibleColumnDefs,
   isComparison,
   scoreRanges,
+  runningTrials,
   pinnedLeftColumnIds,
-  datapointId,
+  trialId,
   handleRowClick,
   getRowHref,
   sortBy,
@@ -81,7 +83,7 @@ const EvaluationDatapointsTable = ({
   searchValue,
   onSearchChange,
   viewsResource,
-}: EvaluationDatapointsTableProps) => {
+}: EvaluationTrialsTableProps) => {
   const isShared = useEvalStore((s) => s.isShared);
   const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
   const isSearchActive = searchValue.search.length > 0;
@@ -93,7 +95,7 @@ const EvaluationDatapointsTable = ({
 
   return (
     <div className="flex overflow-hidden flex-1">
-      <EvaluationDatapointsTableContents
+      <EvaluationTrialsTableContents
         data={data}
         isLoading={isLoading}
         isFetching={isFetching}
@@ -103,8 +105,9 @@ const EvaluationDatapointsTable = ({
         isComparison={isComparison}
         isShared={isShared}
         scoreRanges={scoreRanges}
+        runningTrials={runningTrials}
         pinnedLeftColumnIds={pinnedLeftColumnIds}
-        datapointId={datapointId}
+        trialId={trialId}
         handleRowClick={handleRowClick}
         getRowHref={getRowHref}
         sortBy={sortBy}
@@ -115,7 +118,7 @@ const EvaluationDatapointsTable = ({
         onToggleScoreDirection={onToggleScoreDirection}
         isSearchActive={isSearchActive}
       >
-        <EvaluationDatapointsTableControls
+        <EvaluationTrialsTableControls
           columnFilters={columnFilters}
           columnDefs={columnDefs}
           visibleColumnDefs={visibleColumnDefs}
@@ -128,9 +131,9 @@ const EvaluationDatapointsTable = ({
           onSearchChange={onSearchChange}
           viewsResource={viewsResource}
         />
-      </EvaluationDatapointsTableContents>
+      </EvaluationTrialsTableContents>
     </div>
   );
 };
 
-export default EvaluationDatapointsTable;
+export default EvaluationTrialsTable;

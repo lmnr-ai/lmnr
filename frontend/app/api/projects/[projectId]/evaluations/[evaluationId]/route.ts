@@ -3,8 +3,8 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import {
-  getEvaluationDatapoints,
-  GetEvaluationDatapointsSchema,
+  getEvaluationTrials,
+  GetEvaluationTrialsSchema,
   renameEvaluation,
   RenameEvaluationSchema,
 } from "@/lib/actions/evaluation";
@@ -21,7 +21,7 @@ export async function GET(
   // Parse URL params using the schema
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
-    GetEvaluationDatapointsSchema.omit({ evaluationId: true, projectId: true })
+    GetEvaluationTrialsSchema.omit({ evaluationId: true, projectId: true })
   );
 
   if (!parseResult.success) {
@@ -29,8 +29,8 @@ export async function GET(
   }
 
   try {
-    // Call the action to get evaluation datapoints with all transformations
-    const result = await getEvaluationDatapoints({
+    // Call the action to get evaluation trials with all transformations
+    const result = await getEvaluationTrials({
       ...parseResult.data,
       projectId,
       evaluationId,
@@ -45,7 +45,7 @@ export async function GET(
       return Response.json({ error: "Evaluation not found" }, { status: 404 });
     }
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch evaluation datapoints." },
+      { error: error instanceof Error ? error.message : "Failed to fetch evaluation trials." },
       { status: 500 }
     );
   }

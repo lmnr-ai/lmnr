@@ -1,5 +1,5 @@
 // Single source of truth for evaluation score aggregation over the raw
-// per-datapoint values. Used by BOTH the single-eval stat shields
+// per-Trial values. Used by BOTH the single-eval stat shields
 // (lib/actions/evaluation/utils.ts) and the group progression chart
 // (lib/clickhouse/evaluation-scores.ts) so the two surfaces never disagree.
 

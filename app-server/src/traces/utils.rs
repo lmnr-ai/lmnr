@@ -1,5 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -319,9 +320,13 @@ pub fn convert_any_value_to_json_value(
                 .collect();
             json!(map)
         }
-        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => String::from_utf8(val)
-            .map(|s| serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)))
-            .unwrap_or_default(),
+        // Non-UTF-8 bytes are base64-encoded, matching the OTLP/JSON encoding of `bytesValue`.
+        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => {
+            match String::from_utf8(val) {
+                Ok(s) => serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)),
+                Err(e) => serde_json::Value::String(STANDARD.encode(e.into_bytes())),
+            }
+        }
     }
 }
 
@@ -382,6 +387,20 @@ fn tranform_model_and_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::opentelemetry_proto::opentelemetry_proto_common_v1::{AnyValue, any_value};
+
+    fn bytes_to_json(bytes: &[u8]) -> Value {
+        convert_any_value_to_json_value(Some(AnyValue {
+            value: Some(any_value::Value::BytesValue(bytes.to_vec())),
+        }))
+    }
+
+    #[test]
+    fn bytes_value_utf8_is_decoded_and_binary_is_base64() {
+        assert_eq!(bytes_to_json(br#"{"a":1}"#), json!({"a": 1}));
+        assert_eq!(bytes_to_json(b"plain"), json!("plain"));
+        assert_eq!(bytes_to_json(&[0xff, 0x00, 0xfe]), json!("/wD+"));
+    }
 
     #[test]
     fn prompt_hash_stable_across_cc_versions() {

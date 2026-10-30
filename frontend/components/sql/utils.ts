@@ -253,6 +253,11 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task id evaluations group trials by; unique within the dataset",
+      },
     ],
   },
   dataset_datapoint_versions: {
@@ -269,28 +274,39 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task id evaluations group trials by; unique within the dataset",
+      },
     ],
   },
-  evaluation_datapoints: {
-    description: "Results from evaluations including scores, executor output, and trace data",
+  evaluation_trials: {
+    description:
+      "Results from evaluations, one row per trial, including scores, executor output, and trace data. `evaluation_datapoints` is an alias",
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
       { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
       { name: "evaluation_name", type: "String", description: "Name of the evaluation" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was first saved" },
       { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
       { name: "executor_output", type: "String", description: "Output from the executor" },
       { name: "index", type: "UInt64", description: "Index of the evaluation datapoint within the evaluation" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+      },
       { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
         name: "scores",
         type: "String",
         description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
       },
-      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the datapoint was last updated" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was last updated" },
       {
         name: "dataset_id",
         type: "UUID",
@@ -624,10 +640,20 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
       relevanceScore(a.label, searchTerm) - relevanceScore(b.label, searchTerm) || a.label.localeCompare(b.label)
   );
 
+// Old names the query engine still accepts. Kept out of `tableSchemas` so autocomplete and
+// the AI prompt list each table once; `config.tables` may still scope by the old name.
+const tableAliases: Record<string, string> = {
+  evaluation_datapoints: "evaluation_trials",
+};
+
 // Filters default tables to `config.tables` (if set) and merges `customTables`.
 export function resolveTableSchemas(config?: SQLSchemaConfig): Record<string, TableSchema> {
   const base = config?.tables
-    ? Object.fromEntries(config.tables.filter((t) => t in tableSchemas).map((t) => [t, tableSchemas[t]]))
+    ? Object.fromEntries(
+        config.tables
+          .map((t) => [t, tableSchemas[t] ?? tableSchemas[tableAliases[t]]] as const)
+          .filter(([, schema]) => schema !== undefined)
+      )
     : { ...tableSchemas };
   return config?.customTables ? { ...base, ...config.customTables } : base;
 }
@@ -1005,6 +1031,8 @@ const signatureHelpStyles = {
   },
   ".signature-help": {
     padding: "6px 10px !important",
+    // The theme is declared dark, so CodeMirror's base tooltip text is white in light mode too.
+    color: "var(--color-foreground)",
     background: "var(--color-background)",
     border: "1px solid var(--color-border)",
     borderRadius: "6px",
