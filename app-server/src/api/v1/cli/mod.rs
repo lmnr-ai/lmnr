@@ -5,7 +5,6 @@
 // The agent twin depends on `crate::agent`, which is signals-gated.
 #[cfg(feature = "signals")]
 pub mod agent;
-pub mod alerts;
 pub mod dashboards;
 pub mod datasets;
 pub mod llm_profiles;
