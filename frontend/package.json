@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
-    "preview": "next build && next start",
+    "preview": "next build --webpack && next start",
     "type-check": "tsc --noEmit",
     "check:circular": "madge --circular --extensions ts,tsx --ts-config tsconfig.json components lib app",
     "format:write": "oxfmt --write .",
