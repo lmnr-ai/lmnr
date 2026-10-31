@@ -486,6 +486,45 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "created_at", type: "DateTime64(6)", description: "When the chart was created" },
     ],
   },
+  alerts: {
+    description:
+      "Signal alerts stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the alert" },
+      { name: "name", type: "String", description: "Alert name" },
+      { name: "type", type: "String", description: "SIGNAL_EVENT or NEW_CLUSTER" },
+      { name: "signal_id", type: "UUID", description: "Id of the signal the alert watches" },
+      {
+        name: "metadata",
+        type: "String",
+        description:
+          "Alert settings as a JSON object: severities (0 info, 1 warning, 2 critical), skipSimilar, disabled",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the alert was created" },
+    ],
+  },
+  alert_targets: {
+    description: "Where alerts are delivered, stored in Postgres: one row per Slack channel or subscribed member email",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the target" },
+      { name: "alert_id", type: "UUID", description: "Id of the alert" },
+      { name: "type", type: "String", description: "SLACK or EMAIL" },
+      { name: "channel_id", type: "Nullable(String)", description: "Slack channel id" },
+      { name: "channel_name", type: "Nullable(String)", description: "Slack channel name" },
+      { name: "email", type: "Nullable(String)", description: "Subscribed member's email" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the target was added" },
+    ],
+  },
+  alert_filters: {
+    description:
+      "Conditions an alert's signal events must match, stored in Postgres. Conditions in a row are ANDed; rows are ORed",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the filter group" },
+      { name: "alert_id", type: "UUID", description: "Id of the alert" },
+      { name: "value", type: "String", description: "JSON array of conditions {column, operator, value}" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the filter group was added" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [
