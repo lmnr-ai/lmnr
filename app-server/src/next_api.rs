@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use actix_web::{HttpResponse, ResponseError, http::StatusCode};
 use chrono::Utc;
 use reqwest::Method;
 use serde::de::DeserializeOwned;
@@ -24,6 +25,28 @@ pub enum NextApiError {
     Status { status: u16, message: String },
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
+}
+
+/// A Next.js 4xx reaches the caller as-is (`{ error }`, same status); anything else is logged and
+/// answered with a generic 500.
+impl ResponseError for NextApiError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            Self::Status { status, .. } if *status < 500 => {
+                StatusCode::from_u16(*status).unwrap_or(StatusCode::BAD_REQUEST)
+            }
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let status = self.status_code();
+        if status.is_server_error() {
+            log::error!("Frontend write failed: {self:?}");
+            return HttpResponse::build(status).json(json!({ "error": "Internal server error" }));
+        }
+        HttpResponse::build(status).json(json!({ "error": self.to_string() }))
+    }
 }
 
 /// `{exp, userId?}` encrypted with the `AEAD_SECRET_KEY` both services share, bound to the project

@@ -2,78 +2,52 @@
 //! frontend is the only alert writer (`lib/actions/alerts`), so these handlers forward to its
 //! `/api/internal/projects/{project_id}/alerts` routes as the authorized CLI user.
 
-use actix_web::{HttpResponse, delete, http::StatusCode, patch, post, web};
+use actix_web::{HttpResponse, delete, patch, post, web};
 use reqwest::Method;
-use serde_json::{Value, json};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::auth::cli_user::CliProjectAuth;
 use crate::next_api::{self, NextApiError};
-use crate::routes::types::ResponseResult;
 
-async fn forward(
-    auth: &CliProjectAuth,
-    http_client: &reqwest::Client,
-    method: Method,
-    alert_id: Option<Uuid>,
-    body: Option<web::Bytes>,
-) -> ResponseResult {
-    let body = match body
-        .map(|b| serde_json::from_slice::<Value>(&b))
-        .transpose()
-    {
-        Ok(body) => body,
-        Err(e) => {
-            return Ok(HttpResponse::BadRequest()
-                .json(json!({ "error": format!("Request body must be JSON: {e}") })));
-        }
-    };
-    let path = match alert_id {
-        Some(alert_id) => format!("alerts/{alert_id}"),
-        None => "alerts".to_string(),
-    };
-
-    match next_api::call_as::<Value>(
-        http_client,
-        method,
-        auth.project_id,
-        auth.user_id,
-        &path,
-        body,
-    )
-    .await
-    {
-        Ok(value) => Ok(HttpResponse::Ok().json(value)),
-        Err(NextApiError::Status { status, message }) if status < 500 => Ok(HttpResponse::build(
-            StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_REQUEST),
-        )
-        .json(json!({ "error": message }))),
-        Err(e) => {
-            log::error!("Alert write failed: {e:?}");
-            Ok(HttpResponse::InternalServerError()
-                .json(json!({ "error": "Internal server error" })))
-        }
-    }
-}
+type AlertResult = Result<HttpResponse, NextApiError>;
 
 #[post("alerts")]
 pub async fn create_alert(
     auth: CliProjectAuth,
-    body: web::Bytes,
+    body: web::Json<Value>,
     http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    forward(&auth, &http_client, Method::POST, None, Some(body)).await
+) -> AlertResult {
+    let alert: Value = next_api::call_as(
+        &http_client,
+        Method::POST,
+        auth.project_id,
+        auth.user_id,
+        "alerts",
+        Some(body.into_inner()),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(alert))
 }
 
 #[patch("alerts/{alert_id}")]
 pub async fn update_alert(
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
-    body: web::Bytes,
+    body: web::Json<Value>,
     http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    let alert_id = Some(path.into_inner());
-    forward(&auth, &http_client, Method::PATCH, alert_id, Some(body)).await
+) -> AlertResult {
+    let path = format!("alerts/{}", path.into_inner());
+    let alert: Value = next_api::call_as(
+        &http_client,
+        Method::PATCH,
+        auth.project_id,
+        auth.user_id,
+        &path,
+        Some(body.into_inner()),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(alert))
 }
 
 #[delete("alerts/{alert_id}")]
@@ -81,7 +55,16 @@ pub async fn delete_alert(
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     http_client: web::Data<reqwest::Client>,
-) -> ResponseResult {
-    let alert_id = Some(path.into_inner());
-    forward(&auth, &http_client, Method::DELETE, alert_id, None).await
+) -> AlertResult {
+    let path = format!("alerts/{}", path.into_inner());
+    let deleted: Value = next_api::call_as(
+        &http_client,
+        Method::DELETE,
+        auth.project_id,
+        auth.user_id,
+        &path,
+        None,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(deleted))
 }
