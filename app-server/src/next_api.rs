@@ -1,6 +1,6 @@
 //! Calls to the Next.js app's `/api/internal` routes, for writes whose one implementation lives
-//! there (dashboards). Callers authorize the user or agent first; Next.js only checks that the
-//! request came from app-server (`frontend/lib/internal-auth.ts`).
+//! there (dashboards, alerts). Callers authorize the user or agent first; Next.js only checks that
+//! the request came from app-server (`frontend/lib/internal-auth.ts`).
 
 use std::time::Duration;
 
@@ -26,14 +26,17 @@ pub enum NextApiError {
     Internal(#[from] anyhow::Error),
 }
 
-/// `{exp}` encrypted with the `AEAD_SECRET_KEY` both services share, bound to the project id so a
-/// token works for that project only.
-fn internal_token(project_id: Uuid) -> anyhow::Result<String> {
+/// `{exp, userId?}` encrypted with the `AEAD_SECRET_KEY` both services share, bound to the project
+/// id so a token works for that project only. `userId` is the already-authorized caller, for
+/// writes that act as them (alert `notifyMe`).
+fn internal_token(project_id: Uuid, user_id: Option<Uuid>) -> anyhow::Result<String> {
     let exp = Utc::now().timestamp() + TOKEN_TTL_SECS;
-    let (nonce, ciphertext) = crypto::encrypt(
-        &format!("internal-api:{project_id}"),
-        &json!({ "exp": exp }).to_string(),
-    )?;
+    let mut claims = json!({ "exp": exp });
+    if let Some(user_id) = user_id {
+        claims["userId"] = json!(user_id);
+    }
+    let (nonce, ciphertext) =
+        crypto::encrypt(&format!("internal-api:{project_id}"), &claims.to_string())?;
     Ok(format!("{nonce}.{ciphertext}"))
 }
 
@@ -45,6 +48,29 @@ pub async fn call<T: DeserializeOwned>(
     path: &str,
     body: Option<Value>,
 ) -> Result<T, NextApiError> {
+    send(http_client, method, project_id, None, path, body).await
+}
+
+/// [`call`] on behalf of `user_id`, whom the caller has already checked is a project member.
+pub async fn call_as<T: DeserializeOwned>(
+    http_client: &reqwest::Client,
+    method: Method,
+    project_id: Uuid,
+    user_id: Uuid,
+    path: &str,
+    body: Option<Value>,
+) -> Result<T, NextApiError> {
+    send(http_client, method, project_id, Some(user_id), path, body).await
+}
+
+async fn send<T: DeserializeOwned>(
+    http_client: &reqwest::Client,
+    method: Method,
+    project_id: Uuid,
+    user_id: Option<Uuid>,
+    path: &str,
+    body: Option<Value>,
+) -> Result<T, NextApiError> {
     let base = env::server::next_server_url().ok_or_else(|| {
         anyhow::anyhow!("NEXT_INTERNAL_URL or NEXT_PUBLIC_URL must be set to reach the frontend")
     })?;
@@ -52,7 +78,7 @@ pub async fn call<T: DeserializeOwned>(
 
     let mut request = http_client
         .request(method, &url)
-        .header(TOKEN_HEADER, internal_token(project_id)?)
+        .header(TOKEN_HEADER, internal_token(project_id, user_id)?)
         .timeout(REQUEST_TIMEOUT);
     if let Some(body) = body {
         request = request.json(&body);
@@ -63,6 +89,11 @@ pub async fn call<T: DeserializeOwned>(
         .map_err(|e| anyhow::anyhow!("frontend unreachable at {url}: {e}"))?;
 
     let status = response.status();
+    // The frontend rejected app-server's own token (e.g. mismatched `AEAD_SECRET_KEY`); passing
+    // the 401 on would read to the caller as their own login having expired.
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err(anyhow::anyhow!("frontend rejected the internal token for {url}").into());
+    }
     if !status.is_success() {
         let body: Option<Value> = response.json().await.ok();
         let message = body

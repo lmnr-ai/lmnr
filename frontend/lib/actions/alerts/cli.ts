@@ -9,7 +9,7 @@ import { alertFilters, alerts, alertTargets, projects, signals } from "@/lib/db/
 
 import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } from "./types";
 
-// The `lmnr-cli alert` write API (`/api/cli/projects/:projectId/alerts`, reached through
+// The `lmnr-cli alert` write API (`/api/internal/projects/:projectId/alerts`, reached through
 // app-server's `/v1/cli/alerts`). It writes the same rows as the settings form. Reads go through
 // SQL (`alerts`, `alert_targets`, `alert_filters`).
 

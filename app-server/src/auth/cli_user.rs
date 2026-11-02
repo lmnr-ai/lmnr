@@ -222,7 +222,6 @@ pub async fn cli_auth_validator(
 /// it can't be skipped.
 #[derive(Clone)]
 pub struct CliProjectAuth {
-    #[allow(dead_code)]
     pub user_id: Uuid,
     pub project_id: Uuid,
 }

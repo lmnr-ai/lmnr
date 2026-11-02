@@ -1,6 +1,6 @@
 import { ZodError } from "zod/v4";
 
-import { isInternalRequest } from "@/lib/internal-auth";
+import { verifyInternalRequest } from "@/lib/internal-auth";
 
 import { DashboardError } from "./errors";
 
@@ -13,7 +13,7 @@ export async function internalDashboardRoute(
   projectId: string,
   write: () => Promise<unknown>
 ): Promise<Response> {
-  if (!(await isInternalRequest(request, projectId))) {
+  if (!(await verifyInternalRequest(request, projectId))) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
