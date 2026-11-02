@@ -232,6 +232,62 @@ export const slackIntegrations = pgTable(
   ]
 );
 
+export const githubIntegrations = pgTable(
+  "github_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    installationId: bigint("installation_id", { mode: "number" }).notNull(),
+    accountId: bigint("account_id", { mode: "number" }).notNull(),
+    accountLogin: text("account_login").notNull(),
+    accountType: text("account_type").notNull(),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: "string" }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "github_integrations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "github_integrations_created_by_fkey",
+    }).onDelete("set null"),
+    unique("github_integrations_workspace_id_key").on(table.workspaceId),
+    unique("github_integrations_installation_id_key").on(table.installationId),
+  ]
+);
+
+export const projectGithubRepos = pgTable(
+  "project_github_repos",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+    repoId: bigint("repo_id", { mode: "number" }).notNull(),
+    repoFullName: text("repo_full_name").notNull(),
+    defaultBranch: text("default_branch").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "project_github_repos_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [githubIntegrations.id],
+      name: "project_github_repos_integration_id_fkey",
+    }).onDelete("cascade"),
+    unique("project_github_repos_project_id_key").on(table.projectId),
+    index("project_github_repos_repo_id_idx").using("btree", table.repoId.asc().nullsLast()),
+  ]
+);
+
 export const evaluators = pgTable(
   "evaluators",
   {

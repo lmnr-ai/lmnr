@@ -855,6 +855,13 @@
       "when": 1792943286744,
       "tag": "0121_agent_releases",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1793377721599,
+      "tag": "0122_github_integrations",
+      "breakpoints": true
     }
   ]
 }

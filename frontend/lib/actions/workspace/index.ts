@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
+import { getGithubIntegration } from "@/lib/actions/github";
 import {
   deleteProjectApiKeysFromCache,
   deleteProjectWorkspaceInfoFromCache,
@@ -22,6 +23,7 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { deleteInstallation } from "@/lib/github/client";
 import { type Workspace, type WorkspaceTier, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const DeleteWorkspaceSchema = z.object({
@@ -86,6 +88,8 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     with: { projectApiKeys: { columns: { hash: true } } },
   });
 
+  const githubIntegration = await getGithubIntegration(workspaceId);
+
   // The purge is re-runnable, so it goes first: a failure leaves the workspace and its billing intact.
   await Promise.all(projectsInWorkspace.map((project) => purgeProjectData(project.id)));
 
@@ -101,6 +105,11 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
   await Promise.allSettled([
     deleteProjectApiKeysFromCache(apiKeyHashes),
     ...projectsInWorkspace.map((p) => deleteProjectWorkspaceInfoFromCache(p.id)),
+    githubIntegration
+      ? deleteInstallation(githubIntegration.installationId).catch((e) =>
+          console.error("Failed to uninstall GitHub App for deleted workspace", e)
+        )
+      : null,
   ]);
 
   return { success: true, message: "Workspace deleted successfully" };

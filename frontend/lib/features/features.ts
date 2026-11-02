@@ -1,4 +1,5 @@
 import { isAiProviderConfigured } from "@/lib/ai/model";
+import { GITHUB_APP_ENV_VARS } from "@/lib/github/config";
 
 export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
@@ -17,6 +18,7 @@ export enum Feature {
   SIGNALS = "SIGNALS",
   BATCH_SIGNALS = "BATCH_SIGNALS",
   SLACK = "SLACK",
+  GITHUB = "GITHUB",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
   SIGNAL_LLM_PROFILES = "SIGNAL_LLM_PROFILES",
@@ -130,6 +132,11 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
       !!process.env.SLACK_REDIRECT_URL;
     const brokerEnabled = !!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY;
     return cloudEnabled || brokerEnabled;
+  }
+
+  if (feature === Feature.GITHUB) {
+    // Unset on self-hosted, which hides it there.
+    return GITHUB_APP_ENV_VARS.every((name) => !!process.env[name]);
   }
 
   if (feature === Feature.POSTHOG) {
