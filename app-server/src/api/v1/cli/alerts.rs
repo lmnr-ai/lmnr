@@ -9,7 +9,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::auth::cli_user::CliProjectAuth;
-use crate::env::notifications::next_server_url;
+use crate::env::server::next_server_url;
 use crate::routes::types::ResponseResult;
 
 async fn forward(

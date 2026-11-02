@@ -1,12 +1,14 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { type DashboardChart, GRID_COLS } from "@/components/dashboards/types";
 import { QueryStructureSchema } from "@/lib/actions/sql/types";
-import { callAppServer } from "@/lib/app-server";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, dashboards } from "@/lib/db/migrations/schema";
+
+import { DashboardError } from "./errors";
+import { type ChartUpsert, upsertCharts } from "./upsert-charts";
 
 const GetChartsSchema = z.object({
   projectId: z.guid(),
@@ -148,21 +150,36 @@ export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayou
     .where(and(inDashboard(projectId, dashboardId), eq(dashboardCharts.id, sql`update_data.id`)));
 };
 
-// Chart writes go through app-server's upsert, shared with the Laminar agent: it places new
-// charts and keeps each chart's stored layout when only its name or query changes.
-const upsertChart = async (projectId: string, dashboardId: string, chart: Record<string, unknown>) => {
-  const [saved] = await callAppServer<DashboardChart[]>(`/projects/${projectId}/dashboards/${dashboardId}/charts`, {
-    method: "PUT",
-    body: { charts: [chart] },
-  });
+// Shares `upsertCharts` with the CLI and the Laminar agent: it places new charts and keeps each
+// chart's stored layout when only its name or query changes.
+const upsertChart = async (projectId: string, dashboardId: string, chart: ChartUpsert) => {
+  const [saved] = await upsertCharts(projectId, dashboardId, [chart]);
 
   return saved;
+};
+
+const DeleteChartsSchema = GetChartsSchema.extend({
+  chartIds: z.array(z.guid()).min(1, "At least one chart id is required"),
+});
+
+/** Returns how many of `chartIds` were on the dashboard; the rest keep their positions. */
+export const deleteCharts = async (input: z.infer<typeof DeleteChartsSchema>) => {
+  const { projectId, dashboardId, chartIds } = DeleteChartsSchema.parse(input);
+
+  const deleted = await db
+    .delete(dashboardCharts)
+    .where(and(inDashboard(projectId, dashboardId), inArray(dashboardCharts.id, chartIds)))
+    .returning({ id: dashboardCharts.id });
+
+  return deleted.length;
 };
 
 export const deleteDashboardChart = async (input: z.infer<typeof ChartSchema>) => {
   const { projectId, dashboardId, id } = ChartSchema.parse(input);
 
-  await callAppServer(`/projects/${projectId}/dashboards/${dashboardId}/charts/${id}`, { method: "DELETE" });
+  if ((await deleteCharts({ projectId, dashboardId, chartIds: [id] })) === 0) {
+    throw DashboardError.notFound("Chart");
+  }
 };
 
 export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchema>) => {

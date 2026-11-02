@@ -69,17 +69,21 @@ impl SqlQueryError {
             Self::BadResponseError(e) => remove_query_from_error_message(e),
         }
     }
-}
 
-impl std::fmt::Display for SqlQueryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    /// The user-facing message, without the `{"error": ...}` envelope `Display` wraps it in.
+    pub fn message(&self) -> String {
         let prefix = match self {
             Self::ValidationError(_) => "Query validation failed",
             Self::InternalError(_) => "Error executing query",
             Self::BadResponseError(_) | Self::Unavailable(_) => "Error executing query",
         };
-        let error_message = format!("{prefix}: {}", self.sanitize_error());
-        write!(f, "{}", json!({"error": error_message}))
+        format!("{prefix}: {}", self.sanitize_error())
+    }
+}
+
+impl std::fmt::Display for SqlQueryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", json!({"error": self.message()}))
     }
 }
 

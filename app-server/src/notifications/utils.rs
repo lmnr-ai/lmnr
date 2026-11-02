@@ -5,16 +5,7 @@ use uuid::Uuid;
 
 use super::NotificationKind;
 use crate::reports::{ProjectReportData, ReportData};
-
-/// Public-facing base URL used to construct user-clickable links in notifications.
-/// Reads `NEXT_PUBLIC_URL` (the frontend's public URL) so self-hosted deployments
-/// route users to their own instance. Falls back to the given default for the
-/// managed Laminar Cloud experience.
-pub(crate) fn frontend_url_with_default(default: &str) -> String {
-    let raw =
-        std::env::var(crate::env::notifications::NEXT_PUBLIC_URL).unwrap_or(default.to_string());
-    raw.trim_end_matches('/').to_string()
-}
+use crate::utils::frontend_url_with_default;
 
 /// Public-facing base URL for Slack message links. Defaults to `https://laminar.sh`
 /// (short branded domain used in Slack messages on Laminar Cloud).
