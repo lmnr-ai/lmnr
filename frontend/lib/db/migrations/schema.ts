@@ -332,9 +332,10 @@ export const agents = pgTable(
     agentHash: text("agent_hash").notNull(),
     name: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    labeledUntil: bigint("labeled_until", { mode: "number" }),
-    watermark: bigint({ mode: "number" }),
+    taggedUntil: bigint("tagged_until", { mode: "number" }),
+    ingestedUntil: bigint("ingested_until", { mode: "number" }),
     currentVersionId: uuid("current_version_id"),
+    releaseMode: boolean("release_mode").default(false).notNull(),
   },
   (table) => [
     foreignKey({
@@ -395,6 +396,38 @@ export const agentVersionModels = pgTable(
       name: "agent_version_models_project_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.agentVersionId, table.model], name: "agent_version_models_pkey" }),
+  ]
+);
+
+export const agentReleases = pgTable(
+  "agent_releases",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    release: text().notNull(),
+    versionId: uuid("version_id"),
+    firstSeen: bigint("first_seen", { mode: "number" }).notNull(),
+    backfilledAt: timestamp("backfilled_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agentId],
+      foreignColumns: [agents.id],
+      name: "agent_releases_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_releases_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.versionId],
+      foreignColumns: [agentVersions.id],
+      name: "agent_releases_version_id_fkey",
+    }).onDelete("set null"),
+    unique("agent_releases_agent_id_release_key").on(table.agentId, table.release),
   ]
 );
 

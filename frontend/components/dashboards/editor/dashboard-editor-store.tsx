@@ -1,15 +1,16 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { format, subDays } from "date-fns";
-import { isDate, isEmpty, isNil, isObject } from "lodash";
+import { isEmpty, isNil, isObject } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
 import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
+import { type EditorMode } from "@/components/dashboards/editor/chart-editor-mode";
 import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
+import { paginateQuery } from "@/components/dashboards/editor/utils";
 import { type DashboardChart } from "@/components/dashboards/types";
-import { type SQLParameter } from "@/components/sql/sql-editor-store";
+import { type TimeParameters } from "@/lib/time";
 
 type DashboardEditorState = {
   chart: { id?: string; createdAt?: string; dashboardId?: string } & Omit<
@@ -18,10 +19,9 @@ type DashboardEditorState = {
   >;
   isLoading: boolean;
   error: string | null;
-  loadError: string | null;
   data: Record<string, string | number | boolean>[];
   columns: ColumnDef<any>[];
-  parameters: SQLParameter[];
+  editorMode: EditorMode;
   tab: TabType;
   tableHasMore: boolean;
   tableIsFetching: boolean;
@@ -30,6 +30,7 @@ type DashboardEditorState = {
 
 type DashboardEditorActions = {
   setTab: (tab: TabType) => void;
+  setEditorMode: (editorMode: EditorMode) => void;
   setChart: (chart: DashboardChart) => void;
   setQuery: (query: string) => void;
   setName: (name: string) => void;
@@ -37,13 +38,10 @@ type DashboardEditorActions = {
   setDisplayMode: (displayMode: DisplayMode) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  setLoadError: (loadError: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
   setColumns: (columns: ColumnDef<any>[]) => void;
-  setParameterValue: (name: string, value: SQLParameter["value"]) => void;
-  getFormattedParameters: () => Record<string, string | number>;
-  executeQuery: (projectId: string) => Promise<void>;
-  fetchNextTablePage: (projectId: string) => Promise<void>;
+  executeQuery: (projectId: string, parameters: TimeParameters, paginateTable?: boolean) => Promise<void>;
+  fetchNextTablePage: (projectId: string, parameters: TimeParameters) => Promise<void>;
 };
 
 enum TabType {
@@ -51,16 +49,6 @@ enum TabType {
   Chart = "chart",
   Parameters = "parameters",
 }
-
-const initialParameters: SQLParameter[] = [
-  { name: "start_time", value: subDays(new Date(), 1), type: "date" },
-  { name: "end_time", value: new Date(), type: "date" },
-  {
-    name: "interval_unit",
-    value: "HOUR",
-    type: "string",
-  },
-];
 
 type DashboardEditorStore = DashboardEditorState & DashboardEditorActions;
 type DashboardEditorStoreApi = ReturnType<typeof createDashboardEditorStore>;
@@ -94,6 +82,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
   // (e.g. user scrolls mid-fetch, then changes filter → executeQuery resets
   // page 0). Without this the paginated rows would splice onto fresh data.
   let paginationAbortController: AbortController | null = null;
+  let queryAbortController: AbortController | null = null;
 
   const editorState: DashboardEditorState = {
     tab: TabType.Chart,
@@ -101,9 +90,8 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     columns: [],
     isLoading: false,
     error: null,
-    loadError: null,
     data: [],
-    parameters: initialParameters,
+    editorMode: "visual",
     tableHasMore: false,
     tableIsFetching: false,
     tablePage: 0,
@@ -115,14 +103,26 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     setTab: (tab) => {
       set({ tab });
     },
+    setEditorMode: (editorMode) => set({ editorMode }),
     setChart: (chart) => {
       set({ chart });
     },
 
-    setQuery: (query) =>
+    setQuery: (query) => {
+      queryAbortController?.abort();
+      queryAbortController = null;
+      paginationAbortController?.abort();
+      paginationAbortController = null;
       set((state) => ({
         chart: { ...state.chart, query },
-      })),
+        isLoading: false,
+        error: null,
+        data: [],
+        columns: [],
+        tableHasMore: false,
+        tableIsFetching: false,
+      }));
+    },
 
     setName: (name) =>
       set((state) => ({
@@ -163,10 +163,6 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       set({ error });
     },
 
-    setLoadError: (loadError) => {
-      set({ loadError });
-    },
-
     setData: (data) => {
       set({ data });
     },
@@ -175,35 +171,8 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       set({ columns });
     },
 
-    setParameterValue: (name, value) =>
-      set((state) => ({
-        parameters: state.parameters.map((param) =>
-          param.name === name ? { ...param, value } : param
-        ) as SQLParameter[],
-      })),
-
-    getFormattedParameters: () => {
-      const { parameters } = get();
-
-      return parameters.reduce(
-        (formatted, param) => {
-          if (!isNil(param.value)) {
-            if (isDate(param.value)) {
-              formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
-            } else if (param.type === "number") {
-              formatted[param.name] = Number(param.value);
-            } else {
-              formatted[param.name] = param.value;
-            }
-          }
-          return formatted;
-        },
-        {} as Record<string, string | number>
-      );
-    },
-
-    executeQuery: async (projectId: string) => {
-      const { chart, setLoading, setError, setData, setColumns, getFormattedParameters } = get();
+    executeQuery: async (projectId, parameters, paginateTable = true) => {
+      const { chart, setLoading, setError, setData, setColumns } = get();
 
       if (!chart.query?.trim()) {
         setError("Query is required");
@@ -218,18 +187,21 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         set({ tableIsFetching: false });
       }
 
+      queryAbortController?.abort();
+      const controller = new AbortController();
+      queryAbortController = controller;
       setLoading(true);
       setError(null);
 
       const isTable = chart.settings.config.type === ChartType.Table;
 
       try {
-        const parameters = getFormattedParameters();
-        const query = isTable ? `${chart.query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET 0` : chart.query;
+        const query = isTable && paginateTable ? paginateQuery(chart.query, 0) : chart.query;
         const response = await fetch(`/api/projects/${projectId}/sql`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query, parameters }),
+          signal: controller.signal,
         });
 
         const data = await response.json();
@@ -240,13 +212,14 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
         const rows: Record<string, any>[] = Array.isArray(data) ? data : [];
 
-        if (isTable) {
+        if (isTable && paginateTable) {
           const hasMore = rows.length > TABLE_PAGE_SIZE;
           const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
           setData(pageRows);
           set({ tableHasMore: hasMore, tablePage: 0, tableIsFetching: false });
         } else {
           setData(rows);
+          set({ tableHasMore: false, tablePage: 0, tableIsFetching: false });
         }
 
         if (!isEmpty(data)) {
@@ -270,18 +243,21 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           );
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         const errorMessage = err instanceof Error ? err.message : "Error executing the query. Please try again.";
         setError(errorMessage);
         setData([]);
         setColumns([]);
       } finally {
-        set({ tab: TabType.Chart });
-        setLoading(false);
+        if (queryAbortController === controller) {
+          queryAbortController = null;
+          set({ tab: TabType.Chart, isLoading: false });
+        }
       }
     },
 
-    fetchNextTablePage: async (projectId: string) => {
-      const { chart, tableIsFetching, tableHasMore, tablePage, getFormattedParameters } = get();
+    fetchNextTablePage: async (projectId, parameters) => {
+      const { chart, tableIsFetching, tableHasMore, tablePage } = get();
 
       if (tableIsFetching || !tableHasMore || !chart.query?.trim()) return;
 
@@ -294,8 +270,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       const nextPage = tablePage + 1;
 
       try {
-        const parameters = getFormattedParameters();
-        const query = `${chart.query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${nextPage * TABLE_PAGE_SIZE}`;
+        const query = paginateQuery(chart.query, nextPage);
         const response = await fetch(`/api/projects/${projectId}/sql`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -35,15 +35,20 @@ use super::{
     span_attributes::{
         AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_AGENT_NAME,
         GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
-        GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
-        GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
-        GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
-        GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
-        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
-        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, GEN_AI_USAGE_INPUT_TOKENS_CACHED,
-        GEN_AI_USAGE_OUTPUT_TOKENS_REASONING, GEN_AI_USAGE_REASONING_TOKENS,
-        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE, TRACE_NAME,
-        USER_ID,
+        GEN_AI_MEMORY_QUERY_TEXT, GEN_AI_MEMORY_RECORDS, GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST,
+        GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS, GEN_AI_PROVIDER_NAME,
+        GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_RETRIEVAL_DOCUMENTS,
+        GEN_AI_RETRIEVAL_QUERY_TEXT, GEN_AI_SYSTEM, GEN_AI_SYSTEM_INSTRUCTIONS,
+        GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT, GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST,
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS, GEN_AI_USAGE_AUDIO_INPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS, GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
+        GEN_AI_USAGE_INPUT_TOKENS_CACHED, GEN_AI_USAGE_OUTPUT_TOKENS_REASONING,
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_DOTTED, GEN_AI_USAGE_REASONING_TOKENS,
+        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_RELEASE, SPAN_TYPE,
+        TRACE_NAME, USER_ID,
     },
     utils::skip_span_name,
 };
@@ -67,6 +72,8 @@ const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent
 const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
 
 const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
+/// Matches the SDK's cap on `lmnr.span.release`.
+const MAX_RELEASE_CHARS: usize = 128;
 
 static GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap());
@@ -189,6 +196,21 @@ impl SpanAttributes {
         self.string_attr(TRACE_NAME).filter(|name| !name.is_empty())
     }
 
+    /// Release of the emitting code. A full 40-hex git SHA is cut to its
+    /// lowercase 7-char short form, so full and short SHAs of the same
+    /// commit are one release.
+    pub fn release(&self) -> Option<String> {
+        let release = self.string_attr(SPAN_RELEASE)?;
+        let release = release.trim();
+        if release.is_empty() {
+            return None;
+        }
+        if release.len() == 40 && release.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Some(release[..7].to_ascii_lowercase());
+        }
+        Some(release.chars().take(MAX_RELEASE_CHARS).collect())
+    }
+
     pub fn trace_type(&self) -> Option<TraceType> {
         self.raw_attributes
             .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
@@ -231,6 +253,22 @@ impl SpanAttributes {
         self.normalize_if_absent(
             GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
             GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_DOTTED,
+            GEN_AI_USAGE_REASONING_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_AUDIO_INPUT_TOKENS_DOTTED,
+            GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS_DOTTED,
+            GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
         );
         self.normalize_if_absent(
             GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
@@ -411,43 +449,13 @@ impl SpanAttributes {
         }
     }
 
-    pub fn provider_name(&self, span_name: &str) -> Option<String> {
+    pub fn provider_name(&self) -> Option<String> {
         let name = if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_SYSTEM) {
-            // For several versions prior to https://github.com/traceloop/openllmetry/pull/3165
-            // and thus before `opentelemetry-instrumentation-langchain` 0.43.1, OpenLLMetry used
-            // to send the provider name as "Langchain" and the actual provider.
-
-            // TODO: Since `lmnr 0.7.2` in Python, we have upgraded to OpenLLMetry >= 0.44.0,
-            // which correctly sends the provider name as the actual provider name, so
-            // this logic can be removed in a few months. We should also stop passing
-            // the span name all the way to here when we remove this logic.
-            if provider.to_lowercase().trim() == "langchain" {
-                // In some old versions, they would add an association property `ls_provider`
-                // to the span attributes.
-                let ls_provider = self
-                    .raw_attributes
-                    .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
-                    .and_then(|s: &Value| serde_json::from_value(s.clone()).ok());
-                if let Some(ls_provider) = ls_provider {
-                    ls_provider
-                } else if span_name.contains(".")
-                    && span_name.to_lowercase().trim().starts_with("chat")
-                {
-                    // If there is no `ls_provider` attribute, we can try to extract the provider
-                    // name from the span name.
-                    span_name
-                        .to_lowercase()
-                        .replacen("chat", "", 1)
-                        .split(".")
-                        .next()
-                        .map(String::from)
-                } else {
-                    Some(provider.clone())
-                }
-            } else {
-                // handling the cases when provider is sent like "anthropic.messages"
-                provider.split('.').next().map(String::from)
-            }
+            // handling the cases when provider is sent like "anthropic.messages"
+            provider.split('.').next().map(String::from)
+        } else if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_PROVIDER_NAME)
+        {
+            Some(semconv_provider_to_cost_provider(provider).to_string())
         } else {
             None
         };
@@ -685,6 +693,13 @@ impl SpanAttributes {
         entity: &str,
     ) -> HashMap<String, Value> {
         let mut res = HashMap::new();
+        // A single structured (kvlist) attribute; flattened keys below win on conflict.
+        if let Some(Value::Object(map)) = self
+            .raw_attributes
+            .get(&format!("{attribute_prefix}.{entity}"))
+        {
+            res.extend(map.iter().map(|(k, v)| (k.clone(), v.clone())));
+        }
         let prefix = format!("{attribute_prefix}.{entity}.");
         for (key, value) in self.raw_attributes.iter() {
             if key.starts_with(&prefix) {
@@ -908,8 +923,8 @@ impl Span {
             .get(GEN_AI_OPERATION_NAME)
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        if let Some(op) = op {
-            let new_name = match op.as_str() {
+        if let Some(op) = op.as_deref() {
+            let new_name = match op {
                 "execute_tool" => self.attributes.raw_attributes.get(GEN_AI_TOOL_NAME),
                 "invoke_agent" => self.attributes.raw_attributes.get(GEN_AI_AGENT_NAME),
                 _ => None,
@@ -927,6 +942,32 @@ impl Span {
                     );
                     self.name = new_name;
                 }
+            }
+        }
+
+        // OTel GenAI retrieval / memory spans keep their Default type; only their content is
+        // lifted into input/output. Query texts are plain strings, so they are not JSON-parsed.
+        let raw_attributes = &mut self.attributes.raw_attributes;
+        let search_keys = match op.as_deref() {
+            Some("retrieval") => Some((GEN_AI_RETRIEVAL_QUERY_TEXT, GEN_AI_RETRIEVAL_DOCUMENTS)),
+            Some("search_memory") => Some((GEN_AI_MEMORY_QUERY_TEXT, GEN_AI_MEMORY_RECORDS)),
+            _ => None,
+        };
+        if let Some((query_key, results_key)) = search_keys {
+            if let Some(query) = raw_attributes.remove(query_key) {
+                self.input = Some(query);
+            }
+            if let Some(results) = raw_attributes.remove(results_key) {
+                self.output = Some(parse_genai_messages_attribute(&results));
+            }
+        }
+        // On writes, `gen_ai.memory.records` holds what the caller asked to store.
+        if matches!(
+            op.as_deref(),
+            Some("create_memory" | "update_memory" | "upsert_memory")
+        ) {
+            if let Some(records) = raw_attributes.remove(GEN_AI_MEMORY_RECORDS) {
+                self.input = Some(parse_genai_messages_attribute(&records));
             }
         }
 
@@ -1073,12 +1114,14 @@ impl Span {
         // Both keys are `remove`d, not read: the value is copied into
         // `span.input` / `span.output`, and `should_keep_attribute` drops them
         // before they reach ClickHouse anyway — so keeping them would only
-        // duplicate the payload over the queue. A non-string value is dropped
-        // too; nothing downstream reads either key.
-        if let Some(serde_json::Value::String(s)) =
-            self.attributes.raw_attributes.remove(INPUT_ATTRIBUTE_NAME)
+        // duplicate the payload over the queue. Strings are JSON-parsed; structured
+        // (AnyValue kvlist/array) values are taken verbatim.
+        if let Some(input) = self
+            .attributes
+            .raw_attributes
+            .remove(INPUT_ATTRIBUTE_NAME)
+            .and_then(parse_lmnr_payload_attribute)
         {
-            let input = serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s));
             if self.is_llm_span() {
                 let input_messages = input_chat_messages_from_json(&input);
                 if let Ok(input_messages) = input_messages {
@@ -1090,12 +1133,14 @@ impl Span {
                 self.input = Some(input);
             }
         }
-        if let Some(serde_json::Value::String(s)) =
-            self.attributes.raw_attributes.remove(OUTPUT_ATTRIBUTE_NAME)
+        if let Some(output) = self
+            .attributes
+            .raw_attributes
+            .remove(OUTPUT_ATTRIBUTE_NAME)
+            .and_then(parse_lmnr_payload_attribute)
         {
             // TODO: try parse output as ChatMessage with tool calls
-            self.output =
-                Some(serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)));
+            self.output = Some(output);
         }
 
         if let Some(TracingLevel::MetaOnly) = self.attributes.tracing_level() {
@@ -1248,6 +1293,22 @@ impl Span {
             return true;
         }
         false
+    }
+}
+
+/// Maps the OTel well-known `gen_ai.provider.name` values that differ from the provider
+/// prefixes in `model_costs` (e.g. `aws.bedrock` -> `bedrock`). Other values pass through.
+fn semconv_provider_to_cost_provider(provider: &str) -> &str {
+    match provider.to_lowercase().trim() {
+        "aws.bedrock" => "bedrock",
+        "gcp.vertex_ai" => "vertex_ai",
+        "gcp.gemini" => "gemini",
+        "azure.ai.openai" => "azure",
+        "azure.ai.inference" => "azure_ai",
+        "mistral_ai" => "mistral",
+        "x_ai" => "xai",
+        "ibm.watsonx.ai" => "watsonx",
+        _ => provider,
     }
 }
 
@@ -1466,6 +1527,16 @@ pub(super) fn parse_genai_messages_attribute(value: &Value) -> Value {
             serde_json::from_str::<Value>(s).unwrap_or_else(|_| Value::String(s.clone()))
         }
         other => other.clone(),
+    }
+}
+
+/// `lmnr.span.input` / `lmnr.span.output`: a JSON string from our SDKs, or a structured
+/// AnyValue from other emitters. An empty AnyValue (`null`) means no payload.
+fn parse_lmnr_payload_attribute(value: Value) -> Option<Value> {
+    match value {
+        Value::Null => None,
+        Value::String(s) => Some(serde_json::from_str::<Value>(&s).unwrap_or(Value::String(s))),
+        other => Some(other),
     }
 }
 
@@ -1731,13 +1802,55 @@ fn rename_last_span_in_path(attributes: &mut HashMap<String, Value>, from: &str,
 mod tests {
     use super::*;
     use crate::{
-        opentelemetry_proto::opentelemetry_proto_common_v1::{AnyValue, KeyValue, any_value},
+        opentelemetry_proto::opentelemetry_proto_common_v1::{
+            AnyValue, ArrayValue, KeyValue, KeyValueList, any_value,
+        },
         traces::span_attributes::{
             GEN_AI_COMPLETION, GEN_AI_PROMPT, OPENROUTER_SPAN_INPUT, OPENROUTER_SPAN_OUTPUT,
             OPENROUTER_SPAN_TYPE,
         },
     };
     use serde_json::json;
+
+    fn release_of(value: Value) -> Option<String> {
+        SpanAttributes::new(HashMap::from([(SPAN_RELEASE.to_string(), value)])).release()
+    }
+
+    #[test]
+    fn release_cuts_full_sha_to_short_lowercase() {
+        assert_eq!(
+            release_of(json!("0123456789ABCDEF0123456789abcdef01234567")),
+            Some("0123456".to_string())
+        );
+        assert_eq!(
+            release_of(json!("  0123456789abcdef0123456789abcdef01234567\n")),
+            Some("0123456".to_string())
+        );
+    }
+
+    #[test]
+    fn release_keeps_other_values_verbatim() {
+        assert_eq!(release_of(json!("abc1234")), Some("abc1234".to_string()));
+        assert_eq!(release_of(json!("ABC1234")), Some("ABC1234".to_string()));
+        assert_eq!(release_of(json!("agent:42")), Some("agent:42".to_string()));
+        // 41 hex chars is not a SHA-1.
+        let not_sha = "0".repeat(41);
+        assert_eq!(release_of(json!(not_sha)), Some(not_sha));
+    }
+
+    #[test]
+    fn release_drops_empty_and_non_string_values() {
+        assert_eq!(release_of(json!("")), None);
+        assert_eq!(release_of(json!("   ")), None);
+        assert_eq!(release_of(json!(42)), None);
+        assert_eq!(SpanAttributes::default().release(), None);
+    }
+
+    #[test]
+    fn release_is_capped() {
+        let release = release_of(json!("é".repeat(500))).unwrap();
+        assert_eq!(release.chars().count(), MAX_RELEASE_CHARS);
+    }
 
     #[test]
     fn test_parse_and_enrich_attributes_openai() {
@@ -4713,6 +4826,222 @@ mod tests {
         assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
     }
 
+    fn to_any_value(value: any_value::Value) -> AnyValue {
+        AnyValue { value: Some(value) }
+    }
+
+    fn string_any_value(s: &str) -> AnyValue {
+        to_any_value(any_value::Value::StringValue(s.to_string()))
+    }
+
+    fn kvlist_any_value(entries: Vec<(&str, AnyValue)>) -> AnyValue {
+        to_any_value(any_value::Value::KvlistValue(KeyValueList {
+            values: entries
+                .into_iter()
+                .map(|(key, value)| KeyValue {
+                    key: key.to_string(),
+                    value: Some(value),
+                })
+                .collect(),
+        }))
+    }
+
+    #[test]
+    fn structured_otel_attributes_feed_input_output_and_metadata() {
+        let otel = OtelSpan {
+            trace_id: vec![1u8; 16],
+            span_id: vec![2u8; 8],
+            name: "plan_trip".to_string(),
+            attributes: vec![
+                KeyValue {
+                    key: INPUT_ATTRIBUTE_NAME.to_string(),
+                    value: Some(kvlist_any_value(vec![
+                        ("goal", string_any_value("fly")),
+                        (
+                            "stops",
+                            to_any_value(any_value::Value::ArrayValue(ArrayValue {
+                                values: vec![
+                                    to_any_value(any_value::Value::IntValue(1)),
+                                    to_any_value(any_value::Value::IntValue(2)),
+                                ],
+                            })),
+                        ),
+                    ])),
+                },
+                KeyValue {
+                    key: OUTPUT_ATTRIBUTE_NAME.to_string(),
+                    value: Some(kvlist_any_value(vec![(
+                        "done",
+                        to_any_value(any_value::Value::BoolValue(true)),
+                    )])),
+                },
+                KeyValue {
+                    key: format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata"),
+                    value: Some(kvlist_any_value(vec![("team", string_any_value("core"))])),
+                },
+            ],
+            ..Default::default()
+        };
+
+        let mut span = Span::from_otel_span(otel, Uuid::new_v4());
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(json!({"goal": "fly", "stops": [1, 2]})));
+        assert_eq!(span.output, Some(json!({"done": true})));
+        let metadata = span.attributes.metadata().expect("metadata expected");
+        assert_eq!(metadata.get("team"), Some(&json!("core")));
+    }
+
+    #[test]
+    fn empty_lmnr_span_input_does_not_set_input() {
+        let attributes = HashMap::from([(INPUT_ATTRIBUTE_NAME.to_string(), Value::Null)]);
+        let mut span = Span {
+            span_type: SpanType::Default,
+            ..make_llm_span(attributes)
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, None);
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key(INPUT_ATTRIBUTE_NAME)
+        );
+    }
+
+    #[test]
+    fn structured_metadata_merges_with_flattened_keys() {
+        let attributes = HashMap::from([
+            (
+                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata"),
+                json!({"env": "prod", "score": 1}),
+            ),
+            (
+                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.score"),
+                json!(2),
+            ),
+            ("ai.telemetry.metadata".to_string(), json!({"run": "r1"})),
+        ]);
+
+        let metadata = SpanAttributes::new(attributes)
+            .metadata()
+            .expect("metadata expected");
+
+        assert_eq!(metadata.get("env"), Some(&json!("prod")));
+        assert_eq!(metadata.get("score"), Some(&json!(2)));
+        assert_eq!(metadata.get("run"), Some(&json!("r1")));
+    }
+
+    #[test]
+    fn test_newer_semconv_usage_spellings_normalize_to_legacy_keys() {
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(100)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(50)),
+            (
+                "gen_ai.usage.cache_write.input_tokens".to_string(),
+                json!(25),
+            ),
+            (
+                "gen_ai.usage.reasoning.output_tokens".to_string(),
+                json!(20),
+            ),
+            ("gen_ai.usage.audio.input_tokens".to_string(), json!(10)),
+            ("gen_ai.usage.audio.output_tokens".to_string(), json!(5)),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(25))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_USAGE_REASONING_TOKENS),
+            Some(&json!(20))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_USAGE_AUDIO_INPUT_TOKENS),
+            Some(&json!(10))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS),
+            Some(&json!(5))
+        );
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.cache_write_tokens, 25);
+        assert_eq!(input_tokens.regular_input_tokens, 75);
+    }
+
+    fn make_default_span(name: &str, attributes: HashMap<String, Value>) -> Span {
+        let attributes = SpanAttributes::new(attributes);
+        Span {
+            name: name.to_string(),
+            span_type: attributes.span_type(),
+            attributes,
+            ..make_llm_span(HashMap::new())
+        }
+    }
+
+    #[test]
+    fn test_gen_ai_retrieval_span_content() {
+        let mut span = make_default_span(
+            "retrieval docs_store",
+            HashMap::from([
+                ("gen_ai.operation.name".to_string(), json!("retrieval")),
+                (
+                    "gen_ai.retrieval.query.text".to_string(),
+                    json!("capital of France"),
+                ),
+                (
+                    "gen_ai.retrieval.documents".to_string(),
+                    json!(r#"[{"id": "doc_1", "score": 0.9}]"#),
+                ),
+            ]),
+        );
+        assert_eq!(span.span_type, SpanType::Default);
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(json!("capital of France")));
+        assert_eq!(span.output, Some(json!([{"id": "doc_1", "score": 0.9}])));
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.retrieval.documents")
+        );
+    }
+
+    #[test]
+    fn test_gen_ai_memory_span_content() {
+        let records = json!([{"id": "m1", "content": "prefers aisle seats"}]);
+
+        let mut search = make_default_span(
+            "search_memory",
+            HashMap::from([
+                ("gen_ai.operation.name".to_string(), json!("search_memory")),
+                ("gen_ai.memory.query.text".to_string(), json!("seat")),
+                ("gen_ai.memory.records".to_string(), records.clone()),
+            ]),
+        );
+        search.parse_and_enrich_attributes();
+        assert_eq!(search.span_type, SpanType::Default);
+        assert_eq!(search.input, Some(json!("seat")));
+        assert_eq!(search.output, Some(records.clone()));
+
+        let mut create = make_default_span(
+            "create_memory",
+            HashMap::from([
+                ("gen_ai.operation.name".to_string(), json!("create_memory")),
+                ("gen_ai.memory.records".to_string(), records.clone()),
+            ]),
+        );
+        create.parse_and_enrich_attributes();
+        assert_eq!(create.input, Some(records));
+        assert_eq!(create.output, None);
+    }
+
     // Payloads copied verbatim from a real Broadcast trace of a tool-calling turn.
     const OPENROUTER_PROMPT: &str = r#"{"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":null,"refusal":null,"tool_calls":[{"type":"function","index":0,"id":"call_3Fd7i9rG","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},{"role":"tool","tool_call_id":"call_3Fd7i9rG","content":"14°C, light rain."}]}"#;
     const OPENROUTER_COMPLETION: &str = r#"{"completion":"It is 14°C with light rain in Paris.","reasoning":null,"toolCalls":[],"rawRequest":{"model":"openai/gpt-4o-mini","_skin":"chat-completions"}}"#;
@@ -4870,5 +5199,46 @@ mod tests {
         unmarked.remove("trace.metadata.openrouter.provider_name");
         let span = Span::from_otel_span(otel_span("chat", unmarked), Uuid::new_v4());
         assert_eq!(span.span_type, SpanType::LLM);
+    }
+
+    #[test]
+    fn test_provider_name_falls_back_to_gen_ai_provider_name() {
+        let provider = |attrs: Vec<(&str, Value)>| {
+            SpanAttributes::new(attrs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+                .provider_name()
+        };
+
+        // anthropic >= 1.14's native spans set only `gen_ai.provider.name`.
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("anthropic"))]),
+            Some("anthropic".to_string())
+        );
+        // Well-known dotted values map to the `model_costs` provider prefixes.
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("aws.bedrock"))]),
+            Some("bedrock".to_string())
+        );
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("gcp.vertex_ai"))]),
+            Some("vertex_ai".to_string())
+        );
+        assert_eq!(
+            provider(vec![(GEN_AI_PROVIDER_NAME, json!("azure.ai.openai"))]),
+            Some("azure".to_string())
+        );
+        // `gen_ai.system` still wins when both are set.
+        assert_eq!(
+            provider(vec![
+                (GEN_AI_SYSTEM, json!("Anthropic")),
+                (GEN_AI_PROVIDER_NAME, json!("aws.bedrock")),
+            ]),
+            Some("anthropic".to_string())
+        );
+        // Dotted `gen_ai.system` values keep only the first segment.
+        assert_eq!(
+            provider(vec![(GEN_AI_SYSTEM, json!("openai.chat"))]),
+            Some("openai".to_string())
+        );
+        assert_eq!(provider(vec![]), None);
     }
 }

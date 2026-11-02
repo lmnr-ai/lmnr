@@ -64,7 +64,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
 
   return (
     <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
-      <div className="flex">
+      <div className="flex items-center gap-1">
         <ViewToggle
           tab={mode}
           onTabChange={handleTabChange}

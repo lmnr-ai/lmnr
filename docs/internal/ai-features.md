@@ -42,7 +42,7 @@
 
 ## Vercel AI SDK (v7)
 
-- The frontend is on `ai` v7 (`@ai-sdk/*` providers at 4.x, `@ai-sdk/react` 4.x, `@ai-sdk/amazon-bedrock` 5.x). Playground chat and all server-side AI features go through it.
+- The frontend is on `ai` v7 (`@ai-sdk/*` providers at 4.x, `@ai-sdk/amazon-bedrock` 5.x). Playground chat and all server-side AI features go through it.
 - **`LanguageModelUsage` is nested in v7** (was flat in v5). Shape: `{ inputTokens, inputTokenDetails: { noCacheTokens, cacheReadTokens, cacheWriteTokens }, outputTokens, outputTokenDetails: { textTokens, reasoningTokens }, totalTokens }`. Cached-input and reasoning tokens live UNDER `inputTokenDetails`/`outputTokenDetails` — there is no top-level `cachedInputTokens`/`reasoningTokens`. Any literal usage object (store initial state, fallbacks) must use this nested shape or it won't type-check.
 - **`GenerateTextResult` takes THREE generics in v7**: `GenerateTextResult<TOOLS extends ToolSet, RUNTIME_CONTEXT extends Context, OUTPUT extends Output>`. We use `GenerateTextResult<ToolSet, Record<string, never>, never>`. `Context` is NOT re-exported from `ai` (it lives in `@ai-sdk/provider-utils`); use `Record<string, never>` for the runtime-context slot rather than importing it.
 - `GenerateTextResult` has both `usage` and a deprecated `totalUsage` (both `LanguageModelUsage`). Prefer `result.usage` for display; `totalUsage` is only kept where the struct requires it.

@@ -17,6 +17,7 @@ import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
+import { BUILT_IN_PARAMETERS, findParameterRefs } from "@/components/sql/parameters";
 import {
   ClickHouseDialect,
   clickhouseFunctions,
@@ -36,9 +37,9 @@ export const enumValues = {
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
-export type EnumType = keyof typeof enumValues;
+type EnumType = keyof typeof enumValues;
 
-export interface ColumnSchema {
+interface ColumnSchema {
   name: string;
   type: string;
   description: string;
@@ -57,7 +58,7 @@ export interface SQLSchemaConfig {
 }
 
 // Source of truth for the SQL editor schema (autocomplete + AI prompt schema text).
-export const tableSchemas: Record<string, TableSchema> = {
+const tableSchemas: Record<string, TableSchema> = {
   spans: {
     description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
     columns: [
@@ -217,6 +218,12 @@ export const tableSchemas: Record<string, TableSchema> = {
         description:
           "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
       },
+      {
+        name: "release",
+        type: "String",
+        description:
+          "Release of the code that produced the trace, as sent by the SDK (usually the short git SHA). Empty when the SDK sent none",
+      },
     ],
   },
   trace_outputs: {
@@ -246,6 +253,11 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task id evaluations group trials by; unique within the dataset",
+      },
     ],
   },
   dataset_datapoint_versions: {
@@ -262,28 +274,39 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task id evaluations group trials by; unique within the dataset",
+      },
     ],
   },
-  evaluation_datapoints: {
-    description: "Results from evaluations including scores, executor output, and trace data",
+  evaluation_trials: {
+    description:
+      "Results from evaluations, one row per trial, including scores, executor output, and trace data. `evaluation_datapoints` is an alias",
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
       { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
       { name: "evaluation_name", type: "String", description: "Name of the evaluation" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was first saved" },
       { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
       { name: "executor_output", type: "String", description: "Output from the executor" },
       { name: "index", type: "UInt64", description: "Index of the evaluation datapoint within the evaluation" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+      },
       { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
         name: "scores",
         type: "String",
         description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
       },
-      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the datapoint was last updated" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was last updated" },
       {
         name: "dataset_id",
         type: "UUID",
@@ -439,6 +462,30 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "created_at", type: "DateTime64(6)", description: "When the dataset was created" },
     ],
   },
+  dashboards: {
+    description: "Project dashboards stored in Postgres. Join to dashboard_charts on dashboards.id = dashboard_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dashboard" },
+      { name: "name", type: "String", description: "Dashboard name" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dashboard was created" },
+    ],
+  },
+  dashboard_charts: {
+    description:
+      "Charts on project dashboards, stored in Postgres. The grid is 12 columns wide; settings.layout holds {x, y, w, h} in grid units",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the chart" },
+      { name: "dashboard_id", type: "UUID", description: "Id of the dashboard the chart is on" },
+      { name: "name", type: "String", description: "Chart title" },
+      { name: "query", type: "String", description: "SQL the chart runs, with time-range parameters" },
+      {
+        name: "settings",
+        type: "String",
+        description: "Chart settings as a JSON object: {config, layout, queryStructure}",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the chart was created" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [
@@ -555,6 +602,30 @@ const customCompletions = (textBefore: string, searchTerm: string) => {
   return [...buildEnumOptions(allEnumTypes, searchTerm, (v) => `'${v}'`), ...clickhouseFunctionCompletions(searchTerm)];
 };
 
+// --- Query parameters ---------------------------------------------------------
+// Completing on `{` is the main way anyone discovers parameters exist, so it offers the built-ins
+// plus any name already in the query, and applies the full `{name:Type}` form.
+const parameterCompletions = (docText: string, partial: string) => {
+  const declared = new Map<string, string>(
+    Object.entries(BUILT_IN_PARAMETERS).map(([name, spec]) => [name, spec.declaredType])
+  );
+  for (const ref of findParameterRefs(docText)) {
+    if (!declared.has(ref.name)) declared.set(ref.name, ref.declaredType);
+  }
+
+  return Array.from(declared.entries())
+    .filter(([name]) => matchesSearch(name, partial))
+    .map(([name, declaredType]) => ({
+      label: `{${name}:${declaredType}}`,
+      type: "variable",
+      detail: "parameter",
+      info:
+        BUILT_IN_PARAMETERS[name]?.description ??
+        "Query parameter. Give it a value in the parameters bar below the editor.",
+      apply: `{${name}:${declaredType}}`,
+    }));
+};
+
 // --- Sorting -----------------------------------------------------------------
 const relevanceScore = (label: string, search: string) => {
   const a = label.toLowerCase();
@@ -569,10 +640,20 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
       relevanceScore(a.label, searchTerm) - relevanceScore(b.label, searchTerm) || a.label.localeCompare(b.label)
   );
 
+// Old names the query engine still accepts. Kept out of `tableSchemas` so autocomplete and
+// the AI prompt list each table once; `config.tables` may still scope by the old name.
+const tableAliases: Record<string, string> = {
+  evaluation_datapoints: "evaluation_trials",
+};
+
 // Filters default tables to `config.tables` (if set) and merges `customTables`.
 export function resolveTableSchemas(config?: SQLSchemaConfig): Record<string, TableSchema> {
   const base = config?.tables
-    ? Object.fromEntries(config.tables.filter((t) => t in tableSchemas).map((t) => [t, tableSchemas[t]]))
+    ? Object.fromEntries(
+        config.tables
+          .map((t) => [t, tableSchemas[t] ?? tableSchemas[tableAliases[t]]] as const)
+          .filter(([, schema]) => schema !== undefined)
+      )
     : { ...tableSchemas };
   return config?.customTables ? { ...base, ...config.customTables } : base;
 }
@@ -680,6 +761,13 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
         options: sortByRelevance(options, partialText),
         validFor: /^\w*$/,
       };
+    }
+
+    const brace = context.matchBefore(/\{\w*/);
+    if (brace) {
+      const options = parameterCompletions(context.state.doc.toString(), brace.text.slice(1).toLowerCase());
+      if (options.length === 0) return null;
+      return { from: brace.from, options, validFor: /^\{\w*$/ };
     }
 
     const word = context.matchBefore(/\w*/);
@@ -892,6 +980,14 @@ const autocompleteStyles = {
     fontWeight: "600",
     fontSize: "11px",
   },
+  ".cm-completionIcon-variable": {
+    color: "hsl(var(--primary))",
+  },
+  ".cm-completionIcon-variable::after": {
+    content: "'{}'",
+    fontSize: "10px",
+    fontWeight: "600",
+  },
   ".cm-completionLabel": {
     color: "var(--color-foreground)",
   },
@@ -935,6 +1031,8 @@ const signatureHelpStyles = {
   },
   ".signature-help": {
     padding: "6px 10px !important",
+    // The theme is declared dark, so CodeMirror's base tooltip text is white in light mode too.
+    color: "var(--color-foreground)",
     background: "var(--color-background)",
     border: "1px solid var(--color-border)",
     borderRadius: "6px",
@@ -989,7 +1087,7 @@ const signatureHelpStyles = {
 };
 
 // Combined editor theme
-export const editorTheme = EditorView.theme({
+const editorTheme = EditorView.theme({
   ...editorBaseStyles,
   ...syntaxHighlightStyles,
   ...autocompleteStyles,

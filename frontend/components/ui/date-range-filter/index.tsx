@@ -129,7 +129,7 @@ const AbsoluteDatePicker = ({
   </motion.div>
 );
 
-export const DateRangeFilterInner = ({
+const DateRangeFilterInner = ({
   disabled = [{ after: new Date() }, { before: subYears(new Date(), 1) }],
   buttonDisabled = false,
   className,
@@ -264,6 +264,4 @@ export default function DateRangeFilter({
     </DateRangeFilterProvider>
   );
 }
-
-export { DateRangeFilterProvider } from "./store";
 export { type DateRange } from "./utils";

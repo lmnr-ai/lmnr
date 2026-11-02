@@ -1,4 +1,4 @@
-export type OnboardingTier = "free" | "hobby" | "pro";
+type OnboardingTier = "free" | "hobby" | "pro";
 
 export interface OnboardingFormValues {
   workspaceName: string;

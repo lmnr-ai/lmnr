@@ -1,6 +1,6 @@
 import type { FunctionSignature } from "./types";
 
-export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
+const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
   // Array functions
   arrayMap: {
     name: "arrayMap",

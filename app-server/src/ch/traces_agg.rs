@@ -222,7 +222,7 @@ impl CHTraceAgg {
             trace_types: vec![trace_type_enum_value(agg.trace_type)],
             signal_events: Vec::new(),
             cluster_ids: Vec::new(),
-            agent_versions: Vec::new(),
+            agent_versions: agg.agent_versions.clone(),
         }
     }
 

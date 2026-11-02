@@ -1,5 +1,6 @@
-//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent's `query_sql`
-//! system prompt (`agent::prompts`) and the MCP `query_laminar_sql` tool description (`api::v1::mcp`).
+//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
+//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
 //! generation. The caller writes LOGICAL table names; the query engine rewrites them to
@@ -243,6 +244,11 @@ const TABLES: &[Table] = &[
                 "Array(Tuple(agent_hash String, version_hash String, model String))",
                 "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
             ),
+            col(
+                "release",
+                "String",
+                "Release of the code that produced the trace, as sent by the SDK (usually the short git SHA, 7 lowercase hex chars). Empty when the SDK sent none",
+            ),
         ],
     },
     Table {
@@ -264,8 +270,9 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
-        name: "evaluation_datapoints",
-        description: "Results from evaluations: scores, executor output, and denormalized trace data.",
+        name: "evaluation_trials",
+        description: "Results from evaluations, one row per trial: scores, executor output, and denormalized trace data. \
+               `evaluation_datapoints` is an alias for this table.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation datapoint"),
             col("evaluation_id", "UUID", "Id of the evaluation"),
@@ -274,7 +281,7 @@ const TABLES: &[Table] = &[
             col(
                 "created_at",
                 "DateTime64(9,'UTC')",
-                "When the datapoint was created",
+                "When the Trial was first saved",
             ),
             col(
                 "data",
@@ -297,6 +304,11 @@ const TABLES: &[Table] = &[
                 "Executor output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col("index", "UInt64", "Index within the evaluation"),
+            col(
+                "task_id",
+                "String",
+                "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+            ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",
@@ -317,7 +329,7 @@ const TABLES: &[Table] = &[
             col(
                 "updated_at",
                 "DateTime64(9,'UTC')",
-                "When the datapoint was last updated",
+                "When the Trial was last updated",
             ),
             // Everything below is denormalized from the associated trace; all
             // are nil/empty/zero when the datapoint has no trace.
@@ -400,6 +412,11 @@ const TABLES: &[Table] = &[
                 "String",
                 "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
+            col(
+                "task_id",
+                "String",
+                "Task id evaluations group trials by; unique within the dataset",
+            ),
         ],
     },
     Table {
@@ -425,6 +442,11 @@ const TABLES: &[Table] = &[
                 "metadata",
                 "String",
                 "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "task_id",
+                "String",
+                "Task id evaluations group trials by; unique within the dataset",
             ),
         ],
     },
@@ -604,7 +626,7 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "evaluations",
-        description: "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id; for just the name, use evaluation_datapoints.evaluation_name.",
+        description: "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_trials on evaluations.id = evaluation_id; for just the name, use evaluation_trials.evaluation_name.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation"),
             col("name", "String", "Evaluation name"),
@@ -637,6 +659,43 @@ const TABLES: &[Table] = &[
                 "DateTime64(6)",
                 "When the dataset was created",
             ),
+        ],
+    },
+    Table {
+        name: "dashboards",
+        description: "Project dashboards stored in Postgres. Join to dashboard_charts on dashboards.id = dashboard_id.",
+        columns: &[
+            col("id", "UUID", "Unique id of the dashboard"),
+            col("name", "String", "Dashboard name"),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the dashboard was created",
+            ),
+        ],
+    },
+    Table {
+        name: "dashboard_charts",
+        description: "Charts on project dashboards, stored in Postgres. The grid is 12 columns wide; a chart's position is settings.layout {x, y, w, h} in grid units.",
+        columns: &[
+            col("id", "UUID", "Unique id of the chart"),
+            col(
+                "dashboard_id",
+                "UUID",
+                "Id of the dashboard the chart is on",
+            ),
+            col("name", "String", "Chart title"),
+            col(
+                "query",
+                "String",
+                "SQL the chart runs, with {start_time:DateTime64} / {end_time:DateTime64} / {interval_unit:String} parameters",
+            ),
+            col(
+                "settings",
+                "String",
+                "Chart settings as a JSON object: {config, layout, queryStructure}. Read fields with JSONExtract, e.g. JSONExtractInt(settings, 'layout', 'y')",
+            ),
+            col("created_at", "DateTime64(6)", "When the chart was created"),
         ],
     },
     Table {
@@ -682,7 +741,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in both the agent system prompt and the MCP tool description.
+/// Embedded verbatim in the MCP tool description.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
@@ -716,7 +775,7 @@ mod tests {
         for table in [
             "spans",
             "traces",
-            "evaluation_datapoints",
+            "evaluation_trials",
             "signal_events",
             "clusters",
             "signal_runs",
@@ -724,6 +783,8 @@ mod tests {
             "signals",
             "evaluations",
             "datasets",
+            "dashboards",
+            "dashboard_charts",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

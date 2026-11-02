@@ -31,7 +31,7 @@ interface RawSearchSuggestion {
 
 export type Suggestion = FieldSuggestion | ValueSuggestion | RawSearchSuggestion;
 
-export const buildSuggestions = (
+const buildSuggestions = (
   inputValue: string,
   filters: ColumnFilter[],
   autocompleteData: Map<string, string[]>,

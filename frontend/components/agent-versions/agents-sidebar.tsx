@@ -31,8 +31,8 @@ export default function AgentsSidebar({ projectId, agents, isLoading, selectedId
   // Keeps the chart's range params across agents.
   const agentHref = (agentId: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("agentId", agentId);
-    return `/project/${projectId}/agent-versions?${params.toString()}`;
+    const query = params.toString();
+    return `/project/${projectId}/agent-versions/${agentId}${query ? `?${query}` : ""}`;
   };
 
   return (

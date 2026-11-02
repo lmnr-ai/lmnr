@@ -41,8 +41,8 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
           ...group,
           items: group.items.filter(
             (m) =>
-              (m.name !== "signals" || featureFlags[Feature.SIGNALS]) &&
-              (m.name !== "home" || featureFlags[Feature.AGENT])
+              (m.name !== "Signals" || featureFlags[Feature.SIGNALS]) &&
+              (m.name !== "Agent" || featureFlags[Feature.AGENT])
           ),
         }))
         .filter((group) => group.items.length > 0),

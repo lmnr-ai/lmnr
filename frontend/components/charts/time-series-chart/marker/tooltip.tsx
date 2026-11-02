@@ -3,23 +3,10 @@
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { type PropsWithChildren } from "react";
 
-import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { Tooltip, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatTooltipTimestamp } from "@/lib/charts/time";
 
 import { type TimeSeriesMarker } from "../types";
-
-const formatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-});
-
-const formatTime = (timestamp: string): string => {
-  const date = parseUtcTimestamp(timestamp);
-  return Number.isNaN(date.getTime()) ? timestamp : formatter.format(date);
-};
 
 export default function MarkerTooltip({
   entries,
@@ -40,7 +27,7 @@ export default function MarkerTooltip({
           <div className="grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
             {rest.length === 0 ? (
               <>
-                <div className="font-medium">{formatTime(first.timestamp)}</div>
+                <div className="font-medium">{formatTooltipTimestamp(first.timestamp)}</div>
                 <span className="text-muted-foreground">{first.label}</span>
               </>
             ) : (
@@ -49,7 +36,7 @@ export default function MarkerTooltip({
                   <div key={`${entry.label}-${entry.timestamp}`} className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground">{entry.label}</span>
                     <span className="shrink-0 font-mono font-medium tabular-nums text-foreground">
-                      {formatTime(entry.timestamp)}
+                      {formatTooltipTimestamp(entry.timestamp)}
                     </span>
                   </div>
                 ))}

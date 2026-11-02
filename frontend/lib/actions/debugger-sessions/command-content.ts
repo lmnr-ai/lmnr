@@ -14,7 +14,7 @@ const nonBlankString = z
   .optional()
   .catch(undefined);
 
-export const CommandBlockContentSchema = z.object({
+const CommandBlockContentSchema = z.object({
   command: z.string().min(1),
   // All-or-nothing: a non-string element fails the whole array (→ absent) rather
   // than compacting, which would shift positional meaning (e.g. render the wrong
@@ -49,7 +49,7 @@ const SUMMARY_BUDGET = 200;
 // the subcommand + its args. `trimStart` before slicing (it only scans the
 // leading whitespace run) — a 200+ char whitespace prefix would otherwise fill
 // the whole budget and trim away to a blank summary.
-export const commandSummary = (content: CommandBlockContent): string =>
+const commandSummary = (content: CommandBlockContent): string =>
   (content.raw ?? [content.command, ...(content.args ?? [])].join(" "))
     .trimStart()
     .slice(0, SUMMARY_BUDGET)

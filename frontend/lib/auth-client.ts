@@ -17,7 +17,7 @@ export const authClient = createAuthClient({
   plugins: [genericOAuthClient(), jwtClient(), deviceAuthorizationClient()],
 });
 
-export const { signIn, signOut, useSession, getSession } = authClient;
+export const { signOut } = authClient;
 
 // Provider ids match Better Auth's registered ids exactly: github/google are
 // social providers; the rest are genericOAuth (`signIn.oauth2`).

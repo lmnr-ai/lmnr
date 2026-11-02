@@ -14,6 +14,8 @@ pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
 pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
 // pub const GEN_AI_REQUEST_IS_STREAM: &str = "gen_ai.request.is_stream";
 pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
+// Current semconv name for `gen_ai.system`; read only when `gen_ai.system` is absent.
+pub const GEN_AI_PROVIDER_NAME: &str = "gen_ai.provider.name";
 
 // This one is not in the open-telemetry specs. See:
 // https://github.com/openlit/openlit/blob/main/sdk/python/src/openlit/semcov/__init__.py#L65
@@ -35,6 +37,9 @@ pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
 /// key for static-prompt version tracking (blind to structural scaffolding,
 /// unlike the skeleton hash above).
 pub const SPAN_AGENT_HASH: &str = "lmnr.span.agent_hash";
+/// Release of the code that emitted the span (usually the git SHA), stamped
+/// by the SDK. Normalized by `SpanAttributes::release`.
+pub const SPAN_RELEASE: &str = "lmnr.span.release";
 /// Marker on virtual spans produced by `POST /v1/traces/metadata`. The
 /// consumer treats them as a metadata patch against an existing trace:
 /// the row is not written to `spans`, doesn't index in Quickwit, and
@@ -68,6 +73,13 @@ pub const GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED: &str =
     "gen_ai.usage.cache_read.input_tokens";
 pub const GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED: &str =
     "gen_ai.usage.cache_creation.input_tokens";
+// Newer semconv spellings; each is a subset of the matching `{input,output}_tokens` total.
+pub const GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_DOTTED: &str =
+    "gen_ai.usage.cache_write.input_tokens";
+pub const GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_DOTTED: &str =
+    "gen_ai.usage.reasoning.output_tokens";
+pub const GEN_AI_USAGE_AUDIO_INPUT_TOKENS_DOTTED: &str = "gen_ai.usage.audio.input_tokens";
+pub const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS_DOTTED: &str = "gen_ai.usage.audio.output_tokens";
 
 // pydantic_ai-specific keys under the `gen_ai.usage.details.*` prefix.
 pub const GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS: &str = "gen_ai.usage.details.cache_read_tokens";
@@ -109,6 +121,10 @@ pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
 pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
 pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
 pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
+pub const GEN_AI_RETRIEVAL_QUERY_TEXT: &str = "gen_ai.retrieval.query.text";
+pub const GEN_AI_RETRIEVAL_DOCUMENTS: &str = "gen_ai.retrieval.documents";
+pub const GEN_AI_MEMORY_QUERY_TEXT: &str = "gen_ai.memory.query.text";
+pub const GEN_AI_MEMORY_RECORDS: &str = "gen_ai.memory.records";
 
 // Plain trace-identity keys, read after the `lmnr.association.properties.*` ones.
 pub const SESSION_ID: &str = "session.id";

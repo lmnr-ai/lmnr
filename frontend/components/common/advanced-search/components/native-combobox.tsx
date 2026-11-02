@@ -14,12 +14,7 @@ import {
 import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils.ts";
 
-export interface ComboboxOption {
-  value: string;
-  label: string;
-}
-
-export interface FocusableRef {
+interface FocusableRef {
   focus: () => void;
 }
 

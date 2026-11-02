@@ -147,15 +147,6 @@ export const filterColumns: ColumnFilter[] = [
   },
 ];
 
-export const getDefaultTraceViewWidth = () => {
-  if (typeof window !== "undefined") {
-    const viewportWidth = window.innerWidth;
-    const seventyFivePercent = viewportWidth * 0.75;
-    return Math.min(seventyFivePercent, 1100);
-  }
-  return 1000;
-};
-
 export const onRealtimeUpdateSpans =
   (
     setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void,

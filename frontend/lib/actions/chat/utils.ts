@@ -1,7 +1,7 @@
 // Convert AI SDK message format to OpenAI format
 import { type JsonObject } from "@/lib/actions/chat/types";
 
-export function convertToOpenAIFormat(message: any): any {
+function convertToOpenAIFormat(message: any): any {
   const openAIMessage: any = {
     role: message.role,
   };

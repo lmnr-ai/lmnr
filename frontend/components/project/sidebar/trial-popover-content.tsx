@@ -27,7 +27,7 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <span className="text-[15px] font-medium text-white">You&apos;re on a free Starter trial</span>
+        <span className="text-[15px] font-medium text-foreground">You&apos;re on a free Starter trial</span>
         <span className="text-[13px] text-muted-foreground">
           We upgraded your workspace to Starter for free until {endDate}, so you can try:
         </span>

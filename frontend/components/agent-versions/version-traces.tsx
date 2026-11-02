@@ -27,7 +27,11 @@ export default function VersionTraces({ projectId, agentId, versions }: VersionT
 
   return (
     <div ref={containerRef}>
-      {data ? <VersionTracesChart versions={versions} data={data.items} /> : <Skeleton className="h-[248px] w-full" />}
+      {data ? (
+        <VersionTracesChart agentId={agentId} versions={versions} data={data.items} />
+      ) : (
+        <Skeleton className="h-[248px] w-full" />
+      )}
     </div>
   );
 }

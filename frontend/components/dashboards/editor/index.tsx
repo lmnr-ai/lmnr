@@ -5,12 +5,14 @@ import React, { useEffect } from "react";
 
 import ChartBuilder from "@/components/dashboards/editor/Builder";
 import { DashboardEditorStoreProvider } from "@/components/dashboards/editor/dashboard-editor-store";
+import { useWithTimeRange } from "@/components/dashboards/time-range";
 import { type DashboardChart } from "@/components/dashboards/types";
 import Header from "@/components/ui/header";
 import { track } from "@/lib/posthog";
 
 const DashboardEditor = ({ chart, dashboardName }: { chart?: DashboardChart; dashboardName: string }) => {
   const { chartId, dashboardId, projectId } = useParams();
+  const withTimeRange = useWithTimeRange();
 
   useEffect(() => {
     track("dashboards", "editor_opened", { is_new: chartId === "new" });
@@ -20,8 +22,8 @@ const DashboardEditor = ({ chart, dashboardName }: { chart?: DashboardChart; das
     <DashboardEditorStoreProvider chart={chart}>
       <Header
         path={[
-          { name: "Dashboards", href: `/project/${projectId}/dashboards` },
-          { name: dashboardName, href: `/project/${projectId}/dashboards/${dashboardId}` },
+          { name: "Dashboards", href: withTimeRange(`/project/${projectId}/dashboards`) },
+          { name: dashboardName, href: withTimeRange(`/project/${projectId}/dashboards/${dashboardId}`) },
           { name: chart?.name ?? "New chart" },
         ]}
       />

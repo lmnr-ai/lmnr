@@ -22,47 +22,7 @@ export const defaultThemeSettings: CreateThemeOptions["settings"] = {
   caret: "2px solid oklch(from var(--color-primary) l c h / 0.1)",
 };
 
-export const githubDarkSyntaxHighlighter = {
-  'code[class*="language-"]': {
-    color: "var(--code-text)",
-    background: "transparent",
-  },
-  'pre[class*="language-"]': {
-    color: "var(--code-text)",
-    background: "transparent",
-  },
-  comment: { color: "var(--code-muted)" },
-  prolog: { color: "var(--code-muted)" },
-  doctype: { color: "var(--code-muted)" },
-  cdata: { color: "var(--code-muted)" },
-  punctuation: { color: "var(--code-muted)" },
-  property: { color: "var(--code-purple)" },
-  tag: { color: "var(--code-green)" },
-  boolean: { color: "var(--code-orange)" },
-  number: { color: "var(--code-blue)" },
-  constant: { color: "var(--code-orange)" },
-  symbol: { color: "var(--code-orange)" },
-  deleted: { color: "var(--code-deleted)" },
-  selector: { color: "var(--code-green)" },
-  "attr-name": { color: "var(--code-blue)" },
-  string: { color: "var(--code-string)" },
-  char: { color: "var(--code-string)" },
-  builtin: { color: "var(--code-string)" },
-  inserted: { color: "var(--code-green)" },
-  operator: { color: "var(--code-blue)" },
-  entity: { color: "var(--code-blue)" },
-  url: { color: "var(--code-blue)" },
-  variable: { color: "var(--code-blue)" },
-  atrule: { color: "var(--code-red)" },
-  "attr-value": { color: "var(--code-string)" },
-  keyword: { color: "var(--code-red)" },
-  function: { color: "var(--code-purple)" },
-  "class-name": { color: "var(--code-purple)" },
-  regex: { color: "var(--code-string)" },
-  important: { color: "var(--code-red)", fontWeight: "bold" },
-};
-
-export const githubDarkStyle: CreateThemeOptions["styles"] = [
+const githubDarkStyle: CreateThemeOptions["styles"] = [
   { tag: [t.standard(t.tagName), t.tagName], color: "var(--code-green)" },
   { tag: [t.comment, t.bracket], color: "var(--code-muted)" },
   { tag: [t.className, t.propertyName], color: "var(--code-purple)" },
@@ -85,7 +45,7 @@ export const theme = createTheme({
   styles: githubDarkStyle,
 });
 
-export const spanViewStyle: CreateThemeOptions["styles"] = [
+const spanViewStyle: CreateThemeOptions["styles"] = [
   { tag: [t.standard(t.tagName), t.tagName], color: "var(--code-green)" },
   { tag: [t.comment, t.bracket], color: "var(--code-muted)" },
   { tag: [t.className], color: "var(--code-purple)" },
@@ -177,7 +137,7 @@ export interface ImageData {
 }
 
 // Image widget for displaying base64 images
-export class ImageWidget extends WidgetType {
+class ImageWidget extends WidgetType {
   constructor(
     readonly src: string,
     readonly maxHeight: number = 100

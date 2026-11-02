@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
@@ -101,6 +103,27 @@ pub trait CacheTrait {
 
     /// Release a lock
     async fn release_lock(&self, key: &str) -> Result<(), CacheError>;
+
+    /// [`Self::try_acquire_lock`], retried every `poll` for up to `wait`.
+    /// `Ok(false)` when the lock stayed held the whole time.
+    async fn acquire_lock_waiting(
+        &self,
+        key: &str,
+        ttl_seconds: u64,
+        wait: Duration,
+        poll: Duration,
+    ) -> Result<bool, CacheError> {
+        let deadline = Instant::now() + wait;
+        loop {
+            if self.try_acquire_lock(key, ttl_seconds).await? {
+                return Ok(true);
+            }
+            if Instant::now() >= deadline {
+                return Ok(false);
+            }
+            tokio::time::sleep(poll).await;
+        }
+    }
 
     /// Add a member to a sorted set with a given score
     /// Returns Ok(()) regardless of whether the member was added or already existed

@@ -1,11 +1,14 @@
 //! One cheap LLM call per new agent for a human-readable name.
 
+use anyhow::Result;
 use serde_json::Value;
 use tracing::Instrument;
 use uuid::Uuid;
 
+use super::Job;
 use crate::{
-    ch::agent_prompts::fetch_agent_doc,
+    ch::agent_prompts::{TracePrompt, fetch_agent_doc},
+    db::agent_versioning::{Agent, set_agent_name},
     env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage},
     llm::{
@@ -26,6 +29,44 @@ const NAMING_INSTRUCTION: &str = "You name AI agents. Given an agent's system pr
      purpose, e.g. 'Research Analyst' or 'Support Triage Bot'. Ignore boilerplate shared by \
      most prompts (SDK headers, environment blocks, formatting and tool-use conventions). \
      Respond ONLY by calling the name_agent tool.";
+
+impl Job {
+    /// Name the agent from `system_prompt`, else from `sample`'s span.
+    /// Retried every run until it sticks.
+    pub(super) async fn name_agent(
+        &self,
+        agent: &Agent,
+        project_id: Uuid,
+        system_prompt: Option<String>,
+        sample: Option<&TracePrompt>,
+    ) -> Result<()> {
+        let Some(llm_client) = &self.llm_client else {
+            return Ok(());
+        };
+        if agent.name.is_some() {
+            return Ok(());
+        }
+        let system_prompt = match (system_prompt, sample) {
+            (Some(prompt), _) => Some(prompt),
+            (None, Some(sample)) => {
+                span_system_prompt(
+                    &self.clickhouse,
+                    project_id,
+                    sample.trace_id,
+                    sample.span_id,
+                )
+                .await?
+            }
+            (None, None) => None,
+        };
+        if let Some(system_prompt) = system_prompt {
+            let name =
+                generate_agent_name(llm_client, project_id, agent.id, &system_prompt).await?;
+            set_agent_name(&self.db.pool, agent.id, &name).await?;
+        }
+        Ok(())
+    }
+}
 
 /// The span's system prompt, read back from `spans_v1`; `None` when the span
 /// is not stored or has none.

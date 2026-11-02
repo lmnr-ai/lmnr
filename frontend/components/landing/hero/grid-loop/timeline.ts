@@ -5,7 +5,7 @@ export interface Stage {
   duration: number;
 }
 
-export const SPIN_PERIOD = 1.2;
+const SPIN_PERIOD = 1.2;
 export const BOX_FADE_DURATION = 0.3;
 
 export const CONNECTIONS = {

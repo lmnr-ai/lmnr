@@ -45,6 +45,9 @@ export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
 export async function updateDatapoint(input: z.infer<typeof UpdateDatapointSchema>) {
   const { projectId, datapointId, datasetId, data, target, metadata, createdAt } = UpdateDatapointSchema.parse(input);
 
+  // A new version would otherwise reset task_id to the column default.
+  const { taskId } = await getDatapoint({ projectId, datapointId, datasetId });
+
   // Update in ClickHouse - use the provided createdAt timestamp
   await createDatapoints(projectId, datasetId, [
     {
@@ -53,6 +56,7 @@ export async function updateDatapoint(input: z.infer<typeof UpdateDatapointSchem
       target,
       metadata,
       createdAt,
+      taskId,
     },
   ]);
 }

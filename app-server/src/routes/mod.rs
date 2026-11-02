@@ -1,3 +1,4 @@
+pub mod dashboards;
 pub mod error;
 pub mod llm_profiles;
 pub mod probes;

@@ -5,7 +5,7 @@ import type Stripe from "stripe";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
-import { subscriptionHasPaymentMethod } from "@/lib/actions/checkout/trial";
+import { findPaymentMethod } from "@/lib/actions/checkout/trial";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
@@ -33,6 +33,13 @@ const PaymentPortalSchema = z.object({
   returnUrl: z.url(),
 });
 
+// Legacy flat prices have no TIER_CONFIG entry and resolve to null.
+const stripeSubscriptionTier = (subscription: Stripe.Subscription): PaidTier | null => {
+  const lookupKeys = subscription.items.data.map((item) => item.price.lookup_key);
+  const entry = Object.entries(TIER_CONFIG).find(([, config]) => lookupKeys.includes(config.lookupKey));
+  return entry ? (entry[0] as PaidTier) : null;
+};
+
 export async function getSubscriptionDetails(workspaceId: string): Promise<SubscriptionDetails | null> {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
@@ -52,8 +59,9 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
     expand: ["latest_invoice.lines"],
   });
 
-  // DB rows may carry the "Starter" display name for the internal "hobby" tier.
-  const tierName = normalizeTier(workspace.subscriptionTier.name) as PaidTier;
+  // Read the tier from Stripe first: the DB tier is only written by the webhook, which lands after a switch
+  // returns. DB rows may carry the "Starter" display name for the internal "hobby" tier.
+  const tierName = stripeSubscriptionTier(subscription) ?? (normalizeTier(workspace.subscriptionTier.name) as PaidTier);
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
@@ -71,7 +79,7 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
     stripeCustomerId,
     trialEnd: isTrialing ? subscription.trial_end : null,
-    hasPaymentMethod: isTrialing ? await subscriptionHasPaymentMethod(subscription) : true,
+    hasPaymentMethod: isTrialing ? !!(await findPaymentMethod(subscription)) : true,
   };
 }
 
@@ -281,7 +289,8 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   // Switching during a trial ends it: without this the subscription would stay free on the new tier.
   // The trialing → active webhook then attaches overage prices and resets the usage baseline.
   if (subscription.status === "trialing") {
-    if (!(await subscriptionHasPaymentMethod(subscription))) {
+    const paymentMethodId = await findPaymentMethod(subscription);
+    if (!paymentMethodId) {
       throw new Error("Add a payment method before switching plans during the trial.");
     }
     await s.subscriptions.update(workspace[0].subscriptionId, {
@@ -291,6 +300,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       ],
       trial_end: "now",
       proration_behavior: "none",
+      default_payment_method: paymentMethodId,
     });
     await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
     return;

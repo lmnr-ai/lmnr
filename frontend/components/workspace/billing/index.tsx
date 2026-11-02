@@ -261,6 +261,7 @@ export default function WorkspaceBilling({
         targetTierName={targetTierInfo?.name ?? tierKey}
         targetTierPrice={targetTierInfo?.price ?? ""}
         targetTierPriceSubtext={targetTierInfo?.priceSubtext ?? ""}
+        needsPaymentMethod={!!subscription?.trialEnd && !subscription.hasPaymentMethod}
         onError={setError}
       >
         <Button variant={action === "upgrade" ? "default" : "outline"} className="w-full h-8 text-xs">

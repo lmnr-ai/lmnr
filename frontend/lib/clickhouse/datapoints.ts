@@ -1,13 +1,5 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
-export interface DatapointSearchParams {
-  projectId: string;
-  datasetId?: string;
-  searchQuery?: string;
-  pageSize?: number;
-  offset?: number;
-}
-
 export interface DatapointResult {
   id: string;
   datasetId: string;
@@ -16,6 +8,7 @@ export interface DatapointResult {
   data: string;
   target: string;
   metadata: string;
+  taskId: string;
 }
 
 export const createDatapoints = async (
@@ -27,6 +20,8 @@ export const createDatapoints = async (
     target?: any;
     metadata: any;
     createdAt: string;
+    // Omitted → the column default (the datapoint id).
+    taskId?: string;
   }>
 ): Promise<void> => {
   if (datapoints.length === 0) {
@@ -42,6 +37,7 @@ export const createDatapoints = async (
     data: dp.data !== undefined && dp.data !== null ? JSON.stringify(dp.data) : "{}",
     target: dp.target !== undefined && dp.target !== null ? JSON.stringify(dp.target) : "{}",
     metadata: dp.metadata !== undefined && dp.metadata !== null ? JSON.stringify(dp.metadata) : "{}",
+    task_id: dp.taskId,
   }));
 
   await clickhouseClient.insert({

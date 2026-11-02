@@ -38,7 +38,7 @@ export default function UsageCard({ usageDetails }: UsageCardProps) {
           </div>
           <Progress
             value={storagePercentage}
-            className="mx-0.5 h-1 w-[calc(100%-4px)] border-0 bg-[#2f2f32]"
+            className="mx-0.5 h-1 w-[calc(100%-4px)] border-0 bg-foreground/10"
             indicatorClassName="bg-primary-400"
           />
         </div>

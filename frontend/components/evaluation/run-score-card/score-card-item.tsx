@@ -19,7 +19,7 @@ interface ScoreCardItemProps {
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 // Exact per-run aggregate for the selected function. Values are computed
-// server-side over the raw datapoint scores (see lib/evaluation/aggregation.ts).
+// server-side over the raw Trial scores (see lib/evaluation/aggregation.ts).
 function scalarFor(aggregation: AggregationKind, statistics: EvaluationScoreStatistics | null): number | undefined {
   if (!statistics) return undefined;
   return aggregation === "avg" ? statistics.averageValue : statistics[aggregation];

@@ -4,9 +4,9 @@ import { prettifyError, z } from "zod/v4";
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
-import { getSharedEvaluationDatapoints } from "@/lib/actions/shared/evaluation";
+import { getSharedEvaluationTrials } from "@/lib/actions/shared/evaluation";
 
-const SharedEvaluationDatapointsSchema = z.object({
+const SharedEvaluationTrialsSchema = z.object({
   ...PaginationSchema.shape,
   ...SortSchema.shape,
   filter: z
@@ -33,7 +33,7 @@ const SharedEvaluationDatapointsSchema = z.object({
 export async function GET(req: NextRequest, props: { params: Promise<{ evaluationId: string }> }): Promise<Response> {
   const { evaluationId } = await props.params;
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationDatapointsSchema);
+  const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationTrialsSchema);
 
   if (!parseResult.success) {
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
       }
     }
 
-    const result = await getSharedEvaluationDatapoints({
+    const result = await getSharedEvaluationTrials({
       evaluationId,
       pageNumber,
       pageSize,
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
     return Response.json(result);
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch shared evaluation datapoints." },
+      { error: error instanceof Error ? error.message : "Failed to fetch shared evaluation trials." },
       { status: 500 }
     );
   }

@@ -23,7 +23,7 @@ const EstimatedValue = ({ pct }: { pct: number }) => (
 
 type BucketKey = "system" | "tools" | "user" | "assistant";
 
-export interface EstimatedBucket {
+interface EstimatedBucket {
   key: BucketKey;
   label: string;
   color: string;
@@ -124,7 +124,7 @@ const estimateShares = (span: Span): EstimatedBucket[] | null => {
  * Measured token counts from the span, plus an optional char-weighted estimate
  * of how input tokens split across system / tools / user / assistant.
  */
-export const getTokenBreakdown = (span: Span): TokenBreakdownData | null => {
+const getTokenBreakdown = (span: Span): TokenBreakdownData | null => {
   if (span.spanType !== SpanType.LLM && span.spanType !== SpanType.CACHED) return null;
 
   const inputTokens = span.inputTokens || 0;

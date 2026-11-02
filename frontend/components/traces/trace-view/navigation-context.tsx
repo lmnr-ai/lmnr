@@ -169,20 +169,20 @@ export const getTracesConfig = (): NavigationConfig<string | { spanId: string; t
   },
 });
 
-export const getTraceWithDatapointConfig = (): NavigationConfig<{
+export const getTraceWithTrialConfig = (): NavigationConfig<{
   traceId: string;
-  datapointId: string;
+  trialId: string;
 }> => ({
-  getItemId: (item) => item.datapointId,
+  getItemId: (item) => item.trialId,
   updateSearchParams: (item, params) => {
     params.set("traceId", item.traceId);
-    params.set("datapointId", item.datapointId);
+    params.set("trialId", item.trialId);
   },
   getCurrentItem: (list, searchParams) => {
     const traceId = searchParams.get("traceId");
-    const datapointId = searchParams.get("datapointId");
-    if (!traceId || !datapointId) return null;
+    const trialId = searchParams.get("trialId");
+    if (!traceId || !trialId) return null;
 
-    return list.find((item) => item.traceId === traceId && item.datapointId === datapointId) || null;
+    return list.find((item) => item.traceId === traceId && item.trialId === trialId) || null;
   },
 });

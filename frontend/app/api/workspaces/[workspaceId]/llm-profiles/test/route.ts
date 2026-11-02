@@ -1,8 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { AppServerError } from "@/lib/actions/llm-profiles/app-server";
 import { testLlmProfile } from "@/lib/actions/llm-profiles/test";
+import { AppServerError } from "@/lib/app-server";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
   try {

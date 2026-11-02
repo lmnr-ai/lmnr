@@ -22,7 +22,6 @@ import {
 export {
   MAX_ZOOM,
   MIN_ZOOM,
-  type TraceSignal,
   type TraceViewListSpan,
   type TraceViewSpan,
   type TraceViewTrace,
@@ -34,7 +33,7 @@ export type { ResizablePanel } from "@/components/traces/trace-view/panel-layout
  * What kind of state change last affected layout. Drives transition selection
  * in the layout component (drag/container = instant, visibility = spring).
  */
-export type LayoutChangeSource = "initial" | "drag" | "container" | "visibility";
+type LayoutChangeSource = "initial" | "drag" | "container" | "visibility";
 
 interface TraceViewStoreState {
   targets: Targets;

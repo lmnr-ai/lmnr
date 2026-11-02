@@ -848,6 +848,13 @@
       "when": 1792789808615,
       "tag": "0120_report_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1792943286744,
+      "tag": "0121_agent_releases",
+      "breakpoints": true
     }
   ]
 }

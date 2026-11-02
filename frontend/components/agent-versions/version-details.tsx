@@ -7,6 +7,7 @@ import { type AgentVersionItem } from "@/lib/actions/agents";
 import ToolsDiff from "./tools-diff";
 import ToolsList from "./tools-diff/tools-list";
 import VersionModels from "./version-models";
+import VersionReleases from "./version-releases";
 
 interface VersionDetailsProps {
   version: AgentVersionItem;
@@ -43,6 +44,11 @@ export default function VersionDetails({ version, previous, promptChanged, tools
       <Field label="Models">
         <VersionModels models={version.models} />
       </Field>
+      {version.releases.length > 0 && (
+        <Field label="Releases">
+          <VersionReleases releases={version.releases} />
+        </Field>
+      )}
       {previous ? (
         <>
           {promptChanged && (

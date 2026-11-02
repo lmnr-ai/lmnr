@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, props: Params): Promise<Response> {
 
   try {
     const body = await req.json();
-    const url = await getTrialPaymentUrl({ workspaceId, returnUrl: body.returnUrl });
+    const url = await getTrialPaymentUrl({ workspaceId, returnUrl: body.returnUrl, tier: body.tier });
     return Response.json({ url });
   } catch (error) {
     if (error instanceof ZodError) {

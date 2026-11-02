@@ -13,7 +13,7 @@ import Header from "../ui/header";
 import { RESOURCE } from "./constants";
 import CreatePlaygroundDialog from "./create-playground-dialog";
 
-export const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
+const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
 
 function PlaygroundsContent() {
   const { projectId } = useParams();

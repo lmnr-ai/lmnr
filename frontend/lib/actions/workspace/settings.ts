@@ -16,7 +16,7 @@ import { db } from "@/lib/db/drizzle";
 import { workspaces } from "@/lib/db/migrations/schema";
 import { type PrivacyModeState } from "@/lib/workspaces/types";
 
-export const WorkspaceSettingsSchema = z
+const WorkspaceSettingsSchema = z
   .object({
     /// Cloud-only. The workspace owner's EXPLICIT Privacy Mode choice.
     /// Absent = unset (tri-state): defaults then apply per plan via
@@ -42,7 +42,7 @@ export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 
 /// The subset of settings the PATCH route accepts. `dpaEnforcedPrivacyMode`
 /// and `privacyModeProtected` are system-managed.
-export const UpdatableWorkspaceSettingsSchema = WorkspaceSettingsSchema.pick({ privacyMode: true });
+const UpdatableWorkspaceSettingsSchema = WorkspaceSettingsSchema.pick({ privacyMode: true });
 
 export const parseWorkspaceSettings = (raw: unknown): WorkspaceSettings => {
   const parsed = WorkspaceSettingsSchema.safeParse(raw ?? {});
@@ -53,7 +53,7 @@ const TIER_DEFAULT_OFF = new Set(["free", "hobby", "starter"]);
 
 /// A tier's Privacy Mode default. Free/Starter (internal key `hobby`)
 /// default OFF; Pro and above — and anything unrecognized — default ON.
-export const tierDefaultsToOn = (tierName?: string | null): boolean =>
+const tierDefaultsToOn = (tierName?: string | null): boolean =>
   !TIER_DEFAULT_OFF.has((tierName ?? "").trim().toLowerCase());
 
 /**
@@ -61,7 +61,7 @@ export const tierDefaultsToOn = (tierName?: string | null): boolean =>
  * default-ON tier for a default-OFF one, so the transition doesn't silently
  * lower protection.
  */
-export const shouldStampProtectionFloor = (
+const shouldStampProtectionFloor = (
   previousTierName: string | null | undefined,
   newTierName: string | null | undefined
 ): boolean => !tierDefaultsToOn(newTierName) && tierDefaultsToOn(previousTierName);

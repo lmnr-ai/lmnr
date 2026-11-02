@@ -27,7 +27,7 @@ export const withTraceIndex = (blocks: SessionBlockView[]): TimelineItem[] => {
 // One virtualized row. Every row carries the owning `blockId` so the outline can
 // map scroll position ↔ block. Trace rows also carry `traceId`.
 // A single command inside a collapsed command-group card.
-export type CommandGroupItem = { id: string; createdAt: string; command: CommandBlockContent };
+type CommandGroupItem = { id: string; createdAt: string; command: CommandBlockContent };
 
 export type DebuggerFlatRow =
   | { type: "text"; blockId: string; text: string }

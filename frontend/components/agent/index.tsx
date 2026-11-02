@@ -10,9 +10,9 @@ import { useShallow } from "zustand/react/shallow";
 // swaps between the real agent and these no-ops. Only the panel open/collapse state is kept;
 // context registration and name reporting are no-ops.
 
-export type AgentViewMode = "collapsed" | "open";
+type AgentViewMode = "collapsed" | "open";
 
-export type AgentContextKey = "trace" | "signal" | "evaluation" | "dataset" | "labelingQueue" | "session";
+export type AgentContextKey = "trace" | "signal" | "evaluation" | "dataset" | "labelingQueue" | "session" | "dashboard";
 
 interface LaminarAgentStore {
   viewMode: AgentViewMode;
@@ -38,10 +38,6 @@ export function RouteAgentContext() {
 }
 
 export function TraceAgentContext(_props: { traceId: string }) {
-  return null;
-}
-
-export function AgentHeaderToggle() {
   return null;
 }
 

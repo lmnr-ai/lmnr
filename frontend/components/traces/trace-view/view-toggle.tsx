@@ -46,7 +46,7 @@ export default function ViewToggle({
   const isTreeView = tab === "tree";
 
   return (
-    <div className="flex items-center min-w-0 gap-px bg-surface-200">
+    <div className="flex items-center min-w-0 gap-px overflow-hidden rounded-md bg-surface-200">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

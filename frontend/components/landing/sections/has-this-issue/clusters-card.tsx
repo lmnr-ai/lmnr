@@ -24,9 +24,6 @@ const DATASET = MOCK_DATASETS["detect-failures"];
 const BUCKET_COUNT = new Set(DATASET.stats.map((row) => row.timestamp)).size;
 const TOTAL_TICKS = Math.ceil((BUCKET_COUNT + GROW_BUCKETS) * TICKS_PER_BUCKET);
 
-/** Wall-clock length of the bar stream-in. The stage schedules around it. */
-export const CLUSTER_FILL_MS = (TOTAL_TICKS * BUCKET_MS) / TICKS_PER_BUCKET;
-
 /** Top-level clusters, which the stage reveals one at a time. */
 export const CLUSTER_COUNT = DATASET.clusterTree.length;
 
@@ -34,7 +31,7 @@ export const CLUSTER_COUNT = DATASET.clusterTree.length;
  *  mobile; `column` exists because the desktop trace-view frame is 480 wide,
  *  where a side-by-side list and chart would both be too narrow to read. */
 export const CLUSTERS_CARD_W = 720;
-export const CLUSTERS_CARD_COL_W = 440;
+const CLUSTERS_CARD_COL_W = 440;
 
 // Column layout only, and it is the CHART SUB-CARD's height including borders.
 // The list is deliberately NOT sized: it hugs its rows, so the card grows as

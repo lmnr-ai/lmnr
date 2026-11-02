@@ -15,23 +15,21 @@ import {
   YAxis,
 } from "recharts";
 
-import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
-import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { numberFormatter } from "@/lib/charts/format";
+import { getTickCountForWidth } from "@/lib/charts/responsive";
+import {
+  formatTooltipTimestamp,
+  isValidZoomRange,
+  normalizeTimeRange,
+  selectNiceTicksFromData,
+} from "@/lib/charts/time";
 import { cn } from "@/lib/utils";
 
 import DelayedTooltipContent from "./delayed-tooltip-content";
-import { MarkerLabel, MarkerLine } from "./marker";
-import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
-import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange, snapMarkersToBuckets } from "./utils";
-
-const formatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-});
+import { MarkerTick } from "./marker";
+import { type CategoricalChartFunc, type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
+import { snapMarkersToBuckets } from "./utils";
 
 const countNumberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
@@ -131,7 +129,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     hideZeroValues,
     maxItems: tooltipMaxItems,
     labelFormatter: (_, payload) =>
-      payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-",
+      payload && payload[0] ? formatTooltipTimestamp(payload[0].payload.timestamp) : "-",
   };
 
   return (
@@ -139,7 +137,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <ChartComp
           data={data}
-          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
+          margin={{ left: 8, right: 8, top: snappedMarkers.length ? 22 : 8, bottom: 4 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -220,15 +218,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             <ReferenceLine
               key={marker.timestamp}
               x={marker.timestamp}
-              stroke="var(--color-muted-foreground)"
-              strokeDasharray="3 3"
-              strokeOpacity={0.7}
-              shape={<MarkerLine href={marker.href} tooltip={marker.tooltip} />}
-              label={{
-                value: marker.label,
-                position: "insideTopLeft",
-                content: <MarkerLabel href={marker.href} tooltip={marker.tooltip} />,
-              }}
+              shape={<MarkerTick label={marker.label} href={marker.href} tooltip={marker.tooltip} />}
             />
           ))}
           {refArea.left && refArea.right && (

@@ -1,7 +1,7 @@
 import { useSearchParams } from "next/navigation";
 import { type RefObject, useEffect, useState } from "react";
 
-import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/traces/traces-chart/utils";
+import { calculateOptimalInterval, getTargetBarsForWidth } from "@/lib/charts/responsive";
 
 import { DEFAULT_PAST_HOURS } from "./utils";
 

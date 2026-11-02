@@ -1,0 +1,139 @@
+import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { useCallback, useMemo } from "react";
+
+import { type AdvancedSearchValue } from "@/components/common/advanced-search";
+import { useEvalStore } from "@/components/evaluation/store";
+import { type ScoreRanges } from "@/components/evaluation/utils";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type Filter } from "@/lib/actions/common/filters";
+import { type EvalRow } from "@/lib/evaluation/types";
+
+import { EvaluationTrialsTableContents } from "./table-contents";
+import { EvaluationTrialsTableControls } from "./table-controls";
+
+interface EvaluationTrialsTableProps {
+  data: EvalRow[] | undefined;
+  isLoading: boolean;
+  isFetching: boolean;
+  hasMore: boolean;
+  fetchNextPage: () => void;
+  columnDefs: ColumnDef<EvalRow>[];
+  visibleColumnDefs: ColumnDef<EvalRow>[];
+  isComparison: boolean;
+  scoreRanges: ScoreRanges;
+  runningTrials?: number;
+  pinnedLeftColumnIds?: string[];
+  trialId?: string;
+  handleRowClick: (row: Row<EvalRow>) => void;
+  getRowHref?: (row: Row<EvalRow>) => string | undefined;
+  sortBy?: string;
+  sortDirection?: "asc" | "desc";
+  onSort: (columnId: string, direction: "asc" | "desc") => void;
+  heatmapEnabled?: boolean;
+  onHeatmapEnabledChange?: (enabled: boolean) => void;
+  onDeleteCustomColumn?: (columnId: string) => void;
+
+  /** Resolved score directions (name -> isHigherBetter) for delta/heatmap coloring. */
+  scoreDirections?: Record<string, boolean>;
+  /** Flip + persist a score's direction from the header dropdown. Omit to hide the toggle. */
+  onToggleScoreDirection?: (scoreName: string) => void;
+
+  searchValue: AdvancedSearchValue;
+  onSearchChange: (next: AdvancedSearchValue) => void;
+  viewsResource?: string;
+}
+
+const buildColumnFilters = (columnDefs: ColumnDef<EvalRow>[]): ColumnFilter[] =>
+  columnDefs
+    .filter((c) => c.meta?.filterable)
+    .map((c) => ({
+      key: c.id!,
+      name: typeof c.header === "string" ? c.header : c.id!,
+      dataType:
+        c.meta!.dataType === "json"
+          ? ("json" as const)
+          : c.meta!.dataType === "number"
+            ? ("number" as const)
+            : ("string" as const),
+    }));
+
+const EvaluationTrialsTable = ({
+  data,
+  isLoading,
+  isFetching,
+  hasMore,
+  fetchNextPage,
+  columnDefs,
+  visibleColumnDefs,
+  isComparison,
+  scoreRanges,
+  runningTrials,
+  pinnedLeftColumnIds,
+  trialId,
+  handleRowClick,
+  getRowHref,
+  sortBy,
+  sortDirection,
+  onSort,
+  heatmapEnabled,
+  onHeatmapEnabledChange,
+  onDeleteCustomColumn,
+  scoreDirections,
+  onToggleScoreDirection,
+  searchValue,
+  onSearchChange,
+  viewsResource,
+}: EvaluationTrialsTableProps) => {
+  const isShared = useEvalStore((s) => s.isShared);
+  const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
+  const isSearchActive = searchValue.search.length > 0;
+
+  const onFiltersChange = useCallback(
+    (next: Filter[]) => onSearchChange({ ...searchValue, filters: next }),
+    [onSearchChange, searchValue]
+  );
+
+  return (
+    <div className="flex overflow-hidden flex-1">
+      <EvaluationTrialsTableContents
+        data={data}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        hasMore={hasMore}
+        fetchNextPage={fetchNextPage}
+        visibleColumnDefs={visibleColumnDefs}
+        isComparison={isComparison}
+        isShared={isShared}
+        scoreRanges={scoreRanges}
+        runningTrials={runningTrials}
+        pinnedLeftColumnIds={pinnedLeftColumnIds}
+        trialId={trialId}
+        handleRowClick={handleRowClick}
+        getRowHref={getRowHref}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={onSort}
+        heatmapEnabled={heatmapEnabled}
+        scoreDirections={scoreDirections}
+        onToggleScoreDirection={onToggleScoreDirection}
+        isSearchActive={isSearchActive}
+      >
+        <EvaluationTrialsTableControls
+          columnFilters={columnFilters}
+          columnDefs={columnDefs}
+          visibleColumnDefs={visibleColumnDefs}
+          activeFilters={searchValue.filters}
+          onFiltersChange={onFiltersChange}
+          heatmapEnabled={heatmapEnabled}
+          onHeatmapEnabledChange={onHeatmapEnabledChange}
+          onDeleteCustomColumn={onDeleteCustomColumn}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
+          viewsResource={viewsResource}
+        />
+      </EvaluationTrialsTableContents>
+    </div>
+  );
+};
+
+export default EvaluationTrialsTable;

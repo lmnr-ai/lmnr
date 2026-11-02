@@ -10,6 +10,7 @@ import { changeSummary, versionColor } from "./utils";
 import VersionDetails from "./version-details";
 
 interface VersionCardProps {
+  agentId: string;
   version: AgentVersionItem;
   previous?: AgentVersionItem;
   isLatest: boolean;
@@ -18,7 +19,15 @@ interface VersionCardProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export default function VersionCard({ version, previous, isLatest, isLast, open, onOpenChange }: VersionCardProps) {
+export default function VersionCard({
+  agentId,
+  version,
+  previous,
+  isLatest,
+  isLast,
+  open,
+  onOpenChange,
+}: VersionCardProps) {
   const promptChanged = previous ? version.systemPrompt !== previous.systemPrompt : false;
   const toolsChanged = previous ? version.toolDefinitions !== previous.toolDefinitions : false;
 
@@ -33,8 +42,11 @@ export default function VersionCard({ version, previous, isLatest, isLast, open,
             isLatest ? "bg-emphasis-3 text-foreground" : "bg-emphasis-1 text-secondary-foreground"
           )}
         >
-          <span className="size-1.5 rounded-full" style={{ backgroundColor: versionColor(version.id) }} />v
-          {version.versionNumber}
+          <span
+            className="size-1.5 rounded-full"
+            style={{ backgroundColor: versionColor(agentId, version.versionNumber) }}
+          />
+          v{version.versionNumber}
         </span>
         {!isLast && <div className="w-px flex-1 bg-border" />}
       </div>

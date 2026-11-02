@@ -18,12 +18,14 @@ interface AgentVersionsListProps {
   projectId: string;
   agentId: string;
   onRenamed: () => void;
+  initialVersions?: AgentVersionsResult;
 }
 
-export default function AgentVersionsList({ projectId, agentId, onRenamed }: AgentVersionsListProps) {
+export default function AgentVersionsList({ projectId, agentId, onRenamed, initialVersions }: AgentVersionsListProps) {
   const { data, isLoading, mutate } = useSWR<AgentVersionsResult>(
     `/api/projects/${projectId}/agents/${agentId}/versions`,
-    swrFetcher
+    swrFetcher,
+    { fallbackData: initialVersions }
   );
 
   // `undefined` until the user toggles a version, so the latest one starts open.
@@ -56,7 +58,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed }: Age
         </div>
       ) : isEmpty(versions) ? (
         <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
-          It takes around 30 traces and 15 minutes for the first version to be created.
+          It takes around 50 traces and 10 minutes for the first version to be created.
         </div>
       ) : (
         <div className="flex flex-col gap-6">
@@ -65,6 +67,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed }: Age
             {versions.map((version, i) => (
               <VersionCard
                 key={version.id}
+                agentId={agentId}
                 version={version}
                 previous={versions[i + 1]}
                 isLatest={i === 0}
