@@ -206,7 +206,6 @@ const NotificationPanel = () => {
                         key={notification.id}
                         notification={notification}
                         formatted={formatted}
-                        projectId={project?.id}
                         onViewed={handleViewed}
                       />
                     ))}
