@@ -41,9 +41,12 @@ static ID: LazyLock<Regex> = LazyLock::new(|| {
 /// A value with a digit after an id-named key (`id`, `user_id`, `project-id`,
 /// `projectId`, `ORG_ID`): short numeric ids are only ids by their key, as a
 /// bare number may be a limit. The digit keeps `user_id: string` in tools.
+/// The value is one token of `[A-Za-z0-9_.-]` ending on a word character, so a
+/// query's later params (`&limit=10`) and a sentence's final `.` stay in the
+/// line and a change to them still mints a version.
 static ID_VALUE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(\b(?:[\w-]*[_-](?:id|Id|ID)|[a-z][A-Za-z0-9]*Id|id|Id|ID)\b["']?\s*[:=]\s*["']?)[^\s"',;)}\]]*\d[^\s"',;)}\]]*"#,
+        r#"(\b(?:[\w-]*[_-](?:id|Id|ID)|[a-z][A-Za-z0-9]*Id|id|Id|ID)\b["']?\s*[:=]\s*["']?)[A-Za-z0-9_.-]*\d(?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?"#,
     )
     .unwrap()
 });
@@ -168,6 +171,14 @@ mod tests {
             ("valid: 10 retries", "valid: 10 retries"),
             ("get_user.user_id: string", "get_user.user_id: string"),
             ("Use the deadbeef cache", "Use the deadbeef cache"),
+            // The value stops at the id token: a URL's other params and the
+            // sentence's punctuation are still part of the line.
+            (
+                "GET /v1/users?user_id=42&limit=10",
+                "GET /v1/users?user_id=<id>&limit=10",
+            ),
+            ("Helping project_id=123.", "Helping project_id=<id>."),
+            ("file_id=v1.9beta", "file_id=<id>"),
         ] {
             assert_eq!(mask(raw), masked, "{raw}");
         }
