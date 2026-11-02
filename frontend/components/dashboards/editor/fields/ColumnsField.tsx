@@ -33,7 +33,7 @@ const ColumnsField = () => {
         <Button
           icon="plus"
           size="sm"
-          className="text-primary hover:text-primary/80 h-auto py-0.5 px-1"
+          className="text-primary-text hover:text-primary-text/80 h-auto py-0.5 px-1"
           variant="ghost"
           onClick={handleAdd}
         >

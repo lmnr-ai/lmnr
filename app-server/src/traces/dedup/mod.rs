@@ -19,6 +19,7 @@
 
 pub mod messages;
 pub mod session;
+pub mod tool_normalize;
 pub mod tools;
 
 use std::collections::HashSet;

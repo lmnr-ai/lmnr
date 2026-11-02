@@ -17,6 +17,7 @@ import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
+import { BUILT_IN_PARAMETERS, findParameterRefs } from "@/components/sql/parameters";
 import {
   ClickHouseDialect,
   clickhouseFunctions,
@@ -36,9 +37,9 @@ export const enumValues = {
   signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
 } as const satisfies Record<string, readonly string[]>;
 
-export type EnumType = keyof typeof enumValues;
+type EnumType = keyof typeof enumValues;
 
-export interface ColumnSchema {
+interface ColumnSchema {
   name: string;
   type: string;
   description: string;
@@ -57,7 +58,7 @@ export interface SQLSchemaConfig {
 }
 
 // Source of truth for the SQL editor schema (autocomplete + AI prompt schema text).
-export const tableSchemas: Record<string, TableSchema> = {
+const tableSchemas: Record<string, TableSchema> = {
   spans: {
     description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
     columns: [
@@ -211,6 +212,18 @@ export const tableSchemas: Record<string, TableSchema> = {
         description:
           "Named clusters (L1 and ancestors) this trace's signal events belong to. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
       },
+      {
+        name: "agent_versions",
+        type: "Array(Tuple(agent_hash String, version_hash String, model String))",
+        description:
+          "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
+      },
+      {
+        name: "release",
+        type: "String",
+        description:
+          "Release of the code that produced the trace, as sent by the SDK (usually the short git SHA). Empty when the SDK sent none",
+      },
     ],
   },
   trace_outputs: {
@@ -236,9 +249,15 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
       { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint was created" },
       { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "dataset_name", type: "String", description: "Name of the dataset" },
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task id evaluations group trials by; unique within the dataset",
+      },
     ],
   },
   dataset_datapoint_versions: {
@@ -251,30 +270,43 @@ export const tableSchemas: Record<string, TableSchema> = {
         description: "When the dataset datapoint version was created",
       },
       { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "dataset_name", type: "String", description: "Name of the dataset" },
       { name: "data", type: "String", description: "Input data for the dataset datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task id evaluations group trials by; unique within the dataset",
+      },
     ],
   },
-  evaluation_datapoints: {
-    description: "Results from evaluations including scores, executor output, and trace data",
+  evaluation_trials: {
+    description:
+      "Results from evaluations, one row per trial, including scores, executor output, and trace data. `evaluation_datapoints` is an alias",
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
       { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "evaluation_name", type: "String", description: "Name of the evaluation" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was first saved" },
       { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
       { name: "target", type: "String", description: "Target/expected output" },
       { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
       { name: "executor_output", type: "String", description: "Output from the executor" },
       { name: "index", type: "UInt64", description: "Index of the evaluation datapoint within the evaluation" },
+      {
+        name: "task_id",
+        type: "String",
+        description: "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+      },
       { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
         name: "scores",
         type: "String",
         description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
       },
-      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the datapoint was last updated" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the Trial was last updated" },
       {
         name: "dataset_id",
         type: "UUID",
@@ -355,9 +387,10 @@ export const tableSchemas: Record<string, TableSchema> = {
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
       { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "signal_name", type: "String", description: "Current name of the signal" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
       { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
-      { name: "name", type: "String", description: "Name of the signal event" },
+      { name: "name", type: "String", description: "Alias of signal_name, kept for older queries" },
       { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
       { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
       {
@@ -385,6 +418,111 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "UInt32",
         description: "Signal definition version that produced the event. 0 predates versioning",
       },
+    ],
+  },
+  signals: {
+    description:
+      "Signal definitions stored in Postgres: prompt, output schema, model, and current version. Join to signal_events, signal_runs, or traces.signal_events on signals.id = signal_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "name", type: "String", description: "Signal name, unique per project" },
+      { name: "prompt", type: "String", description: "Signal definition prompt" },
+      {
+        name: "structured_output_schema",
+        type: "String",
+        description: "JSON schema the signal's output conforms to",
+      },
+      { name: "metadata", type: "String", description: "Signal metadata, as a JSON object" },
+      {
+        name: "llm_model",
+        type: "Nullable(String)",
+        description: "Model the signal runs on; NULL when it uses the deployment default",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the signal was created" },
+      { name: "version", type: "Int32", description: "Current definition version" },
+    ],
+  },
+  evaluations: {
+    description:
+      "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_datapoints on evaluations.id = evaluation_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "name", type: "String", description: "Evaluation name" },
+      { name: "group_id", type: "String", description: "Group the evaluation belongs to" },
+      { name: "metadata", type: "Nullable(String)", description: "Evaluation metadata, as a JSON object" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the evaluation was created" },
+    ],
+  },
+  datasets: {
+    description: "Datasets stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "name", type: "String", description: "Dataset name" },
+      { name: "indexed_on", type: "Nullable(String)", description: "Legacy indexing setting, unused; usually NULL" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dataset was created" },
+    ],
+  },
+  dashboards: {
+    description: "Project dashboards stored in Postgres. Join to dashboard_charts on dashboards.id = dashboard_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dashboard" },
+      { name: "name", type: "String", description: "Dashboard name" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the dashboard was created" },
+    ],
+  },
+  dashboard_charts: {
+    description:
+      "Charts on project dashboards, stored in Postgres. The grid is 12 columns wide; settings.layout holds {x, y, w, h} in grid units",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the chart" },
+      { name: "dashboard_id", type: "UUID", description: "Id of the dashboard the chart is on" },
+      { name: "name", type: "String", description: "Chart title" },
+      { name: "query", type: "String", description: "SQL the chart runs, with time-range parameters" },
+      {
+        name: "settings",
+        type: "String",
+        description: "Chart settings as a JSON object: {config, layout, queryStructure}",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the chart was created" },
+    ],
+  },
+  alerts: {
+    description:
+      "Signal alerts stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the alert" },
+      { name: "name", type: "String", description: "Alert name" },
+      { name: "type", type: "String", description: "SIGNAL_EVENT or NEW_CLUSTER" },
+      { name: "signal_id", type: "UUID", description: "Id of the signal the alert watches" },
+      {
+        name: "metadata",
+        type: "String",
+        description:
+          "Alert settings as a JSON object: severities (0 info, 1 warning, 2 critical), skipSimilar, disabled",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the alert was created" },
+    ],
+  },
+  alert_targets: {
+    description: "Where alerts are delivered, stored in Postgres: one row per Slack channel or subscribed member email",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the target" },
+      { name: "alert_id", type: "UUID", description: "Id of the alert" },
+      { name: "type", type: "String", description: "SLACK or EMAIL" },
+      { name: "channel_id", type: "Nullable(String)", description: "Slack channel id" },
+      { name: "channel_name", type: "Nullable(String)", description: "Slack channel name" },
+      { name: "email", type: "Nullable(String)", description: "Subscribed member's email" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the target was added" },
+    ],
+  },
+  alert_filters: {
+    description:
+      "Conditions an alert's signal events must match, stored in Postgres. Conditions in a row are ANDed; rows are ORed",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the filter group" },
+      { name: "alert_id", type: "UUID", description: "Id of the alert" },
+      { name: "value", type: "String", description: "JSON array of conditions {column, operator, value}" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the filter group was added" },
     ],
   },
   clusters: {
@@ -503,6 +641,30 @@ const customCompletions = (textBefore: string, searchTerm: string) => {
   return [...buildEnumOptions(allEnumTypes, searchTerm, (v) => `'${v}'`), ...clickhouseFunctionCompletions(searchTerm)];
 };
 
+// --- Query parameters ---------------------------------------------------------
+// Completing on `{` is the main way anyone discovers parameters exist, so it offers the built-ins
+// plus any name already in the query, and applies the full `{name:Type}` form.
+const parameterCompletions = (docText: string, partial: string) => {
+  const declared = new Map<string, string>(
+    Object.entries(BUILT_IN_PARAMETERS).map(([name, spec]) => [name, spec.declaredType])
+  );
+  for (const ref of findParameterRefs(docText)) {
+    if (!declared.has(ref.name)) declared.set(ref.name, ref.declaredType);
+  }
+
+  return Array.from(declared.entries())
+    .filter(([name]) => matchesSearch(name, partial))
+    .map(([name, declaredType]) => ({
+      label: `{${name}:${declaredType}}`,
+      type: "variable",
+      detail: "parameter",
+      info:
+        BUILT_IN_PARAMETERS[name]?.description ??
+        "Query parameter. Give it a value in the parameters bar below the editor.",
+      apply: `{${name}:${declaredType}}`,
+    }));
+};
+
 // --- Sorting -----------------------------------------------------------------
 const relevanceScore = (label: string, search: string) => {
   const a = label.toLowerCase();
@@ -517,10 +679,20 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
       relevanceScore(a.label, searchTerm) - relevanceScore(b.label, searchTerm) || a.label.localeCompare(b.label)
   );
 
+// Old names the query engine still accepts. Kept out of `tableSchemas` so autocomplete and
+// the AI prompt list each table once; `config.tables` may still scope by the old name.
+const tableAliases: Record<string, string> = {
+  evaluation_datapoints: "evaluation_trials",
+};
+
 // Filters default tables to `config.tables` (if set) and merges `customTables`.
 export function resolveTableSchemas(config?: SQLSchemaConfig): Record<string, TableSchema> {
   const base = config?.tables
-    ? Object.fromEntries(config.tables.filter((t) => t in tableSchemas).map((t) => [t, tableSchemas[t]]))
+    ? Object.fromEntries(
+        config.tables
+          .map((t) => [t, tableSchemas[t] ?? tableSchemas[tableAliases[t]]] as const)
+          .filter(([, schema]) => schema !== undefined)
+      )
     : { ...tableSchemas };
   return config?.customTables ? { ...base, ...config.customTables } : base;
 }
@@ -630,6 +802,13 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
       };
     }
 
+    const brace = context.matchBefore(/\{\w*/);
+    if (brace) {
+      const options = parameterCompletions(context.state.doc.toString(), brace.text.slice(1).toLowerCase());
+      if (options.length === 0) return null;
+      return { from: brace.from, options, validFor: /^\{\w*$/ };
+    }
+
     const word = context.matchBefore(/\w*/);
     if (!word || (word.from === word.to && !context.explicit)) return null;
     const searchTerm = word.text.toLowerCase();
@@ -684,37 +863,37 @@ function computeKnownIdentifiers(schemas: Record<string, TableSchema>): Set<stri
 
 const sqlSyntaxHighlightStyle: CreateThemeOptions["styles"] = [
   // Keywords (SELECT, FROM, WHERE, etc.)
-  { tag: t.keyword, color: "#C586C0" },
+  { tag: t.keyword, color: "var(--sql-keyword)" },
 
   // Strings
-  { tag: t.string, color: "#CE9178" },
-  { tag: t.special(t.string), color: "#CE9178" },
+  { tag: t.string, color: "var(--sql-string)" },
+  { tag: t.special(t.string), color: "var(--sql-string)" },
 
   // Numbers
-  { tag: t.number, color: "#B5CEA8" },
-  { tag: t.integer, color: "#B5CEA8" },
-  { tag: t.float, color: "#B5CEA8" },
+  { tag: t.number, color: "var(--sql-number)" },
+  { tag: t.integer, color: "var(--sql-number)" },
+  { tag: t.float, color: "var(--sql-number)" },
 
   // Comments
-  { tag: t.comment, color: "#6A9955" },
-  { tag: t.lineComment, color: "#6A9955" },
-  { tag: t.blockComment, color: "#6A9955" },
+  { tag: t.comment, color: "var(--sql-comment)" },
+  { tag: t.lineComment, color: "var(--sql-comment)" },
+  { tag: t.blockComment, color: "var(--sql-comment)" },
 
   // Operators and punctuation
-  { tag: t.operator, color: "#D4D4D4" },
-  { tag: t.punctuation, color: "#D4D4D4" },
-  { tag: t.separator, color: "#D4D4D4" },
-  { tag: t.bracket, color: "#D4D4D4" },
-  { tag: t.paren, color: "#D4D4D4" },
+  { tag: t.operator, color: "var(--sql-text)" },
+  { tag: t.punctuation, color: "var(--sql-text)" },
+  { tag: t.separator, color: "var(--sql-text)" },
+  { tag: t.bracket, color: "var(--sql-text)" },
+  { tag: t.paren, color: "var(--sql-text)" },
 
   // Types
-  { tag: t.typeName, color: "#4EC9B0" },
-  { tag: t.className, color: "#4EC9B0" },
+  { tag: t.typeName, color: "var(--sql-type)" },
+  { tag: t.className, color: "var(--sql-type)" },
 
   // Special values
-  { tag: t.bool, color: "#569CD6" },
-  { tag: t.null, color: "#569CD6" },
-  { tag: t.self, color: "#569CD6" },
+  { tag: t.bool, color: "var(--sql-constant)" },
+  { tag: t.null, color: "var(--sql-constant)" },
+  { tag: t.self, color: "var(--sql-constant)" },
 ];
 
 export const theme = createTheme({
@@ -737,12 +916,12 @@ const editorBaseStyles = {
     position: "relative",
   },
   ".cm-searchMatch": {
-    backgroundColor: "hsl(var(--primary) / 0.3)",
-    border: "1px solid hsl(var(--primary))",
+    backgroundColor: "oklch(from var(--color-primary) l c h / 0.3)",
+    border: "1px solid var(--color-primary)",
     borderRadius: "3px",
   },
   ".cm-searchMatch-selected": {
-    backgroundColor: "hsl(var(--primary))",
+    backgroundColor: "var(--color-primary)",
     color: "var(--color-primary-foreground)",
     fontWeight: "600",
   },
@@ -751,22 +930,22 @@ const editorBaseStyles = {
 // Syntax highlighting styles for SQL identifiers
 const syntaxHighlightStyles = {
   ".cm-content .cm-sql-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-line .cm-sql-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-content .cm-sql-known-identifier": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-line .cm-sql-known-identifier": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-content .cm-sql-unknown-identifier": {
-    color: "#D4D4D4",
+    color: "var(--sql-text)",
   },
   ".cm-line .cm-sql-unknown-identifier": {
-    color: "#D4D4D4",
+    color: "var(--sql-text)",
   },
 };
 
@@ -790,8 +969,8 @@ const autocompleteStyles = {
     gap: "6px",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "var(--color-accent)",
-    color: "var(--color-accent-foreground)",
+    background: "var(--color-surface-500)",
+    color: "var(--color-foreground-50)",
   },
   ".cm-completionIcon": {
     width: "14px",
@@ -804,7 +983,7 @@ const autocompleteStyles = {
     justifyContent: "center",
   },
   ".cm-completionIcon-function": {
-    color: "#DCDCAA",
+    color: "var(--sql-function)",
   },
   ".cm-completionIcon-function::after": {
     content: "'ƒ'",
@@ -812,39 +991,47 @@ const autocompleteStyles = {
     fontSize: "13px",
   },
   ".cm-completionIcon-property": {
-    color: "#9CDCFE",
+    color: "var(--sql-identifier)",
   },
   ".cm-completionIcon-property::after": {
     content: "'◇'",
     fontSize: "11px",
   },
   ".cm-completionIcon-keyword": {
-    color: "#C586C0",
+    color: "var(--sql-keyword)",
   },
   ".cm-completionIcon-keyword::after": {
     content: "'⊞'",
     fontSize: "11px",
   },
   ".cm-completionIcon-enum": {
-    color: "#4EC9B0",
+    color: "var(--sql-type)",
   },
   ".cm-completionIcon-enum::after": {
     content: "'◆'",
     fontSize: "11px",
   },
   ".cm-completionIcon-type": {
-    color: "#4EC9B0",
+    color: "var(--sql-type)",
   },
   ".cm-completionIcon-type::after": {
     content: "'T'",
     fontWeight: "600",
     fontSize: "11px",
   },
+  ".cm-completionIcon-variable": {
+    color: "hsl(var(--primary))",
+  },
+  ".cm-completionIcon-variable::after": {
+    content: "'{}'",
+    fontSize: "10px",
+    fontWeight: "600",
+  },
   ".cm-completionLabel": {
     color: "var(--color-foreground)",
   },
   ".cm-completionMatchedText": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
     textDecoration: "none",
   },
@@ -883,6 +1070,8 @@ const signatureHelpStyles = {
   },
   ".signature-help": {
     padding: "6px 10px !important",
+    // The theme is declared dark, so CodeMirror's base tooltip text is white in light mode too.
+    color: "var(--color-foreground)",
     background: "var(--color-background)",
     border: "1px solid var(--color-border)",
     borderRadius: "6px",
@@ -892,16 +1081,16 @@ const signatureHelpStyles = {
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
   },
   ".signature-help .signature-function-name": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "600",
   },
   ".signature-help .signature-param": {
     color: "var(--color-foreground)",
   },
   ".signature-help .signature-param-current": {
-    color: "hsl(var(--primary))",
+    color: "var(--color-primary-text)",
     fontWeight: "700",
-    background: "hsl(var(--primary) / 0.1)",
+    background: "oklch(from var(--color-primary) l c h / 0.1)",
     padding: "1px 3px",
     borderRadius: "3px",
   },
@@ -937,7 +1126,7 @@ const signatureHelpStyles = {
 };
 
 // Combined editor theme
-export const editorTheme = EditorView.theme({
+const editorTheme = EditorView.theme({
   ...editorBaseStyles,
   ...syntaxHighlightStyles,
   ...autocompleteStyles,

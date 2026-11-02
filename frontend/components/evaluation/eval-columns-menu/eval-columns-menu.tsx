@@ -5,13 +5,13 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useEvalStore } from "@/components/evaluation/store";
+import { EVAL_LOCKED_COLUMNS, useEvalStore } from "@/components/evaluation/store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 interface EvalColumnsMenuProps {
-  /** Derived column defs from the parent — see EvaluationDatapointsTableProps. */
+  /** Derived column defs from the parent — see EvaluationTrialsTableProps. */
   columnDefs: ColumnDef<EvalRow>[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
 }
@@ -26,6 +26,7 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
+      // The eval table selects FROM evaluation_datapoints, so a column qualified by the new name would break it.
       schema: { tables: ["evaluation_datapoints"] },
       generationMode: "eval-expression",
       buildTestQuery: (sql) =>
@@ -54,6 +55,7 @@ export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalC
       columnLabels={columnLabels}
       panelConfig={isShared ? undefined : panelConfig}
       columnActions={isShared ? undefined : columnActions}
+      omitColumnIds={EVAL_LOCKED_COLUMNS}
     />
   );
 }

@@ -12,7 +12,6 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 
 import { buildEventsColumns } from "./columns";
@@ -74,7 +73,10 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <ScrollArea ref={setScroller} className="min-h-0 flex-1" viewportClassName="px-4 pb-4">
+    <div
+      ref={setScroller}
+      className="mx-4 min-h-0 min-w-0 flex-1 overflow-auto rounded-t pb-4 no-scrollbar [container-type:inline-size]"
+    >
       <EventsTableContents
         externalScrollElement={scroller}
         refetchRef={refetchRef}
@@ -110,7 +112,7 @@ function PureEventsTable() {
           onRefresh={handleRefresh}
         />
       </EventsTableContents>
-    </ScrollArea>
+    </div>
   );
 }
 

@@ -16,33 +16,6 @@ async function hexKeyFromEnv(name: "AEAD_SECRET_KEY" | "SLACK_ENCRYPTION_KEY"): 
 const getKeyFromEnv = () => hexKeyFromEnv("AEAD_SECRET_KEY");
 const getSlackKeyFromEnv = () => hexKeyFromEnv("SLACK_ENCRYPTION_KEY");
 
-export async function encodeApiKey(name: string, value: string): Promise<{ value: string; nonce: string }> {
-  const key = await getKeyFromEnv();
-  try {
-    await _sodium.ready;
-
-    const nonce = _sodium.randombytes_buf(_sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
-    const additionalData = new TextEncoder().encode(name);
-
-    const encrypted = _sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
-      new TextEncoder().encode(value),
-      additionalData,
-      null,
-      nonce,
-      key
-    );
-
-    return {
-      value: Buffer.from(encrypted).toString("hex"),
-      nonce: Buffer.from(nonce).toString("hex"),
-    };
-  } catch (error) {
-    throw new Error(`Failed to encode api_key ${name}`, {
-      cause: error,
-    });
-  }
-}
-
 export async function decodeApiKey(name: string, nonce: string, value: string): Promise<string> {
   const key = await getKeyFromEnv();
   try {

@@ -32,6 +32,13 @@ fn is_memory_limit_exception(exception: &str) -> bool {
     exception.trim_start().starts_with("Code: 241")
 }
 
+/// True when the deployment has no `pg` database, i.e. `CLICKHOUSE_POSTGRES_*` was
+/// not set. User SQL can name no database but `default`, so an unknown database (81)
+/// is `pg`; the name columns hit it through their dicts, which wrap it in a 510.
+fn is_postgres_entity_exception(exception: &str) -> bool {
+    exception.contains("Code: 81.")
+}
+
 pub async fn query(
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     project_id: Uuid,
@@ -119,6 +126,14 @@ pub async fn query(
             } else {
                 log::warn!("Error executing user SQL query: {}", &msg);
             }
+            if is_postgres_entity_exception(&msg) {
+                return SqlQueryError::Unavailable(
+                    "pg entities are not available on this deployment: ClickHouse \
+                     cannot read them from Postgres. On a self-hosted deployment, set \
+                     CLICKHOUSE_POSTGRES_USER and CLICKHOUSE_POSTGRES_PASSWORD (see the README)."
+                        .to_string(),
+                );
+            }
             SqlQueryError::BadResponseError(msg)
         }
         _ => {
@@ -136,7 +151,7 @@ pub async fn query(
 
 #[cfg(test)]
 mod tests {
-    use super::is_memory_limit_exception;
+    use super::{is_memory_limit_exception, is_postgres_entity_exception};
 
     #[test]
     fn detects_per_query_memory_limit() {
@@ -167,6 +182,22 @@ mod tests {
         assert!(!is_memory_limit_exception(
             "Code: 62. DB::Exception: Syntax error: failed at position 8: Code: 241. \
              (SYNTAX_ERROR)"
+        ));
+    }
+
+    #[test]
+    fn detects_missing_pg_database() {
+        assert!(is_postgres_entity_exception(
+            "Code: 81. DB::Exception: Database pg does not exist. (UNKNOWN_DATABASE) \
+             (version 26.5.7.64 (official build))"
+        ));
+        assert!(is_postgres_entity_exception(
+            "Code: 510. DB::Exception: Update failed for dictionary 'default.signals_dict \
+             (87656b27-e7f7-4c06-a88d-d675310f12c0)': Code: 81. DB::Exception: Database pg does \
+             not exist. (UNKNOWN_DATABASE)"
+        ));
+        assert!(!is_postgres_entity_exception(
+            "Code: 47. DB::Exception: Unknown expression identifier 'foo'. (UNKNOWN_IDENTIFIER)"
         ));
     }
 }

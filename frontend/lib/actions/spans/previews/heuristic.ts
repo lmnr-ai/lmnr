@@ -2,7 +2,7 @@ import { isBoolean, isEmpty, isNil, isNumber, isPlainObject, isString } from "lo
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
 
-import { METADATA_KEYS } from "./utils";
+import { isOpaqueString, METADATA_KEYS } from "./utils";
 
 // Descriptive content fields we prefer to surface, in order of preference.
 const PRIORITY_KEYS: readonly string[] = [
@@ -32,7 +32,7 @@ const isLeaf = (v: unknown): v is string | number | boolean => isString(v) || is
 const formatLeaf = (v: string | number | boolean): string | null => {
   if (isNumber(v) || isBoolean(v)) return String(v);
   const trimmed = v.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return trimmed.length > 0 && !isOpaqueString(trimmed) ? trimmed : null;
 };
 
 // Recursively find the first non-empty primitive value stored under `target`.

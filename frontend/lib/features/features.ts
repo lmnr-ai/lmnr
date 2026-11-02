@@ -2,6 +2,7 @@ import { isAiProviderConfigured } from "@/lib/ai/model";
 
 export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
+  EMAIL_AUTOMATIONS = "EMAIL_AUTOMATIONS",
   GITHUB_AUTH = "GITHUB_AUTH",
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
@@ -111,6 +112,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.SEND_EMAIL) {
     return !!process.env.RESEND_API_KEY;
+  }
+
+  if (feature === Feature.EMAIL_AUTOMATIONS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.RESEND_API_KEY;
   }
 
   if (feature === Feature.SLACK) {

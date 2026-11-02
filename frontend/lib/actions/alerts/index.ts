@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { ApiError } from "@/lib/api/errors";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
@@ -161,7 +162,7 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
   });
 }
 
-export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
+async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
 
@@ -226,7 +227,7 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   return result;
 }
 
-export async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
+async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
   const { alertId, projectId, disabled } = SetAlertDisabledSchema.parse(input);
 
   const [existing] = await db
@@ -254,9 +255,9 @@ export async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSch
   return { id: alertId, disabled };
 }
 
-export class AlertEmailTargetError extends Error {
+export class AlertEmailTargetError extends ApiError {
   constructor() {
-    super("Cannot set alert email targets for other users.");
+    super("Cannot set alert email targets for other users.", 403);
     this.name = "AlertEmailTargetError";
   }
 }

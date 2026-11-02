@@ -64,7 +64,7 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
         description: (
           <span>
             Successfully started export job to process SQL query.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
+            <Link className="text-primary-text" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
               Go to dataset.
             </Link>
           </span>

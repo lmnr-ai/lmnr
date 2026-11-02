@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { llmProfileModels, llmProfiles, projects } from "@/lib/db/migrations/schema";
-import { NotFoundError } from "@/lib/errors";
 
 import { type LlmProfileConfig, LlmProfileConfigSchema, type LlmProfileSecrets } from "./schema";
 import { decryptSecrets } from "./secrets";

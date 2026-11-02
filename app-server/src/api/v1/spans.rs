@@ -109,6 +109,7 @@ pub async fn create_spans(
             input_dedup: None,
             output_dedup: None,
             tool_dedup: None,
+            agent_prompt: None,
         });
     }
 

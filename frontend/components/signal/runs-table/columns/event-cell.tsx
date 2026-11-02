@@ -11,8 +11,7 @@ import { type SignalRunRow } from "@/lib/actions/signal-runs/types";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
-export const hasRunEvent = (row: Pick<SignalRunRow, "eventId">): boolean =>
-  !!row.eventId && row.eventId !== NIL_EVENT_ID;
+const hasRunEvent = (row: Pick<SignalRunRow, "eventId">): boolean => !!row.eventId && row.eventId !== NIL_EVENT_ID;
 
 export function runTraceParams(row: Pick<SignalRunRow, "traceId" | "eventId">) {
   return {
@@ -38,7 +37,7 @@ export const EventCell = ({ row }: { row: SignalRunRow }) => {
           href={href}
           className={cn(
             "inline-flex items-center gap-1 text-xs min-w-0 hover:underline",
-            fired ? "text-primary" : "text-muted-foreground"
+            fired ? "text-primary-text" : "text-muted-foreground"
           )}
           onClick={(e) => {
             e.stopPropagation();

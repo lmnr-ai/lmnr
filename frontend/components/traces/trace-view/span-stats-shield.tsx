@@ -33,7 +33,7 @@ function SpanStatsShieldInner({
     <div
       className={cn(
         "items-center gap-2 text-xs flex shrink-0",
-        !isInline && "h-6 bg-muted px-1.5 rounded-md animate-in fade-in duration-200",
+        !isInline && "h-6 bg-emphasis-1 px-1.5 rounded-md animate-in fade-in duration-200",
         className
       )}
     >
@@ -46,7 +46,7 @@ function SpanStatsShieldInner({
           <Coins size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
           <span>{formatTokensCompact(inputTokens ?? 0)}</span>
           {!!cacheReadInputTokens && (
-            <span className="text-success-bright">({formatTokensCompact(cacheReadInputTokens)})</span>
+            <span className="text-success-text">({formatTokensCompact(cacheReadInputTokens)})</span>
           )}
           <ArrowRight size={12} />
           <span>{formatTokensCompact(outputTokens ?? 0)}</span>

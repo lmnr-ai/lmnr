@@ -2,11 +2,12 @@
 
 import { createContext, type PropsWithChildren, use, useMemo, useState } from "react";
 
-export interface OnboardingConfig {
+interface OnboardingConfig {
   slackClientId?: string;
   slackRedirectUri?: string;
   // Resolved server-side before first paint; null when the company wasn't recognized.
   companyName?: string | null;
+  trialAvailable?: boolean;
 }
 
 export interface OnboardingResources {
@@ -29,6 +30,7 @@ export function OnboardingProvider({
   slackClientId,
   slackRedirectUri,
   companyName = null,
+  trialAvailable = false,
   initialResources,
   children,
 }: PropsWithChildren<OnboardingProviderProps>) {
@@ -39,10 +41,11 @@ export function OnboardingProvider({
       slackClientId,
       slackRedirectUri,
       companyName,
+      trialAvailable,
       resources,
       setResources,
     }),
-    [slackClientId, slackRedirectUri, companyName, resources]
+    [slackClientId, slackRedirectUri, companyName, trialAvailable, resources]
   );
 
   return <OnboardingContext value={value}>{children}</OnboardingContext>;

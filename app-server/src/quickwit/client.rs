@@ -18,6 +18,7 @@ use super::{
 pub struct QuickwitConfig {
     pub ingest_endpoint: String,
     pub search_endpoint: String,
+    pub force_commit: bool,
 }
 
 impl QuickwitConfig {
@@ -25,6 +26,7 @@ impl QuickwitConfig {
         Self {
             ingest_endpoint: env::quickwit::INGEST_URL.get(),
             search_endpoint: env::quickwit::SEARCH_URL.get(),
+            force_commit: env::quickwit::FORCE_COMMIT.get(),
         }
     }
 }
@@ -96,6 +98,7 @@ impl QuickwitError {
 struct QuickwitClientInner {
     ingest_endpoint: String,
     search_endpoint: String,
+    force_commit: bool,
     ingest_client: Mutex<IngestServiceClient<Channel>>, // gRPC
     search_client: reqwest::Client,                     // HTTP
 }
@@ -111,6 +114,7 @@ impl QuickwitClient {
             inner: Arc::new(QuickwitClientInner {
                 ingest_endpoint,
                 search_endpoint: config.search_endpoint,
+                force_commit: config.force_commit,
                 ingest_client: Mutex::new(grpc_client),
                 search_client: http_client,
             }),
@@ -130,6 +134,7 @@ impl QuickwitClient {
             inner: Arc::new(QuickwitClientInner {
                 ingest_endpoint: config.ingest_endpoint,
                 search_endpoint: config.search_endpoint,
+                force_commit: config.force_commit,
                 ingest_client: Mutex::new(IngestServiceClient::new(channel)),
                 search_client: reqwest::Client::new(),
             }),
@@ -146,12 +151,13 @@ impl QuickwitClient {
         index_id: &str,
         docs: &[T],
     ) -> Result<(), QuickwitError> {
-        let doc_batch = build_doc_batch(index_id, docs).map_err(|err| {
-            QuickwitError::Permanent(QuickwitErrorInner {
-                message: err.to_string(),
-                code: tonic::Code::Internal,
-            })
-        })?;
+        let doc_batch =
+            build_doc_batch(index_id, docs, self.inner.force_commit).map_err(|err| {
+                QuickwitError::Permanent(QuickwitErrorInner {
+                    message: err.to_string(),
+                    code: tonic::Code::Internal,
+                })
+            })?;
         let request = IngestRequest {
             doc_batches: vec![doc_batch],
             commit: CommitType::Auto as i32,
@@ -201,8 +207,9 @@ impl QuickwitClient {
 pub fn build_doc_batch<T: serde::Serialize>(
     index_id: &str,
     docs: &[T],
+    force_commit: bool,
 ) -> anyhow::Result<DocBatch> {
-    build_json_doc_batch(index_id, docs).map_err(|err| {
+    build_json_doc_batch(index_id, docs, force_commit).map_err(|err| {
         anyhow!(
             "Failed to encode documents for Quickwit ingestion ({} docs): {}",
             docs.len(),
@@ -230,6 +237,7 @@ mod tests {
         let client = QuickwitClient::connect_lazy(QuickwitConfig {
             ingest_endpoint: "http://127.0.0.1:1".to_string(),
             search_endpoint: "http://127.0.0.1:1".to_string(),
+            force_commit: true,
         })
         .expect("lazy connect must not dial");
 
@@ -243,6 +251,7 @@ mod tests {
         let result = QuickwitClient::connect_lazy(QuickwitConfig {
             ingest_endpoint: "not a url".to_string(),
             search_endpoint: String::new(),
+            force_commit: true,
         });
 
         assert!(result.is_err());

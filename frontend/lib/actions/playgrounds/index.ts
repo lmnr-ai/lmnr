@@ -7,12 +7,6 @@ import { db } from "@/lib/db/drizzle";
 import { llmProfileModels, llmProfiles, playgrounds, projects } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 
-export type Playground = {
-  id: string;
-  name: string;
-  createdAt: string;
-};
-
 export const GetPlaygroundsSchema = PaginationFiltersSchema.extend({
   projectId: z.guid(),
   search: z.string().nullable().optional(),

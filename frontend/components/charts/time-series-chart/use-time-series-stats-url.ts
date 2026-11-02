@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { calculateOptimalInterval, getTargetBarsForWidth, type Interval } from "./utils";
+import { calculateOptimalInterval, getTargetBarsForWidth, type Interval } from "@/lib/charts/responsive";
 
 interface UseTimeSeriesStatsUrlOptions {
   baseUrl: string;

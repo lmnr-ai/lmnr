@@ -112,7 +112,7 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
         <CardContent className="flex flex-col gap-4">
           {rawUserCode ? <UserCodeDisplay code={rawUserCode} /> : null}
           {banner ? (
-            <p className="text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md p-3">
+            <p className="text-sm text-destructive-text border border-destructive-border/30 bg-destructive/10 rounded-md p-3">
               {banner}
             </p>
           ) : (

@@ -3,6 +3,8 @@ import { unstable_rethrow } from "next/navigation";
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
+import { ApiError } from "./errors";
+
 type RouteContext<P extends Record<string, string> = Record<string, string>> = {
   params: Promise<P>;
 };
@@ -26,32 +28,36 @@ const isAbortError = (error: unknown): boolean => {
   return false;
 };
 
-export function apiHandler<P extends Record<string, string> = Record<string, string>>(
-  handler: RouteHandler<P>
-): RouteHandler<P> {
-  return async (req, ctx) => {
+/**
+ * Wraps an `app/api/**` route handler and turns what it throws into the `{ error }` JSON every
+ * caller (the UI's `fetchApi`, app-server's `next_api.rs`) reads: `ApiError` → its status,
+ * `ZodError` → 400, anything else → 500 and Sentry.
+ */
+export const apiHandler =
+  <P extends Record<string, string> = Record<string, string>>(handler: RouteHandler<P>): RouteHandler<P> =>
+  async (req, ctx) => {
     try {
       return await handler(req, ctx);
     } catch (error) {
-      // Must run BEFORE any other catch-block logic. Re-throws Next.js internal
-      // errors (redirect, notFound, permanentRedirect, etc.) so the framework
-      // can handle them correctly. Real application errors fall through.
+      // Must run first: re-throws Next.js control-flow errors (redirect, notFound, …).
       unstable_rethrow(error);
 
-      // The caller hung up (navigated away, superseded an in-flight fetch, closed
-      // the tab) — nothing to report and nobody left to read the response, so skip
-      // Sentry (fetchApi excludes aborts for the same reason) and answer 499
-      // (client closed request). Classified on the error rather than on
-      // `req.signal.aborted` so a real failure racing a disconnect is still captured.
+      // The caller hung up; nobody reads the response, so skip Sentry and answer 499.
+      // Classified on the error rather than `req.signal.aborted` so a real failure
+      // racing a disconnect is still captured.
       if (isAbortError(error)) {
         return new Response(null, { status: 499 });
       }
 
-      Sentry.captureException(error, { tags: { source: "apiHandler" } });
+      if (error instanceof ApiError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
 
       if (error instanceof ZodError) {
         return Response.json({ error: prettifyError(error) }, { status: 400 });
       }
+
+      Sentry.captureException(error, { tags: { source: "apiHandler" } });
 
       return Response.json(
         { error: error instanceof Error ? error.message : "Internal server error" },
@@ -59,4 +65,3 @@ export function apiHandler<P extends Record<string, string> = Record<string, str
       );
     }
   };
-}

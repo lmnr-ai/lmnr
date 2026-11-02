@@ -5,14 +5,6 @@ export const SIGNAL_RUN_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "FAILE
 
 export type SignalRunStatus = (typeof SIGNAL_RUN_STATUSES)[number];
 
-// Raw `signal_runs.status` discriminants; only needed when querying the table without `executeQuery`'s view rewrite.
-export const SIGNAL_RUN_STATUS_CODES = {
-  PROCESSING: 0,
-  COMPLETED: 1,
-  FAILED: 2,
-  PENDING: 3,
-} as const satisfies Partial<Record<SignalRunStatus, number>>;
-
 // Stages where the agent never ran, so there is nothing to report on. Names, not codes — queries hit the v0 view.
 export const NON_ANALYZED_SIGNAL_RUN_STATUSES: SignalRunStatus[] = ["PENDING"];
 
@@ -26,7 +18,7 @@ export type SignalRunStatsDataPoint = {
   inProgress: number;
 };
 
-export type SignalRun = {
+type SignalRun = {
   projectId: string;
   signalId: string;
   jobId: string;

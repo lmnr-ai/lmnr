@@ -197,7 +197,7 @@ export default function ManageSignalPanel({
                     <SidebarMenuItem className="h-7" key={tab.id}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:bg-surface-150 active:bg-surface-200 data-[active=true]:bg-surface-200"
+                        className="flex items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
                         isActive={activeTab === tab.id}
                         tooltip={tab.label}
                       >

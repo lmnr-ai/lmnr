@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import { Bar, BarChart, BarStack, CartesianGrid, XAxis, YAxis } from "recharts";
 
-import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
-import { getTickCountForWidth } from "@/components/charts/time-series-chart/utils";
 import { ChartContainer } from "@/components/ui/chart";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
 import { type EventCluster } from "@/lib/actions/clusters/types";
+import { numberFormatter } from "@/lib/charts/format";
+import { getTickCountForWidth } from "@/lib/charts/responsive";
+import { selectNiceTicksFromData } from "@/lib/charts/time";
 import { withOpacity } from "@/lib/clusters/colors";
 
 // Landing copy of components/signal/clusters-section/cluster-stacked-chart and

@@ -5,7 +5,7 @@ import LearnMoreLink from "../learn-more-link";
 import SlackThread from "./slack-thread";
 
 // Same shell as the other mock sections: copy on top, mock centered inside a
-// surface-250 panel.
+// surface-450 panel.
 const AskInSlack = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
@@ -32,7 +32,7 @@ const AskInSlack = () => (
         twice as tall as the other mocks, so equal padding reads as a void.
         The panel's height is the window plus this padding, so the two move
         together — see WINDOW_H in ./slack-thread. */}
-    <div className="bg-surface-250 relative flex items-center w-full md:py-[67px] py-[49px] overflow-hidden px-8">
+    <div className="bg-surface-450 relative flex items-center w-full md:py-[67px] py-[49px] overflow-hidden px-8">
       {/* Same overflow trick as the evals/debugger panels: a fixed width that
           `shrink-0` protects, so `mx-auto` centers it when there's room and it
           pins left and runs off the right when there isn't, rather than

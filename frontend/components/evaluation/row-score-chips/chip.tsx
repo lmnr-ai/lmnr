@@ -9,9 +9,9 @@ import { isValidNumber } from "@/lib/utils";
 
 interface RowScoreChipProps {
   name: string;
-  /** This datapoint's value for the score, not an aggregate. */
+  /** This Trial's value for the score, not an aggregate. */
   value?: number;
-  /** This datapoint's value per run in the group, oldest first. */
+  /** This Task's value per run in the group, oldest first. */
   points: RunPoint[];
 }
 
@@ -21,8 +21,8 @@ const CARD_WIDTH = 340;
 /**
  * One selected-row score chip. Hover grows the run-history line card out of
  * the chip (cluster-item choreography via use-hover-grow-card): this
- * datapoint's value across previous runs, current run emphasized. No hover
- * when the datapoint exists in fewer than two runs — there is no history.
+ * Task's value across previous runs, current run emphasized. No hover
+ * when the Task exists in fewer than two runs — there is no history.
  */
 export default function RowScoreChip({ name, value, points }: RowScoreChipProps) {
   const hasValue = isValidNumber(value);
@@ -38,7 +38,7 @@ export default function RowScoreChip({ name, value, points }: RowScoreChipProps)
         onWheel={hoverable ? closeImmediately : undefined}
         onMouseEnter={hoverable ? handleMouseEnter : undefined}
         onMouseLeave={hoverable ? scheduleClose : undefined}
-        className="flex gap-1.5 rounded-md bg-accent/60 px-2 py-1 items-center"
+        className="flex gap-1.5 rounded-md bg-surface-500/60 px-2 py-1 items-center"
       >
         <span className="text-muted-foreground text-[13px] font-medium">{name}</span>
         <span className="font-medium tabular-nums text-xl">{hasValue ? fmt(value) : "—"}</span>

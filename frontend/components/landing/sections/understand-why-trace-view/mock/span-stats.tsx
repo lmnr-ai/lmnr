@@ -22,7 +22,7 @@ const SpanStats = ({ span }: { span: MockSpan }) => {
           <Coins size={12} className="min-w-3 min-h-3 size-3" />
           <span>{formatTokensCompact(span.inputTokens)}</span>
           {!!span.cacheReadInputTokens && (
-            <span className="text-success-bright">({formatTokensCompact(span.cacheReadInputTokens)})</span>
+            <span className="text-success-text">({formatTokensCompact(span.cacheReadInputTokens)})</span>
           )}
           <ArrowRight size={12} />
           <span>{formatTokensCompact(span.outputTokens)}</span>

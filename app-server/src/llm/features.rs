@@ -28,9 +28,11 @@ pub enum LlmFeature {
     AgentChat,
     AgentAutoname,
     ClusteringNaming,
-    CheckpointsClassifier,
-    CheckpointsSystemPrompt,
+    CheckpointsAgentNaming,
     Reports,
+    /// Upstream of the hosted signals gateway (`/v1/chat/completions`). Resolved
+    /// with global rows only; must land on a Chat Completions client.
+    SignalsGateway,
 }
 
 impl LlmFeature {
@@ -50,9 +52,9 @@ impl LlmFeature {
             LlmFeature::AgentChat => "agent_chat",
             LlmFeature::AgentAutoname => "agent_autoname",
             LlmFeature::ClusteringNaming => "clustering_naming",
-            LlmFeature::CheckpointsClassifier => "checkpoints_classifier",
-            LlmFeature::CheckpointsSystemPrompt => "checkpoints_system_prompt",
+            LlmFeature::CheckpointsAgentNaming => "checkpoints_agent_naming",
             LlmFeature::Reports => "reports",
+            LlmFeature::SignalsGateway => "signals_gateway",
         }
     }
 
@@ -63,8 +65,7 @@ impl LlmFeature {
             | LlmFeature::InputExtractionRegexGeneration
             | LlmFeature::AgentAutoname
             | LlmFeature::ClusteringNaming
-            | LlmFeature::CheckpointsClassifier
-            | LlmFeature::CheckpointsSystemPrompt => ModelSize::Small,
+            | LlmFeature::CheckpointsAgentNaming => ModelSize::Small,
             LlmFeature::Default
             | LlmFeature::Signals
             | LlmFeature::SignalsPromptSummarization
@@ -72,7 +73,8 @@ impl LlmFeature {
             | LlmFeature::InputExtractionRegexGenerationMulti
             | LlmFeature::StaticPromptExtraction
             | LlmFeature::AgentChat
-            | LlmFeature::Reports => ModelSize::Medium,
+            | LlmFeature::Reports
+            | LlmFeature::SignalsGateway => ModelSize::Medium,
         }
     }
 }
@@ -133,9 +135,9 @@ mod tests {
         LlmFeature::AgentChat,
         LlmFeature::AgentAutoname,
         LlmFeature::ClusteringNaming,
-        LlmFeature::CheckpointsClassifier,
-        LlmFeature::CheckpointsSystemPrompt,
+        LlmFeature::CheckpointsAgentNaming,
         LlmFeature::Reports,
+        LlmFeature::SignalsGateway,
     ];
 
     /// The DB key (`as_str`) and the wire form (serde) must be the same string.

@@ -90,7 +90,7 @@ function DownloadButtonMultipleFormats({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+        className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-surface-300 text-foreground-100 shadow-md"
       >
         {supportedFormats.map((format) => (
           <DropdownMenuItem

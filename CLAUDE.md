@@ -31,13 +31,14 @@ pnpm test           # Run tests (tsx --test tests/**/*.test.ts)
 pnpm build          # Production build
 ```
 
-- The sandbox's global pnpm is v10 but the lockfile is written by pnpm 11 (`frontend/Dockerfile`). `pnpm add` on v10 rewrites hundreds of `(supports-color@…)` peer suffixes. Add deps with `npx -y pnpm@11 add <pkg> --lockfile-only`, then `pnpm install --frozen-lockfile` to sync `node_modules`.
+- The sandbox's global pnpm is v10 but the lockfile is written by pnpm 12 (`.github/workflows/fe-build-check.yml` pins 12.14.0, `frontend/Dockerfile` 12.8.1). `pnpm add` on v10 rewrites hundreds of `(supports-color@…)` peer suffixes. Add or bump deps with `npx -y pnpm@12.14.0 add <pkg> --lockfile-only`, then `npx -y pnpm@12.14.0 install --frozen-lockfile` to sync `node_modules`.
 - Format only the files you changed: `npx oxfmt --write <files>`. `prettier` is present in `node_modules` (transitive dep) but is NOT the project formatter — running it reformats files oxfmt then flags in the pre-commit hook.
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
-- `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise).
+- `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise). On an 8 GB box the full check OOMs at Node's default heap; prefix `NODE_OPTIONS=--max-old-space-size=8192`.
 - `pnpm test` on a clean `dev` already has two red tests (after `pnpm install --frozen-lockfile`, `ai` 7.0.15): `tests/test-ai-sdk-parser.test.ts` "skips empty text/reasoning parts" and `tests/test-normalize-messages.test.ts` "end-to-end: a bare AI-SDK parts array …". Both expect empty `text`/`reasoning` parts to be dropped and get 2 parts instead of 1. Pre-existing — `git stash -u` and re-run before blaming your change.
 - **A stale `node_modules` fakes ~47 "pre-existing" type errors.** An installed tree older than `pnpm-lock.yaml` (e.g. recharts 2.15.4 where the lock pins 3.10.1) makes `tsc --noEmit` and `pnpm build` fail on `BarStack` / `MouseHandlerDataParam` / `useYAxisScale` / `<YAxis width="auto">` across `chart-builder/`, `charts/`, `evaluation/`, `landing/`. They look exactly like the recharts v2→v3 debt they are not: `pnpm install --frozen-lockfile` clears all of them. Verify the install matches the lock before writing any of it off as pre-existing.
-- **Turbopack is the Next 16.3 default for both commands; `build` opts out with `--webpack`, `dev` does not.** Turbopack's production output miscompiled chunks (`module factory is not available` on client navigation). So both bundler blocks in `next.config.ts` are live, and a production repro needs `pnpm build`, not a bare `next build`. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
+- **Turbopack is the Next 16 default for both commands; `build` opts out with `--webpack`, `dev` does not.** Turbopack's production output miscompiled chunks (`module factory is not available` on client navigation). So both bundler blocks in `next.config.ts` are live, and a production repro needs `pnpm build`, not a bare `next build`. `next dev` generates `frontend/AGENTS.md` on every run; it is gitignored (do not commit it).
+- `frontend/.dockerignore` excludes only `node_modules` and `.next`, so a local `docker build frontend/` ships `.env.local` into the builder and `next build` inlines its `NEXT_PUBLIC_*` values. For a CI-faithful image, build from a copy without it (`tar --exclude=./node_modules --exclude=./.next --exclude=./.env.local -cf - . | tar -xf - -C /tmp/ctx`). The sandbox has no Docker by default: `apt-get install -y docker.io` then start `dockerd` in the background works.
 
 ### Backend (Rust)
 
@@ -127,8 +128,8 @@ Comments are welcome when they add a WHY that names cannot: a constraint, invari
 
 - One component per file; keep components <150 lines; related components in a folder with `index.tsx`.
 - Complex state belongs in a Zustand store (with `shallow` selectors); use nuqs for URL param state — never sync URL params into a store via `useEffect`.
-- Client fetches to our own `/api/...`: use `fetchApi` (`@/lib/api/fetch-api`) and toast on `error`; raw `fetch` only for streaming, non-JSON, or external calls. API routes: wrap with `apiHandler` (`@/lib/api/api-handler`) — 400 for `ZodError`, 500 otherwise, always JSON with an `error` field, Sentry capture. Use `AbortController` for superseded in-flight fetches.
-- Recharts is on v3 (`^3.10.1`). `CategoricalChartFunc` is defined from `MouseHandlerDataParam` in `chart-builder/charts/line-chart.tsx` (the v2 `recharts/types/chart/generateCategoricalChart` path is gone). Use `<YAxis width="auto">` and `<BarStack>` for stacked rounded bars — do not reintroduce a custom bar `shape`.
+- Client fetches to our own `/api/...`: use `fetchApi` (`@/lib/api/fetch-api`) and toast on `error`; raw `fetch` only for streaming, non-JSON, or external calls. API routes: wrap with `apiHandler` (`@/lib/api/api-handler`), no `try/catch`; throw `ApiError` subclasses (`@/lib/api/errors`) for expected 4xx; `ZodError` → 400, anything else → 500 + Sentry, always `{ error }` JSON. App-server-only `/api/internal` routes use `internalApiHandler` (`@/lib/api/internal`). Use `AbortController` for superseded in-flight fetches.
+- Recharts is on v3 (`^3.10.1`). `CategoricalChartFunc` is defined from `MouseHandlerDataParam` in `components/charts/time-series-chart/types.ts` (the v2 `recharts/types/chart/generateCategoricalChart` path is gone). Use `<YAxis width="auto">` and `<BarStack>` for stacked rounded bars — do not reintroduce a custom bar `shape`.
 - New data tables MUST follow the `InfiniteDataTable` split pattern (index/contents/controls/constants). Full patterns: `docs/internal/frontend-best-practices.md`.
 
 ## Key Technical Details
@@ -140,7 +141,7 @@ Comments are welcome when they add a WHY that names cannot: a constraint, invari
 
 ## Pre-commit Hooks
 
-Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
+Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. `✖ Task failed to spawn: oxfmt … ENOENT` means `frontend/node_modules` is partial, and the commit was NOT made: run `pnpm install --frozen-lockfile` in `frontend/` and commit again. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
 
 ## Detailed topic notes (read on demand)
 
@@ -153,20 +154,22 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
 | `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
 | `docs/internal/dedup-search.md` | `unique_content` group-scoped dedup (`traces/dedup/`), `spans_v0` reconstruction, Quickwit indexing/search |
-| `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, system-prompt / user-template versioning, checkpoints, 413s |
+| `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, system-prompt / user-template versioning, agent versioning (`agent_versioning/`), 413s |
 | `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
 | `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
-| `docs/internal/billing.md` | Tiers, usage warnings/hard limits, signal cost metering, custom model costs |
+| `docs/internal/billing.md` | Tiers, Starter free trial, usage warnings/hard limits, signal cost metering, custom model costs |
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
 | `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |
 | `docs/internal/debugger.md` | Debugger replay cache, debugger session blocks/timeline |
-| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, evaluations page, dashboards |
+| `docs/internal/frontend-tables.md` | Data-table filters, advanced search, saved views, evaluations page, dashboards |
 | `docs/internal/frontend-trace-view.md` | Trace view, span rendering/message parsing, ContentRenderer, rrweb replay |
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
+| `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator |
+| `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |

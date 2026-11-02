@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W } from "./class-names";
-import Footer from "./footer";
+import GridFooter from "./footer/grid-footer";
 import Hero from "./hero";
 import AskInSlack from "./sections/ask-in-slack";
 import BuiltForProduction from "./sections/built-for-production";
@@ -30,7 +30,7 @@ interface Props {
 // past 880 and remain horizontally centered at stage 6), then the remaining
 // sections in the standard 880px column below.
 const Landing = ({ className, hasSession }: Props) => (
-  <div className={cn("bg-surface-150 overflow-x-clip flex flex-col", className)}>
+  <div className={cn("bg-surface-350 overflow-x-clip flex flex-col", className)}>
     <Hero hasSession={hasSession} />
     {/* 160px controls the gap to the logo strip above. The subtraction just
         cancels the sticky child's own centring — its frame is 760 inside an
@@ -63,7 +63,7 @@ const Landing = ({ className, hasSession }: Props) => (
         <CTA />
       </div>
     </div>
-    <Footer />
+    <GridFooter />
   </div>
 );
 

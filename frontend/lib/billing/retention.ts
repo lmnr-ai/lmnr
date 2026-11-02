@@ -18,7 +18,7 @@ export const TIER_RETENTION: Record<
   enterprise: { duration: "Custom", durationPlural: "Custom", window: null },
 };
 
-export const retentionLabel = (tier: RetentionTier) => `${TIER_RETENTION[tier].duration} retention`;
+export const retentionLabel = (tier: RetentionTier) => `${TIER_RETENTION[tier].duration} data access`;
 
 // Earliest timestamp a tier may query back to, null = no enforcement. Matches
 // the raw tier name directly (not `normalizeTier`, which would fold unknown

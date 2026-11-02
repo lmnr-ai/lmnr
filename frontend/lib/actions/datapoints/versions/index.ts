@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { buildSelectQuery, type QueryParams, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { createDatapoints, type DatapointResult } from "@/lib/clickhouse/datapoints";
 import { tryParseJson } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ const datapointVersionSelectColumns = [
   "data",
   "target",
   "metadata",
+  "task_id as taskId",
 ];
 
 /**
@@ -141,7 +143,7 @@ export async function createDatapointVersionFromExisting(input: z.infer<typeof C
   })) as unknown as DatapointResult[];
 
   if (versions.length === 0) {
-    throw new Error("Version not found");
+    throw new NotFoundError("Version not found");
   }
 
   const versionToCopy = versions[0];
@@ -154,6 +156,7 @@ export async function createDatapointVersionFromExisting(input: z.infer<typeof C
       target: versionToCopy.target ? (tryParseJson(versionToCopy.target) ?? {}) : {},
       metadata: versionToCopy.metadata ? (tryParseJson(versionToCopy.metadata) ?? {}) : {},
       createdAt: new Date().toISOString(),
+      taskId: versionToCopy.taskId,
     },
   ]);
 

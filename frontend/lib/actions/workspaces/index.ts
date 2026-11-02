@@ -49,16 +49,19 @@ export const seedFirstProject = async ({
 }): Promise<void> => {
   // Route through createSignal so the default Failure Detector signal gets
   // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
-  await createSignal(
-    {
-      projectId,
-      name: DEFAULT_SIGNAL.name,
-      prompt: DEFAULT_SIGNAL.prompt,
-      structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
-      subscriberEmail: userEmail ?? undefined,
-    },
-    { requireLlmProfile: false }
-  );
+  // With subscriptions a new workspace starts on Free, which has no Signals: paid
+  // onboarding creates them in its Signals step instead.
+  if (!isFeatureEnabled(Feature.SUBSCRIPTION))
+    await createSignal(
+      {
+        projectId,
+        name: DEFAULT_SIGNAL.name,
+        prompt: DEFAULT_SIGNAL.prompt,
+        structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+        subscriberEmail: userEmail ?? undefined,
+      },
+      { requireLlmProfile: false }
+    );
 
   if (!userEmail) return;
 

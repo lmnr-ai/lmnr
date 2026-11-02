@@ -75,6 +75,11 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   // surface to the caller — success here would stop the user from retrying, and there is
   // no background reconciliation for the retained rows. The retry is what re-runs the
   // purge (the missing-row path above makes it reachable).
+  await purgeProjectData(projectId);
+}
+
+/** Purges a project's ClickHouse data; throws if any table fails. Safe to re-run. */
+export async function purgeProjectData(projectId: string) {
   const result = await deleteProjectDataFromClickHouse(projectId);
 
   if (!result.success) {
@@ -154,6 +159,7 @@ async function deleteProjectDataFromClickHouse(
     "default.system_prompt_version_defs",
     "default.user_template_versions",
     "default.user_template_version_defs",
+    "default.agent_prompts",
   ];
 
   // An absent table would otherwise report a false failure on every deletion.
@@ -193,7 +199,7 @@ async function deleteProjectDataFromClickHouse(
   );
 }
 
-async function deleteProjectApiKeysFromCache(apiKeyHashes: string[]) {
+export async function deleteProjectApiKeysFromCache(apiKeyHashes: string[]) {
   const results = await Promise.allSettled(
     apiKeyHashes.map(async (hash) => {
       const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
@@ -248,7 +254,7 @@ export async function deleteAllProjectsWorkspaceInfoFromCache(workspaceId: strin
   );
 }
 
-async function deleteProjectWorkspaceInfoFromCache(projectId: string) {
+export async function deleteProjectWorkspaceInfoFromCache(projectId: string) {
   const cacheKey = `${PROJECT_CACHE_KEY}:${projectId}`;
   await cache.remove(cacheKey);
 }
@@ -264,6 +270,7 @@ export interface ProjectDetails {
   signalCreditRemainingMicroUsd: number;
   logRetentionDays: number;
   isFreeTier: boolean;
+  trialEndsAt: string | null;
   settings: ProjectSettings;
 }
 
@@ -290,6 +297,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       id: workspaces.id,
       tierId: workspaces.tierId,
+      trialEndsAt: workspaces.trialEndsAt,
     })
     .from(workspaces)
     .where(eq(workspaces.id, project.workspaceId))
@@ -332,6 +340,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       signalCreditGrantedMicroUsd: 0,
       signalCreditRemainingMicroUsd: 0,
       isFreeTier,
+      trialEndsAt: workspace.trialEndsAt,
       settings,
     };
   }
@@ -352,6 +361,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     signalCreditGrantedMicroUsd: signalCredit.grantedMicroUsd,
     signalCreditRemainingMicroUsd: signalCredit.remainingMicroUsd,
     isFreeTier,
+    trialEndsAt: workspace.trialEndsAt,
     settings,
   };
 };

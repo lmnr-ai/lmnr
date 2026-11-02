@@ -87,7 +87,7 @@ export const toProvider = (values: LlmProfileFormValues): LlmProfileProvider => 
 };
 
 /** The form entry a wire provider belongs to; API shapes within a family share credentials. */
-export const toUiProvider = (provider: LlmProfileProvider): UiProvider => {
+const toUiProvider = (provider: LlmProfileProvider): UiProvider => {
   if (isOpenAIProvider(provider)) return "openai";
   if (isAzureProvider(provider)) return "azure";
   if (isCustomProvider(provider)) return "custom";

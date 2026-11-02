@@ -52,8 +52,8 @@ export default function SessionPanel({ searchSlot, timelineToggle, timelinePanel
       {/* Body */}
       {tracesError ? (
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
-          <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-destructive mb-2">Error Loading Session</h3>
+          <AlertTriangle className="w-12 h-12 text-destructive-text mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-destructive-text mb-2">Error Loading Session</h3>
           <p className="text-sm text-muted-foreground">{tracesError}</p>
         </div>
       ) : isTracesLoading && traces.length === 0 ? (

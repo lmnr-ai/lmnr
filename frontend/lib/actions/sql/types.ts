@@ -4,7 +4,7 @@ export type GenerationMode = "query" | "eval-expression" | "trace-expression" | 
 
 export type GenerationResult = { success: true; result: string } | { success: false; error: string };
 
-export const MetricSchema = z
+const MetricSchema = z
   .object({
     fn: z.enum(["count", "sum", "avg", "min", "max", "quantile", "raw"]),
     column: z.string(),
@@ -26,21 +26,21 @@ export const MetricSchema = z
     }
   });
 
-export const FilterStringSchema = z.object({
+const FilterStringSchema = z.object({
   field: z.string().min(1, "Filter field is required"),
   op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
   stringValue: z.string().min(1, "Filter value is required"),
 });
 
-export const FilterNumberSchema = z.object({
+const FilterNumberSchema = z.object({
   field: z.string().min(1, "Filter field is required"),
   op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
   numberValue: z.number(),
 });
 
-export const FilterSchema = z.union([FilterStringSchema, FilterNumberSchema]);
+const FilterSchema = z.union([FilterStringSchema, FilterNumberSchema]);
 
-export const TimeRangeSchema = z.object({
+const TimeRangeSchema = z.object({
   column: z.string(),
   from: z.string(),
   to: z.string(),
@@ -49,7 +49,7 @@ export const TimeRangeSchema = z.object({
   fillGaps: z.boolean(),
 });
 
-export const OrderBySchema = z.object({
+const OrderBySchema = z.object({
   field: z.string().min(1, "Order by field is required"),
   dir: z.enum(["asc", "desc"]),
 });

@@ -18,6 +18,7 @@ pub mod consumer;
 pub mod kind;
 pub mod producer;
 pub mod similarity;
+pub mod tool_text;
 pub mod versions;
 pub mod window;
 

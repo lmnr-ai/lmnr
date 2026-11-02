@@ -1,100 +1,37 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createAlertFilter, deleteAlertFilters, getAlertFilters, updateAlertFilter } from "@/lib/actions/alert-filters";
+import { apiHandler } from "@/lib/api/api-handler";
+import { NotFoundError } from "@/lib/api/errors";
 
-export async function GET(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; alertId: string }> }
-): Promise<Response> {
-  const { projectId, alertId } = await props.params;
+type Params = { projectId: string; alertId: string };
 
-  try {
-    const result = await getAlertFilters({ projectId, alertId });
+export const GET = apiHandler<Params>(async (_req, ctx) => {
+  const { projectId, alertId } = await ctx.params;
+  return Response.json(await getAlertFilters({ projectId, alertId }));
+});
 
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch filters." },
-      { status: 500 }
-    );
-  }
-}
+export const POST = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, alertId } = await ctx.params;
+  const body = await req.json();
+  return Response.json(await createAlertFilter({ projectId, alertId, filters: body.filters }));
+});
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; alertId: string }> }
-): Promise<Response> {
-  const { projectId, alertId } = await props.params;
+export const PUT = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, alertId } = await ctx.params;
+  const body = await req.json();
+  const result = await updateAlertFilter({
+    projectId,
+    alertId,
+    filterId: body.filterId,
+    filters: body.filters,
+  });
 
-  try {
-    const body = await req.json();
-    const result = await createAlertFilter({ projectId, alertId, filters: body.filters });
+  if (!result) throw new NotFoundError("Filter not found");
 
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create filter." },
-      { status: 500 }
-    );
-  }
-}
+  return Response.json(result);
+});
 
-export async function PUT(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; alertId: string }> }
-): Promise<Response> {
-  const { projectId, alertId } = await props.params;
-
-  try {
-    const body = await req.json();
-    const result = await updateAlertFilter({
-      projectId,
-      alertId,
-      filterId: body.filterId,
-      filters: body.filters,
-    });
-
-    if (!result) {
-      return Response.json({ error: "Filter not found" }, { status: 404 });
-    }
-
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update filter." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; alertId: string }> }
-): Promise<Response> {
-  const { projectId, alertId } = await props.params;
-
-  try {
-    const body = await req.json();
-    const result = await deleteAlertFilters({ projectId, alertId, filterIds: body.filterIds });
-
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to delete filters." },
-      { status: 500 }
-    );
-  }
-}
+export const DELETE = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, alertId } = await ctx.params;
+  const body = await req.json();
+  return Response.json(await deleteAlertFilters({ projectId, alertId, filterIds: body.filterIds }));
+});

@@ -80,13 +80,13 @@ export const SlackEventSchema = z.union([
   SlackGenericEventSchema,
 ]);
 
-export const SlackUrlVerificationRequestSchema = z.looseObject({
+const SlackUrlVerificationRequestSchema = z.looseObject({
   type: z.literal("url_verification"),
   challenge: z.string(),
   token: z.string(),
 });
 
-export const SlackEventCallbackSchema = z.looseObject({
+const SlackEventCallbackSchema = z.looseObject({
   type: z.literal("event_callback"),
   token: z.string(),
   team_id: z.string(),

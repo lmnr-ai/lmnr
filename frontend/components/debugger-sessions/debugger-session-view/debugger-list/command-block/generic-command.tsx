@@ -12,7 +12,7 @@ export default function GenericCommand({ command }: { command: CommandBlockConte
   return (
     <div className="flex flex-col border-t border-foreground-100/10">
       <SectionLabel>command</SectionLabel>
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5 text-primary-foreground">
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5 text-foreground">
         {input}
       </pre>
       <div className="border-t border-foreground-100/10">

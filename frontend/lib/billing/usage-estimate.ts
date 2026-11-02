@@ -1,4 +1,4 @@
-import { addMonths } from "date-fns";
+import { addMonths, differenceInCalendarDays } from "date-fns";
 
 import { type Tier, TIERS } from "@/lib/billing/tiers";
 
@@ -7,13 +7,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface BillingCycle {
   start: Date;
   end: Date;
+  // Calendar days, so a DST change inside the cycle doesn't add one.
   remainingDays: number;
 }
 
-export const billingCycle = (cycleStart: Date, now: Date = new Date()): BillingCycle => {
-  const end = addMonths(cycleStart, 1);
-  return { start: cycleStart, end, remainingDays: Math.max((end.getTime() - now.getTime()) / DAY_MS, 0) };
-};
+export const billingCycle = (
+  cycleStart: Date,
+  now: Date = new Date(),
+  end: Date = addMonths(cycleStart, 1)
+): BillingCycle => ({
+  start: cycleStart,
+  end,
+  remainingDays: Math.max(differenceInCalendarDays(end, now), 0),
+});
 
 export interface BillEstimate {
   baseUsd: number;

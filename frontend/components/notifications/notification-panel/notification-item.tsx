@@ -104,7 +104,7 @@ export const NotificationItem = ({
               />
               <button
                 onClick={() => setExpanded(true)}
-                className="relative flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit mt-1"
+                className="relative flex items-center gap-1 text-[11px] text-primary-text hover:text-primary-text/80 transition-colors w-fit mt-1"
               >
                 <ChevronDown className="size-3" />
                 Show more
@@ -117,7 +117,7 @@ export const NotificationItem = ({
           {contentBody}
           <button
             onClick={() => setExpanded(false)}
-            className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit"
+            className="flex items-center gap-1 text-[11px] text-primary-text hover:text-primary-text/80 transition-colors w-fit"
           >
             <ChevronUp className="size-3" />
             Show less

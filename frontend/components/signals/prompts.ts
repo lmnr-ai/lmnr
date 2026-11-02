@@ -1,7 +1,7 @@
 export type EventTemplate = {
   name: string;
   shortName: string;
-  icon: "alert-circle" | "brain" | "check-circle" | "frown" | "zap" | "shield" | "cloud-off" | "target";
+  icon: "alert-circle" | "check-circle" | "frown" | "target";
   description: string;
   prompt: string;
   structuredOutputSchema: string;
@@ -48,25 +48,25 @@ Grounding:
     ),
   },
   {
-    name: "Logic Analyzer",
-    shortName: "Logic",
-    icon: "brain",
-    description: "Find flaws in reasoning and decision-making",
-    prompt: `Analyze this trace for flaws in the agent's reasoning or decision-making.
-Look for poor planning, contradictions, unnecessary steps, or missed opportunities.`,
+    name: "Intent Classifier",
+    shortName: "Intent",
+    icon: "target",
+    description: "Classify what the user was trying to accomplish",
+    prompt: `What was the user trying to accomplish in this session?
+Classify the primary intent.`,
     structuredOutputSchema: JSON.stringify(
       {
         type: "object",
-        required: ["description", "severity"],
+        required: ["intent", "complexity"],
         properties: {
-          description: {
+          intent: {
             type: "string",
-            description: "Description of the reasoning flaw or issue",
+            description: "The user's primary intent",
           },
-          severity: {
+          complexity: {
             type: "string",
-            enum: ["low", "medium", "high"],
-            description: "Severity of the logic issue",
+            enum: ["simple", "moderate", "complex"],
+            description: "Complexity of the user's request",
           },
         },
       },
@@ -122,60 +122,6 @@ Look for confusion, repeated attempts, or poor user experience.`,
             type: "string",
             enum: ["low", "medium", "high"],
             description: "Severity of the user friction",
-          },
-        },
-      },
-      null,
-      2
-    ),
-  },
-  {
-    name: "Hallucination Detector",
-    shortName: "Hallucination",
-    icon: "cloud-off",
-    description: "Detect made-up facts and incorrect claims",
-    prompt: `Did the agent make up facts, hallucinate information, or confidently
-state something incorrect? Compare claims against available context.`,
-    structuredOutputSchema: JSON.stringify(
-      {
-        type: "object",
-        required: ["description", "type"],
-        properties: {
-          description: {
-            type: "string",
-            description: "Description of the hallucination",
-          },
-          type: {
-            type: "string",
-            enum: ["factual", "contextual", "fabrication"],
-            description: "Type of hallucination detected",
-          },
-        },
-      },
-      null,
-      2
-    ),
-  },
-  {
-    name: "Intent Classifier",
-    shortName: "Intent",
-    icon: "target",
-    description: "Classify what the user was trying to accomplish",
-    prompt: `What was the user trying to accomplish in this session?
-Classify the primary intent.`,
-    structuredOutputSchema: JSON.stringify(
-      {
-        type: "object",
-        required: ["intent", "complexity"],
-        properties: {
-          intent: {
-            type: "string",
-            description: "The user's primary intent",
-          },
-          complexity: {
-            type: "string",
-            enum: ["simple", "moderate", "complex"],
-            description: "Complexity of the user's request",
           },
         },
       },

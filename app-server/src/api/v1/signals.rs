@@ -20,8 +20,8 @@ pub async fn create_signal(
     cache: web::Data<Cache>,
 ) -> actix_web::Result<HttpResponse> {
     let result = service::create_signal(
-        &db.pool,
-        cache.get_ref(),
+        db.into_inner(),
+        cache.into_inner(),
         project_api_key.project_id,
         // No user behind a project API key — nobody to subscribe to the
         // auto-created alert. The CLI twin subscribes its caller.

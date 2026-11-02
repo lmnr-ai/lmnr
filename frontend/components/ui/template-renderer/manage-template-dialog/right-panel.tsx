@@ -56,9 +56,9 @@ const RightPanel = ({ scope, traceId, spanOutline, activeTab, onTabChange }: Pro
         </TabsContent>
 
         <TabsContent value="code" className="flex min-h-0 flex-1 flex-col gap-3 outline-none">
-          <div className="flex shrink-0 items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
+          <div className="flex shrink-0 items-center justify-between gap-2 rounded-md border border-border bg-surface-300 px-3 py-2">
             <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <Sparkles className="size-3.5 shrink-0 text-primary" />
+              <Sparkles className="size-3.5 shrink-0 text-primary-text" />
               <span>Generate with your AI tool and paste here</span>
             </div>
             <CopyButton

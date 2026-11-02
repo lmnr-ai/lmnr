@@ -72,7 +72,7 @@ export default function EnumValuesInput({
             aria-label="Remove value"
             type="button"
             onClick={() => removeValue(value)}
-            className="hover:text-destructive text-muted-foreground transition-colors"
+            className="hover:text-destructive-text text-muted-foreground transition-colors"
           >
             <X className="w-3 h-3" />
           </button>

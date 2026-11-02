@@ -29,11 +29,6 @@ export const SIGNAL_HEADER_H = 34;
  *  collapse-to-pill animation depicts. */
 export const SIGNAL_EVENT_TITLE = "Failure detector";
 
-/** What this particular event caught, as a sentence. Split from the title
- *  because ./slack-notification-card opens its message body with it, where a
- *  signal's NAME would read as a fragment. */
-export const SIGNAL_EVENT_SUMMARY = "Answered without citing a source";
-
 interface SpanChipProps {
   iconBg: string;
   icon: ReactNode;
@@ -156,20 +151,3 @@ export const SignalContent = ({ onSpanClick, onClose }: SignalContentProps = {})
     <SignalCardBody onSpanClick={onSpanClick} />
   </div>
 );
-
-interface Props {
-  className?: string;
-}
-
-// Static signal-event card (no morph). Used on mobile where each card is
-// rendered standalone rather than animated open inside a trace panel.
-const SignalEventCard = ({ className }: Props) => (
-  <div
-    style={{ borderColor: SIGNAL_BORDER, backgroundColor: SIGNAL_BG }}
-    className={cn("rounded-md border overflow-hidden", className)}
-  >
-    <SignalContent />
-  </div>
-);
-
-export default SignalEventCard;

@@ -254,6 +254,7 @@ pub(crate) fn create_datapoints_response(outcome: CreateDatapointsOutcome) -> Ht
                     serde_json::json!({
                         "id": dp.id,
                         "createdAt": dp.created_at,
+                        "taskId": dp.task_id,
                     })
                 })
                 .collect::<Vec<_>>();

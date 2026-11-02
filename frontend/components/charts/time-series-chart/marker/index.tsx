@@ -1,2 +1,1 @@
-export { default as MarkerLabel } from "./label";
-export { default as MarkerLine } from "./line";
+export { default as MarkerTick } from "./tick";

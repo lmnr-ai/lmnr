@@ -1,7 +1,7 @@
 "use client";
 
 import { isNil } from "lodash";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 import { createStore, type StoreApi, useStore } from "zustand";
@@ -39,8 +39,7 @@ const createDateRangeFilterStore = (
   initialEndDate: string | null,
   mode: DateRangeMode,
   onChange: ((value: DateRangeValue) => void) | undefined,
-  router: ReturnType<typeof useRouter>,
-  pathname: string
+  router: ReturnType<typeof useRouter>
 ) => {
   let calendarDate: ReactDateRange | undefined = undefined;
   let startTime = "00:00";
@@ -95,7 +94,8 @@ const createDateRangeFilterStore = (
         newSearchParams.delete("groupByInterval");
         newSearchParams.set("pastHours", rangeValue);
         newSearchParams.set("pageNumber", "0");
-        router.push(`${pathname}?${newSearchParams.toString()}`);
+        // Query-only href resolves against the current URL; a captured pathname goes stale under persistent layouts.
+        router.push(`?${newSearchParams.toString()}`);
       }
 
       onChange?.({ pastHours: rangeValue });
@@ -130,7 +130,7 @@ const createDateRangeFilterStore = (
         newSearchParams.set("pageNumber", "0");
         newSearchParams.set("startDate", startDateIso);
         newSearchParams.set("endDate", endDateIso);
-        router.push(`${pathname}?${newSearchParams.toString()}`);
+        router.push(`?${newSearchParams.toString()}`);
       }
 
       onChange?.({ startDate: startDateIso, endDate: endDateIso });
@@ -165,7 +165,6 @@ export const DateRangeFilterProvider = ({
   onChange,
 }: PropsWithChildren<DateRangeFilterProviderProps>) => {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const { pastHours, startDate, endDate } = useMemo(() => {
@@ -185,7 +184,7 @@ export const DateRangeFilterProvider = ({
   }, [searchParams, mode, initialPastHours, initialStartDate, initialEndDate]);
 
   const [storeState] = useState(() =>
-    createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router, pathname)
+    createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router)
   );
 
   useEffect(() => {

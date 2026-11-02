@@ -363,30 +363,30 @@ ORDER BY duration DESC`,
     name: "Signal events",
     table: "signals",
     query: `SELECT
-    name,
+    signal_name,
     count(*) AS \`count\`
 FROM signal_events
 WHERE
     timestamp >= {start_time:DateTime64}
     AND timestamp <= {end_time:DateTime64}
-GROUP BY name
+GROUP BY signal_name
 ORDER BY count DESC
 LIMIT 10`,
     queryStructure: {
       table: "signal_events",
       metrics: [{ fn: "count", column: "*", alias: "count", args: [] }],
-      dimensions: ["name"],
+      dimensions: ["signal_name"],
       filters: [],
       orderBy: [{ field: "count", dir: "desc" }],
       limit: 10,
     },
-    config: { x: "count", y: "name", type: "horizontalBar", displayMode: "total" },
+    config: { x: "count", y: "signal_name", type: "horizontalBar", displayMode: "total" },
   },
   {
     name: "Signal events table",
     table: "signals",
     query: `SELECT
-    name,
+    signal_name,
     severity,
     timestamp,
     signal_id,
@@ -399,7 +399,7 @@ ORDER BY timestamp DESC`,
     queryStructure: {
       table: "signal_events",
       metrics: [
-        { fn: "raw", column: "name", alias: "name", args: [] },
+        { fn: "raw", column: "signal_name", alias: "signal_name", args: [] },
         { fn: "raw", column: "severity", alias: "severity", args: [] },
         { fn: "raw", column: "timestamp", alias: "timestamp", args: [] },
         { fn: "raw", column: "signal_id", alias: "signal_id", args: [], hidden: true },

@@ -25,19 +25,12 @@ export const POST = apiHandler<{ projectId: string; datasetId: string; datapoint
 
   const body = await req.json();
 
-  try {
-    const result = await createDatapointVersionFromExisting({
-      projectId: params.projectId,
-      datasetId: params.datasetId,
-      datapointId: params.datapointId,
-      versionCreatedAt: body.versionCreatedAt,
-    });
+  const result = await createDatapointVersionFromExisting({
+    projectId: params.projectId,
+    datasetId: params.datasetId,
+    datapointId: params.datapointId,
+    versionCreatedAt: body.versionCreatedAt,
+  });
 
-    return Response.json(result, { status: 200 });
-  } catch (error) {
-    if (error instanceof Error && error.message === "Version not found") {
-      return Response.json({ error: "Version not found" }, { status: 404 });
-    }
-    throw error;
-  }
+  return Response.json(result, { status: 200 });
 });

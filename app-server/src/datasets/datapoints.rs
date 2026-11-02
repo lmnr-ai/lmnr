@@ -14,6 +14,7 @@ pub struct Datapoint {
     pub target: Option<Value>,
     pub metadata: HashMap<String, Value>,
     pub created_at: DateTime<Utc>,
+    pub task_id: String,
 }
 
 impl Datapoint {
@@ -46,6 +47,7 @@ pub struct CHQueryEngineDatapoint {
     pub data: String,
     pub target: String,
     pub metadata: String,
+    pub task_id: String,
 }
 
 impl TryInto<Datapoint> for CHQueryEngineDatapoint {
@@ -63,6 +65,7 @@ impl TryInto<Datapoint> for CHQueryEngineDatapoint {
             data,
             target,
             metadata,
+            task_id: self.task_id,
         })
     }
 }

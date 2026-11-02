@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
-import { buildPath, type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
+import { type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
 import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
@@ -25,9 +24,6 @@ const DATASET = MOCK_DATASETS["detect-failures"];
 const BUCKET_COUNT = new Set(DATASET.stats.map((row) => row.timestamp)).size;
 const TOTAL_TICKS = Math.ceil((BUCKET_COUNT + GROW_BUCKETS) * TICKS_PER_BUCKET);
 
-/** Wall-clock length of the bar stream-in. The stage schedules around it. */
-export const CLUSTER_FILL_MS = (TOTAL_TICKS * BUCKET_MS) / TICKS_PER_BUCKET;
-
 /** Top-level clusters, which the stage reveals one at a time. */
 export const CLUSTER_COUNT = DATASET.clusterTree.length;
 
@@ -35,7 +31,7 @@ export const CLUSTER_COUNT = DATASET.clusterTree.length;
  *  mobile; `column` exists because the desktop trace-view frame is 480 wide,
  *  where a side-by-side list and chart would both be too narrow to read. */
 export const CLUSTERS_CARD_W = 720;
-export const CLUSTERS_CARD_COL_W = 440;
+const CLUSTERS_CARD_COL_W = 440;
 
 // Column layout only, and it is the CHART SUB-CARD's height including borders.
 // The list is deliberately NOT sized: it hugs its rows, so the card grows as
@@ -169,19 +165,6 @@ const ClustersCard = ({
     [selectedClusterId, isLeaf, displayId]
   );
 
-  const breadcrumb = useMemo(
-    () => (selectedClusterId ? buildPath(DATASET.clusterTree, selectedClusterId) : []),
-    [selectedClusterId]
-  );
-
-  const navigateToBreadcrumb = useCallback(
-    (index: number) => {
-      if (index < 0) setSelectedClusterId(null);
-      else setSelectedClusterId(breadcrumb[index].id);
-    },
-    [breadcrumb]
-  );
-
   // Pinned from the final data so the axis doesn't step up while bars stream in.
   const yAxisMax = useMemo(() => {
     const ids = new Set(chartClusters.map((c) => c.id));
@@ -246,11 +229,6 @@ const ClustersCard = ({
         style={{ width: CLUSTERS_CARD_COL_W }}
         className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
       >
-        <ClusterBreadcrumb
-          breadcrumb={breadcrumb}
-          selectedClusterId={selectedClusterId}
-          onNavigateToBreadcrumb={navigateToBreadcrumb}
-        />
         <div className="rounded-md border bg-secondary overflow-hidden">{list}</div>
         <div style={{ height: COL_CHART_CARD_H }} className="flex rounded-md border bg-secondary overflow-hidden">
           {chart}
@@ -264,11 +242,6 @@ const ClustersCard = ({
       style={{ width: CLUSTERS_CARD_W }}
       className={cn("rounded-lg border bg-background p-3 flex flex-col gap-2", className)}
     >
-      <ClusterBreadcrumb
-        breadcrumb={breadcrumb}
-        selectedClusterId={selectedClusterId}
-        onNavigateToBreadcrumb={navigateToBreadcrumb}
-      />
       <div className="flex h-[230px] rounded-md border bg-secondary overflow-hidden">
         <div className="w-[250px] md:w-[300px] shrink-0 overflow-hidden">{list}</div>
         {chart}

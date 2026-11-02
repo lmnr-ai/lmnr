@@ -18,19 +18,12 @@ export const GET = apiHandler<{ projectId: string; evaluationId: string }>(async
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  try {
-    // Call the action to get evaluation statistics
-    const result = await getEvaluationStatistics({
-      ...parseResult.data,
-      projectId,
-      evaluationId,
-    });
+  // Call the action to get evaluation statistics
+  const result = await getEvaluationStatistics({
+    ...parseResult.data,
+    projectId,
+    evaluationId,
+  });
 
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof Error && error.message === "Evaluation not found") {
-      return Response.json({ error: "Evaluation not found" }, { status: 404 });
-    }
-    throw error;
-  }
+  return Response.json(result);
 });

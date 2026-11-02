@@ -55,7 +55,7 @@ export default function TriggerPicker() {
               key={option.kind}
               className={cn(
                 "relative rounded-lg border transition-colors",
-                isSelected ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/40"
+                isSelected ? "border-primary/40 bg-primary/5" : "border-border hover:overlay-hover"
               )}
             >
               <button

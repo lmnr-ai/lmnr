@@ -121,6 +121,7 @@ async fn check_and_enqueue(
                 weekdays: report.weekdays,
                 hour: report.hour,
                 triggered_at,
+                excluded_project_ids: report.excluded_project_ids,
             };
 
             if let Err(e) = push_to_reports_queue(message, queue.clone()).await {

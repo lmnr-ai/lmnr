@@ -1,0 +1,32 @@
+import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
+import { apiHandler } from "@/lib/api/api-handler";
+import { NotFoundError } from "@/lib/api/errors";
+
+type Params = { projectId: string; dashboardId: string; chartId: string };
+
+export const GET = apiHandler<Params>(async (_req, ctx) => {
+  const { projectId, dashboardId, chartId: id } = await ctx.params;
+  const chart = await getChart({ projectId, dashboardId, id });
+  if (!chart) throw new NotFoundError("Chart not found");
+  return Response.json(chart);
+});
+
+export const DELETE = apiHandler<Params>(async (_req, ctx) => {
+  const { projectId, dashboardId, chartId: id } = await ctx.params;
+  await deleteDashboardChart({ projectId, dashboardId, id });
+  return Response.json({ success: true });
+});
+
+// PATCH is used for partial updates (name only)
+export const PATCH = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, dashboardId, chartId: id } = await ctx.params;
+  const body = await req.json();
+  await updateChartName({ ...body, projectId, dashboardId, id });
+  return Response.json({ success: true });
+});
+
+export const PUT = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, dashboardId, chartId: id } = await ctx.params;
+  const body = await req.json();
+  return Response.json(await updateChart({ ...body, projectId, dashboardId, id }));
+});

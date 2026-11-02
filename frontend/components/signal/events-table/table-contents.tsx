@@ -246,7 +246,8 @@ export const EventsTableContents = memo(function EventsTableContents({
 
   return (
     <InfiniteDataTable<EventRow>
-      className="w-full"
+      className="w-full min-w-max"
+      childrenClassName="sticky left-0 z-30 w-[100cqw]"
       externalScrollElement={externalScrollElement}
       columns={columns}
       data={events}
@@ -258,7 +259,6 @@ export const EventsTableContents = memo(function EventsTableContents({
       isLoading={isLoading || isViewLoading}
       getRowHref={getRowHref}
       fetchNextPage={fetchNextPage}
-      loadMoreButton
       estimatedRowHeight={80}
       sortBy={sortBy}
       sortDirection={sortDirection}

@@ -1,5 +1,4 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteTraces, DeleteTracesSchema, getTraces, GetTracesSchema } from "@/lib/actions/traces";
@@ -28,9 +27,8 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(result);
 });
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const DELETE = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const { projectId } = await ctx.params;
   const traceIds = req.nextUrl.searchParams.getAll("traceId");
 
   const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
@@ -39,13 +37,6 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  try {
-    await deleteTraces(parseResult.data);
-    return new Response("Traces deleted successfully.", { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return new Response(error instanceof Error ? error.message : "Error deleting traces.", { status: 500 });
-  }
-}
+  await deleteTraces(parseResult.data);
+  return new Response("Traces deleted successfully.", { status: 200 });
+});

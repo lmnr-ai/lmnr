@@ -5,19 +5,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
-import { ONBOARDING_STEPS } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { AgentTab } from "@/components/traces/placeholder/agent-tab";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
-const STEP_INDEX = ONBOARDING_STEPS.length - 1;
+// The CLI flow opens extra tabs that land on this step. Serializing their finishes means
+// later DELETEs arrive after the cookie is cleared, so the server skips the welcome email.
+// navigator.locks is missing outside secure contexts (plain-HTTP self-hosted).
+const withFinishLock = (projectId: string, finish: () => Promise<boolean>): Promise<boolean> =>
+  navigator.locks ? navigator.locks.request(`lmnr:onboarding-finish:${projectId}`, finish) : finish();
 
 interface ConnectStepProps {
+  stepIndex: number;
+  totalSteps: number;
   onBack?: () => void;
 }
 
-export default function ConnectStep({ onBack }: ConnectStepProps) {
+export default function ConnectStep({ stepIndex, totalSteps, onBack }: ConnectStepProps) {
   const router = useRouter();
   const { resources } = useOnboardingContext();
   const { isSubmitting, finishOnboarding, beginSubmitting } = useOnboardingActions();
@@ -35,7 +40,7 @@ export default function ConnectStep({ onBack }: ConnectStepProps) {
       }
       // Only record completion once the cookie is actually cleared — a failed
       // DELETE leaves the user pinned to /onboarding, so it isn't "completed".
-      if (await finishOnboarding()) {
+      if (await withFinishLock(projectId, finishOnboarding)) {
         track("onboarding", "connect_step_completed", { skipped });
         beginSubmitting();
         router.replace(`/project/${projectId}/traces?onboarding=true`);
@@ -63,8 +68,8 @@ export default function ConnectStep({ onBack }: ConnectStepProps) {
 
   return (
     <StepShell
-      stepIndex={STEP_INDEX}
-      totalSteps={ONBOARDING_STEPS.length}
+      stepIndex={stepIndex}
+      totalSteps={totalSteps}
       title="Send your first trace"
       description="Copy and paste this prompt to your coding agent to integrate with Laminar."
       onBack={onBack}

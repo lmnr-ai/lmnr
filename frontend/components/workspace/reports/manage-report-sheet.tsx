@@ -17,13 +17,16 @@ import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
+import { type Project } from "@/lib/workspaces/types";
 
+import ReportProjectsPicker from "./report-projects-picker";
 import { formatSchedule } from "./utils";
 
 interface ManageReportSheetProps {
   workspaceId: string;
   integrationId?: string | null;
   report: ReportWithDetails | null;
+  projects: Project[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -34,6 +37,7 @@ export default function ManageReportSheet({
   workspaceId,
   integrationId,
   report,
+  projects,
   open,
   onOpenChange,
   onSaved,
@@ -58,14 +62,18 @@ export default function ManageReportSheet({
     [report]
   );
 
+  const currentExcludedProjectIds = useMemo(() => report?.excludedProjectIds ?? [], [report]);
+
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [slackChannels, setSlackChannels] = useState<SlackChannelSelection[]>([]);
+  const [excludedProjectIds, setExcludedProjectIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open || !report) return;
     setEmailEnabled(currentEmailSubscribed);
     setSlackChannels(currentSlackChannels);
-  }, [open, report, currentEmailSubscribed, currentSlackChannels]);
+    setExcludedProjectIds(currentExcludedProjectIds);
+  }, [open, report, currentEmailSubscribed, currentSlackChannels, currentExcludedProjectIds]);
 
   const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<{
     channels: SlackChannel[];
@@ -88,10 +96,15 @@ export default function ManageReportSheet({
     return slackChannels.some((c) => !current.has(c.id));
   }, [slackChannels, currentSlackChannels]);
 
+  const projectsChanged = useMemo(() => {
+    if (excludedProjectIds.length !== currentExcludedProjectIds.length) return true;
+    return excludedProjectIds.some((id) => !currentExcludedProjectIds.includes(id));
+  }, [excludedProjectIds, currentExcludedProjectIds]);
+
   const hasChanges = useMemo(() => {
     if (!report) return false;
-    return emailEnabled !== currentEmailSubscribed || slackChanged;
-  }, [report, emailEnabled, currentEmailSubscribed, slackChanged]);
+    return emailEnabled !== currentEmailSubscribed || slackChanged || projectsChanged;
+  }, [report, emailEnabled, currentEmailSubscribed, slackChanged, projectsChanged]);
 
   const handleSave = useCallback(async () => {
     if (!report) return;
@@ -135,14 +148,30 @@ export default function ManageReportSheet({
         anyChangeCommitted = true;
       }
 
+      if (projectsChanged) {
+        const res = await fetch(`/api/workspaces/${workspaceId}/reports/excluded-projects`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reportId: report.id, excludedProjectIds }),
+        });
+        if (!res.ok) {
+          const error = (await res.json().catch(() => ({ error: "Failed to update report projects" }))) as {
+            error: string;
+          };
+          throw new Error(error?.error ?? "Failed to update report projects");
+        }
+        anyChangeCommitted = true;
+      }
+
       toast({
         title: "Report updated",
-        description: "Notification targets have been updated.",
+        description: "Report settings have been updated.",
       });
       track("reports", "edited", {
         has_slack: slackChannels.length > 0,
         slack_channel_count: slackChannels.length,
         has_email: emailEnabled,
+        excluded_project_count: excludedProjectIds.length,
       });
       onSaved();
       onOpenChange(false);
@@ -164,6 +193,8 @@ export default function ManageReportSheet({
     currentEmailSubscribed,
     slackChannels,
     slackChanged,
+    excludedProjectIds,
+    projectsChanged,
     hasSlackIntegration,
     integrationId,
     workspaceId,
@@ -225,6 +256,14 @@ export default function ManageReportSheet({
                     <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
                   </div>
                 </div>
+
+                {projects.length > 0 && (
+                  <ReportProjectsPicker
+                    projects={projects}
+                    excludedProjectIds={excludedProjectIds}
+                    onChange={setExcludedProjectIds}
+                  />
+                )}
               </>
             )}
           </div>

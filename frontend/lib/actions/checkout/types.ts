@@ -29,6 +29,11 @@ export const TIER_CONFIG = {
 
 export type PaidTier = keyof typeof TIER_CONFIG;
 
+export const TRIAL_DAYS = 14;
+
+// Set on the return from trial card setup started by an upgrade: the tier whose dialog reopens.
+export const TRIAL_UPGRADE_PARAM = "upgrade";
+
 export const DATAPLANE_ADDON_LOOKUP_KEY = "pro_monthly_2026_02_addon_dataplane";
 
 /**
@@ -101,6 +106,14 @@ export interface SubscriptionDetails {
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;
   stripeCustomerId: string;
+  // Set only while the subscription is a Starter trial (unix seconds).
+  trialEnd: number | null;
+  hasPaymentMethod: boolean;
+}
+
+export interface ActiveTrialInfo {
+  endsAt: string;
+  convertsToPaid: boolean;
 }
 
 export interface UpcomingInvoiceInfo {

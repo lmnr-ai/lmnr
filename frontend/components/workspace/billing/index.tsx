@@ -10,7 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkspaceAddons from "@/components/workspace/billing/addons";
 import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";
+import StartTrialButton from "@/components/workspace/billing/start-trial-button";
 import SwitchTierDialog from "@/components/workspace/billing/switch-tier-dialog";
+import TrialActions from "@/components/workspace/billing/trial-actions";
 import {
   formatCurrency,
   formatDate,
@@ -36,6 +38,7 @@ interface WorkspaceBillingProps {
   canManageBilling: boolean;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
+  trialEligible: boolean;
 }
 
 function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInvoiceInfo }) {
@@ -47,7 +50,7 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
       : 0;
 
   return (
-    <Card>
+    <Card className="border-0">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Upcoming invoice</CardTitle>
@@ -132,6 +135,7 @@ export default function WorkspaceBilling({
   canManageBilling,
   subscription,
   upcomingInvoice,
+  trialEligible,
 }: WorkspaceBillingProps) {
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +221,21 @@ export default function WorkspaceBilling({
       );
     }
 
+    if (isFree && tierKey === "hobby" && trialEligible) {
+      return (
+        <div className="flex flex-col gap-1.5">
+          <StartTrialButton workspaceId={workspace.id} onError={setError} />
+          <Link
+            href={`/checkout?lookupKey=${TIER_CONFIG.hobby.lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
+            className="text-xs text-center text-muted-foreground hover:text-foreground"
+            onClick={() => track("billing", "upgrade_clicked", { from_tier: currentTierKey, to_tier: tierKey })}
+          >
+            or subscribe now
+          </Link>
+        </div>
+      );
+    }
+
     if (isFree) {
       return (
         <Link
@@ -242,6 +261,7 @@ export default function WorkspaceBilling({
         targetTierName={targetTierInfo?.name ?? tierKey}
         targetTierPrice={targetTierInfo?.price ?? ""}
         targetTierPriceSubtext={targetTierInfo?.priceSubtext ?? ""}
+        needsPaymentMethod={!!subscription?.trialEnd && !subscription.hasPaymentMethod}
         onError={setError}
       >
         <Button variant={action === "upgrade" ? "default" : "outline"} className="w-full h-8 text-xs">
@@ -256,24 +276,30 @@ export default function WorkspaceBilling({
       <SettingsSectionHeader title="Billing" description="Manage your workspace plan and billing" />
 
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-md p-3 text-sm">
+        <div className="bg-destructive/10 border border-destructive-border/20 text-destructive-text rounded-md p-3 text-sm">
           {error}
         </div>
       )}
 
       {canManageBilling && subscription && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
-          <Card>
+          <Card className="border-0">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Current plan</CardTitle>
                 <span
                   className={cn(
                     "text-xs px-2 py-0.5 rounded-md font-medium",
-                    subscription.cancelAtPeriodEnd ? "bg-yellow-500/10 text-yellow-500" : "bg-primary/10 text-primary"
+                    subscription.cancelAtPeriodEnd || subscription.trialEnd
+                      ? "bg-yellow-500/10 text-yellow-500"
+                      : "bg-primary/10 text-primary-text"
                   )}
                 >
-                  {subscription.cancelAtPeriodEnd ? "Cancels at period end" : subscription.status}
+                  {subscription.trialEnd
+                    ? "Free trial"
+                    : subscription.cancelAtPeriodEnd
+                      ? "Cancels at period end"
+                      : subscription.status}
                 </span>
               </div>
             </CardHeader>
@@ -288,10 +314,19 @@ export default function WorkspaceBilling({
               <div className="text-sm text-secondary-foreground">
                 {formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}
               </div>
-              {subscription.cancelAtPeriodEnd && (
+              {subscription.cancelAtPeriodEnd && !subscription.trialEnd && (
                 <p className="text-sm text-yellow-500">Access until {formatDate(subscription.currentPeriodEnd)}</p>
               )}
-              {!subscription.cancelAtPeriodEnd && isOwner && (
+              {subscription.trialEnd && (
+                <TrialActions
+                  workspaceId={workspace.id}
+                  trialEnd={subscription.trialEnd}
+                  hasPaymentMethod={subscription.hasPaymentMethod}
+                  cancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
+                  onError={setError}
+                />
+              )}
+              {!subscription.cancelAtPeriodEnd && !subscription.trialEnd && isOwner && (
                 <div className="pt-2 flex gap-2">
                   <Button
                     className="bg-secondary"
@@ -309,7 +344,10 @@ export default function WorkspaceBilling({
                     periodEnd={formatDate(subscription.currentPeriodEnd)}
                     onError={setError}
                   >
-                    <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
+                    <Button
+                      variant="outline"
+                      className="text-destructive-text border-destructive-border hover:bg-destructive/10"
+                    >
                       Cancel plan
                     </Button>
                   </CancelSubscriptionDialog>
@@ -332,7 +370,7 @@ export default function WorkspaceBilling({
               <div
                 key={key}
                 className={cn(
-                  "p-4 rounded-lg bg-surface-100 flex flex-col justify-between min-h-[180px]",
+                  "p-4 rounded-lg bg-surface-300 flex flex-col justify-between min-h-[180px]",
                   isCurrent && "ring-1 ring-primary/50",
                   key === "pro" && !isCurrent && "border-primary/50"
                 )}

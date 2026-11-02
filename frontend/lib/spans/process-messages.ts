@@ -13,6 +13,7 @@ import {
   parseOpenAIResponsesInput,
   parseOpenAIResponsesOutput,
 } from "@/lib/spans/types/openai-responses";
+import { parseOpenCodeMessages } from "@/lib/spans/types/opencode";
 
 const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "redacted_thinking"]);
 
@@ -113,6 +114,12 @@ export function processMessages(rawData: unknown): ProcessedMessages {
   const genAIMessages = parseGenAIMessages(data);
   if (genAIMessages) {
     return { messages: genAIMessages, type: "generic" };
+  }
+
+  // OpenCode V2 before AI SDK: AI SDK's catch-all part would claim its `tool-call` parts.
+  const openCodeMessages = parseOpenCodeMessages(data);
+  if (openCodeMessages) {
+    return { messages: openCodeMessages, type: "generic" };
   }
 
   // Native Vercel AI SDK `ModelMessage[]` / verbatim LanguageModel prompts

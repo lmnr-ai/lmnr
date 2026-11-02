@@ -6,5 +6,5 @@ import { CHIP } from "./constants";
  *  out, and no arrow says so. Wider inset: bare text has no glyphs to stand it
  *  off the rounded ends. */
 export default function EnumPill({ value }: { value: string }) {
-  return <span className={cn(CHIP, "inline-flex bg-surface-up-2 px-2.5 text-secondary-foreground")}>{value}</span>;
+  return <span className={cn(CHIP, "inline-flex bg-emphasis-1 px-2.5 text-secondary-foreground")}>{value}</span>;
 }

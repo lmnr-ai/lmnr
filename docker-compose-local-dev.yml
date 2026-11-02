@@ -56,7 +56,7 @@ services:
         hard: 262144
 
   quickwit:
-    image: quickwit/quickwit:v0.8.2
+    image: quickwit/quickwit:v0.9.1
     pull_policy: always
     ports:
       - "7280:7280" # REST API and UI
@@ -67,7 +67,7 @@ services:
     volumes:
       - quickwit-data:/quickwit/qwdata
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7280 && printf 'GET /health/livez HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
       interval: 10s
       timeout: 5s
       retries: 3

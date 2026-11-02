@@ -1,21 +1,13 @@
-export type OnboardingTier = "free" | "hobby" | "pro";
+type OnboardingTier = "free" | "hobby" | "pro";
 
 export interface OnboardingFormValues {
   workspaceName: string;
   projectName: string;
+  // Queued until the commit on leaving the Slack step; not applied if the workspace stays on Free.
+  invites: string[];
   selectedTemplateNames: string[];
   slackConnected: boolean;
   selectedTier: OnboardingTier;
   // Workspace's actual tier at hydration; never mutated by the user.
   currentTier: OnboardingTier;
 }
-
-export const ONBOARDING_STEPS = ["workspace", "signals", "slack", "plan", "connect"] as const;
-
-export const DEFAULT_SELECTED_TEMPLATE_NAMES = ["Failure Detector"] as const;
-
-export const TIER_RANK: Record<OnboardingTier, number> = {
-  free: 0,
-  hobby: 1,
-  pro: 2,
-};

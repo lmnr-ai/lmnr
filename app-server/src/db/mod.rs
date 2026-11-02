@@ -3,7 +3,7 @@ use sqlx::PgPool;
 
 use crate::env;
 
-pub mod agents;
+pub mod agent_versioning;
 pub mod alert_targets;
 pub mod custom_model_costs;
 pub mod datasets;

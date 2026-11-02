@@ -3,9 +3,44 @@ import { isNil } from "lodash";
 import { notFound, redirect } from "next/navigation";
 
 import { getServerSession } from "@/lib/auth-session";
-import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache.ts";
+import {
+  cache,
+  MEMBER_ACCESS_CACHE_TTL_SECONDS,
+  PROJECT_MEMBER_CACHE_KEY,
+  WORKSPACE_MEMBER_CACHE_KEY,
+} from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
+
+import { notTrialLocked, trialLocked } from "./trial-lock";
+
+export { invalidateMemberAccessCache, invalidateWorkspaceMemberAccessCache } from "./member-cache";
+
+// A member blocked only by the trial lock is sent to /trial-ended instead of a 404.
+const redirectIfTrialLocked = async (userId: string, target: { workspaceId: string } | { projectId: string }) => {
+  const rows =
+    "workspaceId" in target
+      ? await db
+          .select({ workspaceId: membersOfWorkspaces.workspaceId })
+          .from(membersOfWorkspaces)
+          .where(
+            and(
+              eq(membersOfWorkspaces.workspaceId, target.workspaceId),
+              eq(membersOfWorkspaces.userId, userId),
+              trialLocked
+            )
+          )
+          .limit(1)
+      : await db
+          .select({ workspaceId: membersOfWorkspaces.workspaceId })
+          .from(membersOfWorkspaces)
+          .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
+          .where(and(eq(projects.id, target.projectId), eq(membersOfWorkspaces.userId, userId), trialLocked))
+          .limit(1);
+  if (rows.length > 0) {
+    redirect(`/trial-ended?workspaceId=${rows[0].workspaceId}`);
+  }
+};
 
 export async function requireWorkspaceAccess(workspaceId: string) {
   const session = await getServerSession();
@@ -15,31 +50,42 @@ export async function requireWorkspaceAccess(workspaceId: string) {
 
   const cacheKey = WORKSPACE_MEMBER_CACHE_KEY(workspaceId, session.user.id);
 
+  let cached: boolean | null = null;
   try {
-    const cached = await cache.get<boolean>(cacheKey);
-    if (!isNil(cached)) {
-      return cached ? session : notFound();
-    }
+    cached = await cache.get<boolean>(cacheKey);
   } catch (e) {
     console.error("Error getting entry from cache", e);
+  }
+  if (cached === true) {
+    return session;
+  }
+  if (cached === false) {
+    await redirectIfTrialLocked(session.user.id, { workspaceId });
+    return notFound();
   }
 
   const results = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, session.user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(membersOfWorkspaces.userId, session.user.id),
+        eq(membersOfWorkspaces.workspaceId, workspaceId),
+        notTrialLocked
+      )
+    )
     .limit(1);
 
   const isMember = results?.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
 
   if (!isMember) {
+    await redirectIfTrialLocked(session.user.id, { workspaceId });
     return notFound();
   }
 
@@ -54,32 +100,37 @@ export async function requireProjectAccess(projectId: string) {
 
   const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, session?.user?.id);
 
+  let cached: boolean | null = null;
   try {
-    const cached = await cache.get<boolean>(cacheKey);
-    if (!isNil(cached)) {
-      return cached ? session : notFound();
-    }
+    cached = await cache.get<boolean>(cacheKey);
   } catch (e) {
     console.error("Error getting entry from cache", e);
+  }
+  if (cached === true) {
+    return session;
+  }
+  if (cached === false) {
+    await redirectIfTrialLocked(session.user.id, { projectId });
+    return notFound();
   }
 
   const results = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
-    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id)))
+    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id), notTrialLocked))
     .limit(1);
 
   const isMember = results?.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
 
   if (!isMember) {
+    await redirectIfTrialLocked(session.user.id, { projectId });
     return notFound();
   }
 
@@ -89,7 +140,7 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
   const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, userId);
 
   // Security-sensitive callers (key mint, device-scope write) pass skipCache so a
-  // membership cached up to 30 days ago can't authorize a since-removed user.
+  // membership cached up to 7 days ago can't authorize a since-removed user.
   if (!opts?.skipCache) {
     try {
       const cached = await cache.get<boolean>(cacheKey);
@@ -103,14 +154,14 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
-    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, userId)))
+    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, userId), notTrialLocked))
     .limit(1);
 
   const isMember = result.length > 0;
 
   try {
-    // 30 days. Refresh the cache from the fresh read even on skipCache.
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    // Refresh the cache from the fresh read even on skipCache.
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -131,14 +182,15 @@ export const isUserMemberOfWorkspace = async (workspaceId: string, userId: strin
   const result = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)))
+    .where(
+      and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId), notTrialLocked)
+    )
     .limit(1);
 
   const isMember = result.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }

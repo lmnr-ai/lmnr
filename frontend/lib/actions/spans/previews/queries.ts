@@ -1,6 +1,6 @@
 import { executeQuery, type SqlActor } from "@/lib/actions/sql";
 
-export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
+const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
 
 export interface InputSpanRow {
   spanId: string;

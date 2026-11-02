@@ -29,6 +29,15 @@ const VIEW_VERSION: &str = "v0";
 const POLICY_VIEW_VERSION: &str = "v1";
 const SPANS_TABLE: &str = "spans";
 
+/// The table whose view an allowlisted name reads; resolves name aliases.
+fn source_table(table_name: &str) -> &str {
+    if table_name == EVALUATION_TRIALS_TABLE {
+        EVALUATION_DATAPOINTS_TABLE
+    } else {
+        table_name
+    }
+}
+
 /// Whether `table_name` resolves to a `_v1` view that takes `policy`.
 fn takes_policy(table_name: &str) -> bool {
     table_name == SPANS_TABLE || table_name == TRACES_TABLE
@@ -51,6 +60,9 @@ const TRACES_TABLE: &str = "traces";
 /// Takes the same start_time bounds plus `eval_ids`, whose empty-array sentinel
 /// means "no filter" (see [`scalar_ids_arg`]).
 const EVALUATION_DATAPOINTS_TABLE: &str = "evaluation_datapoints";
+/// User-facing name for `evaluation_datapoints` (one row per trial). Both names
+/// are allowlisted and rewrite to the same `evaluation_datapoints_v0` view.
+const EVALUATION_TRIALS_TABLE: &str = "evaluation_trials";
 /// These three all resolve cluster membership through `signal_event_summaries`
 /// internally, whose sort key is `(project_id, signal_id, cluster_id, event_id, ...)`.
 /// They take a `signal_ids` array (same empty-sentinel semantics as `eval_ids`,
@@ -538,6 +550,8 @@ impl TableRegistry {
             "has_browser_session",
             "signal_events",
             "clusters",
+            "agent_versions",
+            "release",
         ];
 
         // Extracted agent outputs live in their own view (`trace_outputs_v0`,
@@ -554,9 +568,11 @@ impl TableRegistry {
             "id",
             "created_at",
             "dataset_id",
+            "dataset_name",
             "data",
             "target",
             "metadata",
+            "task_id",
         ];
 
         let signal_runs_columns = [
@@ -580,6 +596,7 @@ impl TableRegistry {
             "id",
             "project_id",
             "signal_id",
+            "signal_name",
             "trace_id",
             "run_id",
             "name",
@@ -621,11 +638,13 @@ impl TableRegistry {
         let evaluation_datapoints_columns = [
             "id",
             "evaluation_id",
+            "evaluation_name",
             "data",
             "target",
             "metadata",
             "executor_output",
             "index",
+            "task_id",
             "trace_id",
             "group_id",
             "scores",
@@ -678,6 +697,42 @@ impl TableRegistry {
             "updated_at",
         ];
 
+        // Signal, evaluation and dataset definitions, reached through the `pg`
+        // PostgreSQL database engine and their `_v0` views. Do not add `pg` or a
+        // wildcard — the engine mirrors the whole schema.
+        let signals_columns = [
+            "id",
+            "name",
+            "prompt",
+            "structured_output_schema",
+            "metadata",
+            "llm_model",
+            "created_at",
+            "version",
+        ];
+        let evaluations_columns = ["id", "name", "group_id", "metadata", "created_at"];
+        let datasets_columns = ["id", "name", "indexed_on", "created_at"];
+        let dashboards_columns = ["id", "name", "created_at"];
+        let alerts_columns = ["id", "name", "type", "signal_id", "metadata", "created_at"];
+        let alert_targets_columns = [
+            "id",
+            "alert_id",
+            "type",
+            "channel_id",
+            "channel_name",
+            "email",
+            "created_at",
+        ];
+        let alert_filters_columns = ["id", "alert_id", "value", "created_at"];
+        let dashboard_charts_columns = [
+            "id",
+            "dashboard_id",
+            "name",
+            "query",
+            "settings",
+            "created_at",
+        ];
+
         tables.insert("spans", schema(&spans_columns));
         tables.insert("traces", schema(&traces_columns));
         tables.insert("trace_outputs", schema(&trace_outputs_columns));
@@ -689,7 +744,11 @@ impl TableRegistry {
             schema(&dataset_datapoints_columns),
         );
         tables.insert(
-            "evaluation_datapoints",
+            EVALUATION_DATAPOINTS_TABLE,
+            schema(&evaluation_datapoints_columns),
+        );
+        tables.insert(
+            EVALUATION_TRIALS_TABLE,
             schema(&evaluation_datapoints_columns),
         );
         tables.insert("signal_runs", schema(&signal_runs_columns));
@@ -703,6 +762,14 @@ impl TableRegistry {
         // L0-inclusive variants
         tables.insert("signal_events_all", schema(&signal_events_columns));
         tables.insert("event_clusters_all", schema(&event_clusters_all_columns));
+        tables.insert("signals", schema(&signals_columns));
+        tables.insert("evaluations", schema(&evaluations_columns));
+        tables.insert("datasets", schema(&datasets_columns));
+        tables.insert("dashboards", schema(&dashboards_columns));
+        tables.insert("alerts", schema(&alerts_columns));
+        tables.insert("alert_targets", schema(&alert_targets_columns));
+        tables.insert("alert_filters", schema(&alert_filters_columns));
+        tables.insert("dashboard_charts", schema(&dashboard_charts_columns));
 
         Self { tables }
     }
@@ -807,12 +874,17 @@ impl QueryValidator {
                     "CTE name '{name}' collides with a protected table name"
                 ));
             }
+            if !is_simple_ident(&name) {
+                return Err(format!(
+                    "CTE name '{name}' must contain only letters, digits and underscores"
+                ));
+            }
         }
         Ok(())
     }
 
-    /// Re-scan the rewritten statement: assert every allowlisted physical table
-    /// reference was rewritten away and no blocked function was introduced.
+    /// Re-scan the rewritten statement: assert every table reference was
+    /// rewritten to a view or a renamed CTE and no blocked function was introduced.
     /// `ARRAY JOIN` array columns are exempt — those relations are
     /// intentionally left un-rewritten (they aren't tables).
     fn validate_post_rewrite(
@@ -827,7 +899,6 @@ impl QueryValidator {
         }
 
         let mut checker = PostRewriteChecker {
-            registry: &self.registry,
             array_join_operands,
             error: None,
         };
@@ -890,6 +961,83 @@ fn object_name_part_ident(part: &ObjectNamePart) -> String {
     match part {
         ObjectNamePart::Identifier(ident) => ident.value.clone(),
         other => other.to_string(),
+    }
+}
+
+/// Every CTE is renamed to this prefix before the query reaches ClickHouse.
+/// ClickHouse scopes CTEs lexically (a CTE body cannot see itself, a subquery
+/// cannot see a sibling's WITH) but `collect_cte_names` is global, so a name
+/// exempted from the allowlist as a CTE could still resolve to a real `default`
+/// table there. Renamed, such a reference names a table that does not exist.
+const CTE_PREFIX: &str = "__lmnr_cte_";
+
+fn cte_ident(name: &str) -> Ident {
+    Ident::new(format!("{CTE_PREFIX}{}", name.to_lowercase()))
+}
+
+/// Only an unqualified name can refer to a CTE; `pg.users` never does, whatever
+/// the query's CTEs are called.
+fn is_cte_reference(name: &ObjectName, cte_names: &HashSet<String>) -> bool {
+    name.0.len() == 1 && cte_names.contains(&relation_table_name(name))
+}
+
+/// Renamed CTEs are printed unquoted, so their names must need no quoting.
+fn is_simple_ident(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// `in`, `notIn`, `nullIn`, `notNullIn`, each with an optional `global` prefix
+/// and `IgnoreSet` suffix: the function forms of `IN`.
+fn is_in_function(name: &str) -> bool {
+    let name = name.strip_prefix("global").unwrap_or(name);
+    let name = name.strip_suffix("ignoreset").unwrap_or(name);
+    matches!(name, "in" | "notin" | "nullin" | "notnullin")
+}
+
+/// The right operand of `x IN y` / `in(x, y)` when it is a single expression.
+/// ClickHouse reads a lone name there as a whole table (`x IN default.traces_agg`
+/// scans it unscoped) unless a column in scope has that name.
+fn in_set_operand(expr: &Expr) -> Option<&Expr> {
+    match expr {
+        Expr::InList { list, .. } if list.len() == 1 => Some(deparen(&list[0])),
+        Expr::Function(f) if is_in_function(&relation_table_name(&f.name)) => match &f.args {
+            FunctionArguments::List(list) => match list.args.as_slice() {
+                [_, FunctionArg::Unnamed(FunctionArgExpr::Expr(set))] => Some(deparen(set)),
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn in_set_operand_mut(expr: &mut Expr) -> Option<&mut Expr> {
+    match expr {
+        Expr::InList { list, .. } if list.len() == 1 => Some(deparen_mut(&mut list[0])),
+        Expr::Function(f) if is_in_function(&relation_table_name(&f.name)) => match &mut f.args {
+            FunctionArguments::List(list) => match list.args.as_mut_slice() {
+                [_, FunctionArg::Unnamed(FunctionArgExpr::Expr(set))] => Some(deparen_mut(set)),
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// A `{name:Identifier}` placeholder is substituted as a bare name, so a caller's
+/// parameter could name any table (`x IN {t:Identifier}` with `t=traces_agg`).
+fn is_identifier_placeholder(expr: &Expr) -> bool {
+    let names_identifier = |sql: String| sql.to_lowercase().contains("identifier");
+    match expr {
+        Expr::Dictionary(fields) => fields.iter().any(|f| names_identifier(f.value.to_string())),
+        // `{t:...}`, `{d:...}` and `{ts:...}` parse as ODBC literals instead.
+        Expr::TypedString(typed) => names_identifier(typed.value.to_string()),
+        _ => false,
     }
 }
 
@@ -1197,18 +1345,55 @@ impl Visitor for TableColumnChecker<'_> {
         if is_array_join_operand(self.array_join_operands, name) {
             return ControlFlow::Continue(());
         }
-        let table = relation_table_name(name);
-        if self.cte_names.contains(&table) {
+        if is_cte_reference(name, self.cte_names) {
             return ControlFlow::Continue(());
         }
-        if !self.registry.is_table_allowed(&table) {
-            self.error = Some(format!("Table '{table}' is not allowed"));
+        let table = relation_table_name(name);
+        let in_default_db = match name.0.as_slice() {
+            [_] => true,
+            [db, _] => object_name_part_ident(db).eq_ignore_ascii_case("default"),
+            _ => false,
+        };
+        // The allowlist is of `default` tables; `pg.users` or `system.tables` is
+        // a different table even when its last part matches an allowlisted name.
+        if !in_default_db || !self.registry.is_table_allowed(&table) {
+            self.error = Some(format!("Table '{name}' is not allowed"));
+            return ControlFlow::Break(());
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_table_factor(&mut self, table_factor: &TableFactor) -> ControlFlow<()> {
+        // `cte(...)` is a table function call, which the CTE rename does not touch.
+        if let TableFactor::Table {
+            name,
+            args: Some(_),
+            ..
+        } = table_factor
+            && is_cte_reference(name, self.cte_names)
+        {
+            self.error = Some(format!("Table function '{name}' is not allowed"));
             return ControlFlow::Break(());
         }
         ControlFlow::Continue(())
     }
 
     fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
+        if is_identifier_placeholder(expr) {
+            self.error = Some("Identifier query parameters are not allowed".to_string());
+            return ControlFlow::Break(());
+        }
+        if let Some(set) = in_set_operand(expr) {
+            let names_cte = matches!(set, Expr::Identifier(ident)
+                if self.cte_names.contains(&ident.value.to_lowercase()));
+            if !names_cte && matches!(set, Expr::Identifier(_) | Expr::CompoundIdentifier(_)) {
+                self.error = Some(format!(
+                    "IN must be followed by a list of values or a subquery, not the name '{set}'"
+                ));
+                return ControlFlow::Break(());
+            }
+        }
+
         let (qualifier, column) = match expr {
             Expr::Identifier(ident) => (None, ident.value.clone()),
             Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
@@ -1249,10 +1434,9 @@ impl Visitor for TableColumnChecker<'_> {
 }
 
 /// Post-rewrite verifier: every allowlisted physical table must have been
-/// rewritten into a `_v0(...)` view function, so no bare allowlisted relation
-/// (one without table-function args) may remain.
+/// rewritten into a `_v0(...)` view function and every CTE reference renamed, so
+/// no other bare relation (one without table-function args) may remain.
 struct PostRewriteChecker<'a> {
-    registry: &'a TableRegistry,
     array_join_operands: &'a HashSet<Span>,
     error: Option<String>,
 }
@@ -1267,17 +1451,33 @@ impl Visitor for PostRewriteChecker<'_> {
             if args.is_none() && is_array_join_operand(self.array_join_operands, name) {
                 return ControlFlow::Continue(());
             }
-            // A view function (`spans_v1(...)`) carries args; a bare allowlisted
-            // relation does not. The latter escaped rewriting — fail closed.
+            // Allowlisted tables became view functions (`spans_v1(...)`, with
+            // args) and CTE references were renamed, so any other bare relation
+            // escaped rewriting — fail closed.
             if args.is_none() {
                 let table = relation_table_name(name);
-                if self.registry.is_table_allowed(&table) {
+                if name.0.len() != 1 || !table.starts_with(CTE_PREFIX) {
                     self.error = Some(format!(
                         "Internal validation error: table '{table}' was not project-scoped"
                     ));
                     return ControlFlow::Break(());
                 }
             }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
+        let renamed_cte =
+            |set: &Expr| matches!(set, Expr::Identifier(i) if i.value.starts_with(CTE_PREFIX));
+        if let Some(set @ (Expr::Identifier(_) | Expr::CompoundIdentifier(_))) =
+            in_set_operand(expr)
+            && !renamed_cte(set)
+        {
+            self.error = Some(format!(
+                "Internal validation error: IN operand '{set}' was not rewritten"
+            ));
+            return ControlFlow::Break(());
         }
         ControlFlow::Continue(())
     }
@@ -1296,6 +1496,25 @@ struct ViewRewriter<'a> {
 
 impl VisitorMut for ViewRewriter<'_> {
     type Break = ();
+
+    fn pre_visit_query(&mut self, query: &mut Query) -> ControlFlow<()> {
+        if let Some(with) = &mut query.with {
+            for cte in &mut with.cte_tables {
+                cte.alias.name = cte_ident(&cte.alias.name.value);
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<()> {
+        // Validation admits only a CTE name as a lone IN operand.
+        if let Some(Expr::Identifier(ident)) = in_set_operand_mut(expr)
+            && self.cte_names.contains(&ident.value.to_lowercase())
+        {
+            *ident = cte_ident(&ident.value);
+        }
+        ControlFlow::Continue(())
+    }
 
     fn pre_visit_select(&mut self, select: &mut Select) -> ControlFlow<()> {
         self.where_stack.push(select.selection.clone());
@@ -1340,14 +1559,31 @@ impl VisitorMut for ViewRewriter<'_> {
                 return ControlFlow::Continue(());
             }
 
-            // Skip CTE references and non-allowlisted tables (the latter is
-            // rejected earlier in validation; here we just leave them alone).
-            if self.cte_names.contains(&table_name) || !self.registry.is_table_allowed(&table_name)
-            {
+            if is_cte_reference(name, &self.cte_names) {
+                // Keep the name as written as the alias, so `cte.col` qualifiers
+                // still resolve.
+                if alias.is_none() {
+                    *alias = Some(TableAlias {
+                        name: Ident::new(object_name_part_ident(&name.0[0])),
+                        columns: vec![],
+                        explicit: true,
+                        at: None,
+                    });
+                }
+                *name = ObjectName(vec![ObjectNamePart::Identifier(cte_ident(&table_name))]);
                 return ControlFlow::Continue(());
             }
 
-            let view_name = format!("{table_name}_{}", view_version(&table_name));
+            // Non-allowlisted tables are rejected earlier in validation; here we
+            // just leave them alone.
+            if !self.registry.is_table_allowed(&table_name) {
+                return ControlFlow::Continue(());
+            }
+
+            // The default alias keeps the name as written, so `evaluation_trials.col`
+            // qualifiers resolve; only the view is picked by the source table.
+            let source = source_table(&table_name);
+            let view_name = format!("{source}_{}", view_version(source));
             let alias_ident = alias
                 .as_ref()
                 .map(|a| a.name.clone())
@@ -1355,7 +1591,7 @@ impl VisitorMut for ViewRewriter<'_> {
 
             *name = ObjectName(vec![ObjectNamePart::Identifier(Ident::new(view_name))]);
             let mut view_args = vec![named_arg("project_id", string_expr(self.project_id))];
-            if takes_policy(&table_name) {
+            if takes_policy(source) {
                 view_args.push(named_arg("policy", string_expr(self.policy)));
             }
             // `traces_v1` and `evaluation_datapoints_v0` are parameterized by
@@ -1367,11 +1603,11 @@ impl VisitorMut for ViewRewriter<'_> {
             // post-aggregation HAVING predicates are intentionally excluded —
             // they can't be pushed to a pre-scan PREWHERE anyway.
             let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
-            if table_name == TRACES_TABLE {
+            if source == TRACES_TABLE {
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
-            } else if table_name == EVALUATION_DATAPOINTS_TABLE {
+            } else if source == EVALUATION_DATAPOINTS_TABLE {
                 // Same bounds derivation as traces — the view exposes the trace's
                 // `start_time`.
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
@@ -1381,10 +1617,10 @@ impl VisitorMut for ViewRewriter<'_> {
                 ));
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
-            } else if table_name == SIGNAL_EVENTS_TABLE
-                || table_name == SIGNAL_EVENTS_ALL_TABLE
-                || table_name == EVENT_CLUSTERS_ALL_TABLE
-                || table_name == CLUSTERS_TABLE
+            } else if source == SIGNAL_EVENTS_TABLE
+                || source == SIGNAL_EVENTS_ALL_TABLE
+                || source == EVENT_CLUSTERS_ALL_TABLE
+                || source == CLUSTERS_TABLE
             {
                 view_args.push(named_arg(
                     "signal_ids",
@@ -1420,6 +1656,13 @@ enum TimeCol {
 fn deparen(expr: &Expr) -> &Expr {
     match expr {
         Expr::Nested(inner) => deparen(inner),
+        other => other,
+    }
+}
+
+fn deparen_mut(expr: &mut Expr) -> &mut Expr {
+    match expr {
+        Expr::Nested(inner) => deparen_mut(inner),
         other => other,
     }
 }

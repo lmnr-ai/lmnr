@@ -12,7 +12,7 @@ use actix_web::{
     App, HttpServer,
     body::{BoxBody, EitherBody},
     dev,
-    http::StatusCode,
+    http::{StatusCode, header},
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
@@ -103,9 +103,6 @@ use traces::{
 use cache::{
     Cache, connection::ResilientRedisConnection, in_memory::InMemoryCache, redis::RedisCache,
 };
-use checkpoints::{
-    CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE, CHECKPOINTS_ROUTING_KEY, consumer::CheckpointsHandler,
-};
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
@@ -137,14 +134,16 @@ use crate::{
 mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
+mod agent_versioning;
+mod alerts;
 mod api;
 mod auth;
 mod batch_worker;
 mod browser_events;
 mod cache;
 mod ch;
-mod checkpoints;
 mod clustering;
+mod dashboards;
 mod data_plane;
 mod datasets;
 mod db;
@@ -152,12 +151,14 @@ mod debugger;
 mod env;
 mod evaluations;
 mod features;
+mod hosted_evals;
 mod instrumentation;
 mod language_model;
 mod llm;
 mod logs;
 mod mq;
 mod names;
+mod next_api;
 mod notifications;
 mod opentelemetry_proto;
 mod pii_redactor;
@@ -1000,32 +1001,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.13 Checkpoints message queue ====
-            channel
-                .exchange_declare(
-                    CHECKPOINTS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    CHECKPOINTS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
             // ==== 3.14 Static prompt message queue ====
             channel
                 .exchange_declare(
@@ -1211,8 +1186,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
         // ==== 3.12 Reports message queue ====
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
-        // ==== 3.13 Checkpoints message queue ====
-        queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         // ==== 3.14 Static prompt message queue ====
         queue.register_queue(STATIC_PROMPT_EXCHANGE, STATIC_PROMPT_QUEUE);
         // ==== 3.15 Versioning message queues ====
@@ -1262,6 +1235,9 @@ fn main() -> anyhow::Result<()> {
         log::info!("using mock storage");
         Arc::new(MockStorage {}.into())
     };
+
+    // == Hosted evals ==
+    let hosted_evals = web::Data::new(hosted_evals::HostedEvals::from_env(&aws_sdk_config));
 
     // == Query engine ==
     let query_engine: Arc<QueryEngine> = Arc::new(QueryEngine::new());
@@ -1353,7 +1329,7 @@ fn main() -> anyhow::Result<()> {
     // CONSUMER also publishes spans: `publish_for_indexing` runs inside
     // `process_span_messages`, and the metadata façades
     // (`publish_trace_{input,output}_update` / `publish_trace_metadata_patch`) are
-    // called from the input-extraction and checkpoints consumers. Gating on
+    // called from the input-extraction consumer. Gating on
     // `enable_producer()` left both publishers `None` on `OPERATION_MODE=consumer`,
     // so every one of those paths silently stayed on the quorum queue — the exact
     // path this transport exists to unload.
@@ -1517,8 +1493,10 @@ fn main() -> anyhow::Result<()> {
     // Shared by every LLM-backed feature — gate on the union of their flags,
     // not on any single feature, so the flags' conditions can diverge later
     // without silently killing the others' client.
-    let llm_client_needed =
-        is_feature_enabled(Feature::Signals) || is_feature_enabled(Feature::InputExtraction);
+    let llm_client_needed = is_feature_enabled(Feature::Signals)
+        || is_feature_enabled(Feature::InputExtraction)
+        || is_feature_enabled(Feature::SignalsGateway)
+        || is_feature_enabled(Feature::AgentVersioning);
     let llm_provider_client: Option<Arc<llm::LlmClient>> = if llm_client_needed {
         log::info!("Initializing LLM client");
         let llm_profile_store = Arc::new(llm::profiles::LlmProfileStore::new(
@@ -1566,6 +1544,17 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
+        if is_feature_enabled(Feature::AgentVersioning) {
+            log::info!("Agent versioning enabled - starting agent versioning job");
+            let job = agent_versioning::Job {
+                db: db.clone(),
+                cache: cache.clone(),
+                clickhouse: clickhouse.clone(),
+                llm_client: llm_provider_client.clone(),
+            };
+            runtime_handle.spawn(job.run());
+        }
+
         let worker_pool = Arc::new(WorkerPool::new(
             queue.clone(),
             shutdown.clone(),
@@ -1596,8 +1585,6 @@ fn main() -> anyhow::Result<()> {
         let num_logs_workers = env::workers::NUM_LOGS.get();
 
         let num_reports_workers = env::workers::NUM_REPORTS.get();
-
-        let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
         let num_static_prompt_workers = env::workers::NUM_STATIC_SP.get();
 
@@ -1634,6 +1621,7 @@ fn main() -> anyhow::Result<()> {
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let pii_redactor_for_consumer = pii_redactor.clone();
+        let llm_client_for_consumer = llm_provider_client.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
         let stream_runtime_for_consumer = stream_runtime.clone();
@@ -1659,6 +1647,7 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
+                        let llm_client = llm_client_for_consumer.clone();
                         let indexer_stream_publisher =
                             indexer_stream_publisher_for_consumer.clone();
 
@@ -1675,6 +1664,7 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
+                                llm_client: llm_client.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
@@ -1784,6 +1774,7 @@ fn main() -> anyhow::Result<()> {
                                     ch: ch_cloud,
                                     pubsub,
                                     pii_redactor,
+                                    llm_client: llm_client_for_consumer.clone(),
                                     indexer_stream_publisher:
                                         indexer_stream_publisher_for_consumer.clone(),
                                     quickwit_indexing_enabled:
@@ -2103,6 +2094,16 @@ fn main() -> anyhow::Result<()> {
                                 queue_config,
                             );
                         }
+                        // Tracked so shutdown waits out a pass in progress.
+                        worker_tasks_for_consumer.spawn(
+                            signals::private::dispatch::run_dispatch_sweep(
+                                db_for_consumer.clone(),
+                                cache_for_consumer.clone(),
+                                mq_for_consumer.clone(),
+                                clickhouse_for_consumer.clone(),
+                                shutdown_for_consumer.clone(),
+                            ),
+                        );
                     } else {
                         log::warn!(
                             "LLM provider not available - skipping realtime and backfill workers"
@@ -2249,35 +2250,6 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn checkpoints workers. Gated behind
-                    // CHECKPOINTS_ENABLED (LAM-1987, default off).
-                    if is_feature_enabled(Feature::Checkpoints) {
-                        let db = db_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let llm_client = llm_provider_client.clone();
-                        let queue = mq_for_consumer.clone();
-                        let spans_stream_publisher =
-                            spans_stream_publisher_for_consumer.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::Checkpoints,
-                            num_checkpoints_workers,
-                            move || CheckpointsHandler {
-                                db: db.clone(),
-                                cache: cache.clone(),
-                                clickhouse: clickhouse.clone(),
-                                llm_client: llm_client.clone(),
-                                queue: queue.clone(),
-                                spans_stream_publisher: spans_stream_publisher.clone(),
-                            },
-                            QueueConfig::new(
-                                CHECKPOINTS_QUEUE,
-                                CHECKPOINTS_EXCHANGE,
-                                CHECKPOINTS_ROUTING_KEY,
-                            ),
-                        );
-                    }
-
                     // Spawn static prompt workers (legacy pipeline). Gate on
                     // the shared LLM client exactly like input-extraction: a
                     // handler without a client can only ack-and-drop messages,
@@ -2305,9 +2277,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn versioning classifier workers, one pool per kind.
-                    // LLM-free (the producers gate publishing on client
-                    // availability; the extraction workers consume their own
-                    // queues), so they run unconditionally.
+                    // LLM-free, so they run unconditionally.
                     for kind in VersionKind::ALL {
                         let (worker_type, num_workers) = match kind {
                             VersionKind::SystemPrompt => {
@@ -2546,7 +2516,8 @@ fn main() -> anyhow::Result<()> {
                                     )
                                     // Actix's default 413 body depends on the extractor and the
                                     // `Bytes` one ("payload reached size limit") is opaque, so
-                                    // SDKs log it verbatim. Normalize it for every route.
+                                    // SDKs log it verbatim. Normalize it for every route, but keep
+                                    // JSON 413s a handler wrote itself (e.g. hosted-evals' archive cap).
                                     .handler(
                                         StatusCode::PAYLOAD_TOO_LARGE,
                                         |res: dev::ServiceResponse| {
@@ -2554,6 +2525,18 @@ fn main() -> anyhow::Result<()> {
                                                 "Payload too large: {}",
                                                 res.request().path()
                                             );
+                                            if res
+                                                .response()
+                                                .headers()
+                                                .get(header::CONTENT_TYPE)
+                                                .is_some_and(|v| {
+                                                    v.as_bytes().starts_with(b"application/json")
+                                                })
+                                            {
+                                                return Ok(ErrorHandlerResponse::Response(
+                                                    res.map_into_left_body(),
+                                                ));
+                                            }
                                             Ok(ErrorHandlerResponse::Response(res.map_body(
                                                 |_, _| {
                                                     EitherBody::right(BoxBody::new(
@@ -2577,6 +2560,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
+                            .app_data(hosted_evals.clone())
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
@@ -2607,6 +2591,11 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_dataset)
                             .service(api::v1::cli::datasets::update_dataset)
                             .service(api::v1::cli::datasets::delete_dataset)
+                            .service(api::v1::cli::hosted_evals::missing_layers)
+                            .service(api::v1::cli::hosted_evals::upload_layer)
+                            .service(api::v1::cli::hosted_evals::create_image)
+                            .service(api::v1::cli::hosted_evals::create_upload)
+                            .service(api::v1::cli::hosted_evals::start_run)
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
@@ -2624,7 +2613,15 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::llm_profiles::create_llm_profile)
                             .service(api::v1::cli::llm_profiles::get_llm_profile)
                             .service(api::v1::cli::llm_profiles::update_llm_profile)
-                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile)
+                            .service(api::v1::cli::alerts::create_alert)
+                            .service(api::v1::cli::alerts::update_alert)
+                            .service(api::v1::cli::alerts::delete_alert)
+                            .service(api::v1::cli::dashboards::create_dashboard)
+                            .service(api::v1::cli::dashboards::rename_dashboard)
+                            .service(api::v1::cli::dashboards::delete_dashboard)
+                            .service(api::v1::cli::dashboards::upsert_charts)
+                            .service(api::v1::cli::dashboards::delete_charts);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2687,7 +2684,15 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
-                            )
+                            );
+                        // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
+                        #[cfg(feature = "signals")]
+                        let app = app.service(
+                            web::scope("/v1/chat")
+                                .wrap(project_auth.clone())
+                                .service(crate::signals::private::gateway::chat_completions),
+                        );
+                        let app = app
                             // CLI user-token surface: list_projects takes
                             // CliUserAuth, the rest take CliProjectAuth.
                             .service(cli_scope)
@@ -2710,8 +2715,23 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::datasets::delete_dataset)
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::update_eval)
-                                    .service(api::v1::evals::save_eval_datapoints)
-                                    .service(api::v1::evals::update_eval_datapoint)
+                                    .service(api::v1::evals::save_eval_trials)
+                                    .service(api::v1::evals::update_eval_trial)
+                                    .service(api::v1::hosted_evals::missing_layers)
+                                    .service(api::v1::hosted_evals::upload_layer)
+                                    .service(api::v1::hosted_evals::ensure_snapshot)
+                                    .service(api::v1::hosted_evals::create_image)
+                                    .service(api::v1::hosted_evals::create_sandbox)
+                                    .service(api::v1::hosted_evals::get_sandbox)
+                                    .service(api::v1::hosted_evals::delete_sandbox)
+                                    .service(api::v1::hosted_evals::start_command)
+                                    .service(api::v1::hosted_evals::get_command)
+                                    .service(api::v1::hosted_evals::upload_file)
+                                    .service(api::v1::hosted_evals::download_file)
+                                    .service(api::v1::hosted_evals::create_upload)
+                                    .service(api::v1::hosted_evals::download_upload)
+                                    .service(api::v1::hosted_evals::delete_upload)
+                                    .service(api::v1::hosted_evals::start_run)
                                     .service(api::v1::signals::create_signal)
                                     .service(api::v1::signals::list_signals)
                                     .service(api::v1::signals::list_signal_versions)

@@ -6,6 +6,7 @@ import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema } from "@/lib/actions/common/types";
 import { mintSnapshotAndBump } from "@/lib/actions/signal-versions";
+import { assertProjectHasSignals } from "@/lib/actions/usage/plan-gates";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { signals, signalTriggers } from "@/lib/db/migrations/schema";
@@ -110,6 +111,7 @@ export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersS
 
 export async function createSignalTrigger(input: z.infer<typeof CreateSignalTriggerSchema>) {
   const { projectId, signalId, conditions, filters, mode } = CreateSignalTriggerSchema.parse(input);
+  await assertProjectHasSignals(projectId);
 
   const result = await db.transaction(async (tx) => {
     const [locked] = await tx

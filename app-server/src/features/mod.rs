@@ -25,14 +25,17 @@ pub enum Feature {
     /// Signals route their LLM calls through a profile. Self-hosted only: cloud
     /// signals keep running on Laminar's internal keys.
     SignalLlmProfiles,
+    /// Hosted signals gateway (`/v1/chat/completions`) that self-hosted
+    /// deployments can point a signals LLM profile at. Cloud only.
+    SignalsGateway,
     /// Ingestion-time user-task extraction (LAM-1880). Shares the
     /// LLM-provider condition with `Signals` but stays a separate flag —
     /// features are fine-grained so gating can diverge later.
     InputExtraction,
     Reports,
-    /// Checkpoints / agent-versioning pipeline (LAM-1987). Temporarily
-    /// gated behind `CHECKPOINTS_ENABLED`, default off.
-    Checkpoints,
+    /// Scheduled agent versioning (`src/agent_versioning`). Gated behind
+    /// `AGENT_VERSIONING_ENABLED`, default off.
+    AgentVersioning,
     /// v2 static system-prompt extraction: per-agent prompt windows +
     /// line-level version detection replacing the skeleton-hash keying.
     /// Gated behind `SP_VERSIONING_ENABLED`, default off.
@@ -52,6 +55,9 @@ pub enum Feature {
     /// Quickwit full-text search/indexing. Gated on `QUICKWIT_ENABLED`
     /// (default true).
     Quickwit,
+    /// Hosted Harbor evals (`src/hosted_evals/`): trial sandboxes proxied to the
+    /// sandbox provider (Daytona). Detached runs additionally need S3 storage.
+    HostedEvals,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -86,12 +92,13 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         // signal, so they boot even with neither env provider nor system workspace.
         Feature::Signals => has_llm_backend() || is_feature_enabled(Feature::SignalLlmProfiles),
         Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
+        Feature::SignalsGateway => env::connections::LAMINAR_CLOUD.get(),
         Feature::InputExtraction => has_llm_backend(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
-        Feature::Checkpoints => env::checkpoints::ENABLED.get(),
+        Feature::AgentVersioning => env::agent_versioning::ENABLED.get(),
         Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
         Feature::SignalsVersionedPrompts => {
             is_feature_enabled(Feature::SystemPromptVersioning)
@@ -111,6 +118,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
         Feature::Quickwit => env::quickwit::ENABLED.get(),
+        Feature::HostedEvals => {
+            std::env::var(env::hosted_evals::DAYTONA_API_KEY).is_ok_and(|s| !s.is_empty())
+        }
     }
 }
 

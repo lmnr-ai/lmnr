@@ -25,7 +25,7 @@ export function ModelRow({
         aria-label={`Remove ${model}`}
         onClick={onRemove}
         disabled={status.state === "testing"}
-        className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+        className="text-muted-foreground hover:text-destructive-text transition-colors disabled:opacity-40"
       >
         <X size={STATUS_ICON_SIZE} />
       </button>

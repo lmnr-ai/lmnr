@@ -31,7 +31,7 @@ interface WorkspaceReportsProps {
 
 export default function WorkspaceReports({ workspaceId, slackClientId, slackRedirectUri }: WorkspaceReportsProps) {
   const { email: userEmail } = useUserContext();
-  const { settingsHref } = useProjectContext();
+  const { settingsHref, projects } = useProjectContext();
 
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
@@ -52,7 +52,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
     <SettingsSection>
       <SettingsSectionHeader
         title="Reports"
-        description="Periodic reports of signal activity across every project in the workspace. Stay up to date with issues in your project without digging through traces and events."
+        description="Periodic reports of signal activity across the projects in your workspace. Stay up to date with issues in your project without digging through traces and events."
       />
 
       <SlackConnectionCard
@@ -109,6 +109,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
         workspaceId={workspaceId}
         integrationId={slackIntegration?.id}
         report={editTarget}
+        projects={projects}
         open={sheetOpen}
         onOpenChange={(open) => {
           setSheetOpen(open);

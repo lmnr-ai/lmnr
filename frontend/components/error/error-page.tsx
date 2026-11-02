@@ -31,7 +31,7 @@ export default function ErrorPage({ error, backAction, backLabel }: ErrorPagePro
     <div className="flex flex-col items-center justify-center min-h-screen px-4">
       <div className="flex flex-col max-w-md w-full items-center gap-6">
         <div className="flex items-center justify-center rounded-full bg-destructive/10 size-16">
-          <TriangleAlert className="size-7 text-destructive" />
+          <TriangleAlert className="size-7 text-destructive-text" />
         </div>
 
         <div className="flex flex-col items-center gap-2">

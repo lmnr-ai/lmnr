@@ -22,12 +22,12 @@ const ChartPoints = () => (
             <>
               <span
                 aria-hidden
-                className="absolute border-t border-dashed border-surface-800"
+                className="absolute border-t border-dashed border-surface-1000"
                 style={{ left: 0, right: 0, top: plotPercentY(y) }}
               />
               <span
                 aria-hidden
-                className="absolute border-l border-dashed border-surface-800"
+                className="absolute border-l border-dashed border-surface-1000"
                 style={{ bottom: 0, left: plotPercentX(x), top: 0 }}
               />
             </>

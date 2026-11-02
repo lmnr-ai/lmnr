@@ -23,8 +23,8 @@ interface NumberValueInputProps {
 }
 
 const inputClassName = cn(
-  "h-5.5 px-2 py-0 text-xs bg-transparent text-primary outline-none",
-  "placeholder:text-primary hide-arrow"
+  "h-5.5 px-2 py-0 text-xs bg-transparent text-primary-text outline-none",
+  "placeholder:text-primary-text hide-arrow"
 );
 
 const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {

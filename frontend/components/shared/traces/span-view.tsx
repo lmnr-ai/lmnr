@@ -41,7 +41,7 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
       <Button
         variant="ghost"
         size="icon-sm"
-        className="hover:bg-surface-up"
+        className="hover:overlay-hover"
         onClick={onClose}
         aria-label="Close span panel"
       >

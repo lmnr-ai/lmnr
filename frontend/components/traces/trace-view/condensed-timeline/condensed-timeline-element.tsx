@@ -2,7 +2,7 @@ import React, { memo, useMemo } from "react";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
-import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import { SPAN_ERROR_COLOR, SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
 const ROW_HEIGHT = 8;
@@ -46,12 +46,12 @@ const CondensedTimelineElement = ({
 
   const backgroundColor = useMemo(() => {
     if (isCostHeatmapVisible) return undefined;
-    return span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType];
+    return span.status === "error" ? SPAN_ERROR_COLOR : SPAN_TYPE_TO_COLOR[span.spanType];
   }, [span.status, span.spanType, isCostHeatmapVisible]);
 
   return (
     <div
-      className={cn("@container absolute cursor-pointer rounded-xs", opacity, isMuted && "bg-surface-200")}
+      className={cn("@container absolute cursor-pointer rounded-xs", opacity, isMuted && "bg-surface-400")}
       style={{
         left: `${left}%`,
         width: `max(${width}%, 4px)`,

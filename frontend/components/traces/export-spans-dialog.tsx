@@ -65,7 +65,7 @@ export default function ExportSpansDialog({ span, open, onOpenChange }: ExportSp
           description: (
             <span>
               Successfully added to dataset.{" "}
-              <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
+              <Link className="text-primary-text" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
                 Go to dataset.
               </Link>
             </span>

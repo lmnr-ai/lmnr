@@ -79,10 +79,7 @@ export default function SessionHeader({
           </>
         )}
         <span>·</span>
-        <button
-          onClick={onCopy}
-          className="hover:text-primary-foreground max-w-[140px] flex flex-row items-center gap-2"
-        >
+        <button onClick={onCopy} className="hover:text-foreground-100 max-w-[140px] flex flex-row items-center gap-2">
           Copy ID
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>

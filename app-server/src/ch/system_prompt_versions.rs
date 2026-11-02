@@ -165,7 +165,7 @@ async fn insert_rows<T: RowOwned + RowWrite>(
 /// kind: the static skeleton as text — the registry keeps only one-way line
 /// hashes — plus the provenance needed to audit a mint (which rule allowed it,
 /// how populated the window was, which span triggered it). Nothing in the
-/// pipeline reads these tables.
+/// pipeline reads them.
 #[derive(Debug, Clone)]
 pub struct VersionDef {
     pub project_id: Uuid,
@@ -219,6 +219,7 @@ impl VersionDef {
     }
 }
 
+/// Also the tool-definition def row: the two tables share their columns.
 #[derive(Row, Serialize, Debug, Clone)]
 struct CHSystemPromptVersionDef {
     #[serde(with = "clickhouse::serde::uuid")]

@@ -5,6 +5,18 @@ pub const CUSTOM_MODEL_COSTS_CACHE_KEY: &str = "custom_model_costs";
 pub const MODEL_COSTS_CACHE_KEY: &str = "model_costs";
 pub const PROJECT_API_KEY_CACHE_KEY: &str = "project_api_key";
 pub const PROJECT_CACHE_KEY: &str = "project";
+/// `hosted_evals_sandbox:{project_id}:{sandbox_id}` → the sandbox's Daytona toolbox
+/// URL. Present only once the sandbox was confirmed to carry the project's label.
+pub const HOSTED_EVALS_SANDBOX_CACHE_KEY: &str = "hosted_evals_sandbox";
+/// `hosted_evals_capacity_lock:{project_id}`: held across a project's sandbox
+/// count and create, so concurrent creates can't all pass the same count.
+pub const HOSTED_EVALS_CAPACITY_LOCK_CACHE_KEY: &str = "hosted_evals_capacity_lock";
+/// `hosted_evals_recent_sandboxes:{project_id}` → sandboxes created in the last
+/// few seconds, which Daytona's list doesn't show yet. Written under the lock above.
+pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_sandboxes";
+/// `hosted_evals_layer:{project_id}:{diff_id}` → the registry blob (digest, size)
+/// holding that image layer, gzip-compressed.
+pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -44,11 +56,31 @@ pub const SIGNAL_PREFIX_WARM_CACHE_KEY: &str = "signal_prefix_warm";
 /// demotion on `signals_realtime_queue` (`signals/private/fairness.rs`).
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_PROJECT_BACKLOG_CACHE_KEY: &str = "signal_project_backlog";
+/// Held by the one replica currently running the backfill dispatcher
+/// (`signals/private/dispatch.rs`).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_BACKFILL_DISPATCH_LOCK_CACHE_KEY: &str = "signal_backfill_dispatch_lock";
+/// Set by every dispatch request; the lock holder runs again if it finds it set
+/// after releasing, so a request that lost the lock race is never dropped.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_BACKFILL_DISPATCH_DIRTY_CACHE_KEY: &str = "signal_backfill_dispatch_dirty";
+/// The `project_id` the dispatcher served last — where its round-robin resumes.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const SIGNAL_BACKFILL_DISPATCH_CURSOR_CACHE_KEY: &str = "signal_backfill_dispatch_cursor";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
+/// `agent_versioning_lock:{project_id}:{agent_hash}`: one versioning run per
+/// agent per interval across replicas. Expires instead of being released.
+pub const AGENT_VERSIONING_LOCK_CACHE_KEY: &str = "agent_versioning_lock";
+/// `agent_versioning_known:{project_id}:{agent_hash}` claim: the consumer has
+/// created the `agents` row (`agent_versioning/registry.rs`).
+pub const AGENT_VERSIONING_KNOWN_CACHE_KEY: &str = "agent_versioning_known";
+/// `agent_versioning_release:{project_id}:{agent_hash}:{release}`: the
+/// release's decided `version_hash`, or empty while undecided (short TTL).
+pub const AGENT_VERSIONING_RELEASE_CACHE_KEY: &str = "agent_versioning_release";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
 pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";
@@ -65,6 +97,8 @@ pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
 /// across usage items, so the lock is keyed `…:{workspace_id}:{usage_item}` to
 /// avoid a bytes notification suppressing a concurrent signal-cost one.
 pub const HARD_LIMIT_SEND_LOCK_KEY: &str = "hard_limit_send_lock";
+/// Per-alert throttle for signal-event notifications, keyed `…:{alert_id}`.
+pub const ALERT_SEND_LOCK_KEY: &str = "alert_send_lock";
 /// Short-lived cache of `workspace_hard_limit_notifications.last_notified_at`
 /// per `(workspace_id, usage_item)`, so over-limit workspaces don't hit
 /// Postgres on every blocked ingestion request. The frontend evicts this key
@@ -118,15 +152,15 @@ pub const INGESTION_RATE_LIMIT_PERIOD_CACHE_KEY: &str = "ingestion_project_rate_
 /// `RATE_LIMIT_PERIOD_SECS` window. Missing key = global `RATE_LIMIT` default.
 pub const SQL_RATE_LIMIT_CACHE_KEY: &str = "sql_rate_limit";
 
-pub const PROJECT_MEMBERSHIP_CACHE_KEY: &str = "project_membership";
+/// `project_member:{project_id}:{user_id}` → bool (true and false both cached).
+/// Shared with the frontend `PROJECT_MEMBER_CACHE_KEY` (`frontend/lib/cache.ts`),
+/// which clears it on every membership change.
+pub const PROJECT_MEMBER_CACHE_KEY: &str = "project_member";
+
 /// `member_role:{workspace_id}:{user_id}` → `members_of_workspaces.member_role`.
 /// Positive entries only; the frontend removes the key on role change and
 /// membership removal (`frontend/lib/actions/workspace`).
 pub const MEMBER_ROLE_CACHE_KEY: &str = "member_role";
-pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
-pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
-pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
-
 // Static system-prompt extraction (LAM-1899). All three are namespaced by
 // `(project_id, prompt_hash)` — the naive signature — see
 // `traces/system_extraction/mod.rs`.

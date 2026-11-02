@@ -19,6 +19,8 @@ use super::{
 use crate::{
     cache::Cache,
     db::spans::Span,
+    features::{Feature, is_feature_enabled},
+    traces::sp_versioning::tool_text,
     utils::{estimate_json_size, sanitize_string},
 };
 
@@ -31,6 +33,11 @@ pub struct ToolDedup {
     pub content: Option<String>,
     #[serde(default)]
     pub size_bytes: usize,
+    /// The tool set's [`tool_text::render`] form, the tool half of the agent
+    /// versioning prompt document. Set only while agent versioning is on. Read
+    /// on the ingest producer, so it never rides the wire.
+    #[serde(skip)]
+    pub versioning_text: Option<String>,
 }
 
 /// Pull tool definitions out of `raw_attributes` as one JSON array, trying the
@@ -126,9 +133,10 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
     if !span.is_llm_span() {
         return None;
     }
-    let tools = Value::Array(extract_tool_definitions(
-        &mut span.attributes.raw_attributes,
-    )?);
+    let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
+    let versioning_text =
+        is_feature_enabled(Feature::AgentVersioning).then(|| tool_text::render(&tools));
+    let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);
     let content = if is_seen(cache, &key).await {
@@ -140,6 +148,7 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         hash,
         content,
         size_bytes: estimate_json_size(&tools),
+        versioning_text,
     })
 }
 
@@ -305,6 +314,7 @@ mod tests {
             hash: [7u8; 32],
             content: Some("[{}]".to_string()),
             size_bytes: 4,
+            versioning_text: None,
         };
         let mut shared = SharedContentBatch::default();
         assert_eq!(resolve_tool_dedup(&span, &dedup, &mut shared), 4);

@@ -136,7 +136,7 @@ export default function LimitRow({
   return (
     <SurfaceCard title={label} note={includedLabel && `Included: ${includedLabel}`}>
       <div className="flex items-center gap-2">
-        <label className="flex flex-1 items-center min-w-0 h-9 rounded-md border border-input bg-surface-up overflow-hidden cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+        <label className="flex flex-1 items-center min-w-0 h-9 rounded-md border bg-emphasis-2 dark:bg-emphasis-1 overflow-hidden cursor-text transition-[color,box-shadow] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
           <span className="flex items-center self-stretch px-2.5 text-xs font-medium text-muted-foreground bg-surface-up-2 border-r select-none shrink-0">
             {unit}
           </span>
@@ -166,7 +166,11 @@ export default function LimitRow({
             disabled={isRemoving}
             title="Remove limit"
           >
-            {isRemoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5 text-destructive" />}
+            {isRemoving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <X className="h-3.5 w-3.5 text-destructive-text" />
+            )}
           </Button>
         ) : null}
       </div>

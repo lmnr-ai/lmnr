@@ -202,9 +202,11 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                         {...field}
                         autoFocus
                         placeholder={workspace.name}
-                        className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                        className={cn(
+                          fieldState.error && "border-destructive-border focus-visible:ring-destructive-border"
+                        )}
                       />
-                      {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                      {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
                     </div>
                   )}
                 />
@@ -237,7 +239,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
               disabled={!isOwner}
               onClick={() => setIsDeleteDialogOpen(true)}
               variant="outline"
-              className="w-fit text-destructive border-destructive"
+              className="w-fit text-destructive-text border-destructive-border"
             >
               <Trash2 data-icon="inline-start" className="w-4 h-4 mr-2" />
               Delete
@@ -246,7 +248,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-destructive">Delete workspace</DialogTitle>
+              <DialogTitle className="text-destructive-text">Delete workspace</DialogTitle>
             </DialogHeader>
             <form onSubmit={deleteWorkspace} className="space-y-4">
               <div className="space-y-4">
@@ -258,7 +260,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="workspace-name-input" className="text-secondary-foreground">
-                    Type <span className="font-medium text-white">{workspace.name}</span> to confirm
+                    Type <span className="font-medium text-foreground">{workspace.name}</span> to confirm
                   </Label>
                   <Controller
                     name="confirmationName"
@@ -274,9 +276,13 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                           id="workspace-name-input"
                           autoFocus
                           placeholder={workspace.name}
-                          className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                          className={cn(
+                            fieldState.error && "border-destructive-border focus-visible:ring-destructive-border"
+                          )}
                         />
-                        {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                        {fieldState.error && (
+                          <p className="text-xs text-destructive-text">{fieldState.error.message}</p>
+                        )}
                       </div>
                     )}
                   />

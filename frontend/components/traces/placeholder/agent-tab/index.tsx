@@ -13,8 +13,7 @@ const AGENT_PROMPT = `1. Run \`npx lmnr-cli setup\` at the project root to get s
 https://laminar.sh/docs/tracing/integrations/overview
 3. Run your project.
 4. Verify instrumentation:
-\`lmnr-cli sql query "SELECT * FROM traces ORDER BY start_time DESC LIMIT 1" --json \`
-5. View your traces in the browser`;
+\`lmnr-cli sql query "SELECT * FROM traces ORDER BY start_time DESC LIMIT 1" --json`;
 
 export function AgentTab({ fromOnboarding }: { fromOnboarding?: boolean }) {
   const paramFromOnboarding = useSearchParams().get("onboarding") === "true";

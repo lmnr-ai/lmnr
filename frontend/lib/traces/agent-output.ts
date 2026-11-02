@@ -3,9 +3,9 @@
  * (the `trace_outputs_v0.agent_output` array — one raw message JSON per
  * element, usually `{role, content}` or `{role, parts}`).
  *
- * Per part we keep: non-empty `thinking` / `reasoning`, non-empty `text`
- * (or GenAI-style `content`), and tool calls (rendered as `Tool: <name>`,
- * no arguments). The walk is deliberately permissive: a RECOGNIZED but empty
+ * Per part we keep non-empty `text` (or GenAI-style `content`) and tool calls
+ * (rendered as `Tool: <name>`, no arguments). `thinking` / `reasoning` is used
+ * only when the output has neither, so a clamped preview shows the answer. The walk is deliberately permissive: a RECOGNIZED but empty
  * part yields nothing, an unknown part is stringified verbatim, and when the
  * whole array yields nothing the raw messages are dumped as-is — better to
  * extract more than to extract nothing.
@@ -39,6 +39,8 @@ const NON_CONTENT_TYPES = new Set([
   "blob",
   "uri",
 ]);
+
+const THINKING_TYPES = new Set(["thinking", "reasoning"]);
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -74,19 +76,25 @@ const isToolCallPart = (obj: Record<string, unknown>): boolean => {
   return type === "function" && isRecord(obj.function);
 };
 
-const extractFromPart = (part: unknown): string | null => {
+const isThinking = (obj: Record<string, unknown>): boolean =>
+  typeof obj.type === "string" && THINKING_TYPES.has(obj.type.toLowerCase());
+
+const extractFromPart = (part: unknown, withThinking: boolean): string | null => {
   if (part === null || part === undefined) return null;
   if (typeof part === "string") return part.trim() || null;
-  if (Array.isArray(part)) return joinNonEmpty(part.map(extractFromPart));
+  if (Array.isArray(part)) return joinNonEmpty(part.map((p) => extractFromPart(p, withThinking)));
   if (!isRecord(part)) return stringifyLoose(part);
 
   if (isToolCallPart(part)) return renderToolCall(part);
+  if (!withThinking && isThinking(part)) return null;
 
   const pieces: string[] = [];
   // Thinking / reasoning: string directly, or nested text (AI SDK reasoning
   // parts are `{type: "reasoning", text}` — covered by the text branch below).
-  for (const key of ["thinking", "reasoning"]) {
-    if (nonEmptyString(part[key])) pieces.push((part[key] as string).trim());
+  if (withThinking) {
+    for (const key of ["thinking", "reasoning"]) {
+      if (nonEmptyString(part[key])) pieces.push((part[key] as string).trim());
+    }
   }
   if (nonEmptyString(part.text)) {
     pieces.push(part.text.trim());
@@ -97,7 +105,7 @@ const extractFromPart = (part: unknown): string | null => {
     // Nested containers (e.g. OpenAI Responses `message` / `reasoning` items).
     const nested = joinNonEmpty(
       [...(Array.isArray(part.content) ? part.content : []), ...(Array.isArray(part.summary) ? part.summary : [])].map(
-        extractFromPart
+        (p) => extractFromPart(p, withThinking)
       )
     );
     if (nested) pieces.push(nested);
@@ -115,11 +123,13 @@ const extractFromPart = (part: unknown): string | null => {
   return stringifyLoose(part);
 };
 
-const extractFromMessage = (message: unknown): string | null => {
+const extractFromMessage = (message: unknown, withThinking: boolean): string | null => {
   if (message === null || message === undefined) return null;
   if (typeof message === "string") return message.trim() || null;
-  if (Array.isArray(message)) return joinNonEmpty(message.map(extractFromMessage));
+  if (Array.isArray(message)) return joinNonEmpty(message.map((m) => extractFromMessage(m, withThinking)));
   if (!isRecord(message)) return stringifyLoose(message);
+  // OpenAI Responses top-level `reasoning` items.
+  if (!withThinking && isThinking(message)) return null;
 
   const pieces: string[] = [];
   let recognized = false;
@@ -128,7 +138,7 @@ const extractFromMessage = (message: unknown): string | null => {
     const body = message[key];
     if (body === undefined) continue;
     recognized = true;
-    const text = extractFromPart(body);
+    const text = extractFromPart(body, withThinking);
     if (text) pieces.push(text);
   }
 
@@ -156,26 +166,23 @@ const joinNonEmpty = (parts: (string | null)[]): string | null => {
 /**
  * Extract display text from an LLM span's output-message array. Elements may
  * be raw JSON strings (as returned by `trace_outputs_v0`) or already-parsed
- * message objects. When nothing valuable was extracted from ANY message,
- * falls back to dumping the raw messages verbatim — better than nothing.
- * Returns null only for an entirely empty array.
+ * message objects. Thinking is used only when there is no text or tool call;
+ * when nothing valuable was extracted from ANY message, falls back to dumping
+ * the raw messages verbatim — better than nothing. Returns null only for an
+ * entirely empty array.
  */
 export const extractAgentOutput = (messages: unknown[]): string | null => {
-  const extracted = joinNonEmpty(
-    messages.map((raw) => {
-      if (typeof raw === "string") {
-        const trimmed = raw.trim();
-        if (!trimmed) return null;
-        try {
-          return extractFromMessage(JSON.parse(trimmed));
-        } catch {
-          // Not JSON — treat as plain text.
-          return trimmed;
-        }
-      }
-      return extractFromMessage(raw);
-    })
-  );
-  if (extracted) return extracted;
-  return joinNonEmpty(messages.map(stringifyLoose));
+  const parsed = messages.map((raw) => {
+    if (typeof raw !== "string") return raw;
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      // Not JSON — treat as plain text.
+      return trimmed;
+    }
+  });
+  const extract = (withThinking: boolean) => joinNonEmpty(parsed.map((m) => extractFromMessage(m, withThinking)));
+  return extract(false) ?? extract(true) ?? joinNonEmpty(messages.map(stringifyLoose));
 };

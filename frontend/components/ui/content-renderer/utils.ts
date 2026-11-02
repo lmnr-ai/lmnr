@@ -14,69 +14,29 @@ import { inferImageType } from "@/lib/utils";
 export const defaultThemeSettings: CreateThemeOptions["settings"] = {
   background: "transparent",
   lineHighlight: "transparent",
-  gutterBackground: "#18181A",
+  gutterBackground: "var(--code-gutter-bg)",
   gutterBorder: "transparent",
   gutterForeground: "gray !important",
-  selection: "#193860",
+  selection: "var(--code-selection)",
   selectionMatch: "transparent",
-  caret: "2px solid hsl(var(--primary) / 0.1)",
+  caret: "2px solid oklch(from var(--color-primary) l c h / 0.1)",
 };
 
-export const githubDarkSyntaxHighlighter = {
-  'code[class*="language-"]': {
-    color: "#c9d1d9",
-    background: "transparent",
-  },
-  'pre[class*="language-"]': {
-    color: "#c9d1d9",
-    background: "transparent",
-  },
-  comment: { color: "#8b949e" },
-  prolog: { color: "#8b949e" },
-  doctype: { color: "#8b949e" },
-  cdata: { color: "#8b949e" },
-  punctuation: { color: "#8b949e" },
-  property: { color: "#d2a8ff" },
-  tag: { color: "#7ee787" },
-  boolean: { color: "#ffab70" },
-  number: { color: "#79c0ff" },
-  constant: { color: "#ffab70" },
-  symbol: { color: "#ffab70" },
-  deleted: { color: "#ffdcd7" },
-  selector: { color: "#7ee787" },
-  "attr-name": { color: "#79c0ff" },
-  string: { color: "#a5d6ff" },
-  char: { color: "#a5d6ff" },
-  builtin: { color: "#a5d6ff" },
-  inserted: { color: "#7ee787" },
-  operator: { color: "#79c0ff" },
-  entity: { color: "#79c0ff" },
-  url: { color: "#79c0ff" },
-  variable: { color: "#79c0ff" },
-  atrule: { color: "#ff7b72" },
-  "attr-value": { color: "#a5d6ff" },
-  keyword: { color: "#ff7b72" },
-  function: { color: "#d2a8ff" },
-  "class-name": { color: "#d2a8ff" },
-  regex: { color: "#a5d6ff" },
-  important: { color: "#ff7b72", fontWeight: "bold" },
-};
-
-export const githubDarkStyle: CreateThemeOptions["styles"] = [
-  { tag: [t.standard(t.tagName), t.tagName], color: "#7ee787" },
-  { tag: [t.comment, t.bracket], color: "#8b949e" },
-  { tag: [t.className, t.propertyName], color: "#d2a8ff" },
-  { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "#79c0ff" },
-  { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "#ff7b72" },
-  { tag: [t.string, t.meta, t.regexp], color: "#a5d6ff" },
-  { tag: [t.name, t.quote], color: "#c9d1d9" },
-  { tag: [t.heading, t.strong], color: "#d2a8ff", fontWeight: "bold" },
-  { tag: [t.emphasis], color: "#d2a8ff", fontStyle: "italic" },
-  { tag: [t.deleted], color: "#ffdcd7", backgroundColor: "#ffeef0" },
-  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#ffab70" },
+const githubDarkStyle: CreateThemeOptions["styles"] = [
+  { tag: [t.standard(t.tagName), t.tagName], color: "var(--code-green)" },
+  { tag: [t.comment, t.bracket], color: "var(--code-muted)" },
+  { tag: [t.className, t.propertyName], color: "var(--code-purple)" },
+  { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "var(--code-blue)" },
+  { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "var(--code-red)" },
+  { tag: [t.string, t.meta, t.regexp], color: "var(--code-string)" },
+  { tag: [t.name, t.quote], color: "var(--code-text)" },
+  { tag: [t.heading, t.strong], color: "var(--code-purple)", fontWeight: "bold" },
+  { tag: [t.emphasis], color: "var(--code-purple)", fontStyle: "italic" },
+  { tag: [t.deleted], color: "var(--code-deleted)", backgroundColor: "var(--code-deleted-bg)" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "var(--code-orange)" },
   { tag: t.link, textDecoration: "underline" },
   { tag: t.strikethrough, textDecoration: "line-through" },
-  { tag: t.invalid, color: "#f97583" },
+  { tag: t.invalid, color: "var(--code-invalid)" },
 ];
 
 export const theme = createTheme({
@@ -85,27 +45,27 @@ export const theme = createTheme({
   styles: githubDarkStyle,
 });
 
-export const spanViewStyle: CreateThemeOptions["styles"] = [
-  { tag: [t.standard(t.tagName), t.tagName], color: "#7ee787" },
-  { tag: [t.comment, t.bracket], color: "#8b949e" },
-  { tag: [t.className], color: "#d2a8ff" },
-  { tag: [t.propertyName], color: "hsl(var(--primary))" },
-  { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "#c9c9cd" },
-  { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "#ff7b72" },
-  { tag: [t.string, t.meta, t.regexp], color: "#c9c9cd" },
-  { tag: [t.name, t.quote], color: "#c9c9cd" },
-  { tag: [t.heading, t.strong], color: "#d2a8ff", fontWeight: "bold" },
-  { tag: [t.emphasis], color: "#d2a8ff", fontStyle: "italic" },
-  { tag: [t.deleted], color: "#ffdcd7", backgroundColor: "#ffeef0" },
-  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#c9c9cd" },
+const spanViewStyle: CreateThemeOptions["styles"] = [
+  { tag: [t.standard(t.tagName), t.tagName], color: "var(--code-green)" },
+  { tag: [t.comment, t.bracket], color: "var(--code-muted)" },
+  { tag: [t.className], color: "var(--code-purple)" },
+  { tag: [t.propertyName], color: "var(--color-primary-text)" },
+  { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "var(--code-span-text)" },
+  { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "var(--code-red)" },
+  { tag: [t.string, t.meta, t.regexp], color: "var(--code-span-text)" },
+  { tag: [t.name, t.quote], color: "var(--code-span-text)" },
+  { tag: [t.heading, t.strong], color: "var(--code-purple)", fontWeight: "bold" },
+  { tag: [t.emphasis], color: "var(--code-purple)", fontStyle: "italic" },
+  { tag: [t.deleted], color: "var(--code-deleted)", backgroundColor: "var(--code-deleted-bg)" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "var(--code-span-text)" },
   { tag: t.link, textDecoration: "underline" },
   { tag: t.strikethrough, textDecoration: "line-through" },
-  { tag: t.invalid, color: "#f97583" },
+  { tag: t.invalid, color: "var(--code-invalid)" },
 ];
 
 export const spanViewTheme = createTheme({
   theme: "dark",
-  settings: { ...defaultThemeSettings, foreground: "#c9c9cd" },
+  settings: { ...defaultThemeSettings, foreground: "var(--code-span-text)" },
   styles: spanViewStyle,
 });
 
@@ -124,28 +84,28 @@ export const baseExtensions = [
     },
     // Enhanced search match styling
     ".cm-searchMatch": {
-      backgroundColor: "hsl(var(--primary) / 0.3)",
-      border: "1px solid hsl(var(--primary))",
+      backgroundColor: "oklch(from var(--color-primary) l c h / 0.3)",
+      border: "1px solid var(--color-primary)",
       borderRadius: "3px",
     },
     ".cm-searchMatch-selected": {
-      backgroundColor: "hsl(var(--primary))",
+      backgroundColor: "var(--color-primary)",
       color: "var(--color-primary-foreground)",
       fontWeight: "600",
     },
     ".cm-mustache-bracket": {
-      color: "#79c0ff",
+      color: "var(--code-blue)",
       fontWeight: "bold",
     },
     ".cm-mustache-keyword": {
-      color: "#ff7b72",
+      color: "var(--code-red)",
       fontWeight: "bold",
     },
     ".cm-mustache-variable": {
-      color: "#a5d6ff",
+      color: "var(--code-string)",
     },
     ".cm-mustache-operator": {
-      color: "#ffab70",
+      color: "var(--code-orange)",
     },
   }),
   search({
@@ -177,7 +137,7 @@ export interface ImageData {
 }
 
 // Image widget for displaying base64 images
-export class ImageWidget extends WidgetType {
+class ImageWidget extends WidgetType {
   constructor(
     readonly src: string,
     readonly maxHeight: number = 100

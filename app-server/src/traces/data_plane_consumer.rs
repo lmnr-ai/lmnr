@@ -161,6 +161,7 @@ impl DataPlaneSpanHandler {
             self.pubsub.clone(),
             self.ch.clone(),
             self.pii_redactor.clone(),
+            None,
             Some(&config),
             self.indexer_stream_publisher.clone(),
             self.quickwit_indexing_enabled,

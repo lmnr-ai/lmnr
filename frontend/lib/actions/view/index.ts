@@ -5,7 +5,7 @@ import { FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 import { db } from "@/lib/db/drizzle";
 import { tableViews } from "@/lib/db/migrations/schema";
 
-export const ViewConfigSchema = z.object({
+const ViewConfigSchema = z.object({
   columnOrder: z.array(z.string()).optional(),
   columnVisibility: z.record(z.string(), z.boolean()).optional(),
   columnSizing: z.record(z.string(), z.number()).optional(),

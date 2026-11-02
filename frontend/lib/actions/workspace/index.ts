@@ -2,11 +2,16 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
-import { deleteProject } from "@/lib/actions/project";
+import {
+  deleteProjectApiKeysFromCache,
+  deleteProjectWorkspaceInfoFromCache,
+  purgeProjectData,
+} from "@/lib/actions/project";
 import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
-import { cache, MEMBER_ROLE_CACHE_KEY, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
+import { invalidateMemberAccessCache } from "@/lib/authorization";
+import { cache, MEMBER_ROLE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -75,30 +80,40 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     throw new Error("Workspace not found");
   }
 
-  if (workspace.subscriptionId) {
-    const s = stripe();
-    await s.subscriptions
-      .cancel(workspace.subscriptionId)
-      .catch((e) => console.error("Failed to cancel subscription", e));
-  }
-
   const projectsInWorkspace = await db.query.projects.findMany({
     where: eq(projects.workspaceId, workspaceId),
-    columns: {
-      id: true,
-    },
+    columns: { id: true },
+    with: { projectApiKeys: { columns: { hash: true } } },
   });
 
-  await Promise.all(
-    projectsInWorkspace.map(async (project) => {
-      await deleteProject({ projectId: project.id });
-    })
-  );
+  // The purge is re-runnable, so it goes first: a failure leaves the workspace and its billing intact.
+  await Promise.all(projectsInWorkspace.map((project) => purgeProjectData(project.id)));
 
-  await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+  // Cancel inside the transaction: a failed cancel rolls back the delete, and a failed delete never cancels.
+  await db.transaction(async (tx) => {
+    await tx.delete(workspaces).where(eq(workspaces.id, workspaceId));
+    if (workspace.subscriptionId) {
+      await cancelSubscriptionIfLive(workspace.subscriptionId);
+    }
+  });
+
+  const apiKeyHashes = projectsInWorkspace.flatMap((p) => p.projectApiKeys.flatMap((k) => (k.hash ? [k.hash] : [])));
+  await Promise.allSettled([
+    deleteProjectApiKeysFromCache(apiKeyHashes),
+    ...projectsInWorkspace.map((p) => deleteProjectWorkspaceInfoFromCache(p.id)),
+  ]);
 
   return { success: true, message: "Workspace deleted successfully" };
 }
+
+// subscription_id is never cleared, so a workspace back on Free still points at its canceled subscription.
+const cancelSubscriptionIfLive = async (subscriptionId: string) => {
+  const s = stripe();
+  const subscription = await s.subscriptions.retrieve(subscriptionId);
+  if (subscription.status !== "canceled" && subscription.status !== "incomplete_expired") {
+    await s.subscriptions.cancel(subscriptionId);
+  }
+};
 
 export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): Promise<Workspace> => {
   const { workspaceId } = GetWorkspaceSchema.parse(input);
@@ -259,6 +274,8 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
   ).catch((e) => {
     console.error("Error clearing member role cache after ownership transfer", e);
   });
+  // A trial-locked workspace admits only its owner, so cached access flips for both users.
+  await invalidateMemberAccessCache(workspaceId, [currentOwnerId, newOwnerId]);
 
   return { success: true };
 }
@@ -282,18 +299,11 @@ export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSc
     .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)));
 
   try {
-    await cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId));
     await cache.remove(MEMBER_ROLE_CACHE_KEY(workspaceId, userId));
-
-    const workspaceProjects = await db.query.projects.findMany({
-      where: eq(projects.workspaceId, workspaceId),
-      columns: { id: true },
-    });
-
-    await Promise.all(workspaceProjects.map((project) => cache.remove(PROJECT_MEMBER_CACHE_KEY(project.id, userId))));
   } catch (e) {
     console.error("Error clearing cache after user removal", e);
   }
+  await invalidateMemberAccessCache(workspaceId, [userId]);
 
   return { success: true };
 }

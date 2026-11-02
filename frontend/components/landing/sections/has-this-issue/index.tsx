@@ -34,7 +34,7 @@ const HasThisIssue = () => (
         pill on the visible frame rather than on its own wider stage. */}
     <div
       data-clusters-frame
-      className="bg-surface-250 relative flex items-start w-full overflow-hidden px-8 h-[432px] sm:h-auto"
+      className="bg-surface-450 relative flex items-start w-full overflow-hidden px-8 h-[432px] sm:h-auto"
     >
       {/* mx-auto centers the mock when it fits; when it doesn't (narrow
           viewports) the auto margins collapse to 0 so the mock sticks

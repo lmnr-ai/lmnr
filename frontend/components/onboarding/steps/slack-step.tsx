@@ -20,16 +20,17 @@ interface SlackStepProps {
   stepIndex: number;
   totalSteps: number;
   onAdvance: () => void;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: SlackStepProps) {
   const { watch } = useFormContext<OnboardingFormValues>();
   const flags = useFeatureFlags();
-  const { resources, slackClientId, slackRedirectUri } = useOnboardingContext();
-  const { isSubmitting, saveSlack } = useOnboardingActions();
+  const { resources, slackClientId, slackRedirectUri, trialAvailable } = useOnboardingContext();
+  const { isSubmitting, commitPlan } = useOnboardingActions();
 
   const slackConnected = watch("slackConnected");
+  const onFree = watch("currentTier") === "free";
 
   const slackUrl = useMemo(() => {
     if (!slackClientId || !slackRedirectUri || !resources.workspaceId) return undefined;
@@ -48,8 +49,11 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
 
   const slackAvailable = flags[Feature.SLACK] && !!slackUrl;
 
+  // Last step before Connect: starts the trial and applies the queued invites and signals.
   const handleNext = async () => {
-    if (await saveSlack()) onAdvance();
+    track("onboarding", "slack_step_completed", { slackConnected });
+    if (!(await commitPlan({ plan: trialAvailable || !onFree ? "trial" : "free" }))) return;
+    onAdvance();
   };
 
   return (
@@ -63,7 +67,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
       onBack={onBack}
       isSubmitting={isSubmitting}
     >
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-200 px-4 py-3">
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-400 px-4 py-3">
         <div className="my-auto">
           <Image src={slackLogo} alt="Slack" className="mt-0.5 shrink-0 h-7.5 w-7.5 2xl:h-8 2xl:w-8" />
         </div>
@@ -79,7 +83,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
         </div>
         <div className="my-auto shrink-0">
           {slackConnected ? (
-            <Button className="border-success bg-success/80 gap-1 hover:bg-success/80 2xl:h-9">
+            <Button className="border-success-border bg-success/80 gap-1 hover:bg-success/80 2xl:h-9">
               <CheckCircle2 data-icon="inline-start" className="h-4 w-4 2xl:h-5 2xl:w-5" />
               <span className="text-xs 2xl:text-sm">Connected</span>
             </Button>

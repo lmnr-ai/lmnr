@@ -11,38 +11,12 @@ import { ElevatedSurface } from "@/components/ui/surface";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
 import { cn } from "@/lib/utils";
 
-interface RoleColorConfig {
-  border: string;
-  badgeBg: string;
-  badgeBorder: string;
-  badgeText: string;
-}
-
-const ROLE_COLORS: Record<string, RoleColorConfig> = {
-  system: {
-    border: "hsl(215, 15%, 40%)",
-    badgeBg: "hsl(215, 15%, 15%)",
-    badgeBorder: "hsl(215, 15%, 25%)",
-    badgeText: "hsl(215, 15%, 65%)",
-  },
-  user: {
-    border: "hsl(217, 91%, 60%)",
-    badgeBg: "hsl(217, 60%, 12%)",
-    badgeBorder: "hsl(217, 50%, 25%)",
-    badgeText: "hsl(217, 80%, 70%)",
-  },
-  assistant: {
-    border: "hsl(262, 83%, 58%)",
-    badgeBg: "hsl(262, 50%, 12%)",
-    badgeBorder: "hsl(262, 40%, 25%)",
-    badgeText: "hsl(262, 70%, 70%)",
-  },
-  tool: {
-    border: "hsl(42, 93%, 46%)",
-    badgeBg: "hsl(42, 60%, 12%)",
-    badgeBorder: "hsl(42, 50%, 25%)",
-    badgeText: "hsl(42, 80%, 65%)",
-  },
+// Hue tokens live in app/globals.css (--{hue}-text); only the role → hue choice is made here.
+const ROLE_TEXT_COLORS: Record<string, string> = {
+  system: "var(--slate-text)",
+  user: "var(--blue-text)",
+  assistant: "var(--purple-text)",
+  tool: "var(--yellow-text)",
 };
 
 const ROLE_ALIASES: Record<string, string> = {
@@ -52,10 +26,10 @@ const ROLE_ALIASES: Record<string, string> = {
   computer_call_output: "tool",
 };
 
-export function getRoleColors(role?: string): RoleColorConfig {
-  if (!role) return ROLE_COLORS.system;
+export function getRoleTextColor(role?: string): string {
+  if (!role) return ROLE_TEXT_COLORS.system;
   const normalized = ROLE_ALIASES[role.toLowerCase()] ?? role.toLowerCase();
-  return ROLE_COLORS[normalized] ?? ROLE_COLORS.system;
+  return ROLE_TEXT_COLORS[normalized] ?? ROLE_TEXT_COLORS.system;
 }
 
 interface ToolCallContentPartProps {
@@ -78,10 +52,7 @@ const PureToolCallContentPart = ({
   const { mode, modes, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2">
-      <span
-        className="flex items-center gap-1.5 text-xs font-medium"
-        style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
-      >
+      <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: ROLE_TEXT_COLORS.tool }}>
         <Bolt size={14} className="min-w-3.5" />
         {toolName}
         {toolCallId && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
@@ -124,10 +95,7 @@ const PureToolResultContentPart = ({
   const { mode, modes, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2">
-      <span
-        className="flex items-center gap-1.5 text-xs font-medium"
-        style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
-      >
+      <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: ROLE_TEXT_COLORS.tool }}>
         <Bolt size={14} className="min-w-3.5" />
         {toolName ?? toolCallId}
         {toolName && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
@@ -205,12 +173,17 @@ interface RoleHeaderProps {
   className?: string;
 }
 
-export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
+const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
-    const colors = getRoleColors(role);
     return (
-      <div className={cn("flex items-center px-2 py-1 gap-2 border-b rounded-t", className)}>
-        <span className="text-sm font-medium" style={{ color: colors.badgeText }}>
+      // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
+      <div
+        className={cn(
+          "flex items-center px-2 py-1 gap-2 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
+          className
+        )}
+      >
+        <span className="text-sm font-medium" style={{ color: getRoleTextColor(role) }}>
           {capitalize(role)}
         </span>
       </div>
@@ -316,10 +289,10 @@ export const MessageWrapper = ({
     // overflow-clip (not hidden): clips to radius without creating a scroll
     // container, so sticky can still pin to the messages list.
     <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
-      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10 bg-surface" : undefined} />
+      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
       <div
         ref={containerRef}
-        className="overflow-hidden bg-surface-down"
+        className="overflow-hidden bg-emphasis-1 dark:bg-transparent"
         style={!isExpanded ? { maxHeight } : undefined}
       >
         <div className="flex flex-col divide-y">{children}</div>

@@ -17,6 +17,14 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 `TimeSeriesChart` (and every chart built on it) uses a categorical `<XAxis dataKey="timestamp">`, so a `<ReferenceLine x={…}>` renders **only** when `x` is byte-identical to one of the bucket labels in `data`. An arbitrary instant (an annotation's `created_at`) silently renders nothing. Snap it first — find the last bucket whose start is `<= at`, drop anything past the last bucket's end, and merge labels that land in the same bucket into one line. That is what `TimeSeriesChartProps.markers` / `snappedMarkers` does; reuse it rather than passing raw timestamps. A lone bucket has no measurable width — treat it as unbounded to the right so a marker later in that window still snaps. Clickable labels (`TimeSeriesMarker.href`) must `stopPropagation` on mouseDown/pointerDown so the chart's drag-zoom does not start; last marker's href wins when several snap to one bar.
 
+### Chart-builder config: every field a control can't show must be cleared centrally
+
+`ChartConfig` is shared by all chart types but the controls only expose a subset per type — a breakdown picker exists for line charts only (`supportsBreakdown`). Any field whose picker is hidden for the selected type has to be dropped in `reconcileChartConfig` (`components/chart-builder/utils.ts`), not in the setter that happened to change the type: `ChartRendererCore` pivots on `config.breakdown` for every axis chart, so a breakdown surviving a line→bar switch renders a stacked series the user can't see or undo. Reconcile runs on type change, on new result columns, and on persisted-config rehydration, so fixing it there also cleans configs stored by an older build. Derive the control's visibility from the same predicate the reconcile uses.
+
+### `data-icon` is decorative — Button does NOT space its own icons
+
+No CSS rule matches `[data-icon]` and `buttonVariants` has no `gap`, so an icon+label `<Button>` needs `className="gap-2"` (or a margin on the icon) at the call site. Only the `icon={…}` prop form spaces itself. Sizes: `sm` `h-[22px]`, `default` `h-7`, `md` `h-8`, `lg` `h-10`.
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).
@@ -69,6 +77,16 @@ Use it for: an older response overwriting newer state (user paginates, then chan
 - In the `finally`, only null out the shared controller ref if it still points at your own controller — otherwise a newer operation has already replaced it and you'd clobber its handle.
 - On the success path use functional `set((state) => ...)` rather than closing over `state.data`, so you merge with the latest value rather than a snapshot.
 
+### Debounced autosave
+
+Don't keep the debounce in a component (`useMemo(() => debounce(save), [deps])` + `cancel()` on cleanup) — a dep change, remount or navigation drops the queued write. Keep the queue at module scope next to the store. Reference implementation: `components/sql/sql-editor-store.ts` (notes in `docs/internal/sql-query-engine.md`).
+
+- Key all of that state by entity id (`Map`s), and only write status for the entity on screen.
+- Serialize requests per entity and re-queue the payload on failure.
+- Expose `flush()` and call it wherever the debounce window can end: dependent actions, switching entities, `visibilitychange` / `pagehide` / unmount (with `keepalive: true`). On delete, discard instead — and abort the in-flight request.
+- Patch the SWR cache after a save (`revalidate: false`), and keep the locally edited field when a revalidation returns the same entity.
+- Each writer sends only the fields it owns.
+
 ### Server actions and Zod schemas
 
 - Logic another surface may need (CLI, public API, agent) belongs behind an app-server route, not in a server action. Server actions are for UI-only plumbing.
@@ -118,19 +136,30 @@ try {
 }
 ```
 
-**API route handlers** (`app/api/**/route.ts`): Wrap the handler with `apiHandler` from `@/lib/api/api-handler`. The wrapper handles `ZodError → 400` / unknown → 500 and auto-captures uncaught errors to Sentry — you don't need a `try/catch` in the handler body.
+**API route handlers** (`app/api/**/route.ts`): Wrap the handler with `apiHandler` from `@/lib/api/api-handler` and don't write a `try/catch`. It turns what the handler throws into `{ error }` JSON:
+
+- `ApiError` (`@/lib/api/errors`) → its `status`, not reported to Sentry. Expected failures are thrown from the action as an `ApiError` subclass (`NotFoundError` 404, `AuthorizationError` 401/403, `DashboardError`, `AlertApiError`, …), never matched by message in the route.
+- `ZodError` → 400 with `prettifyError`, not reported (it's the caller's mistake).
+- anything else → 500, captured to Sentry.
 
 ```typescript
 import { apiHandler } from "@/lib/api/api-handler";
+import { NotFoundError } from "@/lib/api/errors";
 
-export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const result = await someAction({ projectId });
+export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
+  const { projectId, id } = await ctx.params;
+  const result = await getThing({ projectId, id });
+  if (!result) throw new NotFoundError("Thing not found");
   return Response.json(result);
 });
 ```
 
 Exceptions (don't wrap): streaming/SSE responses, file/binary downloads, webhook routes (Stripe, Slack), NextAuth handlers, routes with non-`{error: string}` error shapes.
+
+**App-server ↔ Next.js.** Both directions use the same contract (`{ error }` JSON, 4xx passes through, 5xx is a bug):
+
+- Next.js → app-server: `callAppServer` (`@/lib/api/backend`) unwraps app-server's `{ error }`; a 4xx becomes an `ApiError` with that status (so the route relays it), a 5xx a plain `Error` (500 + Sentry). `fetcherJSON` / `fetcherRealTime` are the older raw clients.
+- App-server → Next.js: `/api/internal/projects/[projectId]/…` routes are wrapped in `internalApiHandler` (`@/lib/api/internal`), which is `apiHandler` plus the app-server token check (401 without it) and hands the handler resolved `params` and the token `claims`. Same error mapping, so a domain action throws the same `ApiError` whether the UI route or app-server called it.
 
 Client disconnects do NOT reach Sentry: `apiHandler` classifies an error (and its `cause` chain) as an abort by name — `AbortError` (anything awaiting `req.signal`, e.g. the AI SDK in the chat route) or Next's own `ResponseAborted` — and answers `499` without capturing. `TimeoutError` is deliberately NOT in that set (the AI SDK's `isAbortError` includes it, we don't): a timeout is a real server-side failure. Classify on the error, never on `req.signal.aborted`, or an upstream failure racing a disconnect gets swallowed. `unstable_rethrow` does not cover aborts, so this check has to be explicit.
 

@@ -46,7 +46,6 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
 
         <p className="text-sm text-foreground-300">
           {formatUTCDate(data.date)} · {data.author.name}
-          {data.tags?.[0] ? ` · ${data.tags[0]}` : ""}
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">

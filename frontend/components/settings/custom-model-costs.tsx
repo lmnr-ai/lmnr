@@ -225,7 +225,7 @@ function ModelCostDialog({
             </div>
           </div>
           {validationError && (
-            <p className="text-xs text-destructive flex items-center gap-1">
+            <p className="text-xs text-destructive-text flex items-center gap-1">
               <AlertTriangle size={12} />
               {validationError}
             </p>

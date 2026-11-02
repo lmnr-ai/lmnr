@@ -49,13 +49,13 @@ export const formatDay = (d: Date | string) =>
   new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 // Unlike `normalizeTier`, unknown tiers (e.g. self-hosted "unlimited") return null, not "free".
-export const knownTier = (tierName?: string): Tier | null => {
+const knownTier = (tierName?: string): Tier | null => {
   if (!tierName) return null;
   const key = tierName.trim().toLowerCase();
   return ["free", "hobby", "starter", "pro"].includes(key) ? normalizeTier(key) : null;
 };
 
-export interface SignalCredit {
+interface SignalCredit {
   granted: number;
   remaining: number;
 }
@@ -80,11 +80,19 @@ export interface UsageModel {
   bill: BillEstimate | null;
 }
 
-export const buildUsageModel = (stats: WorkspaceStats | null, breakdown: UsageBreakdown | undefined): UsageModel => {
+export const buildUsageModel = (
+  stats: WorkspaceStats | null,
+  breakdown: UsageBreakdown | undefined,
+  trialEndsAt?: string
+): UsageModel => {
   const tier = knownTier(stats?.tierName);
   // Hour-granular "now" keeps the server render and client hydration identical.
   const now = new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
-  const cycle = billingCycle(new Date(stats?.resetTime ?? breakdown?.cycleStart ?? now), now);
+  const cycle = billingCycle(
+    new Date(stats?.resetTime ?? breakdown?.cycleStart ?? now),
+    now,
+    trialEndsAt ? new Date(trialEndsAt) : undefined
+  );
 
   const gbUsed = stats?.gbUsedThisMonth ?? 0;
   const gbIncluded = stats?.gbLimit != null && isFinite(stats.gbLimit) ? stats.gbLimit : null;

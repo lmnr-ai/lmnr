@@ -50,10 +50,10 @@ interface TierData {
 // Published per-million-token rates for signal cost overage, in USD. Every
 // tier currently uses the same defaults. Keep these aligned with the app-server
 // signal pricing env defaults before enabling the rates for production billing.
-export const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
-export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
+const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
+const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
 // Cache-read tokens are a subset of input and are billed at a discounted rate.
-export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.01;
+const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.01;
 export const SIGNALS_SIGNUP_CREDIT_USD = 5;
 export const SIGNALS_SIGNUP_CREDIT_MICRO_USD = SIGNALS_SIGNUP_CREDIT_USD * 1_000_000;
 
@@ -169,9 +169,14 @@ export const formatDataOverage = (tier: Tier): string => {
   return rate === 0 ? "—" : `${formatGBRate(rate)} / GB`;
 };
 
-// Every newly created workspace receives the same one-time Signals credit,
-// independently of its subscription tier.
-export const formatSignalsCount = (_tier: Tier): string => `$${SIGNALS_SIGNUP_CREDIT_USD}`;
+// Free has no Signals (nor Slack alerts or clustering); paid tiers and trials get the one-time credit.
+export const tierIncludesSignals = (tier: Tier): boolean => tier !== "free";
+
+export const formatSignalsCount = (tier: Tier): string =>
+  tierIncludesSignals(tier) ? `$${SIGNALS_SIGNUP_CREDIT_USD}` : "—";
+
+export const formatSignalsCreditLabel = (tier: Tier): string =>
+  tierIncludesSignals(tier) ? `${formatSignalsCount(tier)} one-time Signals credit` : "No Signals or Slack alerts";
 
 // Signals usage after the one-time sign-up credit is billed at per-million-token rates.
 // Cached input is listed separately because it is a subset of input charged at

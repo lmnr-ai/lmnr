@@ -46,7 +46,7 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
           </div>
           <Link
             href="?tab=billing"
-            className="text-primary hover:underline inline-flex items-center gap-1 text-sm shrink-0"
+            className="text-primary-text hover:underline inline-flex items-center gap-1 text-sm shrink-0"
           >
             Manage billing
             <ArrowRight className="h-3.5 w-3.5" />

@@ -116,6 +116,7 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub signal_cost_hard_limit_micro_usd: Option<i64>,
+    pub trialing: bool,
     /// `projects.settings` JSONB, opaque to the SQL row binding (we hand it
     /// to serde_json on the way into the typed `ProjectWithWorkspaceBillingInfo`).
     #[serde(default)]
@@ -189,6 +190,9 @@ pub struct ProjectWithWorkspaceBillingInfo {
     /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub signal_cost_hard_limit_micro_usd: Option<i64>,
+    /// Card-less Starter trial: capped like Free, since overage could never be billed.
+    #[serde(default)]
+    pub trialing: bool,
     /// Typed view of `projects.settings`. Unknown keys are tolerated;
     /// missing keys fall back to the field's `Default` impl.
     #[serde(default)]
@@ -217,6 +221,7 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             bytes_limit: self.bytes_limit,
             custom_bytes_limit: self.custom_bytes_limit,
             signal_cost_hard_limit_micro_usd: self.signal_cost_hard_limit_micro_usd,
+            trialing: self.trialing,
             settings,
         }
     }
@@ -360,10 +365,15 @@ pub async fn project_has_member(
     project_id: &Uuid,
 ) -> anyhow::Result<bool> {
     let exists = sqlx::query_scalar::<_, bool>(
+        // Same owner-only lock as the frontend membership checks: a Free workspace that had
+        // a subscription (trial or paid plan ended) admits only its owners.
         "SELECT EXISTS (
             SELECT 1 FROM projects p
             JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
+            JOIN workspaces w ON w.id = p.workspace_id
+            JOIN subscription_tiers st ON st.id = w.tier_id
             WHERE p.id = $1 AND m.user_id = $2
+                AND (m.member_role = 'owner' OR w.subscription_id IS NULL OR LOWER(TRIM(st.name)) <> 'free')
         )",
     )
     .bind(project_id)
@@ -397,7 +407,9 @@ pub async fn get_projects_for_user(
          FROM projects p
          JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
          JOIN workspaces w ON w.id = p.workspace_id
+         JOIN subscription_tiers st ON st.id = w.tier_id
          WHERE m.user_id = $1
+             AND (m.member_role = 'owner' OR w.subscription_id IS NULL OR LOWER(TRIM(st.name)) <> 'free')
          -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
          ORDER BY lower(w.name), w.name, lower(p.name), p.name
          LIMIT 1000",
@@ -431,6 +443,7 @@ pub async fn get_project_and_workspace_billing_info(
             subscription_tiers.bytes_ingested as bytes_limit,
             wul_bytes.limit_value as custom_bytes_limit,
             wul_signal_cost.limit_value as signal_cost_hard_limit_micro_usd,
+            workspaces.trial_ends_at IS NOT NULL as trialing,
             projects.settings
         FROM
             projects

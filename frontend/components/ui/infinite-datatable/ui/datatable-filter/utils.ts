@@ -54,7 +54,7 @@ export const BOOLEAN_OPERATIONS = BOOLEAN_OPERATORS.map((op) => ({
   label: OperatorLabelMap[op],
 }));
 
-export const ARRAY_OPERATIONS = ARRAY_OPERATORS.map((op) => ({
+const ARRAY_OPERATIONS = ARRAY_OPERATORS.map((op) => ({
   key: op,
   label: OperatorLabelMap[op],
 }));

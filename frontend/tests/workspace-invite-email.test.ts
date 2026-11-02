@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { LAMINAR_LOGO_CID } from "../lib/emails/report-email-layout";
-import { WELCOME_BANNER_CID } from "../lib/emails/welcome-email";
 import WorkspaceInviteEmail from "../lib/emails/workspace-invite";
 
 test("invite follows the welcome layout with live workspace text and the real invite link", () => {
@@ -14,7 +13,9 @@ test("invite follows the welcome layout with live workspace text and the real in
 
   assert.match(html, /max-width:500px/);
   assert.match(html, /height:160px;padding:16px 20px 12px/);
-  assert.ok(html.includes(`background="cid:${WELCOME_BANNER_CID}"`));
+  assert.match(html, /background-color:#252526/);
+  assert.ok(!html.includes("welcome-banner-background"));
+  assert.ok(!html.includes("background-image:"));
   assert.ok(html.includes(`src="cid:${LAMINAR_LOGO_CID}"`));
   assert.match(html, /Join Example Workspace on Laminar!/);
   assert.match(html, /This invitation will expire in 7 days/);

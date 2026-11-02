@@ -284,6 +284,14 @@ export async function register() {
 
           const migrationsHome = join(process.cwd(), "lib/clickhouse/migrations");
 
+          const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants, ensurePgEntityDicts } =
+            await import("@/lib/clickhouse/postgres-engine.ts");
+
+          // Ordered before migration 73 so a healthy boot has `pg` ready for the
+          // views over it; warn-only, so a broken one still starts.
+          await ensureClickhousePostgresDatabase(clickhouseClient);
+
           await migration(
             migrationsHome,
             process.env.CLICKHOUSE_URL || "http://localhost:8123",
@@ -291,11 +299,14 @@ export async function register() {
             process.env.CLICKHOUSE_PASSWORD || "ch_passwd",
             process.env.CLICKHOUSE_DB || "default",
             "ENGINE=Atomic", // db_engine
+            "MergeTree", // table_engine
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
 
           await ensureContentDicts();
           await ensureClustersDict();
+          await ensurePgEntityDicts(clickhouseClient);
+          await ensureClickhouseReadonlyGrants(clickhouseClient);
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;
@@ -342,6 +353,8 @@ export async function register() {
         ...(postgresSchema && !isPublicSchema ? { migrationsSchema: postgresSchema } : {}),
       });
       console.log("✓ Postgres migrations applied successfully");
+      const { ensurePostgresReadonlyRole } = await import("@/lib/clickhouse/postgres-engine.ts");
+      await ensurePostgresReadonlyRole();
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
 

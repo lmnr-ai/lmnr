@@ -5,11 +5,8 @@ import type { SqlActor } from "@/lib/actions/sql";
 
 import { type AgentNamesResult, resolveAgentNames } from "./agent-names";
 import { extractUserInputsForSpans } from "./input-extraction";
-import { fetchSpanData, type InputSpanRow, PREVIEW_SPAN_TYPES } from "./queries";
+import { fetchSpanData, type InputSpanRow } from "./queries";
 import { type ResolveOptions, resolvePreviews, type SpanPreviewResult } from "./resolve";
-
-export { PREVIEW_SPAN_TYPES };
-export type { SpanPreviewResult };
 
 export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
   projectId: z.guid(),

@@ -41,13 +41,13 @@ function formatOutput(output: string): FormattedOutput {
 
 function JsonValue({ value, failed }: { value: unknown; failed?: boolean }) {
   if (value === null) {
-    return <span className={failed ? "text-destructive" : "text-muted-foreground"}>null</span>;
+    return <span className={failed ? "text-destructive-text" : "text-muted-foreground"}>null</span>;
   }
   if (typeof value === "boolean" || typeof value === "number") {
-    return <span className={failed ? "text-destructive" : "text-secondary-foreground"}>{String(value)}</span>;
+    return <span className={failed ? "text-destructive-text" : "text-secondary-foreground"}>{String(value)}</span>;
   }
   if (typeof value === "string") {
-    return <span className={failed ? "text-destructive" : "text-secondary-foreground"}>&quot;{value}&quot;</span>;
+    return <span className={failed ? "text-destructive-text" : "text-secondary-foreground"}>&quot;{value}&quot;</span>;
   }
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="text-secondary-foreground">[]</span>;
@@ -75,7 +75,7 @@ function JsonValue({ value, failed }: { value: unknown; failed?: boolean }) {
         <div className="pl-4">
           {entries.map(([key, child], i) => (
             <div key={key}>
-              <span className={failed ? "text-destructive" : "text-primary"}>&quot;{key}&quot;</span>
+              <span className={failed ? "text-destructive-text" : "text-primary-text"}>&quot;{key}&quot;</span>
               <span className="text-secondary-foreground">: </span>
               <JsonValue value={child} failed={failed} />
               {i < entries.length - 1 && <span className="text-secondary-foreground">,</span>}
@@ -131,7 +131,7 @@ export default function CommandOutput({ output, failed }: CommandOutputProps) {
       <pre
         className={cn(
           "whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-5",
-          failed ? "text-destructive" : "text-secondary-foreground"
+          failed ? "text-destructive-text" : "text-secondary-foreground"
         )}
       >
         {showFull || !overBudget ? fullText : fullText.slice(0, OUTPUT_CHAR_BUDGET)}

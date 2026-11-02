@@ -28,10 +28,10 @@ const MAX_INLINE_EXTRAS = 3;
 export default function SchemaDriftBanner({ targetIsObject, targetType, extras, onViewJson }: SchemaDriftBannerProps) {
   if (!targetIsObject) {
     return (
-      <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 mb-3">
-        <AlertTriangle className="size-4 mt-0.5 text-destructive shrink-0" />
+      <div className="flex items-start gap-2 rounded-md border border-destructive-border/40 bg-destructive/5 px-3 py-2 mb-3">
+        <AlertTriangle className="size-4 mt-0.5 text-destructive-text shrink-0" />
         <div className="flex-1 text-xs min-w-0">
-          <div className="text-destructive font-medium">
+          <div className="text-destructive-text font-medium">
             Target is <code className="font-mono">{targetType}</code>, not an object
           </div>
           <div className="text-secondary-foreground mt-0.5">

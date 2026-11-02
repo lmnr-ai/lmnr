@@ -7,7 +7,7 @@ import {
 
 import { type LlmProfileFormValues, type LlmProfileRequestBody, toProvider } from "./types";
 
-export const EMPTY_VALUES: LlmProfileFormValues = {
+const EMPTY_VALUES: LlmProfileFormValues = {
   name: "",
   uiProvider: "openai",
   openaiShape: "openai_completions",

@@ -13,6 +13,7 @@ import {
   LangChainMessagesSchema,
 } from "@/lib/spans/types/langchain";
 import { convertOpenAIToPlaygroundMessages, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
+import { convertOpenCodeToPlaygroundMessages, matchOpenCodeMessages } from "@/lib/spans/types/opencode";
 
 /**
  * Prepares a span payload for export to a dataset or labeling queue: coerces it
@@ -51,7 +52,14 @@ export const convertSpanToPlayground = async (messages: any): Promise<Message[]>
   // loose shapes (single message object / bare parts array) and match them
   // BEFORE the loose OpenAI schemas, same normalization + ordering as
   // `processMessages`.
-  const aiSdkMessages = matchAiSdkMessages(normalizeToMessages(messages));
+  const normalized = normalizeToMessages(messages);
+
+  const openCodeMessages = matchOpenCodeMessages(normalized);
+  if (openCodeMessages) {
+    return await convertOpenCodeToPlaygroundMessages(openCodeMessages);
+  }
+
+  const aiSdkMessages = matchAiSdkMessages(normalized);
   if (aiSdkMessages) {
     return await convertAiSdkToPlaygroundMessages(aiSdkMessages);
   }

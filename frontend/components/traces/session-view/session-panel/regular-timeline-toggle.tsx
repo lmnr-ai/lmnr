@@ -21,7 +21,7 @@ export default function RegularTimelineToggle() {
       onClick={() => setSessionTimelineEnabled(!sessionTimelineEnabled)}
       variant={sessionTimelineEnabled ? "outlinePrimary" : "outline"}
       size="sm"
-      className={cn(!sessionTimelineEnabled && "hover:bg-secondary")}
+      className={cn(!sessionTimelineEnabled && "hover:overlay-hover")}
     >
       <GanttChart data-icon="inline-start" size={14} className="mr-1" />
       Timeline

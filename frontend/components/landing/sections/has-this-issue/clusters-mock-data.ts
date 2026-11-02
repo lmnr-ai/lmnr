@@ -3,7 +3,7 @@ import { type ClusterStatsDataPoint } from "@/lib/actions/clusters";
 
 import { SIGNAL_CLUSTER_ID, SIGNAL_CLUSTER_NAME } from "../signal-cluster";
 
-export type MockEvent = {
+type MockEvent = {
   id: string;
   clusterId: string;
   minutesAgo: number;

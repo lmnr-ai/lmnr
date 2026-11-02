@@ -12,7 +12,7 @@ export const GetTraceRenderDataSchema = z.object({
   whereClause: z.string().nullish(),
 });
 
-export interface TraceRenderSpan {
+interface TraceRenderSpan {
   spanId: string;
   parentSpanId: string;
   name: string;

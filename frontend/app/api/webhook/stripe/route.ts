@@ -1,6 +1,15 @@
 import { type NextRequest } from "next/server";
 import Stripe from "stripe";
 
+import {
+  handleTrialConversion,
+  handleTrialDeleted,
+  handleTrialPaymentSessionCompleted,
+  handleTrialWillEnd,
+  syncTrialEndFromSubscription,
+  trackTrialStarted,
+  TRIAL_PAYMENT_SESSION_TYPE,
+} from "@/lib/actions/checkout/trial";
 import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { handleInvoiceFinalized, handleSubscriptionChange } from "@/lib/actions/checkout/webhook";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
@@ -52,6 +61,9 @@ function getWorkspaceId(invoice: Stripe.Invoice): string | null {
  * and adds them as metered subscription items.
  */
 async function addOveragePricesToSubscription(subscription: Stripe.Subscription): Promise<void> {
+  // Trials carry no metered prices; they are attached when the trial converts.
+  if (subscription.status === "trialing") return;
+
   // Find the tier by matching the flat price lookup key
   const flatItem = subscription.items.data.find((item) => item.price.recurring?.usage_type !== "metered");
   const flatLookupKey = flatItem?.price.lookup_key;
@@ -205,14 +217,30 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
     case "customer.subscription.deleted":
       await handleSubscriptionChange(event, true);
+      await handleTrialDeleted(event.data.object);
       break;
     case "customer.subscription.created":
       await handleSubscriptionChange(event);
+      await syncTrialEndFromSubscription(event.data.object);
       await addOveragePricesToSubscription(event.data.object);
+      await trackTrialStarted(event.data.object);
       break;
-    case "customer.subscription.updated":
+    case "customer.subscription.updated": {
       await handleSubscriptionChange(event);
+      await syncTrialEndFromSubscription(event.data.object);
+      await handleTrialConversion(event.data.object, addOveragePricesToSubscription);
       break;
+    }
+    case "customer.subscription.trial_will_end":
+      await handleTrialWillEnd(event.data.object);
+      break;
+    case "checkout.session.completed": {
+      const session = event.data.object;
+      if (session.mode === "setup" && session.metadata?.type === TRIAL_PAYMENT_SESSION_TYPE) {
+        await handleTrialPaymentSessionCompleted(session);
+      }
+      break;
+    }
     // NOTE: if adding new events here, don't forget to enable them via Stripe Workbench
     default:
       break;

@@ -8,10 +8,12 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
+    agent_versioning,
     api::v1::traces::RabbitMqSpanMessage,
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
+        agent_prompts::{CHAgentPrompt, insert_agent_prompts},
         spans::CHSpan,
         traces::TraceAggregation,
         traces_agg::{CHTraceAgg, PATCH_START_TIME_OFFSET_NS},
@@ -23,6 +25,7 @@ use crate::{
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
+    llm::LlmClient,
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
         PiiOutcome, PiiRedactorClient, ProjectModes, SpanVerdict, redact_spans_in_place,
@@ -236,6 +239,7 @@ fn collect_static_agent_io_rows(
     pubsub,
     ch,
     pii_redactor,
+    llm_client,
     config,
     indexer_stream_publisher
 ))]
@@ -248,21 +252,37 @@ pub async fn process_span_messages(
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
     pii_redactor: Option<PiiRedactorClient>,
+    llm_client: Option<Arc<LlmClient>>,
     config: Option<&WorkspaceDeployment>,
     indexer_stream_publisher: Option<Arc<StreamPublisher>>,
     quickwit_indexing_enabled: bool,
 ) -> Result<(), HandlerError> {
     let messages = enrich_attributes(messages);
-    let (metadata_only, messages): (Vec<RabbitMqSpanMessage>, Vec<RabbitMqSpanMessage>) = messages
-        .into_iter()
-        .partition(|m| m.span.attributes.is_metadata_only());
+    let (metadata_only, mut messages): (Vec<RabbitMqSpanMessage>, Vec<RabbitMqSpanMessage>) =
+        messages
+            .into_iter()
+            .partition(|m| m.span.attributes.is_metadata_only());
     let MetadataOnlySpans {
         raw_trace_io,
         metadata_patches,
     } = classify_metadata_only_spans(&metadata_only);
 
+    // Hybrid traces live in the data plane; agent versioning reads the cloud.
+    let agent_prompts: Vec<CHAgentPrompt> = messages
+        .iter_mut()
+        .filter(|_| config.is_none())
+        .filter_map(|m| {
+            Some(agent_versioning::ingest::row(
+                &m.span,
+                m.agent_prompt.take()?,
+            ))
+        })
+        .collect();
+
     let mut batch = enrich_spans_with_usage(messages, &db, &cache).await;
-    let trace_aggregations = TraceAggregation::from_spans(&batch.spans, &batch.usages);
+    let mut trace_aggregations = TraceAggregation::from_spans(&batch.spans, &batch.usages);
+    agent_versioning::ingest::tag_releases(&db, &cache, &agent_prompts, &mut trace_aggregations)
+        .await;
 
     // Non-recordable spans still bill and aggregate but never reach
     // ClickHouse; every `dedup_idx` downstream is a position in this list.
@@ -337,6 +357,22 @@ pub async fn process_span_messages(
     let ((), span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
 
+    if let Err(e) = insert_agent_prompts(&clickhouse, &agent_prompts).await {
+        log::error!(
+            "Failed to insert {} agent prompts: {:?}",
+            agent_prompts.len(),
+            e
+        );
+    }
+    agent_versioning::registry::register_new_agents(
+        &db,
+        &cache,
+        &clickhouse,
+        llm_client.as_ref(),
+        &agent_prompts,
+    )
+    .await;
+
     // Must run AFTER the spans insert: triggers are decided from the in-memory
     // batch delta, but filters read the trace's cumulative state back out of
     // ClickHouse traces_agg, and the signal agent needs the span data too.
@@ -364,20 +400,6 @@ pub async fn process_span_messages(
             &pii_outcome,
             &queue,
             indexer_stream_publisher.as_ref(),
-        )
-        .await;
-    }
-
-    // Best-effort: the system prompt is trace-new for conversation-start LLM
-    // spans, so it's in `dedup.input.span_trace_new_contents` even when
-    // storage-deduped.
-    if is_feature_enabled(Feature::Checkpoints) {
-        crate::checkpoints::producer::publish_checkpoints_for_batch(
-            &batch.spans,
-            &recordable_indices,
-            &dedup.input,
-            &batch.tool_dedups,
-            queue.clone(),
         )
         .await;
     }
@@ -521,7 +543,6 @@ async fn enrich_spans_with_usage(
                 &mut m.span.attributes,
                 db.clone(),
                 cache.clone(),
-                &m.span.name,
                 &m.span.project_id,
             )
             .await
@@ -1259,6 +1280,8 @@ mod tests {
             trace_type: 0,
             has_browser_session: None,
             span_names: HashSet::new(),
+            release: None,
+            agent_versions: Vec::new(),
         }
     }
 

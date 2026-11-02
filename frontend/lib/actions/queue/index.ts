@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { ApiError } from "@/lib/api/errors";
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
@@ -197,7 +198,7 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
     return { success: true };
   }
 
-  throw new Error("Invalid request parameters - either skip must be true or datasetId must be provided");
+  throw new ApiError("Invalid request parameters - either skip must be true or datasetId must be provided", 400);
 }
 
 export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatasetSchema>) {

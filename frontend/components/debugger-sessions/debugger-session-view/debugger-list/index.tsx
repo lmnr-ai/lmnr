@@ -570,7 +570,7 @@ const FlatRowContent = memo(function FlatRowContent({
         </div>
       );
     case "trace-error":
-      return <div className="px-2 py-4 text-sm text-destructive">{row.error}</div>;
+      return <div className="px-2 py-4 text-sm text-destructive-text">{row.error}</div>;
     case "trace-empty":
       return <div className="px-2 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>;
     case "user-input":

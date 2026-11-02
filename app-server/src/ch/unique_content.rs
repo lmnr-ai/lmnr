@@ -46,40 +46,6 @@ impl CHUniqueContent {
     }
 }
 
-/// Resolve one blob by hash: the group-scoped table first, then the legacy
-/// project-scoped `deduped_content` for rows written before migration 64.
-pub async fn get_content_by_hash(
-    clickhouse: &clickhouse::Client,
-    project_id: Uuid,
-    group_id: &str,
-    content_hash_hex: &str,
-) -> clickhouse::error::Result<Option<String>> {
-    let grouped = clickhouse
-        .query(
-            "SELECT content FROM unique_content
-             WHERE project_id = ? AND group_id = ? AND content_hash = toFixedString(unhex(?), 32)
-             LIMIT 1",
-        )
-        .bind(project_id)
-        .bind(group_id)
-        .bind(content_hash_hex)
-        .fetch_optional::<String>()
-        .await?;
-    if grouped.is_some() {
-        return Ok(grouped);
-    }
-    clickhouse
-        .query(
-            "SELECT content FROM deduped_content
-             WHERE project_id = ? AND content_hash = toFixedString(unhex(?), 32)
-             LIMIT 1",
-        )
-        .bind(project_id)
-        .bind(content_hash_hex)
-        .fetch_optional::<String>()
-        .await
-}
-
 impl ClickhouseInsertable for CHUniqueContent {
     const TABLE: Table = Table::UniqueContent;
 

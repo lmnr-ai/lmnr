@@ -4,8 +4,8 @@ import { describe, it } from "node:test";
 import { extractAgentOutput } from "@/lib/traces/agent-output";
 
 // Pins the "valuable bits" contract for trace_outputs_v0 consumers: non-empty
-// thinking/reasoning, non-empty text, tool calls (name + payload), and a
-// prefer-more-over-nothing stance on unknown shapes.
+// text and tool calls (name + payload), thinking/reasoning only when neither
+// exists, and a prefer-more-over-nothing stance on unknown shapes.
 
 describe("extractAgentOutput", () => {
   it("extracts plain string content", () => {
@@ -23,7 +23,7 @@ describe("extractAgentOutput", () => {
     assert.equal(extractAgentOutput([JSON.stringify(msg)]), "First.\n\nSecond.");
   });
 
-  it("extracts thinking and reasoning alongside text", () => {
+  it("prefers text over thinking and reasoning", () => {
     const msg = {
       role: "assistant",
       content: [
@@ -32,7 +32,30 @@ describe("extractAgentOutput", () => {
         { type: "text", text: "Answer." },
       ],
     };
-    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Let me think...\n\nBecause X.\n\nAnswer.");
+    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Answer.");
+  });
+
+  it("prefers a tool call over thinking", () => {
+    const msg = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "I should search." },
+        { type: "tool_use", name: "search", input: {} },
+      ],
+    };
+    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Tool: search");
+  });
+
+  it("falls back to thinking and reasoning when there is no text", () => {
+    const msg = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "Let me think..." },
+        { type: "reasoning", text: "Because X." },
+        { type: "text", text: "" },
+      ],
+    };
+    assert.equal(extractAgentOutput([JSON.stringify(msg)]), "Let me think...\n\nBecause X.");
   });
 
   it("skips empty thinking / text parts", () => {
@@ -145,5 +168,11 @@ describe("extractAgentOutput", () => {
       summary: [{ type: "summary_text", text: "Thought summary" }],
     };
     assert.equal(extractAgentOutput([JSON.stringify(item)]), "Thought summary");
+  });
+
+  it("skips OpenAI Responses reasoning items when a message follows", () => {
+    const reasoning = { type: "reasoning", summary: [{ type: "summary_text", text: "Thought summary" }] };
+    const message = { type: "message", role: "assistant", content: [{ type: "output_text", text: "Final" }] };
+    assert.equal(extractAgentOutput([JSON.stringify(reasoning), JSON.stringify(message)]), "Final");
   });
 });

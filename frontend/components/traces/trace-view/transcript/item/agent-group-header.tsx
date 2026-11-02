@@ -66,7 +66,7 @@ function AgentGroupHeaderInner({
   return (
     <div
       className={cn(
-        "mx-2 border overflow-hidden cursor-pointer transition-colors hover:bg-surface-up-2",
+        "mx-2 border overflow-hidden cursor-pointer transition-colors hover:overlay-hover",
         elevationClassName,
         collapsed ? "rounded-lg" : "rounded-t-lg",
         className

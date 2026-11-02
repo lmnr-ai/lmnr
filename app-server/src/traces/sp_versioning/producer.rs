@@ -6,10 +6,10 @@
 //! a miss ships the raw text for consumer-side classification.
 //!
 //! - [`publish_static_prompt_candidates`] — system prompts, once per ingest
-//!   batch. Shared guards (LLM availability, internal-project filter), then a
-//!   feature-flag dispatch: `Feature::SystemPromptVersioning` routes to this
-//!   pipeline, off routes to the legacy skeleton-hash pipeline
-//!   (`static_sp_extraction::producer`).
+//!   batch. The internal-project filter, then a feature-flag dispatch:
+//!   `Feature::SystemPromptVersioning` routes to this LLM-free pipeline, off
+//!   routes to the legacy skeleton-hash pipeline
+//!   (`static_sp_extraction::producer`), which needs an LLM client.
 //! - [`resolve_and_publish`] — a single text whose caller needs the version
 //!   synchronously (the user-task hook keys its regex on the user template's).
 
@@ -109,17 +109,12 @@ struct InlineResolution {
     version: Option<String>,
 }
 
-/// Spans emitted by our own extraction self-tracing land in these projects;
-/// feeding them back into extraction would loop indefinitely.
-pub(crate) fn internal_project_ids() -> Vec<Uuid> {
-    [
-        crate::env::connections::STATIC_SP_INTERNAL_PROJECT_ID,
-        crate::env::connections::SIGNALS_INTERNAL_PROJECT_ID,
-    ]
-    .iter()
-    .filter_map(|name| std::env::var(name).ok())
-    .filter_map(|s| Uuid::parse_str(&s).ok())
-    .collect()
+/// Agent naming (`agent_versioning::naming`) traces into this project, so
+/// versioning its prompts would loop.
+fn checkpoints_internal_project_id() -> Option<Uuid> {
+    std::env::var(crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|s| Uuid::parse_str(&s).ok())
 }
 
 /// Publish a batch's system prompts to the active pipeline's queue.
@@ -130,23 +125,22 @@ pub async fn publish_static_prompt_candidates(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    // Without the shared LLM client the extraction workers never spawn, the
-    // regex caches never fill, and every ingest batch would re-publish the
-    // same prompts forever.
-    if !llm_client_available() {
-        return;
-    }
-
-    let internal_ids = internal_project_ids();
+    let checkpoints_project_id = checkpoints_internal_project_id();
     let candidates: Vec<StaticPromptCandidate> = candidates
         .into_iter()
-        .filter(|c| !internal_ids.contains(&c.project_id))
+        .filter(|c| Some(c.project_id) != checkpoints_project_id)
         .collect();
     if candidates.is_empty() {
         return;
     }
 
     if !is_feature_enabled(Feature::SystemPromptVersioning) {
+        // Without the shared LLM client the legacy extraction workers never
+        // spawn, the regex caches never fill, and every ingest batch would
+        // re-publish the same prompts forever.
+        if !llm_client_available() {
+            return;
+        }
         crate::traces::static_sp_extraction::producer::publish_legacy_candidates(
             candidates, &cache, &queue,
         )
@@ -372,6 +366,31 @@ mod tests {
             text: text.to_string(),
             span_refs: Vec::new(),
         }
+    }
+
+    fn static_candidate(span_id: Uuid) -> StaticPromptCandidate {
+        StaticPromptCandidate {
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            span_id,
+            prompt_hash: "skeleton".to_string(),
+            agent_hash: "agent01".to_string(),
+            full_prompt_hash: "full".to_string(),
+            system_prompt: "prompt".to_string(),
+        }
+    }
+
+    #[test]
+    fn grouping_keeps_one_ref_per_span() {
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        let groups = group_by_prompt(vec![
+            static_candidate(a),
+            static_candidate(a),
+            static_candidate(b),
+        ]);
+        assert_eq!(groups.len(), 1);
+        let ids: Vec<Uuid> = groups[0].span_refs.iter().map(|r| r.span_id).collect();
+        assert_eq!(ids, vec![a, b]);
     }
 
     #[tokio::test]

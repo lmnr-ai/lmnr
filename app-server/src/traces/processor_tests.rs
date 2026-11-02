@@ -152,6 +152,7 @@ impl Harness {
             bytes_limit: i64::MAX,
             custom_bytes_limit: None,
             signal_cost_hard_limit_micro_usd: None,
+            trialing: false,
             settings: ProjectSettings {
                 pii_mode: Some(mode),
                 remove_pii: false,
@@ -195,6 +196,7 @@ impl Harness {
             input_dedup,
             output_dedup,
             tool_dedup,
+            agent_prompt: None,
         }
     }
 
@@ -207,6 +209,7 @@ impl Harness {
             self.queue.clone(),
             self.pubsub.clone(),
             self.ch.clone(),
+            None,
             None,
             None,
             None,
@@ -648,6 +651,7 @@ async fn pipeline_end_to_end() {
                 input_dedup: None,
                 output_dedup: None,
                 tool_dedup: None,
+                agent_prompt: None,
             });
         } else {
             messages.push(h.produce(span).await);
