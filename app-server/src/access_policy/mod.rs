@@ -30,8 +30,9 @@ const MEMBER_ROLE_TTL_SECONDS: u64 = 60 * 60;
 /// Who is reading. The frontend sends `User`/`Shared` on every `/sql/query`
 /// and `/sql/validate` call (the route rejects requests without one); the
 /// credential variants are constructed by the `/v1` routes from their auth
-/// extractor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// extractor. Serialized when app-server forwards a dashboard write to the frontend, which
+/// test-runs chart queries as the same actor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Actor {
     /// A signed-in user; the policy follows their workspace role.
