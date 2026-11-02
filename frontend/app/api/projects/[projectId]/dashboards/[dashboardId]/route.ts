@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { deleteDashboard, renameDashboard } from "@/lib/actions/dashboard/dashboards";
-import { AppServerError } from "@/lib/app-server";
+import { DashboardError } from "@/lib/actions/dashboard/errors";
 
 export async function PATCH(
   req: NextRequest,
@@ -21,7 +21,7 @@ export async function PATCH(
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    if (error instanceof AppServerError) {
+    if (error instanceof DashboardError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
 
@@ -47,7 +47,7 @@ export async function DELETE(
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    if (error instanceof AppServerError) {
+    if (error instanceof DashboardError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
 
