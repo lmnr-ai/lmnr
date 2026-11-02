@@ -60,6 +60,15 @@ export const getInstanceId = async (): Promise<string> => {
   return rows[0].instance_id;
 };
 
+// Set on the first telemetry boot and never touched again, so it outlives a reset
+// of the license trial and the two can be compared downstream.
+export const getInstanceCreatedAt = async (): Promise<string | Date | null> => {
+  const rows = await db.execute<{ created_at: string | Date }>(
+    sql.raw(`SELECT created_at FROM ${SCHEMA}.instance WHERE id = true`)
+  );
+  return rows[0]?.created_at ?? null;
+};
+
 export interface ReportingWindowClaim {
   claimed: boolean;
   // The `last_reported_at` value before this claim overwrote it, so a failed

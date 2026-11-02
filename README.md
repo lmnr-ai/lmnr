@@ -200,9 +200,9 @@ restart the frontend so it recreates `pg` with the new credentials. For existing
 roles, changing this variable does not change the password in Postgres; rotate it
 through the system that owns the login. Unset credentials still drop `pg`.
 
-## Anonymous usage telemetry
+## Usage telemetry
 
-Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
+Self-hosted deployments send Laminar a usage report every 6 hours: the Laminar version and environment, row counts per table, which features are enabled, the enterprise license status and trial dates, and the email domains of the instance's users (for example `acme.com`, never full addresses). It never includes traces, prompts or other content, and the source IP is not stored. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
 
 For shipped Docker Compose stacks, set the variable in the repository-root `.env` and recreate the frontend container. For a manually run frontend or Helm deployment, set it in the frontend process or pod environment.
 

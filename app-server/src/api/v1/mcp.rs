@@ -300,6 +300,10 @@ impl LaminarMcpServer {
 }
 
 #[cfg(feature = "signals")]
+const LICENSE_REQUIRED_MESSAGE: &str =
+    "This tool requires a Laminar enterprise license. Add a license key in Settings → License.";
+
+#[cfg(feature = "signals")]
 impl LaminarMcpServer {
     async fn get_trace_context_for_mcp(
         &self,
@@ -311,6 +315,10 @@ impl LaminarMcpServer {
         };
         use crate::signals::private::spans::get_trace_ch_spans;
         use crate::traces::previews::PreviewExtractor;
+
+        if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
+            anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
+        }
 
         let spans = get_trace_ch_spans(
             self.clickhouse.clone(),
@@ -351,6 +359,10 @@ impl LaminarMcpServer {
         use crate::agent::persist;
         use crate::agent::stream::AgentEvent;
         use tokio::sync::mpsc;
+
+        if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
+            anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
+        }
 
         let llm_client = self.llm_client.clone().ok_or_else(|| {
             anyhow::anyhow!(

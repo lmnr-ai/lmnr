@@ -12,7 +12,7 @@ const RedeemRequestSchema = z.object({
 // the flow, so one tenant can never redeem another's token.
 export async function POST(req: NextRequest): Promise<Response> {
   try {
-    const instanceId = await authenticateInstance(getBearerToken(req.headers.get("authorization")) ?? "");
+    const instanceId = authenticateInstance(getBearerToken(req.headers.get("authorization")) ?? "");
     if (!instanceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1008,6 +1008,19 @@ export const slackBrokerInstances = pgTable(
   (table) => [unique("slack_broker_instances_key_hash_key").on(table.keyHash)]
 );
 
+export const instanceLicense = pgTable(
+  "instance_license",
+  {
+    id: boolean().default(true).primaryKey().notNull(),
+    trialStartedAt: timestamp("trial_started_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    licenseKey: text("license_key"),
+    licenseKeyNonce: text("license_key_nonce"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+    updatedBy: uuid("updated_by"),
+  },
+  () => [check("instance_license_singleton", sql`id`)]
+);
+
 export const projectApiKeys = pgTable(
   "project_api_keys",
   {

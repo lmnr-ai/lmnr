@@ -19,6 +19,10 @@ pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_s
 pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
+/// `license_state` → the instance's license inputs (`license::Inputs`). Written on
+/// a miss and whenever a key is saved; expires after a minute.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const LICENSE_STATE_CACHE_KEY: &str = "license_state";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 /// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
