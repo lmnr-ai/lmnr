@@ -1,21 +1,17 @@
 import { z } from "zod/v4";
 
-import { deleteCliAlert, updateCliAlert } from "@/lib/actions/alerts/cli";
-import { internalAlertRoute } from "@/lib/actions/alerts/internal-route";
+import { cliAlertContext, deleteCliAlert, updateCliAlert } from "@/lib/actions/alerts/cli";
+import { withInternal } from "@/lib/internal-auth";
 
-type Params = { params: Promise<{ projectId: string; alertId: string }> };
+type Params = { projectId: string; alertId: string };
 
-export async function PATCH(request: Request, props: Params) {
-  const { projectId, alertId } = await props.params;
-  return internalAlertRoute(request, projectId, async (ctx) =>
-    updateCliAlert(ctx, z.guid().parse(alertId), await request.json())
-  );
-}
+export const PATCH = withInternal<Params>(async (request, { params, claims }) => {
+  const ctx = await cliAlertContext(params.projectId, claims);
+  return Response.json(await updateCliAlert(ctx, z.guid().parse(params.alertId), await request.json()));
+});
 
-export async function DELETE(request: Request, props: Params) {
-  const { projectId, alertId } = await props.params;
-  return internalAlertRoute(request, projectId, async (ctx) => {
-    await deleteCliAlert(ctx, z.guid().parse(alertId));
-    return { id: alertId, deleted: true };
-  });
-}
+export const DELETE = withInternal<Params>(async (_request, { params, claims }) => {
+  const ctx = await cliAlertContext(params.projectId, claims);
+  await deleteCliAlert(ctx, z.guid().parse(params.alertId));
+  return Response.json({ id: params.alertId, deleted: true });
+});

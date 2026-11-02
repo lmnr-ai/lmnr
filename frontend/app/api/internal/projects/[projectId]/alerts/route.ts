@@ -1,7 +1,7 @@
-import { createCliAlert } from "@/lib/actions/alerts/cli";
-import { internalAlertRoute } from "@/lib/actions/alerts/internal-route";
+import { cliAlertContext, createCliAlert } from "@/lib/actions/alerts/cli";
+import { withInternal } from "@/lib/internal-auth";
 
-export async function POST(request: Request, props: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = await props.params;
-  return internalAlertRoute(request, projectId, async (ctx) => createCliAlert(ctx, await request.json()));
-}
+export const POST = withInternal<{ projectId: string }>(async (request, { params, claims }) => {
+  const ctx = await cliAlertContext(params.projectId, claims);
+  return Response.json(await createCliAlert(ctx, await request.json()));
+});

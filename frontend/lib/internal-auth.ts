@@ -1,3 +1,5 @@
+import { prettifyError, ZodError } from "zod/v4";
+
 import { decryptValue } from "@/lib/crypto";
 
 export const INTERNAL_TOKEN_HEADER = "x-laminar-internal-token";
@@ -31,4 +33,39 @@ export async function verifyInternalRequest(request: Request, projectId: string)
   } catch {
     return null;
   }
+}
+
+/** An expected failure of an `/api/internal` write; `withInternal` answers `{ error }` with `status`. */
+export class InternalApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "InternalApiError";
+  }
+}
+
+type InternalHandler<P> = (request: Request, ctx: { params: P; claims: InternalClaims }) => Promise<Response>;
+
+/**
+ * Wraps an `/api/internal/projects/[projectId]/…` route handler: answers 401 unless the request
+ * carries app-server's token for `projectId`, and maps thrown errors to the `{ error }` JSON
+ * app-server relays (`InternalApiError` → its status, `ZodError` → 400, anything else → 500).
+ */
+export function withInternal<P extends { projectId: string }>(handler: InternalHandler<P>) {
+  return async (request: Request, props: { params: Promise<P> }): Promise<Response> => {
+    const params = await props.params;
+    const claims = await verifyInternalRequest(request, params.projectId);
+    if (!claims) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    try {
+      return await handler(request, { params, claims });
+    } catch (error) {
+      if (error instanceof InternalApiError) return Response.json({ error: error.message }, { status: error.status });
+      if (error instanceof ZodError) return Response.json({ error: prettifyError(error) }, { status: 400 });
+      console.error(`internal route ${request.method} ${new URL(request.url).pathname} failed:`, error);
+      return Response.json({ error: "Internal server error" }, { status: 500 });
+    }
+  };
 }

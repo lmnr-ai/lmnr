@@ -1,11 +1,12 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { prettifyError, z, ZodError } from "zod/v4";
+import { z } from "zod/v4";
 
 import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { getSlackChannels, getSlackIntegration, type SlackChannel } from "@/lib/actions/slack";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
-import { alertFilters, alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
+import { alertFilters, alerts, alertTargets, projects, signals, users } from "@/lib/db/migrations/schema";
+import { InternalApiError, type InternalClaims } from "@/lib/internal-auth";
 
 import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } from "./types";
 
@@ -13,12 +14,9 @@ import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } fro
 // app-server's `/v1/cli/alerts`). It writes the same rows as the settings form. Reads go through
 // SQL (`alerts`, `alert_targets`, `alert_filters`).
 
-export class AlertApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: 400 | 404
-  ) {
-    super(message);
+export class AlertApiError extends InternalApiError {
+  constructor(message: string, status: 400 | 401 | 404) {
+    super(message, status);
     this.name = "AlertApiError";
   }
 }
@@ -64,6 +62,17 @@ export interface CliAlert {
 export interface CliAlertContext {
   projectId: string;
   userEmail: string | null;
+}
+
+/**
+ * The context for a write as the user app-server authorized (CLI user or Laminar agent run). Their
+ * email backs `notifyMe`; a token without a user is rejected, since alert writes act as one.
+ */
+export async function cliAlertContext(projectId: string, claims: InternalClaims): Promise<CliAlertContext> {
+  if (!claims.userId) throw new AlertApiError("Unauthorized", 401);
+  const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, claims.userId)).limit(1);
+  if (!user) throw new AlertApiError("Unauthorized", 401);
+  return { projectId, userEmail: user.email || null };
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -383,12 +392,4 @@ async function resolveSlackChannels(projectId: string, refs: string[]): Promise<
     }
   }
   return resolved;
-}
-
-/** Maps a CLI alert failure to the `{ error }` JSON the CLI prints. */
-export function cliAlertErrorResponse(error: unknown): Response {
-  if (error instanceof AlertApiError) return Response.json({ error: error.message }, { status: error.status });
-  if (error instanceof ZodError) return Response.json({ error: prettifyError(error) }, { status: 400 });
-  console.error("cli alerts error:", error);
-  return Response.json({ error: "Internal server error" }, { status: 500 });
 }

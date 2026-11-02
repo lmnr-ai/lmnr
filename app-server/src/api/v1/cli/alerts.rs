@@ -1,14 +1,13 @@
-//! CLI alert writes; reads go through SQL (`alerts`, `alert_targets`, `alert_filters`). The
-//! frontend is the only alert writer (`lib/actions/alerts`), so these handlers forward to its
-//! `/api/internal/projects/{project_id}/alerts` routes as the authorized CLI user.
+//! CLI alert writes, forwarded through `crate::alerts` as the authorized CLI user. Reads go through
+//! SQL (`alerts`, `alert_targets`, `alert_filters`).
 
 use actix_web::{HttpResponse, delete, patch, post, web};
-use reqwest::Method;
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
+use crate::alerts;
 use crate::auth::cli_user::CliProjectAuth;
-use crate::next_api::{self, NextApiError};
+use crate::next_api::NextApiError;
 
 type AlertResult = Result<HttpResponse, NextApiError>;
 
@@ -18,13 +17,11 @@ pub async fn create_alert(
     body: web::Json<Value>,
     http_client: web::Data<reqwest::Client>,
 ) -> AlertResult {
-    let alert: Value = next_api::call_as(
+    let alert = alerts::create_alert(
         &http_client,
-        Method::POST,
         auth.project_id,
         auth.user_id,
-        "alerts",
-        Some(body.into_inner()),
+        body.into_inner(),
     )
     .await?;
     Ok(HttpResponse::Ok().json(alert))
@@ -37,14 +34,12 @@ pub async fn update_alert(
     body: web::Json<Value>,
     http_client: web::Data<reqwest::Client>,
 ) -> AlertResult {
-    let path = format!("alerts/{}", path.into_inner());
-    let alert: Value = next_api::call_as(
+    let alert = alerts::update_alert(
         &http_client,
-        Method::PATCH,
         auth.project_id,
         auth.user_id,
-        &path,
-        Some(body.into_inner()),
+        path.into_inner(),
+        body.into_inner(),
     )
     .await?;
     Ok(HttpResponse::Ok().json(alert))
@@ -56,15 +51,7 @@ pub async fn delete_alert(
     path: web::Path<Uuid>,
     http_client: web::Data<reqwest::Client>,
 ) -> AlertResult {
-    let path = format!("alerts/{}", path.into_inner());
-    let deleted: Value = next_api::call_as(
-        &http_client,
-        Method::DELETE,
-        auth.project_id,
-        auth.user_id,
-        &path,
-        None,
-    )
-    .await?;
-    Ok(HttpResponse::Ok().json(deleted))
+    let alert_id = path.into_inner();
+    alerts::delete_alert(&http_client, auth.project_id, auth.user_id, alert_id).await?;
+    Ok(HttpResponse::Ok().json(json!({ "id": alert_id, "deleted": true })))
 }
