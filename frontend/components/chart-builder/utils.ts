@@ -57,10 +57,7 @@ const TIME_LIKE_COLUMN = /(^|_)(t|ts|time|timestamp|date|day|hour|minute|min|wee
  * dimension (a time-looking column, else the first non-numeric one). Returns nothing when the data
  * has no such pair — one numeric column alone has nothing to plot against.
  */
-export const pickDefaultAxes = (
-  columns: ColumnInfo[],
-  chartType: ChartType | undefined
-): { x?: string; y?: string } => {
+const pickDefaultAxes = (columns: ColumnInfo[], chartType: ChartType | undefined): { x?: string; y?: string } => {
   const numeric = columns.filter((col) => col.type === "number");
   const dimensions = columns.filter((col) => col.type !== "number");
 

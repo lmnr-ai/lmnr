@@ -16,7 +16,7 @@ interface BaseChartConfig {
   displayMode?: DisplayMode;
 }
 
-export interface AxisChartConfig extends BaseChartConfig {
+interface AxisChartConfig extends BaseChartConfig {
   type?: ChartType.LineChart | ChartType.BarChart | ChartType.HorizontalBarChart;
 }
 
@@ -26,14 +26,12 @@ export interface TableColumnConfig {
   columnVisibility?: Record<string, boolean>;
 }
 
-export interface TableChartConfig extends BaseChartConfig {
+interface TableChartConfig extends BaseChartConfig {
   type: ChartType.Table;
   tableColumnConfig?: TableColumnConfig;
 }
 
 export type ChartConfig = AxisChartConfig | TableChartConfig;
-
-export const isTableConfig = (config: ChartConfig): config is TableChartConfig => config.type === ChartType.Table;
 
 /** Resolve displayMode from config, with backward compatibility for `total: true`. */
 export const resolveDisplayMode = (config: ChartConfig): DisplayMode => {

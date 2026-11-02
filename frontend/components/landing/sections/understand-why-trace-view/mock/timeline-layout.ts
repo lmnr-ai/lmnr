@@ -1,6 +1,6 @@
 import { type MockSpan } from "../../demo-trace";
 
-export interface TimelineBar {
+interface TimelineBar {
   span: MockSpan;
   /** Percentages of the timeline's full width. */
   left: number;

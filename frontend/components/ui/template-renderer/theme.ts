@@ -70,7 +70,7 @@ const PALETTES: Record<AppTheme, Record<string, string>> = {
   },
 };
 
-export const tokenColor = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+const tokenColor = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
 /** For the iframe's own CSS, where twind's `<alpha-value>` substitution doesn't run. */
 export const tokenCss = (name: string, alpha = 1) => `rgb(var(--${name}) / ${alpha})`;
 

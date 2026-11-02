@@ -82,7 +82,7 @@ export const DEFAULT_STACK_TIMING: StackTiming = {
   pillEnterDepth: 56,
 };
 
-export const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
+const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
 
 /** Progress through one phase, given the window position. Guarded against a
  *  zero span, which a dial can produce by dragging a bar shut. */

@@ -24,29 +24,6 @@ export function joinUserParts(parts: TextPart[]): string | null {
   return text.length > 0 ? text : null;
 }
 
-// Sequence of top-level XML-like tags, or "plain" for tag-free messages.
-export function fingerprintUserMessage(input: string): string {
-  const TOP_LEVEL_TAG = /<([a-zA-Z_][\w-]*)\b[^>]*>([\s\S]*?)<\/\1\s*>/;
-  const parts: string[] = [];
-  let rest = input;
-
-  while (rest.length > 0) {
-    const match = TOP_LEVEL_TAG.exec(rest);
-    if (!match) {
-      if (rest.trim().length > 0) parts.push("plain");
-      break;
-    }
-    const before = rest.slice(0, match.index);
-    if (before.trim().length > 0) parts.push("plain");
-    const name = match[1].toLowerCase();
-    parts.push(name, `/${name}`);
-    rest = rest.slice(match.index + match[0].length);
-  }
-
-  const deduped = parts.filter((p, i) => !(p === "plain" && parts[i - 1] === "plain"));
-  return deduped.length ? deduped.join(",") : "plain";
-}
-
 interface TraceForExtraction {
   traceId: string;
   output: string | null;

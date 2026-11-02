@@ -7,13 +7,12 @@ import { createStore, type StoreApi } from "zustand";
 import { useViewState, viewStateToStorePatch } from "../views/use-table-view";
 import {
   createTableConfigStore,
-  type TableConfig,
   TableConfigContext,
   TableConfigProvider,
   type TableConfigProviderProps,
 } from "./table-config-store.tsx";
 
-export interface InfiniteScrollState<TData> {
+interface InfiniteScrollState<TData> {
   data: TData[];
   currentPage: number;
   isFetching: boolean;
@@ -24,7 +23,7 @@ export interface InfiniteScrollState<TData> {
   pageSize: number;
 }
 
-export interface InfiniteScrollActions<TData> {
+interface InfiniteScrollActions<TData> {
   setData: (updater: (prev: TData[]) => TData[]) => void;
   setCurrentPage: (page: number) => void;
   setIsFetching: (fetching: boolean) => void;
@@ -36,12 +35,12 @@ export interface InfiniteScrollActions<TData> {
   resetInfiniteScroll: () => void;
 }
 
-export interface RuntimeSelectionState {
+interface RuntimeSelectionState {
   selectedRows: Set<string>;
   draggingColumnId: string | null;
 }
 
-export interface RuntimeSelectionActions {
+interface RuntimeSelectionActions {
   selectRow: (id: string) => void;
   deselectRow: (id: string) => void;
   toggleRow: (id: string) => void;
@@ -50,7 +49,7 @@ export interface RuntimeSelectionActions {
   setDraggingColumnId: (columnId: string | null) => void;
 }
 
-export type TableStore<TData> = InfiniteScrollState<TData> &
+type TableStore<TData> = InfiniteScrollState<TData> &
   InfiniteScrollActions<TData> &
   RuntimeSelectionState &
   RuntimeSelectionActions;
@@ -141,13 +140,13 @@ type TableStoreApi<TData> = ReturnType<typeof createTableStore<TData>>;
 
 const TableContext = createContext<TableStoreApi<unknown> | undefined>(undefined);
 
-export interface TableProviderProps {
+interface TableProviderProps {
   children: ReactNode;
   uniqueKey?: string;
   pageSize?: number;
 }
 
-export function TableProvider<TData>({ children, uniqueKey, pageSize }: TableProviderProps) {
+function TableProvider<TData>({ children, uniqueKey, pageSize }: TableProviderProps) {
   const [store] = useState(() => createTableStore<TData>({ uniqueKey, pageSize }));
   return <TableContext.Provider value={store as TableStoreApi<unknown>}>{children}</TableContext.Provider>;
 }
@@ -241,5 +240,3 @@ function InfiniteDataTableProviderWithViews({
     </TableConfigContext.Provider>
   );
 }
-
-export type { TableConfig };

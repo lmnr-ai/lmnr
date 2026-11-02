@@ -76,7 +76,7 @@ const idFilter: ColumnFilterProcessor = (filter, paramKey) => ({
   params: { [paramKey]: String(filter.value) },
 });
 
-export const datapointsColumnFilterConfig: ColumnFilterConfig = {
+const datapointsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["id", idFilter],
     ["metadata", jsonKeyValueFilter("metadata")],

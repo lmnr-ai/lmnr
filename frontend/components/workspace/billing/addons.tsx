@@ -32,7 +32,7 @@ function formatPrice(dollars: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(dollars);
 }
 
-export async function buyAddon(workspaceId: string, lookupKey: string): Promise<void> {
+async function buyAddon(workspaceId: string, lookupKey: string): Promise<void> {
   const res = await fetch(`/api/workspaces/${workspaceId}/addons/${lookupKey}`, {
     method: "POST",
   });

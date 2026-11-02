@@ -11,8 +11,7 @@ import { type SignalRunRow } from "@/lib/actions/signal-runs/types";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
-export const hasRunEvent = (row: Pick<SignalRunRow, "eventId">): boolean =>
-  !!row.eventId && row.eventId !== NIL_EVENT_ID;
+const hasRunEvent = (row: Pick<SignalRunRow, "eventId">): boolean => !!row.eventId && row.eventId !== NIL_EVENT_ID;
 
 export function runTraceParams(row: Pick<SignalRunRow, "traceId" | "eventId">) {
   return {

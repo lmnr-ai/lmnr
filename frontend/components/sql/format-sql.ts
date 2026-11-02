@@ -21,7 +21,7 @@ const dialect: DialectOptions = {
 const withoutWhitespace = (sql: string) => sql.replace(/\s+/g, "");
 
 /** Throws on SQL the formatter can't parse. Keyword case is preserved: ClickHouse identifiers are case-sensitive. */
-export function formatSql(sql: string): string {
+function formatSql(sql: string): string {
   const formatted = formatDialect(sql, { dialect, tabWidth: 4, expressionWidth: 120 });
   // Formatting must only move whitespace; anything else risks changing the query's meaning.
   if (withoutWhitespace(formatted) !== withoutWhitespace(sql)) {

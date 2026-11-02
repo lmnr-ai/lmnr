@@ -37,25 +37,25 @@ export const OpenAIToolCallPartSchema = z.object({
 });
 
 /** Message Schemas**/
-export const OpenAISystemMessageSchema = z.object({
+const OpenAISystemMessageSchema = z.object({
   role: z.literal("system"),
   content: z.union([z.string(), z.array(OpenAITextPartSchema)]),
   name: z.string().optional(),
 });
 
-export const OpenAIUserMessageSchema = z.object({
+const OpenAIUserMessageSchema = z.object({
   role: z.literal("user"),
   content: z.union([z.string(), z.array(z.union([OpenAITextPartSchema, OpenAIImagePartSchema, OpenAIFilePartSchema]))]),
   name: z.string().optional(),
 });
 
 // Temporary. TODO: update, once the instrumentations and backend fully support OpenAI responses API types.
-export const OpenAIComputerCallOutputMessageSchema = z.object({
+const OpenAIComputerCallOutputMessageSchema = z.object({
   role: z.literal("computer_call_output"),
   content: z.array(z.union([OpenAIImagePartSchema, OpenAIFilePartSchema])),
 });
 
-export const OpenAIAssistantMessageSchema = z.object({
+const OpenAIAssistantMessageSchema = z.object({
   role: z.literal("assistant"),
   audio: z
     .object({
@@ -80,7 +80,7 @@ export const OpenAIAssistantMessageSchema = z.object({
   tool_calls: z.array(OpenAIToolCallPartSchema).nullable().optional(),
 });
 
-export const OpenAIToolMessageSchema = z.object({
+const OpenAIToolMessageSchema = z.object({
   role: z.literal("tool"),
   content: z.union([z.string(), z.array(OpenAITextPartSchema)]),
   // FIXME: temporary patch
@@ -101,7 +101,7 @@ export const OpenAIMessagesSchema = z.array(OpenAIMessageSchema);
 
 // A Choice wraps a Message with generation metadata.
 // See: https://platform.openai.com/docs/api-reference/chat/object
-export const OpenAIChoiceSchema = z
+const OpenAIChoiceSchema = z
   .object({
     message: OpenAIMessageSchema,
     finish_reason: z.string().nullable().optional(),
@@ -110,11 +110,11 @@ export const OpenAIChoiceSchema = z
   })
   .passthrough();
 
-export const OpenAIChoicesSchema = z.array(OpenAIChoiceSchema);
+const OpenAIChoicesSchema = z.array(OpenAIChoiceSchema);
 
 /** High-level input / output schemas **/
 
-export const OpenAIInputSchema = z.union([OpenAIMessageSchema, OpenAIMessagesSchema]);
+const OpenAIInputSchema = z.union([OpenAIMessageSchema, OpenAIMessagesSchema]);
 export const OpenAIOutputSchema = z.union([OpenAIChoiceSchema, OpenAIChoicesSchema]);
 
 /** Parse helpers — validate + normalise into a Messages array **/

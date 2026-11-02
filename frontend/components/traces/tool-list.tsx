@@ -47,7 +47,7 @@ const normalizeTool = (tool: any): Tool | null => {
  * JSON array reconstructed by `spans_v0` into the `tool_definitions`
  * column. The frontend just parses the array and normalizes each entry.
  */
-export const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
+const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
   if (!toolsJson) return [];
   try {
     const parsed = JSON.parse(toolsJson);
@@ -64,7 +64,7 @@ export const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
  * existed — definitions still live across one of several attribute
  * shapes. Used as a fallback when the column is empty.
  */
-export const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
+const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
   if (isNil(attributes)) return [];
 
   const aiPromptTools = get(attributes, "ai.prompt.tools", []);

@@ -14,7 +14,7 @@ import Header from "../ui/header";
 import { RESOURCE } from "./constants";
 import CreateQueueDialog from "./create-queue-dialog";
 
-export const defaultQueuesColumnOrder = ["__row_selection", "id", "name", "progress", "createdAt"];
+const defaultQueuesColumnOrder = ["__row_selection", "id", "name", "progress", "createdAt"];
 
 function QueuesContent() {
   const { projectId } = useParams();

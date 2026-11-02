@@ -19,45 +19,45 @@ import { z } from "zod/v4";
  * Spec: https://opentelemetry.io/docs/specs/semconv/gen-ai/
  */
 
-export const GenAITextPartSchema = z.object({
+const GenAITextPartSchema = z.object({
   type: z.literal("text"),
   content: z.string().optional(),
 });
 
-export const GenAIThinkingPartSchema = z.object({
+const GenAIThinkingPartSchema = z.object({
   type: z.literal("thinking"),
   content: z.string().optional(),
 });
 
-export const GenAIToolCallPartSchema = z.object({
+const GenAIToolCallPartSchema = z.object({
   type: z.literal("tool_call"),
   id: z.string().optional(),
   name: z.string().optional(),
   arguments: z.unknown().optional(),
 });
 
-export const GenAIToolCallResponsePartSchema = z.object({
+const GenAIToolCallResponsePartSchema = z.object({
   type: z.literal("tool_call_response"),
   id: z.string().optional(),
   name: z.string().optional(),
   result: z.unknown().optional(),
 });
 
-export const GenAIUriPartSchema = z.object({
+const GenAIUriPartSchema = z.object({
   type: z.literal("uri"),
   uri: z.string(),
   modality: z.string().optional(),
   mime_type: z.string().optional(),
 });
 
-export const GenAIBlobPartSchema = z.object({
+const GenAIBlobPartSchema = z.object({
   type: z.literal("blob"),
   content: z.string().optional(),
   mime_type: z.string().optional(),
   modality: z.string().optional(),
 });
 
-export const GenAIPartSchema = z.union([
+const GenAIPartSchema = z.union([
   GenAITextPartSchema,
   GenAIThinkingPartSchema,
   GenAIToolCallPartSchema,
@@ -72,7 +72,7 @@ export const GenAIPartSchema = z.union([
   z.record(z.string(), z.unknown()),
 ]);
 
-export const GenAIMessageSchema = z.object({
+const GenAIMessageSchema = z.object({
   role: z.string(),
   parts: z.array(GenAIPartSchema),
   finish_reason: z.string().optional(),

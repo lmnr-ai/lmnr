@@ -131,7 +131,7 @@ const parseGenAiToolsDefinitionsFromSpan = (tools?: string) => {
   }
 };
 
-export const parseToolChoiceFromSpan = (toolChoice?: string) => {
+const parseToolChoiceFromSpan = (toolChoice?: string) => {
   if (!toolChoice) {
     return undefined;
   }
@@ -150,7 +150,7 @@ export const parseToolChoiceFromSpan = (toolChoice?: string) => {
   }
 };
 
-export const parseToolsFromLLMRequest = (span: Span) => {
+const parseToolsFromLLMRequest = (span: Span) => {
   const functions: { name: string; description?: string; parameters: Record<string, any> }[] = [];
   let index = 0;
 

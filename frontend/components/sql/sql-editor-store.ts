@@ -126,7 +126,7 @@ const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean
   return promise;
 };
 
-export type SqlEditorState = {
+type SqlEditorState = {
   editTemplate: SQLTemplate | undefined;
   currentTemplate: SQLTemplate | undefined;
   /** Derived from the query text — exactly the `{name:Type}` placeholders it references. */
@@ -136,7 +136,7 @@ export type SqlEditorState = {
   saveStatus: SaveStatus;
 };
 
-export type SqlEditorActions = {
+type SqlEditorActions = {
   setEditTemplate: (query: SQLTemplate | undefined) => void;
   /** Point the editor at a template from the list, keeping unsaved keystrokes for the same id. */
   selectTemplate: (template: SQLTemplate | undefined) => void;

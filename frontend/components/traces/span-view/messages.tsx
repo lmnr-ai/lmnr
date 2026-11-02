@@ -17,9 +17,7 @@ import { ElevatedSurface } from "@/components/ui/surface";
 // so tests can import it without pulling component CSS into the module graph.
 import { type ProcessedMessages, processMessages, responsesItemRole } from "@/lib/spans/process-messages";
 
-export { type ProcessedMessages, processMessages, responsesItemRole };
-
-export function buildToolNameMap(result: ProcessedMessages): Map<string, string> {
+function buildToolNameMap(result: ProcessedMessages): Map<string, string> {
   const map = new Map<string, string>();
   switch (result.type) {
     case "openai":
@@ -107,7 +105,7 @@ export function buildToolNameMap(result: ProcessedMessages): Map<string, string>
 
 // `index` locates the message within `result`; `parentIndex` is its position in the rendered list, which
 // differs when several segments are concatenated (Overview) and keys per-part presets and search order.
-export function renderMessageContent(
+function renderMessageContent(
   result: ProcessedMessages,
   index: number,
   parentIndex: number,

@@ -1,4 +1,4 @@
-export type ColumnType = "string" | "number";
+type ColumnType = "string" | "number";
 
 export interface ColumnDefinition {
   name: string;
