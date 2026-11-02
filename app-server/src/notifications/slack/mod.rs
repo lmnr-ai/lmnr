@@ -363,9 +363,7 @@ mod tests {
         assert!(out.ends_with("..."));
     }
 
-    use crate::reports::{
-        NoteworthyEvent, ProjectReportData, ReportClusterData, ReportData, SignalReportData,
-    };
+    use crate::reports::{ProjectReportData, ReportClusterData, ReportData, SignalReportData};
     use std::collections::BTreeMap;
 
     fn blocks_of(v: &serde_json::Value) -> &Vec<serde_json::Value> {
@@ -617,14 +615,6 @@ mod tests {
             project_id: Uuid::nil(),
             signal_event_counts: BTreeMap::new(),
             signals,
-            ai_summary: "legacy summary".to_string(),
-            noteworthy_events: vec![NoteworthyEvent {
-                signal_name: "Failure Detector".to_string(),
-                summary: "noteworthy event".to_string(),
-                timestamp: "Jun 7".to_string(),
-                trace_id: Uuid::nil().to_string(),
-                severity: 2,
-            }],
         }
     }
 
@@ -689,10 +679,6 @@ mod tests {
         // fallback summary when the signal has none
         assert!(sections[latency].contains("40 events were detected during this period."));
 
-        // noteworthy events and the legacy project summary are not rendered
-        let all = v.to_string();
-        assert!(!all.contains("oteworthy"));
-        assert!(!all.contains("legacy summary"));
         assert!(blocks.iter().all(|b| b["type"] != "table"));
 
         let footer = blocks.last().unwrap();

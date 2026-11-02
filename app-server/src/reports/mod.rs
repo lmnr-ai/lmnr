@@ -5,8 +5,7 @@ mod self_tracing;
 
 #[allow(unused_imports)]
 pub use report_data::{
-    NoteworthyEvent, ProjectReportData, ReportChartBucket, ReportClusterData, ReportData,
-    SignalReportData,
+    ProjectReportData, ReportChartBucket, ReportClusterData, ReportData, SignalReportData,
 };
 
 use std::sync::Arc;

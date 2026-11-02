@@ -7,19 +7,6 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// A noteworthy signal event highlighted by the AI summary, shown with full details.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct NoteworthyEvent {
-    pub signal_name: String,
-    pub summary: String,
-    pub timestamp: String,
-    pub trace_id: String,
-    /// 0 = Info, 1 = Warning, 2 = Critical. `serde(default)` so report messages
-    /// queued before this field existed still deserialize (default 0 = Info).
-    #[serde(default)]
-    pub severity: u8,
-}
-
 /// One time bucket in a signal's events chart.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ReportChartBucket {
@@ -104,11 +91,6 @@ pub struct ProjectReportData {
     /// Per-signal chart and cluster data. Empty for legacy queued reports.
     #[serde(default)]
     pub signals: Vec<SignalReportData>,
-    /// Legacy project-level AI summary retained for queued-report compatibility.
-    #[serde(default)]
-    pub ai_summary: String,
-    /// Noteworthy events selected by the AI summary
-    pub noteworthy_events: Vec<NoteworthyEvent>,
 }
 
 /// Full report data for rendering

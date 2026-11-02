@@ -121,8 +121,6 @@ pub(super) fn build_report_data_from_batch(
             period_end,
             signal_event_counts,
             signals,
-            ai_summary,
-            noteworthy_events,
         } = kind
         {
             let project_events: u64 = signal_event_counts.values().sum();
@@ -131,8 +129,6 @@ pub(super) fn build_report_data_from_batch(
                 project_id: *project_id,
                 signal_event_counts: signal_event_counts.clone(),
                 signals: signals.clone(),
-                ai_summary: ai_summary.clone(),
-                noteworthy_events: noteworthy_events.clone(),
             };
 
             match report_data.as_mut() {

@@ -1019,8 +1019,6 @@ mod tests {
             project_id: id(5),
             signal_event_counts: BTreeMap::new(),
             signals: vec![],
-            ai_summary: String::new(),
-            noteworthy_events: vec![],
         };
         let html = render_signal_card(&project, &signal, "https://example.com");
         assert!(html.find("existing").unwrap() < html.find("new").unwrap());
@@ -1305,8 +1303,6 @@ mod tests {
                 project_id: id(project_id),
                 signal_event_counts: BTreeMap::new(),
                 signals,
-                ai_summary: String::new(),
-                noteworthy_events: vec![],
             };
         let report = ReportData {
             workspace_id: Uuid::nil(),
