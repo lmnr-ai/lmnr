@@ -29,7 +29,7 @@ export default function TemplateItem({
       onMouseLeave={() => setHovered(false)}
       className={cn(
         "flex flex-col items-center justify-center gap-1 px-2 h-[72px] rounded-md border bg-surface-up-2 transition-colors text-center",
-        dashed ? "border-dashed border-input" : "border-input",
+        dashed && "border-dashed",
         hovered && "bg-surface-up-4"
       )}
     >

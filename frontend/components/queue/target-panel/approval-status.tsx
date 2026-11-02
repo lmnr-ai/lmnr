@@ -25,7 +25,7 @@ export default function ApprovalStatus({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       {approved ? (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-success-bright">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-success-text">
           <Check className="size-3" />
           Approved
         </span>

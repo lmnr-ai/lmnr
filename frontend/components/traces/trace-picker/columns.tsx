@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 
 const StatusCell = ({ value }: { value: unknown }) => (
   <div
-    className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
-      "bg-destructive-bright": value === "error",
+    className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
+      "bg-destructive": value === "error",
     })}
   />
 );
@@ -43,7 +43,7 @@ const TopSpanCell = ({ row }: { row: TraceRow }) => {
           {row.topSpanName}
         </div>
       ) : (
-        <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
+        <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 rounded-full text-sm" />
       )}
     </div>
   );

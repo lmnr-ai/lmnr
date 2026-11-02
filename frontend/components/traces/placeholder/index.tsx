@@ -65,7 +65,7 @@ export default function TracesPagePlaceholder() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
               </span>
-              <span className="text-xs text-primary-foreground">Listening for incoming traces</span>
+              <span className="text-xs text-foreground-100">Listening for incoming traces</span>
             </div>
           )}
 
@@ -95,7 +95,7 @@ export default function TracesPagePlaceholder() {
               href="https://docs.lmnr.ai/tracing/introduction"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary-text transition-colors"
             >
               Documentation
               <ArrowUpRight className="w-3.5 h-3.5" />
@@ -104,7 +104,7 @@ export default function TracesPagePlaceholder() {
               href="https://discord.com/invite/nNFUUDAKub"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary-text transition-colors"
             >
               Need help? Join Discord
               <ArrowUpRight className="w-3.5 h-3.5" />

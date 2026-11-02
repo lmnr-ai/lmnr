@@ -80,7 +80,7 @@ export default function ClusterItem({
         className={cn(
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0 cursor-pointer",
           rect && "bg-muted",
-          isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
+          isSelected && "bg-surface-500 font-medium text-primary-foreground"
         )}
         onClick={onClick}
         onWheel={close}

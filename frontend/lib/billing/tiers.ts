@@ -50,10 +50,10 @@ interface TierData {
 // Published per-million-token rates for signal cost overage, in USD. Every
 // tier currently uses the same defaults. Keep these aligned with the app-server
 // signal pricing env defaults before enabling the rates for production billing.
-export const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
-export const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
+const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
+const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
 // Cache-read tokens are a subset of input and are billed at a discounted rate.
-export const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.01;
+const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.01;
 export const SIGNALS_SIGNUP_CREDIT_USD = 5;
 export const SIGNALS_SIGNUP_CREDIT_MICRO_USD = SIGNALS_SIGNUP_CREDIT_USD * 1_000_000;
 

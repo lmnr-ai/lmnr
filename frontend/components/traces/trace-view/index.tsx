@@ -66,11 +66,7 @@ export function TraceViewSidePanel({
     <ElevatedSurface
       ref={sidePanelRef}
       offset={0}
-      className={cn(
-        "absolute inset-y-0 right-0 z-50 flex",
-        narrow ? "left-0" : "max-w-[calc(100%-80px)] border-l",
-        className
-      )}
+      className={cn("absolute inset-y-0 right-0 z-50 flex", narrow ? "left-0" : "max-w-[calc(100%-80px)]", className)}
     >
       <TraceViewStoreProvider
         key={props.traceId}

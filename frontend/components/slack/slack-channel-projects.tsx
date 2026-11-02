@@ -182,7 +182,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
                     aria-label="Delete"
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive-text"
                     onClick={() => handleRemove(b)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

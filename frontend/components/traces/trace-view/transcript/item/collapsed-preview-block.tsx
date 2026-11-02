@@ -59,7 +59,7 @@ export function CollapsedPreviewBlock({
         </div>
       );
     }
-    return <Skeleton className="h-4 min-w-0 w-full bg-secondary ml-7 animate-in fade-in duration-150" />;
+    return <Skeleton className="h-4 min-w-0 w-full ml-7 animate-in fade-in duration-150" />;
   }
 
   return null;

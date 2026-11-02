@@ -9,7 +9,7 @@ import { type OnboardingStep, PROGRESS_STEPS } from "@/lib/actions/onboarding/ty
 
 // Saves the step and the queued choices on every step change, so a refresh, a closed tab or the
 // Slack OAuth round trip resumes on the same step. Best-effort: a failed save only costs the resume
-// point. The plan commit saves its own state.
+// point. The commit saves its own state.
 export function useOnboardingProgress(step: OnboardingStep) {
   const form = useFormContext<OnboardingFormValues>();
   const { projectId } = useOnboardingContext().resources;

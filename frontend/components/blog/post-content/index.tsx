@@ -4,6 +4,7 @@ import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
 import BlogImage from "@/components/blog/blog-image";
+import { blogComponents } from "@/components/blog/custom-components";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
 import SharedTraceChip from "@/components/blog/shared-trace-chip";
@@ -151,7 +152,7 @@ export default async function PostContent({ data, content, backHref, slug, route
           }
           return (
             <a
-              className="text-white underline hover:text-primary"
+              className="text-white underline hover:text-primary-text"
               target="_blank"
               rel="noopener noreferrer"
               {...props}
@@ -198,6 +199,7 @@ export default async function PostContent({ data, content, backHref, slug, route
         // map, so we lean on the cascade — one rule catches both markdown
         // pipe-tables (from remark-gfm) and raw HTML from Strapi.
         YouTubeEmbed,
+        ...blogComponents,
       }}
     />
   );

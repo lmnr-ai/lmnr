@@ -30,8 +30,9 @@ const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = 
 
 const ChartTypeField = () => {
   const { reset, getValues } = useFormContext<QueryStructure>();
-  const { chartType, setChartConfig, chart, setData } = useDashboardEditorStoreContext((state) => ({
+  const { chartType, setChartConfig, chart, setData, editorMode } = useDashboardEditorStoreContext((state) => ({
     chartType: state.chart.settings.config.type,
+    editorMode: state.editorMode,
     setChartConfig: state.setChartConfig,
     chart: state.chart,
     setData: state.setData,
@@ -40,6 +41,8 @@ const ChartTypeField = () => {
   const handleChartTypeChange = (newType: ChartType) => {
     const previousType = chart.settings.config.type;
     setChartConfig({ ...chart.settings.config, type: newType });
+    // Advanced keeps its SQL as written, so its current rows stay valid for the new type.
+    if (editorMode === "sql") return;
     // Clear stale data so the preview doesn't show results from the previous
     // chart type's query (which may have had a different or no LIMIT).
     setData([]);

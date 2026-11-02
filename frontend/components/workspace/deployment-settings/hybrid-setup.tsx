@@ -102,7 +102,7 @@ const HybridSetup = ({ workspaceId, isSaving, isVerified, onVerifiedChange }: Hy
             href="https://github.com/lmnr-ai/lmnr-hybrid-deploy"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm text-primary-text hover:underline"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Deployment guide

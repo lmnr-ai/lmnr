@@ -23,5 +23,3 @@ export function SessionView({ sessionId, initialSession }: SessionViewProps) {
     </SessionViewStoreProvider>
   );
 }
-
-export default SessionView;

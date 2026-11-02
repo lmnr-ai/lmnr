@@ -17,68 +17,68 @@ export const AnthropicThinkingBlockSchema = z.object({
   signature: z.string().optional(),
 });
 
-export const AnthropicToolUseBlockSchema = z.object({
+const AnthropicToolUseBlockSchema = z.object({
   type: z.literal("tool_use"),
   id: z.string(),
   name: z.string(),
   input: z.unknown(),
 });
 
-export const AnthropicToolResultBlockSchema = z.object({
+const AnthropicToolResultBlockSchema = z.object({
   type: z.literal("tool_result"),
   tool_use_id: z.string(),
   content: z.union([z.string(), z.array(z.unknown())]).optional(),
   is_error: z.boolean().optional(),
 });
 
-export const AnthropicImageBase64SourceSchema = z.object({
+const AnthropicImageBase64SourceSchema = z.object({
   type: z.literal("base64"),
   media_type: z.string(),
   data: z.string(),
 });
 
-export const AnthropicImageUrlSourceSchema = z.object({
+const AnthropicImageUrlSourceSchema = z.object({
   type: z.literal("url"),
   url: z.string(),
 });
 
-export const AnthropicImageBlockSchema = z.object({
+const AnthropicImageBlockSchema = z.object({
   type: z.literal("image"),
   source: z.union([AnthropicImageBase64SourceSchema, AnthropicImageUrlSourceSchema]),
 });
 
-export const AnthropicRedactedThinkingBlockSchema = z.object({
+const AnthropicRedactedThinkingBlockSchema = z.object({
   type: z.literal("redacted_thinking"),
   data: z.string(),
 });
 
-export const AnthropicDocumentSourceSchema = z
+const AnthropicDocumentSourceSchema = z
   .object({
     type: z.enum(["base64", "text", "content", "url"]),
   })
   .passthrough();
 
-export const AnthropicDocumentBlockSchema = z.object({
+const AnthropicDocumentBlockSchema = z.object({
   type: z.literal("document"),
   source: AnthropicDocumentSourceSchema,
   title: z.string().optional(),
   context: z.string().optional(),
 });
 
-export const AnthropicServerToolUseBlockSchema = z.object({
+const AnthropicServerToolUseBlockSchema = z.object({
   type: z.literal("server_tool_use"),
   id: z.string(),
   name: z.string(),
   input: z.unknown(),
 });
 
-export const AnthropicWebSearchToolResultBlockSchema = z.object({
+const AnthropicWebSearchToolResultBlockSchema = z.object({
   type: z.literal("web_search_tool_result"),
   tool_use_id: z.string(),
   content: z.unknown(),
 });
 
-export const AnthropicSearchResultBlockSchema = z.object({
+const AnthropicSearchResultBlockSchema = z.object({
   type: z.literal("search_result"),
   source: z.string(),
   title: z.string(),
@@ -176,20 +176,6 @@ export const parseAnthropicOutput = (data: unknown): z.infer<typeof AnthropicMes
   }
 
   return null;
-};
-
-/** Extract system message from Anthropic messages */
-export const extractAnthropicSystemMessage = (messages: z.infer<typeof AnthropicMessagesSchema>): string | null => {
-  const system = messages.find((m) => m.role === "system");
-  if (!system) return null;
-
-  if (typeof system.content === "string") return system.content;
-
-  const textParts = (system.content as z.infer<typeof AnthropicContentBlockSchema>[])
-    .filter((b): b is z.infer<typeof AnthropicTextBlockSchema> => "type" in b && b.type === "text")
-    .map((b) => b.text);
-
-  return textParts.length > 0 ? textParts.join("\n") : null;
 };
 
 /** Conversion to Playground format **/

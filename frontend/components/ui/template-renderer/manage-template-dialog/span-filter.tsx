@@ -96,12 +96,12 @@ const SpanFilter = ({ traceId }: Props) => {
 
       {testResult &&
         (testResult.ok ? (
-          <p className="text-xs text-success-bright">
+          <p className="text-xs text-success-text">
             Matched {testResult.count} {testResult.count === 1 ? "span" : "spans"}
             {testResult.truncated ? " (truncated to 256)" : ""} — preview and data updated.
           </p>
         ) : (
-          <p className="text-xs text-destructive">{testResult.error}</p>
+          <p className="text-xs text-destructive-text">{testResult.error}</p>
         ))}
     </div>
   );

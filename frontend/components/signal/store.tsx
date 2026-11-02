@@ -12,7 +12,7 @@ import { type Signal } from "@/lib/actions/signals";
 
 import { buildPath, buildTree, type ClusterNode, collectDescendantIds, findNodeById } from "./clusters-section/utils";
 
-export type SignalState = {
+type SignalState = {
   signal: Omit<ManageSignalForm, "id"> & { id: string };
   traceId: string | null;
   spanId: string | null;
@@ -24,13 +24,7 @@ export type SignalState = {
   clustersRangeKey: string | null;
 };
 
-export type FetchClustersParams = {
-  pastHours?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-};
-
-export type SignalActions = {
+type SignalActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
@@ -70,15 +64,6 @@ export const getBreadcrumbFromData = (
   return buildPath(clusterTree, clusterId);
 };
 
-export const getBreadcrumb = (state: Store, clusterId: string | null): ClusterNode[] =>
-  getBreadcrumbFromData(state.clusterTree, selectUnclusteredCount(state), clusterId);
-
-// Exported for the readout, which offers the unclustered bucket as a pick and so
-// has to name its size. Not derivable from the cluster tree — the tree only knows
-// about events that landed in a cluster.
-export const selectUnclusteredCount = (state: Store): number =>
-  Math.max(0, state.totalEventCount - state.clusteredEventCount);
-
 export const getFilterClusterIds = (state: Store, clusterId: string | null): string[] => {
   const node = getCurrentNode(state, clusterId);
   if (!node) return [];
@@ -116,14 +101,11 @@ export const getChartClustersFromData = (
   return clusters;
 };
 
-export const getChartClusters = (state: Store, clusterId: string | null): ClusterNode[] =>
-  getChartClustersFromData(state.clusterTree, state.totalEventCount, state.clusteredEventCount, clusterId);
-
 // --- Store ---
 
-export type SignalStoreApi = ReturnType<typeof createSignalStore>;
+type SignalStoreApi = ReturnType<typeof createSignalStore>;
 
-export const createSignalStore = (initProps: EventsProps) =>
+const createSignalStore = (initProps: EventsProps) =>
   createStore<Store>()((set) => ({
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
@@ -158,7 +140,7 @@ export const createSignalStore = (initProps: EventsProps) =>
       }),
   }));
 
-export const SignalContext = createContext<SignalStoreApi | null>(null);
+const SignalContext = createContext<SignalStoreApi | null>(null);
 
 export const useSignalStoreContext = <T,>(selector: (state: Store) => T, equalityFn?: (a: T, b: T) => boolean): T => {
   const store = useContext(SignalContext);

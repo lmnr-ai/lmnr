@@ -89,10 +89,11 @@ export function InfiniteTableHead<TData extends RowData>({
         </div>
         <div
           className={cn(
-            "shrink-0 overflow-hidden transition-opacity duration-150",
+            // justify-end pins the trigger's right edge, so the align="end" menu doesn't shift when this collapses.
+            "flex shrink-0 justify-end overflow-hidden transition-opacity duration-150",
             header.column.getIsSorted()
               ? "w-auto opacity-100"
-              : "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100"
+              : "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100 has-data-[state=open]:w-auto has-data-[state=open]:opacity-100"
           )}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
@@ -127,7 +128,7 @@ export function InfiniteTableHead<TData extends RowData>({
                         }}
                       >
                         {header.column.getIsSorted() === "asc" ? (
-                          <Check className="size-3.5 text-primary-foreground" />
+                          <Check className="size-3.5" />
                         ) : (
                           <ArrowUp className="size-3.5" />
                         )}
@@ -146,7 +147,7 @@ export function InfiniteTableHead<TData extends RowData>({
                         }}
                       >
                         {header.column.getIsSorted() === "desc" ? (
-                          <Check className="size-3.5 text-primary-foreground" />
+                          <Check className="size-3.5" />
                         ) : (
                           <ArrowDown className="size-3.5" />
                         )}

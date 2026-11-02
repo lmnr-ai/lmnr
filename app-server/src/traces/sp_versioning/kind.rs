@@ -1,4 +1,4 @@
-//! The two kinds of text this pipeline versions, and everything that differs
+//! The kinds of text this pipeline versions, and everything that differs
 //! between them. The algorithm (window, registry, cheap match, probe, mint) is
 //! shared and takes a [`VersionKind`]; per-kind behaviour lives here as data so
 //! the shared code carries no kind branches.
@@ -9,7 +9,7 @@
 //!   Keys user-task extraction regexes (`input_extraction`).
 //!
 //! Each kind has its own queue, Redis key space, tunables and ClickHouse tables,
-//! so the two never share state.
+//! so kinds never share state.
 
 use std::sync::LazyLock;
 

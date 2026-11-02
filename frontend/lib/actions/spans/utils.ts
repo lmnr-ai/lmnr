@@ -106,7 +106,7 @@ export const resolveSpanTokenDetails = (
 // Used to avoid pulling the full `attributes` JSON blob (which can be huge for
 // LLM spans) when rendering the spans list. The full attributes are still
 // fetched by the single-span endpoint (see getSpan) used by span-view.
-export const TRACE_VIEW_ATTRIBUTE_KEYS = [
+const TRACE_VIEW_ATTRIBUTE_KEYS = [
   "lmnr.span.path",
   "lmnr.span.ids_path",
   "lmnr.span.prompt_hash",
@@ -216,45 +216,6 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
           offset,
         },
       }),
-  };
-
-  return buildSelectQuery(queryOptions);
-};
-
-export const buildSpansCountQueryWithParams = (
-  options: Omit<BuildSpansQueryOptions, "limit" | "offset">
-): QueryResult => {
-  const { spanIds = [], filters, startTime, endTime, pastHours, customConditions: additionalConditions = [] } = options;
-
-  const customConditions: Array<{
-    condition: string;
-    params: QueryParams;
-  }> = [
-    ...additionalConditions,
-    ...(spanIds?.length > 0
-      ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
-      : []),
-  ];
-
-  const queryOptions: SelectQueryOptions = {
-    select: {
-      columns: ["COUNT(*) as count"],
-      table: "spans",
-    },
-    timeRange: {
-      startTime,
-      endTime,
-      pastHours,
-      timeColumn: "start_time",
-    },
-    filters,
-    columnFilterConfig: spansColumnFilterConfig,
-    customConditions,
   };
 
   return buildSelectQuery(queryOptions);

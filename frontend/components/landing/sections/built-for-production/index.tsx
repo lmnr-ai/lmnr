@@ -23,7 +23,7 @@ const BuiltForProduction = () => (
         </div>
 
         <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0 py-[7px] relative overflow-hidden">
-          <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-sm bg-surface-300 text-foreground-50">
+          <div className="flex h-8.5 items-center justify-end px-3 whitespace-nowrap w-full rounded-sm bg-surface-500 text-foreground-50">
             <p className="font-medium">Competition</p>
           </div>
           {/* Laminar's bar is a twentieth of the one above it, drawn at rest.

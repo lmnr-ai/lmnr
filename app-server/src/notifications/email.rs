@@ -380,11 +380,7 @@ fn render_alert_email(
     _alert_name: &str,
     event_id: Option<&Uuid>,
 ) -> String {
-    let mut rows = vec![(
-        "Severity".to_string(),
-        severity_label(severity).to_string(),
-        false,
-    )];
+    let mut rows = Vec::new();
     if let Some(object) = attributes.as_object() {
         rows.extend(object.iter().filter_map(|(key, value)| {
             let value = match value {
@@ -431,9 +427,8 @@ fn render_alert_email(
         ),
     };
     let card = format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 20px;font-size:14px;line-height:1.5;color:{}">A new signal event requires your attention.</p>{}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<div style="margin-top:16px">{}</div></div>"#,
         breadcrumb(&[project_name, event_name], &signal_link),
-        TEXT,
         event_data_rows(&rows)
     );
     let alert_footer = if severity == 2 {

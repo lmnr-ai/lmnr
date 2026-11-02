@@ -29,13 +29,13 @@ export default function ClusterList({ classified }: ClusterListProps) {
     <div className="flex h-30 w-14 flex-col gap-0.5">
       {counts.map((count, i) => (
         <div key={i} className="flex min-h-0 flex-1">
-          <div className="flex w-7 items-center justify-center bg-surface-400">
-            <WarningIcon className={CLUSTER_COLORS[i]} markClassName="fill-surface-400" />
+          <div className="flex w-7 items-center justify-center bg-surface-600">
+            <WarningIcon className={CLUSTER_COLORS[i]} markClassName="fill-surface-600" />
           </div>
           <div
             className={cn(
-              "flex w-7 items-center justify-center bg-surface-350 text-base tabular-nums transition-colors duration-200",
-              justLanded === i ? "text-white" : "text-foreground-300"
+              "flex w-7 items-center justify-center bg-surface-550 text-base tabular-nums transition-colors duration-200",
+              justLanded === i ? "text-foreground" : "text-foreground-300"
             )}
           >
             {count > 0 ? count : "-"}

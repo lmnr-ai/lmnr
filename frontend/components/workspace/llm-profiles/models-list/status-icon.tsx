@@ -14,7 +14,7 @@ export function StatusIcon({ status }: { status: ModelTestStatus }) {
       return <Loader2 size={STATUS_ICON_SIZE} className="animate-spin text-muted-foreground" aria-label="Testing" />;
     case "ok":
       return (
-        <span className="flex items-center gap-1 text-success">
+        <span className="flex items-center gap-1 text-success-text">
           <span className="text-[11px] text-muted-foreground tabular-nums">{status.latencyMs} ms</span>
           <Check size={STATUS_ICON_SIZE} aria-label="Connection OK" />
         </span>
@@ -23,7 +23,7 @@ export function StatusIcon({ status }: { status: ModelTestStatus }) {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="flex items-center text-destructive" aria-label="Connection failed">
+            <span className="flex items-center text-destructive-text" aria-label="Connection failed">
               <TriangleAlert size={STATUS_ICON_SIZE} />
             </span>
           </TooltipTrigger>

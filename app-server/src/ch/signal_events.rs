@@ -16,7 +16,6 @@ pub struct CHSignalEvent {
     pub trace_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub run_id: Uuid,
-    pub name: String,
     /// JSON-serialized payload/attributes
     pub payload: String,
     /// Timestamp in nanoseconds

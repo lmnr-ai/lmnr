@@ -13,7 +13,7 @@ export default function OpenSourceCard() {
 
   return (
     <SidebarMenuItem>
-      <div className="flex flex-col gap-1.5 rounded-lg bg-surface-200 p-2">
+      <div className="flex flex-col gap-1.5 rounded-lg bg-surface-400 p-2">
         <div className="flex items-start justify-between">
           <p className="text-xs text-foreground-300">Laminar is open-source</p>
           <button
@@ -27,7 +27,7 @@ export default function OpenSourceCard() {
         <GitHubStarsButton
           owner="lmnr-ai"
           repo="lmnr"
-          className="h-6 w-full justify-center rounded bg-surface-400 px-1 [&_span]:text-foreground-200 [&_svg]:text-foreground-200"
+          className="h-6 w-full justify-center rounded bg-surface-600 px-1 [&_span]:text-foreground-200 [&_svg]:text-foreground-200"
         />
       </div>
     </SidebarMenuItem>

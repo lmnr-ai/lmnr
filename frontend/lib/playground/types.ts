@@ -78,7 +78,7 @@ export interface Message {
   providerOptions?: Record<string, Record<string, unknown>>;
 }
 
-export type OpenAIProviderOptions = {
+type OpenAIProviderOptions = {
   openai: {
     reasoningEffort: "low" | "medium" | "high";
   };

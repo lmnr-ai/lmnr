@@ -155,6 +155,51 @@ rather than the shared `drizzle` schema. Note that running Laminar alongside
 another Drizzle-managed service in the same database may still require manual
 intervention, since Drizzle's migration journal is versioned per-schema.
 
+### SQL access to Postgres entities (optional)
+
+Some SQL tables are read live from Postgres: `signals`, `evaluations` and `datasets`,
+plus the signal, evaluation and dataset names on `signal_events`, `evaluation_datapoints`
+and `dataset_datapoints`.
+ClickHouse reads them through a dedicated read-only role, which is off until you set
+both of these in your `.env`:
+
+```sh
+CLICKHOUSE_POSTGRES_USER=clickhouse_ro
+CLICKHOUSE_POSTGRES_PASSWORD=<choose a strong password>
+```
+
+On boot the frontend creates that role if absent and grants `SELECT` on only the columns it needs. Use
+a dedicated role: the frontend refuses to use the app's own Postgres user or a
+privileged role. Without them, those tables and columns return an error. If Postgres
+is not the compose `postgres` service, also set `CLICKHOUSE_POSTGRES_HOST` /
+`CLICKHOUSE_POSTGRES_PORT` as the ClickHouse server reaches it.
+
+#### Externally managed Postgres role
+
+The frontend checks whether `CLICKHOUSE_POSTGRES_USER` already exists. For an
+existing dedicated role, it skips role creation, password changes, role settings,
+and database `CONNECT` grants. It still applies schema `USAGE`, column-level
+`SELECT` grants, and SELECT RLS policies after migrations, and configures
+ClickHouse's `pg` database with the supplied credentials. No additional environment
+variable is needed. If the role is absent, the frontend provisions it as before.
+
+To manage the login through Terraform or a database administrator, provision it
+before starting the frontend, with `LOGIN`, `CONNECT` on the target database,
+`statement_timeout` (normally `15s`), and `CONNECTION LIMIT` (normally `10`). The
+frontend does not apply `CLICKHOUSE_POSTGRES_STATEMENT_TIMEOUT` or
+`CLICKHOUSE_POSTGRES_CONNECTION_LIMIT` to existing roles. Do not reuse the app's
+login or a role with `SUPERUSER`, `BYPASSRLS`, or `CREATEROLE`. The frontend's
+migration login must own, or inherit ownership of, the schema and exposed tables
+to apply the schema/table grants and RLS policies.
+
+Verify the credentials, required reads, and connectivity from the ClickHouse
+server before enabling the feature, and test a ClickHouse restart in staging.
+The PostgreSQL database engine remains a startup dependency of ClickHouse.
+After rotating the external password, update `CLICKHOUSE_POSTGRES_PASSWORD` and
+restart the frontend so it recreates `pg` with the new credentials. For existing
+roles, changing this variable does not change the password in Postgres; rotate it
+through the system that owns the login. Unset credentials still drop `pg`.
+
 ## Anonymous usage telemetry
 
 Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.

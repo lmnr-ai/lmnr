@@ -10,5 +10,6 @@ export default async function AppLayout({ children }: PropsWithChildren) {
   if (saved && session && saved.userId === session.user.id) {
     return redirect("/onboarding");
   }
+
   return <>{children}</>;
 }

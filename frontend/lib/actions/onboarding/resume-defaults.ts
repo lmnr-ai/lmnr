@@ -5,7 +5,7 @@ import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { signals, slackIntegrations, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-export type OnboardingTier = "free" | "hobby" | "pro";
+type OnboardingTier = "free" | "hobby" | "pro";
 
 export interface OnboardingResumeDefaults {
   workspaceName: string | null;
@@ -24,8 +24,7 @@ const asTier = (raw: string | null | undefined): OnboardingTier => {
   return tier === "hobby" || tier === "pro" ? tier : "free";
 };
 
-// workspaceName ships into Stripe as subscription metadata via the plan step,
-// so it must come from the DB on resume.
+// The workspace step's name is gone from form state on resume, so it comes from the DB.
 async function loadWorkspaceContext(workspaceId: string) {
   const [row] = await db
     .select({ tierName: subscriptionTiers.name, workspaceName: workspaces.name })

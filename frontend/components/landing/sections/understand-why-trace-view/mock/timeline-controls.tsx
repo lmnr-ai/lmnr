@@ -27,9 +27,9 @@ const TimelineControls = ({ canZoomIn, canZoomOut, onZoom, heatmap, onToggleHeat
       <button
         onClick={onToggleHeatmap}
         className={cn(
-          "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md text-xs text-muted-foreground hover:bg-surface-up-2 transition-colors border",
+          "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md text-xs text-muted-foreground hover:overlay-hover transition-colors border",
           raisedSurface,
-          heatmap && "border-primary/50 text-primary"
+          heatmap && "border-primary/50 text-primary-text"
         )}
       >
         <DollarSign className="size-3" />

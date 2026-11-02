@@ -1,5 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -18,9 +19,8 @@ use crate::{
 
 use super::span_attributes::{
     ANTHROPIC_REQUEST_SERVICE_TIER, ANTHROPIC_RESPONSE_SERVICE_TIER, GEN_AI_REQUEST_BATCH,
-    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_SYSTEM,
-    GEN_AI_USAGE_AUDIO_INPUT_TOKENS, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
-    GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
     GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
     OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER, SPAN_PROMPT_HASH,
 };
@@ -44,7 +44,6 @@ pub async fn get_llm_usage_for_span(
     attributes: &mut SpanAttributes,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    span_name: &str,
     project_id: &Uuid,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
@@ -62,7 +61,7 @@ pub async fn get_llm_usage_for_span(
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
     let mut model_name = response_model.clone().or(request_model.clone());
-    let mut provider_name = attributes.provider_name(span_name);
+    let mut provider_name = attributes.provider_name();
 
     // Store the original model and provider names for project custom model pricing lookup
     let (orig_model_name, orig_provider_name) = (model_name.clone(), provider_name.clone());
@@ -115,12 +114,8 @@ pub async fn get_llm_usage_for_span(
             output_cost = cost_entry.output_cost;
             total_cost = input_cost + output_cost;
         }
-    } else if let Some(provider) = attributes
-        .raw_attributes
-        .get(GEN_AI_SYSTEM)
-        .and_then(|v| v.as_str())
-    {
-        // Span has gen_ai.system but no model name.
+    } else if let Some(provider) = provider_name.as_deref() {
+        // Span has a provider but no model name.
         if total_tokens > 0 {
             log::warn!(
                 "LLM span has tokens but no model name. Cost cannot be calculated. Provider: [{}].",
@@ -325,9 +320,13 @@ pub fn convert_any_value_to_json_value(
                 .collect();
             json!(map)
         }
-        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => String::from_utf8(val)
-            .map(|s| serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)))
-            .unwrap_or_default(),
+        // Non-UTF-8 bytes are base64-encoded, matching the OTLP/JSON encoding of `bytesValue`.
+        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => {
+            match String::from_utf8(val) {
+                Ok(s) => serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)),
+                Err(e) => serde_json::Value::String(STANDARD.encode(e.into_bytes())),
+            }
+        }
     }
 }
 
@@ -388,6 +387,20 @@ fn tranform_model_and_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::opentelemetry_proto::opentelemetry_proto_common_v1::{AnyValue, any_value};
+
+    fn bytes_to_json(bytes: &[u8]) -> Value {
+        convert_any_value_to_json_value(Some(AnyValue {
+            value: Some(any_value::Value::BytesValue(bytes.to_vec())),
+        }))
+    }
+
+    #[test]
+    fn bytes_value_utf8_is_decoded_and_binary_is_base64() {
+        assert_eq!(bytes_to_json(br#"{"a":1}"#), json!({"a": 1}));
+        assert_eq!(bytes_to_json(b"plain"), json!("plain"));
+        assert_eq!(bytes_to_json(&[0xff, 0x00, 0xfe]), json!("/wD+"));
+    }
 
     #[test]
     fn prompt_hash_stable_across_cc_versions() {

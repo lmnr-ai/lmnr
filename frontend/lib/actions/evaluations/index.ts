@@ -89,7 +89,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         SELECT 
           evaluation_id,
           COUNT(*) as count
-        FROM evaluation_datapoints
+        FROM evaluation_trials
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
@@ -163,7 +163,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         SELECT 
           evaluation_id,
           COUNT(*) as count
-        FROM evaluation_datapoints
+        FROM evaluation_trials
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,

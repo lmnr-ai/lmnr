@@ -39,11 +39,11 @@ export function SnippetPreview({
         )}
       >
         {before}
-        <mark className="font-medium text-primary bg-primary/15 rounded px-0.5 min-w-0">{match}</mark>
+        <mark className="font-medium text-primary-text bg-primary/15 rounded px-0.5 min-w-0">{match}</mark>
         {after}
       </span>
       {count > 1 && (
-        <span className="shrink-0 inline-flex items-center px-1.5 py-px text-[11px] font-medium text-primary bg-primary/10 rounded-full leading-normal whitespace-nowrap">
+        <span className="shrink-0 inline-flex items-center px-1.5 py-px text-[11px] font-medium text-primary-text bg-primary/10 rounded-full leading-normal whitespace-nowrap">
           +{count - 1}
         </span>
       )}

@@ -60,7 +60,7 @@ export default function SignalSparkline({ data, maxCount, isLoading }: SignalSpa
             activeDot={false}
             type="linear"
             dataKey="count"
-            stroke="hsl(var(--primary))"
+            stroke="var(--color-primary-400)"
             strokeWidth={1}
             dot={false}
             isAnimationActive={false}

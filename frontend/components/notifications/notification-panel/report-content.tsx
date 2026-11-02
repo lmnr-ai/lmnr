@@ -29,7 +29,7 @@ export const ReportContent = ({ formatted, projectId }: { formatted: ReportNotif
                 onClick={(e) => e.stopPropagation()}
               >
                 View trace
-                <ArrowUpRight className="size-3 text-primary" />
+                <ArrowUpRight className="size-3 text-primary-text" />
               </Link>
             )}
           </div>

@@ -56,7 +56,7 @@ function buildDefaults(
   return { ...EMPTY_DEFAULTS, workspaceName: companyName ?? "" };
 }
 
-// Starter is preselected while its free trial is on offer; a workspace already past Free keeps its tier.
+// The commit starts the trial on Starter; a workspace already past Free keeps its tier.
 const preselectTrial = (values: OnboardingFormValues, trialAvailable: boolean): OnboardingFormValues =>
   trialAvailable && values.currentTier === "free" ? { ...values, selectedTier: "hobby" } : values;
 
@@ -134,7 +134,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   return (
     <UserContextProvider user={user}>
-      <div className="flex flex-col min-h-screen w-full bg-surface-150">{content}</div>
+      <div className="flex flex-col min-h-screen w-full bg-surface-350">{content}</div>
     </UserContextProvider>
   );
 }

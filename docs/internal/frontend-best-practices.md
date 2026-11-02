@@ -17,6 +17,14 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 `TimeSeriesChart` (and every chart built on it) uses a categorical `<XAxis dataKey="timestamp">`, so a `<ReferenceLine x={…}>` renders **only** when `x` is byte-identical to one of the bucket labels in `data`. An arbitrary instant (an annotation's `created_at`) silently renders nothing. Snap it first — find the last bucket whose start is `<= at`, drop anything past the last bucket's end, and merge labels that land in the same bucket into one line. That is what `TimeSeriesChartProps.markers` / `snappedMarkers` does; reuse it rather than passing raw timestamps. A lone bucket has no measurable width — treat it as unbounded to the right so a marker later in that window still snaps. Clickable labels (`TimeSeriesMarker.href`) must `stopPropagation` on mouseDown/pointerDown so the chart's drag-zoom does not start; last marker's href wins when several snap to one bar.
 
+### Chart-builder config: every field a control can't show must be cleared centrally
+
+`ChartConfig` is shared by all chart types but the controls only expose a subset per type — a breakdown picker exists for line charts only (`supportsBreakdown`). Any field whose picker is hidden for the selected type has to be dropped in `reconcileChartConfig` (`components/chart-builder/utils.ts`), not in the setter that happened to change the type: `ChartRendererCore` pivots on `config.breakdown` for every axis chart, so a breakdown surviving a line→bar switch renders a stacked series the user can't see or undo. Reconcile runs on type change, on new result columns, and on persisted-config rehydration, so fixing it there also cleans configs stored by an older build. Derive the control's visibility from the same predicate the reconcile uses.
+
+### `data-icon` is decorative — Button does NOT space its own icons
+
+No CSS rule matches `[data-icon]` and `buttonVariants` has no `gap`, so an icon+label `<Button>` needs `className="gap-2"` (or a margin on the icon) at the call site. Only the `icon={…}` prop form spaces itself. Sizes: `sm` `h-[22px]`, `default` `h-7`, `md` `h-8`, `lg` `h-10`.
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).
@@ -68,6 +76,16 @@ Use it for: an older response overwriting newer state (user paginates, then chan
 - Conversely, when one action aborts another, the ABORTING action must clear any loading flag the aborted one left behind.
 - In the `finally`, only null out the shared controller ref if it still points at your own controller — otherwise a newer operation has already replaced it and you'd clobber its handle.
 - On the success path use functional `set((state) => ...)` rather than closing over `state.data`, so you merge with the latest value rather than a snapshot.
+
+### Debounced autosave
+
+Don't keep the debounce in a component (`useMemo(() => debounce(save), [deps])` + `cancel()` on cleanup) — a dep change, remount or navigation drops the queued write. Keep the queue at module scope next to the store. Reference implementation: `components/sql/sql-editor-store.ts` (notes in `docs/internal/sql-query-engine.md`).
+
+- Key all of that state by entity id (`Map`s), and only write status for the entity on screen.
+- Serialize requests per entity and re-queue the payload on failure.
+- Expose `flush()` and call it wherever the debounce window can end: dependent actions, switching entities, `visibilitychange` / `pagehide` / unmount (with `keepalive: true`). On delete, discard instead — and abort the in-flight request.
+- Patch the SWR cache after a save (`revalidate: false`), and keep the locally edited field when a revalidation returns the same entity.
+- Each writer sends only the fields it owns.
 
 ### Server actions and Zod schemas
 

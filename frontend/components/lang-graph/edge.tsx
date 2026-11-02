@@ -11,7 +11,7 @@ import React, { memo, useMemo } from "react";
 
 import { getEdgeParams } from "@/lib/lang-graph/utils";
 
-export interface EdgeConfig {
+interface EdgeConfig {
   baseOffset: number;
   strokeWidth: number;
   labelStyle?: React.CSSProperties;
@@ -19,7 +19,7 @@ export interface EdgeConfig {
   curveIntensity?: number;
 }
 
-export interface GetSpecialPathParams {
+interface GetSpecialPathParams {
   sourceX: number;
   sourceY: number;
   targetX: number;
@@ -33,10 +33,7 @@ const DEFAULT_CONFIG: EdgeConfig = {
   curveIntensity: 0.25,
 };
 
-export const getSpecialPath = (
-  { sourceX, sourceY, targetX, targetY }: GetSpecialPathParams,
-  offset: number
-): string => {
+const getSpecialPath = ({ sourceX, sourceY, targetX, targetY }: GetSpecialPathParams, offset: number): string => {
   const centerX = (sourceX + targetX) / 2;
   const centerY = (sourceY + targetY) / 2;
 

@@ -91,7 +91,7 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
         description: (
           <span>
             Successfully exported {datapoints.length} results to dataset.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
+            <Link className="text-primary-text" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
               Go to dataset.
             </Link>
           </span>
@@ -198,7 +198,7 @@ function ExportQueueDialog({
         description: (
           <span>
             Successfully added {items.length} items to queue.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/labeling-queues/${selectedQueue.id}`}>
+            <Link className="text-primary-text" href={`/project/${projectId}/labeling-queues/${selectedQueue.id}`}>
               Go to queue.
             </Link>
           </span>

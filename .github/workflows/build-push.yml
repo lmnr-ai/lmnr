@@ -1,3 +1,18 @@
+# Builds the app-server and frontend images for amd64/arm64 on release, pushes
+# them to GHCR by digest, merges them into multi-platform tags and attests the
+# result (SLSA build provenance, pushed to the registry).
+#
+# Supply-chain hardening (LAM-2384):
+# - the verify-source job gates every build: it fails unless the commit being
+#   built is in this repository, is what the release tag points to, and is
+#   already on main;
+# - every checkout is pinned to this repository at github.sha, without
+#   persisted credentials;
+# - third-party actions are pinned to commit SHAs.
+#
+# The verification step lives inline on purpose: a local composite action
+# would be loaded from the checked-out tree, i.e. from the code being verified.
+
 name: Build & publish lmnr images
 on:
   release:
@@ -7,8 +22,45 @@ on:
 env:
   REGISTRY_GH: ghcr.io
 
+permissions:
+  contents: read
+
 jobs:
+  verify-source:
+    if: github.repository == 'lmnr-ai/lmnr'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          # full history + tags, to check the tag and main below
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release source
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          origin="$(git remote get-url origin)"
+          [ "${origin%.git}" = "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" ] \
+            || fail "origin remote is not $GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] \
+            || fail "HEAD $(git rev-parse HEAD) is not GITHUB_SHA $GITHUB_SHA"
+          tag_sha="$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
+          [ "$tag_sha" = "$GITHUB_SHA" ] \
+            || fail "tag $RELEASE_TAG points to $tag_sha, not GITHUB_SHA $GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || fail "$GITHUB_SHA is not on main"
+
+          echo "Building $GITHUB_REPOSITORY@$GITHUB_SHA ($RELEASE_TAG)"
+
   build:
+    needs: verify-source
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -54,13 +106,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v4.4.1 # immutable tag
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.6.0 # immutable tag
         with:
           registry: ${{ env.REGISTRY_GH }}
           username: ${{ github.actor }}
@@ -68,13 +124,13 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@v6.2.0 # immutable tag
         with:
           images: ${{ matrix.image }}
 
       - name: Build and push Docker images
         id: push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v7.4.0 # immutable tag
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -92,7 +148,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload image digest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: digests-${{ matrix.image-name }}-${{ matrix.arch }}
           path: /tmp/digests/*
@@ -118,22 +174,22 @@ jobs:
 
     steps:
       - name: Download amd64 image digest
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: digests-${{ matrix.image-name }}-amd64
           path: /tmp/digests
 
       - name: Download arm64 image digest
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: digests-${{ matrix.image-name }}-arm64
           path: /tmp/digests
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.6.0 # immutable tag
         with:
           registry: ${{ env.REGISTRY_GH }}
           username: ${{ github.actor }}
@@ -141,7 +197,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@v6.2.0 # immutable tag
         with:
           images: ${{ matrix.image }}
         env:
@@ -207,7 +263,7 @@ jobs:
           fi
 
       - name: Generate artifact attestation
-        uses: actions/attest@v4
+        uses: actions/attest@v4.2.2 # immutable tag
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ steps.manifest.outputs.digest }}

@@ -2,7 +2,7 @@
 
 import { createContext, type PropsWithChildren, use, useMemo, useState } from "react";
 
-export interface OnboardingConfig {
+interface OnboardingConfig {
   slackClientId?: string;
   slackRedirectUri?: string;
   // Resolved server-side before first paint; null when the company wasn't recognized.

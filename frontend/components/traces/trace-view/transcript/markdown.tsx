@@ -26,7 +26,7 @@ const Markdown = ({ output, className, contentClassName, spanRefCallbacks }: Mar
   }, [output]);
 
   return (
-    <div className={cn("text-white/60 [&_*]:text-inherit", className)}>
+    <div className={cn("text-muted-foreground [&_*]:text-inherit", className)}>
       <div className={cn("pb-2", contentClassName)}>
         <Streamdown
           mode="static"

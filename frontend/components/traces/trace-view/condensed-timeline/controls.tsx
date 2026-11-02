@@ -27,8 +27,8 @@ export default function Controls({
           <TooltipTrigger asChild>
             <button
               className={cn(
-                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:bg-secondary transition-colors border",
-                isCostHeatmapVisible && "border-primary/50 text-primary bg-muted"
+                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:overlay-hover transition-colors border",
+                isCostHeatmapVisible && "border-primary/50 text-primary-text bg-muted"
               )}
               onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
             >

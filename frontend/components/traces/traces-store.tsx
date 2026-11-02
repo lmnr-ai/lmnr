@@ -5,7 +5,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
 
-export type TracesState = {
+type TracesState = {
   traceId: string | null;
   spanId: string | null;
   stats?: TracesStatsDataPoint[];
@@ -13,7 +13,7 @@ export type TracesState = {
   chartContainerWidth: number | null;
 };
 
-export type TracesActions = {
+type TracesActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
   fetchStats: (url: string) => Promise<void>;
@@ -29,9 +29,9 @@ export interface TracesProps {
 
 export type TracesStore = TracesState & TracesActions;
 
-export type TracesStoreApi = ReturnType<typeof createTracesStore>;
+type TracesStoreApi = ReturnType<typeof createTracesStore>;
 
-export const createTracesStore = (initProps?: Partial<TracesProps>) => {
+const createTracesStore = (initProps?: Partial<TracesProps>) => {
   const DEFAULT_PROPS: TracesState = {
     traceId: null,
     spanId: null,
@@ -112,7 +112,7 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
   }));
 };
 
-export const TracesContext = createContext<TracesStoreApi | null>(null);
+const TracesContext = createContext<TracesStoreApi | null>(null);
 
 export const useTracesStoreContext = <T,>(
   selector: (state: TracesStore) => T,

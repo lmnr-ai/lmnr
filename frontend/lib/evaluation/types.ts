@@ -9,7 +9,7 @@ export type Evaluation = {
   metadata: Record<string, unknown> | null;
 };
 
-/** A dataset an evaluation's datapoints are linked to. */
+/** A dataset an evaluation's Trials are linked to. */
 export type LinkedDataset = {
   id: string;
   name: string;
@@ -17,7 +17,7 @@ export type LinkedDataset = {
 
 export type EvaluationScoreStatistics = {
   averageValue: number;
-  // Exact aggregates over the raw per-datapoint values so the shield respects
+  // Exact aggregates over the raw per-Trial values so the shield respects
   // the aggregation picker. Absent when there were no scores.
   min?: number;
   max?: number;

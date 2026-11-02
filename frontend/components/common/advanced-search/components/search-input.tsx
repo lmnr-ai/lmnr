@@ -349,8 +349,8 @@ const FilterSearchInput = ({
     <div
       ref={containerRef}
       className={cn(
-        "flex items-start gap-2 px-1 rounded-md border border-input relative",
-        "bg-muted/80 transition duration-250 py-0.75",
+        "flex items-start gap-2 px-1 rounded-md border relative",
+        "bg-emphasis-2 dark:bg-emphasis-1 transition duration-250 py-0.75",
         disabled && "opacity-50 pointer-events-none",
         className
       )}
@@ -395,7 +395,7 @@ const FilterSearchInput = ({
           type="button"
           variant="ghost"
           onClick={() => clearAll()}
-          className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:bg-muted"
+          className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:overlay-hover"
           aria-label="Clear all filters"
         >
           <X className="size-4" />

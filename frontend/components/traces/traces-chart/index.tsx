@@ -15,12 +15,12 @@ interface TracesChartProps {
 const chartConfig = {
   successCount: {
     label: "success",
-    color: "hsl(var(--success-bright))",
+    color: "var(--success)",
     stackId: "stack",
   },
   errorCount: {
     label: "error",
-    color: "hsl(var(--destructive-bright))",
+    color: "var(--destructive)",
     stackId: "stack",
   },
 } as const;

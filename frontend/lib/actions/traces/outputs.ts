@@ -52,17 +52,23 @@ const TOP_PATHS_QUERY = `
 // `paths` / `promptHashes` are positionally aligned with `traceIds`, and the row's
 // expected pair is looked up by indexOf. A composite string key would be shorter but
 // needs a separator no span name can contain; the parallel arrays have no such hazard.
+// The span is picked in a subquery so `output` (rebuilt from dedup dictionaries per row)
+// is only materialized for the winners, not for every main-path LLM span.
 const OUTPUTS_QUERY_FALLBACK = `
   SELECT trace_id AS traceId, span_id AS spanId, output AS data, name
   FROM spans
   WHERE trace_id IN ({traceIds: Array(UUID)})
-    AND span_type = 'LLM'
-    AND arrayElement({paths: Array(String)}, indexOf({traceIds: Array(UUID)}, trace_id))
-        = arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.')
-    AND arrayElement({promptHashes: Array(String)}, indexOf({traceIds: Array(UUID)}, trace_id))
-        = simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash')
-  ORDER BY start_time DESC
-  LIMIT 1 BY trace_id
+    AND span_id IN (
+      SELECT argMax(span_id, start_time)
+      FROM spans
+      WHERE trace_id IN ({traceIds: Array(UUID)})
+        AND span_type = 'LLM'
+        AND arrayElement({paths: Array(String)}, indexOf({traceIds: Array(UUID)}, trace_id))
+            = arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.')
+        AND arrayElement({promptHashes: Array(String)}, indexOf({traceIds: Array(UUID)}, trace_id))
+            = simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash')
+      GROUP BY trace_id
+    )
 `;
 
 interface OutputSpanRow {

@@ -15,7 +15,7 @@ interface AgentNodeProps {
 const AgentNode = ({ rect, color, scale, opacity, rotation }: AgentNodeProps) => (
   <div
     data-grid-item
-    className="absolute flex origin-center items-center justify-center bg-surface-250"
+    className="absolute flex origin-center items-center justify-center bg-surface-450"
     style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, opacity, transform: `scale(${scale})` }}
   >
     <div className="flex size-[32px] items-center justify-center rounded-full" style={{ backgroundColor: color }}>

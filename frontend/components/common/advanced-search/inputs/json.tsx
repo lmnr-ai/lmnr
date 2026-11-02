@@ -23,8 +23,8 @@ interface JsonValueInputProps {
 }
 
 const inputClassName = cn(
-  "h-6 px-2 py-0 text-xs bg-transparent text-primary outline-none",
-  "placeholder:text-primary font-medium"
+  "h-6 px-2 py-0 text-xs bg-transparent text-primary-text outline-none",
+  "placeholder:text-primary-text font-medium"
 );
 
 const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {

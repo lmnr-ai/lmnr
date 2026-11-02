@@ -4,7 +4,7 @@ interface Props {
   markColor?: string;
 }
 
-const WarningMark = ({ color, markColor = "var(--color-surface-150)" }: Props) => (
+const WarningMark = ({ color, markColor = "var(--color-surface-350)" }: Props) => (
   <svg aria-hidden="true" width="10" height="9.287" viewBox="0 0 10 9.28654" fill="none">
     <path
       d="M5 0c-.822 0-1.582.438-1.993 1.15L.31 5.78C-.586 7.334.535 9.287 2.33 9.287h5.34c1.795 0 2.916-1.953 2.02-3.507L6.993 1.15A2.302 2.302 0 0 0 5 0Z"

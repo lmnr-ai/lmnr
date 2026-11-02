@@ -18,7 +18,7 @@ const CellBox = ({ rect, label, labelCells, total, count, opacity, renderCell }:
   return (
     <div
       data-grid-item
-      className="absolute flex flex-wrap content-start bg-surface-250"
+      className="absolute flex flex-wrap content-start bg-surface-450"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, opacity }}
     >
       <div
@@ -30,7 +30,7 @@ const CellBox = ({ rect, label, labelCells, total, count, opacity, renderCell }:
       {Array.from({ length: total }, (_, index) => (
         <div
           key={index}
-          className="size-[20px] border-r border-b border-surface-300"
+          className="size-[20px] border-r border-b border-surface-500"
           style={{ opacity: index < visible ? 1 : 0 }}
         >
           {renderCell(index)}

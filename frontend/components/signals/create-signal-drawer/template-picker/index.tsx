@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Brain, CheckCircle, CloudOff, Frown, Plus, Shield, Target, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle, Frown, Plus, Target } from "lucide-react";
 
 import templates, { type EventTemplate } from "@/components/signals/prompts";
 import { Label } from "@/components/ui/label";
@@ -9,12 +9,8 @@ import TemplateItem from "./template-item";
 
 const TEMPLATE_ICONS: Record<EventTemplate["icon"], React.ComponentType<{ className?: string }>> = {
   "alert-circle": AlertCircle,
-  brain: Brain,
   "check-circle": CheckCircle,
   frown: Frown,
-  zap: Zap,
-  shield: Shield,
-  "cloud-off": CloudOff,
   target: Target,
 };
 

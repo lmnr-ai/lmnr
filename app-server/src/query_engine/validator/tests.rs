@@ -41,11 +41,23 @@ fn test_default_tables_registered() {
     assert!(reg.is_table_allowed("spans"));
     assert!(reg.is_table_allowed("traces"));
     assert!(reg.is_table_allowed("evaluation_datapoints"));
+    assert!(reg.is_table_allowed("evaluation_trials"));
 
     assert!(!reg.is_table_allowed("unknown_table"));
     assert!(!reg.is_table_allowed("traces_v0"));
     assert!(!reg.is_table_allowed("spans_v0"));
     assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
+    assert!(!reg.is_table_allowed("evaluation_trials_v0"));
+    assert!(reg.is_table_allowed("signals"));
+    assert!(reg.is_table_allowed("evaluations"));
+    assert!(reg.is_table_allowed("datasets"));
+    assert!(reg.is_table_allowed("dashboards"));
+    assert!(reg.is_table_allowed("dashboard_charts"));
+    // The PostgreSQL engine mirrors the whole schema — never allowlist it.
+    assert!(!reg.is_table_allowed("pg"));
+    assert!(!reg.is_table_allowed("users"));
+    assert!(!reg.is_table_allowed("workspaces"));
+    assert!(!reg.is_table_allowed("projects"));
 }
 
 #[test]
@@ -130,6 +142,61 @@ fn test_validate_trace_outputs_select() {
     );
 }
 
+#[test]
+fn test_validate_postgres_entity_tables() {
+    let result = validate_ok("SELECT id, name, version FROM signals");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM signals_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+        ),
+        "got: {result}"
+    );
+
+    let result = validate_ok(
+        "SELECT s.name, e.payload FROM signal_events e JOIN signals s ON s.id = e.signal_id",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("JOIN signals_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+        ),
+        "got: {result}"
+    );
+
+    for (query, view) in [
+        (
+            "SELECT id, name, metadata FROM evaluations",
+            "evaluations_v0",
+        ),
+        ("SELECT id, name, indexed_on FROM datasets", "datasets_v0"),
+    ] {
+        let result = validate_ok(query);
+        assert!(
+            contains_ws(
+                &result,
+                &format!("FROM {view}(project_id = '{SAMPLE_PROJECT_ID}')")
+            ),
+            "got: {result}"
+        );
+    }
+
+    let err = validate("SELECT * FROM users").expect_err("pg-mirrored tables stay rejected");
+    assert!(err.contains("not allowed"), "got: {err}");
+}
+
+#[test]
+fn test_schema_advertised_pg_entity_columns_are_allowlisted() {
+    validate_ok("SELECT signals.name, signals.version FROM signals");
+    validate_ok("SELECT evaluations.group_id, evaluations.metadata FROM evaluations");
+    validate_ok("SELECT datasets.indexed_on, datasets.created_at FROM datasets");
+    validate_ok("SELECT signal_events.signal_name FROM signal_events");
+    validate_ok("SELECT signal_events_all.signal_name FROM signal_events_all");
+    validate_ok("SELECT evaluation_datapoints.evaluation_name FROM evaluation_datapoints");
+    validate_ok("SELECT dataset_datapoints.dataset_name FROM dataset_datapoints");
+    validate_ok("SELECT dataset_datapoint_versions.dataset_name FROM dataset_datapoint_versions");
+}
+
 /// Columns the shared schema advertises must also be allowlisted here, or a
 /// table-qualified reference to one is rejected as nonexistent even though the
 /// `_v0` view exposes it. `spans.events` and `traces.has_browser_session` were
@@ -174,6 +241,72 @@ fn test_validate_evaluation_datapoints_select() {
         ),
         "got: {result}"
     );
+}
+
+/// Rewrite `query` once per name and swap the written name back, so the two
+/// outputs are comparable.
+fn rewrite_under_both_eval_names(query: &str) -> (String, String) {
+    let datapoints = validate_ok(&query.replace("{t}", "evaluation_datapoints"));
+    let trials = validate_ok(&query.replace("{t}", "evaluation_trials"))
+        .replace("AS evaluation_trials", "AS evaluation_datapoints")
+        .replace("evaluation_trials.", "evaluation_datapoints.");
+    (datapoints, trials)
+}
+
+#[test]
+fn test_evaluation_trials_alias_rewrites_like_evaluation_datapoints() {
+    for query in [
+        "SELECT id, task_id FROM {t}",
+        "SELECT {t}.task_id, count() FROM {t} \
+         WHERE evaluation_id = {evalId: UUID} AND start_time > '2024-01-01' GROUP BY {t}.task_id",
+        "SELECT e.id FROM {t} AS e WHERE e.evaluation_id IN ('0195b6e0-0000-7000-8000-000000000001')",
+        "SELECT t.id FROM traces AS t JOIN {t} AS e ON e.trace_id = t.id",
+        "SELECT id FROM {t} WHERE trace_id IN (SELECT id FROM traces)",
+    ] {
+        let (datapoints, trials) = rewrite_under_both_eval_names(query);
+        assert_eq!(norm(&datapoints), norm(&trials), "query: {query}");
+    }
+}
+
+#[test]
+fn test_evaluation_trials_alias_is_project_scoped() {
+    let result =
+        validate_ok("SELECT task_id FROM evaluation_trials WHERE evaluation_id = {evalId: UUID}");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}', \
+                 eval_ids = [toUUID({{evalId: UUID}})]"
+            )
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "AS evaluation_trials"),
+        "got: {result}"
+    );
+    // The name never reaches ClickHouse as a bare relation or a made-up view.
+    assert!(!result.contains("evaluation_trials_v0"), "got: {result}");
+    assert!(
+        !contains_ws(&result, "FROM evaluation_trials "),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_evaluation_trials_alias_rejections_match_evaluation_datapoints() {
+    for name in ["evaluation_datapoints", "evaluation_trials"] {
+        // Unknown column, table-function form, shadowing CTE, direct view call.
+        for query in [
+            format!("SELECT {name}.not_a_column FROM {name}"),
+            format!("SELECT id FROM {name}(project_id = 'other-project')"),
+            format!("WITH {name} AS (SELECT 1 AS id) SELECT id FROM {name}"),
+            format!("SELECT id FROM {name}_v0(project_id = 'other-project')"),
+        ] {
+            assert!(validate(&query).is_err(), "should reject: {query}");
+        }
+    }
 }
 
 /// Extract the `eval_ids = [...]` fragment of the rewritten
@@ -606,7 +739,10 @@ fn test_cte_with_spans() {
         ),
         "got: {result}"
     );
-    assert!(contains_ws(&result, "FROM span_stats"), "got: {result}");
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_span_stats AS span_stats"),
+        "got: {result}"
+    );
 }
 
 #[test]
@@ -1043,7 +1179,10 @@ fn test_cte_with_safe_name_still_allowed() {
         ),
         "got: {result}"
     );
-    assert!(contains_ws(&result, "FROM span_ids"), "got: {result}");
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_span_ids AS span_ids"),
+        "got: {result}"
+    );
 }
 
 #[test]
@@ -1201,15 +1340,11 @@ fn test_in_with_bare_function_call() {
 }
 
 #[test]
-fn test_in_with_bare_column_ref_not_rewritten() {
-    // A bare identifier RHS is a column reference, NOT a relation — it must not
-    // be rewritten to a `_v0` view function.
-    let result = validate_ok("SELECT span_id FROM spans WHERE span_id IN parent_span_id");
-    assert!(
-        contains_ws(&result, "span_id IN (parent_span_id)"),
-        "got: {result}"
-    );
-    assert!(!result.contains("parent_span_id_v0"), "got: {result}");
+fn test_in_with_bare_name_rhs_rejected() {
+    // ClickHouse resolves a lone name after IN to a column only when one is in
+    // scope, and to a whole table otherwise, so the validator cannot tell which.
+    let err = validate("SELECT span_id FROM spans WHERE span_id IN parent_span_id").unwrap_err();
+    assert!(err.contains("IN must be followed by"), "got: {err}");
 }
 
 #[test]
@@ -1394,6 +1529,7 @@ fn test_array_join_allows_other_tables_array_columns() {
         ("traces", "tags", "tag"),
         ("traces", "signal_events", "e"),
         ("traces", "clusters", "c"),
+        ("traces", "agent_versions", "v"),
         ("evaluation_datapoints", "trace_spans", "s"),
         ("spans", "tags", "tag"),
     ];
@@ -2363,4 +2499,122 @@ fn test_trace_filter_value_with_quotes_survives_as_one_literal() {
     );
     assert_eq!(result.matches("policy = ").count(), 1);
     parse_clickhouse_sql(&result).expect("rewritten SQL re-parses");
+}
+
+// ----------------------------------------------------------------------------
+// Names that ClickHouse resolves to tables outside the allowlist
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_qualified_table_is_not_exempted_by_a_same_named_cte() {
+    for query in [
+        "WITH users AS (SELECT 1) SELECT * FROM pg.users",
+        "WITH project_api_keys AS (SELECT 1) SELECT * FROM spans JOIN pg.project_api_keys k ON 1 = 1",
+        "WITH traces_agg AS (SELECT 1) SELECT * FROM default.traces_agg",
+        "WITH tables AS (SELECT 1) SELECT * FROM system.tables",
+        "SELECT * FROM pg.signals",
+        "SELECT * FROM system.spans",
+        "SELECT * FROM default.default.spans",
+    ] {
+        let err = validate(query).expect_err(query);
+        assert!(err.contains("is not allowed"), "{query}: {err}");
+    }
+    validate_ok("SELECT name FROM default.spans");
+}
+
+#[test]
+fn test_cte_names_are_renamed_so_out_of_scope_references_fail() {
+    // A CTE cannot see itself, so ClickHouse resolves the inner `traces_agg` to
+    // the real table; renamed, it names a table that does not exist.
+    let result =
+        validate_ok("WITH traces_agg AS (SELECT * FROM traces_agg) SELECT * FROM traces_agg");
+    assert!(
+        contains_ws(
+            &result,
+            "WITH __lmnr_cte_traces_agg AS (SELECT * FROM __lmnr_cte_traces_agg AS traces_agg)"
+        ),
+        "got: {result}"
+    );
+    // A subquery's WITH does not cover its sibling in ClickHouse.
+    let result = validate_ok(
+        "SELECT * FROM (WITH traces_agg AS (SELECT 1 AS x) SELECT x FROM traces_agg) AS s, traces_agg",
+    );
+    assert!(!contains_ws(&result, "FROM traces_agg"), "got: {result}");
+    assert!(!contains_ws(&result, ", traces_agg"), "got: {result}");
+}
+
+#[test]
+fn test_cte_reference_keeps_its_name_as_alias() {
+    let result =
+        validate_ok("WITH Recent AS (SELECT name FROM spans) SELECT Recent.name FROM Recent");
+    assert!(
+        contains_ws(&result, "WITH __lmnr_cte_recent AS"),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_recent AS Recent"),
+        "got: {result}"
+    );
+
+    let result = validate_ok("WITH r AS (SELECT name FROM spans) SELECT x.name FROM r AS x");
+    assert!(
+        contains_ws(&result, "FROM __lmnr_cte_r AS x"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_cte_name_cannot_be_a_table_function_or_need_quoting() {
+    let err = validate("WITH numbers AS (SELECT 1) SELECT * FROM numbers(10)").unwrap_err();
+    assert!(err.contains("Table function"), "got: {err}");
+    let err = validate("WITH `a b` AS (SELECT 1) SELECT * FROM `a b`").unwrap_err();
+    assert!(
+        err.contains("letters, digits and underscores"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_in_operand_cannot_name_a_table() {
+    for query in [
+        "SELECT name FROM spans WHERE input IN pg.users",
+        "SELECT name FROM spans WHERE input IN (pg.users)",
+        "SELECT name FROM spans WHERE input IN ((default.traces_agg))",
+        "SELECT name FROM spans WHERE input NOT IN traces_agg",
+        "SELECT name FROM spans WHERE trace_id IN signal_events",
+        "SELECT name FROM spans WHERE input IN (spans.output)",
+        "SELECT globalIn(input, traces_agg) FROM spans",
+        "SELECT notNullInIgnoreSet(input, pg.users) FROM spans",
+    ] {
+        let err = validate(query).expect_err(query);
+        assert!(err.contains("IN must be followed by"), "{query}: {err}");
+    }
+}
+
+#[test]
+fn test_in_operand_values_subqueries_and_ctes_still_work() {
+    validate_ok("SELECT name FROM spans WHERE name IN ('a', 'b')");
+    validate_ok("SELECT name FROM spans WHERE name IN (name, input)");
+    validate_ok("SELECT name FROM spans WHERE status IN 'error'");
+    validate_ok("SELECT name FROM spans WHERE trace_id IN {ids:Array(UUID)}");
+    validate_ok("SELECT name FROM spans WHERE trace_id IN (SELECT id FROM traces)");
+
+    let result = validate_ok(
+        "WITH ids AS (SELECT id FROM traces) SELECT name FROM spans WHERE trace_id IN ids",
+    );
+    assert!(contains_ws(&result, "IN (__lmnr_cte_ids)"), "got: {result}");
+}
+
+#[test]
+fn test_identifier_placeholders_are_rejected() {
+    for query in [
+        "SELECT name FROM spans WHERE input IN {t:Identifier}",
+        "SELECT {c:Identifier} FROM spans",
+    ] {
+        let err = validate(query).expect_err(query);
+        assert!(
+            err.contains("Identifier query parameters"),
+            "{query}: {err}"
+        );
+    }
 }

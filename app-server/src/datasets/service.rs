@@ -6,7 +6,10 @@
 //! to HTTP. Business-rule branches are outcome variants; only infra failures use
 //! the `anyhow::Result` error channel.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use chrono::Utc;
 use serde::Deserialize;
@@ -153,6 +156,9 @@ pub struct NewDatapoint {
     pub target: Option<Value>,
     #[serde(default)]
     pub metadata: HashMap<String, Value>,
+    /// Groups this datapoint's evaluation trials. Defaults to the datapoint id.
+    #[serde(default)]
+    pub task_id: Option<String>,
 }
 
 /// Outcome of [`create_datapoints`]. Each non-`Created` variant is a business
@@ -215,7 +221,8 @@ pub async fn fetch_datapoints_page(
             created_at,
             data,
             target,
-            metadata
+            metadata,
+            task_id
         FROM dataset_datapoints
         WHERE dataset_id = {dataset_id:UUID}
         ORDER BY toUInt128(id) ASC
@@ -334,16 +341,41 @@ pub async fn create_datapoints(
         }
     };
 
+    let new_datapoints: Vec<(Uuid, NewDatapoint)> = new_datapoints
+        .into_iter()
+        // `now_v7` is guaranteed to be sorted by creation time
+        .map(|dp| (dp.id.unwrap_or(Uuid::now_v7()), dp))
+        .collect();
+    let ids: Vec<Uuid> = new_datapoints.iter().map(|(id, _)| *id).collect();
+    let requested: Vec<(Uuid, Option<String>)> = new_datapoints
+        .iter()
+        .map(|(id, dp)| (*id, requested_task_id(dp)))
+        .collect();
+    let candidate_task_ids: Vec<String> = requested
+        .iter()
+        .map(|(id, task_id)| task_id.clone().unwrap_or_else(|| id.to_string()))
+        .collect();
+    let existing_task_ids = ch_datapoints::get_datapoint_task_ids(
+        &clickhouse,
+        project_id,
+        dataset_id,
+        &ids,
+        &candidate_task_ids,
+    )
+    .await?;
+    let task_ids = assign_task_ids(&requested, &existing_task_ids);
+
     let datapoints: Vec<Datapoint> = new_datapoints
         .into_iter()
-        .map(|dp| Datapoint {
-            // `now_v7` is guaranteed to be sorted by creation time
-            id: dp.id.unwrap_or(Uuid::now_v7()),
+        .zip(task_ids)
+        .map(|((id, dp), task_id)| Datapoint {
+            id,
             created_at: Utc::now(),
             dataset_id,
             data: dp.data,
             target: dp.target,
             metadata: dp.metadata,
+            task_id,
         })
         .collect();
 
@@ -359,4 +391,105 @@ pub async fn create_datapoints(
         datapoints,
         dataset_was_created,
     })
+}
+
+/// The caller's task id; null, missing and "" all mean "use the default".
+fn requested_task_id(dp: &NewDatapoint) -> Option<String> {
+    dp.task_id.clone().filter(|task_id| !task_id.is_empty())
+}
+
+/// Resolve each incoming datapoint's task id, in order. A datapoint without a
+/// requested task id keeps its stored one (re-push of an existing id), else gets
+/// its id. Task ids are unique within a dataset: a duplicate — within the batch
+/// or against another stored datapoint — is renamed `<task_id>#2`, `#3`, ...
+fn assign_task_ids(
+    requested: &[(Uuid, Option<String>)],
+    existing: &HashMap<Uuid, String>,
+) -> Vec<String> {
+    let incoming_ids: HashSet<&Uuid> = requested.iter().map(|(id, _)| id).collect();
+    let mut taken: HashSet<String> = existing
+        .iter()
+        .filter(|(id, _)| !incoming_ids.contains(id))
+        .map(|(_, task_id)| task_id.clone())
+        .collect();
+
+    requested
+        .iter()
+        .map(|(id, task_id)| {
+            let base = task_id
+                .clone()
+                .or_else(|| existing.get(id).cloned())
+                .unwrap_or_else(|| id.to_string());
+            let task_id = if taken.contains(&base) {
+                (2..)
+                    .map(|n| format!("{base}#{n}"))
+                    .find(|candidate| !taken.contains(candidate))
+                    .expect("unbounded suffix range")
+            } else {
+                base
+            };
+            taken.insert(task_id.clone());
+            task_id
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_datapoint_task_id_null_missing_or_empty_is_unset() {
+        for body in [
+            serde_json::json!({"data": {}, "target": null, "taskId": null}),
+            serde_json::json!({"data": {}, "target": null}),
+            serde_json::json!({"data": {}, "target": null, "taskId": ""}),
+        ] {
+            let dp: NewDatapoint = serde_json::from_value(body).unwrap();
+            assert_eq!(requested_task_id(&dp), None);
+        }
+    }
+
+    #[test]
+    fn assign_task_ids_defaults_to_datapoint_id() {
+        let id = Uuid::new_v4();
+        assert_eq!(
+            assign_task_ids(&[(id, None)], &HashMap::new()),
+            vec![id.to_string()]
+        );
+    }
+
+    #[test]
+    fn assign_task_ids_renames_duplicates_within_batch() {
+        let requested = [
+            (Uuid::new_v4(), Some("a".to_string())),
+            (Uuid::new_v4(), Some("a".to_string())),
+            (Uuid::new_v4(), Some("a".to_string())),
+        ];
+        assert_eq!(
+            assign_task_ids(&requested, &HashMap::new()),
+            vec!["a", "a#2", "a#3"]
+        );
+    }
+
+    #[test]
+    fn assign_task_ids_renames_against_other_stored_datapoints() {
+        let existing = HashMap::from([
+            (Uuid::new_v4(), "a".to_string()),
+            (Uuid::new_v4(), "a#2".to_string()),
+        ]);
+        let requested = [(Uuid::new_v4(), Some("a".to_string()))];
+        assert_eq!(assign_task_ids(&requested, &existing), vec!["a#3"]);
+    }
+
+    #[test]
+    fn assign_task_ids_repush_keeps_own_task_id() {
+        let id = Uuid::new_v4();
+        let existing = HashMap::from([(id, "a".to_string())]);
+        assert_eq!(assign_task_ids(&[(id, None)], &existing), vec!["a"]);
+        assert_eq!(
+            assign_task_ids(&[(id, Some("a".to_string()))], &existing),
+            vec!["a"]
+        );
+    }
 }

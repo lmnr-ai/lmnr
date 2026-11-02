@@ -147,6 +147,45 @@ pub async fn get_signal(
     Ok(signal)
 }
 
+/// The signal as it was at `version`, falling back to the current row when no
+/// such snapshot exists (version 0 predates versioning).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_signal_at_version(
+    pool: &PgPool,
+    project_id: Uuid,
+    signal_id: Uuid,
+    version: i32,
+) -> Result<Option<Signal>> {
+    let definition = sqlx::query_scalar::<_, Value>(
+        "SELECT definition
+         FROM signal_versions
+         WHERE project_id = $1 AND signal_id = $2 AND version = $3",
+    )
+    .bind(project_id)
+    .bind(signal_id)
+    .bind(version)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(definition) = definition else {
+        return get_signal(pool, signal_id, project_id).await;
+    };
+    let definition: SignalDefinition = serde_json::from_value(definition)?;
+    Ok(Some(Signal {
+        id: signal_id,
+        name: definition.name,
+        prompt: definition.prompt,
+        structured_output_schema: definition.structured_output_schema,
+        metadata: SignalMetadata {
+            disabled: definition.disabled.then_some(true),
+            sample_rate: definition.sample_rate.map(|rate| rate as i16),
+        },
+        version,
+        llm_profile_id: definition.llm_profile_id,
+        llm_model: definition.llm_model,
+    }))
+}
+
 pub async fn get_signal_row(
     pool: &PgPool,
     project_id: Uuid,

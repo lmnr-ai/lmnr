@@ -1,5 +1,6 @@
-//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent's `query_sql`
-//! system prompt (`agent::prompts`) and the MCP `query_laminar_sql` tool description (`api::v1::mcp`).
+//! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
+//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
 //! generation. The caller writes LOGICAL table names; the query engine rewrites them to
@@ -238,6 +239,16 @@ const TABLES: &[Table] = &[
                 "Array(Tuple(id UUID, signal_id UUID, name String, level UInt8, parent_id UUID, num_signal_events UInt32, created_at DateTime64(9), updated_at DateTime64(9)))",
                 "Named clusters (L1 and ancestors) this trace's signal events belong to. Empty until events are clustered. Prefer this over joining signal_events to clusters. Ancestors are already included as their own elements; walk between them with parent_id. num_signal_events counts the whole cluster, not this trace",
             ),
+            col(
+                "agent_versions",
+                "Array(Tuple(agent_hash String, version_hash String, model String))",
+                "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
+            ),
+            col(
+                "release",
+                "String",
+                "Release of the code that produced the trace, as sent by the SDK (usually the short git SHA, 7 lowercase hex chars). Empty when the SDK sent none",
+            ),
         ],
     },
     Table {
@@ -259,16 +270,18 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
-        name: "evaluation_datapoints",
-        description: "Results from evaluations: scores, executor output, and denormalized trace data.",
+        name: "evaluation_trials",
+        description: "Results from evaluations, one row per trial: scores, executor output, and denormalized trace data. \
+               `evaluation_datapoints` is an alias for this table.",
         columns: &[
             col("id", "UUID", "Unique id of the evaluation datapoint"),
             col("evaluation_id", "UUID", "Id of the evaluation"),
+            col("evaluation_name", "String", "Name of the evaluation"),
             col("trace_id", "UUID", "Id of the associated trace"),
             col(
                 "created_at",
                 "DateTime64(9,'UTC')",
-                "When the datapoint was created",
+                "When the Trial was first saved",
             ),
             col(
                 "data",
@@ -291,6 +304,11 @@ const TABLES: &[Table] = &[
                 "Executor output — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col("index", "UInt64", "Index within the evaluation"),
+            col(
+                "task_id",
+                "String",
+                "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+            ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",
@@ -311,7 +329,7 @@ const TABLES: &[Table] = &[
             col(
                 "updated_at",
                 "DateTime64(9,'UTC')",
-                "When the datapoint was last updated",
+                "When the Trial was last updated",
             ),
             // Everything below is denormalized from the associated trace; all
             // are nil/empty/zero when the datapoint has no trace.
@@ -378,6 +396,7 @@ const TABLES: &[Table] = &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("dataset_id", "UUID", "Id of the dataset"),
+            col("dataset_name", "String", "Name of the dataset"),
             col(
                 "data",
                 "String",
@@ -392,6 +411,11 @@ const TABLES: &[Table] = &[
                 "metadata",
                 "String",
                 "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "task_id",
+                "String",
+                "Task id evaluations group trials by; unique within the dataset",
             ),
         ],
     },
@@ -403,6 +427,7 @@ const TABLES: &[Table] = &[
             col("id", "UUID", "Unique id"),
             col("created_at", "DateTime64(9,'UTC')", "When created"),
             col("dataset_id", "UUID", "Id of the dataset"),
+            col("dataset_name", "String", "Name of the dataset"),
             col(
                 "data",
                 "String",
@@ -417,6 +442,11 @@ const TABLES: &[Table] = &[
                 "metadata",
                 "String",
                 "Additional metadata — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "task_id",
+                "String",
+                "Task id evaluations group trials by; unique within the dataset",
             ),
         ],
     },
@@ -499,9 +529,14 @@ const TABLES: &[Table] = &[
         columns: &[
             col("id", "UUID", "Unique id of the signal event"),
             col("signal_id", "UUID", "Id of the signal"),
+            col("signal_name", "String", "Current name of the signal"),
             col("trace_id", "UUID", "Id of the trace"),
             col("run_id", "UUID", "Id of the run"),
-            col("name", "String", "Event name"),
+            col(
+                "name",
+                "String",
+                "Alias of signal_name, kept for older queries; use signal_name",
+            ),
             col(
                 "payload",
                 "String",
@@ -568,6 +603,102 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "signals",
+        description: "Signal definitions stored in Postgres: prompt, output schema, model, and current version. Join to signal_events / signal_runs / traces.signal_events on signals.id = signal_id; for just the name, use signal_events.signal_name.",
+        columns: &[
+            col("id", "UUID", "Unique id of the signal"),
+            col("name", "String", "Signal name, unique per project"),
+            col("prompt", "String", "Signal definition prompt"),
+            col(
+                "structured_output_schema",
+                "String",
+                "JSON schema the signal's output conforms to",
+            ),
+            col("metadata", "String", "Signal metadata, as a JSON object"),
+            col(
+                "llm_model",
+                "Nullable(String)",
+                "Model the signal runs on; NULL when it uses the deployment default",
+            ),
+            col("created_at", "DateTime64(6)", "When the signal was created"),
+            col("version", "Int32", "Current definition version"),
+        ],
+    },
+    Table {
+        name: "evaluations",
+        description: "Evaluations stored in Postgres: name, group and metadata. Join to evaluation_trials on evaluations.id = evaluation_id; for just the name, use evaluation_trials.evaluation_name.",
+        columns: &[
+            col("id", "UUID", "Unique id of the evaluation"),
+            col("name", "String", "Evaluation name"),
+            col("group_id", "String", "Group the evaluation belongs to"),
+            col(
+                "metadata",
+                "Nullable(String)",
+                "Evaluation metadata, as a JSON object",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the evaluation was created",
+            ),
+        ],
+    },
+    Table {
+        name: "datasets",
+        description: "Datasets stored in Postgres. Join to dataset_datapoints on datasets.id = dataset_id; for just the name, use dataset_datapoints.dataset_name.",
+        columns: &[
+            col("id", "UUID", "Unique id of the dataset"),
+            col("name", "String", "Dataset name"),
+            col(
+                "indexed_on",
+                "Nullable(String)",
+                "Legacy indexing setting, unused by Laminar; usually NULL",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the dataset was created",
+            ),
+        ],
+    },
+    Table {
+        name: "dashboards",
+        description: "Project dashboards stored in Postgres. Join to dashboard_charts on dashboards.id = dashboard_id.",
+        columns: &[
+            col("id", "UUID", "Unique id of the dashboard"),
+            col("name", "String", "Dashboard name"),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the dashboard was created",
+            ),
+        ],
+    },
+    Table {
+        name: "dashboard_charts",
+        description: "Charts on project dashboards, stored in Postgres. The grid is 12 columns wide; a chart's position is settings.layout {x, y, w, h} in grid units.",
+        columns: &[
+            col("id", "UUID", "Unique id of the chart"),
+            col(
+                "dashboard_id",
+                "UUID",
+                "Id of the dashboard the chart is on",
+            ),
+            col("name", "String", "Chart title"),
+            col(
+                "query",
+                "String",
+                "SQL the chart runs, with {start_time:DateTime64} / {end_time:DateTime64} / {interval_unit:String} parameters",
+            ),
+            col(
+                "settings",
+                "String",
+                "Chart settings as a JSON object: {config, layout, queryStructure}. Read fields with JSONExtract, e.g. JSONExtractInt(settings, 'layout', 'y')",
+            ),
+            col("created_at", "DateTime64(6)", "When the chart was created"),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -610,7 +741,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in both the agent system prompt and the MCP tool description.
+/// Embedded verbatim in the MCP tool description.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
@@ -644,11 +775,16 @@ mod tests {
         for table in [
             "spans",
             "traces",
-            "evaluation_datapoints",
+            "evaluation_trials",
             "signal_events",
             "clusters",
             "signal_runs",
             "logs",
+            "signals",
+            "evaluations",
+            "datasets",
+            "dashboards",
+            "dashboard_charts",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

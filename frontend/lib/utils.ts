@@ -1,11 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
-
-import { GroupByInterval } from "./clickhouse/modifiers";
-
-export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
-export const TIME_SECONDS_FORMAT = "timeSeconds";
+const TIME_SECONDS_FORMAT = "timeSeconds";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -33,7 +29,7 @@ export function withBasePath(path: string): string {
 // (window.location.pathname carries it) so the result can be fed back into
 // anything that re-prefixes — router.push and Better Auth callbackURLs both add
 // BASE_PATH themselves, so storing a prefix-inclusive value would double-stamp.
-export function stripBasePath(path: string): string {
+function stripBasePath(path: string): string {
   if (!BASE_PATH) return path;
   if (path === BASE_PATH) return "/";
   if (path.startsWith(`${BASE_PATH}/`)) return path.slice(BASE_PATH.length);
@@ -100,7 +96,7 @@ export async function fetcherJSON<JSON = any>(url: string, init: any): Promise<J
 // Thrown when an API call is rejected for a missing/expired session (proxy.ts
 // returns `{ code: "UNAUTHENTICATED" }` with a 401). Kept distinct from generic
 // errors so callers can recognise an auth failure if they need to.
-export class UnauthenticatedError extends Error {
+class UnauthenticatedError extends Error {
   constructor() {
     super("Unauthenticated");
     this.name = "UnauthenticatedError";
@@ -156,42 +152,6 @@ export const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-// return string such as 0319 for March 19 or 1201 for December 1
-// Note that the date is calculated for local time
-export function getCurrentMonthDayStr() {
-  const date = new Date();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  if (month < 10) {
-    if (day < 10) {
-      return `0${month}0${day}`;
-    }
-    return `0${month}${day}`;
-  }
-  if (day < 10) {
-    return `${month}0${day}`;
-  }
-  return `${month}${day}`;
-}
-
-export function formatDate(input: string | number | Date): string {
-  const date = new Date(input);
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-export function formatShortDate(input: string | number | Date): string {
-  const date = new Date(input);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 export function formatRelativeTime(dateStr: string | null): string {
   if (!dateStr) return "Never";
   const date = new Date(dateStr);
@@ -217,18 +177,6 @@ export const formatUTCDate = (date: string) => {
   });
 };
 
-// E.g. 2024-09-04T20:18:58.330355+00:00 -> 13:18:58.330
-export function convertToLocalTimeWithMillis(isoDateString: string): string {
-  const date = new Date(isoDateString);
-
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
-
-  return `${hours}:${minutes}:${seconds}.${milliseconds}`;
-}
-
 export function formatTimestamp(timestampStr: string): string {
   const date = new Date(timestampStr);
   return innerFormatTimestamp(date);
@@ -237,42 +185,6 @@ export function formatTimestamp(timestampStr: string): string {
 export function formatTimestampWithSeconds(timestampStr: string): string {
   const date = new Date(timestampStr);
   return innerFormatTimestamp(date, TIME_SECONDS_FORMAT);
-}
-
-export function formatTimestampFromSeconds(seconds: number): string {
-  const date = new Date(seconds * 1000);
-  return innerFormatTimestamp(date);
-}
-
-export function formatTimestampWithInterval(timestampStr: string, interval: GroupByInterval): string {
-  const date = new Date(`${timestampStr}Z`);
-  return innerFormatTimestampWithInterval(date, interval);
-}
-
-export function formatTimestampFromSecondsWithInterval(seconds: number, interval: GroupByInterval): string {
-  const date = new Date(seconds * 1000);
-  return innerFormatTimestampWithInterval(date, interval);
-}
-
-function innerFormatTimestampWithInterval(date: Date, interval: GroupByInterval): string {
-  if (interval === GroupByInterval.Day) {
-    return date.toLocaleDateString("en-US", {
-      day: "2-digit",
-      month: "numeric",
-    });
-  } else if (interval === GroupByInterval.Hour) {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  } else {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  }
 }
 
 // Note that the formatted time is calculated for local time
@@ -318,7 +230,7 @@ export function formatDuration(ms: number | undefined): string | null {
   return h === 0 ? `${days}d` : `${days}d ${h}h`;
 }
 
-export function deep<T>(value: T): T {
+function deep<T>(value: T): T {
   if (typeof value !== "object" || value === null) {
     return value;
   }
@@ -400,20 +312,6 @@ export const isGroupByIntervalAvailable = (
   return false;
 };
 
-const numberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 3,
-});
-
-export const toFixedIfFloat = (value: number) => {
-  if (value % 1 === 0) {
-    // For integers, show with thousand separators
-    return numberFormatter.format(value);
-  } else {
-    // For decimals, format with up to 3 decimal places and thousand separators
-    return numberFormatter.format(parseFloat(value.toFixed(3)));
-  }
-};
-
 export const isValidJsonObject = (value: any): boolean =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -463,16 +361,6 @@ export const pluralize = (count: number, singular: string, plural: string) => {
 
 export const isValidNumber = (value?: number): value is number => typeof value === "number" && !isNaN(value);
 
-export function generateRandomKey(length: number): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-
-  return Array.from(randomValues)
-    .map((value) => chars[value % chars.length])
-    .join("");
-}
-
 // Convert URL-safe base64 (RFC 4648 §5) to standard base64 for data URIs.
 export const toStandardBase64 = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
 
@@ -490,37 +378,6 @@ export const inferImageType = (base64: string): `image/${string}` | null => {
   }
   return null;
 };
-export function formatTimeRange(start: Date, end: Date): string {
-  const sameDay = start.toDateString() === end.toDateString();
-
-  const startHours = start.getHours();
-  const startMinutes = String(start.getMinutes()).padStart(2, "0");
-  const startAmPm = startHours >= 12 ? "PM" : "AM";
-  const startH = startHours % 12 || 12;
-  const startTimeStr = `${startH}:${startMinutes} ${startAmPm}`;
-
-  const endHours = end.getHours();
-  const endMinutes = String(end.getMinutes()).padStart(2, "0");
-  const endAmPm = endHours >= 12 ? "PM" : "AM";
-  const endH = endHours % 12 || 12;
-  const endTimeStr = `${endH}:${endMinutes} ${endAmPm}`;
-
-  const isToday = start.toDateString() === new Date().toDateString();
-
-  if (isToday && sameDay) {
-    return `${startTimeStr} – ${endTimeStr}`;
-  }
-
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const startDateStr = `${months[start.getMonth()]} ${start.getDate()}`;
-
-  if (sameDay) {
-    return `${startDateStr}, ${startTimeStr} – ${endTimeStr}`;
-  }
-
-  const endDateStr = `${months[end.getMonth()]} ${end.getDate()}`;
-  return `${startDateStr}, ${startTimeStr} – ${endDateStr}, ${endTimeStr}`;
-}
 
 export const tryParseJson = (value: string) => {
   if (value === "" || value === undefined) return null;

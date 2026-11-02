@@ -29,7 +29,7 @@ export default async function PricingPage() {
   const session = await getServerSession();
 
   return (
-    <div className="bg-surface-150 flex flex-col w-full min-h-screen">
+    <div className="bg-surface-350 flex flex-col w-full min-h-screen">
       <AnnouncementBanner />
       <LandingHeader
         hasSession={session !== null && session !== undefined}

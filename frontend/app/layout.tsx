@@ -5,6 +5,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import BasePathFetchShim from "@/components/common/base-path-fetch-shim";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
@@ -75,23 +76,30 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   const email = session?.user?.email ?? undefined;
 
   return (
-    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}>
+    // next-themes sets the theme class on <html> before hydration.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn("h-full antialiased", sans.variable, manrope.variable, sansLanding.variable)}
+    >
       <body className="flex flex-col h-full">
         <BasePathFetchShim />
-        <FeatureFlagsProvider flags={featureFlags}>
-          <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
-            <TooltipProvider delayDuration={0}>
-              <NuqsAdapter>
-                <div className="flex">
-                  <div className="flex flex-col grow max-w-full min-h-screen">
-                    <main className="z-10 flex flex-col grow">{children}</main>
-                    <Toaster />
+        <ThemeProvider>
+          <FeatureFlagsProvider flags={featureFlags}>
+            <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+              <TooltipProvider delayDuration={0}>
+                <NuqsAdapter>
+                  <div className="flex">
+                    <div className="flex flex-col grow max-w-full min-h-screen">
+                      <main className="z-10 flex flex-col grow">{children}</main>
+                      <Toaster />
+                    </div>
                   </div>
-                </div>
-              </NuqsAdapter>
-            </TooltipProvider>
-          </PostHogProvider>
-        </FeatureFlagsProvider>
+                </NuqsAdapter>
+              </TooltipProvider>
+            </PostHogProvider>
+          </FeatureFlagsProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

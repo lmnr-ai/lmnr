@@ -106,7 +106,7 @@ export function AuthProviderButtons({ callbackUrl, trackAction, errorPath }: Pro
           isDisabled={!!isLoading}
         />
       )}
-      {error && <span className="text-destructive text-xs mt-4">{defaultErrorMessage}</span>}
+      {error && <span className="text-destructive-text text-xs mt-4">{defaultErrorMessage}</span>}
     </>
   );
 }

@@ -20,7 +20,6 @@ export type SettingsSection =
   | "project-api-keys"
   | "model-costs"
   | "render-templates"
-  | "agent-versions"
   | "security"
   | "alerts";
 
@@ -39,7 +38,7 @@ type ProjectContextType = {
 
 const noopMutateProject = (async () => undefined) as KeyedMutator<ProjectDetails | undefined>;
 
-export const ProjectContext = createContext<ProjectContextType>({
+const ProjectContext = createContext<ProjectContextType>({
   project: undefined,
   workspace: undefined,
   projects: [],

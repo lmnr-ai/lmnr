@@ -12,7 +12,7 @@ export const CHIP_ARROW = "size-[13px] shrink-0 opacity-60";
 /** The two link chips. A step off the card, not a wash of a hue: the panel is an
  *  `ElevatedSurface`, so this means "three above THE CARD" wherever the card
  *  itself ends up on the ramp. */
-export const CHIP_SURFACE = "bg-surface-up-3 hover:bg-surface-up-4";
+export const CHIP_SURFACE = "bg-emphasis-1 hover:overlay-hover";
 
 /** The same fill without the hover, for a chip that has nowhere to go — a shared
  *  trace's cluster pill. Lighting it would promise the click does something. */
@@ -28,4 +28,4 @@ export const CHIP_SURFACE_STATIC = "bg-surface-up-3";
  * class, which is what lets the override land without `!important`.
  */
 export const SPAN_CHIP_SURFACE =
-  "[&_[data-slot=span-chip]]:bg-surface-up-4 [&_[data-slot=span-chip]:hover]:bg-surface-up-5";
+  "[&_[data-slot=span-chip]]:bg-surface-up-4 [&_[data-slot=span-chip]:hover]:overlay-hover";

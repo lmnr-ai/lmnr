@@ -60,8 +60,8 @@ const DimensionsField = () => {
                       <Badge
                         variant="outline"
                         className={cn("text-[10px] py-0 px-1", {
-                          "border-success text-success": col.type === "string",
-                          "border-primary text-primary": col.type === "number",
+                          "border-success-border text-success-text": col.type === "string",
+                          "border-primary text-primary-text": col.type === "number",
                         })}
                       >
                         {col.type}
@@ -83,7 +83,7 @@ const DimensionsField = () => {
         <Button
           icon="plus"
           size="sm"
-          className="text-primary hover:text-primary/80"
+          className="text-primary-text hover:text-primary-text/80"
           variant="ghost"
           onClick={addDimension}
           disabled={unselectedColumns.length === 0}

@@ -22,6 +22,8 @@ declare module "@tanstack/react-table" {
       scoreDirections?: Record<string, boolean>;
       // Flip + persist a score's direction (from the header dropdown toggle).
       onToggleScoreDirection?: (scoreName: string) => void;
+      // Pending Trials across the whole run (from /stats), shown in the status header.
+      runningTrials?: number;
     };
   }
 

@@ -32,7 +32,7 @@ function formatPrice(dollars: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(dollars);
 }
 
-export async function buyAddon(workspaceId: string, lookupKey: string): Promise<void> {
+async function buyAddon(workspaceId: string, lookupKey: string): Promise<void> {
   const res = await fetch(`/api/workspaces/${workspaceId}/addons/${lookupKey}`, {
     method: "POST",
   });
@@ -121,7 +121,7 @@ export default function WorkspaceAddons({
                           isActive ? "bg-primary/10" : "bg-muted"
                         )}
                       >
-                        <Server className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                        <Server className={cn("h-4 w-4", isActive ? "text-primary-text" : "text-muted-foreground")} />
                       </div>
                       <div>
                         <CardTitle className="text-base">{cfg.name}</CardTitle>

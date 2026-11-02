@@ -510,7 +510,7 @@ export default function SessionList() {
                   <Skeleton className="h-5 w-2/3" />
                 </div>
               ) : row.type === "trace-error" ? (
-                <div className="py-4 px-2 text-sm text-destructive">{row.error}</div>
+                <div className="py-4 px-2 text-sm text-destructive-text">{row.error}</div>
               ) : row.type === "trace-empty" ? (
                 <div className="py-4 px-2 text-sm text-muted-foreground">No spans found for this trace.</div>
               ) : row.type === "trace-collapsed-end" || row.type === "trace-expanded-end" ? (

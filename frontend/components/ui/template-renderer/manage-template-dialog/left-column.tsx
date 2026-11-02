@@ -34,7 +34,7 @@ const LeftColumn = ({ isGenerating, describeText, onDescribeChange, onGenerate }
               <Input size="sm" className="rounded border-border" placeholder="Template name" autoFocus {...field} />
             )}
           />
-          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+          {errors.name && <p className="text-xs text-destructive-text">{errors.name.message}</p>}
         </div>
 
         {/* Native <textarea> text can't take background-clip:text, so during

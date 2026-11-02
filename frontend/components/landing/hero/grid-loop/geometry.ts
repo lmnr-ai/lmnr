@@ -1,5 +1,5 @@
 export const CELL = 20;
-export const ROWS = 14;
+const ROWS = 14;
 export const BASE_COLS = 44;
 
 export interface Rect {
@@ -9,7 +9,7 @@ export interface Rect {
   h: number;
 }
 
-export interface Connection {
+interface Connection {
   d: string;
   length: number;
 }

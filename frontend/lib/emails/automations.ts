@@ -7,8 +7,8 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { RESEND } from "./client";
 
 // Names must match the trigger / wait-for-event steps of the automations in the Resend dashboard.
-export const USER_ONBOARDED_EVENT = "user.onboarded";
-export const PROJECT_HAS_TRACES_EVENT = "project.has_traces";
+const USER_ONBOARDED_EVENT = "user.onboarded";
+const PROJECT_HAS_TRACES_EVENT = "project.has_traces";
 
 // Payload values must stay flat: Resend event schemas only allow string/number/boolean/date keys.
 const sendEvent = async (event: string, email: string, payload: Record<string, string | boolean>) => {

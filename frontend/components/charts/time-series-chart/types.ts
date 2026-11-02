@@ -1,4 +1,5 @@
 import type React from "react";
+import { type MouseHandlerDataParam } from "recharts";
 
 export type TimeSeriesDataPoint = {
   timestamp: string;
@@ -53,3 +54,5 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   overlayColor?: string;
   markers?: TimeSeriesMarker[];
 }
+
+export type CategoricalChartFunc = (nextState: MouseHandlerDataParam, event: React.SyntheticEvent) => void;

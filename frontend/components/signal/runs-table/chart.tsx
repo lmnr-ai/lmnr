@@ -28,7 +28,7 @@ const chartConfig: TimeSeriesChartConfig = {
   },
   failed: {
     label: "Failed",
-    color: "hsl(var(--destructive-bright))",
+    color: "var(--destructive)",
     stackId: "stack",
   },
 };

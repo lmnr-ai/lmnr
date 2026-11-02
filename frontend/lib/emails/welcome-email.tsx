@@ -1,11 +1,14 @@
 import { Head, Html, Img, Link, Preview, Section, Text } from "@react-email/components";
 import type { CSSProperties } from "react";
 
+import { TIER_RETENTION } from "@/lib/billing/retention";
+import { TIERS } from "@/lib/billing/tiers";
+
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
 const GET_STARTED_URL = "https://lmnr.ai/docs/getting-started";
 const TRIAL_INCLUDES = [
-  "3 GB of ingested data with 30-day retention",
+  `${TIERS.hobby.includedBytesGB} GB of ingested data with ${TIER_RETENTION.hobby.durationPlural} of data access`,
   "$5 credit for Signals",
   "Slack alerts",
   "Unlimited projects and teammates",

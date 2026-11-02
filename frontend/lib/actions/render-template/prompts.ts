@@ -4,12 +4,12 @@
 // user's data + request.
 
 const STYLE_GUIDE = `<laminar_ui_style_guide>
-Laminar uses Tailwind CSS with a dark-first palette and small, dense, monospace-leaning UI.
+Laminar uses Tailwind CSS with light and dark themes and small, dense, monospace-leaning UI.
 Generated templates render inside a sandboxed iframe whose Tailwind theme is wired up to
 Laminar's semantic design tokens. ALWAYS prefer these semantic classes over raw palette
-names — they automatically match the current Laminar theme. (Stock Tailwind classes like
-\`text-sky-400\` or \`bg-neutral-900\` still work but will visually drift from the rest of
-the platform; avoid them.)
+names — they automatically match the current Laminar theme, light or dark. NEVER use stock
+Tailwind palette classes (\`text-sky-400\`, \`bg-neutral-900\`, \`text-white\`) or hex colours:
+they are fixed to one theme and turn unreadable in the other.
 
 Available semantic tokens (exhaustive — these are what twind knows about; nothing else is wired)
 - Surface / foreground pairs (use as \`bg-<name>\` for the background, \`text-<name>-foreground\` for legible text on top):
@@ -19,15 +19,15 @@ Available semantic tokens (exhaustive — these are what twind knows about; noth
   - \`secondary\` / \`secondary-foreground\` — subtle inset surface (nested rows, kv blocks).
   - \`muted\` / \`muted-foreground\` — slightly more pronounced inset (hover rows, side panels).
   - \`accent\` / \`accent-foreground\` — selected / highlighted items.
-  - \`primary\` / \`primary-foreground\` — primary-action surfaces (CTA chips, key callouts). \`text-primary\` is also the highlight text colour.
+  - \`primary\` / \`primary-foreground\` — primary-action surfaces (CTA chips, key callouts). \`text-primary-text\` is also the highlight text colour.
   - \`destructive\` / \`destructive-foreground\` — error banners.
   - \`success\` / \`success-foreground\` — success banners.
 - Plain text colours (no companion surface — use on top of \`bg-background\` / \`bg-card\` / etc.):
   - \`text-foreground\` (primary text) · \`text-secondary-foreground\` (one notch down) · \`text-muted-foreground\` (de-emphasised) · \`text-popover-foreground\` / \`text-accent-foreground\` / \`text-primary-foreground\` / \`text-destructive-foreground\` / \`text-success-foreground\` (each pairs with its matching \`bg-*\`).
-  - Signal text: \`text-primary\` (highlight), \`text-success\`, \`text-destructive\`, \`text-destructive-bright\`, \`text-success-bright\`.
+  - Signal text: \`text-primary-text\` (highlight), \`text-success\`, \`text-destructive\`, \`text-destructive-bright\`, \`text-success-bright\`.
   - Domain-only text (see "Domain signal tokens" below): \`text-user\`, \`text-llm\` (+ \`text-llm-foreground\`), \`text-tool\`, \`text-subagent\`.
 - Borders / rings: \`border-border\`, \`border-input\`, \`ring-ring\`.
-- HARD RULE: NEVER use a surface DEFAULT as a TEXT colour. \`text-card\`, \`text-popover\`, \`text-secondary\`, \`text-muted\`, \`text-accent\` are all dark surface fills and will be invisible on a dark background. Use the matching \`*-foreground\` for text and reserve the bare name for \`bg-*\` / \`border-*\`.
+- HARD RULE: NEVER use a surface DEFAULT as a TEXT colour. \`text-card\`, \`text-popover\`, \`text-secondary\`, \`text-muted\`, \`text-accent\` are all surface fills and will be nearly invisible on the page. Use the matching \`*-foreground\` for text and reserve the bare name for \`bg-*\` / \`border-*\`.
 
 Surfaces (recipes)
 - Root container: \`w-full min-h-full p-4 text-sm text-foreground bg-background\` (use \`min-h-full\`, NOT \`h-full\`, so taller content can scroll vertically)
@@ -51,10 +51,10 @@ Domain signal tokens — RESERVED for LLM / agent content. Do NOT use these for 
 - \`text-llm\` / \`bg-llm\` — ONLY for assistant / model-generated content (a chat bubble with role: "assistant", an LLM-output span header). Never on user content, never on generic JSON.
 - \`text-tool\` / \`bg-tool\` — ONLY for tool / function-call content (role: "tool" messages, tool-call span headers, the name of the tool that ran).
 - \`text-subagent\` / \`bg-subagent\` — ONLY for nested agent / subagent identification (a span whose kind is "subagent", an agent-handoff marker).
-- If the input does NOT contain chat messages, tool calls, or agent spans, do NOT use \`user\` / \`llm\` / \`tool\` / \`subagent\` colours at all. Lean on \`text-foreground\` / \`text-secondary-foreground\` / \`text-muted-foreground\` / \`text-primary\` for the whole template.
+- If the input does NOT contain chat messages, tool calls, or agent spans, do NOT use \`user\` / \`llm\` / \`tool\` / \`subagent\` colours at all. Lean on \`text-foreground\` / \`text-secondary-foreground\` / \`text-muted-foreground\` / \`text-primary-text\` for the whole template.
 
 Generic signal tokens (safe to use anywhere their semantics apply)
-- \`text-primary\` — key highlights, CTA accents (orange brand colour — NOT for user content; use \`text-user\` instead)
+- \`text-primary-text\` — key highlights, CTA accents (orange brand colour — NOT for user content; use \`text-user\` instead)
 - \`text-success\` — successful states, passing checks, completed work
 - \`text-destructive\` — errors, failures, blocking conditions
 - \`text-muted-foreground\` — system messages, less-important metadata, empty states

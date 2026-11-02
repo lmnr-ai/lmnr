@@ -31,6 +31,9 @@ export type PaidTier = keyof typeof TIER_CONFIG;
 
 export const TRIAL_DAYS = 14;
 
+// Set on the return from trial card setup started by an upgrade: the tier whose dialog reopens.
+export const TRIAL_UPGRADE_PARAM = "upgrade";
+
 export const DATAPLANE_ADDON_LOOKUP_KEY = "pro_monthly_2026_02_addon_dataplane";
 
 /**

@@ -1,17 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { agents } from "@/lib/db/migrations/schema";
+import { renameAgent } from "@/lib/actions/agents";
 
-export async function GET(_req: Request, props: { params: Promise<{ projectId: string; agentId: string }> }) {
+export async function PATCH(req: Request, props: { params: Promise<{ projectId: string; agentId: string }> }) {
   const { projectId, agentId } = await props.params;
 
   try {
-    const [agent] = await db
-      .select({ id: agents.id, name: agents.name })
-      .from(agents)
-      .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
-      .limit(1);
+    const body = await req.json();
+    const agent = await renameAgent({ projectId, agentId, name: body?.name });
 
     if (!agent) {
       return Response.json({ error: "Agent not found" }, { status: 404 });
@@ -19,6 +15,9 @@ export async function GET(_req: Request, props: { params: Promise<{ projectId: s
 
     return Response.json(agent);
   } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
     return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }

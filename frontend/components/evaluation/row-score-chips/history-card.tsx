@@ -12,7 +12,7 @@ export interface RunPoint {
 
 interface HistoryCardProps {
   name: string;
-  /** This datapoint's value per run in the group, oldest first. */
+  /** This Task's value per run in the group, oldest first. */
   points: RunPoint[];
 }
 
@@ -21,9 +21,9 @@ const H = 58; // ~20% shorter than the original 72
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 /**
- * Hover card for a selected row's score: this DATAPOINT's value across the
+ * Hover card for a selected row's score: this Task's value across the
  * group's runs as a line, current run emphasized. Replaces the old full-width
- * per-datapoint history strip that was ripped out on dev — same data, but it
+ * per-Task history strip that was ripped out on dev — same data, but it
  * only exists while the user is asking for it (hover), so it costs no layout.
  */
 export default function HistoryCard({ name, points }: HistoryCardProps) {
@@ -51,7 +51,7 @@ export default function HistoryCard({ name, points }: HistoryCardProps) {
   const previous = points.filter((p) => !p.isCurrent && p.value !== null).length;
 
   return (
-    <div className="flex w-full flex-col gap-4 rounded-[4px] border border-border bg-surface-150 px-4 py-3">
+    <div className="flex w-full flex-col gap-4 rounded-[4px] border border-border bg-surface-350 px-4 py-3">
       <div className="flex flex-col gap-2">
         <p className="truncate text-xs leading-4 text-muted-foreground">{name}</p>
         <span className="text-2xl font-medium leading-6 tracking-[-0.4px] tabular-nums text-foreground">
@@ -78,7 +78,7 @@ export default function HistoryCard({ name, points }: HistoryCardProps) {
         </svg>
       </div>
       <p className="text-[0.7rem] leading-3 text-muted-foreground">
-        Comparing against {previous} previous run{previous === 1 ? "" : "s"} with this datapoint
+        Comparing against {previous} previous run{previous === 1 ? "" : "s"} with this Task
       </p>
     </div>
   );

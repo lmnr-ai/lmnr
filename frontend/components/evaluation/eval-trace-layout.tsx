@@ -29,7 +29,7 @@ interface EvalTraceLayoutProps {
 }
 
 // Static, resizable table | trace-column split. The trace panel is always open
-// (auto-selected first datapoint), so there is no open/close animation.
+// (auto-selected first Trial), so there is no open/close animation.
 export default function EvalTraceLayout({ table, traceColumn }: EvalTraceLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxWidth, setMaxWidth] = useState(0);

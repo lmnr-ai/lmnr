@@ -10,14 +10,17 @@ import { shallow } from "zustand/shallow";
 
 import { useReportAgentContextName } from "@/components/agent";
 import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
-import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
+import EvaluationTrialsTable from "@/components/evaluation/evaluation-trials-table";
 import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
 import {
   buildColumnDefs,
   buildFetchParams,
+  BASE_COLUMN_ORDER,
   buildStatsParams,
+  DEFAULT_HIDDEN_COLUMNS,
+  EVAL_LOCKED_COLUMNS,
   EvalStoreProvider,
   selectVisibleColumnDefs,
   useEvalStore,
@@ -26,12 +29,13 @@ import { useScoreDirections } from "@/components/evaluation/use-score-directions
 import {
   type EvaluationStatsPayload,
   flattenScores,
-  mergeDatapointUpsertIntoRows,
+  mergeTrialUpsertIntoRows,
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { groupTrialsIntoTasks, isTaskGroupRow } from "@/lib/evaluation/task-groups";
 import {
   type EvalRow,
   type Evaluation as EvaluationType,
@@ -52,12 +56,9 @@ interface EvaluationProps {
 }
 
 const PAGE_SIZE = 50;
-const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 // Forked from the pre-refresh "evaluation" resource so old persisted table
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
-// Default visibility: status + data + score:*.
-const DEFAULT_HIDDEN_COLUMNS = ["index", "target", "metadata", "output", "duration", "cost"];
 
 function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
   const pathName = usePathname();
@@ -135,12 +136,12 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     revalidateOnFocus: false,
   });
 
-  // Datapoints fetcher — depends on columnDefs (custom column SQL, etc).
+  // Trials fetcher — depends on columnDefs (custom column SQL, etc).
   // SQL strings are stable across cosmetic columnDefs changes; JSON.stringify
   // on `columnSqls` produces the same string → no spurious refetch.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
-  const fetchDatapoints = useCallback(
+  const fetchTrials = useCallback(
     async (pageNumber: number) => {
       const urlParams = buildFetchParams(
         {
@@ -156,7 +157,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       );
       const url = `/api/projects/${params.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch datapoints.");
+      if (!response.ok) throw new Error("Failed to fetch trials.");
       const data: EvaluationResultsInfo = await response.json();
       return { items: data.results, count: 0 };
     },
@@ -164,25 +165,27 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   );
 
   const {
-    data: allDatapoints,
+    data: allTrials,
     hasMore,
     isFetching,
-    isLoading: isLoadingDatapoints,
+    isLoading: isLoadingTrials,
     fetchNextPage,
     updateData,
   } = useInfiniteScroll<EvalRow>({
-    fetchFn: fetchDatapoints,
+    fetchFn: fetchTrials,
     enabled: !isStatsLoading && !isViewLoading,
     deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
+  const taskRows = useMemo(() => (allTrials ? groupTrialsIntoTasks(allTrials) : undefined), [allTrials]);
+
   // Score-range heatmap input — derived from current data, no storage needed.
   const scoreRanges = useMemo(() => {
-    if (!allDatapoints) return {};
+    if (!allTrials) return {};
     const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
     return scoreNames.reduce(
       (acc, scoreName) => {
-        const values = allDatapoints
+        const values = allTrials
           .flatMap((row) => {
             const v = [row[`score:${scoreName}`]];
             if (targetId) v.push(row[`compared:score:${scoreName}`]);
@@ -194,7 +197,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       },
       {} as Record<string, { min: number; max: number }>
     );
-  }, [allDatapoints, scoreNames, targetId]);
+  }, [allTrials, scoreNames, targetId]);
 
   // Realtime — only on the live (non-comparison) eval page.
   const debouncedRevalidateStats = useMemo(
@@ -211,10 +214,10 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
           const payload = JSON.parse(event.data) as { datapoints?: Array<EvalRow & { id: string }> };
           payload.datapoints?.forEach((incoming) => {
             const flattened = flattenScores(incoming["scores"]);
-            updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
-            if (Object.keys(flattened).length === 0) return;
-            Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
+            updateData((rows) => mergeTrialUpsertIntoRows(rows, incoming, flattened));
+            // Stats also carry the running-Trial count, so any upsert can change them.
             debouncedRevalidateStats();
+            Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
           });
         } catch (e) {
           console.warn("Failed to parse realtime datapoint_upsert:", e);
@@ -227,6 +230,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
             traces?: Array<Record<string, unknown> & { id: string }>;
           };
           payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace)));
+          debouncedRevalidateStats();
         } catch (e) {
           console.warn("Failed to parse realtime trace_update:", e);
         }
@@ -243,36 +247,41 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   });
 
   // Selection is DERIVED from the URL, not stored — so a deep link whose
-  // datapoint hasn't loaded yet, a filter that drops the selected row, or a
+  // Trial hasn't loaded yet, a filter that drops the selected row, or a
   // back/forward nav can never leave the always-open panel blank or stale.
-  // `datapointId` is the source of truth; `traceId` follows the resolved row.
-  const [datapointId, setDatapointId] = useQueryState("datapointId", parseAsString);
+  // `trialId` is the source of truth; `traceId` follows the resolved row.
+  const [trialId, setTrialId] = useQueryState("trialId", parseAsString);
   const [traceIdParam, setTraceIdParam] = useQueryState("traceId", parseAsString);
 
-  const firstRow = allDatapoints?.[0] as EvalRow | undefined;
-  // The open datapoint: the URL-linked row if it's loaded, else the first row.
+  const firstRow = allTrials?.[0] as EvalRow | undefined;
+  // The open Trial: the URL-linked row if it's loaded, else the first row.
   const selectedRow = useMemo(() => {
-    const byId = datapointId ? allDatapoints?.find((r) => r["id"] === datapointId) : undefined;
+    const byId = trialId ? allTrials?.find((r) => r["id"] === trialId) : undefined;
     return byId ?? firstRow;
-  }, [allDatapoints, datapointId, firstRow]);
+  }, [allTrials, trialId, firstRow]);
 
   // Prefer the resolved row's trace; fall back to a bare `?traceId` link (older
-  // shared links carried traceId without datapointId).
+  // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
-      setDatapointId(row.original["id"] as string);
+      if (isTaskGroupRow(row.original)) {
+        row.toggleExpanded();
+        return;
+      }
+      setTrialId(row.original["id"] as string);
       setTraceIdParam(row.original["traceId"] as string);
     },
-    [setDatapointId, setTraceIdParam]
+    [setTrialId, setTraceIdParam]
   );
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
+      if (isTaskGroupRow(row.original)) return undefined;
       const next = new URLSearchParams(searchParams.toString());
       next.set("traceId", row.original["traceId"] as string);
-      next.set("datapointId", row.original["id"] as string);
+      next.set("trialId", row.original["id"] as string);
       return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
@@ -298,9 +307,9 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   );
 
   const table = (
-    <EvaluationDatapointsTable
-      data={allDatapoints}
-      isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
+    <EvaluationTrialsTable
+      data={taskRows}
+      isLoading={isStatsLoading || isLoadingTrials || isViewLoading}
       isFetching={isFetching}
       hasMore={hasMore}
       fetchNextPage={fetchNextPage}
@@ -308,7 +317,8 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       visibleColumnDefs={visibleColumnDefs}
       isComparison={isComparison}
       scoreRanges={scoreRanges}
-      datapointId={(selectedRow?.["id"] as string | undefined) ?? undefined}
+      runningTrials={targetId ? undefined : statsData?.runningTrials}
+      trialId={(selectedRow?.["id"] as string | undefined) ?? undefined}
       handleRowClick={handleRowClick}
       getRowHref={getRowHref}
       sortBy={sortBy}
@@ -340,7 +350,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
             the wrapper. */}
         <div className="flex flex-col gap-2 flex-1 overflow-hidden pl-4 pt-2">
           {/* Split view. LEFT = run aggregate card (score picker) above the table.
-              RIGHT = the selected datapoint's score pills above its always-open
+              RIGHT = the selected Trial's score pills above its always-open
               trace view, flush to the right + bottom edges with a rounded top-left. */}
           <EvalTraceLayout
             table={
@@ -401,6 +411,7 @@ export default function Evaluation(props: EvaluationProps) {
       <InfiniteDataTableProvider
         key={RESOURCE}
         views={{ projectId, resource: RESOURCE }}
+        lockedColumns={EVAL_LOCKED_COLUMNS}
         defaults={{ columnOrder: defaultColumnOrder, columnVisibility: defaultColumnVisibility }}
       >
         <EvaluationContent {...props} />

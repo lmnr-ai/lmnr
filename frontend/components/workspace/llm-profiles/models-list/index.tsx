@@ -69,7 +69,7 @@ export function ModelsList({
           </button>
         )}
         {error ? (
-          <p className="text-xs text-destructive">{error}</p>
+          <p className="text-xs text-destructive-text">{error}</p>
         ) : hint ? (
           <p className="text-xs text-muted-foreground">{hint}</p>
         ) : null}

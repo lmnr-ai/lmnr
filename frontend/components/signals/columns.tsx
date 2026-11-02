@@ -30,7 +30,7 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
         variant="outline"
         className={cn(
           "rounded-full px-2 text-[10px]",
-          row.original.disabled ? "text-muted-foreground" : "bg-primary-400/10 border-primary-400/25 text-primary-400"
+          row.original.disabled ? "text-muted-foreground" : "bg-primary-400/10 border-primary-400/25 text-primary-text"
         )}
       >
         {row.original.disabled ? "Disabled" : "Active"}

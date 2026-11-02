@@ -19,7 +19,7 @@ interface InviteStepProps {
 
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-// Only queues addresses; the invites go out when a trial or paid plan starts at the plan step.
+// Only queues addresses; the invites go out when the trial starts on leaving the Slack step.
 export default function InviteStep({ stepIndex, totalSteps, onAdvance }: InviteStepProps) {
   const { watch, setValue, getValues } = useFormContext<OnboardingFormValues>();
   const [draft, setDraft] = useState("");
@@ -69,7 +69,7 @@ export default function InviteStep({ stepIndex, totalSteps, onAdvance }: InviteS
           {emails.map((email) => (
             <li
               key={email}
-              className="flex items-center justify-between rounded-md bg-surface-250 px-3 py-2 text-sm text-secondary-foreground"
+              className="flex items-center justify-between rounded-md bg-surface-450 px-3 py-2 text-sm text-secondary-foreground"
             >
               {email}
               <button

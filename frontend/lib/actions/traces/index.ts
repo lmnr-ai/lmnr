@@ -17,9 +17,6 @@ import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
-const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";
-const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
-
 export const GetTracesSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.guid(),
@@ -35,11 +32,6 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
 });
 
 export const DeleteTracesSchema = z.object({
-  projectId: z.guid(),
-  traceIds: z.array(z.string()).min(1),
-});
-
-export const GetTracesByIdsSchema = z.object({
   projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
@@ -194,33 +186,6 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
   };
 }
 
-export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>): Promise<TraceRow[]> {
-  const { projectId, traceIds } = GetTracesByIdsSchema.parse(input);
-
-  if (traceIds.length === 0) {
-    return [];
-  }
-
-  const query = `
-    SELECT
-      id,
-      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
-      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
-      input_cost as inputCost,
-      output_cost as outputCost,
-      total_cost as totalCost,
-      status
-    FROM traces
-    WHERE id IN ({traceIds:Array(UUID)})
-  `;
-
-  return await executeQuery<TraceRow>({
-    query,
-    parameters: { projectId, traceIds },
-    projectId,
-  });
-}
-
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   const { projectId, traceIds } = input;
 
@@ -236,5 +201,3 @@ export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
     },
   });
 }
-
-export { EVENTS_TRACE_VIEW_WIDTH, TRACES_TRACE_VIEW_WIDTH };

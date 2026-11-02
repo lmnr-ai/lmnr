@@ -124,16 +124,14 @@ export default function TraceItem({
             className={cn(
               "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px] pl-1.5 pr-3 bg-muted/75",
 
-              "hover:bg-muted/90"
+              "hover:overlay-hover"
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="inline-flex items-center justify-center rounded-full border border-foreground-100/10 bg-foreground-100/5 px-2 py-0.5 text-[10px] font-medium leading-[17px] text-secondary-foreground whitespace-nowrap">
                 {traceIndex}/{totalTraces}
               </span>
-              <span className="text-[13px] font-medium leading-[17px] text-primary-foreground whitespace-nowrap">
-                Trace
-              </span>
+              <span className="text-[13px] font-medium leading-[17px] text-foreground whitespace-nowrap">Trace</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <span
@@ -141,7 +139,7 @@ export default function TraceItem({
                     tabIndex={0}
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="inline-flex items-center justify-center rounded hover:bg-secondary cursor-pointer"
+                    className="inline-flex items-center justify-center rounded hover:overlay-hover cursor-pointer"
                   >
                     <ChevronDown className="size-3.5 text-secondary-foreground" />
                   </span>

@@ -19,11 +19,11 @@ export default function PricingTable() {
         style={{ gridTemplateColumns: `1.4fr repeat(${TIER_COLUMNS.length}, 1fr)` }}
       >
         {/* Header row — sticky on md+ */}
-        <div className="sticky top-0 z-10 bg-surface-150 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-150 after:to-transparent after:pointer-events-none" />
+        <div className="sticky top-0 z-10 bg-surface-350 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-350 after:to-transparent after:pointer-events-none" />
         {TIER_COLUMNS.map((tier) => (
           <div
             key={tier.id}
-            className="sticky top-0 z-10 bg-surface-150 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-150 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
+            className="sticky top-0 z-10 bg-surface-350 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-350 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
           >
             <div className="flex flex-col gap-1">
               <p className={cn(subSection, "text-white")}>{tier.name}</p>
@@ -62,14 +62,14 @@ function FeatureGroupRows({ group }: { group: FeatureGroup }) {
 function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
   return (
     <>
-      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-300/50">
+      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-500/50">
         <span className="inline-flex items-center gap-1.5">
           {row.label}
           {row.tooltip && <InfoTooltip>{row.tooltip}</InfoTooltip>}
         </span>
       </div>
       {TIER_COLUMNS.map((tier) => (
-        <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-300/50">
+        <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-500/50">
           <FeatureCell value={row.values[tier.id]} />
         </div>
       ))}

@@ -19,9 +19,7 @@ import { extractInstructions } from "@/lib/playground/utils";
 import { type JsonObject } from "./types";
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
-export type { JsonObject };
-
-export const zJsonObject = z
+const zJsonObject = z
   .string()
   .optional()
   .transform((str, ctx): JsonObject => {
@@ -64,7 +62,7 @@ const emptyUsage: LanguageModelUsage = {
   totalTokens: 0,
 };
 
-export interface ChatGenerationResult {
+interface ChatGenerationResult {
   result: GenerateTextResult<ToolSet, Record<string, never>, never>;
   /** Vendor family reported as `gen_ai.system`. */
   provider: string;
@@ -89,9 +87,7 @@ export interface PlaygroundChatResult {
   response?: { modelId?: string };
 }
 
-export async function generateChatResponse(
-  params: z.infer<typeof PlaygroundParamsSchema>
-): Promise<ChatGenerationResult> {
+async function generateChatResponse(params: z.infer<typeof PlaygroundParamsSchema>): Promise<ChatGenerationResult> {
   const {
     messages,
     llmProfileId,

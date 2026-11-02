@@ -16,9 +16,16 @@ interface ColumnsMenuProps {
   panelConfig?: CustomColumnPanelConfig;
   /** Store actions for managing custom columns. */
   columnActions?: ColumnActions;
+  /** Columns left out of the list entirely (they keep their place in the column order). */
+  omitColumnIds?: string[];
 }
 
-export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActions }: ColumnsMenuProps) {
+export default function ColumnsMenu({
+  columnLabels = [],
+  panelConfig,
+  columnActions,
+  omitColumnIds = [],
+}: ColumnsMenuProps) {
   const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, lockedColumns } =
     useTableConfigStore(
       (state) => ({
@@ -31,6 +38,13 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
       }),
       shallow
     );
+
+  const listedOrder = columnOrder.filter((id) => !omitColumnIds.includes(id));
+  // Write the reordered listed columns back into their slots, leaving omitted columns where they were.
+  const handleReorder = (next: string[]) => {
+    let i = 0;
+    setColumnOrder(columnOrder.map((id) => (omitColumnIds.includes(id) ? id : next[i++])));
+  };
 
   const supportsCustomColumns = !!panelConfig && !!columnActions;
   const [isOpen, setIsOpen] = useState(false);
@@ -100,11 +114,11 @@ export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActi
         <AnimatePresence mode="wait" initial={false}>
           {activePanel === "list" || !supportsCustomColumns ? (
             <ColumnsListPanel
-              columnOrder={columnOrder}
+              columnOrder={listedOrder}
               columnVisibility={columnVisibility}
               columnLabels={columnLabels}
               lockedColumns={lockedColumns}
-              onReorder={setColumnOrder}
+              onReorder={handleReorder}
               onToggleVisibility={handleToggleVisibility}
               onReset={resetColumns}
               onCustomColumnClick={() => {

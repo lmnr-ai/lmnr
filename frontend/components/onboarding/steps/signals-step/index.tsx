@@ -42,7 +42,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance, onBack }
             href="https://laminar.sh/blog/flow-1"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white hover:underline"
+            className="text-foreground hover:underline"
           >
             flow-1
           </a>

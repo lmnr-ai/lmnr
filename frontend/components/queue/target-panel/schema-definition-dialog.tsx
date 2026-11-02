@@ -197,7 +197,7 @@ export default function SchemaDefinitionDialog({
             />
           </div>
           {!isValid && (
-            <p className="text-xs text-destructive">
+            <p className="text-xs text-destructive-text">
               Please enter a valid JSON Schema with type: &#34;object&#34; and properties
             </p>
           )}

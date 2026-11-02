@@ -241,10 +241,8 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 // and is repopulated from a fresh DB query — no key bump needed.
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
-export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
 export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";
 export const WORKSPACE_USAGE_WARNINGS_CACHE_KEY = "workspace_usage_warnings";
@@ -255,10 +253,12 @@ export const ONBOARDING_COMPANY_NAME_CACHE_KEY = "onboarding_company_name";
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;
 
+// Also read and written by the app-server CLI routes: must stay in sync with
+// `PROJECT_MEMBER_CACHE_KEY` in `app-server/src/cache/keys.rs`.
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
-// Must stay in sync with `PROJECT_MEMBERSHIP_CACHE_KEY` in `app-server/src/cache/keys.rs` (CLI user routes).
-export const CLI_PROJECT_MEMBERSHIP_CACHE_KEY = (userId: string, projectId: string) =>
-  `project_membership:${userId}:${projectId}`;
+
+// TTL for the two keys above. Matches `PROJECT_MEMBER_TTL_SECONDS` in `app-server/src/auth/cli_user.rs`.
+export const MEMBER_ACCESS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 // Must stay in sync with `MEMBER_ROLE_CACHE_KEY` in `app-server/src/cache/keys.rs`.
 // The app-server caches a member's role to derive its read policy; remove the

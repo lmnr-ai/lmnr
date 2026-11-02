@@ -123,14 +123,23 @@ pub fn format_message_blocks_batch(
 /// exceeds the limit, truncate at a char boundary and append `...` so the
 /// block stays under the limit while signalling the truncation to the reader.
 pub(crate) fn truncate_to_slack_section_limit(text: &str) -> String {
-    const SLACK_SECTION_TEXT_LIMIT: usize = 3000;
+    truncate_with_ellipsis(text, 3000)
+}
+
+/// All `markdown` blocks in one Slack message share a 12,000-char cap.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub(crate) fn truncate_to_slack_markdown_limit(text: &str) -> String {
+    truncate_with_ellipsis(text, 12_000)
+}
+
+fn truncate_with_ellipsis(text: &str, limit: usize) -> String {
     const ELLIPSIS: &str = "...";
 
-    if text.chars().count() <= SLACK_SECTION_TEXT_LIMIT {
+    if text.chars().count() <= limit {
         return text.to_string();
     }
 
-    let keep = SLACK_SECTION_TEXT_LIMIT - ELLIPSIS.chars().count();
+    let keep = limit - ELLIPSIS.chars().count();
     let mut out: String = text.chars().take(keep).collect();
     out.push_str(ELLIPSIS);
     out

@@ -7,6 +7,7 @@ import AnnouncementDetailsDialog from "@/components/announcements/details-dialog
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
+import ProjectBottomBar from "@/components/project/bottom-bar";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -56,24 +57,29 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
           {announcementsEnabled && <AnnouncementDetailsDialog />}
-          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
+          <div className="fixed inset-0 flex overflow-clip">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar
                 dismissedAnnouncementIds={dismissedAnnouncementIds}
                 details={projectDetails}
                 announcements={announcements}
               />
-              <SidebarInset className="relative flex flex-row h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-                {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
-                    space left of the agent column, rather than under it. */}
-                <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <NotificationPanel />
-                  {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                  {children}
-                  {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+              <SidebarInset className="relative flex flex-col md:pt-2 overflow-hidden bg-sidebar">
+                <div className="flex flex-1 flex-col md:border-l md:border-y md:rounded-tl-lg md:rounded-bl-lg bg-background overflow-hidden">
+                  <div className="flex min-h-0 flex-1">
+                    {/* `relative` so the trace-view drawer (absolute) anchors here and reflows within the
+                      space left of the agent column, rather than under it. */}
+                    <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+                      <NotificationPanel />
+                      {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                      {children}
+                      {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
+                    </div>
+                    {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
+                    {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
+                  </div>
                 </div>
-                {/* Flex sibling: opening it shrinks the content column instead of overlaying it. */}
-                {isFeatureEnabled(Feature.AGENT) && <LaminarAgent />}
+                <ProjectBottomBar showAgent={isFeatureEnabled(Feature.AGENT)} />
               </SidebarInset>
             </SidebarProvider>
           </div>

@@ -47,7 +47,7 @@ export default function CopyFlag({
           {description && <p className="text-xs text-muted-foreground w-full">{description}</p>}
           <button
             type="button"
-            className="self-start whitespace-nowrap rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:bg-muted"
+            className="self-start whitespace-nowrap rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:overlay-hover"
             onClick={async (e) => {
               // Rows have their own click behavior (expand toggle / span select).
               e.stopPropagation();

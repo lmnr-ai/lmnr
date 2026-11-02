@@ -11,7 +11,7 @@ export interface PolicyDoc {
 
 const FRONTMATTER = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
-export const parseFrontmatter = (raw: string): { data: Record<string, unknown>; content: string } => {
+const parseFrontmatter = (raw: string): { data: Record<string, unknown>; content: string } => {
   const match = FRONTMATTER.exec(raw);
   if (!match) return { data: {}, content: raw };
   const data = parse(match[1]);

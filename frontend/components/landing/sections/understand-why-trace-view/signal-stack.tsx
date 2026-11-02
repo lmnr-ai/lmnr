@@ -218,7 +218,7 @@ const StackCard = ({
 
   return (
     <motion.div aria-hidden={!isLive} className="absolute top-0 left-0" style={{ x: cx, y: cy }}>
-      <motion.div className="absolute inset-0 rounded-md bg-surface-300" style={{ opacity: backing }} />
+      <motion.div className="absolute inset-0 rounded-md bg-surface-500" style={{ opacity: backing }} />
       <motion.div className="relative" style={{ opacity }}>
         {/* Eased: this is the card's BOX shrinking. Its own internal fades are
             keyed to fractions of the collapse's geometry, not of the scroll, so

@@ -50,7 +50,7 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
       : 0;
 
   return (
-    <Card>
+    <Card className="border-0">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Upcoming invoice</CardTitle>
@@ -261,6 +261,7 @@ export default function WorkspaceBilling({
         targetTierName={targetTierInfo?.name ?? tierKey}
         targetTierPrice={targetTierInfo?.price ?? ""}
         targetTierPriceSubtext={targetTierInfo?.priceSubtext ?? ""}
+        needsPaymentMethod={!!subscription?.trialEnd && !subscription.hasPaymentMethod}
         onError={setError}
       >
         <Button variant={action === "upgrade" ? "default" : "outline"} className="w-full h-8 text-xs">
@@ -275,14 +276,14 @@ export default function WorkspaceBilling({
       <SettingsSectionHeader title="Billing" description="Manage your workspace plan and billing" />
 
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-md p-3 text-sm">
+        <div className="bg-destructive/10 border border-destructive-border/20 text-destructive-text rounded-md p-3 text-sm">
           {error}
         </div>
       )}
 
       {canManageBilling && subscription && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
-          <Card>
+          <Card className="border-0">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Current plan</CardTitle>
@@ -291,7 +292,7 @@ export default function WorkspaceBilling({
                     "text-xs px-2 py-0.5 rounded-md font-medium",
                     subscription.cancelAtPeriodEnd || subscription.trialEnd
                       ? "bg-yellow-500/10 text-yellow-500"
-                      : "bg-primary/10 text-primary"
+                      : "bg-primary/10 text-primary-text"
                   )}
                 >
                   {subscription.trialEnd
@@ -343,7 +344,10 @@ export default function WorkspaceBilling({
                     periodEnd={formatDate(subscription.currentPeriodEnd)}
                     onError={setError}
                   >
-                    <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
+                    <Button
+                      variant="outline"
+                      className="text-destructive-text border-destructive-border hover:bg-destructive/10"
+                    >
                       Cancel plan
                     </Button>
                   </CancelSubscriptionDialog>
@@ -366,7 +370,7 @@ export default function WorkspaceBilling({
               <div
                 key={key}
                 className={cn(
-                  "p-4 rounded-lg bg-surface-100 flex flex-col justify-between min-h-[180px]",
+                  "p-4 rounded-lg bg-surface-300 flex flex-col justify-between min-h-[180px]",
                   isCurrent && "ring-1 ring-primary/50",
                   key === "pro" && !isCurrent && "border-primary/50"
                 )}

@@ -29,7 +29,7 @@ function InputItemInner({ text, inGroup, className, startTime }: InputItemProps)
       >
         <div className="flex gap-2 items-center min-w-0">
           <div className="flex items-center justify-center z-10 rounded shrink-0 bg-blue-400/70 w-5 h-5 min-w-5 min-h-5">
-            <ArrowRight size={14} />
+            <ArrowRight size={14} className="text-white" />
           </div>
           <span className="font-medium text-sm whitespace-nowrap shrink-0">Input</span>
           {startTime && (

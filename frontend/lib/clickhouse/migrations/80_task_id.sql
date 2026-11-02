@@ -1,0 +1,181 @@
+-- Task (test case) id. Evaluation rows sharing (evaluation_id, task_id) are
+-- repeated trials of one task. Existing rows get the DEFAULT (an evaluation row's
+-- `index`, a dataset row's id), written to disk by the MATERIALIZE below.
+ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT toString(`index`);
+ALTER TABLE dataset_datapoints ADD COLUMN IF NOT EXISTS task_id String DEFAULT toString(id);
+
+-- When a Trial was first saved; app-server carries it over when the Trial is saved again.
+-- Existing rows get their last write (`updated_at`), written to disk by the MATERIALIZE below.
+ALTER TABLE evaluation_datapoints ADD COLUMN IF NOT EXISTS created_at DateTime64(9, 'UTC') DEFAULT updated_at;
+
+-- Backfill: write the defaults into existing parts, so old rows store their task id and
+-- created_at instead of computing them on every read. Runs as a background mutation.
+-- `index` is untouched and still written on every insert.
+ALTER TABLE evaluation_datapoints MATERIALIZE COLUMN task_id;
+ALTER TABLE evaluation_datapoints MATERIALIZE COLUMN created_at;
+ALTER TABLE dataset_datapoints MATERIALIZE COLUMN task_id;
+
+-- evaluation_datapoints_v0 as of migration 73, plus `task_id` and `created_at` from the new columns.
+DROP VIEW IF EXISTS evaluation_datapoints_v0;
+CREATE VIEW IF NOT EXISTS evaluation_datapoints_v0
+SQL SECURITY INVOKER
+AS SELECT
+    edp.id id,
+    edp.evaluation_id evaluation_id,
+    dictGetOrDefault('evaluations_dict', 'name', (edp.project_id, edp.evaluation_id), '') evaluation_name,
+    edp.data data,
+    edp.target target,
+    edp.metadata metadata,
+    edp.executor_output executor_output,
+    edp.index `index`,
+    edp.task_id task_id,
+    edp.trace_id trace_id,
+    -- Postgres is the source of truth; the ClickHouse copy covers the dict's reload lag.
+    dictGetOrDefault('evaluations_dict', 'group_id', (edp.project_id, edp.evaluation_id), edp.group_id) group_id,
+    edp.scores scores,
+    edp.updated_at updated_at,
+    edp.created_at created_at,
+    edp.dataset_id dataset_id,
+    edp.dataset_datapoint_id dataset_datapoint_id,
+    edp.dataset_datapoint_created_at dataset_datapoint_created_at,
+    t.end_time - t.start_time duration,
+    t.input_cost input_cost,
+    t.output_cost output_cost,
+    t.total_cost total_cost,
+    t.start_time start_time,
+    t.end_time end_time,
+    t.input_tokens input_tokens,
+    t.output_tokens output_tokens,
+    t.total_tokens total_tokens,
+    -- No status-bearing span means 'success', as in traces_v0; toLowCardinality
+    -- preserves the previous column type.
+    toLowCardinality(if(has(t.statuses, 'error'), 'error', 'success')) trace_status,
+    ifNull(ts.metadata, '') trace_metadata,
+    t.tags trace_tags,
+    ifNull(ts.root_span_id, toUUID('00000000-0000-0000-0000-000000000000')) top_span_id,
+    s.spans trace_spans
+FROM evaluation_datapoints edp FINAL
+LEFT JOIN
+(
+    SELECT
+        project_id,
+        id,
+        -- Cast off the SimpleAggregateFunction wrapper so the exposed types
+        -- stay plain DateTime64 as before
+        CAST(min(start_time) AS DateTime64(9, 'UTC')) AS start_time,
+        CAST(max(end_time) AS DateTime64(9, 'UTC')) AS end_time,
+        sum(input_tokens) AS input_tokens,
+        sum(output_tokens) AS output_tokens,
+        sum(total_tokens) AS total_tokens,
+        sum(input_cost) AS input_cost,
+        sum(output_cost) AS output_cost,
+        sum(total_cost) AS total_cost,
+        groupUniqArrayArray(statuses) AS statuses,
+        groupUniqArrayArray(tags) AS tags
+    FROM
+    (
+        -- Nested scan because a bare `start_time` in the outer WHERE would bind
+        -- to the `min(start_time)` alias above and fail as an aggregate in WHERE
+        SELECT
+            project_id,
+            id,
+            start_time,
+            end_time,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            input_cost,
+            output_cost,
+            total_cost,
+            statuses,
+            tags
+        FROM default.traces_agg
+        WHERE project_id = {project_id:UUID}
+            AND start_time >= {min_start_time:DateTime64(9)}
+            AND start_time <= {max_start_time:DateTime64(9)}
+            AND id IN (
+                SELECT trace_id
+                FROM default.evaluation_datapoints
+                WHERE project_id = {project_id:UUID}
+                    AND (empty({eval_ids:Array(UUID)})
+                        OR evaluation_id IN {eval_ids:Array(UUID)})
+            )
+    )
+    GROUP BY project_id, id
+) AS t ON (t.project_id = edp.project_id) AND (t.id = edp.trace_id)
+LEFT JOIN
+(
+    SELECT project_id, trace_id, metadata, root_span_id
+    FROM default.traces_static FINAL
+    PREWHERE project_id = {project_id:UUID}
+        AND start_time >= {min_start_time:DateTime64(9)}
+        AND start_time <= {max_start_time:DateTime64(9)}
+        AND trace_id IN (
+            SELECT trace_id
+            FROM default.evaluation_datapoints
+            WHERE project_id = {project_id:UUID}
+                AND (empty({eval_ids:Array(UUID)})
+                    OR evaluation_id IN {eval_ids:Array(UUID)})
+        )
+) AS ts ON (ts.project_id = edp.project_id) AND (ts.trace_id = edp.trace_id)
+LEFT JOIN
+(
+    SELECT
+        trace_id,
+        project_id,
+        groupArray(
+            CAST(
+                tuple(
+                    name,
+                    (toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 1000000000,
+                    span_type
+                )
+                AS
+                Tuple(name String, duration Float64, type String)
+            )
+        ) AS spans
+    FROM default.spans
+    WHERE project_id = {project_id:UUID}
+        AND start_time >= {min_start_time:DateTime64(9)}
+        AND start_time <= {max_start_time:DateTime64(9)}
+        AND trace_id IN (
+            SELECT trace_id
+            FROM default.evaluation_datapoints
+            WHERE project_id = {project_id:UUID}
+                AND (empty({eval_ids:Array(UUID)})
+                    OR evaluation_id IN {eval_ids:Array(UUID)})
+        )
+    GROUP BY project_id, trace_id
+) AS s ON (s.project_id = edp.project_id) AND (s.trace_id = edp.trace_id)
+WHERE edp.project_id = {project_id:UUID}
+    AND (empty({eval_ids:Array(UUID)}) OR edp.evaluation_id IN {eval_ids:Array(UUID)});
+
+-- dataset_datapoints_v0 / dataset_datapoint_versions_v0 as of migration 73, plus `task_id`.
+DROP VIEW IF EXISTS dataset_datapoints_v0;
+CREATE VIEW dataset_datapoints_v0 SQL SECURITY INVOKER AS
+    SELECT
+        id,
+        created_at,
+        dataset_id,
+        dictGetOrDefault('datasets_dict', 'name', (project_id, dataset_id), '') AS dataset_name,
+        data,
+        target,
+        metadata,
+        task_id
+    FROM dataset_datapoints
+    WHERE project_id={project_id:UUID}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, dataset_id, id ORDER BY created_at DESC) = 1;
+
+DROP VIEW IF EXISTS dataset_datapoint_versions_v0;
+CREATE VIEW dataset_datapoint_versions_v0 SQL SECURITY INVOKER AS
+    SELECT
+        id,
+        created_at,
+        dataset_id,
+        dictGetOrDefault('datasets_dict', 'name', (project_id, dataset_id), '') AS dataset_name,
+        data,
+        target,
+        metadata,
+        task_id
+    FROM dataset_datapoints
+    WHERE project_id={project_id:UUID};

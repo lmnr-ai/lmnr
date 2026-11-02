@@ -10,7 +10,7 @@ use crate::reports::{ProjectReportData, ReportData};
 /// Reads `NEXT_PUBLIC_URL` (the frontend's public URL) so self-hosted deployments
 /// route users to their own instance. Falls back to the given default for the
 /// managed Laminar Cloud experience.
-fn frontend_url_with_default(default: &str) -> String {
+pub(crate) fn frontend_url_with_default(default: &str) -> String {
     let raw =
         std::env::var(crate::env::notifications::NEXT_PUBLIC_URL).unwrap_or(default.to_string());
     raw.trim_end_matches('/').to_string()

@@ -185,10 +185,7 @@ impl SpVersioningHandler {
 impl MessageHandler for SpVersioningHandler {
     type Message = Vec<SpVersioningMessage>;
 
-    // Classification is LLM-free, so it runs unconditionally: the ingest
-    // producer gates publishing on `llm_client_available()`, and the
-    // extraction workers (which DO need the client) consume their own queue
-    // — possibly on another node.
+    // Classification is LLM-free, so it runs unconditionally.
     async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
         let mut rows: Vec<SpanVersion> = Vec::new();
         for message in &messages {
@@ -544,15 +541,6 @@ impl SpVersioningHandler {
         } else {
             MintGate::ForcedRetryBudget
         };
-        if last_attempt && available < min_window {
-            log::info!(
-                "[SP_VERSIONING] Retry budget exhausted for {} agent {} (project {}) — minting from partial window of {}",
-                self.kind.label(),
-                message.agent_hash,
-                message.project_id,
-                available
-            );
-        }
 
         let selected = window::select_top_k(
             win,
@@ -577,13 +565,6 @@ impl SpVersioningHandler {
         // text is fully dynamic, so it parks like any unresolved message.
         let intersection = similarity::intersect_ordered(&seqs);
         if intersection.is_empty() && gate != MintGate::Normal {
-            log::info!(
-                "[SP_VERSIONING] Empty intersection over a partial {} window for agent {} (project {}, {} candidates) — skipping mint",
-                self.kind.label(),
-                message.agent_hash,
-                message.project_id,
-                selected.len()
-            );
             if !win[entry_idx].labeled {
                 self.park(message, "empty partial-window intersection")
                     .await;
@@ -731,17 +712,6 @@ impl SpVersioningHandler {
             regexes,
         )
         .await?;
-
-        log::info!(
-            "[SP_VERSIONING] Minted {} version {} for agent {} (project {}, {} static lines, {} cluster samples, gate {})",
-            self.kind.label(),
-            version_hash,
-            message.agent_hash,
-            message.project_id,
-            intersection.len(),
-            selected.len(),
-            gate.as_str()
-        );
 
         self.journal_mint(
             message,
@@ -1072,6 +1042,30 @@ mod tests {
         )
         .await;
         assert_eq!(memo.as_deref(), Some(version_hash.as_str()));
+    }
+
+    /// A memo filled while the message sat in the queue (e.g. a probe mint)
+    /// wins over the producer's inline verdict.
+    #[tokio::test]
+    async fn memo_wins_over_a_stale_inline_verdict() {
+        let handler = make_handler();
+        let project_id = Uuid::new_v4();
+        let mut message = make_message(project_id, &versioned_prompt(999));
+        versions::memo_set(
+            &handler.cache,
+            VersionKind::SystemPrompt,
+            project_id,
+            AGENT,
+            &message.full_prompt_hash,
+            "newer",
+        )
+        .await;
+        message.cheap_matched_version = Some("stale".to_string());
+
+        let mut rows = Vec::new();
+        handler.process_message(&message, &mut rows).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].version_hash, "newer");
     }
 
     /// Drive `full_algorithm` against a window whose prompts have all dropped

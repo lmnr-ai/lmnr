@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth-session";
 import {
   cache,
-  CLI_PROJECT_MEMBERSHIP_CACHE_KEY,
+  MEMBER_ACCESS_CACHE_TTL_SECONDS,
   PROJECT_MEMBER_CACHE_KEY,
   WORKSPACE_MEMBER_CACHE_KEY,
 } from "@/lib/cache.ts";
@@ -13,6 +13,8 @@ import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
 
 import { notTrialLocked, trialLocked } from "./trial-lock";
+
+export { invalidateMemberAccessCache, invalidateWorkspaceMemberAccessCache } from "./member-cache";
 
 // A member blocked only by the trial lock is sent to /trial-ended instead of a 404.
 const redirectIfTrialLocked = async (userId: string, target: { workspaceId: string } | { projectId: string }) => {
@@ -37,30 +39,6 @@ const redirectIfTrialLocked = async (userId: string, target: { workspaceId: stri
           .limit(1);
   if (rows.length > 0) {
     redirect(`/trial-ended?workspaceId=${rows[0].workspaceId}`);
-  }
-};
-
-// Membership results are cached for 30 days; call this whenever the trial lock may have changed.
-export const invalidateWorkspaceMemberAccessCache = async (workspaceId: string) => {
-  try {
-    const [members, workspaceProjects] = await Promise.all([
-      db
-        .select({ userId: membersOfWorkspaces.userId })
-        .from(membersOfWorkspaces)
-        .where(eq(membersOfWorkspaces.workspaceId, workspaceId)),
-      db.select({ id: projects.id }).from(projects).where(eq(projects.workspaceId, workspaceId)),
-    ]);
-    await Promise.all(
-      members.flatMap(({ userId }) => [
-        cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId)),
-        ...workspaceProjects.flatMap((p) => [
-          cache.remove(PROJECT_MEMBER_CACHE_KEY(p.id, userId)),
-          cache.remove(CLI_PROJECT_MEMBERSHIP_CACHE_KEY(userId, p.id)),
-        ]),
-      ])
-    );
-  } catch (e) {
-    console.error(`Failed to invalidate member access cache for workspace ${workspaceId}`, e);
   }
 };
 
@@ -101,8 +79,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
   const isMember = results?.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -147,8 +124,7 @@ export async function requireProjectAccess(projectId: string) {
   const isMember = results?.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -164,7 +140,7 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
   const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, userId);
 
   // Security-sensitive callers (key mint, device-scope write) pass skipCache so a
-  // membership cached up to 30 days ago can't authorize a since-removed user.
+  // membership cached up to 7 days ago can't authorize a since-removed user.
   if (!opts?.skipCache) {
     try {
       const cached = await cache.get<boolean>(cacheKey);
@@ -184,8 +160,8 @@ export const isUserMemberOfProject = async (projectId: string, userId: string, o
   const isMember = result.length > 0;
 
   try {
-    // 30 days. Refresh the cache from the fresh read even on skipCache.
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    // Refresh the cache from the fresh read even on skipCache.
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }
@@ -214,8 +190,7 @@ export const isUserMemberOfWorkspace = async (workspaceId: string, userId: strin
   const isMember = result.length > 0;
 
   try {
-    // 30 days
-    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: MEMBER_ACCESS_CACHE_TTL_SECONDS });
   } catch (e) {
     console.error("Error setting entry in cache", e);
   }

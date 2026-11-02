@@ -21,7 +21,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
 
   return (
     <Collapsible className="group" open={isOpen} onOpenChange={setIsOpen}>
-      <div className="text-destructive max-h-48 overflow-x-hidden no-scrollbar bg-card rounded-md border">
+      <div className="text-destructive-text max-h-48 overflow-x-hidden no-scrollbar bg-surface-300 rounded-md border">
         <div
           onClick={() => setIsOpen((prev) => !prev)}
           className="flex items-start gap-2 w-full p-2 text-left rounded-md cursor-pointer"

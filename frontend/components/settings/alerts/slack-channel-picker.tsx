@@ -119,7 +119,7 @@ const SlackChannelPicker = ({
             "flex flex-wrap items-center gap-1 min-h-7 w-full rounded-md border bg-background px-2 py-1 text-xs",
             "focus-within:outline-hidden focus-within:ring-1 focus-within:ring-ring",
             disabled && "opacity-50 cursor-not-allowed",
-            invalid && "border-destructive"
+            invalid && "border-destructive-border"
           )}
         >
           {value.map((v) => (
@@ -163,7 +163,7 @@ const SlackChannelPicker = ({
         </div>
 
         {open && (
-          <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover text-popover-foreground shadow-md">
+          <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-surface-300 text-foreground-100 shadow-md">
             {isLoading ? (
               <div className="p-3 text-xs text-muted-foreground flex items-center gap-2">
                 <Loader2 className="size-3 animate-spin" />

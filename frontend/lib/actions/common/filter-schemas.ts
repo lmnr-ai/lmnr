@@ -18,23 +18,23 @@ const BaseFilterSchemaRelaxed = z.object({
   value: z.union([z.string(), z.number()]),
 });
 
-export const StringFilterSchema = BaseFilterSchema.extend({
+const StringFilterSchema = BaseFilterSchema.extend({
   operator: z.enum(STRING_OPERATORS),
 });
 
-export const NumberFilterSchema = BaseFilterSchema.extend({
+const NumberFilterSchema = BaseFilterSchema.extend({
   operator: z.enum(NUMBER_OPERATORS),
 });
 
-export const BooleanFilterSchema = BaseFilterSchema.extend({
+const BooleanFilterSchema = BaseFilterSchema.extend({
   operator: z.enum(BOOLEAN_OPERATORS),
 });
 
-export const JsonFilterSchema = BaseFilterSchema.extend({
+const JsonFilterSchema = BaseFilterSchema.extend({
   operator: z.enum(JSON_OPERATORS),
 });
 
-export const ArrayFilterSchema = z.object({
+const ArrayFilterSchema = z.object({
   dataType: FilterDataTypeSchema.optional(),
   column: z.string(),
   value: z.array(z.string().min(1)).min(1),
@@ -69,4 +69,3 @@ export type StringFilter = z.infer<typeof StringFilterSchema>;
 export type NumberFilter = z.infer<typeof NumberFilterSchema>;
 export type BooleanFilter = z.infer<typeof BooleanFilterSchema>;
 export type JsonFilter = z.infer<typeof JsonFilterSchema>;
-export type ArrayFilter = z.infer<typeof ArrayFilterSchema>;

@@ -1,7 +1,7 @@
 import { isNil, takeRight } from "lodash";
 
-import { type MessageLabel, type ProcessedMessages, processMessages } from "@/components/traces/span-view/messages";
-import { convertToMessages, normalizeToMessages } from "@/lib/spans/types";
+import type { MessageLabel } from "@/components/traces/span-view/messages";
+import { type ProcessedMessages, processMessages } from "@/lib/spans/process-messages";
 import { parseOpenAIOutput } from "@/lib/spans/types/openai";
 
 // Unwrap a double-serialized string payload (e.g. Gemini output stored as a JSON string).
@@ -14,59 +14,38 @@ const normalize = (data: unknown): unknown => {
   }
 };
 
-// Flatten a side to generic ModelMessage[] so two different formats can share one list.
-const toGenericMessages = (p: ProcessedMessages, normalized: unknown): ProcessedMessages["messages"] =>
-  p.type === "generic" ? p.messages : convertToMessages(normalized as Parameters<typeof convertToMessages>[0]);
-
-// Detect input and output separately, then merge into one list: same-type sides keep their
-// rich renderer, mixed formats (e.g. OpenAI input + GenAI output) share a generic one.
+// Detect input and output independently and keep them as separate segments, each rendered in its
+// own format. Formats overlap (a plain `{role, content: "str"}` input parses as OpenAI while an
+// Anthropic `tool_use` output does not), and flattening mismatched sides to generic is lossy.
 const combineMessages = (
   input: unknown,
   output: unknown
-): { processed: ProcessedMessages | undefined; labels: MessageLabel[] } => {
-  const inputNorm = isNil(input) ? null : normalizeToMessages(input);
-  const outputNorm = isNil(output) ? null : normalizeToMessages(output);
-  const inputProcessed = inputNorm == null ? null : processMessages(inputNorm);
-  const outputProcessed = outputNorm == null ? null : processMessages(outputNorm);
+): { segments: ProcessedMessages[] | undefined; labels: MessageLabel[] } => {
+  const inputProcessed = isNil(input) ? null : processMessages(input);
+  const outputProcessed = isNil(output) ? null : processMessages(output);
 
-  let type: ProcessedMessages["type"] = "generic";
-  let inputMsgs: ProcessedMessages["messages"] = [];
-  let outputMsgs: ProcessedMessages["messages"] = [];
-  if (inputProcessed && outputProcessed) {
-    if (inputProcessed.type === outputProcessed.type) {
-      type = inputProcessed.type;
-      inputMsgs = inputProcessed.messages.slice(-2);
-      outputMsgs = outputProcessed.messages;
-    } else {
-      inputMsgs = toGenericMessages(inputProcessed, inputNorm).slice(-2);
-      outputMsgs = toGenericMessages(outputProcessed, outputNorm);
-    }
-  } else if (inputProcessed) {
-    type = inputProcessed.type;
-    inputMsgs = inputProcessed.messages.slice(-2);
-  } else if (outputProcessed) {
-    type = outputProcessed.type;
-    outputMsgs = outputProcessed.messages;
+  const segments: ProcessedMessages[] = [];
+  const inputCount = inputProcessed ? Math.min(inputProcessed.messages.length, 2) : 0;
+  if (inputProcessed) {
+    segments.push({ ...inputProcessed, messages: inputProcessed.messages.slice(-2) } as ProcessedMessages);
+  }
+  if (outputProcessed) {
+    segments.push(outputProcessed);
   }
 
-  const processed =
-    inputProcessed || outputProcessed
-      ? ({ type, messages: [...inputMsgs, ...outputMsgs] } as ProcessedMessages)
-      : undefined;
-
   const labels: MessageLabel[] = [];
-  if (inputMsgs.length > 0) {
+  if (inputCount > 0) {
     labels.push({
       beforeIndex: 0,
       text: "Input",
-      subtext: inputMsgs.length === 1 ? "(last message)" : "(last 2 messages)",
+      subtext: inputCount === 1 ? "(last message)" : "(last 2 messages)",
     });
   }
-  if (outputMsgs.length > 0) {
-    labels.push({ beforeIndex: inputMsgs.length, text: "Output" });
+  if (outputProcessed && outputProcessed.messages.length > 0) {
+    labels.push({ beforeIndex: inputCount, text: "Output" });
   }
 
-  return { processed, labels };
+  return { segments: segments.length > 0 ? segments : undefined, labels };
 };
 
 // Raw payload (last 2 input messages + output) for the JSON/YAML/TEXT modes.
@@ -82,9 +61,9 @@ const buildRawValue = (input: unknown, output: unknown): string => {
 export const buildOverview = (
   inputData: unknown,
   outputData: unknown
-): { mergedValue: string; messageLabels: MessageLabel[]; processedMessages: ProcessedMessages | undefined } => {
+): { mergedValue: string; messageLabels: MessageLabel[]; processedMessages: ProcessedMessages[] | undefined } => {
   const input = normalize(inputData);
   const output = normalize(outputData);
-  const { processed, labels } = combineMessages(input, output);
-  return { mergedValue: buildRawValue(input, output), messageLabels: labels, processedMessages: processed };
+  const { segments, labels } = combineMessages(input, output);
+  return { mergedValue: buildRawValue(input, output), messageLabels: labels, processedMessages: segments };
 };

@@ -9,14 +9,7 @@ import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-span
 
 import { type BaseSessionViewStore, createBaseSessionViewSlice, SessionViewContext } from "./base";
 
-export {
-  type BaseSessionViewStore,
-  type SessionResizablePanel,
-  SessionViewContext,
-  type SessionViewSelectedSpan,
-  useSessionViewBaseStore,
-  useSessionViewBaseStoreRaw,
-} from "./base";
+export { type SessionViewSelectedSpan, useSessionViewBaseStore } from "./base";
 
 export type SessionSummary = {
   sessionId: string;
