@@ -713,6 +713,17 @@ impl TableRegistry {
         let evaluations_columns = ["id", "name", "group_id", "metadata", "created_at"];
         let datasets_columns = ["id", "name", "indexed_on", "created_at"];
         let dashboards_columns = ["id", "name", "created_at"];
+        let alerts_columns = ["id", "name", "type", "signal_id", "metadata", "created_at"];
+        let alert_targets_columns = [
+            "id",
+            "alert_id",
+            "type",
+            "channel_id",
+            "channel_name",
+            "email",
+            "created_at",
+        ];
+        let alert_filters_columns = ["id", "alert_id", "value", "created_at"];
         let dashboard_charts_columns = [
             "id",
             "dashboard_id",
@@ -755,6 +766,9 @@ impl TableRegistry {
         tables.insert("evaluations", schema(&evaluations_columns));
         tables.insert("datasets", schema(&datasets_columns));
         tables.insert("dashboards", schema(&dashboards_columns));
+        tables.insert("alerts", schema(&alerts_columns));
+        tables.insert("alert_targets", schema(&alert_targets_columns));
+        tables.insert("alert_filters", schema(&alert_filters_columns));
         tables.insert("dashboard_charts", schema(&dashboard_charts_columns));
 
         Self { tables }
