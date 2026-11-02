@@ -4,7 +4,13 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import { getLicenseBannerMessage } from "@/components/license/license-message";
-import { LICENSE_PUBLIC_KEYS, publicKeyFromSeed, signLicense, verifyLicense } from "@/lib/license/format";
+import {
+  isLicenseExpired,
+  LICENSE_PUBLIC_KEYS,
+  publicKeyFromSeed,
+  signLicense,
+  verifyLicense,
+} from "@/lib/license/format";
 import { daysUntil, isLicenseExpiringSoon, type LicenseStatus } from "@/lib/license/types";
 
 const SEED = Buffer.alloc(32, 7);
@@ -73,6 +79,13 @@ describe("license keys", () => {
     assert.equal(verifyLicense("lmnr_0123456789abcdef", TEST_PUBLIC_KEYS), null);
     assert.equal(verifyLicense("lmnr_lic_onlyonesegment", TEST_PUBLIC_KEYS), null);
     assert.equal(verifyLicense("lmnr_lic_a.b.c", TEST_PUBLIC_KEYS), null);
+  });
+
+  it("expires a license at its expiresAt, with no grace period", () => {
+    const expiresAtMs = payload.expiresAt * 1000;
+    assert.equal(isLicenseExpired(payload, expiresAtMs - 1000), false);
+    assert.equal(isLicenseExpired(payload, expiresAtMs), true);
+    assert.equal(isLicenseExpired({ ...payload, expiresAt: null }, expiresAtMs * 10), false);
   });
 
   it("rejects an unsupported version", () => {

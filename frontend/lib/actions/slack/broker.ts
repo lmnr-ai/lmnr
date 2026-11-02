@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { exchangeSlackOauthCode } from "@/lib/actions/slack";
 import { SLACK_SCOPES } from "@/lib/actions/slack/types";
 import { cache } from "@/lib/cache";
-import { verifyLicense } from "@/lib/license/format";
+import { isLicenseExpired, verifyLicense } from "@/lib/license/format";
 
 // Slack OAuth broker for self-hosted instances (RFC LAM-1675).
 // The broker holds the official Laminar Slack app's secrets, runs both OAuth
@@ -123,8 +123,7 @@ export function getBearerToken(authHeader: string | null): string | null {
 // Authenticates a self-hosted instance by its enterprise license, verified offline.
 export function authenticateInstance(instanceKey: string): string | null {
   const license = instanceKey ? verifyLicense(instanceKey) : null;
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (!license || (license.expiresAt !== null && nowSeconds >= license.expiresAt)) {
+  if (!license || isLicenseExpired(license)) {
     return null;
   }
   return `license:${license.licenseId}`;

@@ -83,3 +83,7 @@ export const verifyLicense = (
     return null;
   }
 };
+
+// Same rule as the app-server: a license stops at its expiresAt, with no grace period.
+export const isLicenseExpired = (license: LicensePayload, now: number = Date.now()): boolean =>
+  license.expiresAt !== null && Math.floor(now / 1000) >= license.expiresAt;

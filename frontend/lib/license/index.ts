@@ -4,7 +4,7 @@ import { decryptValue } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { instanceLicense } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { verifyLicense } from "@/lib/license/format";
+import { isLicenseExpired, verifyLicense } from "@/lib/license/format";
 import { type LicenseStatus } from "@/lib/license/types";
 
 // Must match ENCRYPTION_AAD in app-server/src/license/mod.rs, which encrypts the key.
@@ -77,15 +77,18 @@ const getStoredLicenseKey = async (): Promise<string | null> => {
 
 // Bearer for the Cloud Slack broker, in the app-server's precedence: an env license
 // that verifies, then one saved in settings. An env value that doesn't verify must
-// not shadow a working stored key.
+// not shadow a working stored key. An expired license gives no bearer, so the
+// connect UI stays hidden instead of failing at the broker.
 export const getBrokerLicenseKey = async (): Promise<string | null> => {
   const envKey = process.env.LMNR_LICENSE_KEY?.trim() || null;
-  if (envKey && verifyLicense(envKey)) {
-    return envKey;
+  const envLicense = envKey ? verifyLicense(envKey) : null;
+  if (envLicense) {
+    return isLicenseExpired(envLicense) ? null : envKey;
   }
   const storedKey = await getStoredLicenseKey().catch((error) => {
     console.error("Failed to read the stored license key:", error);
     return null;
   });
-  return storedKey;
+  const storedLicense = storedKey ? verifyLicense(storedKey) : null;
+  return storedLicense && !isLicenseExpired(storedLicense) ? storedKey : null;
 };
