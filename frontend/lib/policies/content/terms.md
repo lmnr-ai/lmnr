@@ -5,7 +5,7 @@ description: "Terms and conditions for using the Laminar platform."
 
 # TERMS OF USE
 
-**Last updated August 11, 2026**
+**Last updated October 19, 2026**
 
 ## AGREEMENT TO OUR LEGAL TERMS
 
@@ -55,11 +55,13 @@ We recommend that you print a copy of these Legal Terms for your records.
 
 [16\. CUSTOMER DATA AND MODEL IMPROVEMENT](#16-customer-data-and-model-improvement)
 
-[17\. ELECTRONIC COMMUNICATIONS, TRANSACTIONS, AND SIGNATURES](#17-electronic-communications-transactions-and-signatures)
+[17\. AGGREGATED STATISTICS](#17-aggregated-statistics)
 
-[18\. MISCELLANEOUS](#18-miscellaneous)
+[18\. ELECTRONIC COMMUNICATIONS, TRANSACTIONS, AND SIGNATURES](#18-electronic-communications-transactions-and-signatures)
 
-[19\. CONTACT US](#19-contact-us)
+[19\. MISCELLANEOUS](#19-miscellaneous)
+
+[20\. CONTACT US](#20-contact-us)
 
 ## 1\. OUR SERVICES
 
@@ -187,13 +189,13 @@ You agree to defend, indemnify, and hold us harmless, including our subsidiaries
 
 ### Customer Data
 
-"**Customer Data**" means the data you submit to the Services for processing, including traces, spans, and their contents (such as model inputs and outputs, prompts, tool calls, and message content), session recordings, evaluation and dataset records, and associated metadata. Customer Data does not include your account registration information, billing information, or usage and diagnostic data about how you use the Services. As between you and us, you retain all right, title, and interest in and to Customer Data. You are responsible for the content of Customer Data and represent that you have all rights, consents, and permissions necessary to submit it to the Services and to grant the licenses in this section, including with respect to any personal data of your own end users contained in it.
+"**Customer Data**" means the data you submit to the Services for processing, including traces, spans, and their contents (such as model inputs and outputs, prompts, tool calls, and message content), session recordings, evaluation and dataset records, and associated metadata. Customer Data does not include your account registration information, billing information, usage and diagnostic data about how you use the Services, or Aggregated Statistics (as defined in the "[AGGREGATED STATISTICS](#17-aggregated-statistics)" section below). As between you and us, you retain all right, title, and interest in and to Customer Data. You are responsible for the content of Customer Data and represent that you have all rights, consents, and permissions necessary to submit it to the Services and to grant the licenses in this section, including with respect to any personal data of your own end users contained in it.
 
 "**Signal Run Data**" means the data generated when the Signals feature processes your traces: the trace content examined during the run and the outputs and intermediate reasoning produced by our models in the course of that run.
 
 ### License to provide the Services
 
-You grant us a worldwide, non-exclusive license to host, store, process, transmit, and display Customer Data as necessary to provide, maintain, secure, and support the Services and to comply with law. This license is limited to those purposes and ends when the Customer Data is deleted from the Services, except as needed to comply with law.
+You grant us a worldwide, non-exclusive license to host, store, process, transmit, and display Customer Data as necessary to provide, maintain, secure, and support the Services and to comply with law. This license is limited to those purposes, to the model improvement license below, and to the creation of Aggregated Statistics as described in the "[AGGREGATED STATISTICS](#17-aggregated-statistics)" section, and it ends when the Customer Data is deleted from the Services, except as needed to comply with law.
 
 ### Model improvement license and Privacy Mode
 
@@ -215,14 +217,42 @@ If a separate written agreement between you and us (such as an enterprise agreem
 
 We will maintain certain data that you transmit to the Services for the purpose of managing the performance of the Services, as well as data relating to your use of the Services. Although we perform regular routine backups of data, you are solely responsible for all data that you transmit or that relates to any activity you have undertaken using the Services. You agree that we shall have no liability to you for any loss or corruption of any such data, and you hereby waive any right of action against us arising from any such loss or corruption of such data.
 
-## 17\. ELECTRONIC COMMUNICATIONS, TRANSACTIONS, AND SIGNATURES
+## 17\. AGGREGATED STATISTICS
+
+### What Aggregated Statistics are
+
+"**Aggregated Statistics**" means statistical information that we derive from Customer Data, Signal Run Data, and usage and diagnostic data, combined across many workspaces so that it does not identify, and cannot reasonably be used to identify, you, your workspaces or projects, your end users, or any other individual or organization. For example, Aggregated Statistics may describe the relative share of agent failures that fall into broad categories (such as fabricated facts, ignored instructions, premature termination or incomplete deliverables, malformed tool calls or tool errors, inefficiency such as looping or redundant work, and reasoning errors), broken down by language model, agent framework or harness, or general type of agent.
+
+### License to create and publish Aggregated Statistics
+
+Beginning November 20, 2026, you instruct and authorize us to process Customer Data and Signal Run Data from your Laminar-hosted workspaces to create Aggregated Statistics, including by using automated analysis to assign high-level categorical labels (such as failure category, model, harness, and agent type) to traces. This authorization applies only to data generated on or after November 20, 2026.
+
+Aggregated Statistics are not Customer Data and are not your Contributions. We own all right, title, and interest in Aggregated Statistics, and we may use, publish, and share them for any lawful purpose, including in reports, blog posts, research, benchmarks, and public dashboards on our Site, both during and after the term of these Legal Terms. Deleting Customer Data or closing your account does not require us to withdraw Aggregated Statistics that have already been created or published, because they do not contain or identify your data.
+
+### Our commitments
+
+When we create and publish Aggregated Statistics, we commit to all of the following:
+
+- **Labels, not content.** The dataset from which we compute Aggregated Statistics contains only categorical labels and technical metadata. We do not copy trace content (such as prompts, model inputs and outputs, tool calls and results, message content, or session recordings) into it. Before data enters that dataset, we remove end-user identifiers and replace account, workspace, and project identifiers with tokens that we use only to count distinct contributors and apply the thresholds below.
+- **No excerpts.** We will never publish verbatim or paraphrased excerpts of Customer Data or Signal Run Data.
+- **No identification.** We will never publish the identity of any customer, workspace, project, or end user, or attribute any statistic to them, without their separate written permission.
+- **Minimum group size.** We will not publish a model, harness, or agent type name, or any combination of breakdowns, that is specific enough to identify a customer. We publish a breakdown only when it reflects data from at least five unrelated workspaces, and we combine smaller groups into a general "other" category. Names of private, fine-tuned, or custom models and of non-public harnesses are never published individually.
+- **No absolute volumes.** We will not publish absolute volume figures for any model, harness, agent type, or other segment, such as counts of traces, spans, sessions, requests, or tokens, or spend. We publish relative figures such as percentages, shares, and rankings.
+- **No indirect hints about your agents.** We will not publish information that could reveal the design or operation of a particular agent, such as time of day, geographic location, prompting style, prompt or tool structure, or system configuration.
+- **No re-identification.** We will not attempt to re-identify any customer, workspace, or individual from Aggregated Statistics, and we contractually require anyone with whom we share non-public Aggregated Statistics not to attempt it either.
+- **Not model training.** Creating Aggregated Statistics does not involve training machine-learning models on your data. Privacy Mode governs model training under the "[CUSTOMER DATA AND MODEL IMPROVEMENT](#16-customer-data-and-model-improvement)" section and does not, by itself, exclude a workspace from Aggregated Statistics.
+- **Deployment scope.** This section applies only to data processed by Laminar-hosted deployments of the Services. It does not apply to self-hosted deployments or to data stored on customer-controlled data planes.
+
+If a separate written agreement between you and us (such as an enterprise agreement or data processing agreement) addresses the creation or use of aggregated, anonymized, or de-identified data, that agreement controls over this section to the extent of any conflict. See our Data Use page at [https://laminar.sh/policies/data-use](/policies/data-use) for a plain-language description.
+
+## 18\. ELECTRONIC COMMUNICATIONS, TRANSACTIONS, AND SIGNATURES
 
 Visiting the Services, sending us emails, and completing online forms constitute electronic communications. You consent to receive electronic communications, and you agree that all agreements, notices, disclosures, and other communications we provide to you electronically, via email and on the Services, satisfy any legal requirement that such communication be in writing. YOU HEREBY AGREE TO THE USE OF ELECTRONIC SIGNATURES, CONTRACTS, ORDERS, AND OTHER RECORDS, AND TO ELECTRONIC DELIVERY OF NOTICES, POLICIES, AND RECORDS OF TRANSACTIONS INITIATED OR COMPLETED BY US OR VIA THE SERVICES. You hereby waive any rights or requirements under any statutes, regulations, rules, ordinances, or other laws in any jurisdiction which require an original signature or delivery or retention of non-electronic records, or to payments or the granting of credits by any means other than electronic means.
 
-## 18\. MISCELLANEOUS
+## 19\. MISCELLANEOUS
 
 These Legal Terms and any policies or operating rules posted by us on the Services or in respect to the Services constitute the entire agreement and understanding between you and us. Our failure to exercise or enforce any right or provision of these Legal Terms shall not operate as a waiver of such right or provision. These Legal Terms operate to the fullest extent permissible by law. We may assign any or all of our rights and obligations to others at any time. We shall not be responsible or liable for any loss, damage, delay, or failure to act caused by any cause beyond our reasonable control. If any provision or part of a provision of these Legal Terms is determined to be unlawful, void, or unenforceable, that provision or part of the provision is deemed severable from these Legal Terms and does not affect the validity and enforceability of any remaining provisions. There is no joint venture, partnership, employment or agency relationship created between you and us as a result of these Legal Terms or use of the Services. You agree that these Legal Terms will not be construed against us by virtue of having drafted them. You hereby waive any and all defenses you may have based on the electronic form of these Legal Terms and the lack of signing by the parties hereto to execute these Legal Terms.
 
-## 19\. CONTACT US
+## 20\. CONTACT US
 
 In order to resolve a complaint regarding the Services or to receive further information regarding use of the Services, please contact us at:**founders@lmnr.ai**
