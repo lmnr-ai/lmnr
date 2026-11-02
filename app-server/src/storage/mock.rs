@@ -1,5 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use bytes::Bytes;
+use tokio::sync::mpsc::Receiver;
 
 use super::StorageBytesStream;
 
@@ -14,6 +16,23 @@ impl super::StorageTrait for MockStorage {
     }
 
     async fn get_size(&self, _bucket: &str, _key: &str) -> Result<u64> {
+        Ok(0)
+    }
+
+    async fn exists(&self, _bucket: &str, _key: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete(&self, _bucket: &str, _key: &str) -> Result<()> {
+        Ok(())
+    }
+
+    async fn upload_stream(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _chunks: Receiver<Result<Bytes>>,
+    ) -> Result<u64> {
         Ok(0)
     }
 }

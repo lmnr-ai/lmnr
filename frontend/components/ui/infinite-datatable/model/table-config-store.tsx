@@ -106,7 +106,7 @@ export function reconcileConfig(
   };
 }
 
-export interface TableConfigStoreState {
+interface TableConfigStoreState {
   config: TableConfig;
   baseline: TableConfig;
   lockedColumns: string[];
@@ -119,7 +119,7 @@ export interface TableConfigStoreState {
   isFormDirty: boolean;
 }
 
-export interface TableConfigStoreActions {
+interface TableConfigStoreActions {
   setColumnOrder: (order: string[]) => void;
   setColumnVisibility: (visibility: Record<string, boolean>) => void;
   setColumnSizing: (sizing: Record<string, number>) => void;
@@ -146,7 +146,7 @@ export type TableConfigStore = TableConfigStoreState & TableConfigStoreActions;
 // Zustand's `useStore` reads `getInitialState` as the server snapshot during hydration,
 // so a post-creation mutation would be invisible to the first render and produce a
 // double fetch.
-export interface InitialViewSeed {
+interface InitialViewSeed {
   view: View | null;
   views: View[] | undefined;
   viewBaseline: ViewParams;

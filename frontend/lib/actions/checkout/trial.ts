@@ -93,7 +93,7 @@ export const canStartStarterTrial = async (workspaceId: string): Promise<boolean
   return isStarterTrialEligible(workspaceId, session.user.id);
 };
 
-export const getWorkspaceOwnerEmails = async (workspaceId: string): Promise<string[]> => {
+const getWorkspaceOwnerEmails = async (workspaceId: string): Promise<string[]> => {
   const owners = await db
     .select({ email: users.email })
     .from(membersOfWorkspaces)
@@ -151,7 +151,7 @@ export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>)
 
 // Clears the trial once. Returns false when it was already over, so webhook retries don't
 // repeat side effects.
-export const endTrial = async (workspaceId: string, outcome: TrialOutcome): Promise<boolean> => {
+const endTrial = async (workspaceId: string, outcome: TrialOutcome): Promise<boolean> => {
   const [ended] = await db
     .update(workspaces)
     .set({ trialEndsAt: null })
@@ -197,7 +197,7 @@ export const syncTrialEndFromSubscription = async (subscription: Stripe.Subscrip
   if (updated) await invalidateProjectCacheForWorkspace(workspaceId);
 };
 
-export const subscriptionHasPaymentMethod = async (subscription: Stripe.Subscription): Promise<boolean> => {
+const subscriptionHasPaymentMethod = async (subscription: Stripe.Subscription): Promise<boolean> => {
   if (subscription.default_payment_method) return true;
   const customerId = getIdFromStripeObject(subscription.customer);
   if (!customerId) return false;
@@ -222,7 +222,7 @@ export const findPaymentMethod = async (subscription: Stripe.Subscription): Prom
   return cards.data[0]?.id ?? null;
 };
 
-export const getTrialSubscription = async (workspaceId: string): Promise<Stripe.Subscription | null> => {
+const getTrialSubscription = async (workspaceId: string): Promise<Stripe.Subscription | null> => {
   const trial = await getActiveTrial(workspaceId);
   if (!trial) return null;
   return stripe().subscriptions.retrieve(trial.subscriptionId);

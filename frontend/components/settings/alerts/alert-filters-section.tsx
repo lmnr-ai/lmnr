@@ -23,7 +23,7 @@ const BOOLEAN_OPTIONS = [
   { label: "False", value: "false" },
 ];
 
-export const schemaToFilterColumns = (schema: unknown): ColumnFilter[] => {
+const schemaToFilterColumns = (schema: unknown): ColumnFilter[] => {
   const fields: SchemaField[] = jsonSchemaToSchemaFields(schema);
 
   return fields

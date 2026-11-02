@@ -6,12 +6,6 @@ import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alertFilters } from "@/lib/db/migrations/schema";
 
-export type AlertFilter = {
-  id: string;
-  filters: Filter[];
-  createdAt?: string;
-};
-
 export const GetAlertFiltersSchema = z.object({
   projectId: z.guid(),
   alertId: z.guid(),

@@ -20,19 +20,19 @@ const StatusEnumSchema = z.enum(["in_progress", "completed", "incomplete"]);
 
 /** Input content parts (sent by the user/system) **/
 
-export const OpenAIResponsesInputTextPartSchema = z.object({
+const OpenAIResponsesInputTextPartSchema = z.object({
   type: z.literal("input_text"),
   text: z.string(),
 });
 
-export const OpenAIResponsesInputImagePartSchema = z.object({
+const OpenAIResponsesInputImagePartSchema = z.object({
   type: z.literal("input_image"),
   image_url: z.string().nullish(),
   file_id: z.string().nullish(),
   detail: z.enum(["low", "high", "auto", "original"]).nullish(),
 });
 
-export const OpenAIResponsesInputFilePartSchema = z.object({
+const OpenAIResponsesInputFilePartSchema = z.object({
   type: z.literal("input_file"),
   file_data: z.string().nullish(),
   file_id: z.string().nullish(),
@@ -92,19 +92,19 @@ const OpenAIResponsesLogprobSchema = z.object({
   ),
 });
 
-export const OpenAIResponsesOutputTextPartSchema = z.object({
+const OpenAIResponsesOutputTextPartSchema = z.object({
   type: z.literal("output_text"),
   text: z.string(),
   annotations: z.array(OpenAIResponsesOutputTextAnnotationSchema).nullish(),
   logprobs: z.array(OpenAIResponsesLogprobSchema).nullish(),
 });
 
-export const OpenAIResponsesRefusalPartSchema = z.object({
+const OpenAIResponsesRefusalPartSchema = z.object({
   type: z.literal("refusal"),
   refusal: z.string(),
 });
 
-export const OpenAIResponsesContentPartSchema = z.union([
+const OpenAIResponsesContentPartSchema = z.union([
   OpenAIResponsesInputTextPartSchema,
   OpenAIResponsesInputImagePartSchema,
   OpenAIResponsesInputFilePartSchema,
@@ -126,12 +126,12 @@ export const OpenAIResponsesMessageItemSchema = z.object({
 
 /** Reasoning item **/
 
-export const OpenAIResponsesReasoningSummarySchema = z.object({
+const OpenAIResponsesReasoningSummarySchema = z.object({
   type: z.literal("summary_text"),
   text: z.string(),
 });
 
-export const OpenAIResponsesReasoningContentSchema = z.object({
+const OpenAIResponsesReasoningContentSchema = z.object({
   type: z.literal("reasoning_text"),
   text: z.string(),
 });
@@ -402,7 +402,7 @@ export const OpenAIResponsesMCPApprovalResponseItemSchema = z.object({
   reason: z.string().nullish(),
 });
 
-export const OpenAIResponsesItemReferenceSchema = z.object({
+const OpenAIResponsesItemReferenceSchema = z.object({
   type: z.literal("item_reference"),
   id: z.string(),
 });
@@ -526,9 +526,6 @@ export const OpenAIResponsesResponseSchema = z.object({
     .nullish(),
   prompt_cache_key: z.string().nullish(),
 });
-
-export type OpenAIResponsesItem = z.infer<typeof OpenAIResponsesItemSchema>;
-export type OpenAIResponsesMessageItem = z.infer<typeof OpenAIResponsesMessageItemSchema>;
 
 /** Parse input: accepts a single item or an array of items. */
 export const parseOpenAIResponsesInput = (data: unknown): z.infer<typeof OpenAIResponsesItemsSchema> | null => {

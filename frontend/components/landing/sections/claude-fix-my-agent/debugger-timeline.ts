@@ -1,9 +1,9 @@
 import type { Step, TransferProgress } from "./debugger-types";
 
-export const TYPE_DURATION_MS = 22;
-export const INTERVAL_BETWEEN_LINES_MS = 200;
-export const PIPE_DURATION_MS = 350;
-export const PROGRESS_BAR_DURATION_MS = 1_900;
+const TYPE_DURATION_MS = 22;
+const INTERVAL_BETWEEN_LINES_MS = 200;
+const PIPE_DURATION_MS = 350;
+const PROGRESS_BAR_DURATION_MS = 1_900;
 
 export interface DebuggerFrame {
   isTyping: boolean;

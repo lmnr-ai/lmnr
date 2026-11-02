@@ -3,9 +3,9 @@ import { isNil, mean } from "lodash";
 import { type ChartConfig } from "@/components/ui/chart";
 
 // Series colors, assigned by position and wrapping past the last.
-export const CHART_PALETTE_SIZE = 20;
+const CHART_PALETTE_SIZE = 20;
 
-export const CHART_PALETTE = Array.from({ length: CHART_PALETTE_SIZE }, (_, i) => `hsl(var(--chart-${i + 1}))`);
+const CHART_PALETTE = Array.from({ length: CHART_PALETTE_SIZE }, (_, i) => `hsl(var(--chart-${i + 1}))`);
 
 export const generateChartConfig = (columns: string[], palette: string[] = CHART_PALETTE): ChartConfig =>
   columns.reduce((config, columnName, index) => {

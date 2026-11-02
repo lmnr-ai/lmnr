@@ -22,8 +22,6 @@ import {
 
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
-export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
-
 const EvalFiltersSchema = z.object({
   filter: z
     .array(z.string())

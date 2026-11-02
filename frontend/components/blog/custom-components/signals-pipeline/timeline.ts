@@ -28,22 +28,19 @@ export const NODE_GROW_AT = {
   events: 4,
 };
 
-export const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 // Same curve as the landing system loop: cubic-bezier(0.22, 1, 0.36, 1) ≈ easeOutQuint.
-export const easeOut = (value: number) => 1 - Math.pow(1 - clamp01(value), 5);
+const easeOut = (value: number) => 1 - Math.pow(1 - clamp01(value), 5);
 
 export const stageProgress = (time: number, at: number, duration: number) => easeOut((time - at) / duration);
 
 // Items fill in as the connector's bits land, from the first arrival to the last.
 // Unclamped: keeps climbing past itemCount, for effects that outlive the last arrival.
-export const arrivalProgress = (time: number, timing: ConnectorTiming, itemCount: number) => {
+const arrivalProgress = (time: number, timing: ConnectorTiming, itemCount: number) => {
   const firstArrival = timing.emitStart + BIT_TRAVEL;
   return (itemCount * Math.max(0, time - firstArrival)) / (timing.emitEnd - timing.emitStart);
 };
 
 export const arrivalCount = (time: number, timing: ConnectorTiming, itemCount: number) =>
   Math.min(itemCount, arrivalProgress(time, timing, itemCount));
-
-// 0..1 reveal of item `index` given a fractional count, for scale/opacity pop-in.
-export const itemReveal = (count: number, index: number) => clamp01(count - index);

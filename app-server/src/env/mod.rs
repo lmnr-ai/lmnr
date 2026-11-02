@@ -32,6 +32,7 @@ pub mod clickhouse;
 pub mod connections;
 pub mod database;
 pub mod debugger;
+pub mod hosted_evals;
 pub mod llm;
 pub mod mock;
 pub mod mq;
@@ -203,6 +204,14 @@ pub fn num_with_default<T: FromStr>(name: &str, default: T) -> T {
         .filter(|v| !v.is_empty())
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)
+}
+
+/// A string env var with no default: `None` when unset or empty (after trimming).
+pub fn optional_string(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 #[cfg(test)]

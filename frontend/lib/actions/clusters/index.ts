@@ -6,7 +6,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { getStandaloneLevels, hideStandaloneLevels, MIN_HIDEABLE_LEVEL } from "./standalone-levels";
 import { type EventCluster } from "./types";
 
-export { type EventCluster, UNCLUSTERED_ID } from "./types";
+export { type EventCluster } from "./types";
 
 export const GetEventClustersSchema = z.object({
   ...TimeRangeSchema.shape,

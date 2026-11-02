@@ -31,7 +31,7 @@ interface TableRow {
   total_rows: string | number | null;
 }
 
-export const collectViewCounts = async (): Promise<Record<string, number>> => {
+const collectViewCounts = async (): Promise<Record<string, number>> => {
   const db = process.env.CLICKHOUSE_DB || "default";
   const result = await clickhouseClient.query({
     query: `
@@ -60,7 +60,7 @@ export const collectViewCounts = async (): Promise<Record<string, number>> => {
 
 // Snapshot of which optional features the deployment has turned on. Booleans
 // only — no values, endpoints, or credentials.
-export const collectFeatureFlags = (): Record<string, boolean> => {
+const collectFeatureFlags = (): Record<string, boolean> => {
   const flags: Feature[] = [
     Feature.SIGNALS,
     Feature.AGENT,

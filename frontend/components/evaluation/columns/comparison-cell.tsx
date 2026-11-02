@@ -4,8 +4,6 @@ import { isValidScore } from "@/components/evaluation/utils";
 
 import ComparisonIndicator from "../comparison-indicator";
 
-export { ChangeIndicator } from "./change-indicator";
-
 export const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>
   isValidScore(originalValue) &&
   isValidScore(comparisonValue) &&

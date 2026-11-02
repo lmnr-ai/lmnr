@@ -8,7 +8,7 @@ import { detectProvider, type ProviderHint } from "@/lib/spans/providers";
 // Payload classification
 // ---------------------------------------------------------------------------
 
-export const deepParseValue = (value: unknown): unknown => {
+const deepParseValue = (value: unknown): unknown => {
   if (!isString(value)) return value;
   try {
     const parsed = JSON.parse(value);

@@ -36,7 +36,7 @@ const createAgentIoFilter = (column: "agent_input"): ColumnFilterProcessor =>
     (filter, paramKey) => ({ [paramKey]: String(filter.value) })
   );
 
-export const tracesColumnFilterConfig: ColumnFilterConfig = {
+const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["id", createStringFilter],
     ["session_id", createStringFilter],
@@ -107,7 +107,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
 };
 
 // Traces table column mapping
-export const tracesSelectColumns = [
+const tracesSelectColumns = [
   "id",
   "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
   "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",

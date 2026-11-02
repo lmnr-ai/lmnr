@@ -8,13 +8,7 @@ import { signals, signalTriggers, signalVersions } from "@/lib/db/migrations/sch
 
 import { buildSignalDefinition, comparable, type SignalDefinition, type SignalVersion } from "./definition";
 
-export {
-  buildSignalDefinition,
-  modeFromI16,
-  type SignalDefinition,
-  type SignalMode,
-  type SignalVersion,
-} from "./definition";
+export { buildSignalDefinition, type SignalDefinition, type SignalVersion } from "./definition";
 
 export const GetSignalVersionsSchema = z.object({
   projectId: z.guid(),

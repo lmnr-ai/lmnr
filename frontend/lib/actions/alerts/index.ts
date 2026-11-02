@@ -161,7 +161,7 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
   });
 }
 
-export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
+async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
 
@@ -226,7 +226,7 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   return result;
 }
 
-export async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
+async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
   const { alertId, projectId, disabled } = SetAlertDisabledSchema.parse(input);
 
   const [existing] = await db

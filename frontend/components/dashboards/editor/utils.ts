@@ -7,7 +7,7 @@ import { type Filter, type Metric, type QueryStructure, type TimeRange } from "@
 // rows remain clickable in the dashboard (wired up by handleBarClick in chart.tsx
 // and table-chart.tsx). Backend-agnostic: we just mark the metric hidden and
 // render-time consumers filter on that flag.
-export const ID_COLUMNS_BY_TABLE: Record<string, string[]> = {
+const ID_COLUMNS_BY_TABLE: Record<string, string[]> = {
   spans: ["trace_id", "span_id"],
   traces: ["id"],
   signal_events: ["signal_id", "trace_id"],

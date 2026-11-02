@@ -11,8 +11,8 @@ import {
   isFreeTierWorkspace,
 } from "./utils";
 
-export const USAGE_WARNING_ITEMS = ["bytes", "signal_cost"] as const;
-export type UsageWarningItem = (typeof USAGE_WARNING_ITEMS)[number];
+const USAGE_WARNING_ITEMS = ["bytes", "signal_cost"] as const;
+type UsageWarningItem = (typeof USAGE_WARNING_ITEMS)[number];
 
 export interface WorkspaceUsageWarning {
   id: string;

@@ -1,13 +1,5 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
-export interface DatapointSearchParams {
-  projectId: string;
-  datasetId?: string;
-  searchQuery?: string;
-  pageSize?: number;
-  offset?: number;
-}
-
 export interface DatapointResult {
   id: string;
   datasetId: string;
