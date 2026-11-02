@@ -64,6 +64,7 @@ fn internal_token(project_id: Uuid, user_id: Option<Uuid>) -> anyhow::Result<Str
 }
 
 /// Sends `body` to `{next}/api/internal/projects/{project_id}/{path}` and decodes the JSON reply.
+#[allow(dead_code)] // First caller: dashboard writes (lmnr#2623).
 pub async fn call<T: DeserializeOwned>(
     http_client: &reqwest::Client,
     method: Method,

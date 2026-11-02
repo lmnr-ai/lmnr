@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createDashboard, getDashboards, getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
-import { DashboardError } from "@/lib/actions/dashboard/errors";
+import { AppServerError } from "@/lib/app-server";
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    if (error instanceof DashboardError) {
+    if (error instanceof AppServerError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
 
