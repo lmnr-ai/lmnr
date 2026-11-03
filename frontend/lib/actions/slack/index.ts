@@ -11,6 +11,7 @@ import { getBrokerLicenseKey } from "@/lib/license";
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
   workspaceId: z.guid(),
+  codeVerifier: z.string(),
 });
 
 const DeleteSlackIntegrationSchema = z.union([z.object({ workspaceId: z.guid() }), z.object({ teamId: z.string() })]);
@@ -51,8 +52,9 @@ export async function getSlackIntegration(workspaceId: string): Promise<SlackInt
 
 // Exchanges an OAuth code for a bot token via Slack's oauth.v2.access endpoint
 // using HTTP Basic auth with the app credentials. The redirect_uri must match
-// the one used in the authorize leg or Slack returns bad_redirect_uri.
-export async function exchangeSlackOauthCode(code: string, redirectUri: string, codeVerifier?: string) {
+// the one used in the authorize leg or Slack returns bad_redirect_uri. Both flows
+// send a PKCE verifier, so Slack rejects a code not issued for our authorize leg.
+export async function exchangeSlackOauthCode(code: string, redirectUri: string, codeVerifier: string) {
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
@@ -64,10 +66,8 @@ export async function exchangeSlackOauthCode(code: string, redirectUri: string, 
   const body = new URLSearchParams({
     code,
     redirect_uri: redirectUri,
+    code_verifier: codeVerifier,
   });
-  if (codeVerifier) {
-    body.set("code_verifier", codeVerifier);
-  }
 
   const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
     method: "POST",
@@ -121,14 +121,14 @@ async function persistSlackIntegration(input: {
 }
 
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
-  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+  const { code, workspaceId, codeVerifier } = ConnectSlackIntegrationSchema.parse(input);
 
   const redirectUri = process.env.SLACK_REDIRECT_URL;
   if (!redirectUri) {
     throw new Error("No redirect uri set.");
   }
 
-  const data = await exchangeSlackOauthCode(code, redirectUri);
+  const data = await exchangeSlackOauthCode(code, redirectUri, codeVerifier);
 
   await persistSlackIntegration({
     workspaceId,

@@ -59,8 +59,13 @@ export function getBrokerRedirectUri(): string {
 // authorization to the secret `codeVerifier` minted alongside the state and
 // kept server-side. Without it, a leaked state could be paired with an
 // attacker's Slack code at /cb (OAuth token injection); PKCE makes Slack reject
-// any code not issued for this challenge.
-export function buildSlackAuthorizeUrl(state: string, codeChallenge: string): string {
+// any code not issued for this challenge. The direct (Cloud) flow passes its own
+// SLACK_REDIRECT_URL; the broker defaults to its /cb.
+export function buildSlackAuthorizeUrl(
+  state: string,
+  codeChallenge: string,
+  redirectUri: string = getBrokerRedirectUri()
+): string {
   const clientId = process.env.SLACK_CLIENT_ID;
   if (!clientId) {
     throw new Error("SLACK_CLIENT_ID is not configured.");
@@ -69,7 +74,7 @@ export function buildSlackAuthorizeUrl(state: string, codeChallenge: string): st
     scope: SLACK_SCOPES.join(","),
     client_id: clientId,
     state,
-    redirect_uri: getBrokerRedirectUri(),
+    redirect_uri: redirectUri,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
   });
@@ -102,7 +107,7 @@ function base64url(input: Buffer | string): string {
 // PKCE (RFC 7636, S256). The verifier is the secret; the challenge is its
 // SHA-256 sent in the authorize URL. The verifier MUST be kept server-side
 // (never in the state), so a leaked state cannot complete the code exchange.
-function generatePkcePair(): { verifier: string; challenge: string } {
+export function generatePkcePair(): { verifier: string; challenge: string } {
   const verifier = crypto.randomBytes(32).toString("base64url");
   const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
   return { verifier, challenge };

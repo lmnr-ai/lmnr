@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
+import { consumeSlackOauthState } from "@/lib/actions/slack/oauth-state";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 import { BASE_PATH } from "@/lib/utils";
@@ -14,17 +15,6 @@ import { BASE_PATH } from "@/lib/utils";
 // the sub-path. Same pattern as the invite link in lib/actions/workspace/invite.ts.
 function prefixedBase(): string {
   return `${new URL(process.env.NEXT_PUBLIC_URL!).origin}${BASE_PATH}`;
-}
-
-function parseState(state: string): { workspaceId: string; returnPath?: string } {
-  const colonIdx = state.indexOf(":");
-  if (colonIdx === -1) {
-    return { workspaceId: state };
-  }
-  return {
-    workspaceId: state.substring(0, colonIdx),
-    returnPath: state.substring(colonIdx + 1),
-  };
 }
 
 function isRelativePath(path: string): boolean {
@@ -47,9 +37,9 @@ async function buildRedirectUrl(workspaceId: string, returnPath?: string, error 
 }
 
 // This callback is a public OAuth redirect target outside the proxy.ts matcher, and
-// both the direct `state` and the brokered `workspaceId` param are attacker-controlled.
-// Gate every branch on the browser's session being a member of that workspace, before
-// storing a bot token or resolving the workspace's project ids for the redirect.
+// the brokered `workspaceId` param is attacker-controlled. Gate every branch on the
+// browser's session being a member of the workspace, before storing a bot token or
+// resolving the workspace's project ids for the redirect.
 async function isAuthorizedForWorkspace(workspaceId: string): Promise<boolean> {
   if (!z.guid().safeParse(workspaceId).success) {
     return false;
@@ -95,18 +85,22 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const parsed = stateParam ? parseState(stateParam) : null;
-  if (!parsed || !(await isAuthorizedForWorkspace(parsed.workspaceId))) {
+  // Direct (Cloud) path: `state` is the opaque nonce minted by ./start. Only the
+  // user who started the flow can consume it; workspace, returnPath, and the PKCE
+  // verifier come from the server-side record, never from the URL.
+  const session = await getServerSession();
+  const flow = session && stateParam ? await consumeSlackOauthState(stateParam, session.user.id) : null;
+  if (!flow || !(await isAuthorizedForWorkspace(flow.workspaceId))) {
     return unauthorizedRedirect();
   }
 
-  const { workspaceId, returnPath } = parsed;
+  const { workspaceId, returnPath, codeVerifier } = flow;
   if (error || !code) {
     return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath, true));
   }
 
   try {
-    await connectSlackIntegration({ code, workspaceId });
+    await connectSlackIntegration({ code, workspaceId, codeVerifier });
     return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath));
   } catch (e) {
     console.error(e);
