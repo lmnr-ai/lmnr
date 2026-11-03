@@ -60,8 +60,7 @@ const SlackTokensRevokedEventSchema = z.looseObject({
   }),
 });
 
-// Mention of the bot in a channel — forwarded (raw) to app-server, which runs the agent and replies.
-// channel + ts are captured so the webhook can post an immediate :eyes: ack on the mentioned message.
+// Mention of the bot in a channel; the webhook acks it with :eyes: and runs the agent (`lib/agent/slack`).
 const SlackAppMentionEventSchema = z.looseObject({
   type: z.literal("app_mention"),
   channel: z.string().optional(),

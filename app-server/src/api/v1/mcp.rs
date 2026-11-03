@@ -21,7 +21,6 @@ use crate::{
     access_policy::{self, AccessPolicy, Actor},
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
-    llm::LlmClient,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
@@ -130,8 +129,6 @@ pub struct LaminarMcpServer {
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    llm_client: Option<Arc<LlmClient>>,
 }
 
 #[tool_router]
@@ -143,7 +140,6 @@ impl LaminarMcpServer {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
-        llm_client: Option<Arc<LlmClient>>,
     ) -> Self {
         Self {
             tool_router: Self::tool_router_with_descriptions(),
@@ -153,7 +149,6 @@ impl LaminarMcpServer {
             http_client,
             db,
             cache,
-            llm_client,
         }
     }
 
@@ -347,106 +342,59 @@ impl LaminarMcpServer {
         Ok(render(&compressed))
     }
 
-    /// Run the agent for one question, returning `(answer, conversation_id)`. An existing
-    /// `conversation_id` appends to that session; otherwise a fresh `mcp` session is minted.
+    /// Run the agent for one question, returning `(answer, conversation_id)`. The turn runs in the
+    /// frontend (`/api/internal/projects/{id}/agent/chat`), which continues `conversation_id` when it
+    /// is an MCP conversation of this project and starts a fresh one otherwise.
     async fn run_agent_for_mcp(
         &self,
         project_id: Uuid,
         prompt: String,
         conversation_id: Option<String>,
     ) -> anyhow::Result<(String, String)> {
-        use crate::agent::agent::{AgentContext, AgentSource, finalize, run_agent};
-        use crate::agent::persist;
-        use crate::agent::stream::AgentEvent;
-        use tokio::sync::mpsc;
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct AgentReply {
+            #[serde(default)]
+            answer: String,
+            #[serde(default)]
+            conversation_id: String,
+            #[serde(default)]
+            error: Option<String>,
+        }
 
         if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
             anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
         }
 
-        let llm_client = self.llm_client.clone().ok_or_else(|| {
-            anyhow::anyhow!(
-                "LLM client unavailable; configure LLM_PROVIDER + credentials to use ask_agent"
-            )
-        })?;
-        let clickhouse_ro = self.clickhouse_ro.clone().ok_or_else(|| {
-            anyhow::anyhow!(
-                "Read-only ClickHouse client not configured; ask_agent needs it for query_sql"
-            )
-        })?;
-
-        let internal_project_id =
-            std::env::var(crate::env::private::agent::TRACE_CHAT_INTERNAL_PROJECT_ID)
-                .ok()
-                .and_then(|s| s.parse().ok());
-
-        // Continue the supplied conversation only if it's a user-less (MCP/shared) session; otherwise
-        // mint a fresh `mcp` key. The `userless_session_exists` guard stops a project-API caller from
-        // continuing another member's user-owned UI/CLI conversation by passing its uuid.
-        let conversation_id = match conversation_id {
-            Some(key)
-                if persist::userless_session_exists(&self.db.pool, &key, project_id).await? =>
-            {
-                key
-            }
-            _ => {
-                let key = Uuid::now_v7().to_string();
-                // MCP is project-key authed — the conversation has no owning user.
-                persist::ensure_chat_session(
-                    &self.db.pool,
-                    &key,
-                    project_id,
-                    AgentSource::Mcp.as_channel_type(),
-                    None,
-                )
-                .await?;
-                key
-            }
-        };
-
-        let ctx = AgentContext {
-            db: self.db.clone(),
-            clickhouse: self.clickhouse.clone(),
+        // MCP is project-key authed: the conversation has no owning user.
+        let response = crate::next_api::open(
+            &self.http_client,
             project_id,
-            llm_client,
-            cache: self.cache.clone(),
-            query_engine: self.query_engine.clone(),
-            clickhouse_ro,
-            http_client: self.http_client.clone(),
-            pubsub: None,
-            internal_project_id,
-            // Persist so a follow-up `ask_agent` with the same conversationId sees this turn.
-            persist: Some(conversation_id.clone()),
-            // MCP names any target entity inline in the prompt; no separate first-turn note.
-            system_note: None,
-            source: AgentSource::Mcp,
-            user_external_id: None,
-            policy: self.policy(project_id).await,
-        };
-
-        // Persistence mode: the agent loop loads prior history; send only the new user turn. `_rx` is
-        // unread (MCP is buffered, not streamed); the `message` frames `finalize` emits are no-ops.
-        let (tx, _rx) = mpsc::unbounded_channel::<AgentEvent>();
-        let run = run_agent(&ctx, &tx, prompt, conversation_id.clone())
+            None,
+            "agent/chat",
+            serde_json::json!({
+                "source": "mcp",
+                "message": prompt,
+                "conversationId": conversation_id,
+            }),
+            "application/json",
+        )
+        .await?;
+        let status = response.status();
+        let reply: AgentReply = response
+            .json()
             .await
-            .map_err(|e| anyhow::anyhow!("Agent run failed: {e:#}"))?;
-
-        // Persist the terminal assistant row so a follow-up `ask_agent` sees this turn.
-        finalize(&ctx, &tx, run.final_parts, None, false)
-            .await
-            .map_err(|e| anyhow::anyhow!("Persisting the agent reply failed: {e:#}"))?;
-
-        let final_text = run.final_text;
-        if final_text.is_empty() {
+            .map_err(|e| anyhow::anyhow!("unexpected agent response ({status}): {e}"))?;
+        if let Some(error) = reply.error {
+            anyhow::bail!("{error}");
+        }
+        if !status.is_success() {
+            anyhow::bail!("the agent responded with {status}");
+        }
+        if reply.answer.trim().is_empty() {
             anyhow::bail!("Agent finished without producing a textual answer.");
         }
-
-        // Keep the conversation off a future GC sweep. Best-effort — never fail an answered turn.
-        if let Err(e) = persist::touch_chat_session(&self.db.pool, &conversation_id).await {
-            log::warn!("Failed to touch chat session {conversation_id}: {e:#}");
-        }
-
-        Ok((final_text, conversation_id))
+        Ok((reply.answer, reply.conversation_id))
     }
 }
 
@@ -499,7 +447,6 @@ impl McpState {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
-        llm_client: Option<Arc<LlmClient>>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -509,7 +456,6 @@ impl McpState {
                 http_client,
                 db,
                 cache,
-                llm_client,
             ),
         }
     }

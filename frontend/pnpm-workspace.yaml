@@ -5,4 +5,9 @@ allowBuilds:
   "@sentry/cli": true
   core-js: true
   esbuild: true
+  # Its only build script is a no-op preinstall.
+  "@google/genai": false
   protobufjs: true
+
+minimumReleaseAgeExclude:
+  - "@lmnr-ai/lmnr@0.8.57"

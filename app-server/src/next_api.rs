@@ -1,5 +1,5 @@
-//! Calls to the Next.js app's `/api/internal` routes, for writes whose one implementation lives
-//! there (dashboards, alerts). Callers authorize the user or agent first; Next.js only checks that
+//! Calls to the Next.js app's `/api/internal` routes, for work whose one implementation lives
+//! there (dashboard and alert writes, the Laminar Agent). Callers authorize the user or agent first; Next.js only checks that
 //! the request came from app-server (`frontend/lib/internal-auth.ts`).
 
 use std::time::Duration;
@@ -86,6 +86,48 @@ pub async fn call_as<T: DeserializeOwned>(
     send(http_client, method, project_id, Some(user_id), path, body).await
 }
 
+/// The frontend's response to `{next}/api/internal/projects/{project_id}/{path}`, unread and with no
+/// timeout, for replies the caller relays as they arrive (the Laminar Agent's runs take minutes).
+/// `accept` is sent as the `Accept` header. Like [`call_as`], `user_id` must already be authorized.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn open(
+    http_client: &reqwest::Client,
+    project_id: Uuid,
+    user_id: Option<Uuid>,
+    path: &str,
+    body: Value,
+    accept: &str,
+) -> anyhow::Result<reqwest::Response> {
+    let (url, request) = request(http_client, Method::POST, project_id, user_id, path)?;
+    let response = request
+        .header(reqwest::header::ACCEPT, accept)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("frontend unreachable at {url}: {e}"))?;
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        anyhow::bail!("frontend rejected the internal token for {url}");
+    }
+    Ok(response)
+}
+
+fn request(
+    http_client: &reqwest::Client,
+    method: Method,
+    project_id: Uuid,
+    user_id: Option<Uuid>,
+    path: &str,
+) -> anyhow::Result<(String, reqwest::RequestBuilder)> {
+    let base = env::server::next_server_url().ok_or_else(|| {
+        anyhow::anyhow!("NEXT_INTERNAL_URL or NEXT_PUBLIC_URL must be set to reach the frontend")
+    })?;
+    let url = format!("{base}/api/internal/projects/{project_id}/{path}");
+    let request = http_client
+        .request(method, &url)
+        .header(TOKEN_HEADER, internal_token(project_id, user_id)?);
+    Ok((url, request))
+}
+
 async fn send<T: DeserializeOwned>(
     http_client: &reqwest::Client,
     method: Method,
@@ -94,15 +136,8 @@ async fn send<T: DeserializeOwned>(
     path: &str,
     body: Option<Value>,
 ) -> Result<T, NextApiError> {
-    let base = env::server::next_server_url().ok_or_else(|| {
-        anyhow::anyhow!("NEXT_INTERNAL_URL or NEXT_PUBLIC_URL must be set to reach the frontend")
-    })?;
-    let url = format!("{base}/api/internal/projects/{project_id}/{path}");
-
-    let mut request = http_client
-        .request(method, &url)
-        .header(TOKEN_HEADER, internal_token(project_id, user_id)?)
-        .timeout(REQUEST_TIMEOUT);
+    let (url, mut request) = request(http_client, method, project_id, user_id, path)?;
+    request = request.timeout(REQUEST_TIMEOUT);
     if let Some(body) = body {
         request = request.json(&body);
     }

@@ -2477,7 +2477,6 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),
                         cache_for_http.clone(),
-                        llm_provider_client_for_http.clone(),
                     ));
 
                     // Shared in-process JWKS cache for the CLI user-token surface.
@@ -2770,17 +2769,10 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::signals::private::routes::eval_signal)
                                     .service(crate::signals::private::routes::eval_signal_prewarm)
-                                    .service(crate::agent::routes::post_agent_chat);
+                                    .service(crate::agent::toolkit_routes::get_agent_toolkit)
+                                    .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope
                             });
-                        // Internal Slack-event receiver — the frontend verifies the Slack signature
-                        // and forwards verified events here. No HTTP auth (cluster-internal), same as
-                        // agent/chat. Signals-gated: it drives the agent.
-                        #[cfg(feature = "signals")]
-                        let app = app.service(
-                            web::scope("/api/v1/slack")
-                                .service(crate::agent::slack_events::slack_process),
-                        );
                         // Instance license; the Next.js route checks workspace ownership.
                         #[cfg(feature = "signals")]
                         let app = app

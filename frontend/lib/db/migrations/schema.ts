@@ -18,6 +18,7 @@ import {
   primaryKey,
   pgEnum,
   check,
+  json,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -1552,34 +1553,6 @@ export const signalTriggers = pgTable(
   ]
 );
 
-export const chatMessages = pgTable(
-  "chat_messages",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    role: text().notNull(),
-    parts: jsonb().notNull(),
-    chatId: uuid("chat_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    // Source-surface dedup key (currently the Slack message ts). Null for live UI/CLI/MCP turns and
-    // the Slack mention echo / assistant reply; set only on backfilled Slack thread messages.
-    externalId: text("external_id"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "chat_messages_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    // Upsert target for Slack thread backfill. Partial so live rows (external_id NULL) are exempt.
-    uniqueIndex("chat_messages_chat_external_key")
-      .on(table.chatId, table.externalId)
-      .where(sql`${table.externalId} is not null`),
-  ]
-);
-
 // Maps a Slack channel to the Laminar project an inbound @mention should route to. Set by an admin
 // in workspace integration settings; the app-server resolves it on each app_mention event.
 export const slackChannelProjects = pgTable(
@@ -1616,38 +1589,6 @@ export const slackChannelProjects = pgTable(
     // A Slack channel routes to at most one project across the whole instance, so an inbound @mention
     // never resolves to >1 binding (the app-server router relies on this).
     uniqueIndex("slack_channel_projects_channel_id_idx").on(table.channelId),
-  ]
-);
-
-export const chatSessions = pgTable(
-  "chat_sessions",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").notNull(),
-    channelType: text("channel_type").default("ui").notNull(),
-    workspaceId: uuid("workspace_id"),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    userId: uuid("user_id"),
-    traceId: uuid("trace_id"),
-    name: text("name"),
-  },
-  (table) => [
-    uniqueIndex("chat_sessions_project_user_trace_key")
-      .using(
-        "btree",
-        table.projectId.asc().nullsLast().op("uuid_ops"),
-        table.userId.asc().nullsLast().op("uuid_ops"),
-        table.traceId.asc().nullsLast().op("uuid_ops")
-      )
-      .where(sql`(trace_id IS NOT NULL)`),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "chat_sessions_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
   ]
 );
 
@@ -1792,5 +1733,95 @@ export const traces = pgTable(
       to: ["anon", "authenticated"],
       using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)`,
     }),
+  ]
+);
+
+export const agentSessions = pgTable(
+  "agent_sessions",
+  {
+    id: uuid().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    userId: uuid("user_id"),
+    source: text().default("ui").notNull(),
+    name: text(),
+    nextId: bigint("next_id", { mode: "number" }).default(2).notNull(),
+    nextSeq: bigint("next_seq", { mode: "number" }).default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_sessions_project_user_updated_idx").on(table.projectId, table.userId, table.updatedAt.desc()),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_sessions_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentRecords = pgTable(
+  "agent_records",
+  {
+    sessionId: uuid("session_id").notNull(),
+    id: bigint({ mode: "number" }).notNull(),
+    type: text().notNull(),
+    conversationId: bigint("conversation_id", { mode: "number" }),
+    ownerConversationId: bigint("owner_conversation_id", { mode: "number" }),
+    ownerTaskId: bigint("owner_task_id", { mode: "number" }),
+    head: bigint({ mode: "number" }),
+    commitSeq: bigint("commit_seq", { mode: "number" }),
+    kind: text(),
+    status: text(),
+    abortRequested: boolean("abort_requested"),
+    background: boolean(),
+    requestId: text("request_id"),
+    hasKey: boolean("has_key"),
+    keyValue: text("key_value"),
+    scopeKind: text("scope_kind"),
+    scopeId: bigint("scope_id", { mode: "number" }),
+    createdSeq: bigint("created_seq", { mode: "number" }),
+    retiredSeq: bigint("retired_seq", { mode: "number" }),
+    record: json().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.id], name: "agent_records_pkey" }),
+    index("agent_records_entries_idx")
+      .on(table.sessionId, table.conversationId, table.id)
+      .where(sql`type = 'entry'`),
+    index("agent_records_tasks_idx").on(table.sessionId, table.status, table.id).where(sql`type = 'task'`),
+    index("agent_records_live_tasks_idx")
+      .on(table.sessionId)
+      .where(sql`type = 'task' AND status <> 'terminal'`),
+    index("agent_records_submissions_idx")
+      .on(table.sessionId, table.conversationId, table.requestId)
+      .where(sql`type = 'submission'`),
+    index("agent_records_documents_idx")
+      .on(table.sessionId, table.scopeKind, table.scopeId, table.kind, table.id)
+      .where(sql`type = 'document'`),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.id],
+      name: "agent_records_session_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentDocumentRevisions = pgTable(
+  "agent_document_revisions",
+  {
+    sessionId: uuid("session_id").notNull(),
+    documentId: bigint("document_id", { mode: "number" }).notNull(),
+    seq: bigint({ mode: "number" }).notNull(),
+    kind: text().notNull(),
+    version: integer().notNull(),
+    content: json().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.documentId, table.seq], name: "agent_document_revisions_pkey" }),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.id],
+      name: "agent_document_revisions_session_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
