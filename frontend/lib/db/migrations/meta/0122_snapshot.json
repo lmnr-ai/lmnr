@@ -2367,10 +2367,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "boolean",
+          "type": "smallint",
           "primaryKey": true,
           "notNull": true,
-          "default": true
+          "default": 1
         },
         "trial_started_at": {
           "name": "trial_started_at",
@@ -2412,7 +2412,7 @@
       "checkConstraints": {
         "instance_license_singleton": {
           "name": "instance_license_singleton",
-          "value": "id"
+          "value": "id = 1"
         }
       },
       "isRLSEnabled": false
