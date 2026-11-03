@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
 
 interface SlackConnectButtonProps {
   workspaceId: string;
@@ -22,7 +23,8 @@ interface SlackConnectButtonProps {
 // Build the Slack OAuth entry URL (broker-start route for self-hosted, or the direct
 // start route on Cloud). Re-running it upserts the bot token in
 // place, so it doubles as the "Reconnect" target for an already-connected workspace.
-// Returns undefined when neither broker nor client creds are configured.
+// Returns undefined when neither broker nor client creds are configured. The routes
+// are hit via a raw <a href>, which Next doesn't prefix, so apply BASE_PATH here.
 export function buildSlackConnectUrl({
   workspaceId,
   slackClientId,
@@ -35,7 +37,7 @@ export function buildSlackConnectUrl({
     if (returnPath) {
       sp.set("returnPath", returnPath);
     }
-    return `/api/integrations/slack/broker-start?${sp}`;
+    return withBasePath(`/api/integrations/slack/broker-start?${sp}`);
   }
 
   // The client id / redirect uri only signal that the direct flow is configured; the
@@ -45,7 +47,7 @@ export function buildSlackConnectUrl({
     if (returnPath) {
       sp.set("returnPath", returnPath);
     }
-    return `/api/integrations/slack/start?${sp}`;
+    return withBasePath(`/api/integrations/slack/start?${sp}`);
   }
 
   return undefined;
