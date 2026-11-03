@@ -140,3 +140,31 @@ describe("license banner", () => {
     assert.equal(message, null);
   });
 });
+
+describe("EE license text", () => {
+  const imageCopyPath = path.join(__dirname, "../../app-server/LICENSE.md");
+  it("ships the /policies/ee-license text in the app-server image", { skip: !existsSync(imageCopyPath) }, () => {
+    const policy = readFileSync(path.join(__dirname, "../lib/policies/content/ee-license.md"), "utf8");
+    const body = policy.replace(/^---\n[\s\S]*?\n---\n\n/, "");
+    assert.equal(readFileSync(imageCopyPath, "utf8"), body);
+  });
+
+  it(
+    "keeps the repository LICENSE.md in sync with the policy's ELv2 text",
+    { skip: !existsSync(imageCopyPath) },
+    () => {
+      const normalize = (text: string) =>
+        text
+          .split("\n")
+          .filter((line) => !line.startsWith("Copyright (c)") && !line.startsWith("URL:"))
+          .join(" ")
+          .replace(/#/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      const policy = readFileSync(path.join(__dirname, "../lib/policies/content/ee-license.md"), "utf8");
+      const elv2 = policy.slice(policy.indexOf("# Elastic License 2.0"));
+      const repoLicense = readFileSync(path.join(__dirname, "../../LICENSE.md"), "utf8");
+      assert.equal(normalize(repoLicense), normalize(elv2));
+    }
+  );
+});

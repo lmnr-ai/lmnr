@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import LicenseKeyForm from "@/components/workspace/license/license-key-form";
 import LicenseStatusCard from "@/components/workspace/license/license-status-card";
@@ -52,6 +54,10 @@ export default function WorkspaceLicense({ license, workspaceId, isOwner }: Work
           >
             here
           </a>
+          . Enterprise images are licensed under the{" "}
+          <Link href="/policies/ee-license" target="_blank" className="text-primary hover:underline">
+            Laminar Enterprise License
+          </Link>
           .
         </p>
       </SettingsSection>
