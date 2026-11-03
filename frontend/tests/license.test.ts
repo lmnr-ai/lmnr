@@ -140,3 +140,12 @@ describe("license banner", () => {
     assert.equal(message, null);
   });
 });
+
+describe("EE license text", () => {
+  const imageCopyPath = path.join(__dirname, "../../app-server/LICENSE.md");
+  it("ships the /policies/ee-license text in the app-server image", { skip: !existsSync(imageCopyPath) }, () => {
+    const policy = readFileSync(path.join(__dirname, "../lib/policies/content/ee-license.md"), "utf8");
+    const body = policy.replace(/^---\n[\s\S]*?\n---\n\n/, "");
+    assert.equal(readFileSync(imageCopyPath, "utf8"), body);
+  });
+});
