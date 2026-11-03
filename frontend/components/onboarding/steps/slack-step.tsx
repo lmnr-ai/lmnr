@@ -10,9 +10,9 @@ import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
+import { buildSlackConnectUrl } from "@/components/slack/slack-connect-button";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { SLACK_SCOPES } from "@/lib/actions/slack/types";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 
@@ -33,18 +33,16 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
   const onFree = watch("currentTier") === "free";
 
   const slackUrl = useMemo(() => {
-    if (!slackClientId || !slackRedirectUri || !resources.workspaceId) return undefined;
+    if (!resources.workspaceId) return undefined;
     // returnPath is /onboarding with NO status param — the callback appends
     // slack=success|error itself. Embedding ?slack=success here would mask
     // errors because URLSearchParams.get() returns the first occurrence.
-    const state = `${resources.workspaceId}:/onboarding`;
-    const sp = new URLSearchParams({
-      scope: SLACK_SCOPES.join(","),
-      client_id: slackClientId,
-      state,
-      redirect_uri: slackRedirectUri,
+    return buildSlackConnectUrl({
+      workspaceId: resources.workspaceId,
+      slackClientId,
+      slackRedirectUri,
+      returnPath: "/onboarding",
     });
-    return `https://slack.com/oauth/v2/authorize?${sp}`;
   }, [slackClientId, slackRedirectUri, resources.workspaceId]);
 
   const slackAvailable = flags[Feature.SLACK] && !!slackUrl;

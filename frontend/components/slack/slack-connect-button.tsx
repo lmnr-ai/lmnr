@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import { SLACK_SCOPES } from "@/lib/actions/slack/types";
 import { track } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
 
 interface SlackConnectButtonProps {
   workspaceId: string;
@@ -20,10 +20,11 @@ interface SlackConnectButtonProps {
   brokerEnabled?: boolean;
 }
 
-// Build the Slack OAuth entry URL (broker-start route for self-hosted, or a direct
-// slack.com/oauth/v2/authorize URL on Cloud). Re-running it upserts the bot token in
+// Build the Slack OAuth entry URL (broker-start route for self-hosted, or the direct
+// start route on Cloud). Re-running it upserts the bot token in
 // place, so it doubles as the "Reconnect" target for an already-connected workspace.
-// Returns undefined when neither broker nor client creds are configured.
+// Returns undefined when neither broker nor client creds are configured. The routes
+// are hit via a raw <a href>, which Next doesn't prefix, so apply BASE_PATH here.
 export function buildSlackConnectUrl({
   workspaceId,
   slackClientId,
@@ -36,18 +37,17 @@ export function buildSlackConnectUrl({
     if (returnPath) {
       sp.set("returnPath", returnPath);
     }
-    return `/api/integrations/slack/broker-start?${sp}`;
+    return withBasePath(`/api/integrations/slack/broker-start?${sp}`);
   }
 
+  // The client id / redirect uri only signal that the direct flow is configured; the
+  // start route builds the authorize URL with a server-minted state + PKCE.
   if (slackClientId && slackRedirectUri) {
-    const state = returnPath ? `${workspaceId}:${returnPath}` : workspaceId;
-    const sp = new URLSearchParams({
-      scope: SLACK_SCOPES.join(","),
-      client_id: slackClientId,
-      state,
-      redirect_uri: slackRedirectUri,
-    });
-    return `https://slack.com/oauth/v2/authorize?${sp}`;
+    const sp = new URLSearchParams({ workspaceId });
+    if (returnPath) {
+      sp.set("returnPath", returnPath);
+    }
+    return withBasePath(`/api/integrations/slack/start?${sp}`);
   }
 
   return undefined;
