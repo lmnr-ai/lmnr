@@ -1,5 +1,11 @@
+import { desc, like, sql } from "drizzle-orm";
+
 import { clickhouseClient } from "@/lib/clickhouse/client";
+import { db } from "@/lib/db/drizzle";
+import { users } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { getLicenseStatus, getTrialStartedAt } from "@/lib/license";
+import { getInstanceCreatedAt } from "@/lib/telemetry/instance";
 
 // Each ClickHouse `_v0` view Laminar exposes is a project-parameterized view
 // function ({project_id:UUID}), so it can't be counted directly. Instead we map
@@ -76,13 +82,48 @@ const collectFeatureFlags = (): Record<string, boolean> => {
   return Object.fromEntries(flags.map((f) => [f, isFeatureEnabled(f)]));
 };
 
+const toIso = (value: string | Date | null): string | null => (value ? new Date(value).toISOString() : null);
+
+// A trial that keeps restarting on an instance installed long ago shows up as
+// trial_started_at drifting away from instance_created_at.
+const collectTrialDates = async (): Promise<Record<string, string | null>> => {
+  const [trialStartedAt, instanceCreatedAt] = await Promise.all([
+    getTrialStartedAt().catch(() => null),
+    getInstanceCreatedAt().catch(() => null),
+  ]);
+  return { trial_started_at: toIso(trialStartedAt), instance_created_at: toIso(instanceCreatedAt) };
+};
+
+const MAX_EMAIL_DOMAINS = 20;
+
+// Domains only, never addresses: they say which companies run an instance.
+const collectEmailDomains = async (): Promise<string[]> => {
+  const domain = sql<string>`lower(split_part(${users.email}, '@', 2))`;
+  const rows = await db
+    .select({ domain })
+    .from(users)
+    .where(like(users.email, "%@%"))
+    .groupBy(domain)
+    .orderBy(desc(sql`count(*)`), domain)
+    .limit(MAX_EMAIL_DOMAINS);
+  return rows.map((row) => row.domain);
+};
+
 export interface TelemetrySnapshot {
   properties: Record<string, unknown>;
   setProperties: Record<string, unknown>;
 }
 
 export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
-  const counts = await collectViewCounts();
+  const [counts, license, emailDomains] = await Promise.all([
+    collectViewCounts(),
+    getLicenseStatus(),
+    collectEmailDomains().catch((error) => {
+      console.error("Failed to collect telemetry email domains:", error);
+      return [];
+    }),
+  ]);
+  const trialDates = license ? await collectTrialDates() : {};
   const countProps = Object.fromEntries(Object.entries(counts).map(([view, n]) => [`count_${view}`, n]));
 
   const features = collectFeatureFlags();
@@ -90,13 +131,17 @@ export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
 
   const version = process.env.NEXT_PUBLIC_APP_VERSION || process.env.npm_package_version || "unknown";
   const environment = process.env.ENVIRONMENT || "unknown";
-  // Optional operator-set consent label. Lets known accounts opt in to being
-  // identifiable; absent by default so telemetry stays anonymous.
+  // Optional operator-set label, so an operator can name the deployment.
   const label = process.env.LAMINAR_TELEMETRY_LABEL;
 
   const common = {
     version,
     environment,
+    // Status only, never the customer or key. "none" for an OSS app-server.
+    license_status: license?.status ?? "none",
+    ...trialDates,
+    // Most users first.
+    email_domains: emailDomains,
     ...countProps,
     ...featureProps,
     ...(label ? { label } : {}),

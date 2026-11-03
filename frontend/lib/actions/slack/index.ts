@@ -6,6 +6,7 @@ import { assertWorkspaceHasSlack } from "@/lib/actions/usage/plan-gates";
 import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { alertTargets, reportTargets, slackIntegrations } from "@/lib/db/migrations/schema";
+import { getBrokerLicenseKey } from "@/lib/license";
 
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
@@ -148,12 +149,12 @@ const BrokerRedeemResponseSchema = z.object({
 // the bot token, server-to-server, authenticated by this instance's license
 // key, then persist exactly as the direct path does. The token transits over
 // TLS only — it never appears in a browser URL. Inert unless SLACK_BROKER_URL
-// and LMNR_LICENSE_KEY are configured.
+// and a license key (env or settings) are configured.
 export async function redeemBrokeredSlackToken(input: { claim: string; workspaceId: string }) {
   const brokerUrl = process.env.SLACK_BROKER_URL;
-  const licenseKey = process.env.LMNR_LICENSE_KEY;
+  const licenseKey = await getBrokerLicenseKey();
   if (!brokerUrl || !licenseKey) {
-    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / LMNR_LICENSE_KEY).");
+    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / license key).");
   }
 
   const response = await fetch(`${brokerUrl.replace(/\/+$/, "")}/api/broker/slack/redeem`, {

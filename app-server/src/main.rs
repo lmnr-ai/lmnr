@@ -154,6 +154,8 @@ mod features;
 mod hosted_evals;
 mod instrumentation;
 mod language_model;
+#[cfg(feature = "signals")]
+mod license;
 mod llm;
 mod logs;
 mod mq;
@@ -340,6 +342,9 @@ fn main() -> anyhow::Result<()> {
     // === 4. Database ===
     let inner_db = runtime_handle.block_on(db::DB::connect_from_env())?;
     let db = Arc::new(inner_db);
+
+    #[cfg(feature = "signals")]
+    runtime_handle.block_on(license::init(&db));
 
     // === 3. Message queues ===
     let (publisher_connection, consumer_connection) =
@@ -2776,6 +2781,11 @@ fn main() -> anyhow::Result<()> {
                             web::scope("/api/v1/slack")
                                 .service(crate::agent::slack_events::slack_process),
                         );
+                        // Instance license; the Next.js route checks workspace ownership.
+                        #[cfg(feature = "signals")]
+                        let app = app
+                            .service(license::routes::get_license)
+                            .service(license::routes::put_license);
                         // Workspace-scoped internal routes; like projects/{project_id}, the
                         // Next.js route checks the caller's workspace membership.
                         let app = app.service(

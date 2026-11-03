@@ -120,15 +120,16 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.SLACK) {
     // Cloud: the official app's own OAuth config. Broker: a self-hosted instance
-    // points at the Laminar Cloud broker with its license key and needs no Slack
-    // app secrets of its own.
+    // points at the Laminar Cloud broker and needs no Slack app secrets of its
+    // own. Its license key may live in the env or in settings (`getBrokerLicenseKey`),
+    // so the connect UI checks the key itself.
     const cloudEnabled =
       process.env.ENVIRONMENT === "PRODUCTION" &&
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
       !!process.env.SLACK_REDIRECT_URL;
-    const brokerEnabled = !!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY;
+    const brokerEnabled = !!process.env.SLACK_BROKER_URL;
     return cloudEnabled || brokerEnabled;
   }
 

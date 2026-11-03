@@ -13,6 +13,7 @@ import { requireProjectAccess } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { getBrokerLicenseKey, getLicenseStatus } from "@/lib/license";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -30,9 +31,11 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   const projectDetails = await getProjectDetails(params.projectId);
   const workspaceId = projectDetails.workspaceId;
 
-  const [workspace, apiKeys] = await Promise.all([
+  const [workspace, apiKeys, license, brokerLicenseKey] = await Promise.all([
     getWorkspace({ workspaceId }),
     getApiKeys({ projectId: params.projectId }),
+    getLicenseStatus(),
+    process.env.SLACK_BROKER_URL ? getBrokerLicenseKey() : null,
   ]);
 
   const userMembership = await db
@@ -110,7 +113,8 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
       trial={trial}
       slackClientId={process.env.SLACK_CLIENT_ID}
       slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-      slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
+      slackBrokerEnabled={!!brokerLicenseKey}
+      license={license}
     />
   );
 }
