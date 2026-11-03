@@ -130,7 +130,7 @@ Separately from training, customers on eligible plans can enable a per-project s
 
 ### B7. Self-hosted deployments
 
-Laminar is open source and can be self-hosted. When you self-host, your data stays on your infrastructure: Laminar receives no Customer Data, this Part B does not apply, and no self-hosted data is ever used for training. Self-hosted deployments send us only a periodic usage heartbeat: a random deployment ID, the Laminar version, environment, row counts, license and trial status with the trial start and install dates, and up to 20 domains of the deployment's user email addresses (for example, `example.com`; never full addresses). It contains no Customer Data and no IP address. We use it to understand how Laminar is used and which organizations run it, including to follow up about Enterprise licensing. Operators can turn it off by setting `LAMINAR_TELEMETRY_DISABLED=true`.
+Laminar is open source and can be self-hosted. When you self-host, your data stays on your infrastructure: Laminar receives no Customer Data, this Part B does not apply, and no self-hosted data is ever used for training. Self-hosted deployments send us only a periodic usage heartbeat: a random deployment ID, the Laminar version, environment, row counts, which optional features are enabled, license and trial status with the trial start and install dates, and up to 20 domains of the deployment's user email addresses (for example, `example.com`; never full addresses). It contains no Customer Data and no IP address. We use it to understand how Laminar is used and which organizations run it, including to follow up about Enterprise licensing. Operators can turn it off by setting `LAMINAR_TELEMETRY_DISABLED=true`.
 
 ## Updates to this notice
 
