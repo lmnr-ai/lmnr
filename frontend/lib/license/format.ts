@@ -1,5 +1,7 @@
 import crypto from "crypto";
 
+import { LICENSE_PUBLIC_KEYS } from "@/lib/license/public-keys";
+
 // Enterprise license keys: `lmnr_lic_<payload>.<signature>`, both segments
 // base64url without padding. The signature is Ed25519 over the payload segment's
 // ASCII bytes, so keys verify offline (air-gapped installs) against the public
@@ -7,10 +9,7 @@ import crypto from "crypto";
 // this copy serves the Cloud Slack broker and the minting script.
 export const LICENSE_PREFIX = "lmnr_lic_";
 
-// A key signed by any of these verifies; spare pairs let us switch signing keys
-// without breaking deployed images. Keep in sync with PUBLIC_KEYS in
-// app-server/src/license/key.rs.
-export const LICENSE_PUBLIC_KEYS: readonly string[] = ["n8Iz5CFM5PXtKaNeFjri0gZ6_RFouS61xJIa5PdNE4g"];
+export { LICENSE_PUBLIC_KEYS };
 
 const SUPPORTED_VERSION = 1;
 

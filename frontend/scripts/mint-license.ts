@@ -1,7 +1,7 @@
 // Mints a signed enterprise license key for a self-hosted customer.
 //
 // The signing key is an Ed25519 seed whose public half is in LICENSE_PUBLIC_KEYS
-// (frontend/lib/license/format.ts) and PUBLIC_KEYS (app-server/src/license/key.rs).
+// (frontend/lib/license/public-keys.ts) and PUBLIC_KEYS (app-server/src/license/key.rs).
 // Seeds live in the secret manager, never in the repo or an env file. Only one
 // signs at a time; the others are spares for when a seed leaks.
 //
@@ -33,7 +33,7 @@ const keygen = () => {
   const seed = crypto.randomBytes(32);
   console.log("Signing key (store in the secret manager, shown once):");
   console.log(`  LMNR_LICENSE_SIGNING_KEY=${seed.toString("base64url")}\n`);
-  console.log("Public key (append to LICENSE_PUBLIC_KEYS in format.ts and PUBLIC_KEYS in key.rs):");
+  console.log("Public key (append to LICENSE_PUBLIC_KEYS in public-keys.ts and PUBLIC_KEYS in key.rs):");
   console.log(`  ${publicKeyFromSeed(seed)}`);
 };
 
