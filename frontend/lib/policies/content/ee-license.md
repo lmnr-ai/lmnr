@@ -7,7 +7,7 @@ description: "License terms for the Laminar Enterprise Edition self-hosted image
 
 **Last updated November 3, 2026**
 
-The Laminar Enterprise Edition container images (`ghcr.io/lmnr-ai/app-server-ee`, `ghcr.io/lmnr-ai/frontend-ee`, and `ghcr.io/lmnr-ai/frontend-ee-basepath`) are licensed to you by LMNR AI, Inc. (DBA Laminar) under the Elastic License 2.0, reproduced below.
+The Laminar Enterprise Edition container images (`ghcr.io/lmnr-ai/app-server-ee`, `ghcr.io/lmnr-ai/frontend-ee`, `ghcr.io/lmnr-ai/frontend-ee-basepath`, and `ghcr.io/lmnr-ai/pii-redactor-ee`) are licensed to you by LMNR AI, Inc. (DBA Laminar) under the Elastic License 2.0, reproduced below.
 
 Enterprise features run for a 30-day trial, after which they require a license key from Laminar. Features that are also published in the open-source repository at [github.com/lmnr-ai/lmnr](https://github.com/lmnr-ai/lmnr) remain available to you under the Apache License 2.0 that applies to that repository, and they keep working without a license key.
 
