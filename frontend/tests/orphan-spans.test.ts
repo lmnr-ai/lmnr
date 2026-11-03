@@ -70,6 +70,19 @@ test("a complete trace is unchanged (control)", () => {
   );
 });
 
+// Collapsing a span hides its subtree; the leftover seeding must not re-add those
+// children as depth-0 roots (`collapsed` stops the walk, it does not orphan them).
+test("collapsed subtrees stay hidden instead of reappearing as roots", () => {
+  const rootSpan = mk("root");
+  rootSpan.collapsed = true;
+  const spans = [rootSpan, mk("child", "root"), mk("grandchild", "child")];
+
+  assert.deepEqual(
+    transformSpansToTree(spans).map((entry) => entry.span.spanId),
+    ["root"]
+  );
+});
+
 // Malformed ingest: cyclic and self-referential parent links must not blow the stack.
 test("cyclic parents do not throw and every span is rendered exactly once", () => {
   const cycle = [mk("a", "b"), mk("b", "a"), mk("c", "a")];

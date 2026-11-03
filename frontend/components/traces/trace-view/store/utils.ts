@@ -147,11 +147,24 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
     }
   };
 
+  // Reachability is tracked separately from rendering: a collapsed span still owns
+  // its subtree, it only stops the walk from descending into it. Without this,
+  // the seeding below would re-add collapsed children as depth-0 roots.
+  const reachable = new Set<string>();
+  const pending = [...topLevelSpans];
+  while (pending.length > 0) {
+    const span = pending.pop();
+    if (!span || reachable.has(span.spanId)) continue;
+    reachable.add(span.spanId);
+    const children = childSpans[span.spanId];
+    if (children) pending.push(...children);
+  }
+
   topLevelSpans.forEach((span) => buildTreeWithCollapse(spanItems, span, 0, maxY, 0));
 
-  // Pick up spans unreachable from any root (pure cycles with no top-level member).
+  // Seed spans unreachable from any root (a pure cycle has no top-level member).
   for (const span of spans) {
-    if (!visited.has(span.spanId)) {
+    if (!reachable.has(span.spanId)) {
       buildTreeWithCollapse(spanItems, span, 0, maxY, 0);
     }
   }
