@@ -44,11 +44,23 @@ export const computePathInfoMap = (spans: TraceViewSpan[]): Map<string, PathInfo
   const getParentIds = (spanId: string): string[] => {
     const cached = parentChainCache.get(spanId);
     if (cached) return cached;
-    const span = spanMap.get(spanId);
-    const parent = span?.parentSpanId ? spanMap.get(span.parentSpanId) : undefined;
-    const result = parent ? [...getParentIds(parent.spanId), parent.spanId] : [];
-    parentChainCache.set(spanId, result);
-    return result;
+
+    const chain: string[] = [];
+    const seen = new Set<string>([spanId]);
+    let current = spanMap.get(spanId);
+
+    while (current?.parentSpanId) {
+      if (seen.has(current.parentSpanId)) break; // cycle: stop here
+      const parent = spanMap.get(current.parentSpanId);
+      if (!parent) break; // orphan: stop at the gap
+      seen.add(parent.spanId);
+      chain.push(parent.spanId);
+      current = parent;
+    }
+
+    chain.reverse(); // nearest-first -> farthest-first
+    parentChainCache.set(spanId, chain);
+    return chain;
   };
 
   const nonDefaultSpans = spans.filter((span) => span.spanType !== "DEFAULT");
@@ -71,10 +83,12 @@ export const computePathInfoMap = (spans: TraceViewSpan[]): Map<string, PathInfo
 };
 
 export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<string, PathInfo>): TreeSpan[] => {
-  const topLevelSpans = spans.filter((span) => !span.parentSpanId);
+  const spanIds = new Set(spans.map((span) => span.spanId));
+  const topLevelSpans = spans.filter((span) => !span.parentSpanId || !spanIds.has(span.parentSpanId));
   const childSpans = getChildSpansMap(spans);
 
   const spanItems: TreeSpan[] = [];
+  const visited = new Set<string>();
   const maxY = { current: 0 };
 
   // Track which ancestor depths have more children to render
@@ -87,6 +101,9 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
     maxY: { current: number },
     parentY: number
   ) => {
+    if (visited.has(span.spanId)) return;
+    visited.add(span.spanId);
+
     const yOffset = maxY.current + 36;
 
     // Capture branchMask as snapshot of active ancestors for depths 0 to depth-1
@@ -131,6 +148,14 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
   };
 
   topLevelSpans.forEach((span) => buildTreeWithCollapse(spanItems, span, 0, maxY, 0));
+
+  // Pick up spans unreachable from any root (pure cycles with no top-level member).
+  for (const span of spans) {
+    if (!visited.has(span.spanId)) {
+      buildTreeWithCollapse(spanItems, span, 0, maxY, 0);
+    }
+  }
+
   return spanItems;
 };
 
@@ -746,8 +771,11 @@ export const computeVisibleSpanIds = (selectedIds: Set<string>, spans: TraceView
 
   // For each selected span, walk up to root adding ancestors
   for (const spanId of selectedIds) {
+    const seen = new Set<string>();
     let current = spanMap.get(spanId);
     while (current?.parentSpanId) {
+      if (seen.has(current.parentSpanId)) break;
+      seen.add(current.parentSpanId);
       visibleIds.add(current.parentSpanId);
       current = spanMap.get(current.parentSpanId);
     }
@@ -792,7 +820,10 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
   // Compute original depths using DFS from root spans
   const depthMap = new Map<string, number>();
+  const depthVisited = new Set<string>();
   const computeDepth = (spanId: string, depth: number) => {
+    if (depthVisited.has(spanId)) return;
+    depthVisited.add(spanId);
     depthMap.set(spanId, depth);
     const children = childSpansMap[spanId] || [];
     for (const child of children) {
@@ -800,9 +831,14 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     }
   };
 
-  const topLevelSpans = spans.filter((span) => !span.parentSpanId);
+  const spanIds = new Set(spans.map((span) => span.spanId));
+  const topLevelSpans = spans.filter((span) => !span.parentSpanId || !spanIds.has(span.parentSpanId));
   for (const span of topLevelSpans) {
     computeDepth(span.spanId, 0);
+  }
+  // Pick up spans unreachable from any root (pure cycles with no top-level member).
+  for (const span of spans) {
+    if (!depthVisited.has(span.spanId)) computeDepth(span.spanId, 0);
   }
 
   type SpanWithPosition = {
@@ -854,6 +890,10 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
   for (const span of topLevelSpans) {
     dfsOrder(span.spanId);
+  }
+  // Seed orphan subtrees and pure cycles missed by the roots.
+  for (const span of spans) {
+    if (!visited.has(span.spanId)) dfsOrder(span.spanId);
   }
 
   // Gravity algorithm: compact spans upward while respecting parent-child invariant
