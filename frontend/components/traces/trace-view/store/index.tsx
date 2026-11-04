@@ -39,11 +39,15 @@ interface TraceViewStoreState {
   targets: Targets;
   maxWidth: number;
   layoutChangeSource: LayoutChangeSource;
+  // The user's last choice in the drawer: opened a span (true) or closed the span panel (false).
+  // When true, a newly opened trace selects its first span so details show without an extra click.
+  keepSpanPanelOpen: boolean;
 }
 
 interface TraceViewStoreActions {
   resizePanel: (panel: ResizablePanel, delta: number, visible: Visible) => void;
   setMaxWidth: (maxWidth: number) => void;
+  setKeepSpanPanelOpen: (keep: boolean) => void;
 }
 
 type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreActions;
@@ -73,6 +77,9 @@ const createTraceViewStore = (options?: {
           targets: DEFAULT_TARGETS,
           maxWidth: Infinity,
           layoutChangeSource: "initial",
+          keepSpanPanelOpen: false,
+
+          setKeepSpanPanelOpen: (keep: boolean) => set({ keepSpanPanelOpen: keep } as Partial<TraceViewStore>),
 
           setMaxWidth: (maxWidth: number) => {
             const current = get().maxWidth;
@@ -126,6 +133,7 @@ const createTraceViewStore = (options?: {
 
           return {
             targets: state.targets,
+            keepSpanPanelOpen: state.keepSpanPanelOpen,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
@@ -148,6 +156,7 @@ const createTraceViewStore = (options?: {
           return {
             ...currentState,
             targets,
+            ...(typeof persisted.keepSpanPanelOpen === "boolean" && { keepSpanPanelOpen: persisted.keepSpanPanelOpen }),
             ...(typeof persisted.showTreeContent === "boolean" && { showTreeContent: persisted.showTreeContent }),
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
