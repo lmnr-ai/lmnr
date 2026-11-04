@@ -14,7 +14,7 @@ const MAX_BLOCKS: usize = 50;
 ///
 /// Mirrors the report email: an H1 title + period overview, then one card per
 /// signal across all projects (busiest first) with the signal's summary, its event
-/// count vs the previous period, and its notable clusters, then a "Manage reports"
+/// count vs the previous period, and its clusters when it has any, then a "Manage reports"
 /// footer.
 ///
 /// Signals are rendered until the 50-block budget is hit, then a
@@ -98,7 +98,7 @@ pub(super) fn format_report_blocks(title: &str, report: &ReportData) -> serde_js
 }
 
 /// One signal's card: divider, overview section (breadcrumb, event count, summary),
-/// and a notable-clusters section.
+/// and a clusters section when the signal has notable clusters.
 fn signal_card_blocks(
     project: &ProjectReportData,
     signal: &SignalReportData,
@@ -129,29 +129,30 @@ fn signal_card_blocks(
         escape_mrkdwn(&signal.summary_or_default()),
     );
 
-    let clusters = signal.notable_clusters();
-    let clusters_text = if clusters.is_empty() {
-        "*Notable clusters*\n_No notable clusters in this period._".to_string()
-    } else {
-        let rows = clusters
-            .into_iter()
-            .map(|row| cluster_line(project, signal, row, base))
-            .collect::<Vec<_>>()
-            .join("\n");
-        format!("*Notable clusters*\n{}", rows)
-    };
-
-    vec![
+    let mut blocks = vec![
         json!({"type": "divider"}),
         json!({
             "type": "section",
             "text": { "type": "mrkdwn", "text": truncate_to_slack_section_limit(&overview) }
         }),
-        json!({
+    ];
+
+    // The whole section is dropped when the signal has no clusters worth listing.
+    let clusters = signal.notable_clusters();
+    if !clusters.is_empty() {
+        let rows = clusters
+            .into_iter()
+            .map(|row| cluster_line(project, signal, row, base))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let clusters_text = format!("*Clusters*\n{}", rows);
+        blocks.push(json!({
             "type": "section",
             "text": { "type": "mrkdwn", "text": truncate_to_slack_section_limit(&clusters_text) }
-        }),
-    ]
+        }));
+    }
+
+    blocks
 }
 
 fn cluster_line(
