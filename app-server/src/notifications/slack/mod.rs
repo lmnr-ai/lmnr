@@ -666,7 +666,7 @@ mod tests {
 
         // notable clusters: recurring before new, below-threshold dropped, names escaped
         let clusters = sections[detector + 1];
-        assert!(clusters.starts_with("*Notable clusters*"));
+        assert!(clusters.starts_with("*Clusters*"));
         let bad = clusters.find("Bad &lt;args&gt; ¦ retries").unwrap();
         let new = clusters.find("Tool timeouts").unwrap();
         assert!(bad < new);
@@ -675,7 +675,8 @@ mod tests {
         assert!(clusters.contains("?clusterId="));
         assert!(!clusters.contains("tiny"));
 
-        assert!(sections[latency + 1].contains("No notable clusters"));
+        // a signal without notable clusters gets no clusters section at all
+        assert_eq!(latency + 1, detector);
         // fallback summary when the signal has none
         assert!(sections[latency].contains("40 events were detected during this period."));
 

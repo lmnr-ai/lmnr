@@ -769,17 +769,22 @@ fn render_signal_card(
         .max()
         .unwrap_or(1)
         .max(1);
+    // The whole section is dropped when the signal has no clusters worth listing.
     let clusters_html = if clusters.is_empty() {
-        r#"<p style="margin:0;color:#92949c;font-size:14px">No notable clusters in this period.</p>"#.to_string()
+        String::new()
     } else {
-        clusters
+        let rows: String = clusters
             .into_iter()
             .map(|row| cluster_row(project.project_id, signal.signal_id, row, max_count, base))
-            .collect()
+            .collect();
+        format!(
+            r#"<div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Clusters</p>{}</div>"#,
+            TEXT, rows
+        )
     };
     let summary = signal.summary_or_default();
     format!(
-        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div>{}</div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
         TEXT,
         html_escape(&summary),
@@ -788,7 +793,6 @@ fn render_signal_card(
         signal.current_count,
         delta(signal.current_count, signal.previous_count),
         chart(&signal.buckets),
-        TEXT,
         clusters_html
     )
 }
@@ -1028,6 +1032,36 @@ mod tests {
         assert!(html.contains(r#"<span style="color:#92949c">Project</span>"#));
         assert!(html.contains(r#"<span style="color:#252525">Signal</span>"#));
         assert!(html.contains(r#"<td valign="baseline" style="white-space:nowrap">"#));
+        assert!(html.contains(">Clusters</p>"));
+    }
+
+    #[test]
+    fn signal_card_without_notable_clusters_drops_the_clusters_section() {
+        let id = |n| Uuid::from_u128(n);
+        let signal = SignalReportData {
+            signal_id: id(1),
+            signal_name: "Signal".into(),
+            current_count: 3,
+            previous_count: 1,
+            summary: "Summary".into(),
+            buckets: vec![],
+            // below the 5-event threshold, so no cluster is notable
+            clusters: vec![ReportClusterData {
+                id: id(2),
+                name: "small".into(),
+                count: 2,
+                previous_count: 2,
+            }],
+        };
+        let project = ProjectReportData {
+            project_name: "Project".into(),
+            project_id: id(5),
+            signal_event_counts: BTreeMap::new(),
+            signals: vec![],
+        };
+        let html = render_signal_card(&project, &signal, "https://example.com");
+        assert!(!html.contains("Clusters"));
+        assert!(!html.contains("small"));
     }
 
     #[test]
