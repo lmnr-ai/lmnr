@@ -6,8 +6,15 @@ import { notTrialLocked } from "@/lib/authorization/trial-lock";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { AuthorizationError } from "@/lib/errors";
-import { WORKSPACE_ROLES, type WorkspaceRole } from "@/lib/workspaces/types";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { SSO_MANAGED_MEMBERSHIP_MESSAGE, WORKSPACE_ROLES, type WorkspaceRole } from "@/lib/workspaces/types";
 
+// SCIM reconciles memberships from Okta groups; a manual change would silently diverge.
+export const assertMembershipNotSsoManaged = (message = SSO_MANAGED_MEMBERSHIP_MESSAGE) => {
+  if (isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP)) {
+    throw new AuthorizationError(message, 403);
+  }
+};
 const CheckWorkspaceRoleSchema = z.object({
   workspaceId: z.guid(),
   roles: z.array(z.enum(WORKSPACE_ROLES)).min(1),

@@ -8,7 +8,26 @@ import { deviceCodes } from "@/lib/db/migrations/schema";
 
 const handlers = toNextJsHandler(auth);
 
-export const GET = handlers.GET;
+// IdP-registered NextAuth callbacks whose Better Auth handler lives at another path. Not a
+// next.config rewrite: route handlers get the pre-rewrite URL, which Better Auth routes on.
+const LEGACY_CALLBACKS: [from: string, to: string][] = [
+  ["/api/auth/callback/okta", "/api/auth/sso/callback"],
+  ["/api/auth/callback/azure-ad", "/api/auth/callback/microsoft-entra-id"],
+];
+
+const remapLegacyCallback = (req: NextRequest): Request => {
+  const url = new URL(req.url);
+  const legacy = LEGACY_CALLBACKS.find(([from]) => url.pathname.endsWith(from));
+  if (!legacy) return req;
+  url.pathname = url.pathname.slice(0, -legacy[0].length) + legacy[1];
+  return new Request(url, req);
+};
+
+export const GET = (req: NextRequest) => handlers.GET(remapLegacyCallback(req));
+// SCIM provisioning (/api/auth/scim/v2/*) replaces and patches Users and Groups.
+export const PUT = handlers.PUT;
+export const PATCH = handlers.PATCH;
+export const DELETE = handlers.DELETE;
 
 // CLI device-flow metadata delivery. BetterAuth's /device/token response is fixed
 // to {access_token, scope} and DELETES the device row before responding, and a

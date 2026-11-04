@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createWorkspace, getWorkspaces } from "@/lib/actions/workspaces";
+import { AuthorizationError } from "@/lib/errors";
 
 export async function GET(_req: NextRequest): Promise<Response> {
   try {
@@ -30,6 +31,9 @@ export async function POST(req: Request): Promise<Response> {
     console.error(error);
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    if (error instanceof AuthorizationError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
 
     return Response.json({ error: "Failed to create workspace. Please try again." }, { status: 500 });

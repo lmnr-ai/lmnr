@@ -1,13 +1,12 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { DEFAULT_DASHBOARD_NAME } from "@/lib/actions/dashboard/dashboards";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import defaultCharts from "@/lib/db/default-charts.ts";
 import { db } from "@/lib/db/drizzle";
-import { dashboardCharts, dashboards, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { ascNameFold } from "@/lib/db/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { insertProject } from "@/lib/workspaces/insert";
 import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
@@ -39,34 +38,7 @@ export async function createProject(input: z.infer<typeof CreateProjectSchema>) 
         }
       }
 
-      const [newProject] = await tx
-        .insert(projects)
-        .values({
-          name,
-          workspaceId,
-        })
-        .returning();
-
-      if (!newProject) {
-        throw new Error("Failed to create project");
-      }
-
-      const [dashboard] = await tx
-        .insert(dashboards)
-        .values({ projectId: newProject.id, name: DEFAULT_DASHBOARD_NAME })
-        .returning({ id: dashboards.id });
-
-      const chartsToInsert = defaultCharts.map((chart) => ({
-        name: chart.name,
-        query: chart.query,
-        settings: chart.settings,
-        projectId: newProject.id,
-        dashboardId: dashboard.id,
-      }));
-
-      await tx.insert(dashboardCharts).values(chartsToInsert);
-
-      return newProject;
+      return insertProject(tx, { name, workspaceId });
     });
   } finally {
     await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);

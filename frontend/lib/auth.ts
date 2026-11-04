@@ -5,11 +5,15 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { bearer } from "better-auth/plugins/bearer";
 import { deviceAuthorization } from "better-auth/plugins/device-authorization";
-import { genericOAuth, keycloak, microsoftEntraId, okta } from "better-auth/plugins/generic-oauth";
+import { genericOAuth, keycloak, microsoftEntraId } from "better-auth/plugins/generic-oauth";
 import { jwt } from "better-auth/plugins/jwt";
 import { eq } from "drizzle-orm";
 
+import { authDb } from "@/lib/auth-db";
 import { localEmail } from "@/lib/auth-local-email";
+import { OKTA_PROVIDER_ID } from "@/lib/auth-okta/constants";
+import { oktaSCIM } from "@/lib/auth-okta/scim";
+import { oktaIssuerOrigin, oktaSSO } from "@/lib/auth-okta/sso";
 import { invalidateMemberAccessCache } from "@/lib/authorization/member-cache";
 import { db } from "@/lib/db/drizzle";
 import * as schema from "@/lib/db/migrations/schema";
@@ -123,11 +127,10 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
 
 // Build the OAuth redirect_uri as `<origin><base-path>/api/auth/callback/<id>`.
 //
-// Path: pin to the NextAuth-style path (`/api/auth/callback/<id>`), NOT Better Auth's
-// default (`/oauth2/callback/<id>`): self-hosters already registered this path with
-// their IdP, and sending the new one fails the IdP's redirect_uri match. The
-// next.config.ts rewrite forwards the inbound hit to Better Auth's handler. (Azure's
-// id here is `azure-ad`, matching what was registered.)
+// Path: pin to the NextAuth-style path (`/api/auth/callback/<id>`) self-hosters
+// already registered with their IdP. Where the legacy id differs from Better Auth's
+// (Azure's `azure-ad`, Okta's SSO callback) app/api/auth/[...all]/route.ts remaps the
+// inbound hit to the right handler.
 //
 // Prefix: derive the sub-path from the build-time-baked BASE_PATH (NEXT_PUBLIC_BASE_PATH),
 // NOT from AUTH_URL. The whole point of this dynamic resolution is that an operator
@@ -157,18 +160,6 @@ const getGenericOAuthConfig = () => {
       })
     );
   }
-  if (isFeatureEnabled(Feature.OKTA_AUTH)) {
-    config.push(
-      okta({
-        clientId: process.env.AUTH_OKTA_CLIENT_ID!,
-        clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
-        issuer: process.env.AUTH_OKTA_ISSUER!,
-        redirectURI: prefixedCallbackUri("okta"),
-        pkce: true,
-        overrideUserInfo: true,
-      })
-    );
-  }
   if (isFeatureEnabled(Feature.KEYCLOAK_AUTH)) {
     config.push(
       keycloak({
@@ -184,9 +175,22 @@ const getGenericOAuthConfig = () => {
   return config;
 };
 
+const getOktaPlugins = () => {
+  if (!isFeatureEnabled(Feature.OKTA_AUTH)) return [];
+  const scimEnabled = isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP);
+  // A shared SSO redirectURI keeps Okta's registered callback; the auth route remaps it
+  // to the plugin's shared /sso/callback endpoint.
+  const sso = oktaSSO({ redirectURI: prefixedCallbackUri(OKTA_PROVIDER_ID), scimEnabled });
+  return scimEnabled ? [sso, oktaSCIM()] : [sso];
+};
+
 export const auth = betterAuth({
   secret: AUTH_SECRET,
   baseURL: AUTH_ORIGIN,
+  // SSO discovery only fetches from trusted origins.
+  trustedOrigins: isFeatureEnabled(Feature.OKTA_AUTH) ? [oktaIssuerOrigin()] : undefined,
+  // SCIM is bearer-authenticated and Okta bursts requests from a few IPs during imports.
+  rateLimit: { customRules: { "/scim/v2/**": false } },
   session: {
     // Verify session from a signed cookie instead of the DB; revocation lags up to maxAge.
     cookieCache: {
@@ -202,10 +206,12 @@ export const auth = betterAuth({
       generateId: () => randomUUID(),
     },
   },
-  database: drizzleAdapter(db, {
+  database: drizzleAdapter(authDb, {
     provider: "pg",
     schema,
     usePlural: true,
+    // Required by the SSO resolveUser and SCIM plugins. Our own `db` queries are unaffected.
+    transaction: true,
   }),
   user: {
     // Our column is `avatar_url`; Better Auth's user model field is `image`.
@@ -222,6 +228,7 @@ export const auth = betterAuth({
   socialProviders: getSocialProviders(),
   plugins: [
     genericOAuth({ config: getGenericOAuthConfig() }),
+    ...getOktaPlugins(),
     // Preserve a verifiable JWT for any consumer that expects one (parity with
     // the legacy NextAuth JWT session). Exposes /api/auth/token + /api/auth/jwks.
     jwt({
@@ -288,8 +295,9 @@ export const auth = betterAuth({
         after: async (session) => {
           // In self-hosted mode (no email sending) auto-accept pending workspace
           // invitations on every sign-in. With SEND_EMAIL (cloud), invitations
-          // go through the explicit email accept/decline flow instead.
-          if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
+          // go through the explicit email accept/decline flow instead. Under SSO-managed
+          // membership, SCIM is the only way in, so leftover invitations are ignored.
+          if (!isFeatureEnabled(Feature.SEND_EMAIL) && !isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP)) {
             const [user] = await db
               .select({ email: users.email })
               .from(users)
