@@ -1,6 +1,6 @@
 //! Generic builder for Laminar-internal OTEL self-tracing spans — shared attribute conventions
 //! (`lmnr.span.*` / `gen_ai.*` / `signal.*` / association props) + per-span project routing
-//! ([`INTERNAL_PROJECT_ID_ATTR`]). Producers wrap it with a thin facade (see `crate::agent::spans`).
+//! ([`INTERNAL_PROJECT_ID_ATTR`]). Producers wrap it with a thin facade.
 //!
 //! Span *creation* stays at the producer's call site (via `info_span!` on the `lmnr::internal`
 //! target) because the macro needs a literal name; [`InternalSpan::wrap`] then tags + augments it.

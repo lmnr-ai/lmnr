@@ -57,9 +57,12 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@earendil-works/chord": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-durable": "1.4.0",
     "@hookform/resolvers": "^5.2.1",
     "@lezer/highlight": "^1.2.1",
-    "@lmnr-ai/lmnr": "^0.8.45",
+    "@lmnr-ai/lmnr": "^0.8.57",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -152,6 +155,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
     "@types/d3-scale": "^4.0.9",

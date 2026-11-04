@@ -45,6 +45,9 @@ export const getLicenseStatus = cache(async (): Promise<LicenseStatus | null> =>
   }
 });
 
+// Like the app-server's is_ee_enabled, fails open: no answer (OSS, Cloud, an unreachable app-server) counts as enabled.
+export const isEeEnabled = async (): Promise<boolean> => (await getLicenseStatus())?.eeEnabled ?? true;
+
 export const saveLicenseKey = async (key: string, userId: string): Promise<LicenseStatus> => {
   const res = await fetch(backendLicenseUrl(), {
     method: "PUT",

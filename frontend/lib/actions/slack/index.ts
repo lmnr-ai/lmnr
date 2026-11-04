@@ -243,7 +243,7 @@ async function getIntegrationWithToken(workspaceId: string) {
 // Resolve a decrypted bot token by Slack team_id. team_id is not unique (a team can connect to many
 // Laminar workspaces) but every such install posts as the same bot user, so any of them works for a
 // team-scoped action like reacting. LIMIT 1; returns null when the team has no integration.
-async function getIntegrationTokenByTeamId(teamId: string): Promise<string | null> {
+export async function getIntegrationTokenByTeamId(teamId: string): Promise<string | null> {
   const [integration] = await db
     .select({ teamId: slackIntegrations.teamId, token: slackIntegrations.token, nonceHex: slackIntegrations.nonceHex })
     .from(slackIntegrations)

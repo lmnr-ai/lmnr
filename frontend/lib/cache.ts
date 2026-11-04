@@ -102,6 +102,17 @@ export class CacheManager {
     }
   }
 
+  /** Sets `key` only when it is absent; resolves whether this call set it. */
+  async setIfAbsent<T>(key: string, value: T, expireAfterSeconds: number): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      return (await client.set(key, JSON.stringify(value), "EX", expireAfterSeconds, "NX")) === "OK";
+    }
+    if ((await this.get(key)) !== null) return false;
+    this.memoryCache.set(key, { value, expiresAt: Date.now() + expireAfterSeconds * 1000 });
+    return true;
+  }
+
   async remove(key: string): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();

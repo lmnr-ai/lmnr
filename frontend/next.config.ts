@@ -20,7 +20,15 @@ const nextConfig: NextConfig = {
       fullUrl: true,
     },
   },
-  serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
+  // Pi lazily imports node builtins by computed specifier, which bundling turns into unhandled rejections; chord is
+  // external too so routes and pi-durable share one copy.
+  serverExternalPackages: [
+    "@lmnr-ai/lmnr",
+    "@sentry/nextjs",
+    "@earendil-works/chord",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-durable",
+  ],
   output: "standalone",
   // Policy markdown is read with fs at request time, which the standalone
   // file tracer can't see — without this the .md files are missing in the
