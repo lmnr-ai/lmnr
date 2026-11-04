@@ -6096,7 +6096,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "agent_sessions_id_project_id_key": {
+          "name": "agent_sessions_id_project_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -6107,6 +6116,12 @@
       "columns": {
         "session_id": {
           "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -6144,15 +6159,17 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "agent_document_revisions_session_id_fkey": {
-          "name": "agent_document_revisions_session_id_fkey",
+        "agent_document_revisions_session_id_project_id_fkey": {
+          "name": "agent_document_revisions_session_id_project_id_fkey",
           "tableFrom": "agent_document_revisions",
           "tableTo": "agent_sessions",
           "columnsFrom": [
-            "session_id"
+            "session_id",
+            "project_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "project_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -6179,6 +6196,12 @@
       "columns": {
         "session_id": {
           "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -6441,15 +6464,17 @@
         }
       },
       "foreignKeys": {
-        "agent_records_session_id_fkey": {
-          "name": "agent_records_session_id_fkey",
+        "agent_records_session_id_project_id_fkey": {
+          "name": "agent_records_session_id_project_id_fkey",
           "tableFrom": "agent_records",
           "tableTo": "agent_sessions",
           "columnsFrom": [
-            "session_id"
+            "session_id",
+            "project_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "project_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
