@@ -8,7 +8,6 @@ pub mod models;
 pub mod openai;
 pub mod openai_responses;
 pub mod profiles;
-pub(crate) mod sse;
 
 pub use azure_anthropic::AzureAnthropicClient;
 pub use bedrock::BedrockClient;
@@ -23,7 +22,6 @@ use enum_dispatch::enum_dispatch;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
-use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 use crate::env;
@@ -86,33 +84,6 @@ pub(crate) fn format_error_chain(err: &(dyn std::error::Error + 'static)) -> Str
     out
 }
 
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub(crate) fn emit_response_as_chunks(
-    response: &ProviderResponse,
-    chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-) {
-    let Some(parts) = response
-        .candidates
-        .as_ref()
-        .and_then(|c| c.first())
-        .and_then(|c| c.content.as_ref())
-        .and_then(|content| content.parts.as_ref())
-    else {
-        return;
-    };
-    for part in parts {
-        let Some(text) = part.text.as_ref().filter(|t| !t.is_empty()) else {
-            continue;
-        };
-        let chunk = if part.thought == Some(true) {
-            ProviderStreamChunk::Thought(text.clone())
-        } else {
-            ProviderStreamChunk::Text(text.clone())
-        };
-        let _ = chunk_tx.send(chunk);
-    }
-}
-
 #[enum_dispatch]
 pub(crate) trait LanguageModelClient: Send + Sync {
     async fn generate_content(
@@ -120,18 +91,6 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse>;
-
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    async fn generate_content_stream(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let response = self.generate_content(model, request).await?;
-        emit_response_as_chunks(&response, chunk_tx);
-        Ok(response)
-    }
 
     // Batch API — currently has no callers; kept for future batch workloads.
     #[allow(dead_code)]
@@ -720,20 +679,6 @@ impl LlmClient {
         resolved
             .client()
             .generate_content(resolved.model(), request)
-            .await
-            .inspect_err(|e| resolved.log_error(request, e))
-    }
-
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    pub async fn generate_content_stream(
-        &self,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let resolved = self.resolve(request).await?;
-        resolved
-            .client()
-            .generate_content_stream(resolved.model(), request, chunk_tx)
             .await
             .inspect_err(|e| resolved.log_error(request, e))
     }

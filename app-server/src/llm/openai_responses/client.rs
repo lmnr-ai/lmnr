@@ -1,20 +1,14 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
-use super::accumulator::OpenAIResponsesStreamAccumulator;
-use super::conversions::{
-    parse_openai_responses_response, provider_request_to_responses_body,
-    provider_request_to_responses_stream_body,
-};
+use super::conversions::{parse_openai_responses_response, provider_request_to_responses_body};
 use crate::llm::openai::{
     OpenAIError, OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult,
     build_http_config, build_http_config_from, endpoint_url, send_openai_request,
 };
 use crate::llm::{
     LanguageModelClient, ProviderResult,
-    models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
-    sse::accumulate_sse,
+    models::{ProviderRequest, ProviderResponse},
 };
-use tokio::sync::mpsc::UnboundedSender;
 
 /// OpenAI provider using the Responses API (`/responses`). Registered under the
 /// `openai_responses` provider name (via `LLM_PROVIDER`), separate from the
@@ -93,26 +87,5 @@ impl LanguageModelClient for OpenAIResponsesClient {
             serde_json::from_str(&response_text).map_err(OpenAIError::from)?;
 
         parse_openai_responses_response(response_json).map_err(Into::into)
-    }
-
-    async fn generate_content_stream(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let body = provider_request_to_responses_stream_body(model, request)?;
-        let url = self.url();
-
-        let response =
-            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
-
-        accumulate_sse::<OpenAIResponsesStreamAccumulator, OpenAIError>(
-            response.bytes_stream(),
-            model,
-            chunk_tx,
-        )
-        .await
-        .map_err(Into::into)
     }
 }

@@ -1,22 +1,16 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
-use super::accumulator::GeminiStreamAccumulator;
 use super::{
     BatchCreateRequest, FLEX_SERVICE_TIER, GeminiError, GenerateContentRequest,
     GenerateContentResponse, InlineRequestItem, Operation,
 };
 use crate::env;
 use crate::llm::{
-    LanguageModelClient, ProviderError, ProviderResult, default_headers_from_env,
-    models::{
-        ProviderBatchOperation, ProviderRequest, ProviderRequestItem, ProviderResponse,
-        ProviderStreamChunk,
-    },
-    sse::accumulate_sse,
+    LanguageModelClient, ProviderResult, default_headers_from_env,
+    models::{ProviderBatchOperation, ProviderRequest, ProviderRequestItem, ProviderResponse},
 };
 use std::sync::LazyLock;
 use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
 
 /// Per-request HTTP timeout applied only to flex-tier requests (the shared client
 /// timeout is `LLM_HTTP_TIMEOUT_SECS`, default 300s). Flex responses can take
@@ -202,51 +196,6 @@ impl LanguageModelClient for GeminiClient {
             })?;
         let res = self.generate_content(model, &gemini_req).await?;
         Ok(res.into())
-    }
-
-    async fn generate_content_stream(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let gemini_req: GenerateContentRequest =
-            serde_json::from_value(serde_json::to_value(request).map_err(|e| {
-                ProviderError::RequestError(format!("Failed to serialize request: {e}"))
-            })?)
-            .map_err(|e| {
-                ProviderError::RequestError(format!(
-                    "Failed to convert request to Gemini format: {e}"
-                ))
-            })?;
-
-        let url = format!(
-            "{}/models/{}:streamGenerateContent?alt=sse",
-            self.api_base_url, model
-        );
-        let response = self
-            .client
-            .post(&url)
-            .header("x-goog-api-key", &self.api_key)
-            .header("Content-Type", "application/json")
-            .json(&gemini_req)
-            .send()
-            .await
-            .map_err(GeminiError::from)?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(GeminiError::from_response(status.as_u16(), error_text).into());
-        }
-
-        accumulate_sse::<GeminiStreamAccumulator, GeminiError>(
-            response.bytes_stream(),
-            model,
-            chunk_tx,
-        )
-        .await
-        .map_err(Into::into)
     }
 
     async fn create_batch(

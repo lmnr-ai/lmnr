@@ -95,15 +95,6 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
     body
 }
 
-/// Same as [`provider_request_to_openai_body`] but flags the request for SSE streaming and asks
-/// the upstream to emit a final usage-only chunk (`stream_options.include_usage`).
-pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderRequest) -> Value {
-    let mut body = provider_request_to_openai_body(model, request);
-    body["stream"] = json!(true);
-    body["stream_options"] = json!({ "include_usage": true });
-    body
-}
-
 pub(crate) fn thinking_level_to_effort(level: &ProviderThinkingLevel) -> Option<&'static str> {
     match level {
         ProviderThinkingLevel::ThinkingLevelUnspecified => None,
@@ -251,7 +242,7 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
 
         // OpenAI-compatible proxies return reasoning under `reasoning_content`
         // (DeepSeek/vLLM/Fireworks) or `reasoning` (OpenRouter); official OpenAI
-        // exposes none here. Mirror the streaming accumulator's field names.
+        // exposes none here.
         if let Some(reasoning) = message
             .and_then(|m| m.get("reasoning_content").or_else(|| m.get("reasoning")))
             .and_then(|r| r.as_str())
