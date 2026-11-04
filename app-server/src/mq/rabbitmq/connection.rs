@@ -1,12 +1,15 @@
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use arc_swap::ArcSwap;
 use backon::Retryable;
+use dashmap::DashSet;
 use futures_util::future::BoxFuture;
-use lapin::{Channel, Connection, ConnectionProperties};
+use lapin::{
+    Channel, Connection, ConnectionProperties,
+    protocol::{AMQPHardError, constants::REPLY_SUCCESS},
+};
 use tokio::sync::{Notify, Semaphore, SemaphorePermit};
 
 use crate::utils::retry;
@@ -19,15 +22,19 @@ pub type DeclareTopology = for<'a> fn(&'a Channel) -> BoxFuture<'a, anyhow::Resu
 /// Bounds the AMQP handshake (and the topology declaration after it), so a
 /// broker that accepts TCP but never finishes the handshake can't wedge the
 /// supervisor.
-const DIAL_TIMEOUT: Duration = Duration::from_secs(30);
+static DIAL_TIMEOUT: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_secs(crate::env::mq::DIAL_TIMEOUT_SECS.get()));
 
 /// A condemned connection is closed on a best-effort basis; a wedged broker may
 /// never answer `connection.close`, and the supervisor must not wait on it.
-const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+static CLOSE_TIMEOUT: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_secs(crate::env::mq::CLOSE_TIMEOUT_SECS.get()));
 
 /// lapin flips the state to `Error` itself when the socket or heartbeat dies;
-/// this is how often the supervisor looks.
-const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(1);
+/// this is how often the supervisor looks. Clamped above zero because
+/// `tokio::time::interval` panics on a zero period.
+static HEALTH_CHECK_INTERVAL: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_millis(crate::env::mq::HEALTH_CHECK_INTERVAL_MS.get().max(1)));
 
 static SETUP_CONCURRENCY: LazyLock<usize> =
     LazyLock::new(|| crate::env::mq::CONSUMER_SETUP_CONCURRENCY.get().max(1));
@@ -62,7 +69,15 @@ pub struct Generation {
     pub connection: Connection,
     condemned: AtomicBool,
     setup_timeouts: SetupTimeouts,
-    bindings: Bindings,
+    bindings: DashSet<Binding>,
+}
+
+/// A queue-to-exchange binding, as `get_receiver` asks for it.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Binding {
+    pub queue: String,
+    pub exchange: String,
+    pub routing_key: String,
 }
 
 impl Generation {
@@ -72,7 +87,7 @@ impl Generation {
             connection,
             condemned: AtomicBool::new(false),
             setup_timeouts: SetupTimeouts::default(),
-            bindings: Bindings::default(),
+            bindings: DashSet::new(),
         }
     }
 
@@ -84,12 +99,12 @@ impl Generation {
     /// connection. Bindings are durable broker state, so one successful bind per
     /// connection is enough; re-binding on every consumer setup only adds
     /// metadata-store writes while the broker may be struggling.
-    pub fn needs_binding(&self, queue: &str, exchange: &str, routing_key: &str) -> bool {
-        !self.bindings.contains(queue, exchange, routing_key)
+    pub fn needs_binding(&self, binding: &Binding) -> bool {
+        !self.bindings.contains(binding)
     }
 
-    pub fn record_binding(&self, queue: &str, exchange: &str, routing_key: &str) {
-        self.bindings.insert(queue, exchange, routing_key);
+    pub fn record_binding(&self, binding: Binding) {
+        self.bindings.insert(binding);
     }
 }
 
@@ -168,7 +183,7 @@ impl ResilientRabbitConnection {
     }
 
     async fn supervisor_loop(self: Arc<Self>) {
-        let mut ticker = tokio::time::interval(HEALTH_CHECK_INTERVAL);
+        let mut ticker = tokio::time::interval(*HEALTH_CHECK_INTERVAL);
         loop {
             tokio::select! {
                 _ = ticker.tick() => {}
@@ -193,8 +208,11 @@ impl ResilientRabbitConnection {
             if old.connection.status().connected() {
                 let old = Arc::clone(&old);
                 tokio::spawn(async move {
-                    let close = old.connection.close(320, "connection replaced".into());
-                    if let Ok(Err(e)) = tokio::time::timeout(CLOSE_TIMEOUT, close).await {
+                    let close = old.connection.close(
+                        AMQPHardError::CONNECTIONFORCED.get_id(),
+                        "connection replaced".into(),
+                    );
+                    if let Ok(Err(e)) = tokio::time::timeout(*CLOSE_TIMEOUT, close).await {
                         log::warn!("Failed to close replaced RabbitMQ connection: {:?}", e);
                     }
                 });
@@ -243,12 +261,12 @@ async fn dial(uri: &str, declare_topology: Option<DeclareTopology>) -> anyhow::R
         if let Some(declare_topology) = declare_topology {
             let channel = connection.create_channel().await?;
             declare_topology(&channel).await?;
-            channel.close(200, "OK".into()).await?;
+            channel.close(REPLY_SUCCESS, "OK".into()).await?;
         }
         anyhow::Ok(connection)
     };
 
-    match tokio::time::timeout(DIAL_TIMEOUT, dial).await {
+    match tokio::time::timeout(*DIAL_TIMEOUT, dial).await {
         Ok(result) => result,
         Err(_) => Err(anyhow::anyhow!("RabbitMQ dial timed out")),
     }
@@ -265,27 +283,6 @@ impl SetupTimeouts {
     /// Returns true exactly once, on the timeout that reaches `threshold`.
     fn record_timeout(&self, threshold: u32) -> bool {
         self.0.fetch_add(1, Ordering::AcqRel) + 1 == threshold
-    }
-}
-
-#[derive(Default)]
-struct Bindings(Mutex<HashSet<(String, String, String)>>);
-
-impl Bindings {
-    fn contains(&self, queue: &str, exchange: &str, routing_key: &str) -> bool {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).contains(&(
-            queue.to_string(),
-            exchange.to_string(),
-            routing_key.to_string(),
-        ))
-    }
-
-    fn insert(&self, queue: &str, exchange: &str, routing_key: &str) {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).insert((
-            queue.to_string(),
-            exchange.to_string(),
-            routing_key.to_string(),
-        ));
     }
 }
 
@@ -313,13 +310,21 @@ mod tests {
         assert!(timeouts.record_timeout(2));
     }
 
+    fn binding(queue: &str, exchange: &str, routing_key: &str) -> Binding {
+        Binding {
+            queue: queue.to_string(),
+            exchange: exchange.to_string(),
+            routing_key: routing_key.to_string(),
+        }
+    }
+
     #[test]
     fn bindings_are_tracked_per_queue_exchange_and_key() {
-        let bindings = Bindings::default();
-        assert!(!bindings.contains("q", "ex", "rk"));
-        bindings.insert("q", "ex", "rk");
-        assert!(bindings.contains("q", "ex", "rk"));
-        assert!(!bindings.contains("q", "ex", "other"));
-        assert!(!bindings.contains("other", "ex", "rk"));
+        let bindings = DashSet::new();
+        assert!(!bindings.contains(&binding("q", "ex", "rk")));
+        bindings.insert(binding("q", "ex", "rk"));
+        assert!(bindings.contains(&binding("q", "ex", "rk")));
+        assert!(!bindings.contains(&binding("q", "ex", "other")));
+        assert!(!bindings.contains(&binding("other", "ex", "rk")));
     }
 }

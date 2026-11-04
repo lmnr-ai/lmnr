@@ -14,6 +14,7 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
+use connection::Binding;
 use properties::{properties, retry_attempt_of, retry_properties};
 
 mod connection;
@@ -391,7 +392,12 @@ impl MessageQueueTrait for RabbitMQ {
             // The origin queues are bound to their exchanges only here, never
             // at declare time, so this can't be dropped — just done once per
             // connection rather than once per worker.
-            if generation.needs_binding(queue_name, exchange, routing_key) {
+            let binding = Binding {
+                queue: queue_name.to_string(),
+                exchange: exchange.to_string(),
+                routing_key: routing_key.to_string(),
+            };
+            if generation.needs_binding(&binding) {
                 channel
                     .queue_bind(
                         queue_name.into(),
@@ -401,7 +407,7 @@ impl MessageQueueTrait for RabbitMQ {
                         FieldTable::default(),
                     )
                     .await?;
-                generation.record_binding(queue_name, exchange, routing_key);
+                generation.record_binding(binding);
             }
 
             let consumer = channel
