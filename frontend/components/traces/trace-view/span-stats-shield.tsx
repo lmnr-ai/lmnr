@@ -1,6 +1,7 @@
 import { ArrowRight, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo } from "react";
 
+import { UnpricedModelWarning } from "@/components/traces/unpriced-model-warning";
 import { durationMsBetween, formatCostNumber, formatDurationMs, formatTokensCompact } from "@/lib/traces/format";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,8 @@ interface SpanStatsShieldProps {
   outputTokens?: number | null;
   cost?: number | null;
   cacheReadInputTokens?: number | null;
+  /** Model name for this span. When set and cost is 0, an unpriced-model warning replaces the cost. */
+  model?: string | null;
   className?: string;
   variant?: "badge" | "inline";
 }
@@ -22,6 +25,7 @@ function SpanStatsShieldInner({
   outputTokens,
   cost,
   cacheReadInputTokens,
+  model,
   className,
   variant = "badge",
 }: SpanStatsShieldProps) {
@@ -59,6 +63,11 @@ function SpanStatsShieldInner({
             className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")}
           />
           <span>{formatCostNumber(cost)}</span>
+        </div>
+      )}
+      {cost === 0 && hasTokens && model && (
+        <div className={cn("inline-flex items-center", !isInline && "py-0.5")}>
+          <UnpricedModelWarning model={model} size={isInline ? 12 : 14} />
         </div>
       )}
     </div>

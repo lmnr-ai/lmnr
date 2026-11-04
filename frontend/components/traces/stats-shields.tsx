@@ -6,6 +6,7 @@ import { memo, useMemo } from "react";
 import { CostBreakdown, TokensBreakdown } from "@/components/traces/cells";
 import { InputTokenBreakdown } from "@/components/traces/token-breakdown";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { UnpricedModelWarning } from "@/components/traces/unpriced-model-warning";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   durationMsBetween,
@@ -183,10 +184,13 @@ interface StatsShieldsProps {
   variant?: "filled" | "outline";
   labelPrefix?: string;
   span?: Span;
+  /** Model name. When set with zero cost but non-zero tokens, an unpriced-model warning replaces the cost. */
+  model?: string | null;
 }
 
-export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
+export function StatsShields({ stats, className, variant = "filled", labelPrefix, span, model }: StatsShieldsProps) {
   const durationMs = durationMsBetween(stats.startTime, stats.endTime);
+  const hasTokens = !!stats.inputTokens || !!stats.outputTokens;
   const durationContent = (
     <TooltipProvider delayDuration={250}>
       <Tooltip>
@@ -259,7 +263,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
     >
       {durationContent}
       {tokensContent}
-      {costContent}
+      {stats.totalCost === 0 && hasTokens && model ? <UnpricedModelWarning model={model} /> : costContent}
     </div>
   );
 }
@@ -316,6 +320,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     className={className}
     variant={variant}
     span={span}
+    model={span.spanType === SpanType.LLM || span.spanType === SpanType.CACHED ? span.model : undefined}
   />
 );
 

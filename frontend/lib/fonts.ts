@@ -17,10 +17,17 @@ export const sans = Inter({
   variable: "--font-inter",
 });
 
+// Load the variable face (wght 200-800) rather than listing static weights.
+// Google intermittently answers a discrete-weight request for a variable family
+// with extensionless `/l/font?kit=...&skey=...` URLs, and `next/font` derives the
+// file extension via `/\.(woff|woff2|eot|ttf|otf)$/.exec(url)[1]`, which throws
+// on those and fails the build. Only the discrete-weight form was ever observed
+// returning them, so requesting the range is the safer shape — but it is a
+// mitigation, not a guarantee; self-hosting these via `next/font/local` is the
+// only way to take Google out of the build path.
 export const manrope = Manrope({
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "600", "700"],
   style: "normal",
   variable: "--font-manrope",
 });

@@ -75,7 +75,38 @@ function formatCostDisplay(costs: Record<string, number>): string {
   return parts.join(", ");
 }
 
-function ModelCostDialog({
+type UpsertModelCostParams = {
+  id?: string;
+  provider: string | undefined;
+  model: string;
+  costs: Record<string, number>;
+  previousModel?: string;
+  previousProvider?: string;
+};
+
+/** Shared client-side request to create/update a custom model cost. */
+async function requestUpsertModelCost(
+  projectId: string,
+  params: UpsertModelCostParams
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (res.ok) return { ok: true, status: res.status };
+    const error = await res
+      .json()
+      .then((d) => d?.error)
+      .catch(() => undefined);
+    return { ok: false, status: res.status, error: error ?? undefined };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
+export function ModelCostDialog({
   mode,
   id,
   initialProvider,
@@ -83,21 +114,19 @@ function ModelCostDialog({
   initialCosts,
   onSave,
   trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   mode: "add" | "edit";
   id?: string;
   initialProvider?: string;
   initialModel?: string;
   initialCosts?: Record<string, number>;
-  onSave: (params: {
-    id?: string;
-    provider: string | undefined;
-    model: string;
-    costs: Record<string, number>;
-    previousModel?: string;
-    previousProvider?: string;
-  }) => Promise<boolean>;
-  trigger: React.ReactNode;
+  onSave: (params: UpsertModelCostParams) => Promise<boolean>;
+  /** Omit when the dialog is controlled via `open`/`onOpenChange`. */
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const emptyFields = (): Record<string, string> => ({});
 
@@ -107,7 +136,33 @@ function ModelCostDialog({
     mode === "edit" && initialCosts ? toPerMillion(initialCosts) : emptyFields()
   );
   const [validationError, setValidationError] = useState<string | undefined>();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    controlledOnOpenChange?.(next);
+  };
+
+  // Seed the fields from the prefill on every close→open transition, keyed off
+  // `open` rather than `onOpenChange`. Radix only calls `onOpenChange` for its
+  // own interactions (trigger, Esc, outside click), NOT when a controlled
+  // `open` prop flips — so a caller that opens us programmatically would
+  // otherwise show whatever the fields held at mount. That matters for the
+  // trace-view cost shields, whose `UnpricedModelWarning` instances are reused
+  // across spans by the virtualized tree/transcript rows: the prefill changes
+  // under a still-mounted dialog, and a stale prefill would save a price for
+  // the wrong model.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setProvider(initialProvider ?? "");
+      setModel(initialModel ?? "");
+      setCostValues(mode === "edit" && initialCosts ? toPerMillion(initialCosts) : emptyFields());
+      setValidationError(undefined);
+    }
+  }
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -137,12 +192,6 @@ function ModelCostDialog({
       setIsSaving(false);
     }
     if (!ok) return;
-    if (mode === "add") {
-      setProvider("");
-      setModel("");
-      setCostValues(emptyFields());
-    }
-    setValidationError(undefined);
     setOpen(false);
   };
 
@@ -152,28 +201,8 @@ function ModelCostDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => {
-        setOpen(isOpen);
-        if (isOpen) {
-          if (mode === "edit") {
-            setProvider(initialProvider ?? "");
-            setModel(initialModel ?? "");
-            setCostValues(initialCosts ? toPerMillion(initialCosts) : emptyFields());
-          }
-          setValidationError(undefined);
-        } else {
-          if (mode === "add") {
-            setProvider("");
-            setModel("");
-            setCostValues(emptyFields());
-          }
-          setValidationError(undefined);
-        }
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit custom model cost" : "Add custom model cost"}</DialogTitle>
@@ -241,6 +270,58 @@ function ModelCostDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Self-contained add-cost dialog for use outside the settings page (e.g. the
+ * trace/span cost shields). Owns its own toast + request handling so call sites
+ * only need to supply the unknown model name to prefill.
+ */
+export function ConfigureModelCostDialog({
+  model,
+  provider,
+  trigger,
+  onSaved,
+  open,
+  onOpenChange,
+}: {
+  model?: string;
+  provider?: string;
+  trigger?: React.ReactNode;
+  onSaved?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const { projectId } = useParams();
+  const { toast } = useToast();
+
+  const onSave = async (params: UpsertModelCostParams): Promise<boolean> => {
+    const { ok, status, error } = await requestUpsertModelCost(projectId as string, params);
+    if (ok) {
+      toast({ title: `Model cost saved for ${params.model}` });
+      track("model_costs", "created", { model: params.model, provider: params.provider, source: "trace_view" });
+      onSaved?.();
+      return true;
+    }
+    if (status === 409) {
+      toast({ variant: "destructive", title: error ?? "A cost entry for this provider and model already exists" });
+      return false;
+    }
+    toast({ variant: "destructive", title: error ?? "Failed to save model cost" });
+    return false;
+  };
+
+  return (
+    <ModelCostDialog
+      mode="add"
+      initialModel={model}
+      initialProvider={provider}
+      onSave={onSave}
+      trigger={trigger}
+      open={open}
+      onOpenChange={onOpenChange}
+    />
   );
 }
 
@@ -336,44 +417,21 @@ export default function CustomModelCosts() {
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; model: string } | null>(null);
 
-  const upsertCost = async (params: {
-    id?: string;
-    provider: string | undefined;
-    model: string;
-    costs: Record<string, number>;
-    previousModel?: string;
-    previousProvider?: string;
-  }): Promise<boolean> => {
-    const { id, provider, model, costs, previousModel, previousProvider } = params;
-    try {
-      const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, provider, model, costs, previousModel, previousProvider }),
-      });
-      if (res.ok) {
-        mutate();
-        toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
-        track("model_costs", id ? "updated" : "created", { model, provider });
-        return true;
-      }
-      const errMessage = await res
-        .json()
-        .then((d) => d?.error)
-        .catch(() => null);
-      if (res.status === 409) {
-        toast({
-          variant: "destructive",
-          title: errMessage ?? "A cost entry for this provider and model already exists",
-        });
-        return false;
-      }
-      toast({ variant: "destructive", title: errMessage ?? "Failed to save model cost" });
-      return false;
-    } catch {
-      toast({ variant: "destructive", title: "Failed to save model cost" });
+  const upsertCost = async (params: UpsertModelCostParams): Promise<boolean> => {
+    const { id, provider, model } = params;
+    const { ok, status, error } = await requestUpsertModelCost(projectId as string, params);
+    if (ok) {
+      mutate();
+      toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+      track("model_costs", id ? "updated" : "created", { model, provider });
+      return true;
+    }
+    if (status === 409) {
+      toast({ variant: "destructive", title: error ?? "A cost entry for this provider and model already exists" });
       return false;
     }
+    toast({ variant: "destructive", title: error ?? "Failed to save model cost" });
+    return false;
   };
 
   const deleteCost = async (id: string) => {
