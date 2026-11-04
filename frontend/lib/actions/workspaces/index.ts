@@ -4,8 +4,8 @@ import { z } from "zod/v4";
 import { createProject } from "@/lib/actions/projects";
 import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { createSignal } from "@/lib/actions/signals";
+import { assertMembershipNotSsoManaged } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
-import { defaultReports } from "@/lib/db/default-charts.ts";
 import { DEFAULT_SIGNAL } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
 import {
@@ -17,7 +17,8 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
+import { insertWorkspace } from "@/lib/workspaces/insert";
+import { SSO_MANAGED_WORKSPACE_CREATION_MESSAGE, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -93,6 +94,7 @@ export const seedFirstProject = async ({
 };
 
 export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<CreateWorkspaceResult> => {
+  assertMembershipNotSsoManaged(SSO_MANAGED_WORKSPACE_CREATION_MESSAGE);
   const session = await getServerSession();
 
   if (!session?.user) {
@@ -103,35 +105,13 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
   const userId = session.user.id;
   const userEmail = session.user.email;
 
-  const [workspace] = await db
-    .insert(workspaces)
-    .values({
-      name,
-      tierId: 1,
-    })
-    .returning({
-      id: workspaces.id,
-      name: workspaces.name,
-    });
-
-  if (!workspace) {
-    throw new Error("Failed to create workspace");
-  }
+  const workspace = await insertWorkspace(db, name);
 
   await db.insert(membersOfWorkspaces).values({
     userId,
     workspaceId: workspace.id,
     memberRole: "owner",
   });
-
-  await db.insert(reports).values(
-    defaultReports.map((r) => ({
-      workspaceId: workspace.id,
-      type: r.type,
-      weekdays: r.weekdays,
-      hour: r.hour,
-    }))
-  );
 
   let projectId: string | undefined;
 

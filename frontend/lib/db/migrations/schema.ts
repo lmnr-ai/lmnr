@@ -1448,7 +1448,236 @@ export const jwks = pgTable("jwks", {
   privateKey: text("private_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+  alg: text(),
+  crv: text(),
 });
+
+export const ssoProviders = pgTable(
+  "sso_providers",
+  {
+    id: text().primaryKey().notNull(),
+    issuer: text().notNull(),
+    oidcConfig: text("oidc_config"),
+    samlConfig: text("saml_config"),
+    userId: uuid("user_id"),
+    providerId: text("provider_id").notNull(),
+    organizationId: text("organization_id"),
+    domain: text().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "sso_providers_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("sso_providers_provider_id_key").on(table.providerId),
+  ]
+);
+
+export const scimConnectionBindings = pgTable(
+  "scim_connection_bindings",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    connectionKey: text("connection_key").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    decommissionedAt: timestamp("decommissioned_at", { withTimezone: true, mode: "date" }),
+    decommissionStatus: text("decommission_status").default("active").notNull(),
+    decommissionCursorUserId: text("decommission_cursor_user_id"),
+    decommissionReconciledUserCount: integer("decommission_reconciled_user_count").default(0).notNull(),
+    decommissionBatchCount: integer("decommission_batch_count").default(0).notNull(),
+    decommissionRevision: integer("decommission_revision").default(0).notNull(),
+    decommissionCompletedAt: timestamp("decommission_completed_at", { withTimezone: true, mode: "date" }),
+    decommissionLeaseId: text("decommission_lease_id"),
+    decommissionLeaseExpiresAt: timestamp("decommission_lease_expires_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    index("scim_connection_bindings_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    unique("scim_connection_bindings_connection_key_key").on(table.connectionKey),
+  ]
+);
+
+export const scimIdentityTombstones = pgTable(
+  "scim_identity_tombstones",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    externalId: text("external_id").notNull(),
+    externalIdKey: text("external_id_key").notNull(),
+    userId: uuid("user_id").notNull(),
+    profile: text().notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_identity_tombstones_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_identity_tombstones_provisioning_domain_id_idx").using(
+      "btree",
+      table.provisioningDomainId.asc().nullsLast()
+    ),
+    index("scim_identity_tombstones_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_identity_tombstones_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_identity_tombstones_external_id_key_key").on(table.externalIdKey),
+  ]
+);
+
+export const scimSubjects = pgTable(
+  "scim_subjects",
+  {
+    id: text().primaryKey().notNull(),
+    userId: uuid("user_id").notNull(),
+    profileSourceId: text("profile_source_id"),
+    revision: integer().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_subjects_profile_source_id_idx").using("btree", table.profileSourceId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_subjects_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_subjects_user_id_key").on(table.userId),
+  ]
+);
+
+export const scimUsers = pgTable(
+  "scim_users",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    connectionUserKey: text("connection_user_key").notNull(),
+    userName: text("user_name").notNull(),
+    userNameKey: text("user_name_key").notNull(),
+    primaryEmail: text("primary_email").notNull(),
+    workEmailValueIndex: text("work_email_value_index").notNull(),
+    emailValueIndex: text("email_value_index").notNull(),
+    displayName: text("display_name").notNull(),
+    formattedName: text("formatted_name").notNull(),
+    givenName: text("given_name"),
+    familyName: text("family_name"),
+    serializedEmails: text("serialized_emails").notNull(),
+    serializedAttributes: text("serialized_attributes"),
+    externalId: text("external_id"),
+    externalIdKey: text("external_id_key"),
+    active: boolean().notNull(),
+    orderKey: text("order_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_users_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_users_provisioning_domain_id_idx").using("btree", table.provisioningDomainId.asc().nullsLast()),
+    index("scim_users_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_users_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_users_connection_user_key_key").on(table.connectionUserKey),
+    unique("scim_users_user_name_key_key").on(table.userNameKey),
+    unique("scim_users_external_id_key_key").on(table.externalIdKey),
+    unique("scim_users_order_key_key").on(table.orderKey),
+  ]
+);
+
+export const scimProjectionGrants = pgTable(
+  "scim_projection_grants",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    scimUserId: text("scim_user_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    sourceKind: text("source_kind").notNull(),
+    sourceId: text("source_id").notNull(),
+    sourceValue: text("source_value"),
+    role: text().notNull(),
+    grantKey: text("grant_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_projection_grants_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_projection_grants_provisioning_domain_id_idx").using(
+      "btree",
+      table.provisioningDomainId.asc().nullsLast()
+    ),
+    index("scim_projection_grants_scim_user_id_idx").using("btree", table.scimUserId.asc().nullsLast()),
+    index("scim_projection_grants_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.scimUserId],
+      foreignColumns: [scimUsers.id],
+      name: "scim_projection_grants_scim_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_projection_grants_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_projection_grants_grant_key_key").on(table.grantKey),
+  ]
+);
+
+export const scimGroups = pgTable(
+  "scim_groups",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    revision: integer().default(0).notNull(),
+    displayName: text("display_name").notNull(),
+    displayNameKey: text("display_name_key").notNull(),
+    externalId: text("external_id"),
+    externalIdKey: text("external_id_key"),
+    orderKey: text("order_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_groups_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_groups_provisioning_domain_id_idx").using("btree", table.provisioningDomainId.asc().nullsLast()),
+    unique("scim_groups_display_name_key_key").on(table.displayNameKey),
+    unique("scim_groups_external_id_key_key").on(table.externalIdKey),
+    unique("scim_groups_order_key_key").on(table.orderKey),
+  ]
+);
+
+export const scimGroupMembers = pgTable(
+  "scim_group_members",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    groupId: text("group_id").notNull(),
+    scimUserId: text("scim_user_id").notNull(),
+    membershipKey: text("membership_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_group_members_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_group_members_group_id_idx").using("btree", table.groupId.asc().nullsLast()),
+    index("scim_group_members_scim_user_id_idx").using("btree", table.scimUserId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.groupId],
+      foreignColumns: [scimGroups.id],
+      name: "scim_group_members_group_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.scimUserId],
+      foreignColumns: [scimUsers.id],
+      name: "scim_group_members_scim_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_group_members_membership_key_key").on(table.membershipKey),
+  ]
+);
 
 export const debuggerSessions = pgTable(
   "debugger_sessions",

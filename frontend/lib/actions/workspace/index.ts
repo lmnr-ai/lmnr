@@ -8,7 +8,7 @@ import {
   purgeProjectData,
 } from "@/lib/actions/project";
 import { parseWorkspaceSettings, resolvePrivacyMode } from "@/lib/actions/workspace/settings";
-import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { assertMembershipNotSsoManaged, checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
 import { invalidateMemberAccessCache } from "@/lib/authorization";
 import { cache, MEMBER_ROLE_CACHE_KEY } from "@/lib/cache";
@@ -22,7 +22,13 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { type Workspace, type WorkspaceTier, type WorkspaceUser } from "@/lib/workspaces/types";
+import {
+  SSO_MANAGED_WORKSPACE_DELETION_MESSAGE,
+  SSO_MANAGED_WORKSPACE_NAME_MESSAGE,
+  type Workspace,
+  type WorkspaceTier,
+  type WorkspaceUser,
+} from "@/lib/workspaces/types";
 
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.guid(),
@@ -54,6 +60,7 @@ const RemoveUserSchema = z.object({
 
 export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
   const { workspaceId, name } = UpdateWorkspaceSchema.parse(input);
+  assertMembershipNotSsoManaged(SSO_MANAGED_WORKSPACE_NAME_MESSAGE);
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
@@ -68,6 +75,7 @@ export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchem
 
 export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchema>) {
   const { workspaceId } = DeleteWorkspaceSchema.parse(input);
+  assertMembershipNotSsoManaged(SSO_MANAGED_WORKSPACE_DELETION_MESSAGE);
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
@@ -206,6 +214,7 @@ export { getWorkspaceUsage } from "./usage-summary";
 
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
   const { workspaceId, userId, role } = UpdateRoleSchema.parse(input);
+  assertMembershipNotSsoManaged();
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
@@ -242,6 +251,7 @@ export const TransferOwnershipSchema = z.object({
 
 export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {
   const { workspaceId, newOwnerId, currentOwnerId } = TransferOwnershipSchema.parse(input);
+  assertMembershipNotSsoManaged();
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
@@ -282,6 +292,7 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
+  assertMembershipNotSsoManaged();
 
   const session = await getServerSession();
   if (!session?.user?.id) {

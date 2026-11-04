@@ -7,6 +7,7 @@ export enum Feature {
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
   OKTA_AUTH = "OKTA_AUTH",
+  SSO_MANAGED_MEMBERSHIP = "SSO_MANAGED_MEMBERSHIP",
   KEYCLOAK_AUTH = "KEYCLOAK_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   POSTHOG = "POSTHOG",
@@ -73,6 +74,11 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.OKTA_AUTH) {
     return !!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER;
+  }
+
+  // Okta SCIM owns users and workspace memberships, so manual membership edits are disabled.
+  if (feature === Feature.SSO_MANAGED_MEMBERSHIP) {
+    return isFeatureEnabled(Feature.OKTA_AUTH) && !!process.env.AUTH_OKTA_SCIM_TOKEN;
   }
 
   if (feature === Feature.KEYCLOAK_AUTH) {
