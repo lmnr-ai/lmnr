@@ -4,7 +4,7 @@ import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import useSWR from "swr";
 
-import { type TimeSeriesMarker } from "@/components/charts/time-series-chart/types";
+import { type PlotMarker } from "@/components/charts/cartesian-plot/types";
 import { signalVersionHref } from "@/components/signal/hooks/signal-tab-search";
 import { useSignalStoreContext } from "@/components/signal/store";
 import { swrFetcher } from "@/lib/utils";
@@ -13,7 +13,7 @@ export const signalVersionsKey = (projectId: string, signalId: string): string =
   `/api/projects/${projectId}/signals/${signalId}/versions`;
 
 /** Dashed "definition changed here" lines. v1 is skipped — that's the signal's creation. */
-export const useSignalVersionMarkers = (): TimeSeriesMarker[] => {
+export const useSignalVersionMarkers = (): PlotMarker[] => {
   const { projectId } = useParams();
   const pathName = usePathname();
   const searchParams = useSearchParams();

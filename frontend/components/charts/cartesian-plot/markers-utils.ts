@@ -2,7 +2,7 @@ import { compact, findLastIndex, groupBy, last, map } from "lodash";
 
 import { parseUtcTimestamp } from "@/lib/charts/time";
 
-import { type TimeSeriesDataPoint, type TimeSeriesMarker } from "./types";
+import { type PlotMarker } from "./types";
 
 /**
  * Categorical XAxis `ReferenceLine x` must equal a bucket label. Map each
@@ -10,9 +10,9 @@ import { type TimeSeriesDataPoint, type TimeSeriesMarker } from "./types";
  * the last bucket; join labels that land in the same bar.
  */
 export const snapMarkersToBuckets = (
-  markers: TimeSeriesMarker[] | undefined,
-  data: TimeSeriesDataPoint[] | undefined
-): TimeSeriesMarker[] => {
+  markers: PlotMarker[] | undefined,
+  data: { timestamp: string }[] | undefined
+): PlotMarker[] => {
   if (!markers?.length || !data?.length) return [];
 
   const times = map(data, (d) => parseUtcTimestamp(d.timestamp).getTime());

@@ -6,12 +6,12 @@ import { type PropsWithChildren } from "react";
 import { Tooltip, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatTooltipTimestamp } from "@/lib/charts/time";
 
-import { type TimeSeriesMarker } from "../types";
+import { type PlotMarker } from "../types";
 
 export default function MarkerTooltip({
   entries,
   children,
-}: PropsWithChildren<{ entries: NonNullable<TimeSeriesMarker["tooltip"]> }>) {
+}: PropsWithChildren<{ entries: NonNullable<PlotMarker["tooltip"]> }>) {
   const [first, ...rest] = entries;
   if (!first) return children;
 

@@ -12,9 +12,8 @@ import { getTickCountForWidth } from "@/lib/charts/responsive";
 import { selectNiceTicksFromData } from "@/lib/charts/time";
 import { withOpacity } from "@/lib/clusters/colors";
 
-// Landing copy of components/signal/clusters-section/cluster-stacked-chart and
-// the TimeSeriesChart under it, condensed into one file. Duplicated rather than
-// reused because this chart STREAMS ITS OWN BARS: the axis is pinned so it can't
+// Landing illustration of the cluster stack, kept separate from CartesianPlot
+// because this chart STREAMS ITS OWN BARS: the axis is pinned so it can't
 // rescale as the counts climb, and Recharts' enter tween is off so it doesn't
 // animate on top of values ../has-this-issue is already driving frame by frame.
 // Zoom, tooltip, the run-total overlay and the total row are all dropped — this

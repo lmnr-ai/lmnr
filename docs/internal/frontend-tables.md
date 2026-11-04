@@ -45,7 +45,7 @@
 ## Dashboard Time Grouping
 
 - Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
-- Time-series chart utils are ALSO duplicated in two places that must stay in sync: `frontend/components/charts/time-series-chart/utils.ts` (the shared `TimeSeriesChart` used by traces/signal-clusters/alerts) and `frontend/components/traces/traces-chart/utils.ts` (a legacy copy whose `chart.tsx` is currently unmounted but still type-checked). `isValidZoomRange`/`normalizeTimeRange`/`calculateOptimalInterval` exist in both. Drag-zoom minimum range is 5 minutes (`isValidZoomRange` `minMinutes` default); `calculateOptimalInterval` clamps sub-minute buckets to `1 minute` (a 0-value interval would make ClickHouse `toInterval(0, 'minute')` bucket everything together).
+- The shared `CartesianPlot` reports range selections as x-domain endpoints. Trace/signal URL navigation lives in `components/charts/use-chart-url-zoom.ts`; the alert preview updates its own form state. Both validate via `lib/charts/time.ts` (`isValidZoomRange` minimum 5 minutes). Bucket sizing in `lib/charts/responsive.ts` clamps sub-minute intervals to one minute; ClickHouse `toInterval(0, 'minute')` would collapse all buckets.
 
 ## Dashboard chart editor: freeform SQL fallback
 

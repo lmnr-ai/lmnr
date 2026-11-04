@@ -1,13 +1,37 @@
-import ChartView, { type ChartViewProps } from "./chart-view";
+"use client";
+
+import { useMemo } from "react";
+
+import CartesianPlot from "@/components/charts/cartesian-plot";
+import { type ChartConfig } from "@/components/ui/chart";
+
 import SelectableChart from "./selectable-chart";
 
-type CartesianChartProps = Omit<ChartViewProps, "selection"> & {
-  /** Set on dashboards, where dragging selects a time range; the editor and builder have no selection store. */
+interface CartesianChartProps {
+  kind: "line" | "bar";
+  data: Record<string, any>[];
+  x: string;
+  keys: string[];
+  chartConfig: ChartConfig;
   selectionChartId?: string;
-};
+}
 
-/** Line and stacked bar charts, drawn with TanStack Charts. */
-const CartesianChart = ({ selectionChartId, ...props }: CartesianChartProps) =>
-  selectionChartId ? <SelectableChart {...props} chartId={selectionChartId} /> : <ChartView {...props} />;
+/** Chart-builder data and dashboard selection are adapters around the shared plot. */
+const CartesianChart = ({ kind, data, x, keys, chartConfig, selectionChartId }: CartesianChartProps) => {
+  const series = useMemo(
+    () =>
+      keys.map((key) => {
+        const color = chartConfig[key]?.color ?? "currentColor";
+        return {
+          key,
+          label: String(chartConfig[key]?.label ?? key),
+          color: kind === "bar" ? `color-mix(in srgb, ${color} 70%, transparent)` : color,
+        };
+      }),
+    [keys, chartConfig, kind]
+  );
+  const props = { kind, data, x, series };
+  return selectionChartId ? <SelectableChart {...props} chartId={selectionChartId} /> : <CartesianPlot {...props} />;
+};
 
 export default CartesianChart;

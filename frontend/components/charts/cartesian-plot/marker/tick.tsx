@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type SyntheticEvent } from "react";
 
-import { type TimeSeriesMarker } from "../types";
+import { type PlotMarker } from "../types";
 import MarkerTooltip from "./tooltip";
 
 type MarkerTickProps = {
@@ -12,7 +12,7 @@ type MarkerTickProps = {
   y2?: number | string;
   label?: string;
   href?: string;
-  tooltip?: TimeSeriesMarker["tooltip"];
+  tooltip?: PlotMarker["tooltip"];
 };
 
 // Stops the press from also starting the chart's drag-zoom.

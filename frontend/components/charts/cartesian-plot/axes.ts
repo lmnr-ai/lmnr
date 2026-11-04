@@ -28,19 +28,27 @@ const GRID = "color-mix(in srgb, var(--color-border) 50%, transparent)";
  * TanStack derives `count` from the axis width and `spacing`, so the ticks fit the card without us
  * measuring it; a fixed candidate list would instead be thinned into uneven gaps and odd intervals.
  */
-const withTimeTicks = <S extends BandScale<string> | PointScale<string>>(scale: S): S => {
+const withTimeTicks = <S extends BandScale<string> | PointScale<string>>(scale: S, targetCount?: number): S => {
   const copy = scale.copy.bind(scale) as () => S;
   return Object.assign(scale, {
-    ticks: (count: number) => selectNiceTicksFromData(scale.domain(), count)?.ticks ?? scale.domain(),
-    tickFormat: (count: number) => selectNiceTicksFromData(scale.domain(), count)?.formatter ?? String,
-    copy: () => withTimeTicks(copy()),
+    ticks: (count: number) => {
+      const values = selectNiceTicksFromData(scale.domain(), targetCount ?? count)?.ticks ?? scale.domain();
+      if (!targetCount || values.length <= targetCount || targetCount < 2) return values;
+      // Recharts thinned dense labels; TanStack otherwise draws every nice-time candidate.
+      return Array.from(
+        { length: targetCount },
+        (_, index) => values[Math.round((index * (values.length - 1)) / (targetCount - 1))]
+      );
+    },
+    tickFormat: (count: number) => selectNiceTicksFromData(scale.domain(), targetCount ?? count)?.formatter ?? String,
+    copy: () => withTimeTicks(copy(), targetCount),
   });
 };
 
-export const xScale = (kind: "line" | "bar", labels: XAxisLabels) => {
+export const xScale = (kind: "line" | "bar", labels: XAxisLabels, targetTickCount?: number) => {
   const category = kind === "line" ? () => scalePoint<string>() : () => scaleBand<string>().padding(0.1);
   return {
-    scale: labels.time ? () => withTimeTicks(category()) : category,
+    scale: labels.time ? () => withTimeTicks(category(), targetTickCount) : category,
     axis: {
       ticks: {
         size: 0,
