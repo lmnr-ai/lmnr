@@ -231,6 +231,112 @@ export const slackIntegrations = pgTable(
   ]
 );
 
+export const githubIntegrations = pgTable(
+  "github_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    installationId: bigint("installation_id", { mode: "number" }).notNull(),
+    accountId: bigint("account_id", { mode: "number" }).notNull(),
+    accountLogin: text("account_login").notNull(),
+    accountType: text("account_type").notNull(),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: "string" }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "github_integrations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "github_integrations_created_by_fkey",
+    }).onDelete("set null"),
+    unique("github_integrations_workspace_id_key").on(table.workspaceId),
+    unique("github_integrations_installation_id_key").on(table.installationId),
+  ]
+);
+
+// One per project: what the Laminar Agent's sandbox is set up with.
+// `ingest_api_key` is the AEAD blob ({nonce, value} hex, AAD = environment id) of an ingest-only project key.
+export const projectEnvironments = pgTable(
+  "project_environments",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    ingestApiKeyId: uuid("ingest_api_key_id"),
+    ingestApiKey: jsonb("ingest_api_key"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "project_environments_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ingestApiKeyId],
+      foreignColumns: [projectApiKeys.id],
+      name: "project_environments_ingest_api_key_id_fkey",
+    }).onDelete("set null"),
+    unique("project_environments_project_id_key").on(table.projectId),
+  ]
+);
+
+export const projectEnvironmentRepos = pgTable(
+  "project_environment_repos",
+  {
+    environmentId: uuid("environment_id").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+    repoId: bigint("repo_id", { mode: "number" }).notNull(),
+    repoFullName: text("repo_full_name").notNull(),
+    defaultRef: text("default_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.environmentId, table.repoId], name: "project_environment_repos_pkey" }),
+    foreignKey({
+      columns: [table.environmentId],
+      foreignColumns: [projectEnvironments.id],
+      name: "project_environment_repos_environment_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [githubIntegrations.id],
+      name: "project_environment_repos_integration_id_fkey",
+    }).onDelete("cascade"),
+    index("project_environment_repos_repo_id_idx").using("btree", table.repoId.asc().nullsLast()),
+  ]
+);
+
+export const projectEnvironmentLlmProfiles = pgTable(
+  "project_environment_llm_profiles",
+  {
+    environmentId: uuid("environment_id").notNull(),
+    llmProfileId: uuid("llm_profile_id").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.environmentId, table.llmProfileId],
+      name: "project_environment_llm_profiles_pkey",
+    }),
+    foreignKey({
+      columns: [table.environmentId],
+      foreignColumns: [projectEnvironments.id],
+      name: "project_environment_llm_profiles_environment_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.llmProfileId],
+      foreignColumns: [llmProfiles.id],
+      name: "project_environment_llm_profiles_llm_profile_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const evaluators = pgTable(
   "evaluators",
   {
@@ -1984,6 +2090,49 @@ export const agentSessions = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "agent_sessions_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentSessionSandboxes = pgTable(
+  "agent_session_sandboxes",
+  {
+    sessionId: uuid("session_id").primaryKey().notNull(),
+    sandboxId: text("sandbox_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.id],
+      name: "agent_session_sandboxes_session_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+// One row per cloned repo in a session's sandbox, with that repo's PR branch progress.
+export const agentSessionSandboxRepos = pgTable(
+  "agent_session_sandbox_repos",
+  {
+    sessionId: uuid("session_id").notNull(),
+    repoId: bigint("repo_id", { mode: "number" }).notNull(),
+    repoFullName: text("repo_full_name").notNull(),
+    repoDir: text("repo_dir").notNull(),
+    baseSha: text("base_sha").notNull(),
+    baseBranch: text("base_branch"),
+    branchName: text("branch_name"),
+    branchLastPushedLocalSha: text("branch_last_pushed_local_sha"),
+    branchRemoteHeadSha: text("branch_remote_head_sha"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.repoId], name: "agent_session_sandbox_repos_pkey" }),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessionSandboxes.sessionId],
+      name: "agent_session_sandbox_repos_session_id_fkey",
     }).onDelete("cascade"),
   ]
 );
