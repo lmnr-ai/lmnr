@@ -37,6 +37,9 @@ ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# next build's type check needs ~2.3 GB of heap, more than Node's default on the CI build runners.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
 RUN npm run build
 
 # sharp 0.35 dropped `lib/index.js`, so @vercel/nft's hardcoded sharp special case
