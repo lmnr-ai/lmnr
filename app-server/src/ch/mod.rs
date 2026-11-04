@@ -1,4 +1,5 @@
 pub mod agent_prompts;
+pub mod audit_events;
 pub mod browser_events;
 pub mod cloud;
 pub mod data_plane;

@@ -57,12 +57,14 @@ export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySche
     })
     .returning();
 
-  // Cache the newly created key. user_id is deliberately NOT cached (it's for the
-  // UI only); expires_at IS cached so the app-server can enforce expiry lazily.
+  // Mirrors app-server's `ProjectApiKey`: expires_at for lazy expiry, id and
+  // userId for audit attribution (an entry without id is re-read from the DB).
   const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
   await cache.set(
     cacheKey,
     {
+      id: key.id,
+      userId: key.userId,
       projectId: key.projectId,
       name: key.name,
       hash: key.hash,
