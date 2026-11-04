@@ -22,8 +22,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const agentMachineStatus = pgEnum("agent_machine_status", ["not_started", "running", "paused", "stopped"]);
-export const agentMessageType = pgEnum("agent_message_type", ["user", "assistant", "step", "error"]);
 export const spanType = pgEnum("span_type", [
   "DEFAULT",
   "LLM",

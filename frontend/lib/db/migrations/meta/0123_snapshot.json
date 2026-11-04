@@ -6471,26 +6471,6 @@
     }
   },
   "enums": {
-    "public.agent_machine_status": {
-      "name": "agent_machine_status",
-      "schema": "public",
-      "values": [
-        "not_started",
-        "running",
-        "paused",
-        "stopped"
-      ]
-    },
-    "public.agent_message_type": {
-      "name": "agent_message_type",
-      "schema": "public",
-      "values": [
-        "user",
-        "assistant",
-        "step",
-        "error"
-      ]
-    },
     "public.span_type": {
       "name": "span_type",
       "schema": "public",

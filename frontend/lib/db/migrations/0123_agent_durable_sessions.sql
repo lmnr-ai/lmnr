@@ -1,9 +1,10 @@
--- Migration 0062 recreated the retired browser agent's tables and none dropped them again. Move its
--- "agent_sessions" aside (data and FKs from agent_chats / agent_messages kept) so the name is free.
-ALTER TABLE IF EXISTS "agent_sessions" RENAME TO "legacy_browser_agent_sessions";--> statement-breakpoint
-ALTER INDEX IF EXISTS "agent_sessions_pkey" RENAME TO "legacy_browser_agent_sessions_pkey";--> statement-breakpoint
-ALTER INDEX IF EXISTS "agent_sessions_created_at_idx" RENAME TO "legacy_browser_agent_sessions_created_at_idx";--> statement-breakpoint
-ALTER INDEX IF EXISTS "agent_sessions_updated_at_idx" RENAME TO "legacy_browser_agent_sessions_updated_at_idx";--> statement-breakpoint
+-- Migration 0062 recreated the retired browser agent's tables (and 0026 its enums); nothing reads them. Drop them so
+-- "agent_sessions" is free.
+DROP TABLE IF EXISTS "agent_messages" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "agent_chats" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "agent_sessions" CASCADE;--> statement-breakpoint
+DROP TYPE IF EXISTS "agent_machine_status";--> statement-breakpoint
+DROP TYPE IF EXISTS "agent_message_type";--> statement-breakpoint
 CREATE TABLE "agent_document_revisions" (
 	"session_id" uuid NOT NULL,
 	"document_id" bigint NOT NULL,
