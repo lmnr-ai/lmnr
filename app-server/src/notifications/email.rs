@@ -275,7 +275,10 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
             subject: if *trialing {
-                format!("Starter trial usage exhausted \u{2013} {}", workspace_name)
+                format!(
+                    "You've used your Starter trial allowance \u{2013} {}",
+                    workspace_name
+                )
             } else {
                 format!(
                     "Usage limit reached: {} \u{2013} {}",
@@ -675,7 +678,7 @@ fn render_usage_hard_limit_email(
             "start_subscription",
             "Start subscription",
             "Manage billing",
-            "Trial usage exhausted",
+            "Trial allowance used up",
             "Trial allowance",
         )
     } else {
@@ -730,10 +733,10 @@ fn render_usage_hard_limit_email(
         data_rows(&rows),
         action(&link, cta)
     );
-    let subtitle = format!("{} has paused", blocked);
+    let subtitle = (!trialing).then(|| format!("{} has paused", blocked));
     let body = format!(
         "{}{}{}",
-        banner(workspace_name, title, Some(&subtitle)),
+        banner(workspace_name, title, subtitle.as_deref()),
         card,
         footer(
             "This notification was generated automatically by Laminar.",
@@ -1276,7 +1279,8 @@ mod tests {
             true,
         );
 
-        assert!(html.contains("Trial usage exhausted"));
+        assert!(html.contains("Trial allowance used up"));
+        assert!(!html.contains("has paused"));
         assert!(html.contains("included in the Starter trial"));
         assert!(html.contains("Start subscription"));
         assert!(html.contains("tab=billing"));

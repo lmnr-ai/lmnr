@@ -38,15 +38,11 @@ export default function TrialEndingEmail({
       preview={`Your Starter trial for ${workspaceName} ends on ${endsOn}`}
     >
       <Text style={intro}>
-        <strong>
-          Your Starter trial for {workspaceName} ends on {endsOn}.
-        </strong>
+        Your Starter trial for {workspaceName} ends on {endsOn}.
       </Text>
       <Text style={paragraph}>After that, it moves to the Free plan. Here{"'"}s what changes:</Text>
       <ChangesList changes={STARTER_TO_FREE_CHANGES} />
-      <Text style={paragraph}>
-        <strong>Should you keep Starter?</strong>
-      </Text>
+      <Text style={paragraph}>Should you keep Starter?</Text>
       <table role="presentation" cellPadding="0" cellSpacing="0" style={questions}>
         <tbody>
           <tr>

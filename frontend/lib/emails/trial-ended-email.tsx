@@ -21,7 +21,7 @@ export default function TrialEndedEmail({ workspaceName, upgradeUrl }: { workspa
       preview={`${workspaceName} is now on the Free plan`}
     >
       <Text style={intro}>
-        <strong>Your Starter trial for {workspaceName} has ended, and the workspace is now on the Free plan.</strong>
+        Your Starter trial for {workspaceName} has ended, and the workspace is now on the Free plan.
       </Text>
       <Text style={paragraph}>Here{"'"}s what changed:</Text>
       <ChangesList changes={STARTER_TO_FREE_CHANGES} />
