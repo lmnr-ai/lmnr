@@ -1749,6 +1749,8 @@ export const agentSessions = pgTable(
   },
   (table) => [
     index("agent_sessions_project_user_updated_idx").on(table.projectId, table.userId, table.updatedAt.desc()),
+    // Target of the records' (session_id, project_id) FK, so their project_id always matches the session's.
+    unique("agent_sessions_id_project_id_key").on(table.id, table.projectId),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
@@ -1761,6 +1763,7 @@ export const agentRecords = pgTable(
   "agent_records",
   {
     sessionId: uuid("session_id").notNull(),
+    projectId: uuid("project_id").notNull(),
     id: bigint({ mode: "number" }).notNull(),
     type: text().notNull(),
     conversationId: bigint("conversation_id", { mode: "number" }),
@@ -1797,9 +1800,9 @@ export const agentRecords = pgTable(
       .on(table.sessionId, table.scopeKind, table.scopeId, table.kind, table.id)
       .where(sql`type = 'document'`),
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.id],
-      name: "agent_records_session_id_fkey",
+      columns: [table.sessionId, table.projectId],
+      foreignColumns: [agentSessions.id, agentSessions.projectId],
+      name: "agent_records_session_id_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );
@@ -1808,6 +1811,7 @@ export const agentDocumentRevisions = pgTable(
   "agent_document_revisions",
   {
     sessionId: uuid("session_id").notNull(),
+    projectId: uuid("project_id").notNull(),
     documentId: bigint("document_id", { mode: "number" }).notNull(),
     seq: bigint({ mode: "number" }).notNull(),
     kind: text().notNull(),
@@ -1817,9 +1821,9 @@ export const agentDocumentRevisions = pgTable(
   (table) => [
     primaryKey({ columns: [table.sessionId, table.documentId, table.seq], name: "agent_document_revisions_pkey" }),
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.id],
-      name: "agent_document_revisions_session_id_fkey",
+      columns: [table.sessionId, table.projectId],
+      foreignColumns: [agentSessions.id, agentSessions.projectId],
+      name: "agent_document_revisions_session_id_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );

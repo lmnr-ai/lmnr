@@ -7,6 +7,7 @@ DROP TYPE IF EXISTS "agent_machine_status";--> statement-breakpoint
 DROP TYPE IF EXISTS "agent_message_type";--> statement-breakpoint
 CREATE TABLE "agent_document_revisions" (
 	"session_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
 	"document_id" bigint NOT NULL,
 	"seq" bigint NOT NULL,
 	"kind" text NOT NULL,
@@ -17,6 +18,7 @@ CREATE TABLE "agent_document_revisions" (
 --> statement-breakpoint
 CREATE TABLE "agent_records" (
 	"session_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
 	"id" bigint NOT NULL,
 	"type" text NOT NULL,
 	"conversation_id" bigint,
@@ -48,11 +50,12 @@ CREATE TABLE "agent_sessions" (
 	"next_id" bigint DEFAULT 2 NOT NULL,
 	"next_seq" bigint DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "agent_sessions_id_project_id_key" UNIQUE("id","project_id")
 );
 --> statement-breakpoint
-ALTER TABLE "agent_document_revisions" ADD CONSTRAINT "agent_document_revisions_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "agent_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_records" ADD CONSTRAINT "agent_records_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "agent_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_document_revisions" ADD CONSTRAINT "agent_document_revisions_session_id_project_id_fkey" FOREIGN KEY ("session_id","project_id") REFERENCES "agent_sessions"("id","project_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_records" ADD CONSTRAINT "agent_records_session_id_project_id_fkey" FOREIGN KEY ("session_id","project_id") REFERENCES "agent_sessions"("id","project_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_sessions" ADD CONSTRAINT "agent_sessions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "agent_records_entries_idx" ON "agent_records" USING btree ("session_id","conversation_id","id") WHERE type = 'entry';--> statement-breakpoint
 CREATE INDEX "agent_records_tasks_idx" ON "agent_records" USING btree ("session_id","status","id") WHERE type = 'task';--> statement-breakpoint
@@ -72,8 +75,8 @@ INSERT INTO "agent_sessions" ("id", "project_id", "user_id", "source", "name", "
 SELECT s."id", s."project_id", s."user_id", s."channel_type", s."name", 7 + m."count", 3, s."created_at", s."last_used_at"
 FROM "chat_sessions" s
 JOIN (SELECT "chat_id", count(*) AS "count" FROM "chat_messages" GROUP BY "chat_id") m ON m."chat_id" = s."id";--> statement-breakpoint
-INSERT INTO "agent_records" ("session_id", "id", "type", "record")
-SELECT "id", 1, 'conversation', '{"id":1}'::json FROM "chat_sessions";--> statement-breakpoint
+INSERT INTO "agent_records" ("session_id", "project_id", "id", "type", "record")
+SELECT "id", "project_id", 1, 'conversation', '{"id":1}'::json FROM "chat_sessions";--> statement-breakpoint
 WITH "docs" ("id", "kind", "history", "fork", "content") AS (VALUES
 	(2, 'pi.live', 'latest', 'initial', '{}'::jsonb),
 	(3, 'pi.inbox', 'latest', 'initial', '{"items":[]}'::jsonb),
@@ -82,21 +85,21 @@ WITH "docs" ("id", "kind", "history", "fork", "content") AS (VALUES
 	(6, 'pi.agent', 'rewindable', 'asOf', '{}'::jsonb)
 ),
 "rows" AS (
-	SELECT s."id" AS "session_id", d.*,
+	SELECT s."id" AS "session_id", s."project_id", d.*,
 		coalesce(d."content", jsonb_build_object('sessionId', gen_random_uuid())) AS "value"
 	FROM "chat_sessions" s CROSS JOIN "docs" d
 ),
 "records" AS (
-	INSERT INTO "agent_records" ("session_id", "id", "type", "kind", "has_key", "key_value", "scope_kind", "scope_id", "created_seq", "record")
-	SELECT "session_id", "id", 'document', to_json("kind")::text, false, '""', 'conversation', 1, 1,
+	INSERT INTO "agent_records" ("session_id", "project_id", "id", "type", "kind", "has_key", "key_value", "scope_kind", "scope_id", "created_seq", "record")
+	SELECT "session_id", "project_id", "id", 'document', to_json("kind")::text, false, '""', 'conversation', 1, 1,
 		json_build_object('id', "id", 'kind', "kind", 'scope', json_build_object('kind', 'conversation', 'conversationId', 1),
 			'history', "history", 'fork', "fork", 'createdAt', 1)
 	FROM "rows"
 )
-INSERT INTO "agent_document_revisions" ("session_id", "document_id", "seq", "kind", "version", "content")
-SELECT "session_id", "id", 1, 'base', 1, "value"::json FROM "rows";--> statement-breakpoint
+INSERT INTO "agent_document_revisions" ("session_id", "project_id", "document_id", "seq", "kind", "version", "content")
+SELECT "session_id", "project_id", "id", 1, 'base', 1, "value"::json FROM "rows";--> statement-breakpoint
 WITH "messages" AS (
-	SELECT m."chat_id" AS "session_id", m."id" AS "message_id", m."role", m."parts",
+	SELECT m."chat_id" AS "session_id", s."project_id", m."id" AS "message_id", m."role", m."parts",
 		6 + row_number() OVER (PARTITION BY m."chat_id" ORDER BY m."created_at", m."id") AS "entry_id",
 		(extract(epoch FROM m."created_at") * 1000)::bigint AS "ts",
 		(SELECT coalesce(string_agg(p->>'text', '' ORDER BY i), '') FROM jsonb_array_elements(m."parts") WITH ORDINALITY e(p, i)
@@ -104,7 +107,7 @@ WITH "messages" AS (
 	FROM "chat_messages" m JOIN "chat_sessions" s ON s."id" = m."chat_id"
 ),
 "entries" AS (
-	SELECT "session_id", "entry_id", CASE "role"
+	SELECT "session_id", "project_id", "entry_id", CASE "role"
 		WHEN 'user' THEN jsonb_build_object(
 			'kind', 'laminar.user',
 			'data', jsonb_build_object('requestId', 'legacy:' || "message_id", 'text', "text"),
@@ -134,8 +137,8 @@ WITH "messages" AS (
 	END AS "entry"
 	FROM "messages"
 )
-INSERT INTO "agent_records" ("session_id", "id", "type", "conversation_id", "commit_seq", "record")
-SELECT "session_id", "entry_id", 'entry', 1, 2,
+INSERT INTO "agent_records" ("session_id", "project_id", "id", "type", "conversation_id", "commit_seq", "record")
+SELECT "session_id", "project_id", "entry_id", 'entry', 1, 2,
 	("entry" || jsonb_build_object('id', "entry_id", 'conversationId', 1))::json
 FROM "entries";--> statement-breakpoint
 DROP TABLE "chat_messages";--> statement-breakpoint
