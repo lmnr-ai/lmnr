@@ -883,6 +883,13 @@
       "when": 1793726670955,
       "tag": "0125_jwks_alg_crv",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1793811230839,
+      "tag": "0126_agent_session_sandboxes",
+      "breakpoints": true
     }
   ]
 }

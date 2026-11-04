@@ -9,6 +9,7 @@ import {
   signals,
   tracesAgentMessages,
   slackIntegrations,
+  githubIntegrations,
   evaluators,
   evaluatorSpanPaths,
   evaluatorScores,
@@ -206,6 +207,13 @@ export const tracesAgentMessagesRelations = relations(tracesAgentMessages, ({ on
 export const slackIntegrationsRelations = relations(slackIntegrations, ({ one }) => ({
   workspace: one(workspaces, {
     fields: [slackIntegrations.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const githubIntegrationsRelations = relations(githubIntegrations, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [githubIntegrations.workspaceId],
     references: [workspaces.id],
   }),
 }));
