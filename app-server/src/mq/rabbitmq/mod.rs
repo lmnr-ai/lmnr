@@ -4,16 +4,26 @@ use futures_util::StreamExt;
 use lapin::{
     Acker, BasicProperties, Channel, ConnectionStatus, Consumer,
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
-    types::{AMQPValue, FieldTable, ShortString},
+    types::FieldTable,
 };
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
-    MessageQueueReceiverTrait, MessageQueueTrait, connection::ResilientRabbitConnection,
+    MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
+use properties::{properties, retry_attempt_of, retry_properties};
+
+mod connection;
+#[cfg(test)]
+mod live_tests;
+mod properties;
+mod topology;
+
+pub use connection::ResilientRabbitConnection;
+pub use topology::declare_topology;
 
 /// `backon` decides retryability from the error value alone, so the publish
 /// closure's failures — all `anyhow::Error` — need the transient/permanent
@@ -31,48 +41,6 @@ enum PublishError {
 /// can leave channel ops stalled for tens of seconds before the alarm clears.
 static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
-
-/// Carries the delayed-retry count across a retry-queue round trip. RabbitMQ
-/// preserves headers through dead-lettering, so the value survives the hop back
-/// into the origin queue.
-const RETRY_ATTEMPT_HEADER: &str = "x-lmnr-retry-attempt";
-
-/// Properties common to every publish: `delivery_mode=2` is persistent, and the
-/// TTL and priority are applied only when the caller asked for them — an absent
-/// priority is what lets a quorum queue apply its own default (4).
-fn properties(ttl_ms: Option<u64>, priority: Option<u8>) -> BasicProperties {
-    let mut properties = BasicProperties::default().with_delivery_mode(2);
-
-    if let Some(ttl_ms) = ttl_ms {
-        properties = properties.with_expiration(ShortString::from(ttl_ms.to_string()));
-    }
-    if let Some(priority) = priority {
-        properties = properties.with_priority(priority);
-    }
-
-    properties
-}
-
-fn retry_properties(ttl_ms: u64, attempt: u32, priority: Option<u8>) -> BasicProperties {
-    let mut headers = FieldTable::default();
-    headers.insert(RETRY_ATTEMPT_HEADER.into(), AMQPValue::LongUInt(attempt));
-
-    properties(Some(ttl_ms), priority).with_headers(headers)
-}
-
-/// Anything but the `LongUInt` written by `retry_properties` reads as a first
-/// delivery, which restarts the budget rather than dropping the message early.
-fn retry_attempt_of(properties: &BasicProperties) -> u32 {
-    properties
-        .headers()
-        .as_ref()
-        .and_then(|headers| headers.inner().get(RETRY_ATTEMPT_HEADER))
-        .and_then(|value| match value {
-            AMQPValue::LongUInt(n) => Some(*n),
-            _ => None,
-        })
-        .unwrap_or(0)
-}
 
 /// Per-attempt bound on `create_channel`, so a half-dead connection fails the
 /// attempt instead of hanging the publish that asked for a channel.
@@ -516,218 +484,4 @@ fn connection_state(status: &ConnectionStatus) -> String {
         "unknown"
     };
     s.to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn retry_attempt_round_trips_through_message_properties() {
-        assert_eq!(retry_attempt_of(&retry_properties(30_000, 7, None)), 7);
-    }
-
-    #[test]
-    fn a_parked_message_keeps_the_priority_it_arrived_with() {
-        // The park is the round trip a priority is most easily lost on: the
-        // worker republishes raw bytes, so anything not re-stamped here is gone
-        // by the time the broker dead-letters the message back.
-        let parked = retry_properties(30_000, 1, Some(8));
-
-        assert_eq!(*parked.priority(), Some(8));
-        assert_eq!(retry_attempt_of(&parked), 1);
-    }
-
-    #[test]
-    fn an_unprioritized_publish_sets_no_priority_at_all() {
-        // Absent, not zero: the quorum queue reads an absent property as 4, and
-        // an explicit 0 would sort BELOW everything instead of alongside it.
-        assert_eq!(*properties(None, None).priority(), None);
-        assert_eq!(*retry_properties(30_000, 0, None).priority(), None);
-    }
-
-    #[test]
-    fn a_priority_publish_carries_both_the_ttl_and_the_priority() {
-        let properties = properties(Some(30_000), Some(8));
-
-        assert_eq!(*properties.priority(), Some(8));
-        assert_eq!(
-            properties.expiration().as_ref().map(|e| e.to_string()),
-            Some("30000".to_string())
-        );
-    }
-
-    #[test]
-    fn retry_attempt_of_a_first_delivery_is_zero() {
-        // Nothing published by `publish` carries the header.
-        let properties = BasicProperties::default().with_delivery_mode(2);
-        assert_eq!(retry_attempt_of(&properties), 0);
-
-        let mut headers = FieldTable::default();
-        headers.insert("x-death".into(), AMQPValue::LongUInt(4));
-        assert_eq!(
-            retry_attempt_of(&BasicProperties::default().with_headers(headers)),
-            0
-        );
-    }
-
-    #[test]
-    fn a_header_written_by_something_else_restarts_the_budget() {
-        // Not written by `retry_properties`, so the count is unusable. Restarting
-        // is the safe reading — it retries more, it doesn't drop early.
-        let mut wrong_type = FieldTable::default();
-        wrong_type.insert(
-            RETRY_ATTEMPT_HEADER.into(),
-            AMQPValue::LongString("3".into()),
-        );
-        assert_eq!(
-            retry_attempt_of(&BasicProperties::default().with_headers(wrong_type)),
-            0
-        );
-    }
-
-    /// Drops every broker-side connection AND deletes the queue, then checks that
-    /// both connections are replaced, the topology is redeclared on the new
-    /// publisher connection, the binding is redone on the new consumer one, and
-    /// messages flow again. Run with `--ignored` against a broker at
-    /// `RABBITMQ_TEST_URL` (default `amqp://guest:guest@localhost:5672/%2f`),
-    /// with `rabbitmqctl` on `PATH` or at `RABBITMQCTL`.
-    mod live_reconnect {
-        use std::process::Command;
-
-        use futures_util::future::BoxFuture;
-        use lapin::{
-            ExchangeKind,
-            options::{ExchangeDeclareOptions, QueueDeclareOptions},
-        };
-
-        use super::*;
-        use crate::mq::{MessageQueue, MessageQueueDeliveryTrait};
-
-        const EXCHANGE: &str = "lmnr_test_reconnect_exchange";
-        const QUEUE: &str = "lmnr_test_reconnect_queue";
-        const ROUTING_KEY: &str = "lmnr_test_reconnect";
-
-        fn declare(channel: &Channel) -> BoxFuture<'_, anyhow::Result<()>> {
-            Box::pin(async move {
-                channel
-                    .exchange_declare(
-                        EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await?;
-                let mut args = FieldTable::default();
-                args.insert(
-                    "x-queue-type".into(),
-                    AMQPValue::LongString("quorum".into()),
-                );
-                channel
-                    .queue_declare(
-                        QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        args,
-                    )
-                    .await?;
-                Ok(())
-            })
-        }
-
-        fn rabbitmqctl(args: &[&str]) {
-            let ctl = std::env::var("RABBITMQCTL").unwrap_or("rabbitmqctl".to_string());
-            let status = Command::new(ctl)
-                .args(args)
-                .status()
-                .expect("run rabbitmqctl");
-            assert!(status.success(), "rabbitmqctl {args:?} failed");
-        }
-
-        async fn receive_one(receiver: &mut MessageQueueReceiver) -> Vec<u8> {
-            let delivery = tokio::time::timeout(Duration::from_secs(30), receiver.receive())
-                .await
-                .expect("no delivery within 30s")
-                .expect("consumer ended")
-                .expect("delivery error");
-            delivery.acker().ack().await.unwrap();
-            delivery.data()
-        }
-
-        async fn wait_for_generation(connection: &ResilientRabbitConnection, id: u64) {
-            tokio::time::timeout(Duration::from_secs(60), async {
-                while !(connection.current().id >= id && connection.is_connected()) {
-                    tokio::time::sleep(Duration::from_millis(200)).await;
-                }
-            })
-            .await
-            .expect("connection was not replaced within 60s");
-        }
-
-        #[tokio::test]
-        #[ignore]
-        async fn consumers_and_publishers_survive_a_dropped_connection() {
-            let uri = std::env::var("RABBITMQ_TEST_URL")
-                .unwrap_or("amqp://guest:guest@localhost:5672/%2f".to_string());
-            let publisher =
-                ResilientRabbitConnection::connect(uri.clone(), "test-publisher", Some(declare))
-                    .await
-                    .unwrap();
-            let consumer = ResilientRabbitConnection::connect(uri, "test-consumer", None)
-                .await
-                .unwrap();
-            let queue: MessageQueue =
-                RabbitMQ::new(Arc::clone(&publisher), Some(Arc::clone(&consumer)), 4).into();
-
-            let mut receiver = queue
-                .get_receiver(QUEUE, EXCHANGE, ROUTING_KEY, 10)
-                .await
-                .unwrap();
-            queue
-                .publish(b"before", EXCHANGE, ROUTING_KEY, None)
-                .await
-                .unwrap();
-            assert_eq!(receive_one(&mut receiver).await, b"before");
-
-            // A broker that lost its definitions, then lost every connection.
-            rabbitmqctl(&["delete_queue", QUEUE]);
-            rabbitmqctl(&["close_all_connections", "test"]);
-
-            // Without lapin's recovery the consumer must END, not idle forever.
-            let ended = tokio::time::timeout(Duration::from_secs(30), async {
-                loop {
-                    match receiver.receive().await {
-                        Some(Ok(_)) => continue,
-                        Some(Err(_)) | None => break,
-                    }
-                }
-            })
-            .await;
-            assert!(
-                ended.is_ok(),
-                "the old consumer never surfaced the dead connection"
-            );
-
-            wait_for_generation(&publisher, 1).await;
-            wait_for_generation(&consumer, 1).await;
-
-            let mut receiver = queue
-                .get_receiver(QUEUE, EXCHANGE, ROUTING_KEY, 10)
-                .await
-                .unwrap();
-            queue
-                .publish(b"after", EXCHANGE, ROUTING_KEY, None)
-                .await
-                .unwrap();
-            assert_eq!(receive_one(&mut receiver).await, b"after");
-            assert!(queue.is_healthy());
-
-            rabbitmqctl(&["delete_queue", QUEUE]);
-        }
-    }
 }
