@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { type UseFormGetValues } from "react-hook-form";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
+import { type SignalTestResult } from "@/lib/actions/signals/execute";
 import { type TraceRow } from "@/lib/traces/types";
 
 import { type ManageSignalForm } from "./types";
@@ -18,8 +19,18 @@ export default function useTestExecution({
   onComplete?: () => void;
 }) {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [testOutput, setTestOutput] = useState("");
+  const [result, setResult] = useState<SignalTestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Drops the in-flight run and its output, e.g. when another trace gets selected.
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsExecuting(false);
+    setResult(null);
+    setError(null);
+  }, []);
 
   const execute = useCallback(async () => {
     const prompt = getValues("prompt");
@@ -35,7 +46,8 @@ export default function useTestExecution({
     abortRef.current = controller;
 
     setIsExecuting(true);
-    setTestOutput("");
+    setResult(null);
+    setError(null);
 
     try {
       const executeRes = await fetch(`/api/projects/${projectId}/signals/execute`, {
@@ -57,30 +69,23 @@ export default function useTestExecution({
         const text = await executeRes.text();
         try {
           const err = JSON.parse(text);
-          setTestOutput(`Error: ${err.error || "Failed to execute signal"}`);
+          setError(err.error || "Failed to execute signal");
         } catch {
-          setTestOutput(`Error: ${text || `HTTP ${executeRes.status}`}`);
+          setError(text || `HTTP ${executeRes.status}`);
         }
       } else {
-        const result = await executeRes.json();
-        setTestOutput(typeof result === "string" ? result : JSON.stringify(result, null, 2));
+        setResult((await executeRes.json()) as SignalTestResult);
       }
       onComplete?.();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setTestOutput(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setError(error instanceof Error ? error.message : "Unknown error");
       onComplete?.();
     } finally {
-      setIsExecuting(false);
+      // A superseded run must not clear the spinner of the run that replaced it.
+      if (abortRef.current === controller) setIsExecuting(false);
     }
   }, [getValues, projectId, selectedTrace, onComplete]);
 
-  const clear = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setIsExecuting(false);
-    setTestOutput("");
-  }, []);
-
-  return { isExecuting, testOutput, execute, clear };
+  return { isExecuting, result, error, execute, reset };
 }
