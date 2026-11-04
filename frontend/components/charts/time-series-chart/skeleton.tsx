@@ -1,12 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-export const ChartSkeleton = () => {
+export const ChartSkeleton = ({ barsClassName }: { barsClassName?: string }) => {
   const getHeight = (index: number) => 20 + ((index * 17 + index * index) % 32);
 
   return (
     <div className="w-full overflow-hidden">
       <div className="flex flex-col gap-1 pt-4 pb-3">
-        <div className="h-36 w-full flex items-end gap-[2px]">
+        <div className={cn("h-36 w-full flex items-end gap-[2px]", barsClassName)}>
           {Array.from({ length: 48 }).map((_, i) => (
             <Skeleton
               key={i}

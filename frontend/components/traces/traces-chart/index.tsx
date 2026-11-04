@@ -40,13 +40,15 @@ export default function TracesChart({ className, containerRef }: TracesChartProp
   return (
     <div ref={containerRef} className={className}>
       {!stats && isLoadingStats ? (
-        <ChartSkeleton />
+        <ChartSkeleton barsClassName="h-8" />
       ) : (
         <TimeSeriesChart
           data={stats ?? []}
           chartConfig={chartConfig}
           fields={fields}
           containerWidth={chartContainerWidth}
+          className="h-20"
+          yTickCount={3}
         />
       )}
     </div>
