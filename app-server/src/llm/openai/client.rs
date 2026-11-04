@@ -1,19 +1,14 @@
 #![cfg_attr(not(feature = "signals"), allow(dead_code))]
 
-use super::accumulator::OpenAIStreamAccumulator;
-use super::conversions::{
-    parse_openai_response, provider_request_to_openai_body, provider_request_to_openai_stream_body,
-};
+use super::conversions::{parse_openai_response, provider_request_to_openai_body};
 use super::{
     OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult, build_http_config,
     build_http_config_from, endpoint_url, post_openai_request, send_openai_request,
 };
 use crate::llm::{
     LanguageModelClient, ProviderResult,
-    models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
-    sse::accumulate_sse,
+    models::{ProviderRequest, ProviderResponse},
 };
-use tokio::sync::mpsc::UnboundedSender;
 
 /// OpenAI provider using the Chat Completions API (`/chat/completions`).
 #[derive(Clone)]
@@ -107,27 +102,6 @@ impl LanguageModelClient for OpenAIClient {
             serde_json::from_str(&response_text).map_err(super::OpenAIError::from)?;
 
         parse_openai_response(response_json).map_err(Into::into)
-    }
-
-    async fn generate_content_stream(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let body = provider_request_to_openai_stream_body(model, request);
-        let url = self.url();
-
-        let response =
-            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
-
-        accumulate_sse::<OpenAIStreamAccumulator, super::OpenAIError>(
-            response.bytes_stream(),
-            model,
-            chunk_tx,
-        )
-        .await
-        .map_err(Into::into)
     }
 }
 

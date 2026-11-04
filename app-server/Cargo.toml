@@ -34,7 +34,6 @@ dotenv = "0.15"
 # Ed25519 keys are libsodium-format (64-byte seed||pubkey), which `SecretKey::from_slice` accepts as-is.
 ed25519-compact = "2.4"
 enum_dispatch = "0.3.13"
-eventsource-stream = "0.2.3"
 fancy-regex = "0.19"
 futures-util = "0.3"
 half = {version = "2.7.1", features = ["serde"], optional = true}
