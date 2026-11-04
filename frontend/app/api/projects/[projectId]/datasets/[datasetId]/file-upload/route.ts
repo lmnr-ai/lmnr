@@ -111,7 +111,7 @@ export async function POST(
       return {
         id: ids[index],
         data: data !== undefined ? data : Object.keys(rest).length > 0 ? rest : record,
-        target: target || {},
+        target: target ?? {},
         metadata: metadata || {},
         createdAt: new Date().toISOString(),
       };
