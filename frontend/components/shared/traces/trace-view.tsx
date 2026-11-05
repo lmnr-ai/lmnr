@@ -7,6 +7,7 @@ import { shallow } from "zustand/shallow";
 import { SpanView } from "@/components/shared/traces/span-view";
 import TracePanel from "@/components/shared/traces/trace-panel";
 import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
+import { SPAN_TAB_PARAM } from "@/components/traces/span-view/use-span-view-tab";
 import FillWidthLayout, { STACK_THRESHOLD } from "@/components/traces/trace-view/fill-width-layout";
 import TraceViewStoreProvider, {
   type TraceViewSpan,
@@ -56,9 +57,10 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    if (searchParams.has("spanId")) {
+    if (searchParams.has("spanId") || searchParams.has(SPAN_TAB_PARAM)) {
       const params = new URLSearchParams(searchParams);
       params.delete("spanId");
+      params.delete(SPAN_TAB_PARAM);
       router.replace(`${pathName}?${params.toString()}`);
     }
   }, [setSelectedSpan, searchParams, router, pathName]);

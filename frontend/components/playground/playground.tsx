@@ -182,6 +182,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
                 setTraceId(null);
               }}
               traceId={traceId!}
+              syncUrl={false}
             />
           </Resizable>
         </div>

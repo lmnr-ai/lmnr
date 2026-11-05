@@ -16,6 +16,7 @@ import {
   filterToViewport,
   useReportVisibleTimeRange,
 } from "@/components/traces/trace-view/use-report-visible-time-range";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
@@ -63,7 +64,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     condensedTimelineVisibleSpanIds,
     transcriptExpandedGroups,
     toggleTranscriptGroup,
-    setTab,
     setScrollTimeRange,
     scrollToGroupId,
     consumeScrollToGroup,
@@ -77,13 +77,13 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
       transcriptExpandedGroups: state.transcriptExpandedGroups,
       toggleTranscriptGroup: state.toggleTranscriptGroup,
-      setTab: state.setTab,
       setScrollTimeRange: state.setScrollTimeRange,
       scrollToGroupId: state.scrollToGroupId,
       consumeScrollToGroup: state.consumeScrollToGroup,
     }),
     shallow
   );
+  const [, setTab] = useTraceViewTab();
 
   const spansById = useMemo(() => {
     const map = new Map<string, TraceViewSpan>();

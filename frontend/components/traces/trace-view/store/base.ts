@@ -138,6 +138,8 @@ interface BaseTraceViewState {
 
   // Layout options
   isAlwaysSelectSpan: boolean;
+  /** Keep view tabs and message links in the URL; off where the page cannot reopen the trace from it. */
+  syncUrl: boolean;
 
   // Transcript mode: IDs of groups the user has expanded
   transcriptExpandedGroups: Set<string>;
@@ -206,6 +208,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
     initialSearch?: string;
+    syncUrl?: boolean;
   }
 ): BaseTraceViewStore {
   return {
@@ -248,6 +251,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
+    syncUrl: options?.syncUrl ?? true,
 
     // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
     transcriptExpandedGroups: new Set<string>(),

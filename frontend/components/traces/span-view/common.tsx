@@ -1,6 +1,6 @@
 import { capitalize } from "lodash";
 import { Bolt, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
-import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { memo, type PropsWithChildren, type ReactNode, useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import ContentRenderer from "@/components/ui/content-renderer/index";
@@ -165,9 +165,10 @@ interface RoleHeaderProps {
   suffix?: string;
   bare?: boolean;
   className?: string;
+  action?: ReactNode;
 }
 
-const RoleHeader = ({ role, suffix, bare = false, className }: RoleHeaderProps) => {
+const RoleHeader = ({ role, suffix, bare = false, className, action }: RoleHeaderProps) => {
   if (role) {
     return (
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
@@ -184,6 +185,7 @@ const RoleHeader = ({ role, suffix, bare = false, className }: RoleHeaderProps) 
           {capitalize(role)}
         </span>
         {suffix && <span className="text-sm text-muted-foreground -ml-1">· {suffix}</span>}
+        {action}
       </div>
     );
   }
@@ -254,9 +256,15 @@ export const MessageWrapper = ({
   defaultExpanded = false,
   suffix,
   bare = false,
+  headerAction,
+  highlighted = false,
 }: PropsWithChildren<{
   role?: string;
   suffix?: string;
+  /** Right-aligned in the role header; revealed on hover via `group-hover/span-message`. */
+  headerAction?: ReactNode;
+  /** Briefly marks the message a link opened. */
+  highlighted?: boolean;
   /** No card: a role label over the content, keeping the height clamp and expand toggle. */
   bare?: boolean;
   presetKey: string;
@@ -274,7 +282,9 @@ export const MessageWrapper = ({
     setIsOverflowing(el.scrollHeight > maxHeight);
   }, [maxHeight]);
 
-  useEffect(() => {
+  // Layout effect: the expand toggle adds height, and it must land before paint. Added a frame later, a card scrolled
+  // in from above grows under the virtualizer, which leaves that to the browser's scroll anchoring and eats the scroll.
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
@@ -289,8 +299,14 @@ export const MessageWrapper = ({
   const showToggle = isOverflowing;
 
   return (
-    <Frame bare={bare}>
-      <RoleHeader role={role} suffix={suffix} bare={bare} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
+    <Frame bare={bare} highlighted={highlighted}>
+      <RoleHeader
+        role={role}
+        suffix={suffix}
+        bare={bare}
+        action={headerAction}
+        className={stickyHeader ? "sticky top-0 z-10" : undefined}
+      />
       <div
         ref={containerRef}
         className={cn("overflow-hidden", !bare && "bg-emphasis-1 dark:bg-transparent")}
@@ -323,13 +339,26 @@ export const MessageWrapper = ({
   );
 };
 
-const Frame = ({ bare, children }: PropsWithChildren<{ bare: boolean }>) =>
+const Frame = ({ bare, highlighted, children }: PropsWithChildren<{ bare: boolean; highlighted: boolean }>) =>
   bare ? (
-    <div className="relative">{children}</div>
+    <div
+      className={cn(
+        "group/span-message relative rounded-lg ring-primary transition-shadow duration-700",
+        highlighted && "ring-1"
+      )}
+    >
+      {children}
+    </div>
   ) : (
     // overflow-clip (not hidden): clips to radius without creating a scroll
     // container, so sticky can still pin to the messages list.
-    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
+    <ElevatedSurface
+      offset={1}
+      className={cn(
+        "group/span-message relative border rounded-lg overflow-clip transition-[border-color] duration-700",
+        highlighted && "border-primary"
+      )}
+    >
       {children}
     </ElevatedSurface>
   );

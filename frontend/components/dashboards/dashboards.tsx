@@ -117,6 +117,7 @@ function DashboardContent() {
           spanId={spanId ?? undefined}
           initialSignalId={signalId ?? undefined}
           onClose={closeTrace}
+          syncUrl={false}
         />
       )}
     </>

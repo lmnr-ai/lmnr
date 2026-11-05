@@ -88,6 +88,7 @@ export default function SessionSpanPanel() {
                   spanId={shown.spanId}
                   traceId={shown.traceId}
                   onClose={() => setSpanPanelOpen(false)}
+                  syncUrl={false}
                 />
               ) : (
                 <SpanViewSkeleton />

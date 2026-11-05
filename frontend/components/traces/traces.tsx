@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { shallow } from "zustand/shallow";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
+import { deleteTraceViewParams } from "@/components/traces/trace-view/use-trace-view-tab";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -48,6 +49,7 @@ function TracesContent() {
     params.delete("textSearch");
     params.delete("traceId");
     params.delete("spanId");
+    deleteTraceViewParams(params);
     params.set("view", newView);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
@@ -103,6 +105,7 @@ function TracesContent() {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
+            deleteTraceViewParams(params);
             router.push(`${pathName}?${params.toString()}`);
             setTraceId(null);
           }}

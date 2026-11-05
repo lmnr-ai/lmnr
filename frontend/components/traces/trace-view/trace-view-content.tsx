@@ -10,12 +10,18 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
-import { SpanView, type SpanViewTab } from "../span-view";
+import { SpanView } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
+import { SPAN_TAB_PARAM, type SpanViewTab } from "../span-view/use-span-view-tab";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
 import { type TraceViewPanels } from "./trace-view-panels";
+import { deleteTraceViewParams } from "./use-trace-view-tab";
+
+// The span tab holding a search hit, so selecting a hit lands on it.
+const snippetTabOf = (span?: TraceViewSpan): SpanViewTab | undefined =>
+  span?.inputSnippet || span?.outputSnippet ? "content" : span?.attributesSnippet ? "attributes" : undefined;
 
 export interface TraceViewContentProps {
   traceId: string;
@@ -86,6 +92,7 @@ export default function TraceViewContent({
   );
 
   const initialSearch = useTraceViewStore((state) => state.initialSearch);
+  const syncUrl = useTraceViewStore((state) => state.syncUrl);
 
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
@@ -135,10 +142,11 @@ export default function TraceViewContent({
 
       setSelectedSpan(span);
 
-      const currentSpanId = searchParams.get("spanId");
-      if (currentSpanId !== span.spanId) {
-        const params = new URLSearchParams(searchParams);
-        params.set("spanId", span.spanId);
+      const params = new URLSearchParams(searchParams);
+      params.set("spanId", span.spanId);
+      const snippetTab = snippetTabOf(span);
+      if (snippetTab) params.set(SPAN_TAB_PARAM, snippetTab);
+      if (params.toString() !== searchParams.toString()) {
         router.replace(`${pathName}?${params.toString()}`);
       }
     },
@@ -231,15 +239,17 @@ export default function TraceViewContent({
   const handleClose = useCallback(() => {
     const params = new URLSearchParams(searchParams);
     params.delete("spanId");
+    deleteTraceViewParams(params);
     router.push(`${pathName}?${params.toString()}`);
     onClose?.();
   }, [onClose, pathName, router, searchParams]);
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    if (searchParams.get("spanId")) {
+    if (searchParams.has("spanId") || searchParams.has(SPAN_TAB_PARAM)) {
       const params = new URLSearchParams(searchParams);
       params.delete("spanId");
+      params.delete(SPAN_TAB_PARAM);
       router.replace(`${pathName}?${params.toString()}`);
     }
   }, [setSelectedSpan, searchParams, router, pathName]);
@@ -310,13 +320,6 @@ export default function TraceViewContent({
     />
   );
 
-  const snippetTab: SpanViewTab | undefined =
-    selectedSpan?.inputSnippet || selectedSpan?.outputSnippet
-      ? "content"
-      : selectedSpan?.attributesSnippet
-        ? "attributes"
-        : undefined;
-
   const spanPanel = (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {!selectedSpan ? (
@@ -335,9 +338,10 @@ export default function TraceViewContent({
           spanId={selectedSpan.spanId}
           traceId={traceId}
           initialSearchTerm={traceSearchTerm}
-          initialTab={snippetTab}
+          initialTab={snippetTabOf(selectedSpan)}
           onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
+          syncUrl={syncUrl}
         />
       )}
     </div>

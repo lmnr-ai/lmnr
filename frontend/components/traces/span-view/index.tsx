@@ -10,6 +10,7 @@ import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanIO from "@/components/traces/span-view/span-io";
 import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import SpanTurn from "@/components/traces/span-view/span-turn";
+import { type SpanViewTab, useSpanViewTab } from "@/components/traces/span-view/use-span-view-tab";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
@@ -19,9 +20,6 @@ import { type Span, SpanType } from "@/lib/traces/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { SpanViewSkeleton } from "./skeleton";
 
-/** `content` is the Messages view for LLM spans and stacked input/output for the rest. */
-export type SpanViewTab = "content" | "attributes" | "events";
-
 interface SpanViewProps {
   spanId: string;
   traceId: string;
@@ -29,6 +27,8 @@ interface SpanViewProps {
   initialTab?: SpanViewTab;
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
+  /** Keep the tab and message links in the URL; off where the page can't reopen this span from it. */
+  syncUrl?: boolean;
 }
 
 const swrFetcher = async (url: string) => {
@@ -51,23 +51,27 @@ export const SpanViewTabs = ({
   searchOpen,
   setSearchOpen,
   initialTab,
+  syncUrl = true,
 }: {
   span: Span;
   searchRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
   initialTab?: SpanViewTab;
+  syncUrl?: boolean;
 }) => {
   const isLLM = span.spanType === SpanType.LLM;
   const hasEvents = (span.events?.length ?? 0) > 0;
-  const defaultTab = initialTab === "events" && !hasEvents ? "content" : (initialTab ?? "content");
+  const [tab, setTab] = useSpanViewTab({ syncUrl, fallback: initialTab, hasEvents });
 
   return (
     <Tabs
-      key={initialTab}
       className="flex flex-col grow overflow-hidden gap-0"
-      defaultValue={defaultTab}
-      onValueChange={(value) => track("traces", "span_tab_selected", { tab: value })}
+      value={tab}
+      onValueChange={(value) => {
+        track("traces", "span_tab_selected", { tab: value });
+        setTab(value as SpanViewTab);
+      }}
       tabIndex={0}
     >
       <div className="px-2 pb-2 mt-2 border-b w-full">
@@ -80,7 +84,7 @@ export const SpanViewTabs = ({
       <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
       <div className="grow flex overflow-hidden">
         <TabsContent value="content" className="w-full h-full">
-          {isLLM ? <SpanTurn span={span} /> : <SpanIO span={span} />}
+          {isLLM ? <SpanTurn span={span} linkable={syncUrl} /> : <SpanIO span={span} />}
         </TabsContent>
         <TabsContent value="attributes" className="w-full h-full">
           <ContentRenderer
@@ -116,6 +120,7 @@ export function SpanView({
   initialTab,
   onClose,
   isAlwaysSelectSpan,
+  syncUrl = true,
 }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
@@ -182,6 +187,7 @@ export function SpanView({
             searchOpen={searchOpen}
             setSearchOpen={setSearchOpen}
             initialTab={initialTab}
+            syncUrl={syncUrl}
           />
         </SpanControls>
       </SpanSearchProvider>

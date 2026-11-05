@@ -26,6 +26,7 @@ import {
 } from "@/components/evaluation/store";
 import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
+import { deleteTraceViewParams } from "@/components/traces/trace-view/use-trace-view-tab";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -137,6 +138,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     next.delete("traceId");
     next.delete("trialId");
     next.delete("spanId");
+    deleteTraceViewParams(next);
     push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
 

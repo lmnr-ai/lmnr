@@ -7,6 +7,7 @@ import { type Span } from "@/lib/traces/types";
 import {
   buildConversationRows,
   buildFocusedRows,
+  type MessageAnchor,
   NEW_INPUT_STYLES,
   type NewInputStyle,
   RESULT_STYLES,
@@ -15,6 +16,7 @@ import {
   type TurnLayout,
 } from "./build-rows";
 import ConversationList from "./conversation-list";
+import { anchorHash, isFoldedAnchor, parseAnchorHash } from "./message-anchor";
 import OptionSwitcher, { readStoredOption } from "./option-switcher";
 import { useSectionFormats } from "./use-section-formats";
 
@@ -31,8 +33,12 @@ const MESSAGE_STYLES: { value: MessageStyle; label: string }[] = [
   { value: "flat", label: "Flat" },
 ];
 
-const PureSpanTurn = ({ span }: { span: Span }) => {
+const readAnchorHash = () => (typeof window === "undefined" ? undefined : parseAnchorHash(window.location.hash));
+
+/** `linkable`: offer per-message links (off where the URL can't reopen this span). */
+const PureSpanTurn = ({ span, linkable = false }: { span: Span; linkable?: boolean }) => {
   const turn = useMemo(() => buildSpanTurn(span.input, span.output), [span.input, span.output]);
+  const [linked, setLinked] = useState<MessageAnchor | undefined>(() => (linkable ? readAnchorHash() : undefined));
   const [layout, setLayout] = useState<TurnLayout>(() =>
     SHOW_VIEW_OPTIONS ? readStoredOption(LAYOUT_KEY, TURN_LAYOUTS, "focused") : "focused"
   );
@@ -48,15 +54,29 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
   );
   const compact = layout === "compact" || layout === "all" || focused;
 
-  // Hidden history can't be searched, so a new search term opens it.
+  // Hidden history can't be searched (or linked to), so a search term or a link into it opens it.
   const searchTerm = useSpanSearchState()?.searchTerm ?? "";
-  const [historyOpen, setHistoryOpen] = useState(searchTerm.length > 0);
+  const [historyOpen, setHistoryOpen] = useState(
+    () => searchTerm.length > 0 || (!!linked && isFoldedAnchor(turn, linked))
+  );
   const [prevSearchTerm, setPrevSearchTerm] = useState(searchTerm);
   if (searchTerm !== prevSearchTerm) {
     setPrevSearchTerm(searchTerm);
     if (searchTerm) setHistoryOpen(true);
   }
   const toggleHistory = useCallback(() => setHistoryOpen((open) => !open), []);
+
+  const linkMessage = useCallback(
+    (anchor: MessageAnchor) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("spanId", span.spanId);
+      url.hash = anchorHash(anchor);
+      window.history.replaceState(null, "", url);
+      setLinked(anchor);
+      return navigator.clipboard.writeText(url.toString());
+    },
+    [span.spanId]
+  );
 
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const pathKey = (typeof spanPath === "string" ? spanPath.split(".") : spanPath).join(".");
@@ -132,6 +152,8 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
             bare={focused && messageStyle === "flat"}
             presetKey={presetKey}
             onToggleHistory={toggleHistory}
+            linked={linked}
+            onLinkMessage={linkable ? linkMessage : undefined}
           />
         )}
       </div>

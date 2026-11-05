@@ -11,6 +11,7 @@ import {
 import { CreateSignalJobTableControls } from "@/components/signal/create-signal-job/table-controls";
 import { useSignalStoreContext } from "@/components/signal/store";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import { deleteTraceViewParams } from "@/components/traces/trace-view/use-trace-view-tab";
 import { columns, defaultTracesColumnOrder } from "@/components/traces/traces-table/columns";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -156,6 +157,7 @@ const CreateSignalJobContent = () => {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
+            deleteTraceViewParams(params);
             router.push(`${pathName}?${params.toString()}`);
             setTraceId(null);
             setSpanId(null);

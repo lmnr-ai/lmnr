@@ -37,6 +37,7 @@ function PureEmbeddedTraceView({ trace, spans }: EmbeddedTraceViewProps) {
         spanId={selectedSpan.spanId}
         traceId={trace.id}
         onClose={() => setSelectedSpan(undefined)}
+        syncUrl={false}
       />
     ) : (
       <SpanViewSkeleton />
@@ -57,6 +58,7 @@ export default function EmbeddedTraceView(props: EmbeddedTraceViewProps) {
       storeKey="shared-trace-view"
       initialTrace={props.trace}
       initialSpans={enrichSpansWithPending(props.spans)}
+      syncUrl={false}
     >
       <PureEmbeddedTraceView {...props} />
     </TraceViewStoreProvider>

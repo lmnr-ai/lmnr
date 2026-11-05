@@ -11,6 +11,7 @@ import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -52,9 +53,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const { project } = useProjectContext();
   const [isSearchAnimating, setIsSearchAnimating] = useState(false);
 
+  const [tab] = useTraceViewTab();
   const {
     trace,
-    tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
     signalsPanelOpen,
@@ -64,7 +65,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
-      tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
       signalsPanelOpen: state.signalsPanelOpen,

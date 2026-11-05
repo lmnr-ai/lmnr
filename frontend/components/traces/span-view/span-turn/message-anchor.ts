@@ -1,0 +1,23 @@
+import { type SpanTurn } from "@/lib/spans/turn";
+
+import { anchorOf, type ConversationRow, type MessageAnchor } from "./build-rows";
+
+const HASH = /^#(input|output)-(\d+)$/;
+
+/** `#input-12` / `#output-0`: the hash a message link carries. */
+export const parseAnchorHash = (hash: string): MessageAnchor | undefined => {
+  const match = HASH.exec(hash);
+  return match ? { section: match[1] as MessageAnchor["section"], index: Number(match[2]) } : undefined;
+};
+
+export const anchorHash = ({ section, index }: MessageAnchor) => `#${section}-${index}`;
+
+/** Input messages before this call's new input fold behind the history toggle. */
+export const isFoldedAnchor = (turn: SpanTurn, anchor: MessageAnchor) =>
+  anchor.section === "input" && anchor.index < anchorOf(turn, "input", 0).index;
+
+/** The row showing the anchored message: the last one at or before it, since merged and paired cards hold later ones. */
+export const findAnchorRow = (rows: ConversationRow[], anchor: MessageAnchor): number =>
+  rows.findLastIndex(
+    (row) => row.kind === "message" && row.anchor.section === anchor.section && row.anchor.index <= anchor.index
+  );

@@ -47,9 +47,17 @@ export interface NewInputLabel {
   detail?: string;
 }
 
+/** A message's position in its section of the span payload; message links address it. */
+export interface MessageAnchor {
+  section: SectionKey;
+  index: number;
+}
+
 export type MessageRow = {
   kind: "message";
   key: string;
+  /** Merged and paired cards keep their first message's anchor. */
+  anchor: MessageAnchor;
   segment: ProcessedMessages;
   localIndex: number;
   /** Set when the layout renders normalized parts; null falls back to the provider renderer. */
@@ -82,6 +90,17 @@ interface SegmentSpec {
   maxHeight?: number;
   defaultExpanded?: boolean;
 }
+
+const INPUT_PARTS = ["system", "task", "history", "previous", "input"] as const;
+
+export const anchorOf = (turn: SpanTurn, source: MessageRow["source"], localIndex: number): MessageAnchor => {
+  if (source === "output") return { section: "output", index: localIndex };
+  const offset = INPUT_PARTS.slice(0, INPUT_PARTS.indexOf(source)).reduce(
+    (sum, part) => sum + (turn[part]?.messages.length ?? 0),
+    0
+  );
+  return { section: "input", index: offset + localIndex };
+};
 
 interface ConversationOptions {
   batchResults: boolean;
@@ -133,6 +152,7 @@ export const buildConversationRows = (
     const row: MessageRow = {
       kind: "message",
       key: `${spec.key}-${localIndex}`,
+      anchor: anchorOf(turn, spec.key, localIndex),
       segment: spec.processed!,
       localIndex,
       normalized: message,
