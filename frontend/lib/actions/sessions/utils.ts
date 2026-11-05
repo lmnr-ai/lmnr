@@ -4,14 +4,17 @@ import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatabl
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import {
+  backtickEscape,
   buildSelectQuery,
   type ColumnFilterConfig,
+  type ColumnFilterProcessor,
   createCustomFilter,
   createStringFilter,
   type QueryParams,
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { type CustomColumn } from "@/lib/actions/traces/utils";
 
 const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -140,9 +143,39 @@ const sessionsSelectColumns = [
   "SUM(output_cost) as outputCost",
   "SUM(total_cost) as totalCost",
   "any(user_id) as userId",
+  // Extracted input of the session's first trace: what the user opened the session with.
+  "argMin(agent_input, start_time) as firstInput",
 ];
 
 export type SessionSortColumn = "start_time" | "end_time" | "duration" | "total_tokens" | "total_cost" | "trace_count";
+
+const ALLOWED_DB_TYPES = new Set(["String", "Float64", "Int64"]);
+
+/**
+ * A custom column is a per-trace expression; a session shows its FIRST non-empty value,
+ * taking the session's traces in start-time order.
+ */
+const firstValueOf = (sql: string) => `argMinIf(${sql}, start_time, ifNull(toString(${sql}), '') != '')`;
+
+/** HAVING processors for custom columns: filters compare against the aggregated (first) value. */
+const withCustomHavingProcessors = (base: ColumnFilterConfig, customColumns: CustomColumn[]): ColumnFilterConfig => {
+  if (customColumns.length === 0) return base;
+  const processors = new Map(base.processors);
+  for (const col of customColumns) {
+    const dbType = ALLOWED_DB_TYPES.has(col.dbType ?? "String") ? (col.dbType ?? "String") : "String";
+    const isNumeric = dbType !== "String";
+    const processor: ColumnFilterProcessor = (filter, paramKey) => {
+      const value = isNumeric ? Number(filter.value) : String(filter.value);
+      if (isNumeric && Number.isNaN(value)) return { condition: null, params: {} };
+      return {
+        condition: `${firstValueOf(col.filterSql ?? col.sql)} ${OperatorLabelMap[filter.operator]} {${paramKey}:${dbType}}`,
+        params: { [paramKey]: value },
+      };
+    };
+    processors.set(col.id, processor);
+  }
+  return { processors };
+};
 
 export interface BuildSessionsQueryOptions {
   columns?: string[];
@@ -153,8 +186,10 @@ export interface BuildSessionsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
-  sortColumn?: SessionSortColumn;
+  /** A static sort key, or a custom column id (sorted by its alias). */
+  sortColumn?: string;
   sortDirection?: "ASC" | "DESC";
+  customColumns?: CustomColumn[];
 }
 
 const SORT_COLUMN_MAP: Record<SessionSortColumn, string> = {
@@ -178,6 +213,7 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     columns,
     sortColumn,
     sortDirection,
+    customColumns = [],
   } = options;
 
   const whereFilters: Filter[] = [];
@@ -194,8 +230,9 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     "duration",
   ]);
 
+  const customIds = new Set(customColumns.map((c) => c.id));
   filters.forEach((filter) => {
-    if (aggregateColumns.has(filter.column)) {
+    if (aggregateColumns.has(filter.column) || customIds.has(filter.column)) {
       havingFilters.push(filter);
     } else {
       whereFilters.push(filter);
@@ -221,7 +258,10 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
 
   const queryOptions: SelectQueryOptions = {
     select: {
-      columns: columns || sessionsSelectColumns,
+      columns: [
+        ...(columns || sessionsSelectColumns),
+        ...customColumns.map((c) => `${firstValueOf(c.sql)} as ${backtickEscape(c.id)}`),
+      ],
       table: "traces",
     },
     timeRange: {
@@ -233,12 +273,14 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     filters: whereFilters,
     columnFilterConfig: sessionsWhereColumnFilterConfig,
     havingFilters,
-    havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
+    havingColumnFilterConfig: withCustomHavingProcessors(sessionsHavingColumnFilterConfig, customColumns),
     customConditions,
     groupBy: ["session_id"],
     orderBy: [
       {
-        column: (sortColumn && SORT_COLUMN_MAP[sortColumn]) || "MIN(start_time)",
+        column:
+          (sortColumn && SORT_COLUMN_MAP[sortColumn as SessionSortColumn]) ||
+          (sortColumn && customIds.has(sortColumn) ? backtickEscape(sortColumn) : "MIN(start_time)"),
         direction: sortDirection === "ASC" ? "ASC" : "DESC",
       },
       // Stable tie-breaker: aggregate sort keys produce ties, and a non-deterministic order duplicates/drops rows across pages.

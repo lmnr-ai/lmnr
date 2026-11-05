@@ -5,22 +5,18 @@ import { shallow } from "zustand/shallow";
 import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { type TraceRow } from "@/lib/traces/types";
 
-/** Loads a session's traces into the shared session store, then every trace's spans and output. */
+/** Loads a session's trace rows into the shared session store; per-turn details load as turns scroll into view. */
 export function useSessionData(sessionId: string) {
   const { projectId } = useParams<{ projectId: string }>();
-  const { traces, setProjectId, setTraces, setIsTracesLoading, setTracesError, fetchTraceSpans, fetchAgentOutputs } =
-    useSessionViewStore(
-      (s) => ({
-        traces: s.traces,
-        setProjectId: s.setProjectId,
-        setTraces: s.setTraces,
-        setIsTracesLoading: s.setIsTracesLoading,
-        setTracesError: s.setTracesError,
-        fetchTraceSpans: s.fetchTraceSpans,
-        fetchAgentOutputs: s.fetchAgentOutputs,
-      }),
-      shallow
-    );
+  const { setProjectId, setTraces, setIsTracesLoading, setTracesError } = useSessionViewStore(
+    (s) => ({
+      setProjectId: s.setProjectId,
+      setTraces: s.setTraces,
+      setIsTracesLoading: s.setIsTracesLoading,
+      setTracesError: s.setTracesError,
+    }),
+    shallow
+  );
 
   useEffect(() => setProjectId(projectId), [projectId, setProjectId]);
 
@@ -48,10 +44,4 @@ export function useSessionData(sessionId: string) {
     })();
     return () => controller.abort();
   }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError]);
-
-  useEffect(() => {
-    if (traces.length === 0) return;
-    fetchAgentOutputs(traces.map((t) => t.id));
-    for (const t of traces) void fetchTraceSpans(t);
-  }, [traces, fetchAgentOutputs, fetchTraceSpans]);
 }

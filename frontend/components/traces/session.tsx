@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import React from "react";
 
-import { SessionView } from "@/components/traces/session-view";
+import { ChatSessionView } from "@/components/traces/chat-session-view";
 import Header from "@/components/ui/header";
 
 const Session = ({ sessionId }: { sessionId: string }) => {
@@ -20,7 +20,7 @@ const Session = ({ sessionId }: { sessionId: string }) => {
       />
       <div className="flex-none border-t" />
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        <SessionView sessionId={sessionId} />
+        <ChatSessionView sessionId={sessionId} />
       </div>
     </>
   );

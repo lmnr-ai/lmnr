@@ -1,8 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
-import { formatClock } from "../format";
+import { cn, formatTimestamp } from "@/lib/utils";
 
 export default function UserBubble({ text, time }: { text: string; time: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -29,7 +27,7 @@ export default function UserBubble({ text, time }: { text: string; time: string 
           </button>
         )}
       </div>
-      <span className="pr-1 text-[11px] text-muted-foreground">{formatClock(time)}</span>
+      <span className="pr-1 text-[11px] text-muted-foreground">{formatTimestamp(time)}</span>
     </div>
   );
 }

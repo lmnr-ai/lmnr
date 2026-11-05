@@ -1,17 +1,23 @@
 "use client";
 
+import { type ColumnDef } from "@tanstack/react-table";
+
 import AdvancedSearch from "@/components/common/advanced-search";
-import { columns, filters } from "@/components/traces/sessions-table/columns";
 import { RESOURCE } from "@/components/traces/sessions-table/constants";
-import { ColumnsMenu } from "@/components/ui/columns-menu";
+import SessionsColumnsMenu from "@/components/traces/sessions-table/sessions-columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { type Filter } from "@/lib/actions/common/filters";
+import { type SessionRow } from "@/lib/traces/types";
 
 interface SessionsTableControlsProps {
   projectId: string;
+  allFilters: ColumnFilter[];
+  columnLabels: { id: string; label: string; onDelete?: () => void }[];
+  columnDefs: ColumnDef<SessionRow>[];
   filters: Filter[];
   onFiltersChange: (filters: Filter[]) => void;
   onRefresh: () => void;
@@ -21,6 +27,9 @@ interface SessionsTableControlsProps {
 
 export function SessionsTableControls({
   projectId,
+  allFilters,
+  columnLabels,
+  columnDefs,
   filters: activeFilters,
   onFiltersChange,
   onRefresh,
@@ -30,13 +39,8 @@ export function SessionsTableControls({
   return (
     <>
       <div className="flex w-full flex-wrap gap-2">
-        <DataTableFilter columns={filters} filters={activeFilters} onFiltersChange={onFiltersChange} />
-        <ColumnsMenu
-          columnLabels={columns.map((column) => ({
-            id: column.id!,
-            label: typeof column.header === "string" ? column.header : column.id!,
-          }))}
-        />
+        <DataTableFilter columns={allFilters} filters={activeFilters} onFiltersChange={onFiltersChange} />
+        <SessionsColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
         <DateRangeFilter />
         <RefreshButton onClick={onRefresh} variant="outline" />
@@ -45,7 +49,7 @@ export function SessionsTableControls({
         <AdvancedSearch
           value={searchValue}
           onChange={onSearchChange}
-          filters={filters}
+          filters={allFilters}
           placeholder="Search by session ID, duration, cost, tokens and more..."
           className="w-full flex-1"
           storageKey={`sessions-${projectId}`}

@@ -1,7 +1,3 @@
-// TODO: This component duplicates condensed-timeline-element.tsx from
-// trace-view, minus cost heatmap and group selection. Review for
-// deduplication once session timeline design stabilizes.
-
 import React, { memo, useMemo } from "react";
 
 import { cn } from "@/lib/utils";
@@ -32,21 +28,30 @@ const SessionTimelineSpanBarElement = ({ bar, traceId, selectedSpan, onClick }: 
     }
   };
 
+  // Matches trace-view's condensed-timeline-element: once a bar is >= 5px the inner fill drops 1px,
+  // so abutting spans keep a visible seam. Selecting a span mutes the rest.
+  const isMuted = selectedSpan != null && !isSelected;
+
   return (
     <div
-      className={cn("absolute rounded-xs cursor-pointer hover:brightness-110", {
-        "border border-white/70 z-20": isSelected,
-      })}
+      className={cn("@container absolute cursor-pointer rounded-xs", isMuted && "bg-surface-400")}
       style={{
         // left/width are percentages of the container's width (trace-relative).
         left: `${bar.left}%`,
         width: `max(${bar.width}%, 4px)`,
         top: bar.row * ROW_HEIGHT,
         height: ROW_HEIGHT - 2,
-        backgroundColor: bar.color,
       }}
       onClick={handleClick}
-    />
+    >
+      <div
+        className={cn("relative size-full rounded-xs hover:brightness-110 @min-[5px]:w-[calc(100%-1px)]", {
+          "ring-1 ring-white/70 z-20": isSelected,
+          "opacity-60": isMuted,
+        })}
+        style={{ backgroundColor: bar.color }}
+      />
+    </div>
   );
 };
 

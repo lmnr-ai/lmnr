@@ -1,20 +1,15 @@
 import { Minus, Plus } from "lucide-react";
-import { shallow } from "zustand/shallow";
 
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
+import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 
-import { useSessionViewStore } from "../store";
+interface SessionTimelineControlsProps {
+  zoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}
 
-export default function SessionTimelineControls() {
-  const { zoom, setZoom } = useSessionViewStore(
-    (s) => ({
-      zoom: s.sessionTimelineZoom,
-      setZoom: s.setSessionTimelineZoom,
-    }),
-    shallow
-  );
-
+export default function SessionTimelineControls({ zoom, onZoomIn, onZoomOut }: SessionTimelineControlsProps) {
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
       <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
@@ -24,7 +19,7 @@ export default function SessionTimelineControls() {
           className="min-w-5"
           variant="ghost"
           size="icon-xs"
-          onClick={() => setZoom(zoom + ZOOM_INCREMENT)}
+          onClick={onZoomIn}
         >
           <Plus className="size-3" />
         </Button>
@@ -34,7 +29,7 @@ export default function SessionTimelineControls() {
           className="min-w-5"
           variant="ghost"
           size="icon-xs"
-          onClick={() => setZoom(zoom - ZOOM_INCREMENT)}
+          onClick={onZoomOut}
         >
           <Minus className="size-3" />
         </Button>

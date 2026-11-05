@@ -8,8 +8,13 @@ const DEFAULT_TRACE_WIDTH = 760;
 
 // The thread is always open; clicking a turn's "Worked" row (or a timeline span)
 // slides that trace's view in beside it.
+export type StatsPosition = "middle" | "below";
+
 interface ChatViewState {
   openTraceId?: string;
+  /** Where a turn's duration/tokens/cost sit: in the work row, or under the reply. Set from the DialKit panel. */
+  statsPosition: StatsPosition;
+  setStatsPosition: (position: StatsPosition) => void;
   openSpanId?: string;
   traceWidth: number;
   containerWidth: number;
@@ -28,6 +33,8 @@ export const useChatViewStore = create<ChatViewState>()(
     (set, get) => ({
       openTraceId: undefined,
       openSpanId: undefined,
+      statsPosition: "below",
+      setStatsPosition: (statsPosition) => set({ statsPosition }),
       traceWidth: DEFAULT_TRACE_WIDTH,
       containerWidth: Infinity,
       toggleTrace: (traceId) =>

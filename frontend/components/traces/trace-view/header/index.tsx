@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronsRight, Layers, Maximize, Radio, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
 import { memo, useCallback, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -14,7 +13,6 @@ import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signal
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -24,18 +22,9 @@ import { HeaderIconButton } from "./header-icon-button";
 import { HeaderLinkButton } from "./header-link-button";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
+import { userTracesUrl } from "./user-traces-url";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
-
-const FREE_TIER_RETENTION_DAYS = 7;
-
-// The traces table reads `filter` through nuqs `parseAsArrayOf(parseAsString)`, which
-// splits on unescaped commas — so hand-built `URLSearchParams` shred the filter JSON.
-// Serialize with nuqs so the escaping matches the reader.
-const serializeTracesFilterQuery = createSerializer({
-  filter: parseAsArrayOf(parseAsString),
-  pastHours: parseAsString,
-});
 
 interface HeaderProps {
   // Undefined ⇒ the close button is hidden (always-open panel).
@@ -105,12 +94,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenUserTraces = useCallback(() => {
     if (!hasUser) return;
-    const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
-    const query = serializeTracesFilterQuery({
-      filter: [JSON.stringify({ column: "user_id", operator: Operator.Eq, value: userId, dataType: "string" })],
-      pastHours: String(retentionDays * 24),
-    });
-    window.open(`/project/${projectId}/traces${query}`, "_blank");
+    window.open(userTracesUrl(projectId, userId, project?.logRetentionDays), "_blank");
   }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (

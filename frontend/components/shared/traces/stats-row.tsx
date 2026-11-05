@@ -10,15 +10,14 @@ import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { PILL, PILL_ACTIVE } from "./pill";
+
 interface StatsRowProps {
   trace: TraceViewTrace;
   spans?: TraceViewSpan[];
   hasLangGraph: boolean;
   className?: string;
 }
-
-const PILL = "flex h-6 shrink-0 items-center bg-surface-up-2 px-1.5 hover:overlay-hover active:overlay-selected";
-const PILL_ACTIVE = "text-primary-text hover:text-primary-text";
 
 // Flat, left-aligned strip that wraps on narrow widths; no right-anchored group.
 export default function StatsRow({ trace, spans, hasLangGraph, className }: StatsRowProps) {
