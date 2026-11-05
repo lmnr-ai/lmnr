@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { type AnyPgColumn, type PgTable } from "drizzle-orm/pg-core";
 
 import { db } from "@/lib/db/drizzle";
@@ -13,6 +13,7 @@ import {
   labelingQueues,
   llmProfiles,
   playgrounds,
+  projectApiKeys,
   projects,
   renderTemplates,
   signals,
@@ -46,13 +47,17 @@ export const getProjectScope = async (
 type NameSource = {
   table: PgTable;
   id: AnyPgColumn;
-  name: AnyPgColumn;
+  /** A column, or an expression for names with a fallback. */
+  name: AnyPgColumn | SQL<string | null>;
   /** Rows are only read inside the request's own project or workspace. */
   scope: AnyPgColumn;
   scopeParam: "projectId" | "workspaceId";
 };
 
-const inProject = (table: PgTable & { id: AnyPgColumn; projectId: AnyPgColumn }, name: AnyPgColumn): NameSource => ({
+const inProject = (
+  table: PgTable & { id: AnyPgColumn; projectId: AnyPgColumn },
+  name: NameSource["name"]
+): NameSource => ({
   table,
   id: table.id,
   name,
@@ -63,6 +68,11 @@ const inProject = (table: PgTable & { id: AnyPgColumn; projectId: AnyPgColumn },
 // Where each resource keeps its display name.
 const NAME_SOURCES: Partial<Record<AuditResource, NameSource>> = {
   alert: inProject(alerts, alerts.name),
+  // Keys without a name are shown by their shorthand, as in the API keys table.
+  api_key: inProject(
+    projectApiKeys,
+    sql<string>`coalesce(nullif(${projectApiKeys.name}, ''), ${projectApiKeys.shorthand})`
+  ),
   chart: inProject(dashboardCharts, dashboardCharts.name),
   custom_model_cost: inProject(customModelCosts, customModelCosts.model),
   dashboard: inProject(dashboards, dashboards.name),
