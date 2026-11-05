@@ -14,7 +14,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type SessionRow } from "@/lib/traces/types";
 
-const ROW_HEIGHT = 64;
+const ROW_HEIGHT = 48;
 
 export interface SessionsTableContentsProps {
   refetchRef: RefObject<() => void>;
@@ -149,7 +149,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
       // Fixed height so a 1-line and a 3-line Input don't make rows uneven.
       estimatedRowHeight={ROW_HEIGHT}
       // Cells are h-full by default; sizing them to content lets their my-auto center them vertically.
-      getRowClassName={() => "h-[64px] [&>td]:h-auto"}
+      getRowClassName={() => "h-[48px] [&>td]:h-auto"}
       hasMore={hasMore}
       isFetching={isFetching}
       isLoading={isLoading || !shouldFetch || isViewLoading}
