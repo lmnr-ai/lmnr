@@ -19,7 +19,7 @@ export const POST = withAudit<{ projectId: string; queueId: string }>(
       return Response.json({ error: "Invalid request body", details: parsed.error }, { status: 400 });
     }
 
-    audit.set({ metadata: { datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds } });
+    audit.set({ metadata: { queueId, datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds } });
 
     const result = await pushItemsToDataset({
       projectId,
@@ -29,7 +29,9 @@ export const POST = withAudit<{ projectId: string; queueId: string }>(
       includeUnlabelled: parsed.data.includeUnlabelled,
     });
 
-    audit.set({ metadata: { datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds, pushed: result.pushed } });
+    audit.set({
+      metadata: { queueId, datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds, pushed: result.pushed },
+    });
     return Response.json(result);
   }
 );

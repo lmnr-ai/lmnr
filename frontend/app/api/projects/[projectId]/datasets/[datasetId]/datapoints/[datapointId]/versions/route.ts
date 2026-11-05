@@ -34,7 +34,7 @@ export const POST = withAudit<{ projectId: string; datasetId: string; datapointI
       datapointId: params.datapointId,
       versionCreatedAt: body.versionCreatedAt,
     });
-    await audit.target(params.datapointId);
+    await audit.target(params.datapointId, { parent: { datasetId: params.datasetId } });
 
     return Response.json(result, { status: 200 });
   }

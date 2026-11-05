@@ -22,7 +22,7 @@ export const POST = withAudit<Params>({ resource: "datapoint", action: "update" 
     metadata: body.metadata,
     createdAt: body.createdAt,
   });
-  await audit.target(datapointId);
+  await audit.target(datapointId, { parent: { datasetId } });
 
   return Response.json({ success: true });
 });

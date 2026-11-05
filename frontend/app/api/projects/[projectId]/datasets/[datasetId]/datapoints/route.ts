@@ -38,7 +38,10 @@ export const POST = withAudit<Params>({ resource: "datapoint", action: "create" 
   const { datapoints, sourceSpanId } = parseResult.data;
 
   const result = await createDatapoints({ projectId, datasetId, datapoints, sourceSpanId });
-  await audit.target(result.map((datapoint) => datapoint.id));
+  await audit.target(
+    result.map((datapoint) => datapoint.id),
+    { parent: { datasetId } }
+  );
 
   return Response.json(result);
 });
@@ -54,7 +57,7 @@ export const DELETE = withAudit<Params>({ resource: "datapoint", action: "delete
     return Response.json({ error: "At least one Datapoint ID is required" }, { status: 400 });
   }
 
-  await audit.target(datapointIds);
+  await audit.target(datapointIds, { parent: { datasetId } });
   await deleteDatapoints({ projectId, datasetId, datapointIds });
 
   return new Response("datasetDatapoints deleted successfully", { status: 200 });

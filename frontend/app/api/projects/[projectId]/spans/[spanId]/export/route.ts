@@ -18,8 +18,8 @@ export const POST = withAudit<{ projectId: string; spanId: string }>(
     }
 
     const { datapointId, traceId } = await exportSpanToDataset(result.data);
-    audit.set({ metadata: { datasetId: result.data.datasetId, traceId } });
-    await audit.target(datapointId);
+    audit.set({ metadata: { spanId, traceId } });
+    await audit.target(datapointId, { parent: { datasetId: result.data.datasetId } });
 
     return Response.json("Span exported to dataset successfully");
   }

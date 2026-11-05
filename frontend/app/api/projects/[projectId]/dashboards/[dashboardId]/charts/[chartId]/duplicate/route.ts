@@ -10,7 +10,7 @@ export const POST = withAudit<{ projectId: string; dashboardId: string; chartId:
     if (!chart) throw new NotFoundError("Chart not found");
     // The path's chartId is the source; the event records the copy.
     audit.set({ metadata: { sourceChartId: id } });
-    await audit.target(chart.id, { name: chart.name });
+    await audit.target(chart.id, { name: chart.name, parent: { dashboardId } });
     return Response.json(chart);
   }
 );
