@@ -38,7 +38,8 @@ export const PATCH = withAudit<{ projectId: string }>(
     }
 
     await updateProjectSettings({ projectId, settings });
-    audit.set({ resourceId: projectId, metadata: { fields: Object.keys(settings), ...settings } });
+    audit.set({ metadata: { fields: Object.keys(settings), ...settings } });
+    await audit.target(projectId);
     return Response.json({ success: true });
   }
 );

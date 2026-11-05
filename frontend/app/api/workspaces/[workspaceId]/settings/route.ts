@@ -15,7 +15,8 @@ export const PATCH = withAudit<{ workspaceId: string }>(
 
     const body = await req.json();
     await updateWorkspaceSettings({ workspaceId, settings: body?.settings ?? {} });
-    audit.set({ resourceId: workspaceId, metadata: { fields: Object.keys(body?.settings ?? {}) } });
+    audit.set({ metadata: { fields: Object.keys(body?.settings ?? {}) } });
+    await audit.target(workspaceId);
     return Response.json({ success: true });
   }
 );

@@ -13,7 +13,7 @@ const SaveLicenseSchema = z.object({ key: z.string().trim().min(1) });
 // DELETE: the app-server only accepts a key that verifies, so a stored license
 // can be replaced by another working one but never removed.
 export const PUT = withAudit<{ workspaceId: string }>(
-  { resource: "license", action: "update" },
+  { resource: "license", action: "update", noTarget: true },
   async (req, { params }) => {
     const { workspaceId } = await params;
 

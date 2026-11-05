@@ -3,7 +3,7 @@ import { type CancellationReason } from "@/lib/actions/checkout/types";
 import { withAudit } from "@/lib/audit";
 
 export const POST = withAudit<{ workspaceId: string }>(
-  { resource: "subscription", action: "delete" },
+  { resource: "subscription", action: "delete", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;
     const body = await req.json().catch(() => ({}));

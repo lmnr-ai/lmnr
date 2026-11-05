@@ -22,11 +22,8 @@ export const POST = withAudit<{ projectId: string }>(
       userId: session?.user.id ?? null,
       expiresAt,
     });
-    audit.set({
-      resourceId: result.id,
-      resourceLabel: result.name ?? result.shorthand,
-      metadata: { isIngestOnly: result.isIngestOnly, expiresAt: result.expiresAt },
-    });
+    audit.set({ metadata: { isIngestOnly: result.isIngestOnly, expiresAt: result.expiresAt } });
+    await audit.target(result.id, { name: result.name ?? result.shorthand });
 
     return Response.json(result);
   }
@@ -42,8 +39,9 @@ export const DELETE = withAudit<{ projectId: string }>(
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const body = await req.json();
+    await audit.target(body.id);
     const deleted = await deleteApiKey({ projectId, id: body.id });
-    audit.set({ resourceId: body.id, resourceLabel: deleted?.name ?? deleted?.shorthand });
+    audit.set({ metadata: { name: deleted?.name ?? deleted?.shorthand } });
     return new Response(null, { status: 200 });
   }
 );
