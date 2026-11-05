@@ -309,6 +309,8 @@ const SharedSettings = ({
     }
   };
 
+  const fillsHeight = activeSection === "audit-log" && auditLogAvailable;
+
   return (
     <div className="flex flex-col h-full gap-2">
       {/* Header is OUTSIDE the nested provider so its SidebarTrigger toggles the main project sidebar. */}
@@ -376,9 +378,16 @@ const SharedSettings = ({
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <ScrollArea className="flex-1">
-            <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-32">{renderSection()}</div>
-          </ScrollArea>
+          {fillsHeight ? (
+            // Fills the height so only its table scrolls, like the traces table.
+            <div className="flex flex-1 flex-col gap-8 min-w-0 min-h-0 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-4">
+              {renderSection()}
+            </div>
+          ) : (
+            <ScrollArea className="flex-1">
+              <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-32">{renderSection()}</div>
+            </ScrollArea>
+          )}
         </div>
       </SidebarProvider>
     </div>
