@@ -26,6 +26,9 @@ interface TraceViewProps {
   initialSearch?: string;
   /** The page reopens this trace and its span from the URL, so views keep tabs and message links there. */
   urlState?: boolean;
+  // Separate persisted layout/toggles from the main trace view (e.g. when embedded elsewhere).
+  storeKey?: string;
+  defaultTimelineEnabled?: boolean;
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
@@ -36,6 +39,8 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       initialSignalId={props.initialSignalId}
       initialSearch={props.initialSearch}
       urlState={props.urlState}
+      storeKey={props.storeKey}
+      defaultTimelineEnabled={props.defaultTimelineEnabled}
     >
       <TraceAgentContext traceId={props.traceId} />
       <TraceViewContent {...props} />
