@@ -8,6 +8,7 @@ import { getRoleTextColor, MessageWrapper } from "@/components/traces/span-view/
 import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
+import MessageLabelRow, { type MessageLabel } from "@/components/traces/span-view/message-label-row";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-responses-parts";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
@@ -15,9 +16,10 @@ import { Button } from "@/components/ui/button";
 import { ElevatedSurface } from "@/components/ui/surface";
 // Detection logic lives in `lib/spans/process-messages.ts` (a plain TS module)
 // so tests can import it without pulling component CSS into the module graph.
-import { type ProcessedMessages, processMessages, responsesItemRole } from "@/lib/spans/process-messages";
+import { type ProcessedMessages, processMessages } from "@/lib/spans/process-messages";
+import { segmentMessageRole } from "@/lib/spans/turn";
 
-function buildToolNameMap(result: ProcessedMessages): Map<string, string> {
+export function buildToolNameMap(result: ProcessedMessages): Map<string, string> {
   const map = new Map<string, string>();
   switch (result.type) {
     case "openai":
@@ -104,8 +106,8 @@ function buildToolNameMap(result: ProcessedMessages): Map<string, string> {
 }
 
 // `index` locates the message within `result`; `parentIndex` is its position in the rendered list, which
-// differs when several segments are concatenated (Overview) and keys per-part presets and search order.
-function renderMessageContent(
+// differs when several segments are concatenated (span turn) and keys per-part presets and search order.
+export function renderMessageContent(
   result: ProcessedMessages,
   index: number,
   parentIndex: number,
@@ -157,39 +159,40 @@ function renderMessageContent(
   }
 }
 
-export interface MessageLabel {
-  beforeIndex: number;
-  text: string;
-  subtext?: string;
+export type { MessageLabel };
+
+/** Pre-detected messages rendered in their own format, with per-segment collapse settings. */
+export interface MessageSegment {
+  /** Stable across re-renders so rows keep their expanded state when segments are inserted. */
+  key: string;
+  processed: ProcessedMessages;
+  maxHeight?: number;
+  defaultExpanded?: boolean;
 }
 
 interface MessagesProps {
-  messages: any;
+  messages?: any;
   presetKey: string;
   hideScrollToBottom?: boolean;
   maxHeight?: number;
   labels?: MessageLabel[];
-  // Pre-detected segments, each rendered in its own format; when set, detection is skipped (used by the Overview).
-  processed?: ProcessedMessages[];
+  // When set, detection on `messages` is skipped.
+  segments?: MessageSegment[];
   defaultExpanded?: boolean;
-  /** Expand messages at this index and after (Overview output). */
-  expandFromIndex?: number;
 }
 
 type VirtualItem =
-  | { kind: "label"; text: string; subtext?: string; key: string }
+  | { kind: "label"; label: MessageLabel; key: string }
   | { kind: "message"; index: number; key: string };
 
 // A message addressed by its segment and its index within that segment.
 interface MessageEntry {
-  segment: ProcessedMessages;
+  segment: MessageSegment;
   localIndex: number;
 }
 
-const messageRole = ({ segment, localIndex }: MessageEntry): string | undefined => {
-  const message = segment.messages[localIndex] as { role?: string; type?: string };
-  return segment.type === "openai-responses" ? responsesItemRole(message) : message?.role;
-};
+const messageRole = ({ segment, localIndex }: MessageEntry): string | undefined =>
+  segmentMessageRole(segment.processed, localIndex);
 
 const HEADER_HEIGHT = 28;
 const LABEL_ESTIMATE_SIZE = 40;
@@ -219,20 +222,25 @@ function PureMessages({
   hideScrollToBottom = false,
   maxHeight,
   labels,
-  processed,
+  segments: segmentsProp,
   defaultExpanded = false,
-  expandFromIndex,
 }: MessagesProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
 
-  const segments = useMemo(() => processed ?? [processMessages(messages)], [processed, messages]);
+  const segments = useMemo(
+    () => segmentsProp ?? [{ key: "messages", processed: processMessages(messages) }],
+    [segmentsProp, messages]
+  );
   const entries: MessageEntry[] = useMemo(
-    () => segments.flatMap((segment) => segment.messages.map((_, localIndex) => ({ segment, localIndex }))),
+    () => segments.flatMap((segment) => segment.processed.messages.map((_, localIndex) => ({ segment, localIndex }))),
     [segments]
   );
-  const toolNameMap = useMemo(() => new Map(segments.flatMap((segment) => [...buildToolNameMap(segment)])), [segments]);
+  const toolNameMap = useMemo(
+    () => new Map(segments.flatMap((segment) => [...buildToolNameMap(segment.processed)])),
+    [segments]
+  );
 
   const searchState = useSpanSearchState();
   const searchTerm = searchState?.searchTerm || "";
@@ -254,21 +262,23 @@ function PureMessages({
     for (let i = 0; i <= entries.length; i++) {
       const here = labelsByIndex.get(i);
       if (here) {
-        for (let j = 0; j < here.length; j++) {
-          items.push({ kind: "label", text: here[j].text, subtext: here[j].subtext, key: `label-${i}-${j}` });
+        for (const label of here) {
+          items.push({ kind: "label", label, key: `label-${label.text}` });
         }
       }
       if (i < entries.length) {
-        items.push({ kind: "message", index: i, key: `msg-${i}` });
+        const { segment, localIndex } = entries[i];
+        items.push({ kind: "message", index: i, key: `msg-${segment.key}-${localIndex}` });
       }
     }
     return items;
-  }, [labels, entries.length]);
+  }, [labels, entries]);
 
   const virtualizer = useVirtualizer({
     count: virtualItems.length,
     getScrollElement: () => parentRef.current,
     estimateSize: (i) => (virtualItems[i]?.kind === "label" ? LABEL_ESTIMATE_SIZE : MESSAGE_ESTIMATE_SIZE),
+    getItemKey: (i) => virtualItems[i]?.key ?? i,
     overscan: searchTerm ? 100 : 24,
   });
 
@@ -340,7 +350,7 @@ function PureMessages({
         <div
           ref={parentRef}
           onScroll={handleScroll}
-          className="size-full overflow-y-auto styled-scrollbar px-2"
+          className="size-full overflow-y-auto styled-scrollbar scrollbar-gutter-stable px-2"
           style={{
             contain: "strict",
             overflowAnchor: "none",
@@ -373,12 +383,7 @@ function PureMessages({
                       ref={virtualizer.measureElement}
                       className="pt-2 pb-2 px-1"
                     >
-                      <span className="text-base font-medium text-secondary-foreground">
-                        {virtualItem.text}
-                        {virtualItem.subtext && (
-                          <span className="text-sm text-muted-foreground ml-1">{virtualItem.subtext}</span>
-                        )}
-                      </span>
+                      <MessageLabelRow {...virtualItem.label} />
                     </div>
                   );
                 }
@@ -389,11 +394,17 @@ function PureMessages({
                     <MessageWrapper
                       role={messageRole(entry)}
                       presetKey={`collapse-${messageIndex}-${presetKey}`}
-                      maxHeight={maxHeight}
+                      maxHeight={entry.segment.maxHeight ?? maxHeight}
                       stickyHeader={false}
-                      defaultExpanded={defaultExpanded || (expandFromIndex != null && messageIndex >= expandFromIndex)}
+                      defaultExpanded={entry.segment.defaultExpanded ?? defaultExpanded}
                     >
-                      {renderMessageContent(entry.segment, entry.localIndex, messageIndex, presetKey, toolNameMap)}
+                      {renderMessageContent(
+                        entry.segment.processed,
+                        entry.localIndex,
+                        messageIndex,
+                        presetKey,
+                        toolNameMap
+                      )}
                     </MessageWrapper>
                   </div>
                 );
@@ -416,9 +427,8 @@ function PureMessages({
   );
 }
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
-  if (prevProps.processed !== nextProps.processed) return false;
+  if (prevProps.segments !== nextProps.segments) return false;
   if (prevProps.defaultExpanded !== nextProps.defaultExpanded) return false;
-  if (prevProps.expandFromIndex !== nextProps.expandFromIndex) return false;
   if (prevProps.maxHeight !== nextProps.maxHeight) return false;
   if (!isEqual(prevProps.labels, nextProps.labels)) return false;
   if (isNil(prevProps.messages) && isNil(nextProps.messages)) return true;

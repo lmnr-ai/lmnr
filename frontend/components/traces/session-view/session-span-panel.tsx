@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import { SpanView, type SpanViewTab } from "@/components/traces/span-view";
+import { SpanView } from "@/components/traces/span-view";
 import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
@@ -65,8 +65,6 @@ export default function SessionSpanPanel() {
     return () => observer.disconnect();
   }, [open, setMaxWidth]);
 
-  const snippetTab: SpanViewTab = "span-input";
-
   return (
     <AnimatePresence initial={false}>
       {open && (
@@ -89,7 +87,6 @@ export default function SessionSpanPanel() {
                   key={shown.spanId}
                   spanId={shown.spanId}
                   traceId={shown.traceId}
-                  initialTab={snippetTab}
                   onClose={() => setSpanPanelOpen(false)}
                 />
               ) : (

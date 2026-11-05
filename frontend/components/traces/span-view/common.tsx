@@ -1,5 +1,5 @@
 import { capitalize } from "lodash";
-import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { Bolt, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
 import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
@@ -9,6 +9,7 @@ import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
+import { canonicalRole } from "@/lib/spans/turn";
 import { cn } from "@/lib/utils";
 
 // Hue tokens live in app/globals.css (--{hue}-text); only the role → hue choice is made here.
@@ -19,17 +20,8 @@ const ROLE_TEXT_COLORS: Record<string, string> = {
   tool: "var(--yellow-text)",
 };
 
-const ROLE_ALIASES: Record<string, string> = {
-  human: "user",
-  ai: "assistant",
-  model: "assistant",
-  computer_call_output: "tool",
-};
-
 export function getRoleTextColor(role?: string): string {
-  if (!role) return ROLE_TEXT_COLORS.system;
-  const normalized = ROLE_ALIASES[role.toLowerCase()] ?? role.toLowerCase();
-  return ROLE_TEXT_COLORS[normalized] ?? ROLE_TEXT_COLORS.system;
+  return ROLE_TEXT_COLORS[canonicalRole(role) ?? "system"] ?? ROLE_TEXT_COLORS.system;
 }
 
 interface ToolCallContentPartProps {
@@ -170,22 +162,28 @@ const PureTextContentPart = ({
 
 interface RoleHeaderProps {
   role?: string;
+  suffix?: string;
+  bare?: boolean;
   className?: string;
 }
 
-const RoleHeader = ({ role, className }: RoleHeaderProps) => {
+const RoleHeader = ({ role, suffix, bare = false, className }: RoleHeaderProps) => {
   if (role) {
     return (
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
       <div
         className={cn(
-          "flex items-center px-2 py-1 gap-2 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
+          "flex items-center gap-2",
+          bare
+            ? "px-1 pb-1"
+            : "px-2 py-1 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
           className
         )}
       >
         <span className="text-sm font-medium" style={{ color: getRoleTextColor(role) }}>
           {capitalize(role)}
         </span>
+        {suffix && <span className="text-sm text-muted-foreground -ml-1">· {suffix}</span>}
       </div>
     );
   }
@@ -221,7 +219,7 @@ const PureThinkingContentPart = ({
 }: ThinkingContentPartProps) => (
   <div className="flex flex-col gap-2 p-2">
     <span className="flex items-center text-xs">
-      <Brain size={12} className="min-w-3 mr-2" />
+      <Lightbulb size={14} className="min-w-3.5 mr-2 text-muted-foreground" />
       {label}
     </span>
     <ContentRenderer
@@ -254,8 +252,13 @@ export const MessageWrapper = ({
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
   stickyHeader = true,
   defaultExpanded = false,
+  suffix,
+  bare = false,
 }: PropsWithChildren<{
   role?: string;
+  suffix?: string;
+  /** No card: a role label over the content, keeping the height clamp and expand toggle. */
+  bare?: boolean;
   presetKey: string;
   maxHeight?: number;
   stickyHeader?: boolean;
@@ -286,16 +289,14 @@ export const MessageWrapper = ({
   const showToggle = isOverflowing;
 
   return (
-    // overflow-clip (not hidden): clips to radius without creating a scroll
-    // container, so sticky can still pin to the messages list.
-    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
-      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
+    <Frame bare={bare}>
+      <RoleHeader role={role} suffix={suffix} bare={bare} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
       <div
         ref={containerRef}
-        className="overflow-hidden bg-emphasis-1 dark:bg-transparent"
+        className={cn("overflow-hidden", !bare && "bg-emphasis-1 dark:bg-transparent")}
         style={!isExpanded ? { maxHeight } : undefined}
       >
-        <div className="flex flex-col divide-y">{children}</div>
+        <div className={cn("flex flex-col", !bare && "divide-y")}>{children}</div>
       </div>
       {showToggle && (
         <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
@@ -318,6 +319,17 @@ export const MessageWrapper = ({
           </div>
         </div>
       )}
-    </ElevatedSurface>
+    </Frame>
   );
 };
+
+const Frame = ({ bare, children }: PropsWithChildren<{ bare: boolean }>) =>
+  bare ? (
+    <div className="relative">{children}</div>
+  ) : (
+    // overflow-clip (not hidden): clips to radius without creating a scroll
+    // container, so sticky can still pin to the messages list.
+    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
+      {children}
+    </ElevatedSurface>
+  );

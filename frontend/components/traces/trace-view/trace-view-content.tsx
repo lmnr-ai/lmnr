@@ -310,10 +310,9 @@ export default function TraceViewContent({
     />
   );
 
-  const snippetTab: SpanViewTab | undefined = selectedSpan?.inputSnippet
-    ? "span-input"
-    : selectedSpan?.outputSnippet
-      ? "span-output"
+  const snippetTab: SpanViewTab | undefined =
+    selectedSpan?.inputSnippet || selectedSpan?.outputSnippet
+      ? "content"
       : selectedSpan?.attributesSnippet
         ? "attributes"
         : undefined;
