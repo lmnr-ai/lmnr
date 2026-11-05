@@ -1,14 +1,18 @@
 import { inviteUserToWorkspace } from "@/lib/actions/workspace/invite";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ workspaceId: string }>(async (req, ctx) => {
-  const { workspaceId } = await ctx.params;
-  const body = (await req.json()) as { email: string };
+export const POST = withAudit<{ workspaceId: string }>(
+  { resource: "member", action: "invite" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    const body = (await req.json()) as { email: string };
+    audit.set({ resourceLabel: body.email });
 
-  await inviteUserToWorkspace({
-    workspaceId,
-    ...body,
-  });
+    await inviteUserToWorkspace({
+      workspaceId,
+      ...body,
+    });
 
-  return Response.json({ success: true });
-});
+    return Response.json({ success: true });
+  }
+);

@@ -1,10 +1,13 @@
 import { getPaymentMethodPortalUrl } from "@/lib/actions/checkout";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ workspaceId: string }>(async (req, ctx) => {
-  const { workspaceId } = await ctx.params;
+export const POST = withAudit<{ workspaceId: string }>(
+  { resource: "subscription", action: "view" },
+  async (req, ctx) => {
+    const { workspaceId } = await ctx.params;
 
-  const body = await req.json();
-  const url = await getPaymentMethodPortalUrl({ workspaceId, returnUrl: body.returnUrl });
-  return Response.json({ url });
-});
+    const body = await req.json();
+    const url = await getPaymentMethodPortalUrl({ workspaceId, returnUrl: body.returnUrl });
+    return Response.json({ url });
+  }
+);

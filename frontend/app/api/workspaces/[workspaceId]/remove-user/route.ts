@@ -1,14 +1,19 @@
 import { removeUserFromWorkspace } from "@/lib/actions/workspace";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
+import { getUserEmail } from "@/lib/audit/labels";
 
-export const DELETE = apiHandler<{ workspaceId: string }>(async (req, ctx) => {
-  const { workspaceId } = await ctx.params;
-  const userId = req.nextUrl.searchParams.get("id");
+export const DELETE = withAudit<{ workspaceId: string }>(
+  { resource: "member", action: "remove" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    const userId = req.nextUrl.searchParams.get("id");
 
-  if (!userId) {
-    return Response.json({ error: "No user id was provided" }, { status: 400 });
+    if (!userId) {
+      return Response.json({ error: "No user id was provided" }, { status: 400 });
+    }
+    audit.set({ resourceId: userId, resourceLabel: await getUserEmail(userId) });
+
+    await removeUserFromWorkspace({ workspaceId, userId });
+    return new Response("User removed successfully.", { status: 200 });
   }
-
-  await removeUserFromWorkspace({ workspaceId, userId });
-  return new Response("User removed successfully.", { status: 200 });
-});
+);

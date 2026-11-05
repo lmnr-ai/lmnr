@@ -1,5 +1,5 @@
 import { addAddon, isAddonActive, removeAddon, resolveAndValidate } from "@/lib/actions/checkout/addons";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
 type Params = { workspaceId: string; addonKey: string };
 
@@ -8,7 +8,7 @@ type Params = { workspaceId: string; addonKey: string };
  * Adds the specified addon to the workspace's active subscription.
  * Charges a pro-rated amount immediately via Stripe.
  */
-export const POST = apiHandler<Params>(async (_req, ctx) => {
+export const POST = withAudit<Params>({ resource: "subscription", action: "update" }, async (_req, ctx) => {
   const { workspaceId, addonKey } = await ctx.params;
 
   const validation = await resolveAndValidate(workspaceId, addonKey);
@@ -38,7 +38,7 @@ export const POST = apiHandler<Params>(async (_req, ctx) => {
  * Removes the specified addon from the workspace's active subscription.
  * Issues a pro-rated credit note for the unused portion.
  */
-export const DELETE = apiHandler<Params>(async (_req, ctx) => {
+export const DELETE = withAudit<Params>({ resource: "subscription", action: "update" }, async (_req, ctx) => {
   const { workspaceId, addonKey } = await ctx.params;
 
   const validation = await resolveAndValidate(workspaceId, addonKey);

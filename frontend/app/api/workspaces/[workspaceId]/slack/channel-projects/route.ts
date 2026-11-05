@@ -4,6 +4,7 @@ import {
   upsertChannelProjectBinding,
 } from "@/lib/actions/slack/channel-projects";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
 // Auth: proxy.ts gates /api/workspaces/:workspaceId/* via isUserMemberOfWorkspace, so a non-member
 // never reaches these handlers — no in-handler authz needed.
@@ -15,7 +16,7 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getChannelProjectBindings(workspaceId));
 });
 
-export const PUT = apiHandler<Params>(async (req, ctx) => {
+export const PUT = withAudit<Params>({ resource: "slack_integration", action: "update" }, async (req, ctx) => {
   const { workspaceId } = await ctx.params;
   const body = await req.json();
   await upsertChannelProjectBinding({
@@ -27,7 +28,7 @@ export const PUT = apiHandler<Params>(async (req, ctx) => {
   return Response.json({ success: true });
 });
 
-export const DELETE = apiHandler<Params>(async (req, ctx) => {
+export const DELETE = withAudit<Params>({ resource: "slack_integration", action: "update" }, async (req, ctx) => {
   const { workspaceId } = await ctx.params;
   const channelId = req.nextUrl.searchParams.get("channelId");
   if (!channelId) {

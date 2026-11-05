@@ -1,0 +1,151 @@
+import { headers } from "next/headers";
+import { after, type NextRequest } from "next/server";
+
+import { apiHandler } from "@/lib/api/api-handler";
+import { getServerSession } from "@/lib/auth-session";
+
+import { type AuditAction, type AuditOutcome, type AuditResource, outcomeFromStatus } from "./events";
+import { type AuditDetails, type AuditEventPayload, clientIp, postAuditEvent } from "./post";
+
+export type { AuditDetails } from "./post";
+
+export type { AuditAction, AuditResource } from "./events";
+
+export interface AuditEventMeta {
+  resource: AuditResource;
+  action: AuditAction;
+  /** Read events are sent after the response; writes are awaited before it. */
+  read?: boolean;
+}
+
+const dispatch = async (event: AuditEventPayload, read: boolean | undefined) => {
+  if (read) {
+    after(() => postAuditEvent(event));
+    return;
+  }
+  await postAuditEvent(event);
+};
+
+/** Handle passed to audited handlers to describe the resource or suppress the event. */
+export interface AuditHandle {
+  set: (details: AuditDetails) => void;
+  /** The request changed nothing worth recording (e.g. a no-op update). */
+  skip: () => void;
+}
+
+type RouteContext<P> = { params: Promise<P> };
+
+const paramString = (value: string | string[] | undefined) => (typeof value === "string" ? value : undefined);
+
+// The innermost path param naming a resource (`/datasets/[datasetId]/datapoints/[datapointId]`
+// → datapointId), used when the handler doesn't set `resourceId` itself.
+const pathResourceId = (params: Record<string, string | string[] | undefined>) =>
+  Object.entries(params)
+    .filter(([key]) => key !== "workspaceId" && key !== "projectId" && /^(id|.+Id|.+Key)$/.test(key))
+    .map(([, value]) => paramString(value))
+    .findLast((value) => value !== undefined);
+
+// Creates have no id in the path; most return the created object, which names it.
+const responseResource = async (res: Response): Promise<{ id?: string; label?: string }> => {
+  if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) return {};
+  const body = await res
+    .clone()
+    .json()
+    .catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
+  const { id, name, title } = body as Record<string, unknown>;
+  const label = typeof name === "string" ? name : typeof title === "string" ? title : undefined;
+  return { id: typeof id === "string" || typeof id === "number" ? String(id) : undefined, label };
+};
+
+/**
+ * Wraps a route handler so every call records an audit event. Every mutating
+ * route export must be wrapped in `withAudit` or `noAudit`
+ * (`tests/audit-coverage.test.ts`). Includes `apiHandler`: thrown errors become
+ * their `{ error }` response, and the event's outcome is that response's status.
+ */
+export const withAudit =
+  <P extends Record<string, string> = Record<string, string>>(
+    meta: AuditEventMeta,
+    handler: (req: NextRequest, ctx: RouteContext<P>, audit: AuditHandle) => Promise<Response>
+  ) =>
+  async (req: NextRequest, ctx: RouteContext<P>): Promise<Response> => {
+    const details: AuditDetails = {};
+    let skipped = false;
+    const audit: AuditHandle = {
+      set: (d) => Object.assign(details, d),
+      skip: () => {
+        skipped = true;
+      },
+    };
+
+    let status = 500;
+    try {
+      const res = await apiHandler<P>((r, c) => handler(r, c, audit))(req, ctx);
+      status = res.status;
+      if (!meta.read && !skipped && (!details.resourceId || !details.resourceLabel)) {
+        const fromResponse = await responseResource(res);
+        // A response id only describes this event's resource when the path named none.
+        const pathId = pathResourceId(await ctx.params);
+        if (!details.resourceId && !pathId) details.resourceId = fromResponse.id;
+        if (!details.resourceLabel && (!pathId || fromResponse.id === pathId)) {
+          details.resourceLabel = fromResponse.label;
+        }
+      }
+      return res;
+    } finally {
+      if (!skipped) {
+        const session = await getServerSession().catch(() => null);
+        const params = await ctx.params;
+        const workspaceId = details.workspaceId ?? paramString(params.workspaceId);
+        const projectId = details.projectId ?? paramString(params.projectId);
+        // Without a session or a workspace/project (e.g. a request rejected before
+        // its project was resolved) there is no log to attribute the event to.
+        if (session?.user && (workspaceId || projectId)) {
+          await dispatch(
+            {
+              ...details,
+              userId: session.user.id,
+              resource: meta.resource,
+              action: details.action ?? meta.action,
+              workspaceId,
+              projectId,
+              resourceId: details.resourceId ?? pathResourceId(params),
+              outcome: outcomeFromStatus(status),
+              ip: clientIp(req.headers),
+              userAgent: req.headers.get("user-agent") ?? undefined,
+            },
+            meta.read
+          );
+        }
+      }
+    }
+  };
+
+/** Marks a mutating route as deliberately not audited. */
+export const noAudit = <H>(_reason: string, handler: H): H => handler;
+
+/**
+ * Records one event from code that isn't a route handler: server actions,
+ * server components, auth hooks. Awaited unless `read` is set.
+ */
+export const recordAuditEvent = async (
+  meta: AuditEventMeta & AuditDetails & { userId?: string; outcome?: AuditOutcome }
+): Promise<void> => {
+  const { resource, action, read, userId, outcome, ...details } = meta;
+  const resolvedUserId = userId ?? (await getServerSession().catch(() => null))?.user?.id;
+  if (!resolvedUserId) return;
+  const h = await headers().catch(() => null);
+  await dispatch(
+    {
+      ...details,
+      userId: resolvedUserId,
+      resource,
+      action,
+      outcome: outcome ?? "success",
+      ip: h ? clientIp(h) : undefined,
+      userAgent: h?.get("user-agent") ?? undefined,
+    },
+    read
+  );
+};

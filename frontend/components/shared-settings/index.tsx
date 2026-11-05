@@ -10,6 +10,7 @@ import {
   FileBarChart,
   Key,
   KeyRound,
+  ScrollText,
   type LucideIcon,
   Settings2,
   ShieldCheck,
@@ -44,6 +45,7 @@ import {
   SidebarProvider,
   SidebarSectionLabel,
 } from "@/components/ui/sidebar";
+import AuditLog from "@/components/workspace/audit-log";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
 import WorkspaceLicense from "@/components/workspace/license";
@@ -58,6 +60,7 @@ import { type SettingsSection } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo, type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
+import { permissionsForRole } from "@/lib/authorization/permissions";
 import { Feature } from "@/lib/features/features";
 import { type LicenseStatus } from "@/lib/license/types";
 import {
@@ -85,6 +88,8 @@ interface SharedSettingsProps {
   slackBrokerEnabled?: boolean;
   // Null where instance licensing doesn't apply (OSS app-server, Laminar Cloud).
   license: LicenseStatus | null;
+  // Plan gate only; the role gate is `permissionsForRole(currentUserRole).viewAuditLog`.
+  auditLogAvailable: boolean;
 }
 
 type Section = SettingsSection;
@@ -99,6 +104,7 @@ const VALID_SECTIONS = new Set<Section>([
   "workspace-general",
   "llm-profiles",
   "license",
+  "audit-log",
   "general",
   "project-api-keys",
   "model-costs",
@@ -124,10 +130,12 @@ const SharedSettings = ({
   slackRedirectUri,
   slackBrokerEnabled,
   license,
+  auditLogAvailable,
 }: SharedSettingsProps) => {
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
   const workspaceId = workspace.id;
+  const canViewAuditLog = permissionsForRole(currentUserRole).viewAuditLog;
   const isFree = !!featureFlags[Feature.SUBSCRIPTION] && workspace.tierName === WorkspaceTier.FREE;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
@@ -136,6 +144,7 @@ const SharedSettings = ({
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
     if (section === "license") return !!license;
+    if (section === "audit-log") return canViewAuditLog;
     return true;
   };
 
@@ -169,8 +178,11 @@ const SharedSettings = ({
     if (license) {
       items.push({ label: "License", section: "license", icon: KeyRound });
     }
+    if (canViewAuditLog) {
+      items.push({ label: "Audit log", section: "audit-log", icon: ScrollText });
+    }
     return items;
-  }, [featureFlags, isOwner, license]);
+  }, [featureFlags, isOwner, license, canViewAuditLog]);
 
   const projectMenus: { label: string; section: Section; icon: LucideIcon; badge?: string }[] = [
     { label: "General", section: "general", icon: Settings2 },
@@ -243,6 +255,8 @@ const SharedSettings = ({
         return <LlmProfiles workspaceId={workspaceId} />;
       case "license":
         return license && <WorkspaceLicense license={license} workspaceId={workspaceId} isOwner={isOwner} />;
+      case "audit-log":
+        return <AuditLog workspaceId={workspaceId} available={auditLogAvailable} />;
       // Project sections
       case "general":
         return (

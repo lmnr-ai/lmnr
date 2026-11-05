@@ -1,58 +1,69 @@
 import { deleteProject, updateProject, UpdateProjectSchema } from "@/lib/actions/project";
+import { withAudit } from "@/lib/audit";
+import { getProjectScope } from "@/lib/audit/labels";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const { projectId } = params;
+export const POST = withAudit(
+  { resource: "project", action: "update" },
+  async (req: Request, props: { params: Promise<{ projectId: string }> }, audit): Promise<Response> => {
+    const params = await props.params;
+    const { projectId } = params;
 
-  try {
-    const { name } = await req.json();
-    const result = UpdateProjectSchema.safeParse({ name, projectId });
+    try {
+      const { name } = await req.json();
+      audit.set({ resourceId: projectId, resourceLabel: name, metadata: { fields: ["name"] } });
+      const result = UpdateProjectSchema.safeParse({ name, projectId });
 
-    if (!result.success) {
-      return new Response("Invalid request body", { status: 400 });
+      if (!result.success) {
+        return new Response("Invalid request body", { status: 400 });
+      }
+
+      await updateProject({ projectId, name });
+
+      return new Response(JSON.stringify({ message: "Project renamed successfully." }), {
+        status: 200,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Internal server error";
+      return new Response(
+        JSON.stringify({
+          error: errorMessage,
+          message: "Failed to update the project",
+        }),
+        {
+          status: 500,
+        }
+      );
     }
-
-    await updateProject({ projectId, name });
-
-    return new Response(JSON.stringify({ message: "Project renamed successfully." }), {
-      status: 200,
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        message: "Failed to update the project",
-      }),
-      {
-        status: 500,
-      }
-    );
   }
-}
+);
 
-export async function DELETE(_req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const { projectId } = params;
+export const DELETE = withAudit(
+  { resource: "project", action: "delete" },
+  async (_req: Request, props: { params: Promise<{ projectId: string }> }, audit): Promise<Response> => {
+    const params = await props.params;
+    const { projectId } = params;
+    const scope = await getProjectScope(projectId);
+    audit.set({ ...scope, resourceId: projectId, resourceLabel: scope?.projectName });
 
-  try {
-    await deleteProject({ projectId });
+    try {
+      await deleteProject({ projectId });
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-    });
-  } catch (error) {
-    console.error("Error deleting project", error);
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+      });
+    } catch (error) {
+      console.error("Error deleting project", error);
+      const errorMessage = error instanceof Error ? error.message : "Internal server error";
 
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        message: "Failed to delete the project",
-      }),
-      {
-        status: 500,
-      }
-    );
+      return new Response(
+        JSON.stringify({
+          error: errorMessage,
+          message: "Failed to delete the project",
+        }),
+        {
+          status: 500,
+        }
+      );
+    }
   }
-}
+);

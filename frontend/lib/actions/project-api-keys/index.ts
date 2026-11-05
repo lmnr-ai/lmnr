@@ -125,18 +125,22 @@ export async function getApiKeys(input: z.infer<typeof GetProjectApiKeysSchema>)
   }));
 }
 
-export async function deleteApiKey(input: z.infer<typeof DeleteProjectApiKeySchema>): Promise<void> {
+export async function deleteApiKey(
+  input: z.infer<typeof DeleteProjectApiKeySchema>
+): Promise<{ name: string | null; shorthand: string } | undefined> {
   const { projectId, id } = DeleteProjectApiKeySchema.parse(input);
 
   // Delete from database and get the hash to clear from cache
   const deleted = await db
     .delete(projectApiKeys)
     .where(and(eq(projectApiKeys.id, id), eq(projectApiKeys.projectId, projectId)))
-    .returning({ hash: projectApiKeys.hash });
+    .returning({ hash: projectApiKeys.hash, name: projectApiKeys.name, shorthand: projectApiKeys.shorthand });
 
   // Clear from cache if deleted
   if (deleted.length > 0) {
     const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${deleted[0].hash}`;
     await cache.remove(cacheKey);
   }
+
+  return deleted[0];
 }

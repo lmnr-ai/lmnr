@@ -1,5 +1,6 @@
 import { getDeployment, updateDeployment } from "@/lib/actions/workspace/deployment";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   const { workspaceId } = await ctx.params;
@@ -9,11 +10,14 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   return Response.json(result);
 });
 
-export const PUT = apiHandler<{ workspaceId: string }>(async (req, ctx) => {
-  const { workspaceId } = await ctx.params;
+export const PUT = withAudit<{ workspaceId: string }>(
+  { resource: "deployment", action: "update" },
+  async (req, ctx) => {
+    const { workspaceId } = await ctx.params;
 
-  const body = await req.json();
-  await updateDeployment({ workspaceId, ...body });
+    const body = await req.json();
+    await updateDeployment({ workspaceId, ...body });
 
-  return Response.json({ success: true });
-});
+    return Response.json({ success: true });
+  }
+);
