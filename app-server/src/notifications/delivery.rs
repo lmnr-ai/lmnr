@@ -257,15 +257,26 @@ impl NotificationDeliveryHandler {
             CreateEmailBaseOptions::new(&content.from, [recipient.as_str()], &content.subject);
         let (email_opts, raw_message) = match content.body {
             // Inline-rendered emails reference the logo by content id.
-            EmailBody::Html(html) => (
-                email_opts.with_html(&html).with_attachment(
+            EmailBody::Html(html) => {
+                let mut email_opts = email_opts.with_html(&html).with_attachment(
                     CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
                         .with_filename("logo.png")
                         .with_content_type("image/png")
                         .with_content_id(LAMINAR_LOGO_CID),
-                ),
-                html,
-            ),
+                );
+                // Only referenced icons: clients list unreferenced inline images as attachments.
+                for (cid, png) in email::SEVERITY_ICONS {
+                    if html.contains(&format!("cid:{cid}")) {
+                        email_opts = email_opts.with_attachment(
+                            CreateAttachment::from_content(png.to_vec())
+                                .with_filename(&format!("{cid}.png"))
+                                .with_content_type("image/png")
+                                .with_content_id(cid),
+                        );
+                    }
+                }
+                (email_opts, html)
+            }
             EmailBody::Template { id, variables } => {
                 let raw_message =
                     serde_json::json!({ "template": id, "variables": variables }).to_string();

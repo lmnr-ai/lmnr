@@ -63,6 +63,16 @@ fn email_document(title: &str, width: u16, body: &str) -> String {
 }
 
 fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
+    banner_with_kicker(workspace, "", title, subtitle)
+}
+
+/// `kicker_html` sits above the title, e.g. the severity line of a signal event.
+fn banner_with_kicker(
+    workspace: &str,
+    kicker_html: &str,
+    title: &str,
+    subtitle: Option<&str>,
+) -> String {
     let (height, bottom) = if subtitle.is_some() {
         (200, 16)
     } else {
@@ -77,14 +87,46 @@ fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
         })
         .unwrap_or_default();
     format!(
-        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:12px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 2px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
+        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:12px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="padding-top:2px;font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="padding-top:2px;font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px">{kicker_html}<div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 2px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
         height = height,
         half = height / 2,
         bottom = bottom,
         cid = LAMINAR_LOGO_CID,
         workspace = html_escape(workspace),
+        kicker_html = kicker_html,
         title = html_escape(title),
         subtitle_html = subtitle_html
+    )
+}
+
+// ── Severity icons ──
+//
+/// Lucide circle-alert / triangle-alert / info, sent as inline attachments like the logo:
+/// Gmail strips <svg> and data: images. PNGs are 3x (48px).
+pub(super) const SEVERITY_ICONS: [(&str, &[u8]); 3] = [
+    (
+        "severity-critical",
+        include_bytes!("../../data/email-icons/severity-critical.png"),
+    ),
+    (
+        "severity-warning",
+        include_bytes!("../../data/email-icons/severity-warning.png"),
+    ),
+    (
+        "severity-info",
+        include_bytes!("../../data/email-icons/severity-info.png"),
+    ),
+];
+
+fn severity_kicker(severity: u8) -> String {
+    let (color, cid) = match severity {
+        2 => ("#e25050", SEVERITY_ICONS[0].0),
+        1 => ("#e2a108", SEVERITY_ICONS[1].0),
+        _ => ("#c3c4c8", SEVERITY_ICONS[2].0),
+    };
+    format!(
+        r#"<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0"><tr><td width="16" height="19" valign="top" style="padding-top:2px;line-height:0;font-size:0"><img src="cid:{cid}" alt="" width="16" height="16" style="display:block;border:0"></td><td width="4"></td><td style="font-size:16px;font-weight:500;line-height:19px;letter-spacing:-.32px;color:{color}"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{label}</div></div></td></tr></table>"#,
+        label = severity_label(severity)
     )
 }
 
@@ -466,9 +508,10 @@ fn render_alert_email(
     };
     let body = format!(
         "{}{}{}",
-        banner(
+        banner_with_kicker(
             project_name,
-            &format!("{} signal event", severity_label(severity)),
+            &severity_kicker(severity),
+            "Signal event",
             None
         ),
         card,
@@ -1256,6 +1299,26 @@ mod tests {
     }
 
     #[test]
+    fn trial_hard_limit_asks_to_start_subscription() {
+        let html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "bytes",
+            "10 GiB",
+            "10 GiB",
+            false,
+            true,
+        );
+
+        assert!(html.contains("Trial allowance used up"));
+        assert!(!html.contains("has paused"));
+        assert!(html.contains("included in the Starter trial"));
+        assert!(html.contains("Start subscription"));
+        assert!(html.contains("tab=billing"));
+        assert!(!html.contains("billing cycle resets"));
+    }
+
+    #[test]
     fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
         let html = render_usage_hard_limit_email(
             "Workspace",
@@ -1274,23 +1337,30 @@ mod tests {
     }
 
     #[test]
-    fn trial_hard_limit_asks_to_start_subscription() {
-        let html = render_usage_hard_limit_email(
-            "Workspace",
-            Uuid::nil(),
-            "bytes",
-            "10 GiB",
-            "10 GiB",
-            false,
-            true,
-        );
-
-        assert!(html.contains("Trial allowance used up"));
-        assert!(!html.contains("has paused"));
-        assert!(html.contains("included in the Starter trial"));
-        assert!(html.contains("Start subscription"));
-        assert!(html.contains("tab=billing"));
-        assert!(!html.contains("billing cycle resets"));
+    fn signal_event_banner_shows_severity_kicker() {
+        for (severity, label, color, cid) in [
+            (2, "Critical", "#e25050", "severity-critical"),
+            (1, "Warning", "#e2a108", "severity-warning"),
+            (0, "Info", "#c3c4c8", "severity-info"),
+        ] {
+            let html = render_alert_email(
+                "Failure Detector",
+                "acme-production",
+                &serde_json::json!({}),
+                &Uuid::nil(),
+                &Uuid::nil(),
+                &Uuid::nil(),
+                severity,
+                "Alert",
+                None,
+            );
+            assert!(html.contains(&format!(
+                "color:{color}\"><div class=\"gmail-blend-screen\"><div class=\"gmail-blend-difference\">{label}</div>"
+            )));
+            assert!(html.contains(">Signal event</p>"));
+            assert!(html.contains(&format!("src=\"cid:{cid}\"")));
+            assert!(!html.contains("<svg"));
+        }
     }
 
     #[test]
