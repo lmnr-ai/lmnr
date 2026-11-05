@@ -1,6 +1,8 @@
 import { observe } from "@lmnr-ai/lmnr";
+import { type LanguageModel } from "ai";
 
-import { isAiProviderConfigured } from "@/lib/ai/model";
+import { getLanguageModelOrNull } from "@/lib/ai/feature-model";
+import { LlmFeature } from "@/lib/ai/features";
 import { cache, SPAN_RENDERING_KEY_CACHE_KEY } from "@/lib/cache";
 
 import { tryDescriptiveHeuristicPreview, tryHeuristicPreview } from "./heuristic";
@@ -191,7 +193,7 @@ async function applyCachedKeys(
 }
 
 async function generateKeysViaLlm(
-  projectId: string,
+  model: LanguageModel,
   spans: ParsedSpan[]
 ): Promise<{
   resolved: Record<string, string | null>;
@@ -228,7 +230,7 @@ async function generateKeysViaLlm(
     let generatedKeys: Array<string | null> = [];
     let llmError: string | null = null;
     try {
-      const raw = await generatePreviewKeys(structures, projectId);
+      const raw = await generatePreviewKeys(structures, model);
       generatedKeys = raw.slice(0, dedupedFingerprints.length);
     } catch (error) {
       llmError = error instanceof Error ? error.message : String(error);
@@ -417,17 +419,19 @@ export async function resolvePreviews(
       let path: "cache-only" | "llm" | "heuristic-fallback" = "cache-only";
 
       if (uncached.length > 0) {
-        const aiConfigured = isAiProviderConfigured();
-        const llmAvailable = !skipGeneration && aiConfigured;
+        // A route lookup failure degrades to the heuristic like a missing model.
+        const model = skipGeneration
+          ? null
+          : await getLanguageModelOrNull(LlmFeature.SPAN_PREVIEW_PROMPTS, projectId).catch(() => null);
 
-        if (!llmAvailable) {
+        if (!model) {
           path = "heuristic-fallback";
           const heuristic = applyHeuristicFallback(uncached);
           heuristicResolvedCount = Object.values(heuristic).filter((v) => v !== null).length;
           keyResolved = { ...keyResolved, ...heuristic };
         } else {
           path = "llm";
-          const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(projectId, uncached);
+          const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(model, uncached);
           llmResolvedCount = Object.keys(llmResolved).length;
           await saveRenderingKeys(projectId, keysToSave);
           const heuristic = applyHeuristicFallback(unresolved);

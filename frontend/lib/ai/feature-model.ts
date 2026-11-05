@@ -7,7 +7,7 @@ import { db } from "@/lib/db/drizzle";
 import { llmFeatureRoutes, llmProfiles, projects } from "@/lib/db/migrations/schema";
 
 import { DEFAULT_LLM_FEATURE_ID, LLM_FEATURE_ENV_TIER, type LlmFeature } from "./features";
-import { envLanguageModel } from "./model";
+import { envLanguageModel, isEnvProviderConfigured } from "./model";
 import { languageModelFromProfile } from "./profile-model";
 
 /**
@@ -26,6 +26,22 @@ export const getLanguageModel = async (feature: LlmFeature, projectId?: string):
     return languageModelFromProfile(route.profile, route.secrets, route.model);
   }
   return envLanguageModel(LLM_FEATURE_ENV_TIER[feature]);
+};
+
+/**
+ * {@link getLanguageModel} for features with a non-LLM fallback (heuristics,
+ * defaults): `null` when neither a route nor the env provider applies, so the
+ * caller degrades instead of throwing. Route lookup errors still propagate.
+ */
+export const getLanguageModelOrNull = async (
+  feature: LlmFeature,
+  projectId?: string
+): Promise<LanguageModel | null> => {
+  const route = await resolveFeatureRoute(feature, projectId);
+  if (route) {
+    return languageModelFromProfile(route.profile, route.secrets, route.model);
+  }
+  return isEnvProviderConfigured() ? envLanguageModel(LLM_FEATURE_ENV_TIER[feature]) : null;
 };
 
 /** The `llm_feature_routes` row that applies to `feature`, with its profile and decrypted secrets; null → env provider. */

@@ -21,6 +21,7 @@ export enum Feature {
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
   SIGNAL_LLM_PROFILES = "SIGNAL_LLM_PROFILES",
+  LLM_FEATURE_ROUTES = "LLM_FEATURE_ROUTES",
   LOOPS = "LOOPS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
@@ -109,6 +110,11 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.SIGNAL_LLM_PROFILES) {
     // Cloud runs signals on Laminar's own keys; only self-hosted signals pick a profile.
+    return process.env.LAMINAR_CLOUD !== "true";
+  }
+
+  if (feature === Feature.LLM_FEATURE_ROUTES) {
+    // Cloud AI features run on Laminar's own keys; self-hosted admins route them to workspace profiles.
     return process.env.LAMINAR_CLOUD !== "true";
   }
 

@@ -14,7 +14,7 @@ pub mod service;
 mod store;
 
 pub use probe::probe;
-pub use store::LlmProfileStore;
+pub use store::{LlmProfileStore, has_feature_route, invalidate_workspace_routes};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

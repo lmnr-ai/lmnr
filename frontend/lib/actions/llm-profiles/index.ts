@@ -1,8 +1,10 @@
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { featureIdsUsingProfile } from "@/lib/actions/llm-feature-routes";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { callAppServer } from "@/lib/app-server";
+import { featureGroupLabels } from "@/lib/ai/feature-groups";
+import { AppServerError, callAppServer } from "@/lib/app-server";
 import { db } from "@/lib/db/drizzle";
 import { llmProfileModels, llmProfiles, projects } from "@/lib/db/migrations/schema";
 import { type WorkspaceRole } from "@/lib/workspaces/types";
@@ -144,5 +146,13 @@ export async function updateLlmProfile(input: UpdateLlmProfileInput): Promise<Ll
 export async function deleteLlmProfile(input: z.infer<typeof DeleteLlmProfileSchema>): Promise<LlmProfile> {
   const { workspaceId, profileId } = DeleteLlmProfileSchema.parse(input);
   await checkUserWorkspaceRole({ workspaceId, roles: MEMBER_ROLES });
+  // The app-server refuses too, but names raw feature ids; settings users know the group names.
+  const groups = featureGroupLabels(await featureIdsUsingProfile(workspaceId, profileId));
+  if (groups.length > 0) {
+    throw new AppServerError(
+      `This profile is selected for ${groups.join(", ")} in AI feature settings and cannot be deleted.`,
+      409
+    );
+  }
   return callAppServer<LlmProfile>(`/workspaces/${workspaceId}/llm-profiles/${profileId}`, { method: "DELETE" });
 }

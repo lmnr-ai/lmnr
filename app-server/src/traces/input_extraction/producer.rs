@@ -29,8 +29,8 @@ use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
 use super::regex::{apply_known_regex, regex_target};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
-use crate::features::{Feature, is_feature_enabled};
-use crate::llm::llm_client_available;
+use crate::features::{Feature, has_llm_backend, is_feature_enabled};
+use crate::llm::{LlmFeature, llm_client_available, profiles::has_feature_route};
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
 use crate::traces::sp_versioning::{
@@ -150,6 +150,9 @@ pub async fn process_user_task_candidates(
     }
 
     if contexts.is_empty() || !is_feature_enabled(Feature::InputExtraction) {
+        return;
+    }
+    if !has_llm_for_project(&db, &cache, project_id).await {
         return;
     }
 
@@ -289,6 +292,30 @@ pub async fn process_user_task_candidates(
 /// published winner" ratchet, which the per-agent model can't use: the
 /// winner legitimately moves DOWN in tokens when a genuinely earlier step
 /// for the winning agent arrives late.
+/// The env provider (or global routes) covers every project; otherwise a
+/// self-hosted project runs extraction only when its workspace routes the
+/// regex generation feature (its group row or `default`). A lookup error skips
+/// this batch: `published` is not moved, so a later batch retries.
+async fn has_llm_for_project(db: &Arc<DB>, cache: &Arc<Cache>, project_id: Uuid) -> bool {
+    if has_llm_backend() {
+        return true;
+    }
+    match has_feature_route(
+        db,
+        cache,
+        LlmFeature::InputExtractionRegexGeneration,
+        project_id,
+    )
+    .await
+    {
+        Ok(routed) => routed,
+        Err(e) => {
+            log::warn!("user-task: LLM route lookup failed for project [{project_id}]: {e}");
+            false
+        }
+    }
+}
+
 fn should_run_effect(winner: &WinnerState, published: Option<&str>) -> bool {
     published != Some(winner.content_hash.as_str())
 }
