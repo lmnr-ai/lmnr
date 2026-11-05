@@ -40,8 +40,7 @@ export const DELETE = withAudit<{ projectId: string }>(
     const { projectId } = await ctx.params;
     const body = await req.json();
     await audit.target(body.id);
-    const deleted = await deleteApiKey({ projectId, id: body.id });
-    audit.set({ metadata: { name: deleted?.name ?? deleted?.shorthand } });
+    await deleteApiKey({ projectId, id: body.id });
     return new Response(null, { status: 200 });
   }
 );
