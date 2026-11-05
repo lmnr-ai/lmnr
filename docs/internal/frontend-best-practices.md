@@ -158,7 +158,7 @@ Exceptions (don't wrap): streaming/SSE responses, file/binary downloads, webhook
 
 **App-server ↔ Next.js.** Both directions use the same contract (`{ error }` JSON, 4xx passes through, 5xx is a bug):
 
-- Next.js → app-server: `callAppServer` (`@/lib/api/backend`) unwraps app-server's `{ error }`; a 4xx becomes an `ApiError` with that status (so the route relays it), a 5xx a plain `Error` (500 + Sentry). `fetcherJSON` / `fetcherRealTime` are the older raw clients.
+- Next.js → app-server: `callAppServer` (`@/lib/api/backend`) takes a plain-object `body` and unwraps the error (app-server answers plain text or `{ error }` JSON); a 4xx becomes an `ApiError` with that status (so the route relays it), a 5xx a plain `Error` (500 + Sentry). `fetcherRealTime` is only for the SSE stream.
 - App-server → Next.js: `/api/internal/projects/[projectId]/…` routes are wrapped in `internalApiHandler` (`@/lib/api/internal`), which is `apiHandler` plus the app-server token check (401 without it) and hands the handler resolved `params` and the token `claims`. Same error mapping, so a domain action throws the same `ApiError` whether the UI route or app-server called it.
 
 Client disconnects do NOT reach Sentry: `apiHandler` classifies an error (and its `cause` chain) as an abort by name — `AbortError` (anything awaiting `req.signal`, e.g. the AI SDK in the chat route) or Next's own `ResponseAborted` — and answers `499` without capturing. `TimeoutError` is deliberately NOT in that set (the AI SDK's `isAbortError` includes it, we don't): a timeout is a real server-side failure. Classify on the error, never on `req.signal.aborted`, or an upstream failure racing a disconnect gets swallowed. `unstable_rethrow` does not cover aborts, so this check has to be explicit.

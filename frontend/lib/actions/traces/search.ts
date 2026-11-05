@@ -1,5 +1,5 @@
 import { resolveSqlActor } from "@/lib/actions/sql/actor";
-import { fetcherJSON } from "@/lib/api/backend";
+import { callAppServer } from "@/lib/api/backend";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
 
@@ -67,13 +67,7 @@ export const searchSpans = async ({
   };
 
   try {
-    return await fetcherJSON<SpanSearchHit[]>(`/projects/${projectId}/spans/search`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    return await callAppServer<SpanSearchHit[]>(`/projects/${projectId}/spans/search`, { method: "POST", body });
   } catch (error) {
     console.error("searchSpans error", error);
     return [];

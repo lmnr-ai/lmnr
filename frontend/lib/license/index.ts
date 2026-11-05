@@ -1,5 +1,6 @@
 import { cache } from "react";
 
+import { callAppServer } from "@/lib/api/backend";
 import { decryptValue } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { instanceLicense } from "@/lib/db/migrations/schema";
@@ -9,16 +10,6 @@ import { type LicenseStatus } from "@/lib/license/types";
 
 // Must match ENCRYPTION_AAD in app-server/src/license/mod.rs, which encrypts the key.
 const ENCRYPTION_AAD = "instance_license";
-
-export class LicenseRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number
-  ) {
-    super(message);
-    this.name = "LicenseRequestError";
-  }
-}
 
 const backendLicenseUrl = () => `${process.env.BACKEND_URL}/api/v1/license`;
 
@@ -48,19 +39,8 @@ export const getLicenseStatus = cache(async (): Promise<LicenseStatus | null> =>
 // Like the app-server's is_ee_enabled, fails open: no answer (OSS, Cloud, an unreachable app-server) counts as enabled.
 export const isEeEnabled = async (): Promise<boolean> => (await getLicenseStatus())?.eeEnabled ?? true;
 
-export const saveLicenseKey = async (key: string, userId: string): Promise<LicenseStatus> => {
-  const res = await fetch(backendLicenseUrl(), {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, userId }),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new LicenseRequestError(body?.error ?? "Failed to save license", res.status);
-  }
-  return (await res.json()) as LicenseStatus;
-};
+export const saveLicenseKey = (key: string, userId: string) =>
+  callAppServer<LicenseStatus>("/license", { method: "PUT", body: { key, userId } });
 
 export const getTrialStartedAt = async (): Promise<string | null> => {
   const [row] = await db.select({ trialStartedAt: instanceLicense.trialStartedAt }).from(instanceLicense).limit(1);

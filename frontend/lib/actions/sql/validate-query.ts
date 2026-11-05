@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { fetcherJSON } from "@/lib/api/backend";
+import { callAppServer } from "@/lib/api/backend";
 
 import { resolveSqlActor, type SqlActor } from "./actor";
 
@@ -26,15 +26,12 @@ export async function validateQuery(
   const { projectId, query } = ValidateQuerySchema.parse(input);
   const actor = await resolveSqlActor(options?.actor);
 
-  const json = await fetcherJSON(`/projects/${projectId}/sql/validate`, {
+  const json = await callAppServer(`/projects/${projectId}/sql/validate`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+    body: {
       query,
       actor,
-    }),
+    },
   });
 
   return json;

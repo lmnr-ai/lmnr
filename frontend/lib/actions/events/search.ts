@@ -1,5 +1,5 @@
 import { type SnippetInfo } from "@/lib/actions/traces/search";
-import { fetcherJSON } from "@/lib/api/backend";
+import { callAppServer } from "@/lib/api/backend";
 
 export interface SignalEventSearchHit {
   id: string;
@@ -60,10 +60,9 @@ export const searchSignalEvents = async ({
   };
 
   try {
-    const res = await fetcherJSON<SearchSignalEventsResponse>(`/projects/${projectId}/signal-events/search`, {
+    const res = await callAppServer<SearchSignalEventsResponse>(`/projects/${projectId}/signal-events/search`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body,
     });
     // Defensive: empty/malformed responses (e.g. a stale app-server binary
     // returning the previous `{ids: [...]}` shape) should degrade to "no hits"
