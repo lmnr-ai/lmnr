@@ -1,15 +1,19 @@
 //! Workspace LLM profile writes and "test connection" for the frontend, which
 //! is the only caller (server-to-server, workspace membership checked there).
 //! Reads stay in the frontend; every write goes through `profiles::service`.
+//! Workspace feature routes (settings → per-feature profiles) live here too.
 
-use actix_web::{HttpResponse, delete, patch, post, web};
+use actix_web::{HttpResponse, delete, patch, post, put, web};
 use serde::Serialize;
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::cache::Cache;
 use crate::db::DB;
+use crate::features::{Feature, is_feature_enabled};
 use crate::llm::profiles::service::{
     self, CreateLlmProfileInput, ProbeLlmProfileInput, UpdateLlmProfileInput,
+    feature_routes::{self, SetFeatureRoutesInput},
 };
 use crate::routes::ResponseResult;
 
@@ -99,6 +103,33 @@ pub async fn probe_llm_profile(
             latency_ms: None,
             error: Some(error),
         }),
+        Err(e) => service::error_response(e),
+    })
+}
+
+/// Points a settings group's feature ids at one profile + model, or clears
+/// them (`target: null`). The Next.js route restricts this to owners/admins.
+#[put("llm-feature-routes")]
+pub async fn set_llm_feature_routes(
+    workspace_id: web::Path<Uuid>,
+    body: web::Json<SetFeatureRoutesInput>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
+) -> ResponseResult {
+    if !is_feature_enabled(Feature::LlmFeatureRoutes) {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "error": "LLM features run on Laminar's own keys on Laminar Cloud"
+        })));
+    }
+    let result = feature_routes::set_workspace_feature_routes(
+        &db.pool,
+        cache.get_ref(),
+        workspace_id.into_inner(),
+        body.into_inner(),
+    )
+    .await;
+    Ok(match result {
+        Ok(()) => HttpResponse::Ok().json(json!({})),
         Err(e) => service::error_response(e),
     })
 }

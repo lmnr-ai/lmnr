@@ -1,10 +1,9 @@
 import { observe } from "@lmnr-ai/lmnr";
-import { generateText, Output } from "ai";
+import { generateText, type LanguageModel, Output } from "ai";
 import { z } from "zod";
 
-import { getLanguageModel } from "@/lib/ai/feature-model";
+import { getLanguageModelOrNull } from "@/lib/ai/feature-model";
 import { LlmFeature } from "@/lib/ai/features";
-import { isAiProviderConfigured } from "@/lib/ai/model";
 import { cache, SCORE_DIRECTION_CACHE_KEY } from "@/lib/cache";
 
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
@@ -33,15 +32,14 @@ const ClassificationSchema = z.object({
 
 // One LLM call classifying every uncached name. Case-insensitive match back to
 // the requested names. Any name the model omits stays unresolved (caller
-// defaults it to true). Fails soft: returns {} on any error. App-wide, so the
-// feature route is the global one — no project to scope it by.
-async function classifyDirections(names: string[]): Promise<Record<string, boolean>> {
+// defaults it to true). Fails soft: returns {} on any error.
+async function classifyDirections(model: LanguageModel, names: string[]): Promise<Record<string, boolean>> {
   try {
     const { output } = await observe(
       { name: "classify-score-directions", metadata: { feature: "eval-score-direction" } },
       async () =>
         generateText({
-          model: await getLanguageModel(LlmFeature.EVALUATION_SCORE_DIRECTIONS),
+          model,
           output: Output.object({ schema: ClassificationSchema }),
           system:
             "You classify evaluation metric names by their preferred direction. " +
@@ -71,14 +69,16 @@ async function classifyDirections(names: string[]): Promise<Record<string, boole
 
 /**
  * Resolve the app-wide default `isHigherBetter` for each score name from the
- * global cache; cache misses trigger ONE batched LLM classification (gated on a
- * configured AI provider) and are written back with a 7-day TTL. A name the LLM
- * can't resolve (or when no provider is configured) defaults to `true`, matching
+ * global cache; cache misses trigger ONE batched LLM classification (on the
+ * requesting project's feature route, else the env provider) and are written
+ * back with a 7-day TTL. The cache stays app-wide: the answer does not depend on
+ * which model gave it. A name the LLM can't resolve (or when no model is
+ * configured) defaults to `true`, matching
  * the historical hardcoded "bigger is better" behavior. Project overrides are
  * NOT consulted here — they are layered on top client-side — so the LLM
  * suggestion is still computed and cached even for a name a project overrides.
  */
-export async function resolveScoreDirections(scoreNames: string[]): Promise<ScoreDirectionDefaults> {
+export async function resolveScoreDirections(scoreNames: string[], projectId: string): Promise<ScoreDirectionDefaults> {
   const names = [...new Set(scoreNames)].filter((n) => n.length > 0);
   if (names.length === 0) return {};
 
@@ -100,12 +100,13 @@ export async function resolveScoreDirections(scoreNames: string[]): Promise<Scor
 
   if (misses.length === 0) return resolved;
 
-  if (!isAiProviderConfigured()) {
+  const model = await getLanguageModelOrNull(LlmFeature.EVALUATION_SCORE_DIRECTIONS, projectId).catch(() => null);
+  if (!model) {
     for (const name of misses) resolved[name] = true;
     return resolved;
   }
 
-  const classified = await classifyDirections(misses.slice(0, MAX_CLASSIFY));
+  const classified = await classifyDirections(model, misses.slice(0, MAX_CLASSIFY));
 
   const saves: Promise<void>[] = [];
   for (const name of misses) {
