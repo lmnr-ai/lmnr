@@ -14,6 +14,14 @@ export const POST = withAudit<{ projectId: string; tagName: string }>(
     await audit.target(tagName, { name: tagName });
     const body = await req.json();
 
+    // An existing class only gets a new color.
+    const [existing] = await db
+      .select({ name: tagClasses.name })
+      .from(tagClasses)
+      .where(and(eq(tagClasses.name, tagName), eq(tagClasses.projectId, projectId)))
+      .limit(1);
+    if (existing) audit.set({ action: "update" });
+
     const result = await createOrUpdateTagClass({
       projectId,
       name: tagName,

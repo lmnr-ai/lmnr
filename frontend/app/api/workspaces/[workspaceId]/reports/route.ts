@@ -12,8 +12,9 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
   return Response.json(result);
 });
 
+// Subscribing and unsubscribing change only the caller's delivery, never the report itself.
 export const POST = withAudit<{ workspaceId: string }>(
-  { resource: "report", action: "create" },
+  { resource: "report", action: "update" },
   async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
 
@@ -27,7 +28,12 @@ export const POST = withAudit<{ workspaceId: string }>(
       return Response.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
     }
     const result = await optInReport({ ...body, workspaceId, email });
-    await audit.target(body.reportId);
+    if (result.alreadySubscribed) {
+      audit.skip();
+    } else {
+      audit.set({ metadata: { emailSubscription: "subscribed" } });
+      await audit.target(body.reportId);
+    }
     return Response.json(result);
   }
 );
@@ -44,13 +50,14 @@ export const PUT = withAudit<{ workspaceId: string }>(
     }
     const body = await request.json();
     const result = await setEmailSubscriptions({ workspaceId, email, subscribedReportIds: body.subscribedReportIds });
+    audit.set({ metadata: { emailSubscription: "set" } });
     await audit.target(body.subscribedReportIds);
     return Response.json(result);
   }
 );
 
 export const DELETE = withAudit<{ workspaceId: string }>(
-  { resource: "report", action: "delete" },
+  { resource: "report", action: "update" },
   async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
 
@@ -63,6 +70,7 @@ export const DELETE = withAudit<{ workspaceId: string }>(
     if (body.email && body.email !== email) {
       return Response.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
     }
+    audit.set({ metadata: { emailSubscription: "unsubscribed" } });
     await audit.target(body.reportId);
     const result = await optOutReport({ ...body, workspaceId, email });
     return Response.json(result);

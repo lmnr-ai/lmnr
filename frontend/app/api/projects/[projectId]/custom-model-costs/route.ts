@@ -12,6 +12,8 @@ export const POST = withAudit<{ projectId: string }>(
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const body = await req.json();
+    // The cost dialog edits through this route too, sending the row's id.
+    if (body.id) audit.set({ action: "update" });
 
     const { result } = await upsertCustomModelCost({
       id: body.id,
