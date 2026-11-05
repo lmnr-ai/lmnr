@@ -36,6 +36,13 @@ const isAbortError = (error: unknown): boolean => {
 export const apiHandler =
   <P extends Record<string, string> = Record<string, string>>(handler: RouteHandler<P>): RouteHandler<P> =>
   async (req, ctx) => {
+    // A body that isn't JSON is the caller's mistake: answer 400 instead of reporting a 500.
+    const parseJson = req.json.bind(req);
+    req.json = () =>
+      parseJson().catch((error: unknown) => {
+        throw error instanceof SyntaxError ? new ApiError("Invalid JSON body", 400) : error;
+      });
+
     try {
       return await handler(req, ctx);
     } catch (error) {
