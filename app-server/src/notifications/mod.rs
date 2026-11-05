@@ -222,6 +222,9 @@ pub enum NotificationKind {
         usage_item: String,
         #[serde(default)]
         one_time_credit_exhausted: bool,
+        /// Starter trial allowance exhausted: lifting the cap means starting the paid subscription.
+        #[serde(default)]
+        trialing: bool,
     },
     /// A signal skipped a trace that had no LLM content to evaluate. Sent to
     /// workspace owners once per signal, so setup problems surface without

@@ -271,12 +271,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             formatted_limit,
             usage_item,
             one_time_credit_exhausted,
+            trialing,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
-            subject: format!(
-                "Usage limit reached: {} \u{2013} {}",
-                usage_label, workspace_name
-            ),
+            subject: if *trialing {
+                format!(
+                    "You've used your Starter trial allowance \u{2013} {}",
+                    workspace_name
+                )
+            } else {
+                format!(
+                    "Usage limit reached: {} \u{2013} {}",
+                    usage_label, workspace_name
+                )
+            },
             body: EmailBody::Html(render_usage_hard_limit_email(
                 workspace_name,
                 *workspace_id,
@@ -284,6 +292,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 formatted_limit,
                 usage_label,
                 *one_time_credit_exhausted,
+                *trialing,
             )),
         },
         NotificationKind::SignalEmptyTrace {
@@ -654,23 +663,56 @@ fn render_usage_hard_limit_email(
     formatted_limit: &str,
     usage_label: &str,
     one_time_credit_exhausted: bool,
+    trialing: bool,
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
         "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
     };
+    // Trials stay capped even with a card on file, so the trial CTA points at
+    // billing, where the owner adds a card and starts the subscription.
+    let (tab, campaign, cta, footer_cta, title, limit_label) = if trialing {
+        (
+            "billing",
+            "start_subscription",
+            "Start subscription",
+            "Manage billing",
+            "Trial allowance used up",
+            "Trial allowance",
+        )
+    } else {
+        (
+            "usage",
+            "manage_limits",
+            "Manage limit",
+            "Manage usage limits",
+            "Usage limit reached",
+            "Hard limit",
+        )
+    };
     let link = with_utm(
         &format!(
-            "{}/workspace/{}?tab=usage",
+            "{}/workspace/{}?tab={}",
             frontend_url_email(),
-            workspace_id
+            workspace_id,
+            tab
         ),
         "email",
         "usage_hard_limit",
-        "manage_limits",
+        campaign,
     );
-    let copy = if one_time_credit_exhausted {
+    let copy = if trialing {
+        let allowance = if usage_item == "bytes" {
+            "data"
+        } else {
+            "Signals credit"
+        };
+        format!(
+            "Your workspace has used all {} included in the Starter trial. Add a payment method and start your Starter subscription to continue.",
+            allowance
+        )
+    } else if one_time_credit_exhausted {
         "Your workspace has used its one-time Signals credit. Upgrade to continue running Signals."
             .to_string()
     } else {
@@ -680,7 +722,7 @@ fn render_usage_hard_limit_email(
         )
     };
     let rows = vec![
-        ("Hard limit".to_string(), html_escape(formatted_limit)),
+        (limit_label.to_string(), html_escape(formatted_limit)),
         ("Usage".to_string(), html_escape(usage_label)),
         ("Status".to_string(), "Paused".to_string()),
     ];
@@ -689,17 +731,17 @@ fn render_usage_hard_limit_email(
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
-        action(&link, "Manage limit")
+        action(&link, cta)
     );
-    let subtitle = format!("{} has paused", blocked);
+    let subtitle = (!trialing).then(|| format!("{} has paused", blocked));
     let body = format!(
         "{}{}{}",
-        banner(workspace_name, "Usage limit reached", Some(&subtitle)),
+        banner(workspace_name, title, subtitle.as_deref()),
         card,
         footer(
             "This notification was generated automatically by Laminar.",
             &link,
-            "Manage usage limits"
+            footer_cta
         )
     );
     email_document(
@@ -1204,6 +1246,7 @@ mod tests {
             "3 GiB",
             "3 GiB",
             false,
+            false,
         );
 
         assert!(warning_html.contains(EMAIL_PRIMARY_50));
@@ -1221,11 +1264,32 @@ mod tests {
             "$5.00",
             "$5.00",
             true,
+            false,
         );
 
         assert!(html.contains("Signal runs has paused"));
         assert!(html.contains("used its one-time Signals credit"));
         assert!(html.contains("Upgrade to continue"));
+        assert!(!html.contains("billing cycle resets"));
+    }
+
+    #[test]
+    fn trial_hard_limit_asks_to_start_subscription() {
+        let html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "bytes",
+            "10 GiB",
+            "10 GiB",
+            false,
+            true,
+        );
+
+        assert!(html.contains("Trial allowance used up"));
+        assert!(!html.contains("has paused"));
+        assert!(html.contains("included in the Starter trial"));
+        assert!(html.contains("Start subscription"));
+        assert!(html.contains("tab=billing"));
         assert!(!html.contains("billing cycle resets"));
     }
 
