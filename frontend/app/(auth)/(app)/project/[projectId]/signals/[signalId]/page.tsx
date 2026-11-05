@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import Signal from "@/components/signal";
 import { resolveClusterForEvent } from "@/lib/actions/clusters/resolve-for-event";
+import { getBrokerLicenseKey } from "@/lib/license";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -42,11 +43,13 @@ export default async function SignalPage(props: {
     redirect(`/project/${projectId}/signals/${signalId}${query ? `?${query}` : ""}`);
   }
 
+  const brokerLicenseKey = process.env.SLACK_BROKER_URL ? await getBrokerLicenseKey() : null;
+
   return (
     <Signal
       slackClientId={process.env.SLACK_CLIENT_ID}
       slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-      slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
+      slackBrokerEnabled={!!brokerLicenseKey}
     />
   );
 }

@@ -14,12 +14,10 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 export const NotificationItem = ({
   notification,
   formatted,
-  projectId,
   onViewed,
 }: {
   notification: WebNotification;
   formatted: FormattedNotification;
-  projectId?: string;
   onViewed?: (id: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -61,7 +59,7 @@ export const NotificationItem = ({
       )}
       {formatted.kind === "alert" && <AlertContent formatted={formatted} isUnread={isUnread} />}
       {formatted.kind === "cluster" && <ClusterContent formatted={formatted} isUnread={isUnread} />}
-      {formatted.kind === "report" && <ReportContent formatted={formatted} projectId={projectId} />}
+      {formatted.kind === "report" && <ReportContent formatted={formatted} />}
     </>
   );
 

@@ -9,6 +9,7 @@ import {
   signals,
   tracesAgentMessages,
   slackIntegrations,
+  githubIntegrations,
   evaluators,
   evaluatorSpanPaths,
   evaluatorScores,
@@ -54,8 +55,6 @@ import {
   debuggerSessionBlocks,
   workspaceUsage,
   signalTriggers,
-  chatMessages,
-  chatSessions,
   tableViews,
   notificationReads,
   tagClasses,
@@ -152,8 +151,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   debuggerSessions: many(debuggerSessions),
   debuggerSessionBlocks: many(debuggerSessionBlocks),
   signalTriggers: many(signalTriggers),
-  chatMessages: many(chatMessages),
-  chatSessions: many(chatSessions),
   tableViews: many(tableViews),
   notificationReads: many(notificationReads),
   tagClasses: many(tagClasses),
@@ -210,6 +207,13 @@ export const tracesAgentMessagesRelations = relations(tracesAgentMessages, ({ on
 export const slackIntegrationsRelations = relations(slackIntegrations, ({ one }) => ({
   workspace: one(workspaces, {
     fields: [slackIntegrations.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const githubIntegrationsRelations = relations(githubIntegrations, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [githubIntegrations.workspaceId],
     references: [workspaces.id],
   }),
 }));
@@ -602,20 +606,6 @@ export const signalTriggersRelations = relations(signalTriggers, ({ one }) => ({
   signal: one(signals, {
     fields: [signalTriggers.signalId],
     references: [signals.id],
-  }),
-}));
-
-export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
-  project: one(projects, {
-    fields: [chatMessages.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const chatSessionsRelations = relations(chatSessions, ({ one }) => ({
-  project: one(projects, {
-    fields: [chatSessions.projectId],
-    references: [projects.id],
   }),
 }));
 

@@ -13,7 +13,7 @@ const StartRequestSchema = z.object({
 // redirects the browser to that URL — the instance key never enters a browser.
 export async function POST(req: NextRequest): Promise<Response> {
   try {
-    const instanceId = await authenticateInstance(getBearerToken(req.headers.get("authorization")) ?? "");
+    const instanceId = authenticateInstance(getBearerToken(req.headers.get("authorization")) ?? "");
     if (!instanceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

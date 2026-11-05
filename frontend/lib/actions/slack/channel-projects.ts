@@ -1,6 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { decodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { projects, slackChannelProjects, slackIntegrations } from "@/lib/db/migrations/schema";
 
@@ -77,6 +78,43 @@ export async function upsertChannelProjectBinding(input: z.infer<typeof UpsertBi
       target: slackChannelProjects.channelId,
       set: { workspaceId, projectId, channelName: channelName ?? null, integrationId: integration.id },
     });
+}
+
+/**
+ * The project a mention in this channel routes to, plus the token of the binding's own integration to reply with.
+ * Joined through `integration_id`, not resolved from `team_id`, which is not unique across workspaces. `channel_id` is
+ * unique, so at most one row matches; `team_id` only guards against a channel id from another team.
+ */
+export async function getChannelBinding(
+  teamId: string,
+  channelId: string
+): Promise<{ projectId: string; token: string } | null> {
+  const [row] = await db
+    .select({
+      projectId: slackChannelProjects.projectId,
+      teamId: slackIntegrations.teamId,
+      token: slackIntegrations.token,
+      nonceHex: slackIntegrations.nonceHex,
+    })
+    .from(slackChannelProjects)
+    .innerJoin(slackIntegrations, eq(slackIntegrations.id, slackChannelProjects.integrationId))
+    .where(and(eq(slackIntegrations.teamId, teamId), eq(slackChannelProjects.channelId, channelId)))
+    .limit(1);
+  if (!row) return null;
+  return { projectId: row.projectId, token: await decodeSlackToken(row.teamId, row.nonceHex, row.token) };
+}
+
+/** Every project in every workspace this Slack team is connected to, for the in-Slack project picker. */
+export async function getProjectsForTeam(teamId: string): Promise<{ id: string; name: string }[]> {
+  return (
+    db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .innerJoin(slackIntegrations, eq(slackIntegrations.workspaceId, projects.workspaceId))
+      .where(eq(slackIntegrations.teamId, teamId))
+      // lower() first: a C-collation database sorts every capital ahead of every lowercase.
+      .orderBy(sql`lower(${projects.name})`, asc(projects.name))
+  );
 }
 
 /** Remove the binding for a channel (no-op if it doesn't exist). */

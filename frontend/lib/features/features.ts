@@ -7,6 +7,7 @@ export enum Feature {
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
   OKTA_AUTH = "OKTA_AUTH",
+  SSO_MANAGED_MEMBERSHIP = "SSO_MANAGED_MEMBERSHIP",
   KEYCLOAK_AUTH = "KEYCLOAK_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   POSTHOG = "POSTHOG",
@@ -75,6 +76,11 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     return !!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER;
   }
 
+  // Okta SCIM owns users and workspace memberships, so manual membership edits are disabled.
+  if (feature === Feature.SSO_MANAGED_MEMBERSHIP) {
+    return isFeatureEnabled(Feature.OKTA_AUTH) && !!process.env.AUTH_OKTA_SCIM_TOKEN;
+  }
+
   if (feature === Feature.KEYCLOAK_AUTH) {
     return !!process.env.AUTH_KEYCLOAK_ID && !!process.env.AUTH_KEYCLOAK_SECRET && !!process.env.AUTH_KEYCLOAK_ISSUER;
   }
@@ -120,15 +126,16 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.SLACK) {
     // Cloud: the official app's own OAuth config. Broker: a self-hosted instance
-    // points at the Laminar Cloud broker with its license key and needs no Slack
-    // app secrets of its own.
+    // points at the Laminar Cloud broker and needs no Slack app secrets of its
+    // own. Its license key may live in the env or in settings (`getBrokerLicenseKey`),
+    // so the connect UI checks the key itself.
     const cloudEnabled =
       process.env.ENVIRONMENT === "PRODUCTION" &&
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
       !!process.env.SLACK_REDIRECT_URL;
-    const brokerEnabled = !!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY;
+    const brokerEnabled = !!process.env.SLACK_BROKER_URL;
     return cloudEnabled || brokerEnabled;
   }
 
