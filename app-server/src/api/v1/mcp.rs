@@ -48,7 +48,15 @@ pub struct QuerySqlParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetTraceContextParams {
-    /// The trace ID to retrieve (UUID format, e.g., '123e4567-e89b-12d3-a456-426614174000')
+    /// The trace ID to retrieve (GUID format, e.g., '123e4567-e89b-12d3-a456-426614174000')
+    // Schemars macro to not advertise this as a RFC UUID. E.g. zod tries to parse with
+    // `z.uuid()`, which fails. So explicilty define regex schema instead
+    #[schemars(
+        with = "String",
+        regex(
+            pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        )
+    )]
     pub trace_id: Uuid,
 }
 
