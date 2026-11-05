@@ -75,6 +75,7 @@ pub enum AuditAction {
     Export,
     Query,
     Run,
+    Backfill,
     Invite,
     Join,
     Remove,
