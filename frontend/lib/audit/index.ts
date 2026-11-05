@@ -30,9 +30,14 @@ export interface AuditHandle {
   /**
    * Names what the request acted on. Display names come from `NAME_SOURCES` and are read when
    * this is called, so a delete must await it before deleting. Pass `name` when the handler
-   * already has it, or for resources without a name column (members, API keys).
+   * already has it, or for resources without a name column (members). `parent` names what contains
+   * the target (`{ dashboardId }` for a chart), recorded in metadata under its keys; nothing is
+   * taken from the path on its own.
    */
-  target: (ids: string | readonly string[] | null | undefined, opts?: { name?: string }) => Promise<void>;
+  target: (
+    ids: string | readonly string[] | null | undefined,
+    opts?: { name?: string; parent?: Record<string, string | null | undefined> }
+  ) => Promise<void>;
   /** Metadata, a body-dependent action, or a scope other than the route params. */
   set: (details: AuditDetails) => void;
   /** The request changed nothing worth recording (e.g. a no-op update). */
@@ -57,6 +62,7 @@ export const withAudit =
     const targets: Target[] = [];
     // Label of a target without an id (an invited email).
     let label: string | undefined;
+    const parents: Record<string, string> = {};
     const lookups: Promise<void>[] = [];
     let skipped = false;
 
@@ -79,6 +85,7 @@ export const withAudit =
 
     const audit: AuditHandle = {
       target: async (ids, opts) => {
+        for (const [key, value] of Object.entries(opts?.parent ?? {})) if (value) parents[key] = value;
         const list = (typeof ids === "string" ? [ids] : (ids ?? [])).filter(
           (id) => id !== "" && !targets.some((t) => t.id === id)
         );
@@ -108,7 +115,6 @@ export const withAudit =
     } finally {
       if (!skipped) {
         const session = await getServerSession().catch(() => null);
-        const params: Params = await ctx.params;
         const { workspaceId, projectId } = await scope();
         // Without a session or a workspace/project (e.g. a request rejected before
         // its project was resolved) there is no log to attribute the event to.
@@ -118,7 +124,7 @@ export const withAudit =
           const userAgent = req.headers.get("user-agent") ?? undefined;
           const send = async () => {
             await Promise.all(lookups);
-            const fields = targetFields(targets, label, params);
+            const fields = targetFields(targets, label, parents);
             await postAuditEvent({
               ...details,
               ...fields,
