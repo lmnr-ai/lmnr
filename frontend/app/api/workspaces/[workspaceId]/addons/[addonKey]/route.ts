@@ -8,11 +8,11 @@ type Params = { workspaceId: string; addonKey: string };
  * Adds the specified addon to the workspace's active subscription.
  * Charges a pro-rated amount immediately via Stripe.
  */
-// The addon key is recorded from the path.
 export const POST = withAudit<Params>(
   { resource: "subscription", action: "update", noTarget: true },
-  async (_req, ctx) => {
+  async (_req, ctx, audit) => {
     const { workspaceId, addonKey } = await ctx.params;
+    audit.set({ metadata: { addonKey, change: "add" } });
 
     const validation = await resolveAndValidate(workspaceId, addonKey);
     if (validation.error) {
@@ -44,8 +44,9 @@ export const POST = withAudit<Params>(
  */
 export const DELETE = withAudit<Params>(
   { resource: "subscription", action: "update", noTarget: true },
-  async (_req, ctx) => {
+  async (_req, ctx, audit) => {
     const { workspaceId, addonKey } = await ctx.params;
+    audit.set({ metadata: { addonKey, change: "remove" } });
 
     const validation = await resolveAndValidate(workspaceId, addonKey);
     if (validation.error) {

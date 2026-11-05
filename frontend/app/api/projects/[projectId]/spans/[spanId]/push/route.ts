@@ -17,6 +17,7 @@ export const POST = withAudit<{ projectId: string; spanId: string }>(
       return Response.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
     }
 
+    audit.set({ metadata: { spanId } });
     await audit.target(result.data.queueId);
     await pushSpanToLabelingQueue(result.data);
 

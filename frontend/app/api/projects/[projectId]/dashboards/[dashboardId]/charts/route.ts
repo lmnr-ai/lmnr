@@ -15,7 +15,7 @@ export const PATCH = withAudit<Params>({ resource: "chart", action: "update" }, 
   await updateChartsLayout({ ...body, projectId, dashboardId });
   const chartIds: string[] = Array.isArray(body?.updates) ? body.updates.map((u: { id: string }) => u.id) : [];
   audit.set({ metadata: { change: "layout" } });
-  await audit.target(chartIds);
+  await audit.target(chartIds, { parent: { dashboardId } });
   return Response.json({ success: true });
 });
 
@@ -23,6 +23,6 @@ export const POST = withAudit<Params>({ resource: "chart", action: "create" }, a
   const { projectId, dashboardId } = await ctx.params;
   const body = await req.json();
   const chart = await createChart({ ...body, projectId, dashboardId });
-  await audit.target(chart.id, { name: chart.name });
+  await audit.target(chart.id, { name: chart.name, parent: { dashboardId } });
   return Response.json(chart);
 });
