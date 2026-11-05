@@ -2,14 +2,13 @@ import { updateQueueAnnotationSchema } from "@/lib/actions/queue";
 import { apiHandler } from "@/lib/api/api-handler";
 
 export const PUT = apiHandler<{ projectId: string; queueId: string }>(async (request, ctx) => {
-  const params = await ctx.params;
-
+  const { projectId, queueId } = await ctx.params;
   const body = await request.json();
 
   const updatedQueue = await updateQueueAnnotationSchema({
-    ...body,
-    queueId: params.queueId,
-    projectId: params.projectId,
+    projectId,
+    queueId,
+    annotationSchema: body?.annotationSchema ?? null,
   });
 
   return Response.json(updatedQueue);

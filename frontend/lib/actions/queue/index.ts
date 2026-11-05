@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, NotFoundError } from "@/lib/api/errors";
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
@@ -232,7 +232,7 @@ export async function updateQueueAnnotationSchema(input: z.infer<typeof UpdateQu
     .returning();
 
   if (!updatedQueue) {
-    throw new Error("Failed to update queue annotation schema");
+    throw new NotFoundError("Queue not found");
   }
 
   return updatedQueue;
