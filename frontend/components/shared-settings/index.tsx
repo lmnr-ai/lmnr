@@ -315,7 +315,7 @@ const SharedSettings = ({
     <div className="flex flex-col h-full gap-2">
       {/* Header is OUTSIDE the nested provider so its SidebarTrigger toggles the main project sidebar. */}
       <Header path="settings" />
-      <SidebarProvider defaultOpen>
+      <SidebarProvider defaultOpen className="min-h-0 flex-1">
         <div className="flex flex-1 overflow-hidden">
           <Sidebar collapsible="none" className="w-72">
             <SidebarContent className="bg-background pl-2">
