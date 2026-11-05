@@ -8,21 +8,25 @@ use std::sync::Arc;
 use actix_web::{
     Error, HttpMessage, HttpRequest,
     body::MessageBody,
-    dev::{Path, ResourceDef, ServiceRequest, ServiceResponse},
+    dev::{ServiceRequest, ServiceResponse},
     http::Method,
     middleware::Next,
     web,
 };
+use serde_json::Value;
 use uuid::Uuid;
 
-use super::{AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource};
+use super::{
+    AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource,
+    target::Targets,
+};
 use crate::{
     auth::cli_user::CliProjectAuth, cache::Cache, db::DB, db::project_api_keys::ProjectApiKey,
     mq::MessageQueue,
 };
 
 #[derive(Debug, PartialEq, Eq)]
-enum Classification {
+pub(super) enum Classification {
     Log {
         resource: AuditResource,
         action: AuditAction,
@@ -43,7 +47,7 @@ const fn log(resource: AuditResource, action: AuditAction) -> Classification {
 
 /// `path` is the matched pattern with its `/v1` or `/v1/cli` prefix removed.
 /// `None` for a route nobody has classified yet.
-fn classify(method: &Method, path: &str) -> Option<Classification> {
+pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
     use AuditAction::*;
     use AuditResource::*;
 
@@ -119,7 +123,7 @@ fn classify(method: &Method, path: &str) -> Option<Classification> {
 }
 
 /// Pattern relative to the API root, and which surface it belongs to.
-fn route(req: &HttpRequest) -> Option<(String, AuditSource)> {
+pub(super) fn route(req: &HttpRequest) -> Option<(String, AuditSource)> {
     let pattern = req.match_pattern()?;
     if let Some(rest) = pattern.strip_prefix("/v1/cli") {
         return Some((rest.to_string(), AuditSource::Cli));
@@ -128,7 +132,7 @@ fn route(req: &HttpRequest) -> Option<(String, AuditSource)> {
     Some((rest.to_string(), AuditSource::Api))
 }
 
-fn actor(req: &HttpRequest) -> Option<(AuditActor, uuid::Uuid)> {
+pub(super) fn actor(req: &HttpRequest) -> Option<(AuditActor, Uuid)> {
     let extensions = req.extensions();
     if let Some(key) = extensions.get::<ProjectApiKey>() {
         return Some((AuditActor::api_key(key), key.project_id));
@@ -143,109 +147,56 @@ fn actor(req: &HttpRequest) -> Option<(AuditActor, uuid::Uuid)> {
     })
 }
 
-/// The innermost id in the path (`/dashboards/{dashboard_id}/charts` →
-/// the dashboard).
-fn path_resource_id(req: &HttpRequest) -> Option<String> {
-    innermost_id(req.match_info())
+/// Ids and names past this are dropped; bulk datapoint creates can carry thousands.
+const MAX_TARGETS: usize = 100;
+
+#[derive(Debug, PartialEq)]
+struct TargetFields {
+    resource_id: Option<String>,
+    resource_label: Option<String>,
+    metadata: Option<Value>,
 }
 
-fn innermost_id(path: &Path<impl actix_web::dev::ResourcePath>) -> Option<String> {
-    path.iter()
-        .filter(|(name, _)| name.ends_with("_id") && *name != "project_id")
-        .last()
-        .map(|(_, value)| value.to_string())
-}
-
-/// What owns a deleted row, compared with the caller once auth has resolved it.
-enum NameScope {
-    Project(Uuid),
-    Workspace(Uuid),
-}
-
-struct DeletedName {
-    name: String,
-    scope: NameScope,
-}
-
-/// The display name and owner of a resource `/v1` deletes, and whether the owner is a
-/// workspace (else a project).
-fn name_query(resource: AuditResource) -> Option<(&'static str, bool)> {
-    use AuditResource::*;
-    Some(match resource {
-        Dataset => ("SELECT name, project_id FROM datasets WHERE id = $1", false),
-        Signal => ("SELECT name, project_id FROM signals WHERE id = $1", false),
-        Alert => ("SELECT name, project_id FROM alerts WHERE id = $1", false),
-        Dashboard => (
-            "SELECT name, project_id FROM dashboards WHERE id = $1",
-            false,
-        ),
-        DebuggerSession => (
-            "SELECT name, project_id FROM debugger_sessions WHERE id = $1",
-            false,
-        ),
-        LlmProfile => (
-            "SELECT name, workspace_id FROM llm_profiles WHERE id = $1",
-            true,
-        ),
-        _ => return None,
-    })
-}
-
-/// Read before the handler deletes the row. The caller's project is only known after its
-/// auth extractor runs, so the row's owner is kept and checked in `label_for`.
-async fn deleted_name(req: &ServiceRequest) -> Option<DeletedName> {
-    if req.method() != Method::DELETE {
-        return None;
+/// One target names the event; several go to `metadata.ids` / `metadata.names`. Path ids
+/// that are not targets (`/dashboards/{dashboard_id}/charts`) are kept as parents.
+fn target_fields<'a>(
+    targets: Targets,
+    path_params: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> TargetFields {
+    let Targets {
+        items,
+        mut metadata,
+    } = targets;
+    for (name, value) in path_params {
+        if name.ends_with("_id")
+            && name != "project_id"
+            && !items
+                .iter()
+                .any(|target| target.id.eq_ignore_ascii_case(value))
+        {
+            metadata.insert(name.to_string(), Value::String(value.to_string()));
+        }
     }
-    let request = req.request();
-    let (path, _) = route(request)?;
-    let Some(Classification::Log {
-        resource,
-        action: AuditAction::Delete,
-        ..
-    }) = classify(req.method(), &path)
-    else {
-        return None;
+    let (resource_id, resource_label) = match items.as_slice() {
+        [] => (None, None),
+        [target] => (Some(target.id.clone()), target.name.clone()),
+        many => {
+            let capped = &many[..many.len().min(MAX_TARGETS)];
+            let ids = capped.iter().map(|t| Value::String(t.id.clone()));
+            let names = capped
+                .iter()
+                .filter_map(|t| t.name.clone())
+                .map(Value::String);
+            metadata.insert("ids".to_string(), ids.collect());
+            metadata.insert("names".to_string(), names.collect());
+            metadata.insert("count".to_string(), Value::from(many.len()));
+            (None, None)
+        }
     };
-    let (query, by_workspace) = name_query(resource)?;
-    let pattern = request.match_pattern()?;
-    let mut captured = Path::new(req.path().to_string());
-    if !ResourceDef::new(pattern.as_str()).capture_match_info(&mut captured) {
-        return None;
-    }
-    let id: Uuid = innermost_id(&captured)?.parse().ok()?;
-    let db = request.app_data::<web::Data<DB>>()?;
-    let (name, owner_id) = sqlx::query_as::<_, (Option<String>, Uuid)>(query)
-        .bind(id)
-        .fetch_optional(&db.pool)
-        .await
-        .ok()??;
-    let scope = if by_workspace {
-        NameScope::Workspace(owner_id)
-    } else {
-        NameScope::Project(owner_id)
-    };
-    Some(DeletedName {
-        name: name.filter(|n| !n.is_empty())?,
-        scope,
-    })
-}
-
-impl DeletedName {
-    async fn label_for(self, project_id: Uuid, db: &DB) -> Option<String> {
-        let owned = match self.scope {
-            NameScope::Project(owner) => owner == project_id,
-            NameScope::Workspace(owner) => {
-                sqlx::query_scalar::<_, Uuid>("SELECT workspace_id FROM projects WHERE id = $1")
-                    .bind(project_id)
-                    .fetch_optional(&db.pool)
-                    .await
-                    .ok()
-                    .flatten()
-                    == Some(owner)
-            }
-        };
-        owned.then_some(self.name)
+    TargetFields {
+        resource_id,
+        resource_label,
+        metadata: (!metadata.is_empty()).then_some(Value::Object(metadata)),
     }
 }
 
@@ -253,7 +204,6 @@ pub async fn audit_v1(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
-    let deleted = deleted_name(&req).await;
     let res = next.call(req).await?;
 
     let request = res.request();
@@ -296,10 +246,22 @@ pub async fn audit_v1(
         AuditOutcome::from_status(res.status().as_u16()),
     );
     input.project_id = Some(project_id);
-    input.resource_id = path_resource_id(request);
-    if let Some(deleted) = deleted {
-        input.resource_label = deleted.label_for(project_id, db).await;
+    let targets = request.extensions_mut().remove::<Targets>();
+    // Runs are exempt: an agent chat has no id to name.
+    let writes = matches!(
+        action,
+        AuditAction::Create | AuditAction::Update | AuditAction::Delete
+    );
+    if targets.is_none() && writes && res.status().is_success() {
+        log::warn!(
+            "{} {path} recorded no audit target; call audit::target in its handler",
+            request.method()
+        );
     }
+    let fields = target_fields(targets.unwrap_or_default(), request.match_info().iter());
+    input.resource_id = fields.resource_id;
+    input.resource_label = fields.resource_label;
+    input.metadata = fields.metadata;
     input.ip = request
         .connection_info()
         .realip_remote_addr()
@@ -325,7 +287,10 @@ pub async fn audit_v1(
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
+    use crate::audit::target::Target;
 
     #[test]
     fn ingestion_and_per_item_routes_are_skipped() {
@@ -356,5 +321,72 @@ mod tests {
             Some(log(AuditResource::Dataset, AuditAction::Delete))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);
+    }
+
+    fn targets(items: &[(&str, Option<&str>)]) -> Targets {
+        Targets {
+            items: items
+                .iter()
+                .map(|(id, name)| Target {
+                    id: id.to_string(),
+                    name: name.map(str::to_string),
+                })
+                .collect(),
+            ..Targets::default()
+        }
+    }
+
+    #[test]
+    fn one_target_names_the_event() {
+        let fields = target_fields(
+            targets(&[("d1", Some("Prod"))]),
+            [("project_id", "p1"), ("dataset_id", "d1")],
+        );
+        assert_eq!(
+            fields,
+            TargetFields {
+                resource_id: Some("d1".to_string()),
+                resource_label: Some("Prod".to_string()),
+                metadata: None,
+            }
+        );
+    }
+
+    #[test]
+    fn several_targets_go_to_metadata_with_their_parent() {
+        let fields = target_fields(
+            targets(&[("c1", Some("Latency")), ("c2", None)]),
+            [("dashboard_id", "dash")],
+        );
+        assert_eq!(fields.resource_id, None);
+        assert_eq!(fields.resource_label, None);
+        assert_eq!(
+            fields.metadata,
+            Some(json!({
+                "dashboard_id": "dash",
+                "ids": ["c1", "c2"],
+                "names": ["Latency"],
+                "count": 2,
+            }))
+        );
+    }
+
+    #[test]
+    fn stored_targets_are_capped() {
+        let ids: Vec<String> = (0..150).map(|i| format!("dp{i}")).collect();
+        let items: Vec<(&str, Option<&str>)> = ids.iter().map(|id| (id.as_str(), None)).collect();
+        let mut many = targets(&items);
+        many.metadata.insert("dataset_id".to_string(), json!("ds"));
+        let metadata = target_fields(many, []).metadata.unwrap();
+        assert_eq!(metadata["ids"].as_array().unwrap().len(), MAX_TARGETS);
+        assert_eq!(metadata["count"], json!(150));
+        assert_eq!(metadata["dataset_id"], json!("ds"));
+    }
+
+    #[test]
+    fn untargeted_path_ids_are_parents() {
+        let fields = target_fields(Targets::default(), [("dataset_id", "d1"), ("idx", "0")]);
+        assert_eq!(fields.resource_id, None);
+        assert_eq!(fields.metadata, Some(json!({ "dataset_id": "d1" })));
     }
 }

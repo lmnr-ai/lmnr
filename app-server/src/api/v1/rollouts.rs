@@ -1,9 +1,10 @@
-use actix_web::{HttpResponse, delete, get, post, web};
+use actix_web::{HttpRequest, HttpResponse, delete, get, post, web};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use super::debugger::{AddBlockRequest, handle_add_block, handle_list_blocks};
 use crate::{
+    audit,
     cache::Cache,
     db::project_api_keys::ProjectApiKey,
     db::{
@@ -29,6 +30,7 @@ pub struct RegisterSessionRequest {
 /// sessions — registration is explicit.
 #[post("rollouts/{session_id}")]
 pub async fn register_session(
+    req: HttpRequest,
     path: web::Path<Uuid>,
     project_api_key: ProjectApiKey,
     body: web::Json<RegisterSessionRequest>,
@@ -41,6 +43,7 @@ pub async fn register_session(
 
     let session =
         create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
+    audit::target_named(&req, session.id, session.name.clone());
 
     Ok(HttpResponse::Ok().json(session))
 }
@@ -123,6 +126,7 @@ pub async fn add_block(
 
 #[delete("rollouts/{session_id}")]
 pub async fn delete(
+    req: HttpRequest,
     path: web::Path<String>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
@@ -133,6 +137,7 @@ pub async fn delete(
         Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
     let project_id = project_api_key.project_id;
 
+    audit::target(&req, [session_id]).await;
     delete_debugger_session(&db.pool, &session_id, &project_id).await?;
 
     // Send deletion event to frontend via SSE

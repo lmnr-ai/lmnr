@@ -11,6 +11,9 @@
 pub mod consumer;
 pub mod middleware;
 pub mod routes;
+mod target;
+
+pub use target::{target, target_named, target_parent};
 
 use std::sync::Arc;
 

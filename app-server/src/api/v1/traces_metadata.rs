@@ -1,11 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
-use actix_web::{HttpResponse, post, web};
+use actix_web::{HttpRequest, HttpResponse, post, web};
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    audit,
     cache::Cache,
     ch::traces_agg::trace_exists,
     db::{DB, project_api_keys::ProjectApiKey},
@@ -36,6 +37,7 @@ pub struct UpdateTraceMetadataRequest {
 /// its patch behind as a row carrying metadata only.
 #[post("metadata")]
 pub async fn update_trace_metadata(
+    http_req: HttpRequest,
     req: web::Json<UpdateTraceMetadataRequest>,
     project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
@@ -44,6 +46,7 @@ pub async fn update_trace_metadata(
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
+    audit::target(&http_req, [req.trace_id]).await;
     handle_trace_metadata(
         project_api_key.project_id,
         req,

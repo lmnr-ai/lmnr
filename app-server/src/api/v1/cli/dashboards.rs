@@ -5,13 +5,13 @@
 
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, delete, patch, post, put, web};
+use actix_web::{HttpRequest, HttpResponse, delete, patch, post, put, web};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::access_policy::{self, Actor};
-use crate::audit::{AuditActor, AuditOutcome};
+use crate::audit::{self, AuditActor, AuditOutcome};
 use crate::auth::cli_user::CliProjectAuth;
 use crate::cache::Cache;
 use crate::dashboards::{self, Dashboard};
@@ -70,7 +70,8 @@ fn dashboard_url(project_id: Uuid, dashboard_id: Uuid) -> String {
     )
 }
 
-fn dashboard_response(dashboard: Dashboard) -> HttpResponse {
+fn dashboard_response(req: &HttpRequest, dashboard: Dashboard) -> HttpResponse {
+    audit::target_named(req, dashboard.id, dashboard.name.clone());
     let dashboard_url = dashboard_url(dashboard.project_id, dashboard.id);
     HttpResponse::Ok().json(DashboardResponse {
         dashboard,
@@ -80,19 +81,21 @@ fn dashboard_response(dashboard: Dashboard) -> HttpResponse {
 
 #[post("dashboards")]
 pub async fn create_dashboard(
+    req: HttpRequest,
     auth: CliProjectAuth,
     body: web::Json<DashboardNameInput>,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let result = dashboards::create_dashboard(&http_client, auth.project_id, &body.name).await;
     Ok(match result {
-        Ok(dashboard) => dashboard_response(dashboard),
+        Ok(dashboard) => dashboard_response(&req, dashboard),
         Err(e) => dashboards::error_response(e),
     })
 }
 
 #[patch("dashboards/{dashboard_id}")]
 pub async fn rename_dashboard(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<DashboardNameInput>,
@@ -102,18 +105,20 @@ pub async fn rename_dashboard(
         dashboards::rename_dashboard(&http_client, auth.project_id, path.into_inner(), &body.name)
             .await;
     Ok(match result {
-        Ok(dashboard) => dashboard_response(dashboard),
+        Ok(dashboard) => dashboard_response(&req, dashboard),
         Err(e) => dashboards::error_response(e),
     })
 }
 
 #[delete("dashboards/{dashboard_id}")]
 pub async fn delete_dashboard(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let dashboard_id = path.into_inner();
+    audit::target(&req, [dashboard_id]).await;
     let result = dashboards::delete_dashboard(&http_client, auth.project_id, dashboard_id).await;
     Ok(match result {
         Ok(()) => HttpResponse::Ok().json(json!({ "id": dashboard_id, "deleted": true })),
@@ -188,6 +193,7 @@ async fn audit_chart_queries(
 /// for layout semantics.
 #[put("dashboards/{dashboard_id}/charts")]
 pub async fn upsert_charts(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<UpsertChartsInput>,
@@ -224,11 +230,14 @@ pub async fn upsert_charts(
             charts: upserted
                 .charts
                 .into_iter()
-                .map(|chart| ChartSummary {
-                    id: chart.id,
-                    name: chart.name,
-                    config: chart.settings.get("config").cloned(),
-                    layout: chart.settings.get("layout").cloned(),
+                .map(|chart| {
+                    audit::target_named(&req, chart.id, chart.name.clone());
+                    ChartSummary {
+                        id: chart.id,
+                        name: chart.name,
+                        config: chart.settings.get("config").cloned(),
+                        layout: chart.settings.get("layout").cloned(),
+                    }
                 })
                 .collect(),
             warnings: upserted.warnings,
@@ -242,12 +251,14 @@ pub async fn upsert_charts(
 /// are skipped, so `deleted` may be less than `requested`.
 #[delete("dashboards/{dashboard_id}/charts")]
 pub async fn delete_charts(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<DeleteChartsInput>,
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let chart_ids = body.into_inner().chart_ids;
+    audit::target(&req, &chart_ids).await;
     let result =
         dashboards::delete_charts(&http_client, auth.project_id, path.into_inner(), &chart_ids)
             .await;
