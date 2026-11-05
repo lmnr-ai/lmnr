@@ -7,6 +7,7 @@ import { getServerSession } from "@/lib/auth-session";
 import { type AuditAction, type AuditOutcome, type AuditResource, outcomeFromStatus } from "./events";
 import { getResourceNames } from "./labels";
 import { type AuditDetails, type AuditEventPayload, clientIp, postAuditEvent } from "./post";
+import { type Params, paramString, type Target, targetFields } from "./target";
 
 export type { AuditDetails } from "./post";
 
@@ -39,44 +40,6 @@ export interface AuditHandle {
 }
 
 type RouteContext<P> = { params: Promise<P> };
-type Params = Record<string, string | string[] | undefined>;
-
-const paramString = (value: string | string[] | undefined) => (typeof value === "string" ? value : undefined);
-
-const ID_PARAM = /^(id|.+Id|.+Key)$/;
-const SCOPE_PARAMS = new Set(["projectId", "workspaceId"]);
-// Bulk requests keep the first ids and names, plus `count`.
-const MAX_LISTED = 100;
-
-/** Path ids that aren't the request's targets, recorded as its parents (`/dashboards/[dashboardId]/charts`). */
-const parentParams = (params: Params, targets: string[]) =>
-  Object.fromEntries(
-    Object.entries(params).flatMap(([key, value]) => {
-      const id = paramString(value);
-      return id && ID_PARAM.test(key) && !SCOPE_PARAMS.has(key) && !targets.includes(id) ? [[key, id]] : [];
-    })
-  );
-
-type Target = { id: string; name?: string };
-
-/** Resource fields of the event: one target is its resource, several go to metadata. */
-export const targetFields = (targets: Target[], label: string | undefined, params: Params) => {
-  const ids = targets.map((t) => t.id);
-  const many = ids.length > 1;
-  const metadata: Record<string, unknown> = {
-    ...parentParams(params, ids),
-    ...(many && {
-      ids: ids.slice(0, MAX_LISTED),
-      names: targets.flatMap((t) => (t.name ? [t.name] : [])).slice(0, MAX_LISTED),
-      count: ids.length,
-    }),
-  };
-  return {
-    resourceId: many ? undefined : ids[0],
-    resourceLabel: many ? undefined : (targets[0]?.name ?? label),
-    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-  };
-};
 
 /**
  * Wraps a route handler so every call records an audit event. Every mutating
