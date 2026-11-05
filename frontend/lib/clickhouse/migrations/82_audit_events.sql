@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS audit_events
     actor_type LowCardinality(String),
     actor_id UUID,
     actor_label String,
+    actor_role LowCardinality(String),
     actor_owner_user_id UUID,
     actor_owner_label String,
     source LowCardinality(String),

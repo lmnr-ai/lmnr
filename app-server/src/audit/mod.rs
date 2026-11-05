@@ -215,6 +215,8 @@ pub struct AuditEvent {
     pub actor_type: String,
     pub actor_id: Uuid,
     pub actor_label: String,
+    /// The user's workspace role when the event was recorded; empty for API keys.
+    pub actor_role: String,
     pub actor_owner_user_id: Option<Uuid>,
     pub actor_owner_label: String,
     pub source: AuditSource,
@@ -288,6 +290,15 @@ async fn enrich(
             owner_user_id,
         } => ("api_key", *key_id, label.clone(), *owner_user_id),
     };
+    // Read at write time: the role the actor held when acting, not their current one.
+    let actor_role = match &input.actor {
+        AuditActor::User { user_id } => {
+            db::workspaces::get_member_role(&db.pool, scope.workspace_id, *user_id)
+                .await?
+                .unwrap_or_default()
+        }
+        AuditActor::ApiKey { .. } => String::new(),
+    };
     let actor_owner_label = match actor_owner_user_id {
         Some(owner) => db::users::get_user_email(&db.pool, owner)
             .await?
@@ -304,6 +315,7 @@ async fn enrich(
         actor_type: actor_type.to_string(),
         actor_id,
         actor_label,
+        actor_role,
         actor_owner_user_id,
         actor_owner_label,
         source: input.source,

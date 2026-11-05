@@ -19,6 +19,7 @@ pub struct AuditEventCHRow {
     #[serde(with = "clickhouse::serde::uuid")]
     pub actor_id: Uuid,
     pub actor_label: String,
+    pub actor_role: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub actor_owner_user_id: Uuid,
     pub actor_owner_label: String,
