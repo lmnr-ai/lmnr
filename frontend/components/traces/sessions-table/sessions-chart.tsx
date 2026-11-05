@@ -6,14 +6,15 @@ import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { DEFAULT_TARGET_BARS } from "@/components/traces/traces-table/constants";
-import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
+import { type SessionsStatsDataPoint } from "@/lib/actions/sessions/stats";
+import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
+// One neutral series (sessions have no status): the signals chart's "unclustered" gray at its bar opacity.
 const chartConfig = {
-  successCount: { label: "success", color: "var(--success)", stackId: "stack" },
-  errorCount: { label: "error", color: "var(--destructive)", stackId: "stack" },
+  count: { label: "sessions", color: withOpacity(UNCLUSTERED_COLOR, 0.6) },
 } as const;
 
-const fields = ["successCount", "errorCount"] as const;
+const fields = ["count"] as const;
 
 interface SessionsChartProps {
   projectId: string;
@@ -27,7 +28,7 @@ interface SessionsChartProps {
   isViewLoading: boolean;
 }
 
-/** Sessions started per time bucket (by first trace), split by whether any trace errored. */
+/** Sessions started per time bucket, by each session's first trace. */
 export default function SessionsChart({
   projectId,
   pastHours,
@@ -41,7 +42,7 @@ export default function SessionsChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   // Tagged with the URL it answers, so "loading" is derived instead of tracked.
-  const [result, setResult] = useState<{ url: string; items?: TracesStatsDataPoint[] }>();
+  const [result, setResult] = useState<{ url: string; items?: SessionsStatsDataPoint[] }>();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -68,10 +69,10 @@ export default function SessionsChart({
     if (isViewLoading || !statsUrl) return;
     const controller = new AbortController();
     (async () => {
-      let items: TracesStatsDataPoint[] | undefined;
+      let items: SessionsStatsDataPoint[] | undefined;
       try {
         const res = await fetch(statsUrl, { signal: controller.signal });
-        if (res.ok) items = ((await res.json()) as { items: TracesStatsDataPoint[] }).items;
+        if (res.ok) items = ((await res.json()) as { items: SessionsStatsDataPoint[] }).items;
       } catch {
         // Aborted or offline. The chart is secondary (the traces chart doesn't toast either), so keep the last data.
       }

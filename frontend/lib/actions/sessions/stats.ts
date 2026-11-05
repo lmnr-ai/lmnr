@@ -7,7 +7,6 @@ import { GetSessionsSchema } from "@/lib/actions/sessions";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats-types";
 import { generateEmptyTimeBuckets, parseCustomColumnsJson } from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -22,13 +21,15 @@ export const GetSessionStatsSchema = GetSessionsSchema.omit({
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
 
+export type SessionsStatsDataPoint = { timestamp: string; count: number } & Record<string, number>;
+
 /**
- * Sessions per time bucket, keyed by each session's first trace. A session counts as an error
- * when any of its traces errored. Reuses the list query so filters, search and custom columns match the table.
+ * Sessions per time bucket, keyed by each session's first trace. Reuses the list query so filters,
+ * search and custom columns match the table.
  */
 export async function getSessionStats(
   input: z.infer<typeof GetSessionStatsSchema>
-): Promise<{ items: TracesStatsDataPoint[] }> {
+): Promise<{ items: SessionsStatsDataPoint[] }> {
   const {
     projectId,
     pastHours,
@@ -61,11 +62,12 @@ export async function getSessionStats(
     : [];
 
   if (search && traceIds.length === 0) {
-    return { items: generateEmptyTimeBuckets(getTimeRange(pastHours, startTime, endTime)) };
+    const buckets = generateEmptyTimeBuckets(getTimeRange(pastHours, startTime, endTime));
+    return { items: buckets.map(({ timestamp }) => ({ timestamp, count: 0 }) as SessionsStatsDataPoint) };
   }
 
   const { query: sessionsQuery, parameters: sessionsParams } = buildSessionsQueryWithParams({
-    columns: ["MIN(start_time) as sessionStart", "countIf(status = 'error') > 0 as hasError"],
+    columns: ["MIN(start_time) as sessionStart"],
     traceIds,
     filters,
     startTime,
@@ -94,15 +96,14 @@ export async function getSessionStats(
   const query = `
     SELECT
       toStartOfInterval(sessionStart, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
-      countIf(NOT hasError) as successCount,
-      countIf(hasError) as errorCount
+      count() as count
     FROM (${sessionsQuery})
     GROUP BY timestamp
     ORDER BY timestamp ASC
     ${withFillClause}
   `;
 
-  const items = await executeQuery<TracesStatsDataPoint>({
+  const items = await executeQuery<SessionsStatsDataPoint>({
     query,
     parameters: { ...sessionsParams, ...fillParams, intervalValue, intervalUnit },
     projectId,
