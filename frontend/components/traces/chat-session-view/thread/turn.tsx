@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { StatsShields } from "@/components/traces/stats-shields";
 import { Skeleton } from "@/components/ui/skeleton";
+import { agentInputText } from "@/lib/traces/agent-input";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ function Turn({
   const active = useChatViewStore((s) => s.openTraceId === trace.id);
   const toggleTrace = useChatViewStore((s) => s.toggleTrace);
 
+  const inputText = agentInputText(trace.agentInput);
   const counts = useTurnDataStore((s) => s.counts[trace.id]);
   const failed = trace.status === "error" || (counts?.errors ?? 0) > 0;
 
@@ -43,7 +45,7 @@ function Turn({
       data-trace-id={trace.id}
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-8">
-        {trace.agentInput && <UserBubble text={trace.agentInput} time={trace.startTime} />}
+        {inputText && <UserBubble text={inputText} time={trace.startTime} />}
         <WorkedRow counts={counts} onClick={() => toggleTrace(trace.id)} />
         {output ? (
           <CollapsibleReply text={output} />

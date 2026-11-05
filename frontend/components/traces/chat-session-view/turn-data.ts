@@ -22,6 +22,7 @@ export const useTurnDataStore = create<TurnDataState>()((set, get) => {
   const inFlight = new Set<string>();
   const pending = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let modelsRequest: { key: string; controller: AbortController } | undefined;
 
   const flush = async (projectId: string) => {
     const ids = [...pending];
@@ -59,17 +60,26 @@ export const useTurnDataStore = create<TurnDataState>()((set, get) => {
     },
     fetchModels: async (projectId, traceIds) => {
       const key = traceIds.join(",");
-      if (get().models?.key === key) return;
+      if (get().models?.key === key || modelsRequest?.key === key) return;
+      // A newer session's request supersedes the old one, so a slow stale response can't overwrite it.
+      modelsRequest?.controller.abort();
+      const request = { key, controller: new AbortController() };
+      modelsRequest = request;
       try {
         const res = await fetch(`/api/projects/${projectId}/traces/model-tokens`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ traceIds }),
+          signal: request.controller.signal,
         });
         if (!res.ok) throw new Error("Failed to fetch model tokens");
-        set({ models: { key, items: (await res.json()) as ModelTokens[] } });
+        const items = (await res.json()) as ModelTokens[];
+        if (modelsRequest === request) set({ models: { key, items } });
       } catch {
-        set({ models: { key, items: [] } });
+        // The pill is optional: on failure it stays hidden rather than retrying in a loop.
+        if (modelsRequest === request) set({ models: { key, items: [] } });
+      } finally {
+        if (modelsRequest === request) modelsRequest = undefined;
       }
     },
   };
