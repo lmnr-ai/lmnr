@@ -48,29 +48,31 @@ const pathResource = (params: Record<string, string | string[] | undefined>) =>
 
 const pathResourceId = (params: Record<string, string | string[] | undefined>) => pathResource(params)?.[1];
 
-const ID_LIST_KEY = /^(id|ids|.+Id|.+Ids)$/;
+const ID_KEY = /^(id|ids|.+Id|.+Ids)$/;
+const LIST_KEY = /^(ids|.+Ids)$/;
+// Scope, never a delete target.
+const SCOPE_KEYS = new Set(["projectId", "workspaceId"]);
 
 const idValues = (value: unknown): string[] => {
   if (typeof value === "string") return value.split(",").filter(Boolean);
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string" && v !== "");
   return [];
 };
 
 // Bulk deletes name their targets in the query string (`?datasetIds=a,b`,
 // `?id=a&id=b`) or the JSON body (`{ datapointIds: [...] }`); record them so a
-// delete is never just "something was deleted".
+// delete is never just "something was deleted". A list key names the targets
+// when present; singular `*Id` fields beside it are parents (`datasetId`).
 const deletedIds = async (url: string, body: Request | null): Promise<string[]> => {
-  const fromQuery = [...new URL(url).searchParams.entries()]
-    .filter(([key]) => ID_LIST_KEY.test(key))
-    .flatMap(([, value]) => idValues(value));
   const json = body ? await body.json().catch(() => null) : null;
-  const fromBody =
-    json && typeof json === "object"
+  const entries = [
+    ...new URL(url).searchParams.entries(),
+    ...(json && typeof json === "object" && !Array.isArray(json)
       ? Object.entries(json as Record<string, unknown>)
-          .filter(([key]) => ID_LIST_KEY.test(key))
-          .flatMap(([, value]) => idValues(value))
-      : [];
-  return [...new Set([...fromQuery, ...fromBody])];
+      : []),
+  ].filter(([key]) => ID_KEY.test(key) && !SCOPE_KEYS.has(key));
+  const lists = entries.filter(([key]) => LIST_KEY.test(key));
+  return [...new Set((lists.length > 0 ? lists : entries).flatMap(([, value]) => idValues(value)))];
 };
 
 const deleteTargets = async (

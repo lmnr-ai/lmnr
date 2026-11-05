@@ -8,7 +8,7 @@ import { datasets } from "@/lib/db/migrations/schema";
 import { DownloadFormat } from "@/lib/types";
 
 export const GET = withAudit(
-  { resource: "dataset", action: "export" },
+  { resource: "dataset", action: "export", read: true },
   async (
     req: Request,
     props: {
