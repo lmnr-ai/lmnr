@@ -149,7 +149,12 @@ const hasSystemWorkspace = (): boolean => UUID_RE.test(nonEmptyEnv("LLM_SYSTEM_W
  * will throw on first call.
  */
 export function isAiProviderConfigured(): boolean {
-  return (getConfiguredLLMProvider() !== null && hasValidLlmDefaultHeaders()) || hasSystemWorkspace();
+  return isEnvProviderConfigured() || hasSystemWorkspace();
+}
+
+/** Whether `LLM_PROVIDER` is set with usable credentials, i.e. `envLanguageModel` will not throw. */
+export function isEnvProviderConfigured(): boolean {
+  return getConfiguredLLMProvider() !== null && hasValidLlmDefaultHeaders();
 }
 
 function resolveModelName(provider: LLMProvider, tier: ModelTier): string {

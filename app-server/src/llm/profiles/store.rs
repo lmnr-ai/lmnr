@@ -21,12 +21,13 @@ use super::{LlmProfile, LlmProfileRoute, build::build_client};
 /// `service` removes the key on every write, so a long TTL is safe.
 const LLM_PROFILE_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7;
 
-/// `llm_feature_routes` rows are written straight to the database (no app
-/// write path), so nothing invalidates these entries: the TTL is how long a
-/// route change takes to reach every process, including ones on the in-memory
-/// cache where no key can be deleted by hand. One TTL for every entry: a
-/// scope's `default` key is rewritten whenever the scope is re-queried, so a
-/// longer TTL on it would save no round trips.
+/// Workspace rows written from settings remove their keys
+/// ([`invalidate_workspace_routes`]); global rows are still written straight to
+/// the database, and a replica on the in-memory cache only sees its own
+/// removals, so the TTL bounds how long any other route change takes to reach
+/// every process. One TTL for every entry: a scope's `default` key is rewritten
+/// whenever the scope is re-queried, so a longer TTL on it would save no round
+/// trips.
 const LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS: u64 = 5 * 60;
 
 /// Cached outcome of one `(scope, feature)` row lookup. Absence is cached
@@ -57,9 +58,14 @@ enum RouteScope {
 
 impl RouteScope {
     fn cache_key(self, feature: LlmFeature) -> String {
+        self.cache_key_for(feature.as_str())
+    }
+
+    /// Keyed by the raw `feature_id`, so writes can name frontend-only ids too.
+    fn cache_key_for(self, feature_id: &str) -> String {
         match self {
-            RouteScope::Workspace(id) => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:{id}:{feature}"),
-            RouteScope::Global => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:global:{feature}"),
+            RouteScope::Workspace(id) => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:{id}:{feature_id}"),
+            RouteScope::Global => format!("{LLM_FEATURE_ROUTE_CACHE_KEY}:global:{feature_id}"),
         }
     }
 
@@ -131,7 +137,8 @@ pub struct ResolvedProfile {
 ///   `*:default` key of a scope by every feature that falls through to it.
 ///   Each entry is that scope's own row (or `Absent`), never an inherited one;
 ///   the `_v2` prefix keeps these apart from the retired resolved-target layout.
-///   Every entry expires after `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`.
+///   Every entry expires after `LLM_FEATURE_ROUTE_CACHE_TTL_SECONDS`; settings
+///   writes also remove their workspace keys.
 /// - Lookup failures (project, route, profile) are `RequestError`, i.e.
 ///   retryable; only "the row does not exist / does not match" is `ConfigError`.
 /// - Built `ProviderClient`s are kept in-process, keyed by profile id and reused
@@ -183,11 +190,7 @@ impl LlmProfileStore {
         feature: LlmFeature,
         project_id: Option<Uuid>,
     ) -> ProviderResult<Option<ResolvedFeature>> {
-        let workspace_id = match project_id {
-            Some(project_id) => Some(self.project_workspace_id(project_id).await?),
-            None => None,
-        };
-        let Some(target) = self.lookup_route(workspace_id, feature).await? else {
+        let Some(target) = self.routes().resolve(feature, project_id).await? else {
             return Ok(None);
         };
 
@@ -219,6 +222,134 @@ impl LlmProfileStore {
             reported_provider: profile.provider.reported_name(),
             model: target.model,
         }))
+    }
+
+    /// The cached profile row (secrets still encrypted), without building a client.
+    /// Scoped to the project's workspace: a profile from another workspace is absent.
+    pub async fn load_profile(
+        &self,
+        project_id: Uuid,
+        profile_id: Uuid,
+    ) -> ProviderResult<LlmProfile> {
+        let workspace_id = self.project_workspace_id(project_id).await?;
+        self.get_profile_cached(workspace_id, profile_id)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestError(format!("failed to load LLM profile {profile_id}: {e}"))
+            })?
+            .ok_or_else(|| {
+                ProviderError::ConfigError(format!(
+                    "LLM profile {profile_id} is not in this workspace or no longer exists; pick another profile for this signal"
+                ))
+            })
+    }
+
+    /// Read-through on `llm_profile:{workspace_id}:{profile_id}`; misses are not cached.
+    async fn get_profile_cached(
+        &self,
+        workspace_id: Uuid,
+        profile_id: Uuid,
+    ) -> anyhow::Result<Option<LlmProfile>> {
+        let cache_key = format!("{LLM_PROFILE_CACHE_KEY}:{workspace_id}:{profile_id}");
+
+        if let Ok(Some(profile)) = self.cache.get::<LlmProfile>(&cache_key).await {
+            return Ok(Some(profile));
+        }
+
+        let profile =
+            llm_profiles::get_llm_profile(&self.db.pool, workspace_id, profile_id).await?;
+        if let Some(profile) = &profile
+            && let Err(e) = self
+                .cache
+                .insert_with_ttl(&cache_key, profile.clone(), LLM_PROFILE_CACHE_TTL_SECONDS)
+                .await
+        {
+            log::error!("Failed to cache LLM profile {profile_id}: {e:?}");
+        }
+        Ok(profile)
+    }
+
+    fn client_for(&self, profile: &LlmProfile) -> ProviderResult<Arc<ProviderClient>> {
+        // The read guard is released at the end of this statement, before the insert below.
+        if let Some(client) = self
+            .clients
+            .get(&profile.id)
+            .filter(|cached| cached.updated_at == profile.updated_at)
+            .map(|cached| cached.client.clone())
+        {
+            return Ok(client);
+        }
+        let client = Arc::new(build_client(profile)?);
+        self.clients.insert(
+            profile.id,
+            CachedClient {
+                updated_at: profile.updated_at,
+                client: client.clone(),
+            },
+        );
+        Ok(client)
+    }
+
+    async fn project_workspace_id(&self, project_id: Uuid) -> ProviderResult<Uuid> {
+        self.routes().project_workspace_id(project_id).await
+    }
+
+    fn routes(&self) -> RouteLookup<'_> {
+        RouteLookup {
+            db: &self.db,
+            cache: &self.cache,
+        }
+    }
+}
+
+/// Whether `feature` has a route row for `project_id`'s workspace or globally
+/// (the feature's own row or `default`), from the same cached entries calls
+/// read. Does not consider the env provider.
+pub async fn has_feature_route(
+    db: &Arc<DB>,
+    cache: &Arc<Cache>,
+    feature: LlmFeature,
+    project_id: Uuid,
+) -> ProviderResult<bool> {
+    RouteLookup { db, cache }
+        .resolve(feature, Some(project_id))
+        .await
+        .map(|target| target.is_some())
+}
+
+/// Drops the cached workspace entries for `feature_ids` after a settings write,
+/// so the change applies on this cache at once instead of after the TTL.
+pub async fn invalidate_workspace_routes(
+    cache: &Cache,
+    workspace_id: Uuid,
+    feature_ids: &[String],
+) {
+    for feature_id in feature_ids {
+        let key = RouteScope::Workspace(workspace_id).cache_key_for(feature_id);
+        if let Err(e) = cache.remove(&key).await {
+            log::error!("Failed to invalidate LLM feature route cache {key}: {e:?}");
+        }
+    }
+}
+
+/// The cached `llm_feature_routes` lookup, separate from the store so callers
+/// that only hold the DB and cache can ask whether a feature is routed.
+struct RouteLookup<'a> {
+    db: &'a Arc<DB>,
+    cache: &'a Arc<Cache>,
+}
+
+impl RouteLookup<'_> {
+    async fn resolve(
+        &self,
+        feature: LlmFeature,
+        project_id: Option<Uuid>,
+    ) -> ProviderResult<Option<FeatureRouteTarget>> {
+        let workspace_id = match project_id {
+            Some(project_id) => Some(self.project_workspace_id(project_id).await?),
+            None => None,
+        };
+        self.lookup_route(workspace_id, feature).await
     }
 
     /// The workspace's answer wins over the global one. Two scopes at most, so
@@ -306,72 +437,6 @@ impl LlmProfileStore {
         {
             log::error!("Failed to cache LLM feature route {cache_key}: {e:?}");
         }
-    }
-
-    /// The cached profile row (secrets still encrypted), without building a client.
-    /// Scoped to the project's workspace: a profile from another workspace is absent.
-    pub async fn load_profile(
-        &self,
-        project_id: Uuid,
-        profile_id: Uuid,
-    ) -> ProviderResult<LlmProfile> {
-        let workspace_id = self.project_workspace_id(project_id).await?;
-        self.get_profile_cached(workspace_id, profile_id)
-            .await
-            .map_err(|e| {
-                ProviderError::RequestError(format!("failed to load LLM profile {profile_id}: {e}"))
-            })?
-            .ok_or_else(|| {
-                ProviderError::ConfigError(format!(
-                    "LLM profile {profile_id} is not in this workspace or no longer exists; pick another profile for this signal"
-                ))
-            })
-    }
-
-    /// Read-through on `llm_profile:{workspace_id}:{profile_id}`; misses are not cached.
-    async fn get_profile_cached(
-        &self,
-        workspace_id: Uuid,
-        profile_id: Uuid,
-    ) -> anyhow::Result<Option<LlmProfile>> {
-        let cache_key = format!("{LLM_PROFILE_CACHE_KEY}:{workspace_id}:{profile_id}");
-
-        if let Ok(Some(profile)) = self.cache.get::<LlmProfile>(&cache_key).await {
-            return Ok(Some(profile));
-        }
-
-        let profile =
-            llm_profiles::get_llm_profile(&self.db.pool, workspace_id, profile_id).await?;
-        if let Some(profile) = &profile
-            && let Err(e) = self
-                .cache
-                .insert_with_ttl(&cache_key, profile.clone(), LLM_PROFILE_CACHE_TTL_SECONDS)
-                .await
-        {
-            log::error!("Failed to cache LLM profile {profile_id}: {e:?}");
-        }
-        Ok(profile)
-    }
-
-    fn client_for(&self, profile: &LlmProfile) -> ProviderResult<Arc<ProviderClient>> {
-        // The read guard is released at the end of this statement, before the insert below.
-        if let Some(client) = self
-            .clients
-            .get(&profile.id)
-            .filter(|cached| cached.updated_at == profile.updated_at)
-            .map(|cached| cached.client.clone())
-        {
-            return Ok(client);
-        }
-        let client = Arc::new(build_client(profile)?);
-        self.clients.insert(
-            profile.id,
-            CachedClient {
-                updated_at: profile.updated_at,
-                client: client.clone(),
-            },
-        );
-        Ok(client)
     }
 
     async fn project_workspace_id(&self, project_id: Uuid) -> ProviderResult<Uuid> {

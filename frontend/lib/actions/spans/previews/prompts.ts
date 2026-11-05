@@ -1,8 +1,5 @@
 import { observe } from "@lmnr-ai/lmnr";
-import { generateText } from "ai";
-
-import { getLanguageModel } from "@/lib/ai/feature-model";
-import { LlmFeature } from "@/lib/ai/features";
+import { generateText, type LanguageModel } from "ai";
 
 import { flattenPaths } from "./utils.ts";
 
@@ -127,14 +124,14 @@ const parsePreviewKeysResponse = (text: string, expectedLength: number): Preview
 
 export const generatePreviewKeys = async (
   structures: SpanStructure[],
-  projectId: string
+  model: LanguageModel
 ): Promise<PreviewKeyResult> => {
   if (structures.length === 0) return [];
 
   try {
     const { text } = await observe({ name: "previews:generate-preview-keys" }, async () =>
       generateText({
-        model: await getLanguageModel(LlmFeature.SPAN_PREVIEW_PROMPTS, projectId),
+        model,
         system: PREVIEW_KEY_SYSTEM_PROMPT,
         prompt: buildUserMessage(structures),
         maxRetries: 0,
