@@ -1,6 +1,7 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { RESOURCE } from "@/components/traces/sessions-table/constants";
@@ -23,6 +24,7 @@ interface SessionsTableControlsProps {
   onRefresh: () => void;
   searchValue: { filters: Filter[]; search: string };
   onSearchChange: (value: { filters: Filter[]; search: string }) => void;
+  chart: ReactNode;
 }
 
 export function SessionsTableControls({
@@ -35,6 +37,7 @@ export function SessionsTableControls({
   onRefresh,
   searchValue,
   onSearchChange,
+  chart,
 }: SessionsTableControlsProps) {
   return (
     <>
@@ -56,6 +59,7 @@ export function SessionsTableControls({
           resource="sessions"
         />
       </div>
+      {chart}
     </>
   );
 }
