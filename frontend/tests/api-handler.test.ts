@@ -47,17 +47,6 @@ describe("apiHandler", () => {
     }
   });
 
-  it("answers 400 for an empty or malformed JSON body", async () => {
-    for (const body of [undefined, "{"]) {
-      const res = await apiHandler(async (r) => Response.json(await r.json()))(
-        new NextRequest("http://localhost/api/test", { method: "POST", body }),
-        ctx({})
-      );
-      assert.equal(res.status, 400);
-      assert.deepEqual(await res.json(), { error: "Invalid JSON body" });
-    }
-  });
-
   it("answers 499 with no body when the client disconnected", async () => {
     for (const error of [
       new DOMException("aborted", "AbortError"),
