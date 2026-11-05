@@ -7,6 +7,7 @@ import { shallow } from "zustand/shallow";
 import { buildSessionColumnDefs, customColumnsParam } from "@/components/traces/sessions-table/build-columns";
 import { defaultSessionsColumnOrder, filters as staticFilters } from "@/components/traces/sessions-table/columns";
 import { RESOURCE } from "@/components/traces/sessions-table/constants";
+import SessionsChart from "@/components/traces/sessions-table/sessions-chart";
 import { SessionsTableContents } from "@/components/traces/sessions-table/table-contents";
 import { SessionsTableControls } from "@/components/traces/sessions-table/table-controls";
 import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
@@ -123,6 +124,18 @@ function SessionsTableContent() {
           onRefresh={handleRefresh}
           searchValue={searchValue}
           onSearchChange={setSearchAndFilters}
+          chart={
+            <SessionsChart
+              projectId={String(projectId)}
+              pastHours={pastHours}
+              startDate={startDate}
+              endDate={endDate}
+              filter={filter}
+              search={textSearchFilter}
+              customColumns={customColumnsJson}
+              isViewLoading={isViewLoading}
+            />
+          }
         />
       </SessionsTableContents>
     </div>
