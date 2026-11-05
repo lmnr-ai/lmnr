@@ -6,6 +6,7 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
+import { parseCustomColumnsJson } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -16,11 +17,10 @@ export const GetSessionsSchema = PaginationFiltersSchema.extend({
   projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
-  sortColumn: z
-    .enum(["start_time", "end_time", "duration", "total_tokens", "total_cost", "trace_count"])
-    .nullable()
-    .optional(),
+  // A static sort key or a custom column id; anything else falls back to start_time.
+  sortColumn: z.string().nullable().optional(),
   sortDirection: z.enum(["ASC", "DESC"]).nullable().optional(),
+  customColumns: z.string().optional(),
 });
 
 export const DeleteSessionsSchema = z.object({
@@ -41,9 +41,11 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     filter: inputFilters,
     sortColumn,
     sortDirection,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
+  const customColumns = parseCustomColumnsJson(customColumnsJson) ?? [];
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
@@ -72,6 +74,7 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     pastHours,
     sortColumn: sortColumn ?? undefined,
     sortDirection: sortDirection ?? undefined,
+    customColumns,
   });
 
   const items = await executeQuery<Omit<SessionRow, "subRows">>({
@@ -93,8 +96,9 @@ export const GetSessionTracesSchema = z.object({
 // Pad the derived start_time bounds so the validator's traces_v0 window covers rows a newer version could shift (LAM-1876).
 const SESSION_TRACES_PAD_BEFORE_MS = 60 * 60 * 1000;
 const SESSION_TRACES_PAD_AFTER_MS = 3 * 60 * 60 * 1000;
-// No pagination in the session panel; cap the payload.
-const SESSION_TRACES_LIMIT = 500;
+// Every turn row loads up front (the views virtualize and fetch per-turn details lazily);
+// this is only a safety cap. Keep in step with the model-tokens trace-id limit.
+const SESSION_TRACES_LIMIT = 5000;
 
 // Only the columns the session view renders.
 const sessionTracesSelectColumns = [
@@ -109,6 +113,7 @@ const sessionTracesSelectColumns = [
   "total_cost as totalCost",
   "cache_read_input_tokens as cacheReadInputTokens",
   "metadata",
+  "user_id as userId",
   "agent_input as agentInput",
 ];
 

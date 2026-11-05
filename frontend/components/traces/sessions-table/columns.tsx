@@ -7,6 +7,8 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono";
 import { type SessionRow } from "@/lib/traces/types";
 
+import FirstInputCell from "./first-input-cell";
+
 // Ingestion maps NULL Postgres times to epoch 0 in ClickHouse, so an all-in-flight session would render as 1970.
 export const isRenderableActivity = (value: unknown): boolean =>
   Boolean(value) && new Date(String(value)).getTime() > 0;
@@ -56,6 +58,13 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     ),
     size: 200,
     meta: { sql: "session_id" },
+  },
+  {
+    cell: (row) => <FirstInputCell value={row.getValue()} />,
+    accessorFn: (row) => row.firstInput,
+    header: "Input",
+    id: "first_input",
+    size: 360,
   },
   {
     accessorFn: (row) => row.startTime,
@@ -123,11 +132,12 @@ export const columns: ColumnDef<SessionRow, any>[] = [
 
 export const defaultSessionsColumnOrder = [
   "id",
+  "first_input",
+  "user_id",
   "start_time",
   "end_time",
   "duration",
   "total_cost",
   "total_tokens",
   "trace_count",
-  "user_id",
 ];

@@ -24,6 +24,9 @@ interface TraceViewProps {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
+  // Separate persisted layout/toggles from the main trace view (e.g. when embedded elsewhere).
+  storeKey?: string;
+  defaultTimelineEnabled?: boolean;
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
@@ -33,6 +36,8 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       isAlwaysSelectSpan={props.isAlwaysSelectSpan}
       initialSignalId={props.initialSignalId}
       initialSearch={props.initialSearch}
+      storeKey={props.storeKey}
+      defaultTimelineEnabled={props.defaultTimelineEnabled}
     >
       <TraceAgentContext traceId={props.traceId} />
       <TraceViewContent {...props} />
