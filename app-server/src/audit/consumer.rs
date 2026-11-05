@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use backon::Retryable;
 use chrono::Utc;
 
 use super::AuditEvent;
@@ -14,7 +13,6 @@ use crate::{
         audit_events::{AuditEventCHRow, insert_audit_events},
         utils::chrono_to_nanoseconds,
     },
-    utils::retry,
 };
 
 pub struct AuditEventHandler {
@@ -51,7 +49,9 @@ fn to_ch_row(event: &AuditEvent, inserted_at: i64) -> AuditEventCHRow {
     }
 }
 
-/// The serde name of a unit enum variant (`ApiKey` → `api_key`).
+/// The `rename_all = "snake_case"` name of a unit enum variant (`ApiKey` →
+/// `api_key`). The row needs it as a `String`: the clickhouse crate panics on
+/// unit enum variants.
 fn enum_str<T: serde::Serialize>(value: &T) -> String {
     match serde_json::to_value(value) {
         Ok(serde_json::Value::String(s)) => s,
@@ -71,21 +71,10 @@ impl AuditEventHandler {
             .map(|d| to_ch_row(&d.message, inserted_at))
             .collect();
 
-        let insert = || async { insert_audit_events(&self.clickhouse, &rows).await };
-        let backoff = retry::bounded_delay(
-            Duration::from_secs(1),
-            Duration::from_secs(30),
-            Duration::from_secs(60),
-        );
-        match insert
-            .retry(backoff)
-            .notify(|e, _| log::warn!("Failed to insert audit events, retrying: {e:?}"))
-            .await
-        {
+        match insert_audit_events(&self.clickhouse, &rows).await {
             Ok(()) => HandlerResult::ack(deliveries),
-            // ClickHouse is down: keep the events in the queue rather than drop them.
             Err(e) => {
-                log::error!("Failed to insert audit events after retries: {e:?}");
+                log::error!("Failed to insert {} audit events: {e:?}", rows.len());
                 HandlerResult::requeue(deliveries)
             }
         }
