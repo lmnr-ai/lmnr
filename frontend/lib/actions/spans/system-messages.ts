@@ -64,14 +64,11 @@ export async function getTraceSystemMessages(
     ORDER BY start_time ASC
   `;
 
-  const spans = await executeQuery<{ spanId: string; input: string; path: string }>(
-    {
-      query,
-      parameters: { projectId, traceId, paths: pathStrings },
-      projectId,
-    },
-    { source: "internal" }
-  );
+  const spans = await executeQuery<{ spanId: string; input: string; path: string }>({
+    query,
+    parameters: { projectId, traceId, paths: pathStrings },
+    projectId,
+  });
 
   const systemMessagesByPath = new Map<string, { content: string; path: string[] }>();
 

@@ -111,11 +111,16 @@ pub fn target_named(req: &HttpRequest, id: impl ToString, name: impl Into<Option
     });
 }
 
-/// A parent the request touched that is not in its path, e.g. the dataset of created datapoints.
+/// A parent the request touched, e.g. the dashboard of charts or the dataset of datapoints.
 pub fn target_parent(req: &HttpRequest, key: &str, id: impl ToString) {
+    metadata(req, key, id.to_string());
+}
+
+/// Any other detail of the event, e.g. the query text and tables of `sql.query`.
+pub fn metadata(req: &HttpRequest, key: &str, value: impl Into<Value>) {
     targets_mut(req)
         .metadata
-        .insert(key.to_string(), Value::String(id.to_string()));
+        .insert(key.to_string(), value.into());
 }
 
 fn targets_mut(req: &HttpRequest) -> RefMut<'_, Targets> {

@@ -37,10 +37,9 @@ export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchem
   const { interval, intervalMs } = getIntervalForHours(pastHours);
   const rangeMs = pastHours * 3_600_000;
 
-  const rows = await executeQuery<SignalStatsDataPoint>(
-    {
-      projectId,
-      query: `
+  const rows = await executeQuery<SignalStatsDataPoint>({
+    projectId,
+    query: `
       SELECT
         signal_id,
         toStartOfInterval(timestamp, INTERVAL ${interval}) as timestamp,
@@ -51,10 +50,8 @@ export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchem
       GROUP BY signal_id, timestamp
       ORDER BY signal_id, timestamp ASC
     `,
-      parameters: { signalIds },
-    },
-    { source: "internal" }
-  );
+    parameters: { signalIds },
+  });
 
   const countsBySignal = new Map<string, Map<number, number>>();
   for (const row of rows) {

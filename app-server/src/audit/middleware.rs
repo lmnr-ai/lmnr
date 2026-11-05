@@ -60,8 +60,10 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
             "/traces" | "/spans" | "/logs" | "/metrics" | "/browser-sessions/events" | "/tag",
         ) => Skip,
         ("POST", "/labeling_queues/{queue_id}/items") => Skip,
-        // Emitted by the handlers with the query text / tool details.
-        (_, "/sql/query" | "/mcp") => Skip,
+        // The handler adds the query text and tables.
+        ("POST", "/sql/query") => log(Sql, Query),
+        // One route serves every tool; the SQL tool logs its own `sql.query`.
+        (_, "/mcp") => Skip,
         // Discovery and schema reads carry no data.
         ("GET", "/project" | "/projects" | "/sql/schema") | ("POST", "/project") => Skip,
 
@@ -290,7 +292,7 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
-            (Method::POST, "/sql/query"),
+            (Method::POST, "/mcp"),
         ] {
             assert_eq!(classify(&method, path), Some(Skip), "{method} {path}");
         }

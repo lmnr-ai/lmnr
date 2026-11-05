@@ -117,14 +117,11 @@ export async function listDatapointVersions(input: z.infer<typeof ListDatapointV
 
   const { query, parameters } = buildDatapointVersionsQueryWithParams(datapointId, datasetId);
 
-  const versions = (await executeQuery<Record<string, unknown>>(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { source: "internal" }
-  )) as unknown as DatapointResult[];
+  const versions = (await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  })) as unknown as DatapointResult[];
 
   return versions;
 }
@@ -139,14 +136,11 @@ export async function createDatapointVersionFromExisting(input: z.infer<typeof C
   // First, fetch the version we want to copy
   const { query, parameters } = buildSpecificDatapointVersionQueryWithParams(datapointId, datasetId, versionCreatedAt);
 
-  const versions = (await executeQuery<Record<string, unknown>>(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { source: "internal" }
-  )) as unknown as DatapointResult[];
+  const versions = (await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  })) as unknown as DatapointResult[];
 
   if (versions.length === 0) {
     throw new NotFoundError("Version not found");

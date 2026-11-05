@@ -31,7 +31,6 @@ pub async fn get_top_span_id(
         http_client,
         db,
         cache,
-        None,
     )
     .await?;
 

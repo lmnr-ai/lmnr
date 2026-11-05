@@ -36,14 +36,11 @@ export async function resolveClusterForEvent(
     ORDER BY level ASC
   `;
 
-  const rows = await executeQuery<{ id: string; level: number }>(
-    {
-      query,
-      parameters: { signalId, eventId },
-      projectId,
-    },
-    { source: "internal" }
-  );
+  const rows = await executeQuery<{ id: string; level: number }>({
+    query,
+    parameters: { signalId, eventId },
+    projectId,
+  });
 
   if (rows.length === 0) return { kind: "none" };
 

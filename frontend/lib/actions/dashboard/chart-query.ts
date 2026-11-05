@@ -51,14 +51,11 @@ export type ChartInput = z.infer<typeof ChartInputSchema>;
 type Row = Record<string, unknown>;
 export type RunQuery = (query: string, parameters: Record<string, string>) => Promise<Row[]>;
 
-/**
- * Test runs read as `actor`, so a chart can't be checked against rows its author can't read.
- * `internal`: the CLI actor names no user, so app-server's `/v1/cli` chart route logs these queries.
- */
+/** Test runs read as `actor`, so a chart can't be checked against rows its author can't read. */
 export const queryRunner =
   (projectId: string, actor: SqlActor): RunQuery =>
   (query, parameters) =>
-    executeQuery<Row>({ projectId, query, parameters }, { source: "internal", actor });
+    executeQuery<Row>({ projectId, query, parameters }, { actor });
 
 /** Checks every entry (test-running queries in parallel); any failure rejects the batch. */
 export const checkCharts = async (

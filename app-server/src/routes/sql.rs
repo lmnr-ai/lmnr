@@ -11,25 +11,11 @@ use uuid::Uuid;
 
 use crate::{
     access_policy::{self, Actor},
-    audit::{AuditActor, AuditOutcome},
     cache::Cache,
     db::DB,
-    mq::MessageQueue,
     query_engine::{QueryEngine, QueryEngineValidationResult},
-    sql::{self, ClickhouseReadonlyClient, SqlAudit, SqlQuerySource},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
-
-/// Only signed-in users run SQL through the frontend; any other actor has
-/// nobody to attribute the query to.
-fn sql_audit(actor: &Actor, queue: &Arc<MessageQueue>) -> Option<SqlAudit> {
-    match actor {
-        Actor::User { user_id } => Some(SqlAudit {
-            actor: AuditActor::User { user_id: *user_id },
-            queue: queue.clone(),
-        }),
-        _ => None,
-    }
-}
 
 use super::ResponseResult;
 
@@ -43,8 +29,6 @@ pub struct SqlQueryRequest {
     #[serde(default)]
     pub parameters: HashMap<String, Value>,
     pub actor: Actor,
-    /// Required so a new caller has to decide whether its SQL is audited.
-    pub source: SqlQuerySource,
 }
 
 /// The validated SQL embeds the policy, so validation needs the actor too
@@ -54,7 +38,6 @@ pub struct SqlQueryRequest {
 pub struct SqlValidateRequest {
     pub query: String,
     pub actor: Actor,
-    pub source: SqlQuerySource,
 }
 
 #[derive(Serialize)]
@@ -62,8 +45,13 @@ pub struct SqlValidateRequest {
 pub struct SqlValidateResponse {
     pub success: bool,
     pub validated_query: Option<String>,
+    /// Allowlisted tables the query reads, for the caller's `sql.export` audit event.
+    pub tables: Vec<String>,
     pub error: Option<String>,
 }
+
+/// Allowlisted tables a query read (comma-separated), for the caller's `sql.query` audit event.
+const TABLES_HEADER: &str = "x-laminar-sql-tables";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,14 +90,12 @@ pub async fn execute_sql_query(
     http_client: web::Data<reqwest::Client>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
     let SqlQueryRequest {
         query,
         parameters,
         actor,
-        source,
     } = req.into_inner();
 
     let tracer = global::tracer("app-server");
@@ -127,22 +113,23 @@ pub async fn execute_sql_query(
 
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
-            match sql::execute_sql_query(
+            match sql::run_sql_query(
                 query,
                 project_id,
                 parameters,
-                source,
+                SqlQuerySource::Internal,
                 policy,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),
                 db,
                 cache,
-                sql_audit(&actor, &queue),
             )
             .await
             {
-                Ok(result_json) => Ok(HttpResponse::Ok().json(result_json)),
+                Ok(output) => Ok(HttpResponse::Ok()
+                    .insert_header((TABLES_HEADER, output.tables.join(",")))
+                    .json(output.rows)),
                 Err(e) => Err(e.into()),
             }
         }
@@ -157,52 +144,41 @@ pub async fn validate_sql_query(
     query_engine: web::Data<Arc<QueryEngine>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
-    let SqlValidateRequest {
-        query,
-        actor,
-        source,
-    } = req.into_inner();
-    let db = db.into_inner();
-    let cache = cache.into_inner();
+    let SqlValidateRequest { query, actor } = req.into_inner();
     let policy =
-        access_policy::for_actor_or_masked(&actor, project_id, db.clone(), cache.clone()).await;
+        access_policy::for_actor_or_masked(&actor, project_id, db.into_inner(), cache.into_inner())
+            .await;
 
-    let validation_result = query_engine
+    match query_engine
         .into_inner()
         .as_ref()
-        .validate_query(query.clone(), project_id, &policy)
-        .await?;
-
-    // Export jobs run the validated SQL outside app-server, so validation is
-    // the last point that sees the query.
-    if let Some(audit) = sql_audit(&actor, &queue) {
-        let (tables, outcome) = match &validation_result {
-            QueryEngineValidationResult::Success { tables, .. } => {
-                (tables.clone(), AuditOutcome::Success)
-            }
-            QueryEngineValidationResult::Error { .. } => (Vec::new(), AuditOutcome::Denied),
-        };
-        sql::audit_sql_query(db, cache, audit, project_id, source, query, tables, outcome).await;
+        .validate_query(query, project_id, &policy)
+        .await
+    {
+        Ok(validation_result) => {
+            let response = match validation_result {
+                QueryEngineValidationResult::Success {
+                    validated_query,
+                    tables,
+                } => SqlValidateResponse {
+                    success: true,
+                    validated_query: Some(validated_query),
+                    tables,
+                    error: None,
+                },
+                QueryEngineValidationResult::Error { error } => SqlValidateResponse {
+                    success: false,
+                    validated_query: None,
+                    tables: Vec::new(),
+                    error: Some(error),
+                },
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(e) => Err(e.into()),
     }
-
-    let response = match validation_result {
-        QueryEngineValidationResult::Success {
-            validated_query, ..
-        } => SqlValidateResponse {
-            success: true,
-            validated_query: Some(validated_query),
-            error: None,
-        },
-        QueryEngineValidationResult::Error { error } => SqlValidateResponse {
-            success: false,
-            validated_query: None,
-            error: Some(error),
-        },
-    };
-    Ok(HttpResponse::Ok().json(response))
 }
 
 #[post("sql/to-json")]

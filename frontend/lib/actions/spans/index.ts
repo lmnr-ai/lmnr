@@ -141,10 +141,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     customConditions: [traceSubquery],
   });
 
-  const items = await executeQuery<Span>(
-    { query: mainQuery, parameters: mainParams, projectId },
-    { source: "internal" }
-  );
+  const items = await executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId });
 
   return {
     items,
@@ -164,14 +161,11 @@ const getTraceTreeStructure = async ({
     filters: [{ value: traceId, operator: Operator.Eq, column: "trace_id" }],
   });
 
-  return await executeQuery<{ spanId: string; parentSpanId: string }>(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { source: "internal" }
-  );
+  return await executeQuery<{ spanId: string; parentSpanId: string }>({
+    query,
+    parameters,
+    projectId,
+  });
 };
 
 const fetchTraceSpans = async ({
@@ -232,14 +226,11 @@ const fetchTraceSpans = async ({
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
     }
-  >(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { source: "internal" }
-  );
+  >({
+    query,
+    parameters,
+    projectId,
+  });
 };
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {

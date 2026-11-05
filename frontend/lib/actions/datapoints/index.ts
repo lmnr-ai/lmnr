@@ -83,14 +83,11 @@ export async function countDatapoints(input: z.infer<typeof CountDatapointsSchem
     customColumns,
   });
 
-  const countResult = await executeQuery<{ count: number }>(
-    {
-      query: countQuery,
-      parameters: countParams,
-      projectId,
-    },
-    { source: "internal" }
-  );
+  const countResult = await executeQuery<{ count: number }>({
+    query: countQuery,
+    parameters: countParams,
+    projectId,
+  });
 
   const totalCount = countResult[0]?.count || 0;
 
@@ -124,14 +121,11 @@ export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>)
     customColumns,
   });
 
-  const datapointsData = (await executeQuery<Record<string, unknown>>(
-    {
-      query: datapointsQuery,
-      parameters: datapointsParams,
-      projectId,
-    },
-    { source: "internal" }
-  )) as unknown as DatapointResult[];
+  const datapointsData = (await executeQuery<Record<string, unknown>>({
+    query: datapointsQuery,
+    parameters: datapointsParams,
+    projectId,
+  })) as unknown as DatapointResult[];
 
   return {
     items: datapointsData,
@@ -153,14 +147,11 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
     datasetId,
   });
 
-  const datapoints = (await executeQuery<Record<string, unknown>>(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { source: "internal" }
-  )) as unknown as DatapointResult[];
+  const datapoints = (await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  })) as unknown as DatapointResult[];
 
   const queueItems = datapoints.map((datapoint) => ({
     payload: {
@@ -220,14 +211,11 @@ export async function getAllDatapointsForDataset(projectId: string, datasetId: s
     datasetId,
   });
 
-  const datapoints = (await executeQuery<Record<string, unknown>>(
-    {
-      query,
-      parameters,
-      projectId,
-    },
-    { source: "internal" }
-  )) as unknown as DatapointResult[];
+  const datapoints = (await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  })) as unknown as DatapointResult[];
 
   return datapoints;
 }

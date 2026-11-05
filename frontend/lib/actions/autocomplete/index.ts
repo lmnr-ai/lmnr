@@ -23,9 +23,7 @@ const getSuggestions = async (resource: string, projectId: string, field: string
   }
 
   const { queries } = getAutocompleteQueries(field);
-  const results = await Promise.all(
-    queries.map((query) => executeQuery<{ value: string }>({ query, projectId }, { source: "internal" }))
-  );
+  const results = await Promise.all(queries.map((query) => executeQuery<{ value: string }>({ query, projectId })));
 
   return results.flatMap((result) => result.map((r) => r.value));
 };

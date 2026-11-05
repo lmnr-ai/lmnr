@@ -62,7 +62,7 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
       },
       projectId: sharedTrace.projectId,
     },
-    { source: "internal", actor: SHARED_ACTOR }
+    { actor: SHARED_ACTOR }
   );
 
   if (!span) {

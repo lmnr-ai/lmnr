@@ -8,7 +8,7 @@ use opentelemetry::{
     trace::{Span, Tracer},
 };
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::{
@@ -19,68 +19,32 @@ use uuid::Uuid;
 
 use crate::{
     access_policy::AccessPolicy,
-    audit::{
-        self, AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource,
-    },
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, workspaces::DeploymentMode},
-    mq::MessageQueue,
     query_engine::{QueryEngine, QueryEngineValidationResult, validator::strip_literals},
 };
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
-/// Where an ad-hoc SQL query originated. Decides whether the per-query
-/// `max_memory_usage` ceiling applies (the trusted frontend runs uncapped) and
-/// how the query is audited: every source but `Internal` is a person or key
-/// running SQL of their choosing and is logged as `sql.query`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+/// Where an ad-hoc SQL query originated. Determines whether the per-query
+/// `max_memory_usage` ceiling is applied: the trusted internal frontend runs
+/// uncapped, while public internet-facing and CLI traffic is capped to protect
+/// ClickHouse from OOM-inducing scans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SqlQuerySource {
-    /// SQL the platform builds itself (tables, charts, dashboards). Not audited.
+    /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`) or other internal use.
     Internal,
-    /// The SQL editor (`/api/v1/projects/{id}/sql/query`).
-    Editor,
-    /// SQL export jobs, audited when the query is validated.
-    Export,
-    /// Public `/v1/sql/query`.
-    Api,
-    /// `/v1/cli/sql/query`.
-    Cli,
-    /// MCP `query_laminar_sql`.
-    Mcp,
-    /// The Laminar agent's SQL tool.
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    Agent,
+    /// Public internet-facing (`/v1/sql/query`), CLI (`/v1/cli/sql/query`) and MCP.
+    Public,
 }
 
-impl SqlQuerySource {
-    /// Internet-facing traffic, capped to protect ClickHouse from OOM-inducing scans.
-    pub fn is_memory_capped(self) -> bool {
-        matches!(self, Self::Api | Self::Cli | Self::Mcp)
-    }
-
-    fn audit_source(self) -> Option<AuditSource> {
-        match self {
-            Self::Internal => None,
-            Self::Editor | Self::Export => Some(AuditSource::Ui),
-            Self::Api => Some(AuditSource::Api),
-            Self::Cli => Some(AuditSource::Cli),
-            Self::Mcp => Some(AuditSource::Mcp),
-            Self::Agent => Some(AuditSource::Agent),
-        }
-    }
+/// Rows of a query, and the allowlisted tables it read, which the routes put on
+/// their `sql.query` audit events.
+pub struct SqlQueryOutput {
+    pub rows: Vec<Value>,
+    pub tables: Vec<String>,
 }
-
-/// Who ran an audited query, and where to publish the event.
-pub struct SqlAudit {
-    pub actor: AuditActor,
-    pub queue: Arc<MessageQueue>,
-}
-
-/// Longest query text stored on a `sql.query` event.
-const AUDIT_MAX_QUERY_BYTES: usize = 16 * 1024;
 
 #[derive(Debug, thiserror::Error, Deserialize)]
 pub enum SqlQueryError {
@@ -155,36 +119,44 @@ pub async fn execute_sql_query(
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    audit: Option<SqlAudit>,
 ) -> Result<Vec<Value>, SqlQueryError> {
+    run_sql_query(
+        query,
+        project_id,
+        parameters,
+        source,
+        policy,
+        clickhouse_ro,
+        query_engine,
+        http_client,
+        db,
+        cache,
+    )
+    .await
+    .map(|output| output.rows)
+}
+
+/// [`execute_sql_query`] that also returns the tables the query read.
+pub async fn run_sql_query(
+    query: String,
+    project_id: Uuid,
+    parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
+    policy: AccessPolicy,
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
+    query_engine: Arc<QueryEngine>,
+    http_client: Arc<reqwest::Client>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+) -> Result<SqlQueryOutput, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
-    let audit_query = audit.as_ref().map(|_| query.clone());
-    let validated = validate_query(query, project_id, &policy, query_engine).await;
-    let (validated_query, tables) = match validated {
-        Ok(validated) => validated,
-        Err(e) => {
-            if let (Some(audit), Some(query)) = (audit, audit_query) {
-                audit_sql_query(
-                    db,
-                    cache,
-                    audit,
-                    project_id,
-                    source,
-                    query,
-                    Vec::new(),
-                    AuditOutcome::Denied,
-                )
-                .await;
-            }
-            return Err(e);
-        }
-    };
+    let (validated_query, tables) =
+        validate_query(query, project_id, &policy, query_engine).await?;
 
-    // Execute query
-    let res = route_and_run_query(
+    let data = route_and_run_query(
         &db.pool,
-        cache.clone(),
+        cache,
         clickhouse_ro,
         http_client,
         project_id,
@@ -192,33 +164,7 @@ pub async fn execute_sql_query(
         parameters,
         source,
     )
-    .await;
-
-    if let (Some(audit), Some(query)) = (audit, audit_query) {
-        let outcome = if res.is_ok() {
-            AuditOutcome::Success
-        } else {
-            AuditOutcome::Error
-        };
-        audit_sql_query(
-            db.clone(),
-            cache,
-            audit,
-            project_id,
-            source,
-            query,
-            tables,
-            outcome,
-        )
-        .await;
-    }
-
-    let data = match res {
-        Ok(data) => data,
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    .await?;
 
     // Process query response
     let mut processing_span = tracer.start("process_query_response");
@@ -248,7 +194,10 @@ pub async fn execute_sql_query(
 
     processing_span.end();
 
-    Ok(data_array.clone())
+    Ok(SqlQueryOutput {
+        rows: data_array.clone(),
+        tables,
+    })
 }
 
 fn find_query_start_idx(error_message: &str) -> Option<usize> {
@@ -281,69 +230,6 @@ fn remove_query_from_error_message(error_message: &str) -> String {
     // also remove them manually
     let without_settings = SETTING_REGEX.replace_all(&error_message, "").to_string();
     VERSION_REGEX.replace_all(&without_settings, "").to_string()
-}
-
-/// Record a `sql.query` event. Awaited so a query is never answered without
-/// its audit trail; a failed publish is logged, not surfaced to the caller.
-#[allow(clippy::too_many_arguments)]
-pub async fn audit_sql_query(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    audit: SqlAudit,
-    project_id: Uuid,
-    source: SqlQuerySource,
-    query: String,
-    tables: Vec<String>,
-    outcome: AuditOutcome,
-) {
-    let Some(audit_source) = source.audit_source() else {
-        return;
-    };
-    let query = match loggable_query(&db.pool, cache.clone(), project_id, query).await {
-        Some(query) => Value::String(truncate_utf8(query, AUDIT_MAX_QUERY_BYTES)),
-        None => Value::Null,
-    };
-    let mut input = AuditEventInput::new(
-        audit.actor,
-        audit_source,
-        AuditResource::Sql,
-        AuditAction::Query,
-        outcome,
-    );
-    input.project_id = Some(project_id);
-    input.metadata = Some(json!({
-        "query": query,
-        "tables": tables,
-        "channel": source,
-    }));
-    if let Err(e) = audit::emit(db, cache, &audit.queue, input).await {
-        log::error!("Failed to emit sql.query audit event: {e:?}");
-    }
-}
-
-/// Hybrid workspaces keep their data in their own data plane, so their query
-/// text is stored with literals stripped; `None` if it can't be stripped.
-async fn loggable_query(
-    pool: &PgPool,
-    cache: Arc<Cache>,
-    project_id: Uuid,
-    query: String,
-) -> Option<String> {
-    match get_workspace_deployment(pool, cache, project_id).await {
-        Ok(config) if config.mode == DeploymentMode::CLOUD => Some(query),
-        _ => strip_literals(&query),
-    }
-}
-
-fn truncate_utf8(mut s: String, max_bytes: usize) -> String {
-    if s.len() > max_bytes {
-        let mut end = max_bytes;
-        while !s.is_char_boundary(end) {
-            end -= 1;
-        }
-        s.truncate(end);
-    }
-    s
 }
 
 /// The `sql.query` span attribute with literals stripped: they can hold

@@ -14,7 +14,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
     transport::OneshotTransport,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
     db::{DB, project_api_keys::ProjectApiKey},
     mq::MessageQueue,
     query_engine::QueryEngine,
-    sql::{self, ClickhouseReadonlyClient, SqlAudit, SqlQuerySource},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
 // ============ Per-request context ============
@@ -205,31 +205,33 @@ impl LaminarMcpServer {
             McpError::internal_error("ClickHouse read-only client not configured", None)
         })?;
 
-        let audit = context
-            .extensions
-            .get::<ProjectApiKey>()
-            .map(|key| SqlAudit {
-                actor: AuditActor::api_key(key),
-                queue: self.queue.clone(),
-            });
-
-        match sql::execute_sql_query(
+        let query = params.query.clone();
+        let result = sql::run_sql_query(
             params.query,
             project_id,
             params.parameters,
-            SqlQuerySource::Mcp,
+            SqlQuerySource::Public,
             self.policy(project_id).await,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),
             self.db.clone(),
             self.cache.clone(),
-            audit,
         )
-        .await
-        {
-            Ok(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
-                serde_json::to_string_pretty(&result).unwrap_or_default(),
+        .await;
+        let tables = result.as_ref().map(|output| output.tables.clone());
+        self.audit(
+            &context,
+            AuditResource::Sql,
+            AuditAction::Query,
+            result.is_ok(),
+            None,
+            Some(json!({ "query": query, "tables": tables.unwrap_or_default() })),
+        )
+        .await;
+        match result {
+            Ok(output) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                serde_json::to_string_pretty(&output.rows).unwrap_or_default(),
             )])
             .into()),
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(e.to_string())]).into()),
@@ -271,6 +273,7 @@ impl LaminarMcpServer {
             AuditAction::View,
             result.is_ok(),
             Some(params.trace_id.to_string()),
+            None,
         )
         .await;
         match result {
@@ -306,6 +309,7 @@ impl LaminarMcpServer {
             AuditAction::Run,
             result.is_ok(),
             result.as_ref().ok().map(|(_, id)| id.to_string()),
+            None,
         )
         .await;
         match result {
@@ -343,6 +347,7 @@ impl LaminarMcpServer {
         action: AuditAction,
         success: bool,
         resource_id: Option<String>,
+        metadata: Option<Value>,
     ) {
         let (Some(key), Some(ProjectId(project_id))) = (
             context.extensions.get::<ProjectApiKey>(),
@@ -364,6 +369,7 @@ impl LaminarMcpServer {
         );
         input.project_id = Some(*project_id);
         input.resource_id = resource_id;
+        input.metadata = metadata;
         if let Err(e) = audit::emit(self.db.clone(), self.cache.clone(), &self.queue, input).await {
             log::error!("Failed to emit MCP audit event: {e:?}");
         }

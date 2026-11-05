@@ -20,19 +20,16 @@ export const projectHasTraces = async (projectId: string): Promise<boolean | nul
 
   let result: { exists: number } | undefined;
   try {
-    [result] = await executeQuery<{ exists: number }>(
-      {
-        query: `
+    [result] = await executeQuery<{ exists: number }>({
+      query: `
           SELECT 1 as exists
           FROM traces
           WHERE trace_type = {traceType:String}
           LIMIT 1
       `,
-        parameters: { traceType: "DEFAULT" },
-        projectId,
-      },
-      { source: "internal" }
-    );
+      parameters: { traceType: "DEFAULT" },
+      projectId,
+    });
   } catch (e) {
     // Never cache a failure — a transient ClickHouse error must not permanently mark an
     // empty project as having traces.

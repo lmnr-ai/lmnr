@@ -53,11 +53,10 @@ type EventClusterRow = {
 
 // Trace-keyed: `signal_events` is ordered (project_id, signal_id, …) and can't prune by trace.
 const fetchTraceEvents = async (projectId: string, traceId: string): Promise<TraceEventRow[]> => {
-  const rows = await executeQuery<TraceEventRow>(
-    {
-      projectId,
-      // Qualify `traces.id` — a bare `id` would match `e.event_id AS id`.
-      query: `
+  const rows = await executeQuery<TraceEventRow>({
+    projectId,
+    // Qualify `traces.id` — a bare `id` would match `e.event_id AS id`.
+    query: `
       SELECT
         e.event_id AS id,
         e.signal_id AS signalId,
@@ -68,10 +67,8 @@ const fetchTraceEvents = async (projectId: string, traceId: string): Promise<Tra
       WHERE traces.id = {traceId: UUID}
       ORDER BY e.severity DESC, e.event_id ASC
     `,
-      parameters: { traceId },
-    },
-    { source: "internal" }
-  );
+    parameters: { traceId },
+  });
   return rows.map((r) => ({ ...r, severity: Number(r.severity) }));
 };
 
@@ -81,11 +78,10 @@ const fetchLeafClusters = async (
   signalIds: string[],
   eventIds: string[]
 ): Promise<Record<string, TraceSignalClusterNode[]>> => {
-  const rows = await executeQuery<EventClusterRow>(
-    {
-      projectId,
-      // `signal_id IN (…)` is the view's prune key; without it this scans every signal in the project.
-      query: `
+  const rows = await executeQuery<EventClusterRow>({
+    projectId,
+    // `signal_id IN (…)` is the view's prune key; without it this scans every signal in the project.
+    query: `
       SELECT
         event_id AS eventId,
         cluster_id AS clusterId,
@@ -96,10 +92,8 @@ const fetchLeafClusters = async (
         AND event_id IN ({eventIds: Array(UUID)})
         AND level = 1
     `,
-      parameters: { signalIds, eventIds },
-    },
-    { source: "internal" }
-  );
+    parameters: { signalIds, eventIds },
+  });
 
   return mapValues(groupBy(rows, "eventId"), (eventRows) =>
     uniqBy(

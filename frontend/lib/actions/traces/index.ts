@@ -98,10 +98,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     customColumns,
   });
 
-  const items = await executeQuery<TraceRow>(
-    { query: mainQuery, parameters: mainParams, projectId },
-    { source: "internal" }
-  );
+  const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
 
   // If we have traceIds from search, sort items to match the search order
   if (search && traceIds.length > 0) {
@@ -178,14 +175,11 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     customColumns,
   });
 
-  const result = await executeQuery<{ count: number }>(
-    {
-      query: countQuery,
-      parameters: countParams,
-      projectId,
-    },
-    { source: "internal" }
-  );
+  const result = await executeQuery<{ count: number }>({
+    query: countQuery,
+    parameters: countParams,
+    projectId,
+  });
 
   return {
     count: result[0]?.count ?? 0,

@@ -23,6 +23,8 @@ export interface ExportJobResult {
   message: string;
   jobId: string | null;
   warnings?: string[];
+  /** Tables the query reads, for the route's audit event. */
+  tables: string[];
 }
 
 export async function createExportJob(input: z.infer<typeof CreateExportJobSchema>): Promise<ExportJobResult> {
@@ -48,13 +50,10 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   };
 
   // Validate the SQL query using the same gRPC service as the Rust backend
-  const validationResult = await validateQuery(
-    {
-      projectId,
-      query: sqlQuery,
-    },
-    { source: "export" }
-  );
+  const validationResult = await validateQuery({
+    projectId,
+    query: sqlQuery,
+  });
 
   if (!validationResult.success) {
     throw new Error(`Query validation failed: ${validationResult.error}`);
@@ -87,6 +86,7 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   return {
     message: "Export job started successfully",
     jobId: exportResult.jobId || null,
+    tables: validationResult.tables,
     warnings: validationResult.error
       ? [`Query was validated and may have been modified: ${validationResult.error}`]
       : undefined,

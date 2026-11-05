@@ -75,7 +75,7 @@ pub async fn query(
     // Cap per-query memory for public/CLI traffic only — the trusted frontend
     // runs uncapped. `0` (the default) means unlimited, so we only set it when an
     // operator has opted in to a concrete ceiling.
-    if source.is_memory_capped() {
+    if source == SqlQuerySource::Public {
         let max_memory_usage = env::sql::MAX_MEMORY_USAGE.get();
         if max_memory_usage != "0" {
             clickhouse_query = clickhouse_query.with_setting("max_memory_usage", max_memory_usage);

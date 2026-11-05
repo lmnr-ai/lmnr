@@ -75,14 +75,11 @@ export async function getAgentTracesStats(
     ${withFill}
   `;
 
-  const rows = await executeQuery<TracesBucketRow>(
-    {
-      query,
-      parameters: { ...timeParams, agentHash: agent.agentHash, intervalValue, intervalUnit },
-      projectId,
-    },
-    { source: "internal" }
-  );
+  const rows = await executeQuery<TracesBucketRow>({
+    query,
+    parameters: { ...timeParams, agentHash: agent.agentHash, intervalValue, intervalUnit },
+    projectId,
+  });
 
   return rows.map(({ timestamp, versionHashes, counts }) => {
     // ClickHouse returns UTC without an offset; ISO keeps the chart's zoom range unambiguous.

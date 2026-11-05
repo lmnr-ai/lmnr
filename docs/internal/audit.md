@@ -40,13 +40,16 @@ Records who changed what in a workspace and who read trace data, shown to owners
 
 ## SQL
 
-- `SqlQuerySource` (`sql/mod.rs`) is required on every SQL call, including the frontend `executeQuery`/`validateQuery` and the internal `/sql/query` and `/sql/validate` bodies. Platform-built SQL uses `internal` and is not audited. `editor` (anything sent through `/api/projects/[id]/sql`: the editor, dashboards, custom columns), `export`, `api`, `cli`, `mcp` and `agent` emit `sql.query` with `metadata.query` (16 KB cap), `metadata.tables` (from `validate_and_secure_query`) and `metadata.channel`. Rejected queries are logged as `denied`.
-- SQL run through the internal `/sql/query` route is audited only for `Actor::User`. CLI chart writes test-run their queries there as `Actor::Cli` (no user), so `/v1/cli/dashboards/{id}/charts` emits their `sql.query` events itself (`audit_chart_queries`).
-- Export jobs run the validated SQL in the external data exporter, so their event is emitted by `/sql/validate` with source `export`.
-- The memory cap applies to `api`/`cli`/`mcp` only (`SqlQuerySource::is_memory_capped`).
-- For HYBRID workspaces the stored query goes through `query_engine::validator::strip_literals` (string and number literals → `?`); if it doesn't parse, `metadata.query` is null. The `sql.query` OTel attribute is always literal-stripped.
+- `sql.query` is logged by the route that received the query, like any other event; `sql/mod.rs` knows nothing about auditing. `run_sql_query` returns the rows and the tables the validator saw (`execute_sql_query` drops the tables), and the route puts `metadata.query` and `metadata.tables` on its event:
+  - `/api/projects/[id]/sql` (the editor, dashboards, custom columns): `withAudit`, with the tables from the internal `/sql/query` route's `x-laminar-sql-tables` header (`executeQueryWithTables`).
+  - `/api/projects/[id]/sql/export-job`: `sql.export`, with the tables from `/sql/validate`. The exporter runs the validated SQL outside app-server, so this route is the last point that sees it.
+  - `/v1/sql/query` and `/v1/cli/sql/query`: the `/v1` middleware; `handle_sql_query` adds the metadata with `audit::metadata`.
+  - MCP `query_laminar_sql`: the tool handler, because the single `/mcp` route serves every tool.
+- SQL the platform builds (tables, charts, datasets) goes through no audited route, so it isn't logged. CLI chart saves test-run their queries as `Actor::Cli`; the `chart.update` event covers them, since nothing is read back.
+- The outcome comes from the status like every other event, so a query the validator rejects (400) is `error`.
+- `audit::enrich` makes `metadata.query` storable for every `sql` event, whichever side sent it: truncated to 16 KB and, for HYBRID workspaces, passed through `query_engine::validator::strip_literals` (string and number literals → `?`; null if it doesn't parse). The `sql.query` OTel attribute is always literal-stripped.
+- `SqlQuerySource` only decides the memory cap (`Public`: `/v1`, CLI, MCP).
 
 ## Not covered yet
 
 - Slack actions, sign-ins, SCIM/Okta membership sync, retention and export.
-- `sql.query` events carry no IP or user agent: they are emitted in app-server, which doesn't receive the browser's.

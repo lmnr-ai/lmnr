@@ -249,7 +249,6 @@ pub async fn fetch_datapoints_page(
         http_client.clone(),
         db.clone(),
         cache.clone(),
-        None,
     )
     .await?;
 
@@ -272,7 +271,6 @@ pub async fn fetch_datapoints_page(
         http_client,
         db,
         cache,
-        None,
     )
     .await?;
 

@@ -11,9 +11,10 @@
 pub mod consumer;
 pub mod middleware;
 pub mod routes;
+mod sql;
 mod target;
 
-pub use target::{target, target_named, target_parent};
+pub use target::{metadata, target, target_named, target_parent};
 
 use std::sync::Arc;
 
@@ -276,9 +277,10 @@ pub fn emit_detached(
 async fn enrich(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    input: AuditEventInput,
+    mut input: AuditEventInput,
 ) -> anyhow::Result<AuditEvent> {
-    let scope = resolve_scope(db.clone(), cache, &input).await?;
+    let scope = resolve_scope(db.clone(), cache.clone(), &input).await?;
+    sql::storable_metadata(&db.pool, cache, &mut input).await;
 
     let (actor_type, actor_id, actor_label, actor_owner_user_id) = match &input.actor {
         AuditActor::User { user_id } => (

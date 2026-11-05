@@ -83,10 +83,9 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     }
 
     // Get counts from ClickHouse for these evaluations
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>(
-      {
-        projectId,
-        query: `
+    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
+      projectId,
+      query: `
         SELECT 
           evaluation_id,
           COUNT(*) as count
@@ -94,13 +93,11 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-        parameters: {
-          projectId,
-          evaluationIds: allEvaluationIds,
-        },
+      parameters: {
+        projectId,
+        evaluationIds: allEvaluationIds,
       },
-      { source: "internal" }
-    );
+    });
 
     // Create a count map, defaulting to 0 for evaluations not in ClickHouse results
     const countMap = new Map<string, number>();
@@ -160,10 +157,9 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   // Fetch counts for the returned evaluations to include in the response
   let itemsWithCounts = result.items;
   if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>(
-      {
-        projectId,
-        query: `
+    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
+      projectId,
+      query: `
         SELECT 
           evaluation_id,
           COUNT(*) as count
@@ -171,13 +167,11 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-        parameters: {
-          projectId,
-          evaluationIds: result.items.map((e: Evaluation) => e.id),
-        },
+      parameters: {
+        projectId,
+        evaluationIds: result.items.map((e: Evaluation) => e.id),
       },
-      { source: "internal" }
-    );
+    });
 
     const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
 

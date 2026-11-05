@@ -2,15 +2,17 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
-import { noAudit } from "@/lib/audit";
+import { withAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 
-export const POST = noAudit(
-  "audited by app-server as sql.query (source export)",
+// Adds SQL editor result rows to a dataset; the query that produced them was logged when it ran.
+export const POST = withAudit(
+  { resource: "datapoint", action: "create" },
   async (
     req: NextRequest,
-    props: { params: Promise<{ projectId: string; datasetId: string }> }
+    props: { params: Promise<{ projectId: string; datasetId: string }> },
+    audit
   ): Promise<NextResponse> => {
     const params = await props.params;
     const projectId = params.projectId;
@@ -39,11 +41,15 @@ export const POST = noAudit(
     }
     const { datapoints } = parseResult.data;
 
-    await createDatapoints({
+    const created = await createDatapoints({
       projectId,
       datasetId,
       datapoints,
     });
+    await audit.target(
+      created.map((datapoint) => datapoint.id),
+      { parent: { datasetId } }
+    );
 
     return NextResponse.json({ success: true }, { status: 200 });
   }

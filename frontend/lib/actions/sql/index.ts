@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { callAppServer } from "@/lib/api/backend";
+import { callAppServer, callAppServerWithHeaders } from "@/lib/api/backend";
 
 import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
@@ -21,29 +21,28 @@ const ExecuteQuerySchema = z.object({
 });
 
 /**
- * Mirrors app-server's `SqlQuerySource`. Every source but `internal` (SQL the
- * platform builds itself) is logged as `sql.query` in the audit log.
- */
-export type SqlQuerySource = "internal" | "editor" | "export";
-
-/**
- * The actor and source are separate arguments, not part of the input schema,
- * so route handlers that spread a request body cannot let a client pick who
- * they are or opt out of auditing.
+ * The actor is a separate argument, not part of the input schema, so route
+ * handlers that spread a request body cannot let a client pick who they are.
  */
 export const executeQuery = async <T extends object>(
   input: z.infer<typeof ExecuteQuerySchema>,
-  options: { source: SqlQuerySource; actor?: SqlActor }
+  options?: { actor?: SqlActor }
+) => (await executeQueryWithTables<T>(input, options)).rows;
+
+/** `executeQuery` that also returns the tables the query read, for a route's `sql.query` audit event. */
+export const executeQueryWithTables = async <T extends object>(
+  input: z.infer<typeof ExecuteQuerySchema>,
+  options?: { actor?: SqlActor }
 ) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
-  const actor = await resolveSqlActor(options.actor);
+  const actor = await resolveSqlActor(options?.actor);
 
-  const res = (await callAppServer(`/projects/${projectId}/sql/query`, {
+  const { data, headers } = await callAppServerWithHeaders<T[]>(`/projects/${projectId}/sql/query`, {
     method: "POST",
-    body: { query, parameters, actor, source: options.source },
-  })) as T[];
+    body: { query, parameters, actor },
+  });
 
-  return res;
+  return { rows: data, tables: headers.get("x-laminar-sql-tables")?.split(",").filter(Boolean) ?? [] };
 };
 
 const SqlToJsonInputSchema = z.object({

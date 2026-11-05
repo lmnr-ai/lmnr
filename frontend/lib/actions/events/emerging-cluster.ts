@@ -91,8 +91,8 @@ export async function getEventsByEmergingClusterPaginated(
   });
 
   const [rawItems, [countResult]] = await Promise.all([
-    executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }, { source: "internal" }),
-    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }, { source: "internal" }),
+    executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }),
+    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
 
   return {
