@@ -1,6 +1,5 @@
 pub mod ch;
 pub mod data_plane;
-pub mod queries;
 
 use bytes::Bytes;
 use opentelemetry::{

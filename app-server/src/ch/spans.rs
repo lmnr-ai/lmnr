@@ -284,45 +284,25 @@ impl ClickhouseInsertable for CHSpan {
     }
 }
 
-pub async fn append_tags_to_span(
-    clickhouse: clickhouse::Client,
-    span_id: Uuid,
-    project_id: Uuid,
-    tags: Vec<String>,
-) -> Result<()> {
-    if tags.is_empty() {
-        return Ok(());
-    }
-
-    tokio::spawn(async move {
-        let _ = clickhouse
-            .query("ALTER TABLE spans UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, ?)) WHERE span_id = ? AND project_id = ?")
-            .bind(tags)
-            .bind(span_id)
-            .bind(project_id)
-            .execute()
-            .await
-            .map_err(|e| {
-                log::error!("Failed to update tags for span on ch table spans {span_id}: {e:?}")
-            });
-    });
-
-    Ok(())
+#[derive(Row, Deserialize)]
+struct TraceIdRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    trace_id: Uuid,
 }
 
-pub async fn is_span_in_project(
+pub async fn get_trace_id_by_span_id(
     clickhouse: clickhouse::Client,
     span_id: Uuid,
     project_id: Uuid,
-) -> Result<bool> {
-    let result = clickhouse
-        .query("SELECT count(*) FROM spans WHERE span_id = ? AND project_id = ?")
+) -> Result<Option<Uuid>> {
+    let row = clickhouse
+        .query("SELECT trace_id FROM spans WHERE span_id = ? AND project_id = ? LIMIT 1")
         .bind(span_id)
         .bind(project_id)
-        .fetch_one::<u64>()
+        .fetch_optional::<TraceIdRow>()
         .await?;
 
-    Ok(result > 0)
+    Ok(row.map(|r| r.trace_id))
 }
 
 /// One LLM/CACHED span of a replay trace, with the reconstructed input and the
