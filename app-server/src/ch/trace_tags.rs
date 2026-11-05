@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 use clickhouse::Row;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Row, Serialize)]
@@ -11,6 +11,11 @@ struct CHTraceTags {
     project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     trace_id: Uuid,
+    tags: Vec<String>,
+}
+
+#[derive(Row, Deserialize)]
+struct ExistingTagsRow {
     tags: Vec<String>,
 }
 
@@ -26,8 +31,9 @@ pub async fn add_trace_tags(
         .query("SELECT tags FROM trace_tags FINAL WHERE project_id = ? AND trace_id = ?")
         .bind(project_id)
         .bind(trace_id)
-        .fetch_optional::<Vec<String>>()
+        .fetch_optional::<ExistingTagsRow>()
         .await?
+        .map(|row| row.tags)
         .unwrap_or_default();
 
     let mut seen: HashSet<String> = existing.iter().cloned().collect();
