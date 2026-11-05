@@ -157,26 +157,13 @@ struct TargetFields {
     metadata: Option<Value>,
 }
 
-/// One target names the event; several go to `metadata.ids` / `metadata.names`. Path ids
-/// that are not targets (`/dashboards/{dashboard_id}/charts`) are kept as parents.
-fn target_fields<'a>(
-    targets: Targets,
-    path_params: impl IntoIterator<Item = (&'a str, &'a str)>,
-) -> TargetFields {
+/// One target names the event; several go to `metadata.ids` / `metadata.names`. Parents are
+/// only what the handler passed to `audit::target_parent`; nothing is taken from the path.
+fn target_fields(targets: Targets) -> TargetFields {
     let Targets {
         items,
         mut metadata,
     } = targets;
-    for (name, value) in path_params {
-        if name.ends_with("_id")
-            && name != "project_id"
-            && !items
-                .iter()
-                .any(|target| target.id.eq_ignore_ascii_case(value))
-        {
-            metadata.insert(name.to_string(), Value::String(value.to_string()));
-        }
-    }
     let (resource_id, resource_label) = match items.as_slice() {
         [] => (None, None),
         [target] => (Some(target.id.clone()), target.name.clone()),
@@ -261,7 +248,7 @@ pub async fn audit_v1(
             request.method()
         );
     }
-    let fields = target_fields(targets.unwrap_or_default(), request.match_info().iter());
+    let fields = target_fields(targets.unwrap_or_default());
     input.resource_id = fields.resource_id;
     input.resource_label = fields.resource_label;
     input.metadata = fields.metadata;
@@ -341,10 +328,7 @@ mod tests {
 
     #[test]
     fn one_target_names_the_event() {
-        let fields = target_fields(
-            targets(&[("d1", Some("Prod"))]),
-            [("project_id", "p1"), ("dataset_id", "d1")],
-        );
+        let fields = target_fields(targets(&[("d1", Some("Prod"))]));
         assert_eq!(
             fields,
             TargetFields {
@@ -357,10 +341,11 @@ mod tests {
 
     #[test]
     fn several_targets_go_to_metadata_with_their_parent() {
-        let fields = target_fields(
-            targets(&[("c1", Some("Latency")), ("c2", None)]),
-            [("dashboard_id", "dash")],
-        );
+        let mut charts = targets(&[("c1", Some("Latency")), ("c2", None)]);
+        charts
+            .metadata
+            .insert("dashboard_id".to_string(), json!("dash"));
+        let fields = target_fields(charts);
         assert_eq!(fields.resource_id, None);
         assert_eq!(fields.resource_label, None);
         assert_eq!(
@@ -380,16 +365,14 @@ mod tests {
         let items: Vec<(&str, Option<&str>)> = ids.iter().map(|id| (id.as_str(), None)).collect();
         let mut many = targets(&items);
         many.metadata.insert("dataset_id".to_string(), json!("ds"));
-        let metadata = target_fields(many, []).metadata.unwrap();
+        let metadata = target_fields(many).metadata.unwrap();
         assert_eq!(metadata["ids"].as_array().unwrap().len(), MAX_TARGETS);
         assert_eq!(metadata["count"], json!(150));
         assert_eq!(metadata["dataset_id"], json!("ds"));
     }
 
     #[test]
-    fn untargeted_path_ids_are_parents() {
-        let fields = target_fields(Targets::default(), [("dataset_id", "d1"), ("idx", "0")]);
-        assert_eq!(fields.resource_id, None);
-        assert_eq!(fields.metadata, Some(json!({ "dataset_id": "d1" })));
+    fn nothing_is_taken_from_the_path() {
+        assert_eq!(target_fields(Targets::default()).metadata, None);
     }
 }
