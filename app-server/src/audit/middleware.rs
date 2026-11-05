@@ -183,12 +183,15 @@ fn target_fields<'a>(
         many => {
             let capped = &many[..many.len().min(MAX_TARGETS)];
             let ids = capped.iter().map(|t| Value::String(t.id.clone()));
-            let names = capped
+            let names: Vec<Value> = capped
                 .iter()
                 .filter_map(|t| t.name.clone())
-                .map(Value::String);
+                .map(Value::String)
+                .collect();
             metadata.insert("ids".to_string(), ids.collect());
-            metadata.insert("names".to_string(), names.collect());
+            if !names.is_empty() {
+                metadata.insert("names".to_string(), Value::Array(names));
+            }
             metadata.insert("count".to_string(), Value::from(many.len()));
             (None, None)
         }
