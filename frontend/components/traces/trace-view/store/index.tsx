@@ -55,6 +55,8 @@ const createTraceViewStore = (options?: {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
+  /** Timeline visibility until the user toggles it (then the persisted choice wins). */
+  defaultTimelineEnabled?: boolean;
 }) =>
   createStore<TraceViewStore>()(
     persist(
@@ -69,6 +71,7 @@ const createTraceViewStore = (options?: {
 
         return {
           ...baseSlice,
+          condensedTimelineEnabled: options?.defaultTimelineEnabled ?? baseSlice.condensedTimelineEnabled,
 
           targets: DEFAULT_TARGETS,
           maxWidth: Infinity,
@@ -169,6 +172,7 @@ const TraceViewStoreProvider = ({
   isAlwaysSelectSpan,
   initialSignalId,
   initialSearch,
+  defaultTimelineEnabled,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   initialSpans?: TraceViewSpan[];
@@ -176,6 +180,7 @@ const TraceViewStoreProvider = ({
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
+  defaultTimelineEnabled?: boolean;
 }>) => {
   const [storeState] = useState(() =>
     createTraceViewStore({
@@ -185,6 +190,7 @@ const TraceViewStoreProvider = ({
       isAlwaysSelectSpan,
       initialSignalId,
       initialSearch,
+      defaultTimelineEnabled,
     })
   );
 
