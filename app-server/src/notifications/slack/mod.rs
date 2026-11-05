@@ -661,7 +661,7 @@ mod tests {
         let overview = sections[detector];
         assert!(overview.starts_with("background-agent / *<"));
         assert!(overview.contains("/signals/"));
-        assert!(overview.contains("*12* events  ▲ 20.0% vs previous period"));
+        assert!(overview.contains("*12* events  🔴 ▲ 20.0% vs previous period"));
         assert!(overview.contains("Timeouts dominated &amp; rose sharply."));
 
         // notable clusters: recurring before new, below-threshold dropped, names escaped
@@ -670,7 +670,7 @@ mod tests {
         let bad = clusters.find("Bad &lt;args&gt; ¦ retries").unwrap();
         let new = clusters.find("Tool timeouts").unwrap();
         assert!(bad < new);
-        assert!(clusters.contains("8 events · ▲ 100.0%"));
+        assert!(clusters.contains("8 events · 🔴 ▲ 100.0%"));
         assert!(clusters.contains("30 events · `NEW`"));
         assert!(clusters.contains("?clusterId="));
         assert!(!clusters.contains("tiny"));
@@ -690,6 +690,21 @@ mod tests {
                 .unwrap()
                 .contains("tab=reports")
         );
+    }
+
+    #[test]
+    fn report_colors_growth_red_and_decline_green() {
+        let v = format_report_blocks(
+            "Weekly report",
+            &report_with(vec![project(
+                "p",
+                vec![signal("Down", 4, vec![cluster("c", 4, 20)])],
+            )]),
+        );
+        let sections = section_texts(blocks_of(&v));
+        assert!(sections.iter().any(|s| s.contains("🟢 ▼ 60.0%")));
+        assert!(sections.iter().any(|s| s.contains("🟢 ▼ 80.0%")));
+        assert!(!sections.iter().any(|s| s.contains("🔴")));
     }
 
     #[test]
