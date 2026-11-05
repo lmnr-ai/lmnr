@@ -805,13 +805,10 @@ fn delta(current: u64, previous: u64) -> String {
     if pct == 0.0 {
         return r#"<span style="font-size:14px;color:#92949c">0.0%</span>"#.to_string();
     }
-    let (glyph, color) = if pct > 0.0 {
-        ("&#9650;", "#e05252")
-    } else {
-        ("&#9660;", "#2f9e67")
-    };
+    // Neutral color: more events isn't inherently bad, since some signals fire on every trace.
+    let glyph = if pct > 0.0 { "&#9650;" } else { "&#9660;" };
     format!(
-        r#"<span style="font-size:12px;color:{color}">{glyph}</span><span style="display:inline-block;width:2px">&nbsp;</span><span style="font-size:14px;color:{color}">{:.1}%</span>"#,
+        r#"<span style="font-size:12px;color:{MUTED}">{glyph}</span><span style="display:inline-block;width:2px">&nbsp;</span><span style="font-size:14px;color:{MUTED}">{:.1}%</span>"#,
         pct.abs()
     )
 }
@@ -962,6 +959,17 @@ mod tests {
         ProjectReportData, ReportChartBucket, ReportClusterData, ReportData, SignalReportData,
     };
     use std::collections::BTreeMap;
+
+    #[test]
+    fn report_delta_uses_neutral_color() {
+        for (current, previous, glyph, pct) in
+            [(15, 10, "&#9650;", "50.0%"), (5, 10, "&#9660;", "50.0%")]
+        {
+            let html = delta(current, previous);
+            assert!(html.contains(&format!(r#"color:{MUTED}">{glyph}</span>"#)));
+            assert!(html.contains(&format!(r#"color:{MUTED}">{pct}</span>"#)));
+        }
+    }
 
     #[test]
     fn cluster_color_matches_frontend_golden_vectors() {
