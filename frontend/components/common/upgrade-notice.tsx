@@ -9,9 +9,9 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { TRIAL_DAYS } from "@/lib/actions/checkout/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
 
 interface UpgradeNoticeProps {
   title: string;

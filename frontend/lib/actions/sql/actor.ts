@@ -6,7 +6,7 @@ import { getServerSession } from "@/lib/auth-session";
  * Who is reading. The app-server derives its role-based read policy from this
  * (docs/internal/rbac.md), so it must come from the server session or from
  * trusted server code — never from a request body. `cli`/`apiKey` only arrive
- * from app-server on `/api/internal` calls (`lib/internal-auth.ts`).
+ * from app-server on `/api/internal` calls (`lib/api/internal.ts`).
  */
 export type SqlActor = { type: "user"; userId: string } | { type: "shared" } | { type: "cli" } | { type: "apiKey" };
 

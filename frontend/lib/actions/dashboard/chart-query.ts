@@ -103,7 +103,7 @@ const checkChartQuery = async (
   try {
     rows = await runQuery(config.type === "table" ? firstTablePage(query) : query, testParameters(new Date()));
   } catch (e) {
-    return { error: `query failed when run over the last 24h: ${sqlErrorMessage(e)}` };
+    return { error: `query failed when run over the last 24h: ${e instanceof Error ? e.message : String(e)}` };
   }
 
   const first = rows[0];
@@ -115,18 +115,6 @@ const checkChartQuery = async (
   }
   const mappingError = checkMappings(config, new Set(Object.keys(first))) ?? checkBreakdown(config, rows);
   return mappingError ? { error: mappingError } : { query };
-};
-
-/** `executeQuery` throws the app-server body, `{"error": "..."}`. */
-const sqlErrorMessage = (e: unknown) => {
-  const text = e instanceof Error ? e.message : String(e);
-  try {
-    const parsed = JSON.parse(text) as { error?: unknown };
-    if (typeof parsed.error === "string") return parsed.error;
-  } catch {
-    // Not JSON: use the text as is.
-  }
-  return text;
 };
 
 /** The first page a dashboard fetches for a table chart. */

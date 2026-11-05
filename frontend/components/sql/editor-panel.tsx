@@ -149,18 +149,7 @@ export default function EditorPanel() {
         return;
       }
 
-      const errorMessage =
-        err instanceof Error ? err.message : "An unexpected error occurred while executing the query.";
-      try {
-        const error = JSON.parse(errorMessage).error;
-        if (error) {
-          setError(error);
-        } else {
-          setError(errorMessage);
-        }
-      } catch {
-        setError(errorMessage);
-      }
+      setError(err instanceof Error ? err.message : "An unexpected error occurred while executing the query.");
       setResults([]);
     } finally {
       if (abortControllerRef.current === controller) {

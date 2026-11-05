@@ -7,7 +7,7 @@ import useSWR from "swr";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionsResult } from "@/lib/actions/agents";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";

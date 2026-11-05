@@ -9,6 +9,7 @@ import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { fetchEvalTaskPage } from "@/lib/actions/evaluation/task-page";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery, type SqlActor } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { datasets, evaluations } from "@/lib/db/migrations/schema";
 import { taskMeanScores } from "@/lib/evaluation/task-groups";
@@ -154,7 +155,7 @@ export const getEvaluationTrials = async (
   });
 
   if (!evaluation) {
-    throw new Error("Evaluation not found");
+    throw new NotFoundError("Evaluation not found");
   }
 
   const allFilters = compact(inputFilters);
@@ -223,7 +224,7 @@ export const getEvaluationStatistics = async (
   });
 
   if (!evaluation) {
-    throw new Error("Evaluation not found");
+    throw new NotFoundError("Evaluation not found");
   }
 
   const allFilters = compact(inputFilters);
@@ -306,7 +307,7 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   });
 
   if (!evaluation) {
-    throw new Error("Evaluation not found");
+    throw new NotFoundError("Evaluation not found");
   }
 
   let col: EvalQueryColumn;
@@ -416,7 +417,7 @@ export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSch
     .returning();
 
   if (!updated) {
-    throw new Error("Evaluation not found");
+    throw new NotFoundError("Evaluation not found");
   }
 
   return updated;

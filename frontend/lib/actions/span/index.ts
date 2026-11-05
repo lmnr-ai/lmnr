@@ -5,6 +5,7 @@ import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { resolveSpanTokenDetails, spanTokenDetailColumns } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { normalizeSpanForExport } from "@/lib/spans/utils";
 import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
@@ -88,7 +89,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   });
 
   if (!span) {
-    throw new Error("Span not found");
+    throw new NotFoundError("Span not found");
   }
 
   const parsedAttributes = tryParseJson(span.attributes) || {};

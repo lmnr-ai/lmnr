@@ -1,7 +1,7 @@
-import { InternalApiError } from "@/lib/internal-auth";
+import { ApiError } from "@/lib/api/errors";
 
 /** A dashboard write the caller got wrong; `status` is what API routes answer with. */
-export class DashboardError extends InternalApiError {
+export class DashboardError extends ApiError {
   constructor(
     message: string,
     public readonly status: 400 | 404 | 409

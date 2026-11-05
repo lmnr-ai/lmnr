@@ -6,8 +6,8 @@ import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template, type TemplateScope } from "../index";
 import { type ManageTemplateMode } from "../manage-template-mode";

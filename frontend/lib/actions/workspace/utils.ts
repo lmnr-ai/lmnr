@@ -1,11 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { AuthorizationError } from "@/lib/api/errors";
 import { getServerSession } from "@/lib/auth-session";
 import { notTrialLocked } from "@/lib/authorization/trial-lock";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
-import { AuthorizationError } from "@/lib/errors";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { SSO_MANAGED_MEMBERSHIP_MESSAGE, WORKSPACE_ROLES, type WorkspaceRole } from "@/lib/workspaces/types";
 

@@ -1,6 +1,5 @@
-import { prettifyError, ZodError } from "zod/v4";
-
 import { listQueueItems, listQueueItemStates } from "@/lib/actions/queue";
+import { apiHandler } from "@/lib/api/api-handler";
 
 /**
  * Two response shapes from one endpoint, distinguished by query params.
@@ -19,10 +18,9 @@ import { listQueueItems, listQueueItemStates } from "@/lib/actions/queue";
  * keeping the URL stable means SWR cache keys for the index are simple
  * (just the URL) and don't have to encode an opaque `mode` param.
  */
-export async function GET(req: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
-  const { projectId, queueId } = await props.params;
-  const url = new URL(req.url);
-  const idsParam = url.searchParams.get("ids");
+export const GET = apiHandler<{ projectId: string; queueId: string }>(async (req, ctx) => {
+  const { projectId, queueId } = await ctx.params;
+  const idsParam = req.nextUrl.searchParams.get("ids");
   const requestedIds = idsParam
     ? idsParam
         .split(",")
@@ -30,19 +28,11 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
         .filter((s) => s.length > 0)
     : null;
 
-  try {
-    if (requestedIds) {
-      const items = await listQueueItems({ projectId, queueId, ids: requestedIds });
-      return Response.json({ items });
-    }
-
-    const items = await listQueueItemStates({ projectId, queueId });
+  if (requestedIds) {
+    const items = await listQueueItems({ projectId, queueId, ids: requestedIds });
     return Response.json({ items });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    console.error("Error fetching queue items:", error);
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
-}
+
+  const items = await listQueueItemStates({ projectId, queueId });
+  return Response.json({ items });
+});

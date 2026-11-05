@@ -3,10 +3,11 @@ import { z } from "zod/v4";
 
 import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { getSlackChannels, getSlackIntegration, type SlackChannel } from "@/lib/actions/slack";
+import { ApiError } from "@/lib/api/errors";
+import { type InternalClaims } from "@/lib/api/internal";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alertFilters, alerts, alertTargets, projects, signals, users } from "@/lib/db/migrations/schema";
-import { InternalApiError, type InternalClaims } from "@/lib/internal-auth";
 
 import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } from "./types";
 
@@ -14,7 +15,7 @@ import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } fro
 // app-server's `/v1/cli/alerts`). It writes the same rows as the settings form. Reads go through
 // SQL (`alerts`, `alert_targets`, `alert_filters`).
 
-export class AlertApiError extends InternalApiError {
+export class AlertApiError extends ApiError {
   constructor(message: string, status: 400 | 401 | 404) {
     super(message, status);
     this.name = "AlertApiError";

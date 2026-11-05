@@ -8,7 +8,7 @@ import { signalVersionsKey } from "@/components/signal/hooks/use-signal-version-
 import { useSignalStoreContext } from "@/components/signal/store";
 import { Accordion } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { buildChangelog, type SignalVersionItem } from "./changelog";
 import VersionRow from "./version-row";

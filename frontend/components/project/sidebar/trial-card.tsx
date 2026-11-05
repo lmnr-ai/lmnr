@@ -9,8 +9,9 @@ import TrialPopoverContent from "@/components/project/sidebar/trial-popover-cont
 import { useTrialIntro } from "@/components/project/sidebar/use-trial-intro.ts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const subscribeNone = () => () => {};
 
