@@ -48,7 +48,17 @@ pub struct QuerySqlParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetTraceContextParams {
-    /// The trace ID to retrieve (UUID format, e.g., '123e4567-e89b-12d3-a456-426614174000')
+    /// The trace ID to retrieve: 32 hex digits, either as a hyphenated GUID (e.g.,
+    /// '123e4567-e89b-12d3-a456-426614174000') or unhyphenated as in OpenTelemetry
+    /// (e.g., '123e4567e89b12d3a456426614174000')
+    // Not advertised as `format: uuid`: zod maps that to the RFC-strict `z.uuid()`, which rejects
+    // valid OTel trace ids. The pattern mirrors the two forms OTel/Laminar emit; `Uuid` parses both.
+    #[schemars(
+        with = "String",
+        regex(
+            pattern = r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$"
+        )
+    )]
     pub trace_id: Uuid,
 }
 
