@@ -180,16 +180,21 @@ fn cluster_line(
     )
 }
 
-/// Change vs the previous period, matching the email's NEW / ▲ / ▼ markers.
+/// Change vs the previous period, mirroring the email's NEW / up / down markers.
+///
+/// Slack mrkdwn can't color text, so the red/green of the email's markers has to
+/// come from an emoji: Unicode has no green triangle, so a colored dot carries the
+/// color and the ▲ / ▼ glyph keeps the direction. Growth is bad here (more events),
+/// so it is red and decline is green.
 fn delta(current: u64, previous: u64) -> String {
     if previous == 0 {
         return "`NEW`".to_string();
     }
     let pct = (current as f64 - previous as f64) / previous as f64 * 100.0;
     if pct > 0.0 {
-        format!("▲ {:.1}%", pct)
+        format!("🔴 ▲ {:.1}%", pct)
     } else if pct < 0.0 {
-        format!("▼ {:.1}%", pct.abs())
+        format!("🟢 ▼ {:.1}%", pct.abs())
     } else {
         "0.0%".to_string()
     }
