@@ -1,6 +1,7 @@
 import { createView } from "@/lib/actions/view";
 import { getViews } from "@/lib/actions/views";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
@@ -13,7 +14,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getViews({ projectId, resource }));
 });
 
-export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
+export const POST = withAudit<{ projectId: string }>({ resource: "view", action: "create" }, async (req, ctx) => {
   const { projectId } = await ctx.params;
   const body = await req.json();
 

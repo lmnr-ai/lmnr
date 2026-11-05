@@ -1,27 +1,33 @@
 import { deleteSqlTemplate, updateSqlTemplate } from "@/lib/actions/sql/templates";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
-export const PUT = apiHandler<{ projectId: string; templateId: string }>(async (req, ctx) => {
-  const { projectId, templateId } = await ctx.params;
+export const PUT = withAudit<{ projectId: string; templateId: string }>(
+  { resource: "sql_template", action: "update" },
+  async (req, ctx) => {
+    const { projectId, templateId } = await ctx.params;
 
-  const body = await req.json();
+    const body = await req.json();
 
-  const updatedTemplate = await updateSqlTemplate({
-    projectId,
-    templateId,
-    ...body,
-  });
+    const updatedTemplate = await updateSqlTemplate({
+      projectId,
+      templateId,
+      ...body,
+    });
 
-  return Response.json(updatedTemplate);
-});
+    return Response.json(updatedTemplate);
+  }
+);
 
-export const DELETE = apiHandler<{ projectId: string; templateId: string }>(async (_req, ctx) => {
-  const { projectId, templateId } = await ctx.params;
+export const DELETE = withAudit<{ projectId: string; templateId: string }>(
+  { resource: "sql_template", action: "delete" },
+  async (_req, ctx) => {
+    const { projectId, templateId } = await ctx.params;
 
-  await deleteSqlTemplate({
-    projectId,
-    templateId,
-  });
+    await deleteSqlTemplate({
+      projectId,
+      templateId,
+    });
 
-  return Response.json({ message: "SQL template deleted successfully" });
-});
+    return Response.json({ message: "SQL template deleted successfully" });
+  }
+);

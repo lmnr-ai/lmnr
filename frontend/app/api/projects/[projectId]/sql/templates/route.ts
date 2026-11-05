@@ -1,5 +1,6 @@
 import { createSqlTemplate, getSqlTemplates } from "@/lib/actions/sql/templates";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
   const { projectId } = await ctx.params;
@@ -9,15 +10,18 @@ export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
   return Response.json(result);
 });
 
-export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
+export const POST = withAudit<{ projectId: string }>(
+  { resource: "sql_template", action: "create" },
+  async (req, ctx) => {
+    const { projectId } = await ctx.params;
 
-  const body = await req.json();
+    const body = await req.json();
 
-  const template = await createSqlTemplate({
-    ...body,
-    projectId,
-  });
+    const template = await createSqlTemplate({
+      ...body,
+      projectId,
+    });
 
-  return Response.json(template);
-});
+    return Response.json(template);
+  }
+);

@@ -62,6 +62,7 @@ pub enum AuditResource {
     View,
     DebuggerSession,
     AuditLog,
+    Agent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

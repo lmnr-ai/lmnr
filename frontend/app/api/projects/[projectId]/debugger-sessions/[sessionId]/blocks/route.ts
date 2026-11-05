@@ -1,5 +1,6 @@
 import { getSessionBlocks, getSessionTraceRows } from "@/lib/actions/debugger-sessions";
 import { apiHandler } from "@/lib/api/api-handler";
+import { noAudit } from "@/lib/audit";
 
 type Params = { projectId: string; sessionId: string };
 
@@ -11,11 +12,14 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
 
 // `POST …/blocks` with body `{ traceIds }` → `{ traces }` — window fetch of full
 // rows. POST, not a query string, so a full id window can't overflow the URL.
-export const POST = apiHandler<Params>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { traceIds?: unknown };
-  const traceIds = Array.isArray(body.traceIds)
-    ? body.traceIds.filter((id): id is string => typeof id === "string")
-    : [];
-  return Response.json({ traces: await getSessionTraceRows({ projectId, traceIds }) });
-});
+export const POST = noAudit(
+  "per-step debugger replay traffic",
+  apiHandler<Params>(async (req, ctx) => {
+    const { projectId } = await ctx.params;
+    const body = (await req.json().catch(() => ({}))) as { traceIds?: unknown };
+    const traceIds = Array.isArray(body.traceIds)
+      ? body.traceIds.filter((id): id is string => typeof id === "string")
+      : [];
+    return Response.json({ traces: await getSessionTraceRows({ projectId, traceIds }) });
+  })
+);

@@ -4,6 +4,7 @@ import { parseUrlParams } from "@/lib/actions/common/utils.ts";
 import { createSignalJob, getSignalJobs, GetSignalJobsSchema } from "@/lib/actions/signal-jobs";
 import { checkSignalRunsLimit } from "@/lib/actions/usage/limits";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
   const { projectId, id: signalId } = await ctx.params;
@@ -26,18 +27,21 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
   return Response.json(result);
 });
 
-export const POST = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
-  const { projectId, id: signalId } = await ctx.params;
+export const POST = withAudit<{ projectId: string; id: string }>(
+  { resource: "signal", action: "backfill" },
+  async (req, ctx) => {
+    const { projectId, id: signalId } = await ctx.params;
 
-  const body = await req.json();
+    const body = await req.json();
 
-  await checkSignalRunsLimit(projectId);
+    await checkSignalRunsLimit(projectId);
 
-  const result = await createSignalJob({
-    ...body,
-    projectId,
-    signalId,
-  });
+    const result = await createSignalJob({
+      ...body,
+      projectId,
+      signalId,
+    });
 
-  return Response.json(result);
-});
+    return Response.json(result);
+  }
+);

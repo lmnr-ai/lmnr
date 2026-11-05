@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions/checkout/trial";
 import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { handleInvoiceFinalized, handleSubscriptionChange } from "@/lib/actions/checkout/webhook";
+import { noAudit } from "@/lib/audit";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
 
 // Stripe zero-decimal currencies are billed in their major units directly.
@@ -119,131 +120,134 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   }
 }
 
-export async function POST(req: NextRequest): Promise<Response> {
-  let event;
-  const endpointSecret = process.env.STRIPE_WEBHOOK_ENDPOINT_SECRET;
-  // Get the signature sent by Stripe
-  const signature = req.headers.get("stripe-signature") as string;
-  try {
-    event = Stripe.webhooks.constructEvent(await req.text(), signature, endpointSecret!);
-  } catch (err: Error | any) {
-    console.error(`⚠️  Webhook signature verification failed.`, err.message);
-    return new Response("Webhook signature verification failed.", {
-      status: 400,
-    });
-  }
-  // Handle the event
-  switch (event.type) {
-    case "invoice.payment_succeeded": {
-      const invoice = event.data.object;
-      if (invoice.amount_paid <= 0) break;
-      const customerEmail = invoice.customer_email;
-      const workspaceId = getWorkspaceId(invoice);
-      if (!customerEmail) break;
-      if (!workspaceId) {
-        console.log("invoice.payment_succeeded: no workspaceId in subscription metadata");
-        break;
-      }
-      await sendOnPaymentReceivedEmail({
-        email: customerEmail,
-        workspaceId,
-        total: formatInvoiceTotal(invoice.amount_paid, invoice.currency),
-        date: new Date(invoice.created * 1000).toLocaleDateString(),
+export const POST = noAudit(
+  "inbound Stripe webhook; not a user action",
+  async (req: NextRequest): Promise<Response> => {
+    let event;
+    const endpointSecret = process.env.STRIPE_WEBHOOK_ENDPOINT_SECRET;
+    // Get the signature sent by Stripe
+    const signature = req.headers.get("stripe-signature") as string;
+    try {
+      event = Stripe.webhooks.constructEvent(await req.text(), signature, endpointSecret!);
+    } catch (err: Error | any) {
+      console.error(`⚠️  Webhook signature verification failed.`, err.message);
+      return new Response("Webhook signature verification failed.", {
+        status: 400,
       });
-      break;
     }
-    case "invoice.payment_failed": {
-      const invoice = event.data.object;
-      if (!invoice.attempted) break;
-      if (invoice.amount_due <= 0) break;
-      const customerEmail = invoice.customer_email;
-      const workspaceId = getWorkspaceId(invoice);
-      if (!customerEmail) break;
-      if (!workspaceId) {
-        console.log("invoice.payment_failed: no workspaceId in subscription metadata");
-        break;
-      }
-      await sendOnPaymentFailedEmail({
-        email: customerEmail,
-        workspaceId,
-        total: formatInvoiceTotal(invoice.amount_due, invoice.currency),
-        date: new Date(invoice.created * 1000).toLocaleDateString(),
-      });
-      break;
-    }
-    case "invoice.finalized": {
-      const invoice = event.data.object;
-
-      if (invoice.parent?.type !== "subscription_details") break;
-
-      // Filter: must contain a line for a signal or data overage price.
-      // We match on the lookup-key shape ("signal" / "bytes" substrings) rather
-      // than an exact TIER_CONFIG allowlist so that subscriptions still billing
-      // a previous overage price are still recognised and reset. An exact-match
-      // gate would silently skip those cycles' billing reset + cache
-      // invalidation. This excludes addon-only and other unrelated invoices.
-      let hasBytesOverage = false;
-      let hasSignalRunsOverage = false;
-      let resetTime: Date | null = null;
-      const relevantLines = invoice.lines.data.filter((line) => {
-        const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
-        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
-        if (!lookupKey) return false;
-        const normalizedLookupKey = String(lookupKey).toLowerCase();
-        if (normalizedLookupKey.includes("signal")) {
-          // includes signal runs or signal steps lookup key
-          hasSignalRunsOverage = true;
-          resetTime = new Date(line.period.end * 1000);
-          return true;
+    // Handle the event
+    switch (event.type) {
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+        if (invoice.amount_paid <= 0) break;
+        const customerEmail = invoice.customer_email;
+        const workspaceId = getWorkspaceId(invoice);
+        if (!customerEmail) break;
+        if (!workspaceId) {
+          console.log("invoice.payment_succeeded: no workspaceId in subscription metadata");
+          break;
         }
-        if (normalizedLookupKey.includes("bytes")) {
-          hasBytesOverage = true;
-          // it's fine to override here, most of the times they are same
-          resetTime = new Date(line.period.end * 1000);
-          return true;
-        }
-        return false;
-      });
-      if (relevantLines.length === 0) break;
-
-      const workspaceId = invoice.metadata?.workspaceId ?? invoice.parent.subscription_details?.metadata?.workspaceId;
-      if (!workspaceId) {
-        console.log("invoice.finalized: no workspaceId in subscription metadata");
+        await sendOnPaymentReceivedEmail({
+          email: customerEmail,
+          workspaceId,
+          total: formatInvoiceTotal(invoice.amount_paid, invoice.currency),
+          date: new Date(invoice.created * 1000).toLocaleDateString(),
+        });
         break;
       }
-
-      await handleInvoiceFinalized(workspaceId, hasBytesOverage, hasSignalRunsOverage, resetTime);
-      break;
-    }
-    case "customer.subscription.deleted":
-      await handleSubscriptionChange(event, true);
-      await handleTrialDeleted(event.data.object);
-      break;
-    case "customer.subscription.created":
-      await handleSubscriptionChange(event);
-      await syncTrialEndFromSubscription(event.data.object);
-      await addOveragePricesToSubscription(event.data.object);
-      await trackTrialStarted(event.data.object);
-      break;
-    case "customer.subscription.updated": {
-      await handleSubscriptionChange(event);
-      await syncTrialEndFromSubscription(event.data.object);
-      await handleTrialConversion(event.data.object, addOveragePricesToSubscription);
-      break;
-    }
-    case "customer.subscription.trial_will_end":
-      await handleTrialWillEnd(event.data.object);
-      break;
-    case "checkout.session.completed": {
-      const session = event.data.object;
-      if (session.mode === "setup" && session.metadata?.type === TRIAL_PAYMENT_SESSION_TYPE) {
-        await handleTrialPaymentSessionCompleted(session);
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+        if (!invoice.attempted) break;
+        if (invoice.amount_due <= 0) break;
+        const customerEmail = invoice.customer_email;
+        const workspaceId = getWorkspaceId(invoice);
+        if (!customerEmail) break;
+        if (!workspaceId) {
+          console.log("invoice.payment_failed: no workspaceId in subscription metadata");
+          break;
+        }
+        await sendOnPaymentFailedEmail({
+          email: customerEmail,
+          workspaceId,
+          total: formatInvoiceTotal(invoice.amount_due, invoice.currency),
+          date: new Date(invoice.created * 1000).toLocaleDateString(),
+        });
+        break;
       }
-      break;
+      case "invoice.finalized": {
+        const invoice = event.data.object;
+
+        if (invoice.parent?.type !== "subscription_details") break;
+
+        // Filter: must contain a line for a signal or data overage price.
+        // We match on the lookup-key shape ("signal" / "bytes" substrings) rather
+        // than an exact TIER_CONFIG allowlist so that subscriptions still billing
+        // a previous overage price are still recognised and reset. An exact-match
+        // gate would silently skip those cycles' billing reset + cache
+        // invalidation. This excludes addon-only and other unrelated invoices.
+        let hasBytesOverage = false;
+        let hasSignalRunsOverage = false;
+        let resetTime: Date | null = null;
+        const relevantLines = invoice.lines.data.filter((line) => {
+          const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
+          const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+          if (!lookupKey) return false;
+          const normalizedLookupKey = String(lookupKey).toLowerCase();
+          if (normalizedLookupKey.includes("signal")) {
+            // includes signal runs or signal steps lookup key
+            hasSignalRunsOverage = true;
+            resetTime = new Date(line.period.end * 1000);
+            return true;
+          }
+          if (normalizedLookupKey.includes("bytes")) {
+            hasBytesOverage = true;
+            // it's fine to override here, most of the times they are same
+            resetTime = new Date(line.period.end * 1000);
+            return true;
+          }
+          return false;
+        });
+        if (relevantLines.length === 0) break;
+
+        const workspaceId = invoice.metadata?.workspaceId ?? invoice.parent.subscription_details?.metadata?.workspaceId;
+        if (!workspaceId) {
+          console.log("invoice.finalized: no workspaceId in subscription metadata");
+          break;
+        }
+
+        await handleInvoiceFinalized(workspaceId, hasBytesOverage, hasSignalRunsOverage, resetTime);
+        break;
+      }
+      case "customer.subscription.deleted":
+        await handleSubscriptionChange(event, true);
+        await handleTrialDeleted(event.data.object);
+        break;
+      case "customer.subscription.created":
+        await handleSubscriptionChange(event);
+        await syncTrialEndFromSubscription(event.data.object);
+        await addOveragePricesToSubscription(event.data.object);
+        await trackTrialStarted(event.data.object);
+        break;
+      case "customer.subscription.updated": {
+        await handleSubscriptionChange(event);
+        await syncTrialEndFromSubscription(event.data.object);
+        await handleTrialConversion(event.data.object, addOveragePricesToSubscription);
+        break;
+      }
+      case "customer.subscription.trial_will_end":
+        await handleTrialWillEnd(event.data.object);
+        break;
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        if (session.mode === "setup" && session.metadata?.type === TRIAL_PAYMENT_SESSION_TYPE) {
+          await handleTrialPaymentSessionCompleted(session);
+        }
+        break;
+      }
+      // NOTE: if adding new events here, don't forget to enable them via Stripe Workbench
+      default:
+        break;
     }
-    // NOTE: if adding new events here, don't forget to enable them via Stripe Workbench
-    default:
-      break;
+    return new Response("Webhook received.", { status: 200 });
   }
-  return new Response("Webhook received.", { status: 200 });
-}
+);

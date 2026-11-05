@@ -2,29 +2,33 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { sqlToJson } from "@/lib/actions/sql";
+import { noAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
-  try {
-    const session = await getServerSession();
-    const body = await request.json();
-    const projectId = (await params).projectId;
+export const POST = noAudit(
+  "query builder conversion; reads no data",
+  async (request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) => {
+    try {
+      const session = await getServerSession();
+      const body = await request.json();
+      const projectId = (await params).projectId;
 
-    if (!session) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+      if (!session) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const data = await sqlToJson({ projectId, sql: body.sql });
+
+      return Response.json({ success: true, jsonStructure: JSON.stringify(data) });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return Response.json({ success: false, error: prettifyError(error) }, { status: 400 });
+      }
+
+      return Response.json(
+        { success: false, error: error instanceof Error ? error.message : "Failed to convert SQL to JSON." },
+        { status: 500 }
+      );
     }
-
-    const data = await sqlToJson({ projectId, sql: body.sql });
-
-    return Response.json({ success: true, jsonStructure: JSON.stringify(data) });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ success: false, error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { success: false, error: error instanceof Error ? error.message : "Failed to convert SQL to JSON." },
-      { status: 500 }
-    );
   }
-}
+);

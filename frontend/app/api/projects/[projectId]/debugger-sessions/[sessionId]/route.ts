@@ -1,8 +1,11 @@
 import { updateDebuggerSessionName } from "@/lib/actions/debugger-sessions";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
-export const PATCH = apiHandler<{ projectId: string; sessionId: string }>(async (req, ctx) => {
-  const { projectId, sessionId } = await ctx.params;
-  const { name } = await req.json();
-  return Response.json(await updateDebuggerSessionName({ projectId, id: sessionId, name }));
-});
+export const PATCH = withAudit<{ projectId: string; sessionId: string }>(
+  { resource: "debugger_session", action: "update" },
+  async (req, ctx) => {
+    const { projectId, sessionId } = await ctx.params;
+    const { name } = await req.json();
+    return Response.json(await updateDebuggerSessionName({ projectId, id: sessionId, name }));
+  }
+);

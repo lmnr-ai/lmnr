@@ -1,21 +1,25 @@
 import { ExportSpanSchema, exportSpanToDataset } from "@/lib/actions/span";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ projectId: string; spanId: string }>(async (req, ctx) => {
-  const { projectId, spanId } = await ctx.params;
-  const body = await req.json();
+export const POST = withAudit<{ projectId: string; spanId: string }>(
+  { resource: "datapoint", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId, spanId } = await ctx.params;
+    const body = await req.json();
 
-  const result = ExportSpanSchema.safeParse({
-    ...body,
-    spanId,
-    projectId,
-  });
+    const result = ExportSpanSchema.safeParse({
+      ...body,
+      spanId,
+      projectId,
+    });
 
-  if (!result.success) {
-    return Response.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
+    if (!result.success) {
+      return Response.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
+    }
+
+    const { datapointId, traceId } = await exportSpanToDataset(result.data);
+    audit.set({ resourceId: datapointId, metadata: { datasetId: result.data.datasetId, spanId, traceId } });
+
+    return Response.json("Span exported to dataset successfully");
   }
-
-  await exportSpanToDataset(result.data);
-
-  return Response.json("Span exported to dataset successfully");
-});
+);

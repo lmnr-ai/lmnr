@@ -1,5 +1,6 @@
 import { createAlert, deleteAlert, getAlerts } from "@/lib/actions/alerts";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
@@ -11,7 +12,7 @@ export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
   return Response.json(result);
 });
 
-export const POST = apiHandler<{ projectId: string }>(async (request, ctx) => {
+export const POST = withAudit<{ projectId: string }>({ resource: "alert", action: "create" }, async (request, ctx) => {
   const { projectId } = await ctx.params;
 
   const session = await getServerSession();
@@ -28,10 +29,13 @@ export const POST = apiHandler<{ projectId: string }>(async (request, ctx) => {
   return Response.json(result);
 });
 
-export const DELETE = apiHandler<{ projectId: string }>(async (request, ctx) => {
-  const { projectId } = await ctx.params;
+export const DELETE = withAudit<{ projectId: string }>(
+  { resource: "alert", action: "delete" },
+  async (request, ctx) => {
+    const { projectId } = await ctx.params;
 
-  const body = await request.json();
-  const result = await deleteAlert({ ...body, projectId });
-  return Response.json(result);
-});
+    const body = await request.json();
+    const result = await deleteAlert({ ...body, projectId });
+    return Response.json(result);
+  }
+);

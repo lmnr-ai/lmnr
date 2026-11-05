@@ -3,31 +3,39 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteTraces, DeleteTracesSchema, getTraces, GetTracesSchema } from "@/lib/actions/traces";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
-import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 
-export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const params = await ctx.params;
-  const projectId = params.projectId;
+export const GET = withAudit<{ projectId: string }>(
+  { resource: "trace", action: "list", read: true },
+  async (req, ctx, audit) => {
+    const params = await ctx.params;
+    const projectId = params.projectId;
+    // One event per table load; later pages of the same scroll add nothing.
+    if (Number(req.nextUrl.searchParams.get("pageNumber") ?? 0) > 0) {
+      audit.skip();
+    }
+    audit.set({ metadata: { view: "traces" } });
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
 
-  if (!parseResult.success) {
-    return Response.json({ items: [] });
+    if (!parseResult.success) {
+      return Response.json({ items: [] });
+    }
+
+    const retentionError = await checkDataRetentionAccess(projectId, {
+      pastHours: parseResult.data.pastHours,
+      startDate: parseResult.data.startDate,
+    });
+    if (retentionError) {
+      return retentionError;
+    }
+
+    const result = await getTraces({ ...parseResult.data, projectId });
+    return Response.json(result);
   }
+);
 
-  const retentionError = await checkDataRetentionAccess(projectId, {
-    pastHours: parseResult.data.pastHours,
-    startDate: parseResult.data.startDate,
-  });
-  if (retentionError) {
-    return retentionError;
-  }
-
-  const result = await getTraces({ ...parseResult.data, projectId });
-  return Response.json(result);
-});
-
-export const DELETE = apiHandler<{ projectId: string }>(async (req, ctx) => {
+export const DELETE = withAudit<{ projectId: string }>({ resource: "trace", action: "delete" }, async (req, ctx) => {
   const { projectId } = await ctx.params;
   const traceIds = req.nextUrl.searchParams.getAll("traceId");
 

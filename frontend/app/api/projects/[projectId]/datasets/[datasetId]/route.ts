@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { updateDataset } from "@/lib/actions/dataset";
 import { apiHandler } from "@/lib/api/api-handler";
+import { withAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 
@@ -19,17 +20,20 @@ export const GET = apiHandler<{ projectId: string; datasetId: string }>(async (r
   return Response.json(dataset);
 });
 
-export const PATCH = apiHandler<{ projectId: string; datasetId: string }>(async (req, ctx) => {
-  const { projectId, datasetId } = await ctx.params;
+export const PATCH = withAudit<{ projectId: string; datasetId: string }>(
+  { resource: "dataset", action: "update" },
+  async (req, ctx) => {
+    const { projectId, datasetId } = await ctx.params;
 
-  const body = await req.json();
-  const { name } = body;
+    const body = await req.json();
+    const { name } = body;
 
-  const updatedDataset = await updateDataset({
-    projectId,
-    datasetId,
-    name,
-  });
+    const updatedDataset = await updateDataset({
+      projectId,
+      datasetId,
+      name,
+    });
 
-  return Response.json(updatedDataset);
-});
+    return Response.json(updatedDataset);
+  }
+);

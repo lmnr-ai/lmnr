@@ -1,20 +1,22 @@
 import { getTrace, updateTraceVisibility } from "@/lib/actions/trace";
-import { apiHandler } from "@/lib/api/api-handler";
 import { withAudit } from "@/lib/audit";
 
-export const GET = apiHandler<{ projectId: string; traceId: string }>(async (_req, ctx) => {
-  const params = await ctx.params;
-  const projectId = params.projectId;
-  const traceId = params.traceId;
+export const GET = withAudit<{ projectId: string; traceId: string }>(
+  { resource: "trace", action: "view", read: true },
+  async (_req, ctx) => {
+    const params = await ctx.params;
+    const projectId = params.projectId;
+    const traceId = params.traceId;
 
-  const trace = await getTrace({ traceId, projectId });
+    const trace = await getTrace({ traceId, projectId });
 
-  if (!trace) {
-    return Response.json({ error: "Trace not found" }, { status: 404 });
+    if (!trace) {
+      return Response.json({ error: "Trace not found" }, { status: 404 });
+    }
+
+    return Response.json(trace);
   }
-
-  return Response.json(trace);
-});
+);
 
 export const PUT = withAudit<{ projectId: string; traceId: string }>(
   { resource: "trace", action: "share" },
