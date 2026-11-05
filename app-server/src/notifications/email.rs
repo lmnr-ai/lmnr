@@ -1299,24 +1299,6 @@ mod tests {
     }
 
     #[test]
-    fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
-        let html = render_usage_hard_limit_email(
-            "Workspace",
-            Uuid::nil(),
-            "signal_credit",
-            "$5.00",
-            "$5.00",
-            true,
-            false,
-        );
-
-        assert!(html.contains("Signal runs has paused"));
-        assert!(html.contains("used its one-time Signals credit"));
-        assert!(html.contains("Upgrade to continue"));
-        assert!(!html.contains("billing cycle resets"));
-    }
-
-    #[test]
     fn trial_hard_limit_asks_to_start_subscription() {
         let html = render_usage_hard_limit_email(
             "Workspace",
@@ -1333,6 +1315,24 @@ mod tests {
         assert!(html.contains("included in the Starter trial"));
         assert!(html.contains("Start subscription"));
         assert!(html.contains("tab=billing"));
+        assert!(!html.contains("billing cycle resets"));
+    }
+
+    #[test]
+    fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
+        let html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "signal_credit",
+            "$5.00",
+            "$5.00",
+            true,
+            false,
+        );
+
+        assert!(html.contains("Signal runs has paused"));
+        assert!(html.contains("used its one-time Signals credit"));
+        assert!(html.contains("Upgrade to continue"));
         assert!(!html.contains("billing cycle resets"));
     }
 
