@@ -1,8 +1,28 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
-import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 
-const ZOOM_INCREMENT = 0.5;
+/** Button zoom: steps zoom while keeping the content at the viewport center in place. */
+export function zoomKeepingCenter(
+  container: HTMLDivElement,
+  zoom: number,
+  direction: "in" | "out",
+  setZoom: (zoom: number) => void
+) {
+  const newZoom = direction === "in" ? zoom + ZOOM_INCREMENT : zoom - ZOOM_INCREMENT;
+  if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
+
+  const containerWidth = container.clientWidth;
+  const fraction = (container.scrollLeft + containerWidth / 2) / container.scrollWidth;
+
+  setZoom(newZoom);
+
+  requestAnimationFrame(() => {
+    const newScrollWidth = container.scrollWidth;
+    const newScrollLeft = fraction * newScrollWidth - containerWidth / 2;
+    container.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
+  });
+}
 
 /**
  * Hook for handling cmd/ctrl+scroll zoom on the condensed timeline.
