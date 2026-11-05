@@ -2,7 +2,7 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { callAppServer } from "@/lib/app-server";
+import { callAppServer } from "@/lib/api/backend";
 import { db } from "@/lib/db/drizzle";
 import { llmProfileModels, llmProfiles, projects } from "@/lib/db/migrations/schema";
 import { type WorkspaceRole } from "@/lib/workspaces/types";

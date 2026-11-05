@@ -16,7 +16,21 @@ import { fileURLToPath } from "node:url";
 const SCHEMA_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../lib/db/migrations/schema.ts");
 
 // Drizzle export const names of the BetterAuth-managed tables.
-const AUTH_TABLES = ["users", "sessions", "accounts", "verifications", "jwks", "deviceCodes"];
+const AUTH_TABLES = [
+  "users",
+  "sessions",
+  "accounts",
+  "verifications",
+  "jwks",
+  "deviceCodes",
+  "scimConnectionBindings",
+  "scimIdentityTombstones",
+  "scimSubjects",
+  "scimUsers",
+  "scimProjectionGrants",
+  "scimGroups",
+  "scimGroupMembers",
+];
 
 const source = readFileSync(SCHEMA_PATH, "utf8");
 

@@ -16,6 +16,8 @@ import { getServerSession } from "@/lib/auth-session";
 import { invalidateMemberAccessCache } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { SSO_MANAGED_MEMBERSHIP_MESSAGE } from "@/lib/workspaces/types";
 
 const INVITATION_EXPIRY_MINUTES = 10080; // 7 days
 
@@ -55,6 +57,9 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
     }
 
     if (action === "accept") {
+      if (isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP)) {
+        throw new Error(SSO_MANAGED_MEMBERSHIP_MESSAGE);
+      }
       await db.transaction(async (tx) => {
         await tx
           .delete(workspaceInvitations)

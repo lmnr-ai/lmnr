@@ -230,20 +230,12 @@ pub async fn get_signal_cluster_counts(
 /// ClickHouse row for signal events used as LLM summary context
 #[derive(Row, Serialize, Deserialize, Debug)]
 pub struct SignalEventContextRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub signal_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub trace_id: Uuid,
     pub summary: String,
     pub payload: String,
-    pub timestamp: i64,
-    pub severity: u8,
 }
 
 /// Get the most recent signal events (up to `limit`) for the given project and time range.
-/// Returns id, signal_id, trace_id, summary, and payload for use as LLM summary context.
+/// Returns each event's summary and payload for use as LLM summary context.
 ///
 /// `summary` is resolved from the event's `summaries` array (joined with
 /// `'; '`), falling back to the legacy `summary` column for pre-existing rows
@@ -263,9 +255,8 @@ pub async fn get_signal_events_for_summary(
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
 
     let query_str = format!(
-        "SELECT id, signal_id, trace_id,
-                if(notEmpty(summaries), arrayStringConcat(summaries, '; '), summary) AS summary,
-                payload, timestamp, severity
+        "SELECT if(notEmpty(summaries), arrayStringConcat(summaries, '; '), summary) AS summary,
+                payload
          FROM signal_events
          WHERE project_id = ?
            AND signal_id IN ({})

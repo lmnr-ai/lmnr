@@ -47,7 +47,7 @@ const sendHeartbeat = async (): Promise<void> => {
         $set: snapshot.setProperties,
         // Setting $ip to null tells PostHog to drop the source IP entirely
         // (not just skip geoip enrichment), so no IP is ever stored against
-        // the deployment. Keeps the heartbeat anonymous beyond the opaque id.
+        // the deployment.
         $ip: null,
       },
       // Belt-and-suspenders: also skip geoip enrichment on ingest.
@@ -66,7 +66,7 @@ const sendHeartbeat = async (): Promise<void> => {
 
 let started = false;
 
-// Fire-and-forget anonymous usage telemetry for self-hosted deployments. Polls
+// Fire-and-forget usage telemetry for self-hosted deployments. Polls
 // hourly; the 6h cadence is enforced by the DB window claim, not the timer, so
 // restarts and multiple replicas can't over-report. Never throws into boot.
 export const startTelemetry = async (): Promise<void> => {

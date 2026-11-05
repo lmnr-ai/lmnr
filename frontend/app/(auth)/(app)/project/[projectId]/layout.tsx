@@ -6,6 +6,7 @@ import LaminarAgent, { RouteAgentContext } from "@/components/agent";
 import AnnouncementDetailsDialog from "@/components/announcements/details-dialog";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
+import LicenseBanner from "@/components/license/license-banner";
 import NotificationPanel from "@/components/notifications/notification-panel";
 import ProjectBottomBar from "@/components/project/bottom-bar";
 import ProjectSidebar from "@/components/project/sidebar";
@@ -19,6 +20,7 @@ import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { getDismissedAnnouncementIds, getAnnouncements } from "@/lib/announcements/server";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { getLicenseStatus } from "@/lib/license";
 
 const projectSidebarCookieName = "project-sidebar-state";
 
@@ -30,10 +32,11 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const projectId = params.projectId;
   const session = await requireProjectAccess(projectId);
   const announcementsEnabled = isFeatureEnabled(Feature.LAMINAR_CLOUD);
-  const [projectDetails, announcements, dismissedAnnouncementIds] = await Promise.all([
+  const [projectDetails, announcements, dismissedAnnouncementIds, license] = await Promise.all([
     getProjectDetails(projectId),
     announcementsEnabled ? getAnnouncements() : [],
     announcementsEnabled ? getDismissedAnnouncementIds(session.user.id) : [],
+    getLicenseStatus(),
   ]);
 
   const user = session.user;
@@ -71,6 +74,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                       space left of the agent column, rather than under it. */}
                     <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
                       <NotificationPanel />
+                      {license && <LicenseBanner license={license} />}
                       {showBanner && <ProjectUsageBanner details={projectDetails} />}
                       {children}
                       {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}

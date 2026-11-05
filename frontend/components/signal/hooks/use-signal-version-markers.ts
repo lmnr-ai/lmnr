@@ -7,7 +7,7 @@ import useSWR from "swr";
 import { type TimeSeriesMarker } from "@/components/charts/time-series-chart/types";
 import { signalVersionHref } from "@/components/signal/hooks/signal-tab-search";
 import { useSignalStoreContext } from "@/components/signal/store";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 export const signalVersionsKey = (projectId: string, signalId: string): string =>
   `/api/projects/${projectId}/signals/${signalId}/versions`;

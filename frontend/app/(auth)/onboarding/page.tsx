@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import OnboardingWizard, { type OnboardingInitialValues } from "@/components/onboarding";
 import AwaitCompanyName from "@/components/onboarding/await-company-name";
 import OnboardingLoading from "@/components/onboarding/onboarding-loading";
+import SsoNoWorkspace from "@/components/onboarding/sso-no-workspace";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { UserContextProvider } from "@/contexts/user-context";
 import { isStarterTrialEligible } from "@/lib/actions/checkout/trial";
@@ -63,6 +64,18 @@ const preselectTrial = (values: OnboardingFormValues, trialAvailable: boolean): 
 export default async function OnboardingPage(props: OnboardingPageProps) {
   const session = await getServerSession();
   const user = session!.user;
+
+  if (isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP)) {
+    if ((await countWorkspaceMemberships(user.id)) > 0) {
+      // Clears any onboarding cookie, which the app layout would otherwise bounce back here.
+      return redirect("/api/onboarding?to=/projects");
+    }
+    return (
+      <div className="flex flex-col min-h-screen w-full bg-surface-350">
+        <SsoNoWorkspace email={user.email} />
+      </div>
+    );
+  }
 
   const searchParams = await props.searchParams;
   const saved = await getOnboardingState();

@@ -15,8 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type LlmProfile, PROVIDER_LABELS } from "@/lib/actions/llm-profiles/schema";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { Feature } from "@/lib/features/features";
-import { swrFetcher } from "@/lib/utils";
 
 import DeleteProfileDialog from "./delete-profile-dialog";
 import ManageProfileSheet from "./manage-profile-sheet";

@@ -1,14 +1,11 @@
 import crypto from "crypto";
 
-import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { exchangeSlackOauthCode } from "@/lib/actions/slack";
 import { SLACK_SCOPES } from "@/lib/actions/slack/types";
-import { hashApiKey } from "@/lib/api-keys";
 import { cache } from "@/lib/cache";
-import { db } from "@/lib/db/drizzle";
-import { slackBrokerInstances } from "@/lib/db/migrations/schema";
+import { isLicenseExpired, verifyLicense } from "@/lib/license/format";
 
 // Slack OAuth broker for self-hosted instances (RFC LAM-1675).
 // The broker holds the official Laminar Slack app's secrets, runs both OAuth
@@ -123,20 +120,13 @@ export function getBearerToken(authHeader: string | null): string | null {
   return match ? match[1] : null;
 }
 
-// Authenticates a self-hosted instance by its issued key. The key is never
-// stored in plaintext; we look it up by its SHA3-256 hash.
-export async function authenticateInstance(instanceKey: string): Promise<string | null> {
-  if (!instanceKey) {
+// Authenticates a self-hosted instance by its enterprise license, verified offline.
+export function authenticateInstance(instanceKey: string): string | null {
+  const license = instanceKey ? verifyLicense(instanceKey) : null;
+  if (!license || isLicenseExpired(license)) {
     return null;
   }
-  const keyHash = hashApiKey(instanceKey);
-  const [instance] = await db
-    .select({ id: slackBrokerInstances.id })
-    .from(slackBrokerInstances)
-    .where(eq(slackBrokerInstances.keyHash, keyHash))
-    .limit(1);
-
-  return instance?.id ?? null;
+  return `license:${license.licenseId}`;
 }
 
 // Records the state's nonce server-side (bound to the minting instance) so /cb

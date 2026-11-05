@@ -13,6 +13,7 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { ApiError } from "@/lib/api/errors";
 import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
@@ -107,7 +108,7 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
     }
     const tierName = rows[0].tierName?.toLowerCase().trim();
     if (!tierName || !PRO_LIKE_TIERS.has(tierName)) {
-      throw new Error("This setting requires the Pro tier");
+      throw new ApiError("This setting requires the Pro tier", 403);
     }
   }
 

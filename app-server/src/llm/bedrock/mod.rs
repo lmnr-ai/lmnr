@@ -5,7 +5,7 @@ use crate::llm::{
     LanguageModelClient, ProviderError, ProviderResult, ProviderUsageMetadata,
     models::{
         ProviderCandidate, ProviderContent, ProviderFinishReason, ProviderFunctionCall,
-        ProviderPart, ProviderRequest, ProviderResponse, ProviderStreamChunk,
+        ProviderPart, ProviderRequest, ProviderResponse,
     },
 };
 use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
@@ -14,12 +14,9 @@ use aws_sdk_bedrockruntime::config::timeout::TimeoutConfig;
 use aws_sdk_bedrockruntime::primitives::Blob;
 use serde_json::Value;
 use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
 
 // Bedrock's InvokeModel body IS the Anthropic Messages body, so the conversions
-// and the stream accumulator are shared with `llm::azure_anthropic` (Claude on Azure).
-pub(super) mod accumulator;
-use accumulator::BedrockStreamAccumulator;
+// are shared with `llm::azure_anthropic` (Claude on Azure).
 
 fn cache_control_ephemeral() -> Value {
     serde_json::json!({"type": "ephemeral"})
@@ -456,56 +453,6 @@ impl LanguageModelClient for BedrockClient {
         })?;
 
         Ok(parse_response_body(model, &resp_body))
-    }
-
-    async fn generate_content_stream(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let body = build_request_body(model, request)?;
-        let body_bytes = serde_json::to_vec(&body)
-            .map_err(|e| ProviderError::RequestError(format!("Failed to serialize body: {e}")))?;
-
-        let mut resp = self
-            .client
-            .invoke_model_with_response_stream()
-            .model_id(model)
-            .content_type("application/json")
-            .body(Blob::new(body_bytes))
-            .send()
-            .await
-            .map_err(|e| {
-                let detail = format_sdk_error(&e);
-                let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
-                ProviderError::ApiError {
-                    status_code: status,
-                    message: detail,
-                    retryable: status >= 500 || status == 429,
-                    resource_exhausted: status == 429,
-                }
-            })?;
-
-        let mut accumulator = BedrockStreamAccumulator::default();
-
-        loop {
-            let event = resp.body.recv().await.map_err(|e| {
-                ProviderError::RequestError(format!("Bedrock stream receive failed: {e}"))
-            })?;
-            let Some(event) = event else { break };
-            // Every event variant carries a `bytes` payload that is a JSON object describing the
-            // Anthropic event (the SDK models the event stream as opaque payload chunks).
-            let Some(payload) = event.as_chunk().ok().and_then(|chunk| chunk.bytes.as_ref()) else {
-                continue;
-            };
-            let Ok(value) = serde_json::from_slice::<Value>(payload.as_ref()) else {
-                continue;
-            };
-            accumulator.ingest(&value, chunk_tx);
-        }
-
-        Ok(accumulator.into_response(model))
     }
 }
 

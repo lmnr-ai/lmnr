@@ -485,6 +485,12 @@ export async function register() {
     // or fails boot.
     const { startTelemetry } = await import("@/lib/telemetry/index.ts");
     startTelemetry().catch((error) => console.error("Failed to start telemetry:", error));
+
+    // Laminar Agent runs live in this process: continue the ones a previous process left unfinished. After
+    // migrations, so the agent tables exist. Not gated on Feature.AGENT, which is the app's chat only: Slack runs
+    // without it. Fire-and-forget — never blocks or fails boot.
+    const { resumeAgentSessions } = await import("@/lib/agent/index.ts");
+    resumeAgentSessions().catch((error) => console.error("Failed to resume agent sessions:", error));
   }
 }
 

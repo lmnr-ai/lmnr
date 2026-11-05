@@ -20,7 +20,15 @@ const nextConfig: NextConfig = {
       fullUrl: true,
     },
   },
-  serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
+  // Pi lazily imports node builtins by computed specifier, which bundling turns into unhandled rejections; chord is
+  // external too so routes and pi-durable share one copy.
+  serverExternalPackages: [
+    "@lmnr-ai/lmnr",
+    "@sentry/nextjs",
+    "@earendil-works/chord",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-durable",
+  ],
   output: "standalone",
   // Policy markdown is read with fs at request time, which the standalone
   // file tracer can't see — without this the .md files are missing in the
@@ -31,15 +39,15 @@ const nextConfig: NextConfig = {
     "/policies/*": ["./lib/policies/content/*.md"],
   },
   async rewrites() {
-    // Forward LEGACY NextAuth genericOAuth callbacks to Better Auth's handler so
-    // self-hosted Okta/Keycloak/Azure SSO keeps working with no IdP change (paired
-    // with the pinned redirectURI in lib/auth.ts). `beforeFiles` to beat the
-    // `/api/auth/[...all]` catch-all; scoped to these 3 ids ONLY (NOT github/google).
+    // Forward LEGACY NextAuth callbacks whose ids differ from Better Auth's so
+    // self-hosted Okta/Azure SSO keeps working with no IdP change (paired with the
+    // pinned redirectURI in lib/auth.ts). `beforeFiles` to beat the `/api/auth/[...all]`
+    // catch-all. Okta goes through the SSO plugin's shared callback, which reads the
+    // provider from the OAuth state; keycloak already matches `/callback/:id`.
     return {
       beforeFiles: [
-        { source: "/api/auth/callback/okta", destination: "/api/auth/oauth2/callback/okta" },
-        { source: "/api/auth/callback/keycloak", destination: "/api/auth/oauth2/callback/keycloak" },
-        { source: "/api/auth/callback/azure-ad", destination: "/api/auth/oauth2/callback/microsoft-entra-id" },
+        { source: "/api/auth/callback/okta", destination: "/api/auth/sso/callback" },
+        { source: "/api/auth/callback/azure-ad", destination: "/api/auth/callback/microsoft-entra-id" },
       ],
     };
   },

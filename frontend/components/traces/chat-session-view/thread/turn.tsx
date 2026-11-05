@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { StatsShields } from "@/components/traces/stats-shields";
 import { Skeleton } from "@/components/ui/skeleton";
+import { agentInputText } from "@/lib/traces/agent-input";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -26,8 +27,8 @@ function Turn({
   const output = useSessionViewStore((s) => s.agentOutputs[trace.id]);
   const active = useChatViewStore((s) => s.openTraceId === trace.id);
   const toggleTrace = useChatViewStore((s) => s.toggleTrace);
-  const statsBelow = useChatViewStore((s) => s.statsPosition === "below");
 
+  const inputText = agentInputText(trace.agentInput);
   const counts = useTurnDataStore((s) => s.counts[trace.id]);
   const failed = trace.status === "error" || (counts?.errors ?? 0) > 0;
 
@@ -44,8 +45,8 @@ function Turn({
       data-trace-id={trace.id}
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-8">
-        {trace.agentInput && <UserBubble text={trace.agentInput} time={trace.startTime} />}
-        <WorkedRow trace={trace} counts={counts} showStats={!statsBelow} onClick={() => toggleTrace(trace.id)} />
+        {inputText && <UserBubble text={inputText} time={trace.startTime} />}
+        <WorkedRow counts={counts} onClick={() => toggleTrace(trace.id)} />
         {output ? (
           <CollapsibleReply text={output} />
         ) : output === undefined ? (
@@ -59,12 +60,10 @@ function Turn({
             {failed ? "The agent didn't reply — the turn ended with an error." : "No reply extracted."}
           </div>
         )}
-        {statsBelow && (
-          <StatsShields
-            stats={trace}
-            className="h-auto w-fit rounded-none bg-transparent px-0 text-xs text-secondary-foreground"
-          />
-        )}
+        <StatsShields
+          stats={trace}
+          className="h-auto w-fit rounded-none bg-transparent px-0 text-xs text-secondary-foreground"
+        />
       </div>
     </div>
   );

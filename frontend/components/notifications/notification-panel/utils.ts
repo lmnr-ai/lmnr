@@ -1,11 +1,20 @@
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
 
-interface NoteworthyEventPayload {
+interface ReportClusterPayload {
+  id: string;
+  name: string;
+  count: number;
+  previous_count: number;
+}
+
+interface SignalReportPayload {
+  signal_id: string;
   signal_name: string;
-  summary: string;
-  timestamp: string;
-  trace_id: string;
+  current_count: number;
+  previous_count: number;
+  summary?: string;
+  clusters: ReportClusterPayload[];
 }
 
 interface SignalsReportPayload {
@@ -17,8 +26,8 @@ interface SignalsReportPayload {
   period_start: string;
   period_end: string;
   signal_event_counts: Record<string, number>;
-  ai_summary: string;
-  noteworthy_events: NoteworthyEventPayload[];
+  /** Missing on reports queued before per-signal data existed. */
+  signals?: SignalReportPayload[];
 }
 
 interface EventIdentificationPayload {
@@ -63,10 +72,26 @@ export interface NewClusterNotification extends BaseNotification {
   details: [string, string][];
 }
 
+interface ReportCluster {
+  name: string;
+  count: number;
+  previousCount: number;
+  link: string;
+}
+
+export interface ReportSignal {
+  name: string;
+  count: number;
+  /** Null for legacy reports, which carry only per-signal totals. */
+  previousCount: number | null;
+  summary: string | null;
+  link: string | null;
+  clusters: ReportCluster[];
+}
+
 export interface ReportNotification extends BaseNotification {
   kind: "report";
-  aiSummary: string | null;
-  noteworthyEvents: NoteworthyEventPayload[];
+  signals: ReportSignal[];
 }
 
 export type FormattedNotification = NewEventNotification | NewClusterNotification | ReportNotification;
@@ -134,6 +159,49 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
   }
 };
 
+const clusterChangeScore = (c: ReportClusterPayload) =>
+  Math.abs((c.count - c.previous_count) / Math.sqrt(c.count + c.previous_count));
+
+// Mirrors `SignalReportData::notable_clusters` in app-server/src/reports/report_data.rs so the
+// panel lists the same clusters as the email and Slack reports.
+const notableClusters = (clusters: ReportClusterPayload[]): ReportClusterPayload[] =>
+  clusters
+    .filter((c) => c.count + c.previous_count >= 5)
+    .sort((a, b) => {
+      const aNew = a.previous_count === 0;
+      const bNew = b.previous_count === 0;
+      if (aNew !== bNew) return aNew ? 1 : -1;
+      return clusterChangeScore(b) - clusterChangeScore(a);
+    })
+    .slice(0, 5);
+
+const formatReportSignals = (report: SignalsReportPayload): ReportSignal[] => {
+  if (!report.signals?.length) {
+    return Object.entries(report.signal_event_counts)
+      .map(([name, count]) => ({ name, count, previousCount: null, summary: null, link: null, clusters: [] }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  return [...report.signals]
+    .sort((a, b) => b.current_count - a.current_count)
+    .map((signal) => {
+      const signalLink = `/project/${report.project_id}/signals/${signal.signal_id}`;
+      return {
+        name: signal.signal_name,
+        count: signal.current_count,
+        previousCount: signal.previous_count,
+        summary: signal.summary || `${signal.current_count} events were detected during this period.`,
+        link: signalLink,
+        clusters: notableClusters(signal.clusters ?? []).map((c) => ({
+          name: c.name,
+          count: c.count,
+          previousCount: c.previous_count,
+          link: `${signalLink}?clusterId=${c.id}`,
+        })),
+      };
+    });
+};
+
 const formatReportNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
     const payload: { SignalsReport: SignalsReportPayload } = JSON.parse(notification.payload);
@@ -169,8 +237,7 @@ const formatReportNotification = (notification: WebNotification): FormattedNotif
       kind: "report",
       title: `${titlePrefix} summary`,
       summary: `${signalCount} signal${signalCount !== 1 ? "s" : ""} · ${events} event${events !== 1 ? "s" : ""}`,
-      aiSummary: report.ai_summary || null,
-      noteworthyEvents: report.noteworthy_events ?? [],
+      signals: formatReportSignals(report),
     };
   } catch {
     return null;

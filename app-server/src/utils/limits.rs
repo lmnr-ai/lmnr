@@ -148,6 +148,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
         queue,
         workspace_id,
         project_info.reset_time,
+        project_info.trialing,
         UsageItem::Bytes,
         bytes_ingested,
         Some(effective_limit),
@@ -210,6 +211,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
                 queue,
                 workspace_id,
                 project_info.reset_time,
+                project_info.trialing,
                 UsageItem::SignalCredit,
                 SIGNALS_SIGNUP_CREDIT_MICRO_USD - remaining_credit,
                 persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
@@ -252,6 +254,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         queue,
         workspace_id,
         project_info.reset_time,
+        project_info.trialing,
         UsageItem::SignalCost,
         signal_cost,
         Some(effective_limit),
@@ -366,6 +369,7 @@ pub async fn update_workspace_bytes_ingested(
         queue,
         workspace_id,
         project_info.reset_time,
+        project_info.trialing,
         UsageItem::Bytes,
         current_value,
         effective_bytes_limit,
@@ -470,6 +474,7 @@ pub async fn check_workspace_signal_usage(
                 queue,
                 workspace_id,
                 project_info.reset_time,
+                project_info.trialing,
                 UsageItem::SignalCredit,
                 current_cost,
                 persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
@@ -483,6 +488,7 @@ pub async fn check_workspace_signal_usage(
             queue,
             workspace_id,
             project_info.reset_time,
+            project_info.trialing,
             UsageItem::SignalCost,
             current_cost,
             project_info.signal_cost_hard_limit_micro_usd,
@@ -644,12 +650,14 @@ async fn send_soft_limit_notification(
 /// Check the hard limit and enqueue a notification the first time it is reached.
 /// Recurring limits deduplicate per billing cycle; the one-time Signals credit
 /// deduplicates permanently under its own usage-item key.
+#[allow(clippy::too_many_arguments)]
 async fn check_notify_hard_limit(
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     reset_time: DateTime<Utc>,
+    trialing: bool,
     usage_item: UsageItem,
     current_value: i64,
     effective_limit: Option<i64>,
@@ -734,6 +742,7 @@ async fn check_notify_hard_limit(
             formatted_limit,
             usage_item: usage_item.to_string(),
             one_time_credit_exhausted,
+            trialing,
         }],
     };
 

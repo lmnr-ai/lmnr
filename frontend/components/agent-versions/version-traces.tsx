@@ -5,7 +5,7 @@ import useSWR from "swr";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionItem, type AgentVersionTracesPoint } from "@/lib/actions/agents";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { useTracesRangeQuery } from "./use-traces-range-query";
 import VersionTracesChart from "./version-traces-chart";

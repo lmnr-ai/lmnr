@@ -18,7 +18,7 @@ const parseFrontmatter = (raw: string): { data: Record<string, unknown>; content
   return { data: data && typeof data === "object" ? data : {}, content: raw.slice(match[0].length) };
 };
 
-export const POLICY_SLUGS = ["privacy", "terms", "cookies", "data-use"] as const;
+export const POLICY_SLUGS = ["privacy", "terms", "cookies", "data-use", "ee-license"] as const;
 export type PolicySlug = (typeof POLICY_SLUGS)[number];
 
 export const isPolicySlug = (slug: string): slug is PolicySlug => (POLICY_SLUGS as readonly string[]).includes(slug);

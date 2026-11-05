@@ -1,60 +1,41 @@
-import { type NextRequest, NextResponse } from "next/server";
-
 import { getWebNotifications, markNotificationsAsRead } from "@/lib/actions/notifications";
+import { apiHandler } from "@/lib/api/api-handler";
 import { getServerSession } from "@/lib/auth-session";
 import { isProjectInWorkspace } from "@/lib/authorization";
 
-export async function GET(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
+type Params = { workspaceId: string };
 
-  try {
-    const session = await getServerSession();
-    const userId = session?.user?.id;
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const projectId = request.nextUrl.searchParams.get("projectId");
-    if (!projectId) {
-      return NextResponse.json({ error: "projectId query parameter is required" }, { status: 400 });
-    }
-    if (!(await isProjectInWorkspace(projectId, workspaceId))) {
-      return NextResponse.json({ error: "Project does not belong to this workspace" }, { status: 400 });
-    }
-    const result = await getWebNotifications({ userId, projectId, workspaceId });
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch notifications." },
-      { status: 500 }
-    );
+export const GET = apiHandler<Params>(async (request, ctx) => {
+  const { workspaceId } = await ctx.params;
+  const session = await getServerSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-}
-
-export async function POST(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
-
-  try {
-    const session = await getServerSession();
-    const userId = session?.user?.id;
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const body = await request.json();
-    const { notificationIds, projectId } = body;
-    if (!projectId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
-      return NextResponse.json({ error: "projectId and notificationIds are required" }, { status: 400 });
-    }
-    if (!(await isProjectInWorkspace(projectId, workspaceId))) {
-      return NextResponse.json({ error: "Project does not belong to this workspace" }, { status: 400 });
-    }
-    await markNotificationsAsRead({ userId, notificationIds, projectId });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to mark notification as read." },
-      { status: 500 }
-    );
+  const projectId = request.nextUrl.searchParams.get("projectId");
+  if (!projectId) {
+    return Response.json({ error: "projectId query parameter is required" }, { status: 400 });
   }
-}
+  if (!(await isProjectInWorkspace(projectId, workspaceId))) {
+    return Response.json({ error: "Project does not belong to this workspace" }, { status: 400 });
+  }
+  return Response.json(await getWebNotifications({ userId, projectId, workspaceId }));
+});
+
+export const POST = apiHandler<Params>(async (request, ctx) => {
+  const { workspaceId } = await ctx.params;
+  const session = await getServerSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { notificationIds, projectId } = await request.json();
+  if (!projectId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+    return Response.json({ error: "projectId and notificationIds are required" }, { status: 400 });
+  }
+  if (!(await isProjectInWorkspace(projectId, workspaceId))) {
+    return Response.json({ error: "Project does not belong to this workspace" }, { status: 400 });
+  }
+  await markNotificationsAsRead({ userId, notificationIds, projectId });
+  return Response.json({ success: true });
+});

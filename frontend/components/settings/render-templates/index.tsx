@@ -8,7 +8,8 @@ import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { type TemplateScope } from "@/components/ui/template-renderer";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { formatTimestamp } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import DeleteRenderTemplateDialog from "./delete-render-template-dialog";

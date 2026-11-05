@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 import useSWR from "swr";
 
 import { type QueueItemStateRow } from "@/lib/actions/queue";
+import { swrFetcher } from "@/lib/api/fetch-api.ts";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type LabelingQueueItem } from "@/lib/queue/types";
-import { swrFetcher } from "@/lib/utils";
 
 import { useQueueStore } from "./queue-store";
 

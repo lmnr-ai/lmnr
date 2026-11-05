@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { ApiError, NotFoundError } from "@/lib/api/errors";
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
@@ -197,7 +198,7 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
     return { success: true };
   }
 
-  throw new Error("Invalid request parameters - either skip must be true or datasetId must be provided");
+  throw new ApiError("Invalid request parameters - either skip must be true or datasetId must be provided", 400);
 }
 
 export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatasetSchema>) {
@@ -231,7 +232,7 @@ export async function updateQueueAnnotationSchema(input: z.infer<typeof UpdateQu
     .returning();
 
   if (!updatedQueue) {
-    throw new Error("Failed to update queue annotation schema");
+    throw new NotFoundError("Queue not found");
   }
 
   return updatedQueue;

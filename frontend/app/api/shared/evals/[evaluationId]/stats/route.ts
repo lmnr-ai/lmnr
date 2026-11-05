@@ -1,9 +1,10 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, z } from "zod/v4";
+import { z } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationStatistics } from "@/lib/actions/shared/evaluation";
+import { apiHandler } from "@/lib/api/api-handler";
+import { NotFoundError } from "@/lib/api/errors";
 
 const SharedEvaluationStatisticsSchema = z.object({
   filter: z
@@ -26,36 +27,24 @@ const SharedEvaluationStatisticsSchema = z.object({
   columns: z.string().optional(),
 });
 
-export async function GET(req: NextRequest, props: { params: Promise<{ evaluationId: string }> }): Promise<Response> {
-  const { evaluationId } = await props.params;
+export const GET = apiHandler<{ evaluationId: string }>(async (req, ctx) => {
+  const { evaluationId } = await ctx.params;
 
   const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationStatisticsSchema);
+  if (!parseResult.success) throw parseResult.error;
 
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
+  const { filter, search, searchIn, columns: columnsJson } = parseResult.data;
+  const columns = columnsJson ? JSON.parse(columnsJson) : undefined;
 
-  try {
-    const { filter, search, searchIn, columns: columnsJson } = parseResult.data;
-    const columns = columnsJson ? JSON.parse(columnsJson) : undefined;
+  const result = await getSharedEvaluationStatistics({
+    evaluationId,
+    filters: filter ?? [],
+    search,
+    searchIn,
+    columns,
+  });
 
-    const result = await getSharedEvaluationStatistics({
-      evaluationId,
-      filters: filter ?? [],
-      search,
-      searchIn,
-      columns,
-    });
+  if (!result) throw new NotFoundError("Evaluation not found or not public");
 
-    if (!result) {
-      return Response.json({ error: "Evaluation not found or not public" }, { status: 404 });
-    }
-
-    return Response.json(result);
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch shared evaluation statistics." },
-      { status: 500 }
-    );
-  }
-}
+  return Response.json(result);
+});

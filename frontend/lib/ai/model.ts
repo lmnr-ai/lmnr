@@ -12,7 +12,13 @@ import type { LanguageModel } from "ai";
  */
 export type ModelTier = "small" | "medium" | "large";
 
-type LLMProvider = "openai" | "gemini" | "bedrock" | "azure_chat_completions" | "azure_responses" | "azure_anthropic";
+export type LLMProvider =
+  | "openai"
+  | "gemini"
+  | "bedrock"
+  | "azure_chat_completions"
+  | "azure_responses"
+  | "azure_anthropic";
 type LlmDefaultHeaders = Record<string, string>;
 
 // Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
@@ -81,14 +87,14 @@ function getConfiguredLLMProvider(): LLMProvider | null {
   return null;
 }
 
-const azureEndpoint = (): string =>
+export const azureEndpoint = (): string =>
   nonEmptyEnv("AZURE_BASE_URL") ?? `https://${nonEmptyEnv("AZURE_RESOURCE_ID")}.services.ai.azure.com`;
 
 export const isAzureOpenAIHost = (url: string): boolean =>
   URL.parse(url)?.hostname.endsWith(".openai.azure.com") ?? false;
 
 /** Host root with any API-shape path trimmed back off, so callers append their own. */
-function azureResourceRoot(rawBaseUrl: string): string {
+export function azureResourceRoot(rawBaseUrl: string): string {
   const root = rawBaseUrl
     .trim()
     .replace(/\/+$/, "")
@@ -208,12 +214,8 @@ function validateHeader(name: string, value: string): void {
   }
 }
 
-/**
- * The env-configured provider's model at `tier`. Features go through
- * `getLanguageModel` in `lib/ai/feature-model.ts`, which consults
- * `llm_feature_routes` first and only lands here when no route applies.
- */
-export function envLanguageModel(tier: ModelTier = "large"): LanguageModel {
+/** The env-configured provider and its model at `tier`; also read by the agent's pi-ai loop. */
+export function envModelConfig(tier: ModelTier): { provider: LLMProvider; modelName: string } {
   const provider = getConfiguredLLMProvider();
   if (!provider) {
     throw new Error(
@@ -225,7 +227,16 @@ export function envLanguageModel(tier: ModelTier = "large"): LanguageModel {
     );
   }
 
-  const modelName = resolveModelName(provider, tier);
+  return { provider, modelName: resolveModelName(provider, tier) };
+}
+
+/**
+ * The env-configured provider's model at `tier`. Features go through
+ * `getLanguageModel` in `lib/ai/feature-model.ts`, which consults
+ * `llm_feature_routes` first and only lands here when no route applies.
+ */
+export function envLanguageModel(tier: ModelTier = "large"): LanguageModel {
+  const { provider, modelName } = envModelConfig(tier);
 
   if (provider === "bedrock") {
     const bedrock = createAmazonBedrock();

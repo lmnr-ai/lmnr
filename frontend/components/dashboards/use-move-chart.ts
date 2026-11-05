@@ -2,9 +2,9 @@ import { useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import { type Dashboard, type DashboardChart, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
 
 /** Moves a chart off `dashboardId` onto another dashboard, removing it from the grid optimistically. */
 export const useMoveChart = (projectId: string, dashboardId: string) => {

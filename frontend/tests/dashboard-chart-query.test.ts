@@ -12,6 +12,7 @@ import {
   testParameters,
 } from "@/lib/actions/dashboard/chart-query";
 import { DashboardError } from "@/lib/actions/dashboard/errors";
+import { ApiError } from "@/lib/api/errors";
 
 const config = (type: RawChartConfig["type"], x?: string, y?: string): RawChartConfig => ({ type, x, y });
 
@@ -116,7 +117,7 @@ describe("checkCharts", () => {
 
   it("rejects the batch on a failing query with the SQL error message", async () => {
     const failing: RunQuery = async () => {
-      throw new Error(JSON.stringify({ error: "Query validation failed: unknown table" }));
+      throw new ApiError("Query validation failed: unknown table", 400);
     };
     await assert.rejects(
       checkCharts([{ name: "Spans", query: TIME_SERIES, config: config("line", "time", "n") }], failing),

@@ -87,18 +87,6 @@ pub fn provider_request_to_responses_body(
     Ok(body)
 }
 
-/// Same as [`provider_request_to_responses_body`] but flags the request for SSE
-/// streaming. Usage rides the terminal `response.completed` event, so no
-/// `stream_options` toggle is needed.
-pub fn provider_request_to_responses_stream_body(
-    model: &str,
-    request: &ProviderRequest,
-) -> OpenAIResult<Value> {
-    let mut body = provider_request_to_responses_body(model, request)?;
-    body["stream"] = json!(true);
-    Ok(body)
-}
-
 fn concat_text_parts(content: &ProviderContent) -> String {
     let Some(parts) = content.parts.as_ref() else {
         return String::new();

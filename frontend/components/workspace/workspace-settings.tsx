@@ -9,10 +9,17 @@ import { useSWRConfig } from "swr";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PrivacyMode from "@/components/workspace/privacy-mode";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
-import { type Workspace, type WorkspaceWithProjects } from "@/lib/workspaces/types";
+import {
+  SSO_MANAGED_WORKSPACE_DELETION_MESSAGE,
+  SSO_MANAGED_WORKSPACE_NAME_MESSAGE,
+  type Workspace,
+  type WorkspaceWithProjects,
+} from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -35,6 +42,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
   const router = useRouter();
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
+  const ssoManaged = !!useFeatureFlags()[Feature.SSO_MANAGED_MEMBERSHIP];
 
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -173,11 +181,20 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         <SettingsSectionHeader
           size="sm"
           title="Rename workspace"
-          description="Update the name of your workspace. Changes will take effect immediately."
+          description={
+            ssoManaged
+              ? SSO_MANAGED_WORKSPACE_NAME_MESSAGE
+              : "Update the name of your workspace. Changes will take effect immediately."
+          }
         />
         <Dialog open={isRenameDialogOpen} onOpenChange={resetAndCloseRenameDialog}>
           <DialogTrigger asChild>
-            <Button disabled={!isOwner} onClick={() => setIsRenameDialogOpen(true)} variant="outline" className="w-fit">
+            <Button
+              disabled={!isOwner || ssoManaged}
+              onClick={() => setIsRenameDialogOpen(true)}
+              variant="outline"
+              className="w-fit"
+            >
               <Edit data-icon="inline-start" className="w-4 h-4 mr-2" />
               Rename
             </Button>
@@ -231,12 +248,16 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         <SettingsSectionHeader
           size="sm"
           title="Delete workspace"
-          description="Permanently delete this workspace and all of its data, including all projects. This action cannot be undone."
+          description={
+            ssoManaged
+              ? SSO_MANAGED_WORKSPACE_DELETION_MESSAGE
+              : "Permanently delete this workspace and all of its data, including all projects. This action cannot be undone."
+          }
         />
         <Dialog open={isDeleteDialogOpen} onOpenChange={resetAndCloseDeleteDialog}>
           <DialogTrigger asChild>
             <Button
-              disabled={!isOwner}
+              disabled={!isOwner || ssoManaged}
               onClick={() => setIsDeleteDialogOpen(true)}
               variant="outline"
               className="w-fit text-destructive-text border-destructive-border"

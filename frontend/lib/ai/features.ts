@@ -5,9 +5,12 @@ import type { ModelTier } from "./model";
  * resolve through `llm_feature_routes`. The id namespace is shared with
  * `app-server/src/llm/features.rs` (`LlmFeature::as_str`) — a feature must
  * spell its id identically on both sides, and never collide with one the
- * app-server owns.
+ * app-server owns. `agent_chat` and `agent_autoname` are shared on purpose:
+ * the UI chat runs here, Slack/CLI/MCP in the app-server, on the same routes.
  */
 export enum LlmFeature {
+  AGENT_AUTONAME = "agent_autoname",
+  AGENT_CHAT = "agent_chat",
   EVALUATION_SCORE_DIRECTIONS = "evaluation_score_directions",
   ONBOARDING_COMPANY_NAME = "onboarding_company_name",
   RENDER_TEMPLATE_GENERATION = "render_template_generation",
@@ -19,6 +22,8 @@ export enum LlmFeature {
 
 /** Env-provider tier used when no route applies to the feature. */
 export const LLM_FEATURE_ENV_TIER: Record<LlmFeature, ModelTier> = {
+  [LlmFeature.AGENT_AUTONAME]: "small",
+  [LlmFeature.AGENT_CHAT]: "medium",
   [LlmFeature.EVALUATION_SCORE_DIRECTIONS]: "small",
   [LlmFeature.ONBOARDING_COMPANY_NAME]: "small",
   [LlmFeature.RENDER_TEMPLATE_GENERATION]: "medium",

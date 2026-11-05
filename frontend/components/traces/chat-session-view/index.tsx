@@ -9,7 +9,6 @@ import TimelineToggle from "@/components/traces/trace-view/header/timeline-toggl
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 import ControlBar from "./control-bar";
-import ChatSessionDial from "./dial";
 import { useChatViewStore } from "./store";
 import Thread from "./thread";
 import TracePanel from "./trace-panel";
@@ -71,7 +70,6 @@ export function ChatSessionView({ sessionId }: { sessionId: string }) {
   return (
     <SessionViewStoreProvider key={sessionId} initialSession={{ sessionId }} storeKey="chat-session-view-state">
       <ChatSessionContent sessionId={sessionId} />
-      <ChatSessionDial />
     </SessionViewStoreProvider>
   );
 }

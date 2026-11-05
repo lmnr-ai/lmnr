@@ -154,6 +154,8 @@ mod features;
 mod hosted_evals;
 mod instrumentation;
 mod language_model;
+#[cfg(feature = "signals")]
+mod license;
 mod llm;
 mod logs;
 mod mq;
@@ -340,6 +342,9 @@ fn main() -> anyhow::Result<()> {
     // === 4. Database ===
     let inner_db = runtime_handle.block_on(db::DB::connect_from_env())?;
     let db = Arc::new(inner_db);
+
+    #[cfg(feature = "signals")]
+    runtime_handle.block_on(license::init(&db));
 
     // === 3. Message queues ===
     let (publisher_connection, consumer_connection) =
@@ -2472,7 +2477,6 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),
                         cache_for_http.clone(),
-                        llm_provider_client_for_http.clone(),
                     ));
 
                     // Shared in-process JWKS cache for the CLI user-token surface.
@@ -2765,17 +2769,15 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::signals::private::routes::eval_signal)
                                     .service(crate::signals::private::routes::eval_signal_prewarm)
-                                    .service(crate::agent::routes::post_agent_chat);
+                                    .service(crate::agent::toolkit_routes::get_agent_toolkit)
+                                    .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope
                             });
-                        // Internal Slack-event receiver — the frontend verifies the Slack signature
-                        // and forwards verified events here. No HTTP auth (cluster-internal), same as
-                        // agent/chat. Signals-gated: it drives the agent.
+                        // Instance license; the Next.js route checks workspace ownership.
                         #[cfg(feature = "signals")]
-                        let app = app.service(
-                            web::scope("/api/v1/slack")
-                                .service(crate::agent::slack_events::slack_process),
-                        );
+                        let app = app
+                            .service(license::routes::get_license)
+                            .service(license::routes::put_license);
                         // Workspace-scoped internal routes; like projects/{project_id}, the
                         // Next.js route checks the caller's workspace membership.
                         let app = app.service(

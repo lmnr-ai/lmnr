@@ -9,6 +9,7 @@ import {
   DollarSign,
   FileBarChart,
   Key,
+  KeyRound,
   type LucideIcon,
   Settings2,
   ShieldCheck,
@@ -45,6 +46,7 @@ import {
 } from "@/components/ui/sidebar";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import WorkspaceLicense from "@/components/workspace/license";
 import LlmProfiles from "@/components/workspace/llm-profiles";
 import WorkspaceReports from "@/components/workspace/reports";
 import WorkspaceUsage from "@/components/workspace/usage";
@@ -57,6 +59,7 @@ import { type SubscriptionDetails, type UpcomingInvoiceInfo, type ActiveTrialInf
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { Feature } from "@/lib/features/features";
+import { type LicenseStatus } from "@/lib/license/types";
 import {
   type WorkspaceInvitation,
   type WorkspaceRole,
@@ -80,6 +83,8 @@ interface SharedSettingsProps {
   slackClientId?: string;
   slackRedirectUri?: string;
   slackBrokerEnabled?: boolean;
+  // Null where instance licensing doesn't apply (OSS app-server, Laminar Cloud).
+  license: LicenseStatus | null;
 }
 
 type Section = SettingsSection;
@@ -93,6 +98,7 @@ const VALID_SECTIONS = new Set<Section>([
   "billing",
   "workspace-general",
   "llm-profiles",
+  "license",
   "general",
   "project-api-keys",
   "model-costs",
@@ -117,6 +123,7 @@ const SharedSettings = ({
   slackClientId,
   slackRedirectUri,
   slackBrokerEnabled,
+  license,
 }: SharedSettingsProps) => {
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
@@ -128,6 +135,7 @@ const SharedSettings = ({
   const isSectionEnabled = (section: Section): boolean => {
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
+    if (section === "license") return !!license;
     return true;
   };
 
@@ -158,8 +166,11 @@ const SharedSettings = ({
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
     }
+    if (license) {
+      items.push({ label: "License", section: "license", icon: KeyRound });
+    }
     return items;
-  }, [featureFlags, isOwner]);
+  }, [featureFlags, isOwner, license]);
 
   const projectMenus: { label: string; section: Section; icon: LucideIcon; badge?: string }[] = [
     { label: "General", section: "general", icon: Settings2 },
@@ -230,6 +241,8 @@ const SharedSettings = ({
         return <WorkspaceSettings workspace={workspace} isOwner={isOwner} />;
       case "llm-profiles":
         return <LlmProfiles workspaceId={workspaceId} />;
+      case "license":
+        return license && <WorkspaceLicense license={license} workspaceId={workspaceId} isOwner={isOwner} />;
       // Project sections
       case "general":
         return (
