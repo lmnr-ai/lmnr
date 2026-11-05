@@ -23,7 +23,8 @@ export function AuditLogTableControls({ exportHref }: AuditLogTableControlsProps
     <div className="flex flex-1 w-full h-full flex-wrap gap-2 pt-1">
       <DataTableFilter columns={auditLogFilters} />
       <ColumnsMenu columnLabels={columnLabels} />
-      <DateRangeFilter />
+      {/* Audit events are kept regardless of the project's trace retention. */}
+      <DateRangeFilter ignoreTraceRetention disabled={[{ after: new Date() }]} />
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
