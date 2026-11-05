@@ -11,7 +11,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
 });
 
 export const PUT = withAudit<{ workspaceId: string }>(
-  { resource: "deployment", action: "update" },
+  { resource: "deployment", action: "update", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;
 

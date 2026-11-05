@@ -15,11 +15,12 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (_request
 
 export const PUT = withAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
-  async (request, ctx) => {
+  async (request, ctx, audit) => {
     const { projectId, id } = await ctx.params;
 
     const body = await request.json();
     const result = await updateSignal({ id, projectId, ...body });
+    await audit.target(id);
 
     if (!result) {
       return Response.json({ error: "Signal not found" }, { status: 404 });
@@ -31,9 +32,10 @@ export const PUT = withAudit<{ projectId: string; id: string }>(
 
 export const DELETE = withAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "delete" },
-  async (_request, ctx) => {
+  async (_request, ctx, audit) => {
     const { projectId, id } = await ctx.params;
 
+    await audit.target(id);
     const result = await deleteSignal({ projectId, id });
 
     if (!result) {

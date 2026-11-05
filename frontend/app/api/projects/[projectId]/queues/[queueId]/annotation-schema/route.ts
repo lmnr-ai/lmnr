@@ -3,7 +3,7 @@ import { withAudit } from "@/lib/audit";
 
 export const PUT = withAudit<{ projectId: string; queueId: string }>(
   { resource: "labeling_queue", action: "update" },
-  async (request, ctx) => {
+  async (request, ctx, audit) => {
     const { projectId, queueId } = await ctx.params;
     const body = await request.json();
 
@@ -12,6 +12,7 @@ export const PUT = withAudit<{ projectId: string; queueId: string }>(
       queueId,
       annotationSchema: body?.annotationSchema ?? null,
     });
+    await audit.target(queueId);
 
     return Response.json(updatedQueue);
   }

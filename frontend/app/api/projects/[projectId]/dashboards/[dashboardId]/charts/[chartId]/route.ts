@@ -12,22 +12,26 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(chart);
 });
 
-export const DELETE = withAudit<Params>({ resource: "chart", action: "delete" }, async (_req, ctx) => {
+export const DELETE = withAudit<Params>({ resource: "chart", action: "delete" }, async (_req, ctx, audit) => {
   const { projectId, dashboardId, chartId: id } = await ctx.params;
+  await audit.target(id);
   await deleteDashboardChart({ projectId, dashboardId, id });
   return Response.json({ success: true });
 });
 
 // PATCH is used for partial updates (name only)
-export const PATCH = withAudit<Params>({ resource: "chart", action: "update" }, async (req, ctx) => {
+export const PATCH = withAudit<Params>({ resource: "chart", action: "update" }, async (req, ctx, audit) => {
   const { projectId, dashboardId, chartId: id } = await ctx.params;
   const body = await req.json();
   await updateChartName({ ...body, projectId, dashboardId, id });
+  await audit.target(id);
   return Response.json({ success: true });
 });
 
-export const PUT = withAudit<Params>({ resource: "chart", action: "update" }, async (req, ctx) => {
+export const PUT = withAudit<Params>({ resource: "chart", action: "update" }, async (req, ctx, audit) => {
   const { projectId, dashboardId, chartId: id } = await ctx.params;
   const body = await req.json();
-  return Response.json(await updateChart({ ...body, projectId, dashboardId, id }));
+  const chart = await updateChart({ ...body, projectId, dashboardId, id });
+  await audit.target(id);
+  return Response.json(chart);
 });

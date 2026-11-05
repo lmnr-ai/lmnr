@@ -10,14 +10,16 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getAlertFilters({ projectId, alertId }));
 });
 
-export const POST = withAudit<Params>({ resource: "alert", action: "update" }, async (req, ctx) => {
+export const POST = withAudit<Params>({ resource: "alert", action: "update" }, async (req, ctx, audit) => {
   const { projectId, alertId } = await ctx.params;
+  await audit.target(alertId);
   const body = await req.json();
   return Response.json(await createAlertFilter({ projectId, alertId, filters: body.filters }));
 });
 
-export const PUT = withAudit<Params>({ resource: "alert", action: "update" }, async (req, ctx) => {
+export const PUT = withAudit<Params>({ resource: "alert", action: "update" }, async (req, ctx, audit) => {
   const { projectId, alertId } = await ctx.params;
+  await audit.target(alertId);
   const body = await req.json();
   const result = await updateAlertFilter({
     projectId,
@@ -31,8 +33,9 @@ export const PUT = withAudit<Params>({ resource: "alert", action: "update" }, as
   return Response.json(result);
 });
 
-export const DELETE = withAudit<Params>({ resource: "alert", action: "update" }, async (req, ctx) => {
+export const DELETE = withAudit<Params>({ resource: "alert", action: "update" }, async (req, ctx, audit) => {
   const { projectId, alertId } = await ctx.params;
+  await audit.target(alertId);
   const body = await req.json();
   return Response.json(await deleteAlertFilters({ projectId, alertId, filterIds: body.filterIds }));
 });

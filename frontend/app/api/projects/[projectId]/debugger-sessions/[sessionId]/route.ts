@@ -3,9 +3,11 @@ import { withAudit } from "@/lib/audit";
 
 export const PATCH = withAudit<{ projectId: string; sessionId: string }>(
   { resource: "debugger_session", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, sessionId } = await ctx.params;
     const { name } = await req.json();
-    return Response.json(await updateDebuggerSessionName({ projectId, id: sessionId, name }));
+    const session = await updateDebuggerSessionName({ projectId, id: sessionId, name });
+    await audit.target(sessionId);
+    return Response.json(session);
   }
 );

@@ -7,10 +7,12 @@ import { withAudit } from "@/lib/audit";
 
 export const POST = withAudit<{ projectId: string }>(
   { resource: "labeling_queue", action: "create" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const body = await req.json();
-    return Response.json(await createQueue({ projectId, name: body.name }));
+    const queue = await createQueue({ projectId, name: body.name });
+    await audit.target(queue.id, { name: queue.name });
+    return Response.json(queue);
   }
 );
 
@@ -28,7 +30,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
 
 export const DELETE = withAudit<{ projectId: string }>(
   { resource: "labeling_queue", action: "delete" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const queueIds = req.nextUrl.searchParams.get("queueIds")?.split(",");
 
@@ -36,6 +38,7 @@ export const DELETE = withAudit<{ projectId: string }>(
       return Response.json({ error: "At least one Queue ID is required" }, { status: 400 });
     }
 
+    await audit.target(queueIds);
     await deleteQueues({ projectId, queueIds });
 
     return Response.json({ message: "Queues deleted successfully" });

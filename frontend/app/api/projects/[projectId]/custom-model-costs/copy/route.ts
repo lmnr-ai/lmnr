@@ -31,7 +31,7 @@ export const POST = withAudit<{ projectId: string }>(
     if (result.length === 0) {
       return Response.json({ error: "No custom model costs found in source project" }, { status: 400 });
     }
-    audit.set({ metadata: { sourceProjectId: projectId, count: result.length } });
+    await audit.target(result.map((cost) => cost.id));
 
     return Response.json(result);
   }

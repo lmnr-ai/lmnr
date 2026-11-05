@@ -11,7 +11,7 @@ export const DELETE = withAudit<{ workspaceId: string }>(
     if (!userId) {
       return Response.json({ error: "No user id was provided" }, { status: 400 });
     }
-    audit.set({ resourceId: userId, resourceLabel: await getUserEmail(userId) });
+    await audit.target(userId, { name: await getUserEmail(userId) });
 
     await removeUserFromWorkspace({ workspaceId, userId });
     return new Response("User removed successfully.", { status: 200 });

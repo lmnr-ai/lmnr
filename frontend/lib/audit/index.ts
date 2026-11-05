@@ -7,6 +7,7 @@ import { getServerSession } from "@/lib/auth-session";
 import { type AuditAction, type AuditOutcome, type AuditResource, outcomeFromStatus } from "./events";
 import { getResourceNames } from "./labels";
 import { type AuditDetails, type AuditEventPayload, clientIp, postAuditEvent } from "./post";
+import { type Params, paramString, type Target, targetFields } from "./target";
 
 export type { AuditDetails } from "./post";
 
@@ -17,92 +18,28 @@ export interface AuditEventMeta {
   action: AuditAction;
   /** Read events are sent after the response; writes are awaited before it. */
   read?: boolean;
+  /**
+   * The request acts on no single resource (a workspace-level setting, a search). Every other
+   * handler must call `audit.target` or `audit.skip` (`tests/audit-coverage.test.ts`).
+   */
+  noTarget?: boolean;
 }
 
-const dispatch = async (event: AuditEventPayload, read: boolean | undefined) => {
-  if (read) {
-    after(() => postAuditEvent(event));
-    return;
-  }
-  await postAuditEvent(event);
-};
-
-/** Handle passed to audited handlers to describe the resource or suppress the event. */
+/** Handle passed to audited handlers to name the resource or suppress the event. */
 export interface AuditHandle {
+  /**
+   * Names what the request acted on. Display names come from `NAME_SOURCES` and are read when
+   * this is called, so a delete must await it before deleting. Pass `name` when the handler
+   * already has it, or for resources without a name column (members, API keys).
+   */
+  target: (ids: string | readonly string[] | null | undefined, opts?: { name?: string }) => Promise<void>;
+  /** Metadata, a body-dependent action, or a scope other than the route params. */
   set: (details: AuditDetails) => void;
   /** The request changed nothing worth recording (e.g. a no-op update). */
   skip: () => void;
 }
 
 type RouteContext<P> = { params: Promise<P> };
-
-const paramString = (value: string | string[] | undefined) => (typeof value === "string" ? value : undefined);
-
-// The innermost path param naming a resource (`/datasets/[datasetId]/datapoints/[datapointId]`
-// → datapointId), used when the handler doesn't set `resourceId` itself.
-const pathResource = (params: Record<string, string | string[] | undefined>) =>
-  Object.entries(params)
-    .filter(([key]) => key !== "workspaceId" && key !== "projectId" && /^(id|.+Id|.+Key)$/.test(key))
-    .map(([key, value]) => [key, paramString(value)] as const)
-    .findLast(([, value]) => value !== undefined);
-
-const pathResourceId = (params: Record<string, string | string[] | undefined>) => pathResource(params)?.[1];
-
-const ID_KEY = /^(id|ids|.+Id|.+Ids)$/;
-const LIST_KEY = /^(ids|.+Ids)$/;
-// Scope, never a delete target.
-const SCOPE_KEYS = new Set(["projectId", "workspaceId"]);
-
-const idValues = (value: unknown): string[] => {
-  if (typeof value === "string") return value.split(",").filter(Boolean);
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string" && v !== "");
-  return [];
-};
-
-// Bulk deletes name their targets in the query string (`?datasetIds=a,b`,
-// `?id=a&id=b`) or the JSON body (`{ datapointIds: [...] }`); record them so a
-// delete is never just "something was deleted". A list key names the targets
-// when present; singular `*Id` fields beside it are parents (`datasetId`).
-const deletedIds = async (url: string, body: Request | null): Promise<string[]> => {
-  const json = body ? await body.json().catch(() => null) : null;
-  const entries = [
-    ...new URL(url).searchParams.entries(),
-    ...(json && typeof json === "object" && !Array.isArray(json)
-      ? Object.entries(json as Record<string, unknown>)
-      : []),
-  ].filter(([key]) => ID_KEY.test(key) && !SCOPE_KEYS.has(key));
-  const lists = entries.filter(([key]) => LIST_KEY.test(key));
-  return [...new Set((lists.length > 0 ? lists : entries).flatMap(([, value]) => idValues(value)))];
-};
-
-const deleteTargets = async (
-  resource: AuditResource,
-  url: string,
-  body: Request,
-  params: Record<string, string | string[] | undefined>
-) => {
-  const bodyIds = await deletedIds(url, body);
-  const pathId = pathResourceId(params);
-  const lookup = bodyIds.length > 0 ? bodyIds : pathId ? [pathId] : [];
-  const names = await getResourceNames(resource, lookup, {
-    projectId: paramString(params.projectId),
-    workspaceId: paramString(params.workspaceId),
-  }).catch(() => new Map<string, string>());
-  return { bodyIds, names };
-};
-
-// Creates have no id in the path; most return the created object, which names it.
-const responseResource = async (res: Response): Promise<{ id?: string; label?: string }> => {
-  if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) return {};
-  const body = await res
-    .clone()
-    .json()
-    .catch(() => null);
-  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const { id, name, title } = body as Record<string, unknown>;
-  const label = typeof name === "string" ? name : typeof title === "string" ? title : undefined;
-  return { id: typeof id === "string" || typeof id === "number" ? String(id) : undefined, label };
-};
 
 /**
  * Wraps a route handler so every call records an audit event. Every mutating
@@ -117,84 +54,87 @@ export const withAudit =
   ) =>
   async (req: NextRequest, ctx: RouteContext<P>): Promise<Response> => {
     const details: AuditDetails = {};
-    // Cloned before the handler consumes the body.
-    const deleteBody = meta.action === "delete" ? req.clone() : null;
+    const targets: Target[] = [];
+    // Label of a target without an id (an invited email).
+    let label: string | undefined;
+    const lookups: Promise<void>[] = [];
     let skipped = false;
-    // A create's path names the parent (`/dashboards/[dashboardId]/charts`), never what was created.
-    const isCreate = meta.action === "create";
-    let handlerNamedResource = false;
+
+    const scope = async () => {
+      const params: Params = await ctx.params;
+      return {
+        projectId: details.projectId ?? paramString(params.projectId),
+        workspaceId: details.workspaceId ?? paramString(params.workspaceId),
+      };
+    };
+    // Reads look names up after the response, with the event.
+    const lookupNames = async (fresh: Target[]) => {
+      const names = await getResourceNames(
+        meta.resource,
+        fresh.map((t) => t.id),
+        await scope()
+      ).catch(() => new Map<string, string>());
+      for (const t of fresh) t.name = names.get(t.id);
+    };
+
     const audit: AuditHandle = {
+      target: async (ids, opts) => {
+        const list = (typeof ids === "string" ? [ids] : (ids ?? [])).filter(
+          (id) => id !== "" && !targets.some((t) => t.id === id)
+        );
+        if (list.length === 0) {
+          label = opts?.name ?? label;
+          return;
+        }
+        const fresh = list.map((id) => ({ id, name: list.length === 1 ? opts?.name : undefined }));
+        targets.push(...fresh);
+        const unnamed = fresh.filter((t) => !t.name);
+        if (unnamed.length === 0) return;
+        const lookup = lookupNames(unnamed);
+        lookups.push(lookup);
+        if (!meta.read) await lookup;
+      },
       set: (d) => Object.assign(details, d),
       skip: () => {
         skipped = true;
       },
     };
 
-    // Read before the handler removes the rows: their ids from the query or body, else the path,
-    // and their names.
-    const deleted = deleteBody ? await deleteTargets(meta.resource, req.url, deleteBody, await ctx.params) : undefined;
-
     let status = 500;
     try {
       const res = await apiHandler<P>((r, c) => handler(r, c, audit))(req, ctx);
       status = res.status;
-      // Setting `resourceId`, even to undefined (several targets), opts out of the path fallback.
-      handlerNamedResource = "resourceId" in details;
-      if (!meta.read && !skipped && (!details.resourceId || !details.resourceLabel)) {
-        const fromResponse = await responseResource(res);
-        // A response id only describes this event's resource when the path named none.
-        const pathId = isCreate ? undefined : pathResourceId(await ctx.params);
-        if (!details.resourceId && !pathId) details.resourceId = fromResponse.id;
-        if (!details.resourceLabel && (!pathId || fromResponse.id === pathId)) {
-          details.resourceLabel = fromResponse.label;
-        }
-      }
       return res;
     } finally {
       if (!skipped) {
         const session = await getServerSession().catch(() => null);
-        const params = await ctx.params;
-        const workspaceId = details.workspaceId ?? paramString(params.workspaceId);
-        const projectId = details.projectId ?? paramString(params.projectId);
+        const params: Params = await ctx.params;
+        const { workspaceId, projectId } = await scope();
         // Without a session or a workspace/project (e.g. a request rejected before
         // its project was resolved) there is no log to attribute the event to.
         if (session?.user && (workspaceId || projectId)) {
-          const ids = deleted && !details.resourceId ? deleted.bodyIds : [];
-          if (ids.length > 0) {
-            details.metadata = { ...details.metadata, ids };
-            if (ids.length === 1) details.resourceId = ids[0];
-          }
-          if (deleted && deleted.names.size > 0) {
-            const id = details.resourceId ?? pathResourceId(params);
-            if (!details.resourceLabel && id) details.resourceLabel = deleted.names.get(id);
-            if (ids.length > 1) {
-              details.metadata = { ...details.metadata, names: ids.flatMap((i) => deleted.names.get(i) ?? []) };
-            }
-          }
-          // The path id is a parent when the request names its own targets: a create, ids in the
-          // query/body (`/datasets/[datasetId]/datapoints`), or a handler-set resource.
-          const pathIsParent = isCreate || ids.length > 0 || handlerNamedResource;
-          const pathParam = pathResource(params);
-          const parent =
-            pathIsParent && !handlerNamedResource && pathParam && !ids.includes(pathParam[1] ?? "")
-              ? pathParam
-              : undefined;
-          if (parent) details.metadata = { [parent[0]]: parent[1], ...details.metadata };
-          await dispatch(
-            {
+          const userId = session.user.id;
+          const ip = clientIp(req.headers);
+          const userAgent = req.headers.get("user-agent") ?? undefined;
+          const send = async () => {
+            await Promise.all(lookups);
+            const fields = targetFields(targets, label, params);
+            await postAuditEvent({
               ...details,
-              userId: session.user.id,
+              ...fields,
+              metadata: fields.metadata || details.metadata ? { ...fields.metadata, ...details.metadata } : undefined,
+              userId,
               resource: meta.resource,
               action: details.action ?? meta.action,
               workspaceId,
               projectId,
-              resourceId: details.resourceId ?? (pathIsParent ? undefined : pathResourceId(params)),
               outcome: outcomeFromStatus(status),
-              ip: clientIp(req.headers),
-              userAgent: req.headers.get("user-agent") ?? undefined,
-            },
-            meta.read
-          );
+              ip,
+              userAgent,
+            });
+          };
+          if (meta.read) after(send);
+          else await send();
         }
       }
     }
@@ -208,22 +148,22 @@ export const noAudit = <H>(_reason: string, handler: H): H => handler;
  * server components, auth hooks. Awaited unless `read` is set.
  */
 export const recordAuditEvent = async (
-  meta: AuditEventMeta & AuditDetails & { userId?: string; outcome?: AuditOutcome }
+  meta: Omit<AuditEventMeta, "noTarget"> &
+    AuditDetails & { resourceId?: string; resourceLabel?: string; userId?: string; outcome?: AuditOutcome }
 ): Promise<void> => {
   const { resource, action, read, userId, outcome, ...details } = meta;
   const resolvedUserId = userId ?? (await getServerSession().catch(() => null))?.user?.id;
   if (!resolvedUserId) return;
   const h = await headers().catch(() => null);
-  await dispatch(
-    {
-      ...details,
-      userId: resolvedUserId,
-      resource,
-      action,
-      outcome: outcome ?? "success",
-      ip: h ? clientIp(h) : undefined,
-      userAgent: h?.get("user-agent") ?? undefined,
-    },
-    read
-  );
+  const event: AuditEventPayload = {
+    ...details,
+    userId: resolvedUserId,
+    resource,
+    action,
+    outcome: outcome ?? "success",
+    ip: h ? clientIp(h) : undefined,
+    userAgent: h?.get("user-agent") ?? undefined,
+  };
+  if (read) after(() => postAuditEvent(event));
+  else await postAuditEvent(event);
 };

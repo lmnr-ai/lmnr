@@ -33,9 +33,10 @@ export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ct
 
 export const DELETE = withAudit<{ projectId: string }>(
   { resource: "evaluation", action: "delete" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const body = await req.json();
+    await audit.target(body.evaluationIds);
     await deleteEvaluations({ ...body, projectId });
     return new Response("Evaluations deleted successfully", { status: 200 });
   }

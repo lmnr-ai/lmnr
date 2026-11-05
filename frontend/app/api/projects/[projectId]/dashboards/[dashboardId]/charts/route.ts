@@ -14,15 +14,15 @@ export const PATCH = withAudit<Params>({ resource: "chart", action: "update" }, 
   const body = await req.json();
   await updateChartsLayout({ ...body, projectId, dashboardId });
   const chartIds: string[] = Array.isArray(body?.updates) ? body.updates.map((u: { id: string }) => u.id) : [];
-  audit.set({
-    resourceId: chartIds.length === 1 ? chartIds[0] : undefined,
-    metadata: { dashboardId, chartIds, change: "layout" },
-  });
+  audit.set({ metadata: { change: "layout" } });
+  await audit.target(chartIds);
   return Response.json({ success: true });
 });
 
-export const POST = withAudit<Params>({ resource: "chart", action: "create" }, async (req, ctx) => {
+export const POST = withAudit<Params>({ resource: "chart", action: "create" }, async (req, ctx, audit) => {
   const { projectId, dashboardId } = await ctx.params;
   const body = await req.json();
-  return Response.json(await createChart({ ...body, projectId, dashboardId }));
+  const chart = await createChart({ ...body, projectId, dashboardId });
+  await audit.target(chart.id, { name: chart.name });
+  return Response.json(chart);
 });

@@ -10,7 +10,8 @@ export const POST = withAudit(
 
     try {
       const { name } = await req.json();
-      audit.set({ resourceId: projectId, resourceLabel: name, metadata: { fields: ["name"] } });
+      audit.set({ metadata: { fields: ["name"] } });
+      await audit.target(projectId, { name });
       const result = UpdateProjectSchema.safeParse({ name, projectId });
 
       if (!result.success) {
@@ -43,7 +44,8 @@ export const DELETE = withAudit(
     const params = await props.params;
     const { projectId } = params;
     const scope = await getProjectScope(projectId);
-    audit.set({ ...scope, resourceId: projectId, resourceLabel: scope?.projectName });
+    audit.set({ ...scope });
+    await audit.target(projectId, { name: scope?.projectName });
 
     try {
       await deleteProject({ projectId });

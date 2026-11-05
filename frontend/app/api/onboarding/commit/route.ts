@@ -10,9 +10,9 @@ export const POST = withAudit(
       const result = await commitOnboarding(await req.json());
       audit.set({
         workspaceId: result.workspaceId,
-        resourceId: result.workspaceId,
         metadata: { onboarding: true, failedInvites: result.failedInvites },
       });
+      await audit.target(result.workspaceId);
       return Response.json(result);
     } catch (error) {
       if (error instanceof ZodError) {

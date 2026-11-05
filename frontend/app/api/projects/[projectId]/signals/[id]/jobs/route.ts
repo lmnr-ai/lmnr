@@ -29,10 +29,11 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
 
 export const POST = withAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "backfill" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;
 
     const body = await req.json();
+    await audit.target(signalId);
 
     await checkSignalRunsLimit(projectId);
 

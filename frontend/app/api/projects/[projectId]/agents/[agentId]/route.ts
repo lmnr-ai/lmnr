@@ -4,11 +4,12 @@ import { withAudit } from "@/lib/audit";
 
 export const PATCH = withAudit<{ projectId: string; agentId: string }>(
   { resource: "agent", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, agentId } = await ctx.params;
     const body = await req.json();
     const agent = await renameAgent({ projectId, agentId, name: body?.name });
     if (!agent) throw new NotFoundError("Agent not found");
+    await audit.target(agentId, { name: agent.name ?? undefined });
     return Response.json(agent);
   }
 );

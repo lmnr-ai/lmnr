@@ -12,7 +12,7 @@ export const GET = apiHandler<{ projectId: string; templateId: string }>(async (
 
 export const PUT = withAudit<{ projectId: string; templateId: string }>(
   { resource: "render_template", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, templateId } = await ctx.params;
     const body = await req.json();
 
@@ -23,6 +23,7 @@ export const PUT = withAudit<{ projectId: string; templateId: string }>(
       code: body.code,
       whereClause: body.whereClause,
     });
+    await audit.target(templateId);
 
     return Response.json(result);
   }
@@ -30,8 +31,9 @@ export const PUT = withAudit<{ projectId: string; templateId: string }>(
 
 export const DELETE = withAudit<{ projectId: string; templateId: string }>(
   { resource: "render_template", action: "delete" },
-  async (_req, ctx) => {
+  async (_req, ctx, audit) => {
     const { projectId, templateId } = await ctx.params;
+    await audit.target(templateId);
 
     const result = await deleteRenderTemplate({ projectId, templateId });
 

@@ -12,7 +12,7 @@ export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
 
 export const POST = withAudit<{ projectId: string }>(
   { resource: "sql_template", action: "create" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
 
     const body = await req.json();
@@ -21,6 +21,7 @@ export const POST = withAudit<{ projectId: string }>(
       ...body,
       projectId,
     });
+    await audit.target(template.id, { name: template.name });
 
     return Response.json(template);
   }

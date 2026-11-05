@@ -19,6 +19,8 @@ import {
   sqlTemplates,
   tableViews,
   users,
+  workspaceInvitations,
+  workspaces,
 } from "@/lib/db/migrations/schema";
 
 import { type AuditResource } from "./events";
@@ -58,7 +60,7 @@ const inProject = (table: PgTable & { id: AnyPgColumn; projectId: AnyPgColumn },
   scopeParam: "projectId",
 });
 
-// Where each deletable resource keeps its display name.
+// Where each resource keeps its display name.
 const NAME_SOURCES: Partial<Record<AuditResource, NameSource>> = {
   alert: inProject(alerts, alerts.name),
   chart: inProject(dashboardCharts, dashboardCharts.name),
@@ -80,11 +82,26 @@ const NAME_SOURCES: Partial<Record<AuditResource, NameSource>> = {
     scope: llmProfiles.workspaceId,
     scopeParam: "workspaceId",
   },
+  invitation: {
+    table: workspaceInvitations,
+    id: workspaceInvitations.id,
+    name: workspaceInvitations.email,
+    scope: workspaceInvitations.workspaceId,
+    scopeParam: "workspaceId",
+  },
+  project: { table: projects, id: projects.id, name: projects.name, scope: projects.id, scopeParam: "projectId" },
+  workspace: {
+    table: workspaces,
+    id: workspaces.id,
+    name: workspaces.name,
+    scope: workspaces.id,
+    scopeParam: "workspaceId",
+  },
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Names of the resources a delete is about to remove, by id; empty for resources without one. */
+/** Display names by id; empty for resources without a name source. */
 export const getResourceNames = async (
   resource: AuditResource,
   ids: string[],

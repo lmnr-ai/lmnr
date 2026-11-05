@@ -26,7 +26,7 @@ export const GET = apiHandler<{ projectId: string }>(async (request: NextRequest
 
 export const POST = withAudit<{ projectId: string }>(
   { resource: "debugger_session", action: "create" },
-  async (request: NextRequest, ctx) => {
+  async (request: NextRequest, ctx, audit) => {
     const { projectId } = await ctx.params;
 
     let body: unknown = {};
@@ -42,6 +42,7 @@ export const POST = withAudit<{ projectId: string }>(
     }
 
     const session = await createDebuggerSession({ ...parseResult.data, projectId });
+    await audit.target(session.id, { name: session.name ?? undefined });
     return Response.json(session);
   }
 );

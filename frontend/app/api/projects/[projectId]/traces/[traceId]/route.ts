@@ -3,10 +3,11 @@ import { withAudit } from "@/lib/audit";
 
 export const GET = withAudit<{ projectId: string; traceId: string }>(
   { resource: "trace", action: "view", read: true },
-  async (_req, ctx) => {
+  async (_req, ctx, audit) => {
     const params = await ctx.params;
     const projectId = params.projectId;
     const traceId = params.traceId;
+    await audit.target(traceId);
 
     const trace = await getTrace({ traceId, projectId });
 
@@ -29,7 +30,8 @@ export const PUT = withAudit<{ projectId: string; traceId: string }>(
     const body = (await req.json()) as { visibility: "private" | "public" };
 
     await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
-    audit.set({ resourceId: traceId, action: body?.visibility === "public" ? "share" : "unshare" });
+    audit.set({ action: body?.visibility === "public" ? "share" : "unshare" });
+    await audit.target(traceId);
 
     return Response.json("Updated trace visibility successfully.");
   }

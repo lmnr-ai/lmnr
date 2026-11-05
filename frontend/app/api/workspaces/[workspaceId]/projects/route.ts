@@ -19,7 +19,8 @@ export const POST = withAudit<{ workspaceId: string }>(
     const body = await req.json();
 
     const project = await createProject({ name: body.name, workspaceId });
-    audit.set({ projectId: project.id, resourceId: project.id, resourceLabel: project.name });
+    audit.set({ projectId: project.id });
+    await audit.target(project.id, { name: project.name });
 
     return Response.json(project);
   }

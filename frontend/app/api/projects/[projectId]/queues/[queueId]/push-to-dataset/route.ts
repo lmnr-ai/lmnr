@@ -10,7 +10,8 @@ const BodySchema = z.object({
 });
 
 export const POST = withAudit<{ projectId: string; queueId: string }>(
-  { resource: "datapoint", action: "create" },
+  // The created datapoint ids aren't returned; the dataset and items are recorded instead.
+  { resource: "datapoint", action: "create", noTarget: true },
   async (req, ctx, audit) => {
     const { projectId, queueId } = await ctx.params;
     const parsed = BodySchema.safeParse(await req.json());
@@ -18,8 +19,7 @@ export const POST = withAudit<{ projectId: string; queueId: string }>(
       return Response.json({ error: "Invalid request body", details: parsed.error }, { status: 400 });
     }
 
-    // The datapoints land in the dataset; without this the path's queueId would be the resource.
-    audit.set({ resourceId: parsed.data.datasetId, metadata: { queueId, itemIds: parsed.data.itemIds } });
+    audit.set({ metadata: { datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds } });
 
     const result = await pushItemsToDataset({
       projectId,
@@ -29,7 +29,7 @@ export const POST = withAudit<{ projectId: string; queueId: string }>(
       includeUnlabelled: parsed.data.includeUnlabelled,
     });
 
-    audit.set({ metadata: { queueId, itemIds: parsed.data.itemIds, pushed: result.pushed } });
+    audit.set({ metadata: { datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds, pushed: result.pushed } });
     return Response.json(result);
   }
 );

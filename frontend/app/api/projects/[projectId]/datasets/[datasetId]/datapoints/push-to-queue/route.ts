@@ -13,7 +13,8 @@ export const POST = withAudit<{ projectId: string; datasetId: string }>(
     }
 
     const { datapointIds, queueId } = result.data;
-    audit.set({ resourceId: queueId, metadata: { datasetId, datapointIds } });
+    audit.set({ metadata: { datapointIds } });
+    await audit.target(queueId);
 
     const queueItems = await pushDatapointsToQueue({ datapointIds, projectId, datasetId, queueId });
 

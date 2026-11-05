@@ -35,16 +35,20 @@ export const GET = withAudit<{ projectId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string }>({ resource: "trace", action: "delete" }, async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const traceIds = req.nextUrl.searchParams.getAll("traceId");
+export const DELETE = withAudit<{ projectId: string }>(
+  { resource: "trace", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const traceIds = req.nextUrl.searchParams.getAll("traceId");
 
-  const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
+    const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
 
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
+    await audit.target(parseResult.data.traceIds);
+    await deleteTraces(parseResult.data);
+    return new Response("Traces deleted successfully.", { status: 200 });
   }
-
-  await deleteTraces(parseResult.data);
-  return new Response("Traces deleted successfully.", { status: 200 });
-});
+);

@@ -19,8 +19,10 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getDashboards({ projectId }));
 });
 
-export const POST = withAudit<Params>({ resource: "dashboard", action: "create" }, async (req, ctx) => {
+export const POST = withAudit<Params>({ resource: "dashboard", action: "create" }, async (req, ctx, audit) => {
   const { projectId } = await ctx.params;
   const body = await req.json();
-  return Response.json(await createDashboard({ ...body, projectId }));
+  const dashboard = await createDashboard({ ...body, projectId });
+  await audit.target(dashboard.id, { name: dashboard.name });
+  return Response.json(dashboard);
 });

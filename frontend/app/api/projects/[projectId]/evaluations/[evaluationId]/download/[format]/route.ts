@@ -14,9 +14,11 @@ export const GET = withAudit(
     req: Request,
     props: {
       params: Promise<{ projectId: string; evaluationId: string; format: string }>;
-    }
+    },
+    audit
   ): Promise<Response> => {
     const params = await props.params;
+    await audit.target(params.evaluationId);
     const projectId = params.projectId;
     const evaluationId = params.evaluationId;
     const format = params.format as DownloadFormat;
