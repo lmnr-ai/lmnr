@@ -9,7 +9,7 @@ import { DownloadFormat } from "@/lib/types";
 import { tryParseJson } from "@/lib/utils";
 
 export const GET = withAudit(
-  { resource: "evaluation", action: "export" },
+  { resource: "evaluation", action: "export", read: true },
   async (
     req: Request,
     props: {
