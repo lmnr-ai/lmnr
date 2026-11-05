@@ -8,11 +8,8 @@ export const PATCH = withAudit<{ workspaceId: string }>(
     const { workspaceId } = await ctx.params;
     const body = await req.json();
     if (typeof body.userId === "string") {
-      audit.set({
-        resourceId: body.userId,
-        resourceLabel: await getUserEmail(body.userId),
-        metadata: { role: body.role },
-      });
+      audit.set({ metadata: { role: body.role } });
+      await audit.target(body.userId, { name: await getUserEmail(body.userId) });
     }
 
     await updateRole({

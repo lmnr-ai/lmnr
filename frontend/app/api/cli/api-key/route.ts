@@ -65,7 +65,8 @@ export const POST = withAudit(
           userId,
           expiresAt: null,
         });
-        audit.set({ projectId: project.id, resourceId: key.id, resourceLabel: key.name ?? key.shorthand });
+        audit.set({ projectId: project.id });
+        await audit.target(key.id, { name: key.name ?? key.shorthand });
         return NextResponse.json({
           apiKey: key.value,
           apiKeyId: key.id,
@@ -110,7 +111,8 @@ export const POST = withAudit(
         userId,
         expiresAt: null,
       });
-      audit.set({ projectId: project.id, resourceId: key.id, resourceLabel: key.name ?? key.shorthand });
+      audit.set({ projectId: project.id });
+      await audit.target(key.id, { name: key.name ?? key.shorthand });
       return NextResponse.json({
         apiKey: key.value,
         apiKeyId: key.id,

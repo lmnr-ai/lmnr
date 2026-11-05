@@ -13,9 +13,11 @@ export const GET = withAudit(
     req: Request,
     props: {
       params: Promise<{ projectId: string; datasetId: string; format: string }>;
-    }
+    },
+    audit
   ): Promise<Response> => {
     const params = await props.params;
+    await audit.target(params.datasetId);
 
     const projectId = params.projectId;
     const datasetId = params.datasetId;

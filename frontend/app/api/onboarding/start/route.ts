@@ -10,7 +10,8 @@ export const POST = withAudit(
   async (req: Request, _ctx: { params: Promise<{}> }, audit): Promise<Response> => {
     try {
       const result = await startOnboarding(await req.json());
-      audit.set({ workspaceId: result.workspaceId, resourceId: result.workspaceId, metadata: { onboarding: true } });
+      audit.set({ workspaceId: result.workspaceId, metadata: { onboarding: true } });
+      await audit.target(result.workspaceId);
       return Response.json(result);
     } catch (error) {
       if (error instanceof ZodError) {

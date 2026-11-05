@@ -30,10 +30,11 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
 
 export const POST = withAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;
 
     const body = await req.json();
+    await audit.target(signalId);
     const result = await createSignalTrigger({
       projectId,
       signalId,
@@ -52,10 +53,11 @@ export const POST = withAudit<{ projectId: string; id: string }>(
 
 export const PUT = withAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;
 
     const body = await req.json();
+    await audit.target(signalId);
     const result = await updateSignalTrigger({
       projectId,
       signalId,
@@ -75,10 +77,11 @@ export const PUT = withAudit<{ projectId: string; id: string }>(
 
 export const DELETE = withAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;
 
     const body = await req.json();
+    await audit.target(signalId);
     const result = await deleteSignalTriggers({
       projectId,
       signalId,

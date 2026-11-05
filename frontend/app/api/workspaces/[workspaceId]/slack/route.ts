@@ -10,7 +10,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
 });
 
 export const DELETE = withAudit<{ workspaceId: string }>(
-  { resource: "slack_integration", action: "delete" },
+  { resource: "slack_integration", action: "delete", noTarget: true },
   async (_request, ctx) => {
     const { workspaceId } = await ctx.params;
 

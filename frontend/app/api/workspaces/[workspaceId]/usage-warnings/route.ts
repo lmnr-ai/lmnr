@@ -9,7 +9,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
 });
 
 export const POST = withAudit<{ workspaceId: string }>(
-  { resource: "workspace", action: "update" },
+  { resource: "workspace", action: "update", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;
     const body = await req.json();
@@ -19,7 +19,7 @@ export const POST = withAudit<{ workspaceId: string }>(
 );
 
 export const DELETE = withAudit<{ workspaceId: string }>(
-  { resource: "workspace", action: "update" },
+  { resource: "workspace", action: "update", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;
     const body = await req.json();

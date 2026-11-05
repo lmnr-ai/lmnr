@@ -2,10 +2,8 @@
 // module, and `@/lib/auth-session` imports `lib/auth`.
 import type { AuditAction, AuditOutcome, AuditResource, AuditSource } from "./events";
 
-/** What the handler knows about the event. The wrapper fills in everything else. */
+/** What the handler knows about the event besides its target. The wrapper fills in everything else. */
 export interface AuditDetails {
-  resourceId?: string;
-  resourceLabel?: string;
   /** Overrides the route param; required when the project may already be deleted. */
   workspaceId?: string;
   projectId?: string;
@@ -18,6 +16,8 @@ export interface AuditDetails {
 }
 
 export interface AuditEventPayload extends AuditDetails {
+  resourceId?: string;
+  resourceLabel?: string;
   userId: string;
   resource: AuditResource;
   action: AuditAction;

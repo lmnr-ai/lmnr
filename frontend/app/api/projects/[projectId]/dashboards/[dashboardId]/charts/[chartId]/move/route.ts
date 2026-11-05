@@ -4,11 +4,13 @@ import { withAudit } from "@/lib/audit";
 
 export const POST = withAudit<{ projectId: string; dashboardId: string; chartId: string }>(
   { resource: "chart", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, dashboardId, chartId: id } = await ctx.params;
     const body = await req.json();
     const chart = await moveChart({ projectId, dashboardId, id, targetDashboardId: body?.targetDashboardId });
     if (!chart) throw new NotFoundError("Chart or dashboard not found");
+    audit.set({ metadata: { targetDashboardId: body?.targetDashboardId } });
+    await audit.target(id);
     return Response.json(chart);
   }
 );

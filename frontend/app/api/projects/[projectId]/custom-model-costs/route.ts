@@ -9,7 +9,7 @@ export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
 
 export const POST = withAudit<{ projectId: string }>(
   { resource: "custom_model_cost", action: "create" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const body = await req.json();
 
@@ -22,6 +22,7 @@ export const POST = withAudit<{ projectId: string }>(
       previousModel: body.previousModel,
       previousProvider: body.previousProvider,
     });
+    await audit.target(result.id, { name: result.model });
 
     return Response.json(result);
   }
@@ -29,9 +30,11 @@ export const POST = withAudit<{ projectId: string }>(
 
 export const DELETE = withAudit<{ projectId: string }>(
   { resource: "custom_model_cost", action: "delete" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
-    await deleteCustomModelCost({ projectId, id: req.nextUrl.searchParams.get("id") ?? "" });
+    const id = req.nextUrl.searchParams.get("id") ?? "";
+    await audit.target(id);
+    await deleteCustomModelCost({ projectId, id });
     return new Response(null, { status: 200 });
   }
 );

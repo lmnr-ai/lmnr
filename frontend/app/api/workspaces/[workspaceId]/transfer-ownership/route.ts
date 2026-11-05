@@ -8,7 +8,7 @@ export const POST = withAudit<{ workspaceId: string }>(
     const { workspaceId } = await ctx.params;
     const body = await req.json();
     if (typeof body.newOwnerId === "string") {
-      audit.set({ resourceId: body.newOwnerId, resourceLabel: await getUserEmail(body.newOwnerId) });
+      await audit.target(body.newOwnerId, { name: await getUserEmail(body.newOwnerId) });
     }
 
     await transferOwnership({

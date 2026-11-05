@@ -35,12 +35,16 @@ export const GET = withAudit<{ projectId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string }>({ resource: "trace", action: "delete" }, async (req, ctx) => {
-  const params = await ctx.params;
-  const projectId = params.projectId;
+export const DELETE = withAudit<{ projectId: string }>(
+  { resource: "trace", action: "delete" },
+  async (req, ctx, audit) => {
+    const params = await ctx.params;
+    const projectId = params.projectId;
 
-  const sessionIds = req.nextUrl.searchParams.getAll("id");
+    const sessionIds = req.nextUrl.searchParams.getAll("id");
 
-  await deleteSessions({ projectId, sessionIds });
-  return Response.json({ success: true });
-});
+    await audit.target(sessionIds);
+    await deleteSessions({ projectId, sessionIds });
+    return Response.json({ success: true });
+  }
+);

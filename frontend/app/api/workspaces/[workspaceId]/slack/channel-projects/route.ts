@@ -16,9 +16,10 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getChannelProjectBindings(workspaceId));
 });
 
-export const PUT = withAudit<Params>({ resource: "slack_integration", action: "update" }, async (req, ctx) => {
+export const PUT = withAudit<Params>({ resource: "slack_integration", action: "update" }, async (req, ctx, audit) => {
   const { workspaceId } = await ctx.params;
   const body = await req.json();
+  await audit.target(body.channelId, { name: body.channelName });
   await upsertChannelProjectBinding({
     workspaceId,
     channelId: body.channelId,
@@ -28,12 +29,16 @@ export const PUT = withAudit<Params>({ resource: "slack_integration", action: "u
   return Response.json({ success: true });
 });
 
-export const DELETE = withAudit<Params>({ resource: "slack_integration", action: "update" }, async (req, ctx) => {
-  const { workspaceId } = await ctx.params;
-  const channelId = req.nextUrl.searchParams.get("channelId");
-  if (!channelId) {
-    return Response.json({ error: "channelId query param is required" }, { status: 400 });
+export const DELETE = withAudit<Params>(
+  { resource: "slack_integration", action: "update" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    const channelId = req.nextUrl.searchParams.get("channelId");
+    if (!channelId) {
+      return Response.json({ error: "channelId query param is required" }, { status: 400 });
+    }
+    await audit.target(channelId);
+    await deleteChannelProjectBinding({ workspaceId, channelId });
+    return Response.json({ success: true });
   }
-  await deleteChannelProjectBinding({ workspaceId, channelId });
-  return Response.json({ success: true });
-});
+);

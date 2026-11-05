@@ -26,6 +26,7 @@ export const POST = withAudit(
       return new Response("Forbidden", { status: 403 });
     }
 
+    await audit.target(id);
     await db
       .delete(workspaceInvitations)
       .where(and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)));

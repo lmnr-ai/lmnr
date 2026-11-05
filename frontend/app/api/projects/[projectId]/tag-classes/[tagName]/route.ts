@@ -11,7 +11,7 @@ export const POST = withAudit<{ projectId: string; tagName: string }>(
     const params = await ctx.params;
     const projectId = params.projectId;
     const tagName = params.tagName;
-    audit.set({ resourceId: tagName, resourceLabel: tagName });
+    await audit.target(tagName, { name: tagName });
     const body = await req.json();
 
     const result = await createOrUpdateTagClass({
@@ -29,7 +29,7 @@ export const DELETE = withAudit<{ projectId: string; tagName: string }>(
     const params = await ctx.params;
     const projectId = params.projectId;
     const tagName = params.tagName;
-    audit.set({ resourceId: tagName, resourceLabel: tagName });
+    await audit.target(tagName, { name: tagName });
 
     const affectedRows = await db
       .delete(tagClasses)

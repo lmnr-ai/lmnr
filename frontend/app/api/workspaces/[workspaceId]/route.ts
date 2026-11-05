@@ -8,7 +8,8 @@ export const POST = withAudit<{ workspaceId: string }>(
     const { workspaceId } = await ctx.params;
 
     const body = await req.json();
-    audit.set({ resourceId: workspaceId, resourceLabel: body?.name, metadata: { fields: Object.keys(body ?? {}) } });
+    audit.set({ metadata: { fields: Object.keys(body ?? {}) } });
+    await audit.target(workspaceId, { name: body?.name });
 
     await updateWorkspace({ workspaceId, ...body });
 
@@ -27,7 +28,7 @@ export const DELETE = withAudit<{ workspaceId: string }>(
   { resource: "workspace", action: "delete" },
   async (_req, ctx, audit) => {
     const { workspaceId } = await ctx.params;
-    audit.set({ resourceId: workspaceId });
+    await audit.target(workspaceId);
 
     await deleteWorkspace({ workspaceId });
 

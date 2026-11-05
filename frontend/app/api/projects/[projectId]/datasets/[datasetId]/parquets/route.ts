@@ -13,8 +13,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
 
 export const POST = withAudit(
   { resource: "dataset", action: "export" },
-  async (req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string }> }) => {
+  async (req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string }> }, audit) => {
     const { projectId, datasetId } = await params;
+    await audit.target(datasetId);
 
     const job = await startParquetExportJob(projectId, datasetId);
 

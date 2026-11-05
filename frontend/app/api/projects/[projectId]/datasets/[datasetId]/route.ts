@@ -22,7 +22,7 @@ export const GET = apiHandler<{ projectId: string; datasetId: string }>(async (r
 
 export const PATCH = withAudit<{ projectId: string; datasetId: string }>(
   { resource: "dataset", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, datasetId } = await ctx.params;
 
     const body = await req.json();
@@ -33,6 +33,7 @@ export const PATCH = withAudit<{ projectId: string; datasetId: string }>(
       datasetId,
       name,
     });
+    await audit.target(datasetId);
 
     return Response.json(updatedDataset);
   }

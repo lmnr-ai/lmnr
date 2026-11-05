@@ -9,7 +9,7 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getDatapoint({ projectId, datapointId, datasetId }));
 });
 
-export const POST = withAudit<Params>({ resource: "datapoint", action: "update" }, async (req, ctx) => {
+export const POST = withAudit<Params>({ resource: "datapoint", action: "update" }, async (req, ctx, audit) => {
   const { projectId, datasetId, datapointId } = await ctx.params;
   const body = await req.json();
 
@@ -22,6 +22,7 @@ export const POST = withAudit<Params>({ resource: "datapoint", action: "update" 
     metadata: body.metadata,
     createdAt: body.createdAt,
   });
+  await audit.target(datapointId);
 
   return Response.json({ success: true });
 });

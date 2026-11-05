@@ -4,7 +4,7 @@ import { getServerSession } from "@/lib/auth-session";
 
 export const POST = withAudit<{ workspaceId: string }>(
   { resource: "report", action: "update" },
-  async (request, ctx) => {
+  async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
 
     const session = await getServerSession();
@@ -13,6 +13,8 @@ export const POST = withAudit<{ workspaceId: string }>(
     }
     const body = await request.json();
     const result = await setSlackTargets({ ...body, workspaceId });
+    audit.set({ metadata: { channels: body.channels?.map((c: { name: string }) => c.name) } });
+    await audit.target(body.reportId);
     return Response.json(result);
   }
 );

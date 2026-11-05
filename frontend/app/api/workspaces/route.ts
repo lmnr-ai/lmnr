@@ -11,7 +11,8 @@ export const GET = apiHandler(async () => {
 export const POST = withAudit({ resource: "workspace", action: "create" }, async (req, _ctx, audit) => {
   const body = await req.json();
   const workspace = await createWorkspace(body);
-  audit.set({ workspaceId: workspace.id, resourceId: workspace.id, resourceLabel: workspace.name });
+  audit.set({ workspaceId: workspace.id });
+  await audit.target(workspace.id, { name: workspace.name });
 
   return Response.json(workspace);
 });

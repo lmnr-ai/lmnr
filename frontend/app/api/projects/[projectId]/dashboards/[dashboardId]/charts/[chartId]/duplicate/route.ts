@@ -9,7 +9,8 @@ export const POST = withAudit<{ projectId: string; dashboardId: string; chartId:
     const chart = await duplicateChart({ projectId, dashboardId, id });
     if (!chart) throw new NotFoundError("Chart not found");
     // The path's chartId is the source; the event records the copy.
-    audit.set({ resourceId: chart.id, resourceLabel: chart.name, metadata: { sourceChartId: id, dashboardId } });
+    audit.set({ metadata: { sourceChartId: id } });
+    await audit.target(chart.id, { name: chart.name });
     return Response.json(chart);
   }
 );

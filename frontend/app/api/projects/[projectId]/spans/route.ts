@@ -24,8 +24,13 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getSpans({ ...parseResult.data, projectId }));
 });
 
-export const DELETE = withAudit<{ projectId: string }>({ resource: "trace", action: "delete" }, async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  await deleteSpans({ spanIds: req.nextUrl.searchParams.getAll("id"), projectId });
-  return new Response("Spans deleted successfully", { status: 200 });
-});
+export const DELETE = withAudit<{ projectId: string }>(
+  { resource: "trace", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const spanIds = req.nextUrl.searchParams.getAll("id");
+    await audit.target(spanIds);
+    await deleteSpans({ spanIds, projectId });
+    return new Response("Spans deleted successfully", { status: 200 });
+  }
+);

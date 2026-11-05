@@ -17,15 +17,20 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getPlaygrounds({ ...parseResult.data, projectId }));
 });
 
-export const POST = withAudit<{ projectId: string }>({ resource: "playground", action: "create" }, async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const body = await req.json();
-  return Response.json(await createPlayground({ projectId, name: body.name }));
-});
+export const POST = withAudit<{ projectId: string }>(
+  { resource: "playground", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const body = await req.json();
+    const playground = await createPlayground({ projectId, name: body.name });
+    await audit.target(playground.id, { name: playground.name });
+    return Response.json(playground);
+  }
+);
 
 export const DELETE = withAudit<{ projectId: string }>(
   { resource: "playground", action: "delete" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
     const playgroundIds = req.nextUrl.searchParams.get("playgroundIds")?.split(",").filter(Boolean);
 
@@ -33,6 +38,7 @@ export const DELETE = withAudit<{ projectId: string }>(
       return Response.json({ error: "At least one playground id is required" }, { status: 400 });
     }
 
+    await audit.target(playgroundIds);
     await deletePlaygrounds({ projectId, playgroundIds });
 
     return Response.json({ message: "Playgrounds deleted successfully" });

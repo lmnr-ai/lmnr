@@ -128,7 +128,7 @@ export const POST = withAudit(
 
       // Insert into ClickHouse
       await createDatapoints(projectId, datasetId, datapointsWithIds);
-      audit.set({ resourceId: ids.length === 1 ? ids[0] : undefined, metadata: { datasetId, count: ids.length } });
+      await audit.target(ids);
 
       return Response.json({
         success: true,

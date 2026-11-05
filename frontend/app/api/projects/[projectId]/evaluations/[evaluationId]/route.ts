@@ -37,7 +37,7 @@ export const GET = apiHandler<{ projectId: string; evaluationId: string }>(async
 
 export const PATCH = withAudit<{ projectId: string; evaluationId: string }>(
   { resource: "evaluation", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, evaluationId } = await ctx.params;
 
     const body = await req.json();
@@ -52,13 +52,14 @@ export const PATCH = withAudit<{ projectId: string; evaluationId: string }>(
     }
 
     const updated = await renameEvaluation(parseResult.data);
+    await audit.target(evaluationId);
     return Response.json(updated);
   }
 );
 
 export const PUT = withAudit<{ projectId: string; evaluationId: string }>(
   { resource: "evaluation", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, evaluationId } = await ctx.params;
 
     const body = await req.json();
@@ -69,6 +70,8 @@ export const PUT = withAudit<{ projectId: string; evaluationId: string }>(
     }
 
     await updateEvaluationVisibility({ evaluationId, projectId, visibility });
+    audit.set({ metadata: { visibility } });
+    await audit.target(evaluationId);
     return Response.json({ visibility });
   }
 );

@@ -3,9 +3,11 @@ import { withAudit } from "@/lib/audit";
 
 export const POST = withAudit<{ projectId: string; playgroundId: string }>(
   { resource: "playground", action: "update" },
-  async (req, ctx) => {
+  async (req, ctx, audit) => {
     const { projectId, playgroundId } = await ctx.params;
     const body = await req.json();
-    return Response.json(await updatePlayground({ ...body, projectId, playgroundId }));
+    const playground = await updatePlayground({ ...body, projectId, playgroundId });
+    await audit.target(playgroundId);
+    return Response.json(playground);
   }
 );

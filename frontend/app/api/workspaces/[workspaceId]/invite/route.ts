@@ -6,7 +6,7 @@ export const POST = withAudit<{ workspaceId: string }>(
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;
     const body = (await req.json()) as { email: string };
-    audit.set({ resourceLabel: body.email });
+    await audit.target(null, { name: body.email });
 
     await inviteUserToWorkspace({
       workspaceId,

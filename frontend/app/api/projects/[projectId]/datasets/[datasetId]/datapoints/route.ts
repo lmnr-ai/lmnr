@@ -38,10 +38,7 @@ export const POST = withAudit<Params>({ resource: "datapoint", action: "create" 
   const { datapoints, sourceSpanId } = parseResult.data;
 
   const result = await createDatapoints({ projectId, datasetId, datapoints, sourceSpanId });
-  audit.set({
-    resourceId: result.length === 1 ? result[0].id : undefined,
-    metadata: { datasetId, count: result.length },
-  });
+  await audit.target(result.map((datapoint) => datapoint.id));
 
   return Response.json(result);
 });
@@ -49,7 +46,7 @@ export const POST = withAudit<Params>({ resource: "datapoint", action: "create" 
 // Note: this endpoint allows a body in a DELETE request, which is not standard
 // but fits our purposes: (1) this is an internal API, (2) passing many
 // datapoint IDs in the URL may break
-export const DELETE = withAudit<Params>({ resource: "datapoint", action: "delete" }, async (req, ctx) => {
+export const DELETE = withAudit<Params>({ resource: "datapoint", action: "delete" }, async (req, ctx, audit) => {
   const { projectId, datasetId } = await ctx.params;
   const { datapointIds } = await req.json();
 
@@ -57,6 +54,7 @@ export const DELETE = withAudit<Params>({ resource: "datapoint", action: "delete
     return Response.json({ error: "At least one Datapoint ID is required" }, { status: 400 });
   }
 
+  await audit.target(datapointIds);
   await deleteDatapoints({ projectId, datasetId, datapointIds });
 
   return new Response("datasetDatapoints deleted successfully", { status: 200 });

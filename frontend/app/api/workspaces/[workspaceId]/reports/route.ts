@@ -14,7 +14,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
 
 export const POST = withAudit<{ workspaceId: string }>(
   { resource: "report", action: "create" },
-  async (request, ctx) => {
+  async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
 
     const session = await getServerSession();
@@ -27,13 +27,14 @@ export const POST = withAudit<{ workspaceId: string }>(
       return Response.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
     }
     const result = await optInReport({ ...body, workspaceId, email });
+    await audit.target(body.reportId);
     return Response.json(result);
   }
 );
 
 export const PUT = withAudit<{ workspaceId: string }>(
   { resource: "report", action: "update" },
-  async (request, ctx) => {
+  async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
 
     const session = await getServerSession();
@@ -43,13 +44,14 @@ export const PUT = withAudit<{ workspaceId: string }>(
     }
     const body = await request.json();
     const result = await setEmailSubscriptions({ workspaceId, email, subscribedReportIds: body.subscribedReportIds });
+    await audit.target(body.subscribedReportIds);
     return Response.json(result);
   }
 );
 
 export const DELETE = withAudit<{ workspaceId: string }>(
   { resource: "report", action: "delete" },
-  async (request, ctx) => {
+  async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
 
     const session = await getServerSession();
@@ -61,6 +63,7 @@ export const DELETE = withAudit<{ workspaceId: string }>(
     if (body.email && body.email !== email) {
       return Response.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
     }
+    await audit.target(body.reportId);
     const result = await optOutReport({ ...body, workspaceId, email });
     return Response.json(result);
   }
