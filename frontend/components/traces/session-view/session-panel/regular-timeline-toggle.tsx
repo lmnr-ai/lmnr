@@ -2,7 +2,6 @@
 
 import { GanttChart } from "lucide-react";
 
-import { PILL, PILL_ACTIVE } from "@/components/shared/traces/pill";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +18,13 @@ export default function RegularTimelineToggle() {
 
   return (
     <Button
-      variant="ghost"
-      className={cn(PILL, sessionTimelineEnabled && PILL_ACTIVE)}
       onClick={() => setSessionTimelineEnabled(!sessionTimelineEnabled)}
+      variant={sessionTimelineEnabled ? "outlinePrimary" : "outline"}
+      size="sm"
+      className={cn(!sessionTimelineEnabled && "hover:overlay-hover")}
     >
-      <GanttChart data-icon="inline-start" size={14} className="flex-shrink-0" />
-      <span className="ml-1">Timeline</span>
+      <GanttChart data-icon="inline-start" size={14} className="mr-1" />
+      Timeline
     </Button>
   );
 }

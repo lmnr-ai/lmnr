@@ -26,7 +26,6 @@ export default function SessionsTable({ className, ...props }: ComponentProps<"d
       >
         <SessionsTableContent />
       </InfiniteDataTableProvider>
-      <FirstInputDial />
     </div>
   );
 }
