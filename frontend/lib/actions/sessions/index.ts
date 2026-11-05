@@ -111,6 +111,7 @@ const sessionTracesSelectColumns = [
   "input_cost as inputCost",
   "output_cost as outputCost",
   "total_cost as totalCost",
+  "status",
   "cache_read_input_tokens as cacheReadInputTokens",
   "metadata",
   "user_id as userId",
