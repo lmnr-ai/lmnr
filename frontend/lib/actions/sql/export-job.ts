@@ -48,10 +48,13 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   };
 
   // Validate the SQL query using the same gRPC service as the Rust backend
-  const validationResult = await validateQuery({
-    projectId,
-    query: sqlQuery,
-  });
+  const validationResult = await validateQuery(
+    {
+      projectId,
+      query: sqlQuery,
+    },
+    { source: "export" }
+  );
 
   if (!validationResult.success) {
     throw new Error(`Query validation failed: ${validationResult.error}`);

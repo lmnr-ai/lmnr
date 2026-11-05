@@ -31,9 +31,10 @@ export const getEvaluationTimeProgression = async (
     evaluation_id: string;
     created_at: string;
     scores: string;
-  }>({
-    projectId,
-    query: `
+  }>(
+    {
+      projectId,
+      query: `
       SELECT
         evaluation_id,
         created_at,
@@ -43,12 +44,14 @@ export const getEvaluationTimeProgression = async (
         ${scopeById ? "AND evaluation_id IN {ids: Array(UUID)}" : ""}
       ORDER BY created_at ASC
     `,
-    parameters: {
-      projectId,
-      groupId,
-      ...(scopeById ? { ids } : {}),
+      parameters: {
+        projectId,
+        groupId,
+        ...(scopeById ? { ids } : {}),
+      },
     },
-  });
+    { source: "internal" }
+  );
 
   // Group by evaluation_id and aggregate scores in memory
   const evaluationMap = new Map<

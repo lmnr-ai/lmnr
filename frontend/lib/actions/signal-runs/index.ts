@@ -40,11 +40,14 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
     pastHours,
   });
 
-  const rows = await executeQuery<Omit<SignalRunRow, "costMicroUsd" | "clusters">>({
-    query: mainQuery,
-    parameters: mainParams,
-    projectId,
-  });
+  const rows = await executeQuery<Omit<SignalRunRow, "costMicroUsd" | "clusters">>(
+    {
+      query: mainQuery,
+      parameters: mainParams,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   // Resolved for the fetched page only, so pagination stays a single-table scan.
   const clusters = await getClustersByEventIds({
@@ -145,19 +148,22 @@ export const getSignalRunStats = async (
     ${withFillClause}
   `;
 
-  const rows = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters: {
-      ...whereResult.parameters,
-      ...timeParams,
-      nonAnalyzedStatuses: NON_ANALYZED_SIGNAL_RUN_STATUSES,
-      inProgressStatuses: IN_PROGRESS_STATUSES,
-      nilEventId: NIL_EVENT_ID,
-      intervalValue,
-      intervalUnit,
+  const rows = await executeQuery<Record<string, unknown>>(
+    {
+      query,
+      parameters: {
+        ...whereResult.parameters,
+        ...timeParams,
+        nonAnalyzedStatuses: NON_ANALYZED_SIGNAL_RUN_STATUSES,
+        inProgressStatuses: IN_PROGRESS_STATUSES,
+        nilEventId: NIL_EVENT_ID,
+        intervalValue,
+        intervalUnit,
+      },
+      projectId,
     },
-    projectId,
-  });
+    { source: "internal" }
+  );
 
   const items: SignalRunStatsDataPoint[] = rows.map((row) => ({
     timestamp: String(row.timestamp),

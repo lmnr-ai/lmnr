@@ -38,9 +38,10 @@ async function generateAgentName(systemPrompt: string, projectId: string): Promi
 async function fetchSystemPrompts(spanIds: string[], traceId: string, projectId: string): Promise<Map<string, string>> {
   if (spanIds.length === 0) return new Map();
 
-  const rows = await executeQuery<{ spanId: string; systemMessage: string }>({
-    projectId,
-    query: `
+  const rows = await executeQuery<{ spanId: string; systemMessage: string }>(
+    {
+      projectId,
+      query: `
       SELECT
         span_id as spanId,
         JSONExtractArrayRaw(input)[1] as systemMessage
@@ -49,8 +50,10 @@ async function fetchSystemPrompts(spanIds: string[], traceId: string, projectId:
         AND span_id IN {spanIds: Array(UUID)}
         AND span_type IN ('LLM', 'CACHED')
     `,
-    parameters: { traceId, spanIds },
-  });
+      parameters: { traceId, spanIds },
+    },
+    { source: "internal" }
+  );
 
   const result = new Map<string, string>();
   for (const row of rows) {

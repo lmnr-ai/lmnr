@@ -71,11 +71,14 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
       },
     });
 
-    const countRows = await executeQuery<{ datasetId: string; count: number }>({
-      query: countQuery.query,
-      parameters: countQuery.parameters,
-      projectId,
-    });
+    const countRows = await executeQuery<{ datasetId: string; count: number }>(
+      {
+        query: countQuery.query,
+        parameters: countQuery.parameters,
+        projectId,
+      },
+      { source: "internal" }
+    );
 
     const qualifyingDatasetIds = countRows.map((row) => row.datasetId);
     const datapointCounts = Object.fromEntries(countRows.map((row) => [row.datasetId, row.count]));
@@ -153,11 +156,14 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
     groupBy: ["datasetId"],
   });
 
-  const rows = await executeQuery<{ datasetId: string; count: number }>({
-    query: countQuery.query,
-    parameters: countQuery.parameters,
-    projectId,
-  });
+  const rows = await executeQuery<{ datasetId: string; count: number }>(
+    {
+      query: countQuery.query,
+      parameters: countQuery.parameters,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   const datapointCounts = Object.fromEntries(rows.map((row) => [row.datasetId, row.count]));
 

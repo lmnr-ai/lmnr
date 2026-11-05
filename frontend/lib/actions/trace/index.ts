@@ -34,8 +34,9 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     db.query.sharedTraces.findFirst({
       where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
     }),
-    executeQuery<Omit<TraceViewTrace, "visibility">>({
-      query: `
+    executeQuery<Omit<TraceViewTrace, "visibility">>(
+      {
+        query: `
         SELECT
           id,
           formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
@@ -60,11 +61,13 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
         WHERE id = {traceId: UUID}
         LIMIT 1
       `,
-      projectId,
-      parameters: {
-        traceId,
+        projectId,
+        parameters: {
+          traceId,
+        },
       },
-    }),
+      { source: "internal" }
+    ),
   ]);
 
   if (!trace) {

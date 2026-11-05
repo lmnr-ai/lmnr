@@ -96,15 +96,18 @@ export async function getEventStats(
     ${withFillClause}
   `;
 
-  const items = await executeQuery<EventsStatsDataPoint>({
-    query,
-    parameters: {
-      ...whereResult.parameters,
-      intervalValue,
-      intervalUnit,
+  const items = await executeQuery<EventsStatsDataPoint>(
+    {
+      query,
+      parameters: {
+        ...whereResult.parameters,
+        intervalValue,
+        intervalUnit,
+      },
+      projectId,
     },
-    projectId,
-  });
+    { source: "internal" }
+  );
 
   return { items };
 }

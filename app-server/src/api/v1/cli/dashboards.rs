@@ -3,15 +3,23 @@
 //! (`lib/actions/dashboard/chart-query.ts`) before anything is saved. Reads go through
 //! `lmnr-cli sql query` (`dashboards` / `dashboard_charts`).
 
+use std::sync::Arc;
+
 use actix_web::{HttpResponse, delete, patch, post, put, web};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::access_policy::Actor;
+use crate::access_policy::{self, Actor};
+use crate::audit::{AuditActor, AuditOutcome};
 use crate::auth::cli_user::CliProjectAuth;
+use crate::cache::Cache;
 use crate::dashboards::{self, Dashboard};
+use crate::db::DB;
+use crate::mq::MessageQueue;
+use crate::query_engine::{QueryEngine, QueryEngineValidationResult};
 use crate::routes::types::ResponseResult;
+use crate::sql::{self, SqlAudit, SqlQuerySource};
 use crate::utils::frontend_url_with_default;
 
 #[derive(Deserialize)]
@@ -113,6 +121,69 @@ pub async fn delete_dashboard(
     })
 }
 
+fn chart_queries(charts: &Value) -> Vec<String> {
+    charts
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|chart| chart.get("query")?.as_str().map(str::to_string))
+        .collect()
+}
+
+/// The frontend test-runs each chart query as `Actor::Cli`, which names no user, so the
+/// `sql.query` events are emitted here, where the CLI user is known. A batch that failed
+/// (any query rejected or erroring) marks its valid queries `error`.
+async fn audit_chart_queries(
+    auth: &CliProjectAuth,
+    queries: Vec<String>,
+    saved: bool,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+    query_engine: Arc<QueryEngine>,
+) {
+    if queries.is_empty() {
+        return;
+    }
+    let policy =
+        access_policy::for_actor_or_masked(&Actor::Cli, auth.project_id, db.clone(), cache.clone())
+            .await;
+    for query in queries {
+        let (tables, outcome) = match query_engine
+            .validate_query(query.clone(), auth.project_id, &policy)
+            .await
+        {
+            Ok(QueryEngineValidationResult::Success { tables, .. }) => {
+                let outcome = if saved {
+                    AuditOutcome::Success
+                } else {
+                    AuditOutcome::Error
+                };
+                (tables, outcome)
+            }
+            Ok(QueryEngineValidationResult::Error { .. }) => (Vec::new(), AuditOutcome::Denied),
+            Err(_) => (Vec::new(), AuditOutcome::Error),
+        };
+        let audit = SqlAudit {
+            actor: AuditActor::User {
+                user_id: auth.user_id,
+            },
+            queue: queue.clone(),
+        };
+        sql::audit_sql_query(
+            db.clone(),
+            cache.clone(),
+            audit,
+            auth.project_id,
+            SqlQuerySource::Cli,
+            query,
+            tables,
+            outcome,
+        )
+        .await;
+    }
+}
+
 /// Creates or updates several charts in one all-or-nothing call; see `dashboards::upsert_charts`
 /// for layout semantics.
 #[put("dashboards/{dashboard_id}/charts")]
@@ -121,14 +192,30 @@ pub async fn upsert_charts(
     path: web::Path<Uuid>,
     body: web::Json<UpsertChartsInput>,
     http_client: web::Data<reqwest::Client>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
+    queue: web::Data<Arc<MessageQueue>>,
+    query_engine: web::Data<Arc<QueryEngine>>,
 ) -> ResponseResult {
     let dashboard_id = path.into_inner();
+    let charts = body.into_inner().charts;
+    let queries = chart_queries(&charts);
     let result = dashboards::upsert_charts(
         &http_client,
         auth.project_id,
         dashboard_id,
-        body.into_inner().charts,
+        charts,
         Actor::Cli,
+    )
+    .await;
+    audit_chart_queries(
+        &auth,
+        queries,
+        result.is_ok(),
+        db.into_inner(),
+        cache.into_inner(),
+        queue.get_ref().clone(),
+        query_engine.get_ref().clone(),
     )
     .await;
 

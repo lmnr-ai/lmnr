@@ -21,19 +21,26 @@ const ExecuteQuerySchema = z.object({
 });
 
 /**
- * The actor is a separate argument, not part of the input schema, so route
- * handlers that spread a request body cannot let a client pick who they are.
+ * Mirrors app-server's `SqlQuerySource`. Every source but `internal` (SQL the
+ * platform builds itself) is logged as `sql.query` in the audit log.
+ */
+export type SqlQuerySource = "internal" | "editor" | "export";
+
+/**
+ * The actor and source are separate arguments, not part of the input schema,
+ * so route handlers that spread a request body cannot let a client pick who
+ * they are or opt out of auditing.
  */
 export const executeQuery = async <T extends object>(
   input: z.infer<typeof ExecuteQuerySchema>,
-  options?: { actor?: SqlActor }
+  options: { source: SqlQuerySource; actor?: SqlActor }
 ) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
-  const actor = await resolveSqlActor(options?.actor);
+  const actor = await resolveSqlActor(options.actor);
 
   const res = (await callAppServer(`/projects/${projectId}/sql/query`, {
     method: "POST",
-    body: { query, parameters, actor },
+    body: { query, parameters, actor, source: options.source },
   })) as T[];
 
   return res;

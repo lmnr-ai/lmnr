@@ -84,26 +84,38 @@ export async function getEventClusters(
       numEvents: number;
       createdAt: string;
       updatedAt: string;
-    }>({
-      query: clustersQuery,
-      parameters: { signalId, ...timeParams },
-      projectId,
-    }),
-    executeQuery<{ count: number }>({
-      query: countQuery,
-      parameters: { signalId, ...timeParams },
-      projectId,
-    }),
-    executeQuery<{ count: number }>({
-      query: unclusteredCountQuery,
-      parameters: { signalId, ...timeParams },
-      projectId,
-    }),
-    executeQuery<{ level: number; count: number }>({
-      query: levelCountsQuery,
-      parameters: { signalId, minLevel: MIN_HIDEABLE_LEVEL },
-      projectId,
-    }),
+    }>(
+      {
+        query: clustersQuery,
+        parameters: { signalId, ...timeParams },
+        projectId,
+      },
+      { source: "internal" }
+    ),
+    executeQuery<{ count: number }>(
+      {
+        query: countQuery,
+        parameters: { signalId, ...timeParams },
+        projectId,
+      },
+      { source: "internal" }
+    ),
+    executeQuery<{ count: number }>(
+      {
+        query: unclusteredCountQuery,
+        parameters: { signalId, ...timeParams },
+        projectId,
+      },
+      { source: "internal" }
+    ),
+    executeQuery<{ level: number; count: number }>(
+      {
+        query: levelCountsQuery,
+        parameters: { signalId, minLevel: MIN_HIDEABLE_LEVEL },
+        projectId,
+      },
+      { source: "internal" }
+    ),
   ]);
 
   const clusters: EventCluster[] = rows.map((row) => ({
@@ -278,16 +290,22 @@ export async function getClusterEventCounts(
   `;
 
   const [clusterRows, unclusteredCounts] = await Promise.all([
-    executeQuery<{ cluster_id: string; timestamp: string; count: number }>({
-      query: clusterQuery,
-      parameters: queryParams,
-      projectId,
-    }),
-    executeQuery<{ timestamp: string; count: number }>({
-      query: unclusteredQuery,
-      parameters: queryParams,
-      projectId,
-    }),
+    executeQuery<{ cluster_id: string; timestamp: string; count: number }>(
+      {
+        query: clusterQuery,
+        parameters: queryParams,
+        projectId,
+      },
+      { source: "internal" }
+    ),
+    executeQuery<{ timestamp: string; count: number }>(
+      {
+        query: unclusteredQuery,
+        parameters: queryParams,
+        projectId,
+      },
+      { source: "internal" }
+    ),
   ]);
 
   return { items: clusterRows, unclusteredCounts };
@@ -347,11 +365,14 @@ export async function getNewClusterStats(
     ${withFillClause}
   `;
 
-  const items = await executeQuery<TimeSeriesDataPoint>({
-    query,
-    parameters: queryParams,
-    projectId,
-  });
+  const items = await executeQuery<TimeSeriesDataPoint>(
+    {
+      query,
+      parameters: queryParams,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   return { items };
 }

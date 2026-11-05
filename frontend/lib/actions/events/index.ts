@@ -165,8 +165,8 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
   });
 
   const [rawItems, [countResult]] = await Promise.all([
-    executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }),
-    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
+    executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }, { source: "internal" }),
+    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }, { source: "internal" }),
   ]);
 
   const items = searchHits.length > 0 ? attachSnippets(rawItems, searchHits) : rawItems;

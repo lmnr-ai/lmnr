@@ -66,9 +66,10 @@ export async function getTraceRenderData(input: z.infer<typeof GetTraceRenderDat
     input: string;
     output: string;
     attributes: string;
-  }>({
-    projectId,
-    query: `
+  }>(
+    {
+      projectId,
+      query: `
       SELECT
         span_id AS spanId,
         parent_span_id AS parentSpanId,
@@ -88,8 +89,10 @@ export async function getTraceRenderData(input: z.infer<typeof GetTraceRenderDat
       ORDER BY start_time
       LIMIT ${MAX_TRACE_RENDER_SPANS + 1}
     `,
-    parameters: { traceId },
-  });
+      parameters: { traceId },
+    },
+    { source: "internal" }
+  );
 
   const truncated = rows.length > MAX_TRACE_RENDER_SPANS;
   const spans = (truncated ? rows.slice(0, MAX_TRACE_RENDER_SPANS) : rows).map((row) => ({

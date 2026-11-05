@@ -12,11 +12,13 @@ use uuid::Uuid;
 
 use crate::{
     access_policy::{self, Actor},
+    audit::AuditActor,
     cache::{Cache, CacheTrait, keys::SQL_RATE_LIMIT_CACHE_KEY},
     db::{DB, project_api_keys::ProjectApiKey},
+    mq::MessageQueue,
     query_engine::QueryEngine,
     routes::types::ResponseResult,
-    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
+    sql::{self, ClickhouseReadonlyClient, SqlAudit, SqlQuerySource},
 };
 
 /// Per-project SQL rate limiter, mirroring the ingestion limiter
@@ -94,10 +96,16 @@ pub async fn execute_sql_query(
     query_engine: web::Data<Arc<QueryEngine>>,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
+    queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     handle_sql_query(
         project_api_key.project_id,
         Actor::ApiKey,
+        SqlQuerySource::Api,
+        SqlAudit {
+            actor: AuditActor::api_key(&project_api_key),
+            queue: queue.get_ref().clone(),
+        },
         req,
         limiter,
         db,
@@ -120,6 +128,8 @@ pub async fn execute_sql_query(
 pub async fn handle_sql_query(
     project_id: Uuid,
     actor: Actor,
+    source: SqlQuerySource,
+    audit: SqlAudit,
     req: web::Json<SqlQueryRequest>,
     limiter: Option<web::Data<SqlRateLimiter>>,
     db: web::Data<DB>,
@@ -158,13 +168,14 @@ pub async fn handle_sql_query(
                 query,
                 project_id,
                 parameters,
-                SqlQuerySource::Public,
+                source,
                 policy,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),
                 db,
                 cache,
+                Some(audit),
             )
             .await
             {

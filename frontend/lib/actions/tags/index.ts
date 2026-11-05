@@ -22,15 +22,18 @@ export const getSpanTags = async (
 > => {
   const { traceId, spanId, projectId } = GetSpanTagsSchema.parse(input);
 
-  const rows = await executeQuery<{ name: string }>({
-    projectId,
-    query: `
+  const rows = await executeQuery<{ name: string }>(
+    {
+      projectId,
+      query: `
       SELECT DISTINCT arrayJoin(tags) as name
       FROM spans
       WHERE trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
     `,
-    parameters: { traceId, spanId },
-  });
+      parameters: { traceId, spanId },
+    },
+    { source: "internal" }
+  );
 
   return rows.map((tag) => ({
     name: tag.name,

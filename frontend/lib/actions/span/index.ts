@@ -82,11 +82,14 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
     }
-  >({
-    query: mainQuery,
-    parameters,
-    projectId,
-  });
+  >(
+    {
+      query: mainQuery,
+      parameters,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   if (!span) {
     throw new NotFoundError("Span not found");
@@ -160,16 +163,19 @@ export const GetSpanTypeSchema = z.object({
 export async function getSpanType(input: z.infer<typeof GetSpanTypeSchema>): Promise<SpanType | null> {
   const { projectId, traceId, spanId } = GetSpanTypeSchema.parse(input);
 
-  const rows = await executeQuery<{ spanType: SpanType }>({
-    projectId,
-    query: `
+  const rows = await executeQuery<{ spanType: SpanType }>(
+    {
+      projectId,
+      query: `
       SELECT span_type as spanType
       FROM spans
       WHERE trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
       LIMIT 1
     `,
-    parameters: { traceId, spanId },
-  });
+      parameters: { traceId, spanId },
+    },
+    { source: "internal" }
+  );
 
   return rows[0]?.spanType ?? null;
 }
@@ -186,15 +192,18 @@ export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): P
     return {};
   }
 
-  const rows = await executeQuery<{ spanId: string; spanType: SpanType }>({
-    projectId,
-    query: `
+  const rows = await executeQuery<{ spanId: string; spanType: SpanType }>(
+    {
+      projectId,
+      query: `
       SELECT span_id as spanId, span_type as spanType
       FROM spans
       WHERE span_id IN ({spanIds: Array(UUID)})
     `,
-    parameters: { spanIds },
-  });
+      parameters: { spanIds },
+    },
+    { source: "internal" }
+  );
 
   return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));
 }

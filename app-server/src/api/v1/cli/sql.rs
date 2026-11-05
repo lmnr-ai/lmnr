@@ -5,12 +5,14 @@ use actix_web::{HttpResponse, get, post, web};
 use crate::{
     access_policy::Actor,
     api::v1::sql::{SqlQueryRequest, SqlRateLimiter, handle_sql_query},
+    audit::AuditActor,
     auth::cli_user::CliProjectAuth,
     cache::Cache,
     db::DB,
+    mq::MessageQueue,
     query_engine::QueryEngine,
     routes::types::ResponseResult,
-    sql::ClickhouseReadonlyClient,
+    sql::{ClickhouseReadonlyClient, SqlAudit, SqlQuerySource},
 };
 
 /// `GET /v1/cli/sql/schema` — the logical tables, columns, and enums a caller
@@ -43,10 +45,18 @@ pub async fn execute_sql_query(
     query_engine: web::Data<Arc<QueryEngine>>,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
+    queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     handle_sql_query(
         auth.project_id,
         Actor::Cli,
+        SqlQuerySource::Cli,
+        SqlAudit {
+            actor: AuditActor::User {
+                user_id: auth.user_id,
+            },
+            queue: queue.get_ref().clone(),
+        },
         req,
         limiter,
         db,

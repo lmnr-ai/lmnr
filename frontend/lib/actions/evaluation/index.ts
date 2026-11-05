@@ -96,7 +96,7 @@ export const getEvaluationScoreNames = async (
       parameters: { evaluationId },
       projectId,
     },
-    { actor: options?.actor }
+    { source: "internal", actor: options?.actor }
   );
   return rows.map((r) => r.name).filter(Boolean);
 };
@@ -111,15 +111,18 @@ export const getEvaluationDatasets = async ({
   projectId: string;
   evaluationId: string;
 }): Promise<LinkedDataset[]> => {
-  const rows = await executeQuery<{ dataset_id: string }>({
-    query: `
+  const rows = await executeQuery<{ dataset_id: string }>(
+    {
+      query: `
       SELECT DISTINCT dataset_id
       FROM evaluation_trials
       WHERE evaluation_id = {evaluationId:UUID}
     `,
-    parameters: { evaluationId },
-    projectId,
-  });
+      parameters: { evaluationId },
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   const ids = [...new Set(rows.map((r) => r.dataset_id).filter((id) => id && id !== NIL_UUID))];
   if (ids.length === 0) return [];
@@ -190,7 +193,7 @@ export const getEvaluationTrials = async (
   }
 
   // Step 2: Page by Task, then fetch those Tasks' Trials (and the compared run's)
-  const results = await fetchEvalTaskPage((q) => executeQuery({ ...q, projectId }), {
+  const results = await fetchEvalTaskPage((q) => executeQuery({ ...q, projectId }, { source: "internal" }), {
     evaluationId,
     columns,
     traceIds: searchTraceIds,
@@ -265,7 +268,8 @@ export const getEvaluationStatistics = async (
       query: statsQuery,
       parameters: statsParams,
       projectId,
-    }
+    },
+    { source: "internal" }
   );
 
   // Mean of Task means: a Task with many Trials counts once.
@@ -320,11 +324,14 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   const query = `SELECT ${col.sql} as ${col.id} FROM evaluation_datapoints WHERE evaluation_id = {evaluation_id:UUID} AND id = {trial_id:UUID} LIMIT 1`;
   const parameters = { evaluation_id: evaluationId, trial_id: trialId };
 
-  const results = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  });
+  const results = await executeQuery<Record<string, unknown>>(
+    {
+      query,
+      parameters,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   if (results.length === 0) {
     return null;
@@ -373,16 +380,19 @@ export const getEvaluationTrialComparison = async (
     taskId: string;
     scores: string | Record<string, unknown>;
     traceId: string;
-  }>({
-    query: `
+  }>(
+    {
+      query: `
       SELECT evaluation_id evaluationId, task_id taskId, scores, trace_id traceId
       FROM evaluation_trials
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND task_id = {taskId:String}
     `,
-    parameters: { evaluationIds: filteredIds, taskId },
-    projectId,
-  });
+      parameters: { evaluationIds: filteredIds, taskId },
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   return rows.map((r) => {
     let scoresObj: Record<string, unknown> | null = null;

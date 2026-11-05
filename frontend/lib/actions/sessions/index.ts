@@ -74,11 +74,14 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     sortDirection: sortDirection ?? undefined,
   });
 
-  const items = await executeQuery<Omit<SessionRow, "subRows">>({
-    query: mainQuery,
-    parameters: mainParams,
-    projectId,
-  });
+  const items = await executeQuery<Omit<SessionRow, "subRows">>(
+    {
+      query: mainQuery,
+      parameters: mainParams,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   const sessionItems = items.map((item) => ({ ...item, subRows: [] }));
 
@@ -117,8 +120,9 @@ const sessionTracesSelectColumns = [
 export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSchema>): Promise<{ items: TraceRow[] }> {
   const { projectId, sessionId } = GetSessionTracesSchema.parse(input);
 
-  const bounds = await executeQuery<{ minStart: string; maxStart: string }>({
-    query: `
+  const bounds = await executeQuery<{ minStart: string; maxStart: string }>(
+    {
+      query: `
       SELECT
         formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as minStart,
         formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as maxStart
@@ -126,9 +130,11 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
       WHERE session_id = {sessionId: String}
         AND trace_type = 'DEFAULT'
     `,
-    parameters: { sessionId },
-    projectId,
-  });
+      parameters: { sessionId },
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   const { minStart, maxStart } = bounds[0] ?? { minStart: "", maxStart: "" };
   // Empty session: min/max over no rows yields the epoch-zero sentinel.
@@ -139,8 +145,9 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
   const startTime = new Date(new Date(minStart).getTime() - SESSION_TRACES_PAD_BEFORE_MS).toISOString();
   const endTime = new Date(new Date(maxStart).getTime() + SESSION_TRACES_PAD_AFTER_MS).toISOString();
 
-  const items = await executeQuery<TraceRow>({
-    query: `
+  const items = await executeQuery<TraceRow>(
+    {
+      query: `
       SELECT ${sessionTracesSelectColumns.join(", ")}
       FROM traces
       WHERE session_id = {sessionId: String}
@@ -150,14 +157,16 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
       ORDER BY start_time ASC
       LIMIT {limit: UInt32}
     `,
-    parameters: {
-      sessionId,
-      startTime: startTime.replace("Z", ""),
-      endTime: endTime.replace("Z", ""),
-      limit: SESSION_TRACES_LIMIT,
+      parameters: {
+        sessionId,
+        startTime: startTime.replace("Z", ""),
+        endTime: endTime.replace("Z", ""),
+        limit: SESSION_TRACES_LIMIT,
+      },
+      projectId,
     },
-    projectId,
-  });
+    { source: "internal" }
+  );
 
   return { items };
 }

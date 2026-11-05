@@ -34,8 +34,9 @@ export const getClustersByEventIds = async ({
   const ids = Array.from(new Set(eventIds.filter((id) => id && id !== NIL_UUID)));
   if (ids.length === 0) return {};
 
-  const rows = await executeQuery<EventClusterRow>({
-    query: `
+  const rows = await executeQuery<EventClusterRow>(
+    {
+      query: `
       SELECT
         event_id AS eventId,
         cluster_id AS clusterId,
@@ -47,9 +48,11 @@ export const getClustersByEventIds = async ({
         AND event_id IN ({eventIds:Array(UUID)})
         AND level = 1
     `,
-    parameters: { signalId, eventIds: ids },
-    projectId,
-  });
+      parameters: { signalId, eventIds: ids },
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   return mapValues(groupBy(rows, "eventId"), (eventRows) =>
     uniqBy(

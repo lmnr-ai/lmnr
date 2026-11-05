@@ -92,9 +92,10 @@ export const getQueueItems = async (
   if (hasLimit && hasOffset) parameters.offset = offset;
   if (hasIds) parameters.ids = ids;
 
-  const rows = await executeQuery<RawRow>({
-    projectId,
-    query: `
+  const rows = await executeQuery<RawRow>(
+    {
+      projectId,
+      query: `
       SELECT ${SELECT_COLUMNS}
       FROM labeling_queue_items FINAL
       WHERE queue_id = {queueId: UUID}
@@ -103,15 +104,18 @@ export const getQueueItems = async (
       ${hasLimit ? "LIMIT {limit: UInt32}" : ""}
       ${hasLimit && hasOffset ? "OFFSET {offset: UInt32}" : ""}
     `,
-    parameters,
-  });
+      parameters,
+    },
+    { source: "internal" }
+  );
   return rows.map((row) => parseRow(projectId, row));
 };
 
 export const getQueueItemStates = async (projectId: string, queueId: string): Promise<QueueItemStateRow[]> =>
-  executeQuery<QueueItemStateRow>({
-    projectId,
-    query: `
+  executeQuery<QueueItemStateRow>(
+    {
+      projectId,
+      query: `
       SELECT
         id,
         multiIf(
@@ -123,8 +127,10 @@ export const getQueueItemStates = async (projectId: string, queueId: string): Pr
       WHERE queue_id = {queueId: UUID}
       ORDER BY created_at ASC, id ASC
     `,
-    parameters: { queueId },
-  });
+      parameters: { queueId },
+    },
+    { source: "internal" }
+  );
 
 // Bucket expressions kept identical to `getQueueItemStates` / frontend `deriveItemState`.
 const PROGRESS_EXPR = {
@@ -165,16 +171,19 @@ export const findQueueIdsByProgress = async (projectId: string, filters: Progres
     parameters[paramKey] = value;
   });
 
-  const rows = await executeQuery<{ queueId: string }>({
-    projectId,
-    query: `
+  const rows = await executeQuery<{ queueId: string }>(
+    {
+      projectId,
+      query: `
       SELECT queue_id queueId
       FROM labeling_queue_items FINAL
       GROUP BY queue_id
       HAVING ${conditions.join(" AND ")}
     `,
-    parameters,
-  });
+      parameters,
+    },
+    { source: "internal" }
+  );
   return rows.map((r) => r.queueId);
 };
 
@@ -189,9 +198,10 @@ export const getQueueProgresses = async (
     new: number;
     modified: number;
     approved: number;
-  }>({
-    projectId,
-    query: `
+  }>(
+    {
+      projectId,
+      query: `
       SELECT
         queue_id queueId,
         countIf(status = 0 AND edit = JSONExtractRaw(payload, 'target')) AS new,
@@ -201,8 +211,10 @@ export const getQueueProgresses = async (
       WHERE queue_id IN ({queueIds: Array(UUID)})
       GROUP BY queue_id
     `,
-    parameters: { queueIds },
-  });
+      parameters: { queueIds },
+    },
+    { source: "internal" }
+  );
 
   const result: Record<string, QueueProgress> = {};
   for (const row of rows) {
@@ -231,9 +243,10 @@ export const copyQueueItemsToDataset = async (
   const selectParams: Record<string, unknown> = { queueId };
   if (hasIds) selectParams.ids = ids;
 
-  const matchedRows = await executeQuery<{ id: string }>({
-    projectId,
-    query: `
+  const matchedRows = await executeQuery<{ id: string }>(
+    {
+      projectId,
+      query: `
       SELECT id
       FROM labeling_queue_items FINAL
       WHERE queue_id = {queueId: UUID}
@@ -241,8 +254,10 @@ export const copyQueueItemsToDataset = async (
         ${hasIds ? "AND id IN ({ids: Array(UUID)})" : ""}
       ORDER BY id
     `,
-    parameters: selectParams,
-  });
+      parameters: selectParams,
+    },
+    { source: "internal" }
+  );
 
   if (matchedRows.length === 0) return 0;
 
@@ -277,16 +292,19 @@ export const copyQueueItemsToDataset = async (
   });
 
   // Verify by minted id before deleting source rows — guards against the previous zero-UUID zip bug.
-  const verifyRows = await executeQuery<{ c: number }>({
-    projectId,
-    query: `
+  const verifyRows = await executeQuery<{ c: number }>(
+    {
+      projectId,
+      query: `
       SELECT count() AS c
       FROM dataset_datapoints
       WHERE dataset_id = {datasetId: UUID}
         AND toString(id) IN ({newIds: Array(String)})
     `,
-    parameters: { datasetId, newIds },
-  });
+      parameters: { datasetId, newIds },
+    },
+    { source: "internal" }
+  );
   const inserted = Number(verifyRows[0]?.c ?? 0);
 
   if (inserted !== matchedIds.length) {

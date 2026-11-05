@@ -19,10 +19,14 @@ use uuid::Uuid;
 
 use crate::{
     access_policy::{self, AccessPolicy, Actor},
+    audit::{
+        self, AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource,
+    },
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
+    mq::MessageQueue,
     query_engine::QueryEngine,
-    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
+    sql::{self, ClickhouseReadonlyClient, SqlAudit, SqlQuerySource},
 };
 
 // ============ Per-request context ============
@@ -139,6 +143,7 @@ pub struct LaminarMcpServer {
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
 }
 
 #[tool_router]
@@ -150,6 +155,7 @@ impl LaminarMcpServer {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
+        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             tool_router: Self::tool_router_with_descriptions(),
@@ -159,6 +165,7 @@ impl LaminarMcpServer {
             http_client,
             db,
             cache,
+            queue,
         }
     }
 
@@ -198,17 +205,26 @@ impl LaminarMcpServer {
             McpError::internal_error("ClickHouse read-only client not configured", None)
         })?;
 
+        let audit = context
+            .extensions
+            .get::<ProjectApiKey>()
+            .map(|key| SqlAudit {
+                actor: AuditActor::api_key(key),
+                queue: self.queue.clone(),
+            });
+
         match sql::execute_sql_query(
             params.query,
             project_id,
             params.parameters,
-            SqlQuerySource::Public,
+            SqlQuerySource::Mcp,
             self.policy(project_id).await,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),
             self.db.clone(),
             self.cache.clone(),
+            audit,
         )
         .await
         {
@@ -246,10 +262,18 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        match self
+        let result = self
             .get_trace_context_for_mcp(project_id, params.trace_id)
-            .await
-        {
+            .await;
+        self.audit(
+            &context,
+            AuditResource::Trace,
+            AuditAction::View,
+            result.is_ok(),
+            Some(params.trace_id.to_string()),
+        )
+        .await;
+        match result {
             Ok(trace_str) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)]).into())
             }
@@ -273,10 +297,18 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        match self
+        let result = self
             .run_agent_for_mcp(project_id, params.prompt, params.conversation_id)
-            .await
-        {
+            .await;
+        self.audit(
+            &context,
+            AuditResource::Agent,
+            AuditAction::Run,
+            result.is_ok(),
+            result.as_ref().ok().map(|(_, id)| id.to_string()),
+        )
+        .await;
+        match result {
             Ok((answer, conversation_id)) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{answer}\n\n---\nconversationId: {conversation_id}\n(Pass this `conversationId` to the next `ask_agent` call to continue this conversation.)"
@@ -301,6 +333,40 @@ impl LaminarMcpServer {
             self.cache.clone(),
         )
         .await
+    }
+
+    /// Record a tool call made with the request's API key.
+    async fn audit(
+        &self,
+        context: &RequestContext<RoleServer>,
+        resource: AuditResource,
+        action: AuditAction,
+        success: bool,
+        resource_id: Option<String>,
+    ) {
+        let (Some(key), Some(ProjectId(project_id))) = (
+            context.extensions.get::<ProjectApiKey>(),
+            context.extensions.get::<ProjectId>(),
+        ) else {
+            return;
+        };
+        let outcome = if success {
+            AuditOutcome::Success
+        } else {
+            AuditOutcome::Error
+        };
+        let mut input = AuditEventInput::new(
+            AuditActor::api_key(key),
+            AuditSource::Mcp,
+            resource,
+            action,
+            outcome,
+        );
+        input.project_id = Some(*project_id);
+        input.resource_id = resource_id;
+        if let Err(e) = audit::emit(self.db.clone(), self.cache.clone(), &self.queue, input).await {
+            log::error!("Failed to emit MCP audit event: {e:?}");
+        }
     }
 }
 
@@ -457,6 +523,7 @@ impl McpState {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
+        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -466,6 +533,7 @@ impl McpState {
                 http_client,
                 db,
                 cache,
+                queue,
             ),
         }
     }
@@ -506,10 +574,9 @@ pub async fn mcp_handler(
         ClientJsonRpcMessage::Request(mut request) => {
             // Inject project_id from auth middleware into rmcp extensions
             if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
-                request
-                    .request
-                    .extensions_mut()
-                    .insert(ProjectId(api_key.project_id));
+                let extensions = request.request.extensions_mut();
+                extensions.insert(ProjectId(api_key.project_id));
+                extensions.insert(api_key.clone());
             }
 
             // Use rmcp's OneshotTransport + serve_directly (same pattern as the

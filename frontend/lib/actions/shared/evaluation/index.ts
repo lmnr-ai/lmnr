@@ -91,17 +91,20 @@ export async function getSharedEvaluationTrials({
     }
   }
 
-  const results = await fetchEvalTaskPage((q) => executeQuery({ ...q, projectId }, { actor: SHARED_ACTOR }), {
-    evaluationId,
-    columns,
-    traceIds: searchTraceIds,
-    filters: allFilters,
-    limit,
-    offset,
-    sortBy,
-    sortSql,
-    sortDirection,
-  });
+  const results = await fetchEvalTaskPage(
+    (q) => executeQuery({ ...q, projectId }, { source: "internal", actor: SHARED_ACTOR }),
+    {
+      evaluationId,
+      columns,
+      traceIds: searchTraceIds,
+      filters: allFilters,
+      limit,
+      offset,
+      sortBy,
+      sortSql,
+      sortDirection,
+    }
+  );
 
   return { evaluation, results };
 }
@@ -157,7 +160,7 @@ export async function getSharedEvaluationStatistics({
       parameters: statsParams,
       projectId,
     },
-    { actor: SHARED_ACTOR }
+    { source: "internal", actor: SHARED_ACTOR }
   );
 
   // Mean of Task means: a Task with many Trials counts once.

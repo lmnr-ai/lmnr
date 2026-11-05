@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use bytes::Bytes;
 use opentelemetry::{
-    KeyValue, global,
+    global,
     trace::{Span, Tracer},
 };
 use serde::Serialize;
@@ -10,8 +10,10 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache, data_plane::client::DataPlaneClient, db::workspaces::WorkspaceDeployment,
-    sql::SqlQueryError,
+    cache::Cache,
+    data_plane::client::DataPlaneClient,
+    db::workspaces::WorkspaceDeployment,
+    sql::{SqlQueryError, query_span_attribute},
 };
 
 #[derive(Serialize, Debug)]
@@ -34,7 +36,9 @@ pub async fn query(
 ) -> Result<Bytes, SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("execute_data_plane_sql_query");
-    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    if let Some(attribute) = query_span_attribute(&query) {
+        span.set_attribute(attribute);
+    }
 
     let request = DataPlaneReadRequest {
         query,

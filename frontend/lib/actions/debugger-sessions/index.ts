@@ -322,17 +322,20 @@ export async function getSessionTraceRows(input: z.infer<typeof GetSessionTraceR
 // surfaced via eval blocks). Returns a map so the timeline can drop misses.
 async function getTracesByIds(projectId: string, traceIds: string[]): Promise<Map<string, TraceRow>> {
   if (traceIds.length === 0) return new Map();
-  const items = await executeQuery<TraceRow>({
-    query: `
+  const items = await executeQuery<TraceRow>(
+    {
+      query: `
       SELECT ${debuggerTraceSelectColumns.join(", ")}
       FROM traces
       WHERE trace_type = 'DEFAULT' AND id IN ({traceIds: Array(UUID)})
       ORDER BY start_time ASC
       LIMIT ${MAX_SESSION_TRACES}
     `,
-    projectId,
-    parameters: { traceIds },
-  });
+      projectId,
+      parameters: { traceIds },
+    },
+    { source: "internal" }
+  );
   return new Map(items.map((t) => [t.id, t]));
 }
 
@@ -391,17 +394,20 @@ async function getScoreAveragesByEvaluationIds(
   if (evaluationIds.length === 0) return new Map();
 
   try {
-    const rows = await executeQuery<{ evaluationId: string; scores: string }>({
-      query: `
+    const rows = await executeQuery<{ evaluationId: string; scores: string }>(
+      {
+        query: `
         SELECT
           evaluation_id AS evaluationId,
           scores
         FROM evaluation_trials FINAL
         WHERE evaluation_id IN {evaluationIds: Array(UUID)}
       `,
-      projectId,
-      parameters: { evaluationIds },
-    });
+        projectId,
+        parameters: { evaluationIds },
+      },
+      { source: "internal" }
+    );
 
     // evaluation_id -> score name -> running sum/count for averaging.
     const acc = new Map<string, Map<string, { sum: number; count: number }>>();

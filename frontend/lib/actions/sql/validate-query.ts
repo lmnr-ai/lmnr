@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { callAppServer } from "@/lib/api/backend";
 
 import { resolveSqlActor, type SqlActor } from "./actor";
+import { type SqlQuerySource } from "./index";
 
 export const ValidateQuerySchema = z.object({
   projectId: z.guid(),
@@ -21,16 +22,17 @@ export interface QueryValidationResult {
  */
 export async function validateQuery(
   input: z.infer<typeof ValidateQuerySchema>,
-  options?: { actor?: SqlActor }
+  options: { source: SqlQuerySource; actor?: SqlActor }
 ): Promise<QueryValidationResult> {
   const { projectId, query } = ValidateQuerySchema.parse(input);
-  const actor = await resolveSqlActor(options?.actor);
+  const actor = await resolveSqlActor(options.actor);
 
   const json = await callAppServer(`/projects/${projectId}/sql/validate`, {
     method: "POST",
     body: {
       query,
       actor,
+      source: options.source,
     },
   });
 

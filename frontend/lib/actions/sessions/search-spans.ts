@@ -40,8 +40,9 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
     id: string;
     startTime: string;
     endTime: string;
-  }>({
-    query: `
+  }>(
+    {
+      query: `
       SELECT
         id,
         formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
@@ -50,9 +51,11 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
       WHERE session_id = {sessionId: String}
       ORDER BY start_time ASC
     `,
-    parameters: { sessionId },
-    projectId,
-  });
+      parameters: { sessionId },
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   if (traceRows.length === 0) {
     return { traces: [] };
@@ -105,11 +108,14 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
     }
-  >({
-    query,
-    parameters,
-    projectId,
-  });
+  >(
+    {
+      query,
+      parameters,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   if (rawSpans.length === 0) {
     return { traces: [] };

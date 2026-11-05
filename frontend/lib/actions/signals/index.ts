@@ -480,9 +480,10 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   if (signalIds.length > 0) {
     const [eventStats, clusterCounts, runCounts] = await Promise.all([
-      executeQuery<{ signal_id: string; count: string; last_event_at: string }>({
-        projectId,
-        query: `
+      executeQuery<{ signal_id: string; count: string; last_event_at: string }>(
+        {
+          projectId,
+          query: `
         SELECT
           signal_id,
           count(*) as count,
@@ -491,11 +492,14 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
         WHERE signal_id IN ({signalIds: Array(UUID)})
         GROUP BY signal_id
       `,
-        parameters: { signalIds },
-      }),
-      executeQuery<{ signal_id: string; count: string }>({
-        projectId,
-        query: `
+          parameters: { signalIds },
+        },
+        { source: "internal" }
+      ),
+      executeQuery<{ signal_id: string; count: string }>(
+        {
+          projectId,
+          query: `
         SELECT
           signal_id,
           count(*) as count
@@ -504,11 +508,14 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
           AND level != 0
         GROUP BY signal_id
       `,
-        parameters: { signalIds },
-      }),
-      executeQuery<{ signal_id: string; count: string }>({
-        projectId,
-        query: `
+          parameters: { signalIds },
+        },
+        { source: "internal" }
+      ),
+      executeQuery<{ signal_id: string; count: string }>(
+        {
+          projectId,
+          query: `
         SELECT
           signal_id,
           uniqExact(run_id) as count
@@ -516,8 +523,10 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
         WHERE signal_id IN ({signalIds: Array(UUID)})
         GROUP BY signal_id
       `,
-        parameters: { signalIds },
-      }),
+          parameters: { signalIds },
+        },
+        { source: "internal" }
+      ),
     ]);
 
     for (const row of eventStats) {

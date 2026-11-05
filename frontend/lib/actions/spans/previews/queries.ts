@@ -53,7 +53,7 @@ export async function fetchSpanData(
           `,
             parameters: { ...baseParams, spanIds: previewSpanIds },
           },
-          { actor }
+          { source: "internal", actor }
         )
       : ([] as Array<{ spanId: string; data: string; name: string }>),
 
@@ -78,7 +78,7 @@ export async function fetchSpanData(
           `,
             parameters: { ...baseParams, spanIds: inputSpanIdList },
           },
-          { actor }
+          { source: "internal", actor }
         )
       : ([] as InputSpanRow[]),
   ]);

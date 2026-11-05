@@ -95,11 +95,14 @@ export async function getAgentOutputsBatch({
 }): Promise<Record<string, string | null>> {
   const parsed = bodySchema.parse({ traceIds });
 
-  const rows = await executeQuery<{ traceId: string; agentOutput: string[] }>({
-    query: OUTPUTS_QUERY,
-    parameters: { traceIds: parsed.traceIds },
-    projectId,
-  });
+  const rows = await executeQuery<{ traceId: string; agentOutput: string[] }>(
+    {
+      query: OUTPUTS_QUERY,
+      parameters: { traceIds: parsed.traceIds },
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   const results: Record<string, string | null> = {};
   for (const row of rows) {
@@ -123,22 +126,28 @@ export async function getAgentOutputsBatch({
  * got from a plain LIMIT.
  */
 async function resolveTraceOutputTexts(traceIds: string[], projectId: string): Promise<Record<string, string | null>> {
-  const pathRows = await executeQuery<{ traceId: string; path: string; promptHash: string }>({
-    query: TOP_PATHS_QUERY,
-    parameters: { traceIds },
-    projectId,
-  });
+  const pathRows = await executeQuery<{ traceId: string; path: string; promptHash: string }>(
+    {
+      query: TOP_PATHS_QUERY,
+      parameters: { traceIds },
+      projectId,
+    },
+    { source: "internal" }
+  );
   if (pathRows.length === 0) return {};
 
-  const outputRows = await executeQuery<OutputSpanRow>({
-    query: OUTPUTS_QUERY_FALLBACK,
-    parameters: {
-      traceIds: pathRows.map((row) => row.traceId),
-      paths: pathRows.map((row) => row.path ?? ""),
-      promptHashes: pathRows.map((row) => row.promptHash ?? ""),
+  const outputRows = await executeQuery<OutputSpanRow>(
+    {
+      query: OUTPUTS_QUERY_FALLBACK,
+      parameters: {
+        traceIds: pathRows.map((row) => row.traceId),
+        paths: pathRows.map((row) => row.path ?? ""),
+        promptHashes: pathRows.map((row) => row.promptHash ?? ""),
+      },
+      projectId,
     },
-    projectId,
-  });
+    { source: "internal" }
+  );
   if (outputRows.length === 0) return {};
 
   const spanIds = outputRows.map((row) => row.spanId);

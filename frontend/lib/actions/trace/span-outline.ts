@@ -71,9 +71,10 @@ export async function getTraceSpanOutline(
     input: string;
     output: string;
     attributes: string;
-  }>({
-    projectId,
-    query: `
+  }>(
+    {
+      projectId,
+      query: `
       SELECT
         name,
         span_type AS spanType,
@@ -89,8 +90,10 @@ export async function getTraceSpanOutline(
       ORDER BY min(start_time)
       LIMIT ${MAX_OUTLINE_SPANS}
     `,
-    parameters: { traceId },
-  });
+      parameters: { traceId },
+    },
+    { source: "internal" }
+  );
 
   return rows.map((row) => ({
     ...row,

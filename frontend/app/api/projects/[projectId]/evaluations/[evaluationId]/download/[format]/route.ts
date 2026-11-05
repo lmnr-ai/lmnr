@@ -33,19 +33,22 @@ export const GET = withAudit(
       return Response.json({ error: "Evaluation not found" }, { status: 404 });
     }
 
-    const chTrials = (await executeQuery({
-      projectId,
-      query: `
+    const chTrials = (await executeQuery(
+      {
+        projectId,
+        query: `
         SELECT id, task_id taskId, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
         FROM evaluation_trials
         WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
       `,
-      parameters: {
-        projectId,
-        evaluationId,
+        parameters: {
+          projectId,
+          evaluationId,
+        },
       },
-    })) as {
+      { source: "internal" }
+    )) as {
       id: string;
       taskId: string;
       index: number;

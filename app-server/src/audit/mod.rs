@@ -9,6 +9,7 @@
 //! a variant; add a new one.
 
 pub mod consumer;
+pub mod middleware;
 pub mod routes;
 
 use std::sync::Arc;

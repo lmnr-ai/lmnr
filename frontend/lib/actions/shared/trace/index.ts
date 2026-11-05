@@ -74,7 +74,7 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         traceId,
       },
     },
-    { actor: SHARED_ACTOR }
+    { source: "internal", actor: SHARED_ACTOR }
   );
 
   if (!trace) {

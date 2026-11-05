@@ -8,7 +8,7 @@ export const POST = noAudit(
     const body = await request.json();
     const projectId = (await ctx.params).projectId;
 
-    const data = await executeQuery({ ...body, projectId });
+    const data = await executeQuery({ ...body, projectId }, { source: "editor" });
 
     return Response.json(data);
   })

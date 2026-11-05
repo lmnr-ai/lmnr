@@ -115,11 +115,14 @@ export async function getTraceStats(
     intervalUnit,
   };
 
-  const items = await executeQuery<TracesStatsDataPoint>({
-    query,
-    parameters,
-    projectId,
-  });
+  const items = await executeQuery<TracesStatsDataPoint>(
+    {
+      query,
+      parameters,
+      projectId,
+    },
+    { source: "internal" }
+  );
 
   return { items };
 }

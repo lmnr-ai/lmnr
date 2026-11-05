@@ -8,7 +8,7 @@ use opentelemetry::{
     trace::{Span, Tracer},
 };
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use std::{
@@ -19,25 +19,68 @@ use uuid::Uuid;
 
 use crate::{
     access_policy::AccessPolicy,
+    audit::{
+        self, AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource,
+    },
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, workspaces::DeploymentMode},
-    query_engine::{QueryEngine, QueryEngineValidationResult},
+    mq::MessageQueue,
+    query_engine::{QueryEngine, QueryEngineValidationResult, validator::strip_literals},
 };
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
-/// Where an ad-hoc SQL query originated. Determines whether the per-query
-/// `max_memory_usage` ceiling is applied: the trusted internal frontend runs
-/// uncapped, while public internet-facing and CLI traffic is capped to protect
-/// ClickHouse from OOM-inducing scans.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Where an ad-hoc SQL query originated. Decides whether the per-query
+/// `max_memory_usage` ceiling applies (the trusted frontend runs uncapped) and
+/// how the query is audited: every source but `Internal` is a person or key
+/// running SQL of their choosing and is logged as `sql.query`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SqlQuerySource {
-    /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`) or other internal use.
+    /// SQL the platform builds itself (tables, charts, dashboards). Not audited.
     Internal,
-    /// Public internet-facing (`/v1/sql/query`) and CLI (`/v1/cli/sql/query`).
-    Public,
+    /// The SQL editor (`/api/v1/projects/{id}/sql/query`).
+    Editor,
+    /// SQL export jobs, audited when the query is validated.
+    Export,
+    /// Public `/v1/sql/query`.
+    Api,
+    /// `/v1/cli/sql/query`.
+    Cli,
+    /// MCP `query_laminar_sql`.
+    Mcp,
+    /// The Laminar agent's SQL tool.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    Agent,
 }
+
+impl SqlQuerySource {
+    /// Internet-facing traffic, capped to protect ClickHouse from OOM-inducing scans.
+    pub fn is_memory_capped(self) -> bool {
+        matches!(self, Self::Api | Self::Cli | Self::Mcp)
+    }
+
+    fn audit_source(self) -> Option<AuditSource> {
+        match self {
+            Self::Internal => None,
+            Self::Editor | Self::Export => Some(AuditSource::Ui),
+            Self::Api => Some(AuditSource::Api),
+            Self::Cli => Some(AuditSource::Cli),
+            Self::Mcp => Some(AuditSource::Mcp),
+            Self::Agent => Some(AuditSource::Agent),
+        }
+    }
+}
+
+/// Who ran an audited query, and where to publish the event.
+pub struct SqlAudit {
+    pub actor: AuditActor,
+    pub queue: Arc<MessageQueue>,
+}
+
+/// Longest query text stored on a `sql.query` event.
+const AUDIT_MAX_QUERY_BYTES: usize = 16 * 1024;
 
 #[derive(Debug, thiserror::Error, Deserialize)]
 pub enum SqlQueryError {
@@ -112,13 +155,28 @@ pub async fn execute_sql_query(
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    audit: Option<SqlAudit>,
 ) -> Result<Vec<Value>, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
-    // Validate query first
-    let validated_query = match validate_query(query, project_id, &policy, query_engine).await {
-        Ok(validated_query) => validated_query,
+    let audit_query = audit.as_ref().map(|_| query.clone());
+    let validated = validate_query(query, project_id, &policy, query_engine).await;
+    let (validated_query, tables) = match validated {
+        Ok(validated) => validated,
         Err(e) => {
+            if let (Some(audit), Some(query)) = (audit, audit_query) {
+                audit_sql_query(
+                    db,
+                    cache,
+                    audit,
+                    project_id,
+                    source,
+                    query,
+                    Vec::new(),
+                    AuditOutcome::Denied,
+                )
+                .await;
+            }
             return Err(e);
         }
     };
@@ -126,7 +184,7 @@ pub async fn execute_sql_query(
     // Execute query
     let res = route_and_run_query(
         &db.pool,
-        cache,
+        cache.clone(),
         clickhouse_ro,
         http_client,
         project_id,
@@ -135,6 +193,25 @@ pub async fn execute_sql_query(
         source,
     )
     .await;
+
+    if let (Some(audit), Some(query)) = (audit, audit_query) {
+        let outcome = if res.is_ok() {
+            AuditOutcome::Success
+        } else {
+            AuditOutcome::Error
+        };
+        audit_sql_query(
+            db.clone(),
+            cache,
+            audit,
+            project_id,
+            source,
+            query,
+            tables,
+            outcome,
+        )
+        .await;
+    }
 
     let data = match res {
         Ok(data) => data,
@@ -206,23 +283,99 @@ fn remove_query_from_error_message(error_message: &str) -> String {
     VERSION_REGEX.replace_all(&without_settings, "").to_string()
 }
 
-// Validates the query using the query engine.
+/// Record a `sql.query` event. Awaited so a query is never answered without
+/// its audit trail; a failed publish is logged, not surfaced to the caller.
+#[allow(clippy::too_many_arguments)]
+pub async fn audit_sql_query(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    audit: SqlAudit,
+    project_id: Uuid,
+    source: SqlQuerySource,
+    query: String,
+    tables: Vec<String>,
+    outcome: AuditOutcome,
+) {
+    let Some(audit_source) = source.audit_source() else {
+        return;
+    };
+    let query = match loggable_query(&db.pool, cache.clone(), project_id, query).await {
+        Some(query) => Value::String(truncate_utf8(query, AUDIT_MAX_QUERY_BYTES)),
+        None => Value::Null,
+    };
+    let mut input = AuditEventInput::new(
+        audit.actor,
+        audit_source,
+        AuditResource::Sql,
+        AuditAction::Query,
+        outcome,
+    );
+    input.project_id = Some(project_id);
+    input.metadata = Some(json!({
+        "query": query,
+        "tables": tables,
+        "channel": source,
+    }));
+    if let Err(e) = audit::emit(db, cache, &audit.queue, input).await {
+        log::error!("Failed to emit sql.query audit event: {e:?}");
+    }
+}
+
+/// Hybrid workspaces keep their data in their own data plane, so their query
+/// text is stored with literals stripped; `None` if it can't be stripped.
+async fn loggable_query(
+    pool: &PgPool,
+    cache: Arc<Cache>,
+    project_id: Uuid,
+    query: String,
+) -> Option<String> {
+    match get_workspace_deployment(pool, cache, project_id).await {
+        Ok(config) if config.mode == DeploymentMode::CLOUD => Some(query),
+        _ => strip_literals(&query),
+    }
+}
+
+fn truncate_utf8(mut s: String, max_bytes: usize) -> String {
+    if s.len() > max_bytes {
+        let mut end = max_bytes;
+        while !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        s.truncate(end);
+    }
+    s
+}
+
+/// The `sql.query` span attribute with literals stripped: they can hold
+/// customer data, which must not reach our own traces. `None` if the query
+/// doesn't parse.
+pub fn query_span_attribute(query: &str) -> Option<KeyValue> {
+    strip_literals(query).map(|stripped| KeyValue::new("sql.query", stripped))
+}
+
+/// Validates the query using the query engine. Returns the rewritten query and
+/// the tables it reads.
 pub async fn validate_query(
     query: String,
     project_id: Uuid,
     policy: &AccessPolicy,
     query_engine: Arc<QueryEngine>,
-) -> Result<String, SqlQueryError> {
+) -> Result<(String, Vec<String>), SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("validate_sql_query");
-    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    if let Some(attribute) = query_span_attribute(&query) {
+        span.set_attribute(attribute);
+    }
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     span.set_attribute(KeyValue::new("sql.policy", policy.to_view_arg()));
 
     let validation_result = query_engine.validate_query(query, project_id, policy).await;
 
-    let validated_query = match validation_result {
-        Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,
+    let validated = match validation_result {
+        Ok(QueryEngineValidationResult::Success {
+            validated_query,
+            tables,
+        }) => (validated_query, tables),
         Ok(QueryEngineValidationResult::Error { error }) => {
             span.record_error(&std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -242,7 +395,7 @@ pub async fn validate_query(
     };
     span.end();
 
-    Ok(validated_query)
+    Ok(validated)
 }
 
 // Routes the query to the appropriate backend and runs it.
