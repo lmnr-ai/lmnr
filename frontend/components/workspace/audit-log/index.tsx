@@ -46,7 +46,7 @@ function AuditLogContent({ workspaceId }: { workspaceId: string }) {
   }, [filters, pastHours, startDate, endDate]);
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] overflow-hidden">
+    <div className="flex flex-1 min-h-0 overflow-hidden">
       <AuditLogTableContents workspaceId={workspaceId} query={query} hasFilters={filters.length > 0}>
         <AuditLogTableControls exportHref={`/api/workspaces/${workspaceId}/audit-events/export?${query}`} />
       </AuditLogTableContents>
