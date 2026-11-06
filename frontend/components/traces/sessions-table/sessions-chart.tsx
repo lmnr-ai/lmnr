@@ -6,6 +6,7 @@ import useSWR from "swr";
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
+import { sessionsStatsUrl } from "@/components/traces/sessions-table/constants";
 import { DEFAULT_TARGET_BARS } from "@/components/traces/traces-table/constants";
 import { type SessionsStatsDataPoint } from "@/lib/actions/sessions/stats";
 import { swrFetcher } from "@/lib/api/fetch-api";
@@ -53,7 +54,7 @@ export default function SessionsChart({
   }, []);
 
   const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${projectId}/sessions/stats`,
+    baseUrl: sessionsStatsUrl(projectId),
     chartContainerWidth: width,
     pastHours,
     startDate,
