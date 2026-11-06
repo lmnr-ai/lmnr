@@ -13,6 +13,7 @@ pub mod llm_profiles;
 pub mod rollouts;
 pub mod signals;
 pub mod sql;
+pub mod tag;
 
 use actix_web::{HttpResponse, get, post, web};
 use serde_json::json;

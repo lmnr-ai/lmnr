@@ -63,6 +63,7 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
     let method = method.as_str();
     let classification = match (method, path) {
         // Ingestion and SDK hot paths; SDKs patch trace metadata per trace.
+        // `/tag` also covers `/v1/cli/tag`; UI tagging is unaudited too.
         (
             "POST",
             "/traces"
@@ -294,6 +295,7 @@ mod tests {
             (Method::POST, "/traces"),
             (Method::POST, "/traces/metadata"),
             (Method::POST, "/spans"),
+            (Method::POST, "/tag"),
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),

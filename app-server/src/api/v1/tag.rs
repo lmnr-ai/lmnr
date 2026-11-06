@@ -40,9 +40,18 @@ pub async fn tag_trace(
     clickhouse: web::Data<clickhouse::Client>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
+    handle_tag_trace(project_api_key.project_id, req, clickhouse).await
+}
+
+/// Shared body of `/v1/tag` and its CLI twin `/v1/cli/tag`, which differ only
+/// in auth (project API key vs `CliProjectAuth`).
+pub async fn handle_tag_trace(
+    project_id: Uuid,
+    req: Json<TagRequest>,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
     let req = req.into_inner();
     let clickhouse = clickhouse.as_ref().clone();
-    let project_id = project_api_key.project_id;
 
     let (trace_id, names) = match req {
         TagRequest::WithTraceId(req) => (Some(req.trace_id), req.names),
