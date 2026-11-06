@@ -83,7 +83,14 @@ export const applySyncEvent = (state: SyncState, event: SyncEvent): SyncState =>
       // snapshot covers them; `needsReconcile` asks for that one.
       const fresh = new Set(event.traces.map((t) => t.id));
       const newer = state.traces.filter((t) => !fresh.has(t.id) && (state.traceSeq[t.id] ?? 0) > event.requestedAtSeq);
-      const traces = [...event.traces.map((t) => withEarlyInput(t, state.earlyInputs)), ...newer].sort(byStartTime);
+      // Agent input is extracted asynchronously and doesn't move `seq`, so a snapshot read before extraction would
+      // erase input already shown; keep it.
+      const previous = new Map(state.traces.map((t) => [t.id, t]));
+      const fromSnapshot = event.traces.map((t) => {
+        const known = previous.get(t.id)?.agentInput;
+        return t.agentInput || !known ? withEarlyInput(t, state.earlyInputs) : { ...t, agentInput: known };
+      });
+      const traces = [...fromSnapshot, ...newer].sort(byStartTime);
       return {
         ...state,
         status: "ready",

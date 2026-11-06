@@ -97,6 +97,15 @@ describe("applySyncEvent", () => {
     assert.ok(!isLive(settled, "a"));
   });
 
+  it("a snapshot read before agent input was extracted keeps the input", () => {
+    const state = run(
+      { type: "snapshot", traces: [row("a", T1)], requestedAtSeq: 0 },
+      { type: "agentInput", traceId: "a", agentInput: "hello" },
+      { type: "snapshot", traces: [row("a", T1)], requestedAtSeq: 0 }
+    );
+    assert.equal(state.traces[0].agentInput, "hello");
+  });
+
   it("only a failed first load is an error", () => {
     assert.equal(run({ type: "snapshotFailed", error: "x" }).status, "error");
     const ready = run(
@@ -176,6 +185,35 @@ describe("createLiveSessionStore", () => {
     store.getState().retryReply("a");
     await tick(300);
     assert.deepEqual(store.getState().replies.a, { kind: "loaded", text: "ok" });
+    store.getState().dispose();
+  });
+
+  it("retries a failed refresh so live turns don't stay live", async () => {
+    const { deps, calls } = fakeDeps({
+      loadTraces: async () => {
+        calls.traces++;
+        if (calls.traces === 2) return { error: "boom" };
+        return { traces: [row("a", T1)] };
+      },
+    });
+    const store = createLiveSessionStore(deps);
+    store.getState().start();
+    await tick();
+    store.getState().receive({ type: "delta", traces: [delta("a", T1)] });
+    await tick(150);
+    assert.ok(calls.traces >= 3);
+    assert.ok(!isLive(store.getState().sync, "a"));
+    store.getState().dispose();
+  });
+
+  it("survives dispose and start on the same store", async () => {
+    const { deps } = fakeDeps();
+    const store = createLiveSessionStore(deps);
+    store.getState().start();
+    store.getState().dispose();
+    store.getState().start();
+    await tick(50);
+    assert.equal(store.getState().sync.status, "ready");
     store.getState().dispose();
   });
 
