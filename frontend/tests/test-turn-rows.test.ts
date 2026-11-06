@@ -29,7 +29,6 @@ describe("buildRows", () => {
     const [header, context] = rows;
     assert.equal(header.kind === "section" && header.summary, undefined);
     assert.equal(context.kind === "context" && context.summary, "system prompt + 1 earlier step");
-    assert.equal(message(rows, "input-0")?.plainResults, true);
   });
 
   it("opens Context to the system prompt, task and earlier steps", () => {
@@ -52,7 +51,7 @@ describe("buildRows", () => {
     assert.deepEqual(part?.kind === "tool-result" && part.call, { args: {} });
   });
 
-  it("puts this call's consecutive tool results in one card", () => {
+  it("keeps this call's consecutive tool results as separate, grouped cards", () => {
     const parallel = [
       { role: "user", content: "task" },
       { role: "assistant", content: null, tool_calls: [call("c1"), call("c2", "read_file")] },
@@ -60,8 +59,19 @@ describe("buildRows", () => {
       { role: "tool", tool_call_id: "c2", content: "r2" },
     ];
     const rows = buildRows(buildSpanTurn(parallel, output), false, RAW_OFF);
-    assert.deepEqual(keys(rows), ["section-input", "context", "input-0", "section-output", "output-0"]);
-    assert.equal(message(rows, "input-0")?.normalized?.parts.length, 2);
+    assert.deepEqual(keys(rows), ["section-input", "context", "input-0", "input-1", "section-output", "output-0"]);
+    assert.equal(message(rows, "input-0")?.grouped, true);
+    assert.equal(message(rows, "input-1")?.grouped, false);
+  });
+
+  it("shows a first call's system prompt inline, with no context fold", () => {
+    const first = [
+      { role: "system", content: "sys" },
+      { role: "user", content: "task" },
+    ];
+    const rows = buildRows(buildSpanTurn(first, output), false, RAW_OFF);
+    assert.deepEqual(keys(rows), ["section-input", "system-0", "input-0", "section-output", "output-0"]);
+    assert.equal(message(rows, "system-0")?.inContext, false);
   });
 
   it("skips the context card and summarizes Input when the whole input is new", () => {
@@ -100,7 +110,7 @@ describe("buildRows", () => {
       assert.deepEqual(kinds(rows[0]), ["reasoning", "text", "tool-call", "tool-call"]);
     });
 
-    it("keeps separate LLM calls in Responses history apart after their tool outputs are paired", () => {
+    it("keeps separate LLM calls in Responses history apart, each followed by its tool output", () => {
       const step = (n: number) => [
         { id: `rs_${n}`, type: "reasoning", summary: [{ type: "summary_text", text: `think ${n}` }], content: [] },
         { type: "function_call", id: `fc_${n}`, call_id: `c${n}`, name: "query_logs", arguments: "{}" },
@@ -112,6 +122,8 @@ describe("buildRows", () => {
       const assistants = rows.filter((row) => row.kind === "message" && row.normalized?.role === "assistant");
       assert.equal(assistants.length, 3);
       for (const row of assistants) assert.deepEqual(kinds(row), ["reasoning", "tool-call"]);
+      const results = rows.filter((row) => row.kind === "message" && kinds(row)?.[0] === "tool-result");
+      assert.equal(results.length, 3);
     });
 
     it("keeps Chat Completions choices as separate cards", () => {

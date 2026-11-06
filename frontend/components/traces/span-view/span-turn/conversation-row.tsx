@@ -69,7 +69,7 @@ const ConversationRowView = ({
   );
   return (
     <div data-index={index} ref={measureRef} className={ROW}>
-      <div className={cn("pb-4", isContextRow(row) && "ml-1.5 pl-3 border-l")}>
+      <div className={cn(row.grouped ? "pb-1.5" : "pb-4", isContextRow(row) && "ml-1.5 pl-3 border-l")}>
         <MessageWrapper
           role={role}
           maxHeight={row.maxHeight}
@@ -80,7 +80,6 @@ const ConversationRowView = ({
           {row.normalized ? (
             <NormalizedParts
               parts={row.normalized.parts}
-              plainResults={row.plainResults}
               expandReasoning={row.source === "output"}
               presetKey={presetKey}
               messageIndex={index}

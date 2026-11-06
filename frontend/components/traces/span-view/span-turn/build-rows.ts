@@ -1,12 +1,6 @@
 import { type ProcessedMessages } from "@/lib/spans/process-messages";
 import { canonicalRole, segmentMessageRole, type SpanTurn } from "@/lib/spans/turn";
-import {
-  linkToolResults,
-  type NormalizedMessage,
-  normalizeMessage,
-  pairToolResults,
-  type TurnPart,
-} from "@/lib/spans/turn-parts";
+import { linkToolResults, type NormalizedMessage, normalizeMessage, type TurnPart } from "@/lib/spans/turn-parts";
 import { pluralize } from "@/lib/utils";
 
 const PREVIEW_HEIGHT = 120;
@@ -33,8 +27,10 @@ export type MessageRow = {
   /** Null falls back to the provider renderer. */
   normalized: NormalizedMessage | null;
   source: Source;
-  /** This call's tool results, shown as light previews (the Input header already counts them). */
-  plainResults?: boolean;
+  /** Inside the opened context fold, hanging off its rail. */
+  inContext?: boolean;
+  /** Followed by another tool message: drawn close to it, as one group. */
+  grouped?: boolean;
   maxHeight?: number;
   defaultExpanded?: boolean;
 };
@@ -48,7 +44,10 @@ export type ConversationRow =
 const CONTEXT_SOURCES = new Set<Source>(["system", "task", "history", "previous"]);
 
 /** Rows shown inside the opened context, which hang off one rail. */
-export const isContextRow = (row: MessageRow) => CONTEXT_SOURCES.has(row.source);
+export const isContextRow = (row: MessageRow) => !!row.inContext;
+
+/** Only earlier steps make a fold worth it; on a first call the system prompt shows inline. */
+export const hasContextFold = (turn: SpanTurn) => turn.earlierSteps > 0;
 
 const INPUT_PARTS = ["system", "task", "history", "previous", "input"] as const;
 
@@ -79,14 +78,16 @@ export const buildRows = (
   contextOpen: boolean,
   raw: Record<SectionKey, boolean>
 ): ConversationRow[] => {
+  const folds = !raw.input && hasContextFold(turn);
+  const open = contextOpen || !folds;
   const segments: Segment[] = [
     ...(raw.input
       ? []
       : ([
-          { source: "system", processed: turn.system, hidden: !contextOpen, maxHeight: PREVIEW_HEIGHT },
-          { source: "task", processed: turn.task, hidden: !contextOpen, maxHeight: PREVIEW_HEIGHT },
-          { source: "history", processed: contextOpen ? turn.history : undefined, maxHeight: HISTORY_HEIGHT },
-          { source: "previous", processed: turn.previous, hidden: !contextOpen, maxHeight: HISTORY_HEIGHT },
+          { source: "system", processed: turn.system, hidden: !open, maxHeight: PREVIEW_HEIGHT },
+          { source: "task", processed: turn.task, hidden: !open, maxHeight: PREVIEW_HEIGHT },
+          { source: "history", processed: open ? turn.history : undefined, maxHeight: HISTORY_HEIGHT },
+          { source: "previous", processed: turn.previous, hidden: !open, maxHeight: HISTORY_HEIGHT },
           { source: "input", processed: turn.input, maxHeight: INPUT_HEIGHT },
         ] satisfies Segment[])),
     ...(raw.output ? [] : [{ source: "output", processed: turn.output, defaultExpanded: true } satisfies Segment]),
@@ -95,12 +96,9 @@ export const buildRows = (
     segment.processed ? segment.processed.messages.map((_, localIndex) => ({ segment, localIndex })) : []
   );
 
-  const linked = linkToolResults(
+  const normalized = linkToolResults(
     messages.map(({ segment, localIndex }) => normalizeMessage(segment.processed!, localIndex))
   );
-  // Pair only within earlier steps: this call's results are new input and keep their own card.
-  const pastCount = messages.filter(({ segment }) => segment.source !== "input" && segment.source !== "output").length;
-  const normalized = [...pairToolResults(linked.slice(0, pastCount)), ...linked.slice(pastCount)];
 
   const bySource = new Map<Source, MessageRow[]>();
   messages.forEach(({ segment, localIndex }, i) => {
@@ -114,26 +112,29 @@ export const buildRows = (
       localIndex,
       normalized: message,
       source: segment.source,
+      inContext: folds && CONTEXT_SOURCES.has(segment.source),
       maxHeight: segment.maxHeight,
       defaultExpanded: segment.defaultExpanded,
     };
     bySource.set(segment.source, [...(bySource.get(segment.source) ?? []), row]);
   });
   // Per source, so a merged card never spans earlier steps, new input and output.
-  const rowsOf = (source: Source) => mergeResponsesTurns(bySource.get(source) ?? []);
+  const rowsOf = (source: Source) => groupToolResults(mergeResponsesTurns(bySource.get(source) ?? []));
 
   const rows: ConversationRow[] = [];
   if (turn.system || turn.task || turn.history || turn.previous || turn.input) {
-    const context = raw.input ? "" : contextSummary(turn);
-    const newRows = batchToolResults(rowsOf("input"));
-    const summary = newRows.length > 0 ? summarizeNewInput(newRows) : undefined;
+    const newRows = rowsOf("input");
+    const earlierRows = [...rowsOf("system"), ...rowsOf("task"), ...rowsOf("history"), ...rowsOf("previous")];
     // Only when the whole input is new does a summary of it describe the Input section.
-    rows.push({ kind: "section", key: "section-input", section: "input", summary: context ? undefined : summary });
-    if (context) {
-      rows.push({ kind: "context", key: "context", summary: context, open: contextOpen });
-      if (contextOpen) rows.push(...rowsOf("system"), ...rowsOf("task"), ...rowsOf("history"), ...rowsOf("previous"));
-    }
-    rows.push(...newRows);
+    const whollyNew = earlierRows.length === 0 && !folds && newRows.length > 0;
+    rows.push({
+      kind: "section",
+      key: "section-input",
+      section: "input",
+      summary: whollyNew ? summarizeNewInput(newRows) : undefined,
+    });
+    if (folds) rows.push({ kind: "context", key: "context", summary: contextSummary(turn), open: contextOpen });
+    rows.push(...earlierRows, ...newRows);
   }
   if (turn.output) {
     rows.push({ kind: "section", key: "section-output", section: "output" }, ...rowsOf("output"));
@@ -142,7 +143,7 @@ export const buildRows = (
 };
 
 // Adjacent in the original payload. Rows can become neighbours only because the messages between them were
-// skipped (e.g. tool outputs paired under their calls), and those messages are what separate two LLM calls.
+// skipped (e.g. empty ones), and those messages are what separate two LLM calls.
 const adjacent = (a: MessageRow, b: MessageRow) => a.segment === b.segment && b.localIndex === a.localIndex + 1;
 
 /** Replaces each run of payload-adjacent rows matching `belongs` with one card holding all their parts. */
@@ -170,11 +171,9 @@ const mergeRuns = (
 const isResultsOnly = (row: MessageRow) =>
   !!row.normalized?.parts.length && row.normalized.parts.every((part) => part.kind === "tool-result");
 
-/** This call's tool results: consecutive ones share a card, and all show as light previews. */
-const batchToolResults = (rows: MessageRow[]) =>
-  mergeRuns(rows, isResultsOnly, (first, parts) => ({ ...first, normalized: { role: "tool", parts } })).map((row) =>
-    isResultsOnly(row) ? { ...row, plainResults: true } : row
-  );
+/** Each tool message keeps its own card; consecutive ones form a group. */
+const groupToolResults = (rows: MessageRow[]) =>
+  rows.map((row, i) => (isResultsOnly(row) ? { ...row, grouped: !!rows[i + 1] && isResultsOnly(rows[i + 1]) } : row));
 
 // The Responses API splits one assistant turn into top-level items (reasoning, message, one per tool call), and it
 // has no `n`, so a run is never alternative choices. Other formats keep a turn in one message, and their consecutive

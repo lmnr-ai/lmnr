@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { processMessages } from "@/lib/spans/process-messages";
-import { linkToolResults, normalizeMessage, pairToolResults, preview } from "@/lib/spans/turn-parts";
+import { linkToolResults, normalizeMessage, preview } from "@/lib/spans/turn-parts";
 
 const normalizeAll = (raw: unknown) => {
   const processed = processMessages(raw);
@@ -92,9 +92,26 @@ describe("linkToolResults", () => {
   });
 });
 
-describe("pairToolResults", () => {
-  it("moves each result under its call and leaves unmatched results in place", () => {
-    const messages = linkToolResults(
+describe("linkToolResults by name", () => {
+  it("links Gemini calls and responses by name", () => {
+    const [call, response] = linkToolResults(
+      normalizeAll([
+        { role: "model", parts: [{ functionCall: { name: "weather", args: { city: "SF" } } }] },
+        { role: "user", parts: [{ functionResponse: { name: "weather", response: { temp: 60 } } }] },
+      ])
+    );
+
+    assert.equal(call?.parts.length, 1);
+    assert.deepEqual(response?.parts[0], {
+      kind: "tool-result",
+      name: "weather",
+      output: { temp: 60 },
+      call: { args: { city: "SF" } },
+    });
+  });
+
+  it("matches repeated calls in order and leaves unmatched results alone", () => {
+    const [, r2, r1, orphan] = linkToolResults(
       normalizeAll([
         {
           role: "assistant",
@@ -109,28 +126,9 @@ describe("pairToolResults", () => {
         { role: "tool", tool_call_id: "zz", content: "orphan" },
       ])
     );
-    const [assistant, r2, r1, orphan] = pairToolResults(messages);
 
-    const calls = assistant?.parts as { result?: { output: unknown; name?: string } }[];
-    assert.deepEqual(
-      calls.map((c) => c.result?.output),
-      ["r1", "r2"]
-    );
-    assert.equal(calls[0].result?.name, "a");
-    assert.equal(r2?.parts.length, 0);
-    assert.equal(r1?.parts.length, 0);
-    assert.equal(orphan?.parts.length, 1);
-  });
-
-  it("pairs Gemini calls and responses by name", () => {
-    const [call, response] = pairToolResults(
-      normalizeAll([
-        { role: "model", parts: [{ functionCall: { name: "weather", args: { city: "SF" } } }] },
-        { role: "user", parts: [{ functionResponse: { name: "weather", response: { temp: 60 } } }] },
-      ])
-    );
-
-    assert.deepEqual((call!.parts[0] as { result?: { output: unknown } }).result?.output, { temp: 60 });
-    assert.equal(response?.parts.length, 0);
+    assert.equal(r2?.parts[0].kind === "tool-result" && r2.parts[0].name, "b");
+    assert.equal(r1?.parts[0].kind === "tool-result" && r1.parts[0].name, "a");
+    assert.equal(orphan?.parts[0].kind === "tool-result" && orphan.parts[0].call, undefined);
   });
 });

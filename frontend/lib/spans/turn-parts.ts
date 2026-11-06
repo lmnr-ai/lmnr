@@ -12,7 +12,6 @@ interface ToolCallPart {
   id?: string;
   name: string;
   args: unknown;
-  result?: ToolResultPart;
 }
 
 export interface ToolResultPart {
@@ -246,27 +245,17 @@ const matchCalls = (messages: Messages): Map<ToolResultPart, ToolCallPart> => {
   return matches;
 };
 
-const mapParts = (messages: Messages, fn: (part: TurnPart) => TurnPart[]): Messages =>
-  messages.map((message) => message && { ...message, parts: message.parts.flatMap(fn) });
-
-/** Gives each result its call's name and arguments, so a result row can say what it answers. */
+/** Gives each result its call's name and arguments, so a result can say what it answers. */
 export const linkToolResults = (messages: Messages): Messages => {
   const calls = matchCalls(messages);
-  return mapParts(messages, (part) => {
-    const call = part.kind === "tool-result" && calls.get(part);
-    return call && part.kind === "tool-result"
-      ? [{ ...part, name: part.name ?? call.name, call: { args: call.args } }]
-      : [part];
-  });
-};
-
-/** Moves each result under the call that produced it. Unmatched results stay where they are. */
-export const pairToolResults = (messages: Messages): Messages => {
-  const matches = matchCalls(messages);
-  const results = new Map([...matches].map(([result, call]) => [call, result]));
-  return mapParts(messages, (part) => {
-    if (part.kind === "tool-result") return matches.has(part) ? [] : [part];
-    const result = part.kind === "tool-call" && results.get(part);
-    return result && part.kind === "tool-call" ? [{ ...part, result }] : [part];
-  });
+  return messages.map(
+    (message) =>
+      message && {
+        ...message,
+        parts: message.parts.map((part) => {
+          const call = part.kind === "tool-result" && calls.get(part);
+          return call ? { ...part, name: part.name ?? call.name, call: { args: call.args } } : part;
+        }),
+      }
+  );
 };

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   createContext,
   type PropsWithChildren,
@@ -25,7 +25,7 @@ interface HeightClampProps {
   anchorRef: RefObject<HTMLElement | null>;
 }
 
-/** Clips long content to a preview, with a "Show more" row in the same style as the tool rows' disclosures. */
+/** Clips long content to a preview, with a "Show more" / "Show less" row pinned to the view's bottom while expanded. */
 const HeightClamp = ({
   maxHeight,
   defaultExpanded = false,
@@ -85,9 +85,12 @@ const HeightClamp = ({
           type="button"
           onClick={toggle}
           aria-expanded={expanded}
-          className="flex w-full items-center gap-1.5 px-2.5 py-1.5 border-t text-xs text-muted-foreground hover:text-foreground"
+          // Pinned to the viewport's bottom while the expanded card runs past it. The card body's tint is translucent,
+          // so it is layered over bg-surface to stay opaque.
+          className="sticky bottom-0 z-10 flex w-full items-center gap-1.5 px-2.5 py-1.5 border-t text-xs text-muted-foreground hover:text-foreground bg-surface bg-linear-to-b from-emphasis-1 to-emphasis-1 dark:from-transparent dark:to-transparent"
         >
-          {expanded ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
+          {/* Up / down like the band's "Show less": the arrow points where the card's end moves. */}
+          {expanded ? <ChevronUp className="size-3.5 shrink-0" /> : <ChevronDown className="size-3.5 shrink-0" />}
           {expanded ? "Show less" : "Show more"}
         </button>
       )}

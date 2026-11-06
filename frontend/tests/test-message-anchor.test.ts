@@ -35,20 +35,28 @@ describe("message anchors", () => {
 
   it("addresses rows by their index in the payload, across the turn split", () => {
     const rows = buildRows(turn, true, RAW_OFF);
-    // The two results share one card, which keeps the first one's anchor.
-    assert.deepEqual(anchorsOf(rows), ["#input-0", "#input-1", "#input-2", "#input-3", "#output-0"]);
+    assert.deepEqual(anchorsOf(rows), ["#input-0", "#input-1", "#input-2", "#input-3", "#input-4", "#output-0"]);
   });
 
   it("folds only messages before the new input", () => {
     assert.equal(isFoldedAnchor(turn, { section: "input", index: 2 }), true);
     assert.equal(isFoldedAnchor(turn, { section: "input", index: 3 }), false);
     assert.equal(isFoldedAnchor(turn, { section: "output", index: 0 }), false);
+    // A first call has nothing to fold.
+    const first = buildSpanTurn(
+      [
+        { role: "system", content: "sys" },
+        { role: "user", content: "hi" },
+      ],
+      output
+    );
+    assert.equal(isFoldedAnchor(first, { section: "input", index: 0 }), false);
   });
 
-  it("resolves a message inside a batched card to that card", () => {
+  it("resolves an anchor to the row showing that message", () => {
     const rows = buildRows(turn, false, RAW_OFF);
-    const batch = findAnchorRow(rows, { section: "input", index: 4 });
-    assert.equal(rows[batch].kind === "message" && anchorHash(rows[batch].anchor), "#input-3");
+    const result = findAnchorRow(rows, { section: "input", index: 4 });
+    assert.equal(rows[result].kind === "message" && anchorHash(rows[result].anchor), "#input-4");
     assert.equal(findAnchorRow(rows, { section: "output", index: 0 }), rows.length - 1);
     // Folded and not opened: nothing to scroll to.
     assert.equal(findAnchorRow(rows, { section: "input", index: 0 }), -1);

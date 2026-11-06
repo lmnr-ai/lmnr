@@ -60,6 +60,9 @@ export const useAnchoredVirtualizer = ({
     },
     // Rows move in the same tick as scrollTop corrections, so no frame paints old positions under a new scroll.
     directDomUpdates: true,
+    // `top`, not `transform`: sticky is resolved before transforms, so a translated row would push its pinned
+    // "Show less" past the viewport by the row's offset.
+    directDomUpdatesMode: "position",
   });
   // Set during render so it already covers the first rows' measurements.
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = linkedRow.holding ? NEVER_ADJUST : undefined;
