@@ -2,6 +2,7 @@
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef } from "react";
+import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
 import { buildSessionColumnDefs, customColumnsParam } from "@/components/traces/sessions-table/build-columns";
@@ -87,9 +88,13 @@ function SessionsTableContent() {
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
+  const { mutate } = useSWRConfig();
   const handleRefresh = useCallback(() => {
     refetchRef.current();
-  }, []);
+    // The chart's SWR key is unchanged by a refresh, so revalidate it explicitly.
+    const statsPrefix = `/api/projects/${projectId}/sessions/stats`;
+    void mutate((key) => typeof key === "string" && key.startsWith(statsPrefix));
+  }, [mutate, projectId]);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
