@@ -67,7 +67,8 @@ export const handlerWithAudit =
     let skipped = false;
 
     const scope = async () => {
-      const params: Params = await ctx.params;
+      // Routes without dynamic segments get no `ctx.params`.
+      const params: Params = (await ctx.params) ?? {};
       return {
         projectId: details.projectId ?? paramString(params.projectId),
         workspaceId: details.workspaceId ?? paramString(params.workspaceId),
