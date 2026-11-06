@@ -45,8 +45,8 @@ use crate::{
         metadata::TraceMetadataPatch,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeTrace, TraceChannel, channels_for_aggregation, send_agent_input_update,
-            send_span_updates, send_trace_updates,
+            RealtimeTrace, channels_for_aggregation, send_agent_input_update, send_span_updates,
+            send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -138,6 +138,9 @@ struct RawTraceIo {
     /// Stamped by the extraction façade; routes the agent_input event to the
     /// debugger channel.
     rollout_session_id: Option<String>,
+    /// Stamped by the extraction façade; routes the agent_input event to the
+    /// session channel.
+    session_id: Option<String>,
 }
 
 /// Metadata-only virtual spans split off before the regular pipeline: they
@@ -488,6 +491,7 @@ fn parse_raw_trace_io(span: &Span) -> Option<RawTraceIo> {
         input,
         output_hashes,
         rollout_session_id,
+        session_id: span.attributes.session_id(),
     })
 }
 
@@ -1169,44 +1173,18 @@ async fn dispatch_trace_realtime_updates(
         return;
     }
 
-    let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
-    let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
-    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
-
+    // One batch per (project, channel key) so each subscriber gets a single message.
+    let mut buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
     for agg in aggregations {
         for channel in channels_for_aggregation(agg, cache.as_ref()).await {
-            match channel {
-                TraceChannel::Project => {
-                    project_buckets
-                        .entry(agg.project_id)
-                        .or_default()
-                        .push(RealtimeTrace::from_aggregation(agg));
-                }
-                TraceChannel::Evaluation(evaluation_id) => {
-                    evaluation_buckets
-                        .entry((agg.project_id, evaluation_id))
-                        .or_default()
-                        .push(RealtimeTrace::from_aggregation(agg));
-                }
-                TraceChannel::RolloutDebugger(rollout_session_id) => {
-                    debugger_buckets
-                        .entry((agg.project_id, rollout_session_id))
-                        .or_default()
-                        .push(RealtimeTrace::from_aggregation(agg));
-                }
-            }
+            buckets
+                .entry((agg.project_id, channel.key()))
+                .or_default()
+                .push(RealtimeTrace::from_aggregation(agg));
         }
     }
 
-    for (project_id, traces_data) in project_buckets {
-        send_trace_updates(&project_id, "traces", &traces_data, pubsub).await;
-    }
-    for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
-        let key = format!("evaluation_{}", evaluation_id);
-        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
-    }
-    for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
-        let key = format!("rollout_session_{}", rollout_session_id);
+    for ((project_id, key), traces_data) in buckets {
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
     }
 }
@@ -1234,6 +1212,7 @@ async fn dispatch_input_realtime_updates(
                 entry.trace_id,
                 value,
                 entry.rollout_session_id.as_deref(),
+                entry.session_id.as_deref(),
             )
             .await;
         }
@@ -1332,6 +1311,7 @@ mod tests {
                 input: Some(json!("the task")),
                 output_hashes: None,
                 rollout_session_id: None,
+                session_id: None,
             }],
             &resolved,
             999,
@@ -1347,6 +1327,7 @@ mod tests {
                 input: Some(json!("the task")),
                 output_hashes: None,
                 rollout_session_id: None,
+                session_id: None,
             }],
             &HashMap::new(),
             999,
@@ -1369,6 +1350,7 @@ mod tests {
                     input: Some(input),
                     output_hashes: None,
                     rollout_session_id: None,
+                    session_id: None,
                 }],
                 &HashMap::new(),
                 0,
