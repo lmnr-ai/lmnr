@@ -7,6 +7,8 @@ import TraceTagsCell from "@/components/tags/trace-tags-cell";
 import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import SessionIdCell from "@/components/traces/traces-table/session-id-cell";
+import UserIdCell from "@/components/traces/user-preview/user-id-cell";
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
@@ -175,11 +177,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 100,
   },
   {
-    cell: (row) => (
-      <CopyTooltip value={row.getValue()} className="block truncate">
-        <Mono className="text-xs">{row.getValue()}</Mono>
-      </CopyTooltip>
-    ),
+    cell: (row) => <SessionIdCell sessionId={row.getValue()} traceId={row.row.original.id} />,
     header: "Session ID",
     accessorKey: "sessionId",
     id: "session_id",
@@ -187,11 +185,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "session_id" },
   },
   {
-    cell: (row) => (
-      <CopyTooltip value={row.getValue()} className="block truncate">
-        <Mono className="text-xs">{row.getValue()}</Mono>
-      </CopyTooltip>
-    ),
+    cell: (row) => <UserIdCell userId={row.getValue()} />,
     header: "User ID",
     accessorKey: "userId",
     id: "user_id",

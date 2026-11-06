@@ -5,11 +5,13 @@ import { type TraceSpanCounts } from "@/lib/actions/traces/span-counts";
 
 interface WorkedRowProps {
   counts?: TraceSpanCounts;
+  /** This turn's trace is already open in the panel; clicking closes it. */
+  open: boolean;
   onClick: () => void;
 }
 
-/** Turn summary: LLM/tool/error counts; opens the trace panel. */
-export default function WorkedRow({ counts, onClick }: WorkedRowProps) {
+/** Turn summary: LLM/tool/error counts; toggles the trace panel. */
+export default function WorkedRow({ counts, open, onClick }: WorkedRowProps) {
   return (
     <button
       type="button"
@@ -19,12 +21,12 @@ export default function WorkedRow({ counts, onClick }: WorkedRowProps) {
       {counts ? (
         <span className="flex items-center gap-2.5">
           <span className="flex items-center gap-1" title="LLM calls">
-            <MessageCircle className="size-3.5 text-[var(--purple-icon-background)]" />
+            <MessageCircle className="size-3.5 text-purple-icon-background" />
             {counts.llm}
           </span>
           {counts.tool > 0 && (
             <span className="flex items-center gap-1" title="Tool calls">
-              <Bolt className="size-3.5 text-[var(--yellow-icon-background)]" />
+              <Bolt className="size-3.5 text-yellow-icon-background" />
               {counts.tool}
             </span>
           )}
@@ -41,7 +43,7 @@ export default function WorkedRow({ counts, onClick }: WorkedRowProps) {
       <span className="-ml-1 flex items-center transition-all delay-100 duration-200 group-hover/turn:pl-1.5">
         {/* 0fr → 1fr grid column: the label slides open at its natural width, pushing the chevron right. */}
         <span className="grid grid-cols-[0fr] opacity-0 transition-all delay-100 duration-200 group-hover/turn:grid-cols-[1fr] group-hover/turn:opacity-100">
-          <span className="overflow-hidden pr-1">Open trace</span>
+          <span className="overflow-hidden pr-1">{open ? "Close trace" : "Open trace"}</span>
         </span>
         <ChevronRight className="size-3.5" />
       </span>

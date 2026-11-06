@@ -8,8 +8,8 @@ import { agentInputText } from "@/lib/traces/agent-input";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useChatViewStore } from "../store";
-import { useTurnDataStore } from "../turn-data";
+import { useTurnData } from "../turn-data";
+import { useOpenTrace } from "../use-open-trace";
 import CollapsibleReply from "./collapsible-reply";
 import UserBubble from "./user-bubble";
 import WorkedRow from "./worked-row";
@@ -25,11 +25,11 @@ function Turn({
   dividerBelow: boolean;
 }) {
   const output = useSessionViewStore((s) => s.agentOutputs[trace.id]);
-  const active = useChatViewStore((s) => s.openTraceId === trace.id);
-  const toggleTrace = useChatViewStore((s) => s.toggleTrace);
+  const { openTraceId, toggleTrace } = useOpenTrace();
+  const active = openTraceId === trace.id;
 
   const inputText = agentInputText(trace.agentInput);
-  const counts = useTurnDataStore((s) => s.counts[trace.id]);
+  const counts = useTurnData((s) => s.counts[trace.id]);
   const failed = trace.status === "error" || (counts?.errors ?? 0) > 0;
 
   return (
@@ -40,13 +40,13 @@ function Turn({
         // Extra room beside a time divider so its pill doesn't crowd the turn.
         dividerAbove ? "pt-9" : "pt-6",
         dividerBelow ? "pb-9" : "pb-6",
-        active && "bg-surface-300"
+        active && "bg-emphasis-0.5"
       )}
       data-trace-id={trace.id}
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-8">
         {inputText && <UserBubble text={inputText} time={trace.startTime} />}
-        <WorkedRow counts={counts} onClick={() => toggleTrace(trace.id)} />
+        <WorkedRow counts={counts} open={active} onClick={() => toggleTrace(trace.id)} />
         {output ? (
           <CollapsibleReply text={output} />
         ) : output === undefined ? (

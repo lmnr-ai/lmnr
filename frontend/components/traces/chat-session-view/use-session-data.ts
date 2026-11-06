@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useSessionViewStore } from "@/components/traces/session-view/store";
-import { type TraceRow } from "@/lib/traces/types";
+
+import { fetchSessionTraces } from "./session-api";
 
 /** Loads a session's trace rows into the shared session store; per-turn details load as turns scroll into view. */
 export function useSessionData(sessionId: string) {
@@ -23,23 +24,17 @@ export function useSessionData(sessionId: string) {
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
+      setIsTracesLoading(true);
+      setTracesError(undefined);
       try {
-        setIsTracesLoading(true);
-        setTracesError(undefined);
-        const res = await fetch(`/api/projects/${projectId}/sessions/${encodeURIComponent(sessionId)}/traces`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          const err = (await res.json().catch(() => ({}))) as { error?: string };
-          setTracesError(err.error || "Failed to load session traces");
-          return;
-        }
-        const body = (await res.json()) as { items: TraceRow[] };
-        setTraces(body.items);
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") setTracesError(e instanceof Error ? e.message : "Failed to load");
+        // The thread renders the error in place of the turns, so no toast.
+        const { traces, error } = await fetchSessionTraces(projectId, sessionId, controller.signal);
+        if (traces) setTraces(traces);
+        else setTracesError(error);
+      } catch {
+        // Aborted: a newer session or unmount superseded this load.
       } finally {
-        setIsTracesLoading(false);
+        if (!controller.signal.aborted) setIsTracesLoading(false);
       }
     })();
     return () => controller.abort();

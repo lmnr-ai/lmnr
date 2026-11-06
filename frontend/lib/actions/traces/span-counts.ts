@@ -8,16 +8,9 @@ export interface TraceSpanCounts {
   errors: number;
 }
 
-export interface ModelTokens {
-  model: string;
-  tokens: number;
-}
-
 const countsSchema = z.object({ traceIds: z.array(z.guid()).min(1).max(100) });
-// A session's full trace list; trace_id is the spans primary-key prefix, so this stays a keyed read.
-const modelsSchema = z.object({ traceIds: z.array(z.guid()).min(1).max(5000) });
 
-// Errors propagate to ancestors, so only errored spans whose parent isn't errored count.
+// Errors propagate to ancestors, so only errored spans with no errored child (the originating ones) count.
 const COUNTS_QUERY = `
   SELECT
     trace_id AS traceId,
@@ -28,16 +21,6 @@ const COUNTS_QUERY = `
   FROM spans
   WHERE trace_id IN ({traceIds: Array(UUID)})
   GROUP BY trace_id
-`;
-
-const MODELS_QUERY = `
-  SELECT model, sum(total_tokens) AS tokens
-  FROM spans
-  WHERE trace_id IN ({traceIds: Array(UUID)})
-    AND span_type = 'LLM'
-    AND model != ''
-  GROUP BY model
-  ORDER BY tokens DESC
 `;
 
 /** LLM / tool / originating-error counts per trace, without loading any span rows. */
@@ -68,21 +51,4 @@ export async function getTraceSpanCounts({
     };
   }
   return result;
-}
-
-/** Total tokens per model across a set of traces (a session). */
-export async function getModelTokens({
-  traceIds,
-  projectId,
-}: {
-  traceIds: string[];
-  projectId: string;
-}): Promise<ModelTokens[]> {
-  const parsed = modelsSchema.parse({ traceIds });
-  const rows = await executeQuery<{ model: string; tokens: number | string }>({
-    query: MODELS_QUERY,
-    parameters: { traceIds: parsed.traceIds },
-    projectId,
-  });
-  return rows.map((r) => ({ model: r.model, tokens: Number(r.tokens) }));
 }
