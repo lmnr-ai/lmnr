@@ -4,7 +4,7 @@ import { noAudit } from "@/lib/audit";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
 export const POST = noAudit(
-  "trace chat; data reads are audited where the agent's tools run",
+  "LLM generation over messages the client sends (playground); reads no stored data",
   apiHandler<{ projectId: string }>(async (req, ctx) => {
     const body = await req.json();
     const { projectId } = await ctx.params;
