@@ -20,18 +20,28 @@ interface SessionViewContentProps {
 export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
-  const { sessionTimelineEnabled, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
-    useSessionViewStore(
-      (s) => ({
-        sessionTimelineEnabled: s.sessionTimelineEnabled,
-        setTraces: s.setTraces,
-        setIsTracesLoading: s.setIsTracesLoading,
-        setTracesError: s.setTracesError,
-        setSession: s.setSession,
-        setProjectId: s.setProjectId,
-      }),
-      shallow
-    );
+  const {
+    sessionTimelineEnabled,
+    selectedSpan,
+    setSelectedSpan,
+    setTraces,
+    setIsTracesLoading,
+    setTracesError,
+    setSession,
+    setProjectId,
+  } = useSessionViewStore(
+    (s) => ({
+      sessionTimelineEnabled: s.sessionTimelineEnabled,
+      selectedSpan: s.selectedSpan,
+      setSelectedSpan: s.setSelectedSpan,
+      setTraces: s.setTraces,
+      setIsTracesLoading: s.setIsTracesLoading,
+      setTracesError: s.setTracesError,
+      setSession: s.setSession,
+      setProjectId: s.setProjectId,
+    }),
+    shallow
+  );
 
   // Push projectId into the store so store-owned async actions
   // (e.g. fetchTraceSpans) can issue requests without prop-drilling.
@@ -66,11 +76,18 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
         <SessionPanel
           searchSlot={<RegularSearchSlot />}
           timelineToggle={<RegularTimelineToggle />}
-          timelinePanel={sessionTimelineEnabled ? <SessionTimeline /> : undefined}
+          timelinePanel={
+            sessionTimelineEnabled ? (
+              <SessionTimeline
+                selectedSpan={selectedSpan}
+                onSelectSpan={(traceId, spanId) => setSelectedSpan({ traceId, spanId })}
+              />
+            ) : undefined
+          }
         />
       ),
     }),
-    [sessionTimelineEnabled]
+    [sessionTimelineEnabled, selectedSpan, setSelectedSpan]
   );
 
   return <FillWidthLayout panels={panels} />;

@@ -8,14 +8,21 @@ import { useWheelZoom, zoomKeepingCenter } from "@/components/traces/trace-view/
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useSessionViewStore } from "../store";
+import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
 import SessionTimelineControls from "./controls";
 import SessionTimelineGap from "./session-timeline-gap";
 import SessionTimelineSegment, { type HoverInfo } from "./session-timeline-segment";
 import { ROW_HEIGHT } from "./session-timeline-trace-bar";
 import { computeSessionTimelineSegments, GAP_WIDTH_PX } from "./utils";
 
-function SessionTimeline({ showCloseButton = true }: { showCloseButton?: boolean }) {
+interface SessionTimelineProps {
+  /** Owned by the host: the session view keeps it in its store, the chat session view in the URL. */
+  selectedSpan?: SessionViewSelectedSpan;
+  onSelectSpan: (traceId: string, spanId: string) => void;
+  showCloseButton?: boolean;
+}
+
+function SessionTimeline({ selectedSpan, onSelectSpan, showCloseButton = true }: SessionTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -25,8 +32,6 @@ function SessionTimeline({ showCloseButton = true }: { showCloseButton?: boolean
     traceSpansError,
     expandedTraceIds,
     isTracesLoading,
-    selectedSpan,
-    setSelectedSpan,
     toggleTraceExpanded,
     fetchTraceSpans,
     zoom,
@@ -40,8 +45,6 @@ function SessionTimeline({ showCloseButton = true }: { showCloseButton?: boolean
       traceSpansError: s.traceSpansError,
       expandedTraceIds: s.expandedTraceIds,
       isTracesLoading: s.isTracesLoading,
-      selectedSpan: s.selectedSpan,
-      setSelectedSpan: s.setSelectedSpan,
       toggleTraceExpanded: s.toggleTraceExpanded,
       fetchTraceSpans: s.fetchTraceSpans,
       zoom: s.sessionTimelineZoom,
@@ -119,11 +122,6 @@ function SessionTimeline({ showCloseButton = true }: { showCloseButton?: boolean
     [expandedTraceIds, traceSpans, traces, toggleTraceExpanded, fetchTraceSpans]
   );
 
-  const handleSpanBarClick = useCallback(
-    (traceId: string, spanId: string) => setSelectedSpan({ traceId, spanId }),
-    [setSelectedSpan]
-  );
-
   const handleMouseLeaveTimeline = useCallback(() => setHoverInfo(null), []);
 
   const handleZoom = useCallback(
@@ -190,7 +188,7 @@ function SessionTimeline({ showCloseButton = true }: { showCloseButton?: boolean
                 selectedSpan={selectedSpan}
                 contentHeight={contentHeight}
                 onTraceBarClick={handleTraceBarClick}
-                onSpanBarClick={handleSpanBarClick}
+                onSpanBarClick={onSelectSpan}
                 onHover={setHoverInfo}
               />
             </div>

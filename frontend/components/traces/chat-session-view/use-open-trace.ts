@@ -11,14 +11,12 @@ export function useOpenTrace() {
   const [{ traceId, spanId }] = useQueryStates(openTraceParams);
   const navigate = useTracePanelNavigate();
   const setTraceExpanded = useSessionViewStore((s) => s.setTraceExpanded);
-  const setSelectedSpan = useSessionViewStore((s) => s.setSelectedSpan);
 
   const closeTrace = useCallback(() => {
-    // Also collapse the trace's timeline segment and drop the timeline's span selection.
+    // Also collapse the trace's timeline segment.
     if (traceId) setTraceExpanded(traceId, false);
-    setSelectedSpan(undefined);
     navigate({ type: "close" });
-  }, [traceId, setTraceExpanded, setSelectedSpan, navigate]);
+  }, [traceId, setTraceExpanded, navigate]);
 
   const toggleTrace = useCallback(
     (id: string) => (id === traceId ? closeTrace() : navigate({ type: "open", traceId: id })),
