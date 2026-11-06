@@ -1,6 +1,6 @@
 import { getSessionBlocks, getSessionTraceRows } from "@/lib/actions/debugger-sessions";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
 type Params = { projectId: string; sessionId: string };
 
@@ -12,7 +12,7 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
 
 // `POST …/blocks` with body `{ traceIds }` → `{ traces }` — window fetch of full
 // rows. POST, not a query string, so a full id window can't overflow the URL.
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "per-step debugger replay traffic",
   apiHandler<Params>(async (req, ctx) => {
     const { projectId } = await ctx.params;

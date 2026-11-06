@@ -3,7 +3,7 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createSignal, deleteSignals, getSignals, GetSignalsSchema, setTemplateSignals } from "@/lib/actions/signals";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ projectId: string }>(async (request, ctx) => {
@@ -19,7 +19,7 @@ export const GET = apiHandler<{ projectId: string }>(async (request, ctx) => {
   return Response.json(result);
 });
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "signal", action: "create" },
   async (request, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -36,7 +36,7 @@ export const POST = withAudit<{ projectId: string }>(
 );
 
 // Creates and removes template signals by name.
-export const PUT = withAudit<{ projectId: string }>(
+export const PUT = handlerWithAudit<{ projectId: string }>(
   { resource: "signal", action: "update", noTarget: true },
   async (request, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -52,7 +52,7 @@ export const PUT = withAudit<{ projectId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "signal", action: "delete" },
   async (request, ctx, audit) => {
     const { projectId } = await ctx.params;

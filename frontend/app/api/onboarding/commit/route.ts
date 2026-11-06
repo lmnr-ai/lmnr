@@ -1,9 +1,9 @@
 import { prettifyError, ZodError } from "zod/v4";
 
 import { commitOnboarding } from "@/lib/actions/onboarding/commit";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "workspace", action: "update" },
   async (req: Request, _ctx: { params: Promise<{}> }, audit): Promise<Response> => {
     try {

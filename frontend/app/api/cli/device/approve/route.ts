@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod/v4";
 
 import { approveDeviceWithProject } from "@/lib/actions/cli-auth";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
 // Approves a pending device code and writes the chosen projectId into the
 // device code `metadata` first (ordering enforced inside approveDeviceWithProject).
@@ -15,7 +15,7 @@ const Body = z
   })
   .strict();
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "CLI sign-in approval; sign-ins are out of scope for v1",
   async (req: NextRequest): Promise<Response> => {
     try {

@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { test } from "node:test";
 
 // Every mutating route export must decide explicitly whether it is audited:
-// `export const POST = withAudit(...)` or `export const POST = noAudit("reason", ...)`.
+// `export const POST = handlerWithAudit(...)` or `export const POST = handlerNoAudit("reason", ...)`.
 const API_ROOT = join(__dirname, "../app/api");
 const MUTATING = /^export (?:async function|const) (POST|PUT|PATCH|DELETE)\b(.*)$/gm;
 
@@ -15,21 +15,21 @@ const routeFiles = (dir: string): string[] =>
     return name === "route.ts" ? [path] : [];
   });
 
-test("every mutating route export is wrapped in withAudit or noAudit", () => {
+test("every mutating route export is wrapped in handlerWithAudit or handlerNoAudit", () => {
   const unclassified: string[] = [];
   for (const file of routeFiles(API_ROOT)) {
     const source = readFileSync(file, "utf8");
     for (const [, method, rest] of source.matchAll(MUTATING)) {
       const key = `${relative(API_ROOT, file)} ${method}`;
-      if (/^\s*=\s*(withAudit|noAudit)(<[^(]*>)?\(/.test(rest)) continue;
+      if (/^\s*=\s*(handlerWithAudit|handlerNoAudit)(<[^(]*>)?\(/.test(rest)) continue;
       unclassified.push(key);
     }
   }
-  assert.deepEqual(unclassified, [], "wrap these exports in withAudit(...) or noAudit(reason, ...)");
+  assert.deepEqual(unclassified, [], "wrap these exports in handlerWithAudit(...) or handlerNoAudit(reason, ...)");
 });
 
 // Each audited export names what it acted on; nothing is inferred from the path, body or response.
-const AUDITED = /^export const (\w+)\s*=\s*withAudit(?:<[^(]*>)?\(\s*(\{[^}]*\})/gm;
+const AUDITED = /^export const (\w+)\s*=\s*handlerWithAudit(?:<[^(]*>)?\(\s*(\{[^}]*\})/gm;
 
 test("every audited handler names its target", () => {
   const missing: string[] = [];

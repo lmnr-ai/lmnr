@@ -1,8 +1,8 @@
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
-export const DELETE = noAudit(
+export const DELETE = handlerNoAudit(
   "trace tagging is not security-relevant",
   apiHandler<{ projectId: string; traceId: string; tagName: string }>(async (_req, ctx) => {
     const { projectId, traceId, tagName } = await ctx.params;

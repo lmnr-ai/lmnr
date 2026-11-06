@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 
 import { createOrUpdateTagClass } from "@/lib/actions/tags";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 
-export const POST = withAudit<{ projectId: string; tagName: string }>(
+export const POST = handlerWithAudit<{ projectId: string; tagName: string }>(
   { resource: "tag_class", action: "create" },
   async (req, ctx, audit) => {
     const params = await ctx.params;
@@ -14,24 +14,18 @@ export const POST = withAudit<{ projectId: string; tagName: string }>(
     await audit.target(tagName, { name: tagName });
     const body = await req.json();
 
-    // An existing class only gets a new color.
-    const [existing] = await db
-      .select({ name: tagClasses.name })
-      .from(tagClasses)
-      .where(and(eq(tagClasses.name, tagName), eq(tagClasses.projectId, projectId)))
-      .limit(1);
-    if (existing) audit.set({ action: "update" });
-
-    const result = await createOrUpdateTagClass({
+    const { created, ...tagClass } = await createOrUpdateTagClass({
       projectId,
       name: tagName,
       color: body.color,
     });
-    return Response.json(result, { status: 200 });
+    // An existing class only gets a new color.
+    if (!created) audit.set({ action: "update" });
+    return Response.json(tagClass, { status: 200 });
   }
 );
 
-export const DELETE = withAudit<{ projectId: string; tagName: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string; tagName: string }>(
   { resource: "tag_class", action: "delete" },
   async (_req, ctx, audit) => {
     const params = await ctx.params;

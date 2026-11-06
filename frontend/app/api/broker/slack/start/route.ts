@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, z, ZodError } from "zod/v4";
 
 import { authenticateInstance, buildSlackAuthorizeUrl, getBearerToken, mintState } from "@/lib/actions/slack/broker";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
 const StartRequestSchema = z.object({
   workspaceId: z.guid(),
@@ -12,7 +12,7 @@ const StartRequestSchema = z.object({
 // Server-to-server: the calling instance authenticates with its issued key and
 // receives a Slack authorize URL carrying a signed state. The instance then
 // redirects the browser to that URL — the instance key never enters a browser.
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "Laminar Cloud Slack broker for self-hosted instances; not a workspace action",
   async (req: NextRequest): Promise<Response> => {
     try {

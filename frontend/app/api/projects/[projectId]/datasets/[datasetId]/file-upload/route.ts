@@ -1,14 +1,14 @@
 import { type NextRequest } from "next/server";
 import Papa from "papaparse";
 
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 // 25MB file size limit
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "datapoint", action: "create" },
   async (
     req: NextRequest,

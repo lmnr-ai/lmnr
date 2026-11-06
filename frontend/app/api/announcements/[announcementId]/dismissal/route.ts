@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { dismissAnnouncement, isUnknownAnnouncement } from "@/lib/announcements/server";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -13,7 +13,7 @@ const ParamsSchema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/),
 });
 
-export const PUT = noAudit(
+export const PUT = handlerNoAudit(
   "per-user UI state",
   async (_request: Request, { params }: { params: Promise<{ announcementId: string }> }) => {
     try {

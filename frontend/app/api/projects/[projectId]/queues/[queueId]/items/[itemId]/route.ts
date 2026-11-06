@@ -1,6 +1,6 @@
 import { removeQueueItem, RemoveQueueItemRequestSchema, updateQueueItemEdit } from "@/lib/actions/queue";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
 type Params = { projectId: string; queueId: string; itemId: string };
 
@@ -9,7 +9,7 @@ type Params = { projectId: string; queueId: string; itemId: string };
  * target as a JSON string (UI-only — `payload` is immutable post-insert).
  * Pass `edit: ""` to clear an edit; omit it to leave the column untouched.
  */
-export const PATCH = noAudit(
+export const PATCH = handlerNoAudit(
   "per-item labeling traffic",
   apiHandler<Params>(async (req, ctx) => {
     const { projectId, queueId, itemId } = await ctx.params;
@@ -25,7 +25,7 @@ export const PATCH = noAudit(
   })
 );
 
-export const DELETE = noAudit(
+export const DELETE = handlerNoAudit(
   "per-item labeling traffic",
   apiHandler<Params>(async (req, ctx) => {
     const { projectId, queueId, itemId } = await ctx.params;

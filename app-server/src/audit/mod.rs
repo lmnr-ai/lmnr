@@ -18,6 +18,7 @@ pub use target::{metadata, target, target_named, target_parent};
 
 use std::sync::Arc;
 
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -253,11 +254,26 @@ pub async fn emit(
     if !is_feature_enabled(Feature::AuditLog) {
         return Ok(());
     }
-    let event = enrich(db, cache, input).await?;
+    // Names the event in the error, so a lost one can be traced. Metadata is left out: it can
+    // hold query text.
+    let event_desc = format!(
+        "audit event {:?} {:?}.{:?} by {:?} (project {:?}, workspace {:?}, resource {:?})",
+        input.source,
+        input.resource_type,
+        input.action,
+        input.actor,
+        input.project_id,
+        input.workspace_id,
+        input.resource_id,
+    );
+    let event = enrich(db, cache, input)
+        .await
+        .with_context(|| event_desc.clone())?;
     let payload = serde_json::to_vec(&event)?;
     queue
         .publish(&payload, AUDIT_EXCHANGE, AUDIT_ROUTING_KEY, None)
         .await
+        .with_context(|| event_desc)
 }
 
 /// Fire-and-forget [`emit`] for read events, which must not delay the response.

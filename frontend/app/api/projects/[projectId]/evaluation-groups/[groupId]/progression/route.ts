@@ -1,9 +1,9 @@
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { getEvaluationTimeProgression } from "@/lib/clickhouse/evaluation-scores";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "read-only progression query sent as POST",
   apiHandler<{ projectId: string; groupId: string }>(async (req, ctx) => {
     const { projectId, groupId } = await ctx.params;

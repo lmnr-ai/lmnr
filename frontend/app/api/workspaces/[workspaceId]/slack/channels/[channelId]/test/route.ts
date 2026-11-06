@@ -1,8 +1,8 @@
 import { sendTestSlackNotification } from "@/lib/actions/slack";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "sends a test message; changes nothing",
   apiHandler<{ workspaceId: string; channelId: string }>(async (request, ctx) => {
     const { workspaceId, channelId } = await ctx.params;

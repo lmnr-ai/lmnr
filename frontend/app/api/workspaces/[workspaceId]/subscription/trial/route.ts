@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import { setTrialContinues, startStarterTrial, trialConvertsToPaid } from "@/lib/actions/checkout/trial";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { workspaceId: string };
 
@@ -11,7 +11,7 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json({ convertsToPaid: await trialConvertsToPaid(workspaceId) });
 });
 
-export const POST = withAudit<Params>(
+export const POST = handlerWithAudit<Params>(
   { resource: "subscription", action: "create", noTarget: true },
   async (_req, ctx) => {
     const { workspaceId } = await ctx.params;
@@ -21,7 +21,7 @@ export const POST = withAudit<Params>(
 
 const PatchSchema = z.object({ continues: z.boolean() });
 
-export const PATCH = withAudit<Params>(
+export const PATCH = handlerWithAudit<Params>(
   { resource: "subscription", action: "update", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;

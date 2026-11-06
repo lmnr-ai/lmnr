@@ -9,7 +9,7 @@ import {
   GetDebuggerSessionsSchema,
 } from "@/lib/actions/debugger-sessions";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (request: NextRequest, ctx) => {
   const { projectId } = await ctx.params;
@@ -24,7 +24,7 @@ export const GET = apiHandler<{ projectId: string }>(async (request: NextRequest
   return Response.json(result);
 });
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "debugger_session", action: "create" },
   async (request: NextRequest, ctx, audit) => {
     const { projectId } = await ctx.params;

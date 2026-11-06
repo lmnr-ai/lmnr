@@ -1,11 +1,11 @@
 import { prettifyError, ZodError } from "zod/v4";
 
 import { startOnboarding } from "@/lib/actions/onboarding/commit";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 // A Route Handler rather than a Server Action: setting a cookie in a Server Action re-renders the
 // onboarding page, which can remount the wizard mid-step.
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "workspace", action: "create" },
   async (req: Request, _ctx: { params: Promise<{}> }, audit): Promise<Response> => {
     try {

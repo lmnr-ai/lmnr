@@ -1,8 +1,8 @@
 import { deleteProject, updateProject, UpdateProjectSchema } from "@/lib/actions/project";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getProjectScope } from "@/lib/audit/labels";
 
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "project", action: "update" },
   async (req: Request, props: { params: Promise<{ projectId: string }> }, audit): Promise<Response> => {
     const params = await props.params;
@@ -38,7 +38,7 @@ export const POST = withAudit(
   }
 );
 
-export const DELETE = withAudit(
+export const DELETE = handlerWithAudit(
   { resource: "project", action: "delete" },
   async (_req: Request, props: { params: Promise<{ projectId: string }> }, audit): Promise<Response> => {
     const params = await props.params;

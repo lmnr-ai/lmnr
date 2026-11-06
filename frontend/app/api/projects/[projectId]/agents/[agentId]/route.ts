@@ -1,8 +1,8 @@
 import { renameAgent } from "@/lib/actions/agents";
 import { NotFoundError } from "@/lib/api/errors";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const PATCH = withAudit<{ projectId: string; agentId: string }>(
+export const PATCH = handlerWithAudit<{ projectId: string; agentId: string }>(
   { resource: "agent", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, agentId } = await ctx.params;

@@ -1,9 +1,9 @@
 import { copyCustomModelCosts } from "@/lib/actions/custom-model-costs";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "custom_model_cost", action: "create" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

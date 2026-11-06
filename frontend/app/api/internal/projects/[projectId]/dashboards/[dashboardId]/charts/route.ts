@@ -5,14 +5,14 @@ import { ChartInputSchema, checkCharts, queryRunner } from "@/lib/actions/dashbo
 import { upsertCharts } from "@/lib/actions/dashboard/upsert-charts";
 import { SqlActorSchema } from "@/lib/actions/sql/actor";
 import { internalApiHandler } from "@/lib/api/internal";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
 type Params = { projectId: string; dashboardId: string };
 
 // `actor` is trusted here: only app-server can reach this route, and it resolved the caller.
 const UpsertChartsBodySchema = z.object({ charts: z.array(ChartInputSchema), actor: SqlActorSchema });
 
-export const PUT = noAudit(
+export const PUT = handlerNoAudit(
   "CLI writes forwarded by app-server, which audits the originating /v1/cli call",
   internalApiHandler<Params>(async (request, { params: { projectId, dashboardId } }) => {
     const { charts, actor } = UpsertChartsBodySchema.parse(await request.json());
@@ -21,7 +21,7 @@ export const PUT = noAudit(
   })
 );
 
-export const DELETE = noAudit(
+export const DELETE = handlerNoAudit(
   "CLI writes forwarded by app-server, which audits the originating /v1/cli call",
   internalApiHandler<Params>(async (request, { params }) => {
     const { chartIds } = await request.json();

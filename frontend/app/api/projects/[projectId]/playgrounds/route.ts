@@ -3,7 +3,7 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createPlayground, deletePlaygrounds, getPlaygrounds, GetPlaygroundsSchema } from "@/lib/actions/playgrounds";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
@@ -17,7 +17,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getPlaygrounds({ ...parseResult.data, projectId }));
 });
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "playground", action: "create" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -28,7 +28,7 @@ export const POST = withAudit<{ projectId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "playground", action: "delete" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

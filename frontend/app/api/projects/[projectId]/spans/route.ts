@@ -2,7 +2,7 @@ import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteSpans, getSpans, GetSpansSchema } from "@/lib/actions/spans";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
@@ -24,7 +24,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getSpans({ ...parseResult.data, projectId }));
 });
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "trace", action: "delete" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

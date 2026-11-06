@@ -2,7 +2,7 @@ import { toNextJsHandler } from "better-auth/next-js";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { deviceCodes } from "@/lib/db/migrations/schema";
@@ -26,9 +26,9 @@ const remapLegacyCallback = (req: NextRequest): Request => {
 
 export const GET = (req: NextRequest) => handlers.GET(remapLegacyCallback(req));
 // SCIM provisioning (/api/auth/scim/v2/*) replaces and patches Users and Groups.
-export const PUT = noAudit("Better Auth endpoints; sign-ins are out of scope for v1", handlers.PUT);
-export const PATCH = noAudit("Better Auth endpoints; sign-ins are out of scope for v1", handlers.PATCH);
-export const DELETE = noAudit("Better Auth endpoints; sign-ins are out of scope for v1", handlers.DELETE);
+export const PUT = handlerNoAudit("Better Auth endpoints; sign-ins are out of scope for v1", handlers.PUT);
+export const PATCH = handlerNoAudit("Better Auth endpoints; sign-ins are out of scope for v1", handlers.PATCH);
+export const DELETE = handlerNoAudit("Better Auth endpoints; sign-ins are out of scope for v1", handlers.DELETE);
 
 // CLI device-flow metadata delivery. BetterAuth's /device/token response is fixed
 // to {access_token, scope} and DELETES the device row before responding, and a
@@ -36,7 +36,7 @@ export const DELETE = noAudit("Better Auth endpoints; sign-ins are out of scope 
 // `metadata` here — before BetterAuth deletes it — and attach it to the response
 // as the x-lmnr-metadata header for the polling CLI. `scope` stays the real OAuth
 // scope; no projectId smuggling.
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "Better Auth endpoints; sign-ins are out of scope for v1",
   async (req: NextRequest): Promise<Response> => {
     if (!req.nextUrl.pathname.endsWith("/device/token")) {

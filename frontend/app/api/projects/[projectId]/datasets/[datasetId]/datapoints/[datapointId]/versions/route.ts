@@ -1,6 +1,6 @@
 import { createDatapointVersionFromExisting, listDatapointVersions } from "@/lib/actions/datapoints/versions";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 /**
  * GET - List all versions of a specific datapoint
@@ -21,7 +21,7 @@ export const GET = apiHandler<{ projectId: string; datasetId: string; datapointI
  * POST - Create a new version from an existing version
  * Body should contain: { versionCreatedAt: string }
  */
-export const POST = withAudit<{ projectId: string; datasetId: string; datapointId: string }>(
+export const POST = handlerWithAudit<{ projectId: string; datasetId: string; datapointId: string }>(
   { resource: "datapoint", action: "update" },
   async (req, ctx, audit) => {
     const params = await ctx.params;

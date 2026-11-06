@@ -1,7 +1,7 @@
 import { ExportSpanSchema, exportSpanToDataset } from "@/lib/actions/span";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ projectId: string; spanId: string }>(
+export const POST = handlerWithAudit<{ projectId: string; spanId: string }>(
   { resource: "datapoint", action: "create" },
   async (req, ctx, audit) => {
     const { projectId, spanId } = await ctx.params;

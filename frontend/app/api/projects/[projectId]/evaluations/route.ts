@@ -3,7 +3,7 @@ import { prettifyError } from "zod/v4";
 
 import { deleteEvaluations, getEvaluations, GetEvaluationsSchema } from "@/lib/actions/evaluations";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ctx) => {
   const { projectId } = await ctx.params;
@@ -31,7 +31,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ct
   return Response.json(result);
 });
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "evaluation", action: "delete" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

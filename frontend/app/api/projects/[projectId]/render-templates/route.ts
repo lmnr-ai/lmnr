@@ -1,6 +1,6 @@
 import { createRenderTemplate, getRenderTemplates } from "@/lib/actions/render-template";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
@@ -12,7 +12,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(templates);
 });
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "render_template", action: "create" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

@@ -1,7 +1,7 @@
 import { inviteUserToWorkspace } from "@/lib/actions/workspace/invite";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "member", action: "invite" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

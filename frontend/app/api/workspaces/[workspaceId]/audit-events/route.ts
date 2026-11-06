@@ -3,7 +3,7 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { getAuditEvents } from "@/lib/actions/audit-log";
 import { auditLogAccessError, auditQueryFromSearchParams, getAuditLogAccess } from "@/lib/actions/audit-log/access";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { cache } from "@/lib/cache";
 
@@ -11,7 +11,7 @@ import { cache } from "@/lib/cache";
 // paging and filter changes would otherwise flood the log with its own reads.
 const VIEW_LOGGED_TTL_SECONDS = 60 * 60;
 
-export const GET = withAudit(
+export const GET = handlerWithAudit(
   { resource: "audit_log", action: "view", read: true },
   async (req: NextRequest, props: { params: Promise<{ workspaceId: string }> }, audit): Promise<Response> => {
     const { workspaceId } = await props.params;

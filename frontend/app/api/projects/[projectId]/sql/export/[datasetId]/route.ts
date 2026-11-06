@@ -2,12 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 
 // Adds SQL editor result rows to a dataset; the query that produced them was logged when it ran.
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "datapoint", action: "create" },
   async (
     req: NextRequest,

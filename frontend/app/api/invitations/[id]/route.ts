@@ -2,14 +2,14 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { workspaceInvitations } from "@/lib/db/migrations/schema";
 
 // Revoke a pending invitation. Accept lives on the /invitations page (email-gated);
 // this route is revoke-only and authorized as an admin action — possessing an
 // invitation id is NOT consent to act on it.
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "invitation", action: "delete" },
   async (req: NextRequest, props: { params: Promise<{ id: string }> }, audit) => {
     const { id } = await props.params;

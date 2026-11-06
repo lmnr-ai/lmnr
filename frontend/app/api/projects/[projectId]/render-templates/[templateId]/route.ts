@@ -1,6 +1,6 @@
 import { deleteRenderTemplate, getRenderTemplate, updateRenderTemplate } from "@/lib/actions/render-template";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; templateId: string }>(async (_req, ctx) => {
   const { projectId, templateId } = await ctx.params;
@@ -10,7 +10,7 @@ export const GET = apiHandler<{ projectId: string; templateId: string }>(async (
   return Response.json(template);
 });
 
-export const PUT = withAudit<{ projectId: string; templateId: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; templateId: string }>(
   { resource: "render_template", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, templateId } = await ctx.params;
@@ -29,7 +29,7 @@ export const PUT = withAudit<{ projectId: string; templateId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string; templateId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string; templateId: string }>(
   { resource: "render_template", action: "delete" },
   async (_req, ctx, audit) => {
     const { projectId, templateId } = await ctx.params;

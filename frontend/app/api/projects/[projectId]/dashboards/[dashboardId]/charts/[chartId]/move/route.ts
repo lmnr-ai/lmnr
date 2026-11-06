@@ -1,8 +1,8 @@
 import { moveChart } from "@/lib/actions/dashboard";
 import { NotFoundError } from "@/lib/api/errors";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ projectId: string; dashboardId: string; chartId: string }>(
+export const POST = handlerWithAudit<{ projectId: string; dashboardId: string; chartId: string }>(
   { resource: "chart", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, dashboardId, chartId: id } = await ctx.params;

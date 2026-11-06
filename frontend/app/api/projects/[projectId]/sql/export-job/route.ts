@@ -1,8 +1,8 @@
 import { createExportJob } from "@/lib/actions/sql/export-job";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 // The export job runs the validated SQL outside app-server, so this is the last point that sees it.
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "sql", action: "export", noTarget: true },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

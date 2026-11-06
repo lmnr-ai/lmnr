@@ -1,9 +1,9 @@
 import { deleteView, updateView } from "@/lib/actions/view";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { projectId: string; viewId: string };
 
-export const PATCH = withAudit<Params>({ resource: "view", action: "update" }, async (req, ctx, audit) => {
+export const PATCH = handlerWithAudit<Params>({ resource: "view", action: "update" }, async (req, ctx, audit) => {
   const { projectId, viewId } = await ctx.params;
   const body = await req.json();
 
@@ -18,7 +18,7 @@ export const PATCH = withAudit<Params>({ resource: "view", action: "update" }, a
   return Response.json(result);
 });
 
-export const DELETE = withAudit<Params>({ resource: "view", action: "delete" }, async (_req, ctx, audit) => {
+export const DELETE = handlerWithAudit<Params>({ resource: "view", action: "delete" }, async (_req, ctx, audit) => {
   const { projectId, viewId } = await ctx.params;
   await audit.target(viewId);
   await deleteView({ projectId, viewId });

@@ -2,12 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { json2csv } from "json-2-csv";
 
 import { getAllDatapointsForDataset } from "@/lib/actions/datapoints";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 import { DownloadFormat } from "@/lib/types";
 
-export const GET = withAudit(
+export const GET = handlerWithAudit(
   { resource: "dataset", action: "export", read: true },
   async (
     req: Request,

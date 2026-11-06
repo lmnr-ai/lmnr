@@ -1,8 +1,8 @@
 import { createDashboard } from "@/lib/actions/dashboard/dashboards";
 import { internalApiHandler } from "@/lib/api/internal";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "CLI writes forwarded by app-server, which audits the originating /v1/cli call",
   internalApiHandler<{ projectId: string }>(async (request, { params }) => {
     const { name } = await request.json();
