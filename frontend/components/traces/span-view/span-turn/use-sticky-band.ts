@@ -43,6 +43,21 @@ const bandAt = (
   return { index, summary: header.summary };
 };
 
+// The band's `pt-2` above its copy of the context card.
+const BAND_PADDING = 8;
+
+/** How much of the list's top the band covers over row `index`: the opened context card, for a context message. */
+export const bandInset = (
+  rows: ConversationRow[],
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+  index: number
+) => {
+  const row = rows[index];
+  if (row?.kind !== "message" || !isContextRow(row)) return 0;
+  const context = rows.findIndex((r) => r.kind === "context");
+  return (virtualizer.measurementsCache[context]?.size ?? 0) + BAND_PADDING;
+};
+
 const sameBand = (a?: Band, b?: Band) => a?.index === b?.index && a?.summary === b?.summary;
 
 const sameItem = (a?: ActiveCollapsible, b?: ActiveCollapsible) => a?.element === b?.element && a?.entry === b?.entry;

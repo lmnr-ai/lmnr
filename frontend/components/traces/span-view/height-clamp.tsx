@@ -13,9 +13,6 @@ import {
 import { useCollapsible } from "@/components/traces/span-view/collapsible";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 
-// Content only this much taller than the clamp shows in full: "show more" for two lines isn't worth a click.
-const SLACK = 1.3;
-
 const ExpandClamp = createContext<() => void>(() => {});
 
 /** Lets a disclosure inside clamped content expand the clamp as it opens, so the opened part is never clipped. */
@@ -25,7 +22,7 @@ interface HeightClampProps {
   maxHeight: number;
   defaultExpanded?: boolean;
   /** What the clamp stands for, e.g. its whole card: named by the sticky band, and scrolled to on collapse. */
-  anchorRef?: RefObject<HTMLElement | null>;
+  anchorRef: RefObject<HTMLElement | null>;
 }
 
 /** Clips long content to a preview, with a "Show more" row in the same style as the tool rows' disclosures. */
@@ -35,20 +32,20 @@ const HeightClamp = ({
   anchorRef,
   children,
 }: PropsWithChildren<HeightClampProps>) => {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const anchor = anchorRef ?? rootRef;
   const contentRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [open, setOpen] = useState(defaultExpanded);
   // Clipped content can't show its search matches.
   const searching = !!useSpanSearchState()?.searchTerm;
   const expanded = open || searching;
-  const clamped = isOverflowing && !expanded;
+  // Clipped whether or not it overflows: content can grow after mount (editors render late), and a row that grew past
+  // the clamp before re-clipping would shift everything below it under the virtualizer.
+  const clamped = !expanded;
 
   // The content's own height, so it is re-checked when the content changes size even while clipped.
   const checkOverflow = useCallback(() => {
     const el = contentRef.current;
-    if (el) setIsOverflowing(el.offsetHeight > maxHeight * SLACK);
+    if (el) setIsOverflowing(el.offsetHeight > maxHeight);
   }, [maxHeight]);
 
   // Layout effect: the toggle adds height, and it must land before paint. Added a frame later, a card scrolled in
@@ -65,21 +62,21 @@ const HeightClamp = ({
   const collapse = useCallback(() => setOpen(false), []);
   const expand = useCallback(() => setOpen(true), []);
   // The sticky band folds it while "Show less" is out of view.
-  useCollapsible(anchor, open && isOverflowing && !searching, undefined, "Show less", collapse);
+  useCollapsible(anchorRef, open && isOverflowing && !searching, undefined, "Show less", collapse);
 
   const toggle = () => {
     setOpen(!expanded);
     // Collapsing from deep inside long content would leave the view past its end.
-    if (expanded) requestAnimationFrame(() => anchor.current?.scrollIntoView({ block: "nearest" }));
+    if (expanded) requestAnimationFrame(() => anchorRef.current?.scrollIntoView({ block: "nearest" }));
   };
 
   return (
-    <div ref={rootRef} className="scroll-mt-16">
+    <div>
       <div className="relative overflow-hidden" style={clamped ? { maxHeight } : undefined}>
         <div ref={contentRef}>
           <ExpandClamp value={expand}>{children}</ExpandClamp>
         </div>
-        {clamped && (
+        {clamped && isOverflowing && (
           <div className="absolute inset-x-0 bottom-0 h-10 pointer-events-none bg-linear-to-b from-surface/0 to-surface" />
         )}
       </div>

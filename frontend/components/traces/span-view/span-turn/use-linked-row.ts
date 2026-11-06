@@ -8,15 +8,17 @@ const SETTLE_MS = 2000;
 const USER_INPUT = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
 
 /**
- * Lands the list on the linked message: starts at its estimated offset, then puts it back at the top after every
- * measurement (`onChange` runs before paint) until SETTLE_MS pass or the user does anything. While `holding`, the
- * virtualizer's own size corrections must be off: they read a scroll offset that lags the jump by a frame.
+ * Lands the list on the linked message: starts at its estimated offset, then puts it back at the top (below `inset`,
+ * whatever pins over the top there) after every measurement (`onChange` runs before paint) until SETTLE_MS pass or the
+ * user does anything. While `holding`, the virtualizer's own size corrections must be off: they read a scroll offset
+ * that lags the jump by a frame.
  */
 export const useLinkedRow = (
   scrollRef: RefObject<HTMLDivElement | null>,
   rows: ConversationRow[],
   linked: MessageAnchor | undefined,
-  estimateSize: (index: number) => number
+  estimateSize: (index: number) => number,
+  inset: (virtualizer: Virtualizer<HTMLDivElement, Element>, index: number) => number
 ) => {
   // Resolved once: copying a link later must not move the list.
   const [index] = useState(() => (linked ? findAnchorRow(rows, linked) : -1));
@@ -36,11 +38,12 @@ export const useLinkedRow = (
 
   const onChange = useCallback(
     (virtualizer: Virtualizer<HTMLDivElement, Element>) => {
-      const target = holding ? virtualizer.getOffsetForIndex(index, "start")?.[0] : undefined;
+      const start = holding ? virtualizer.getOffsetForIndex(index, "start")?.[0] : undefined;
+      const target = start === undefined ? undefined : Math.max(0, start - inset(virtualizer, index));
       const el = virtualizer.scrollElement;
       if (target !== undefined && el && Math.abs(el.scrollTop - target) > 1) virtualizer.scrollToOffset(target);
     },
-    [holding, index]
+    [holding, index, inset]
   );
 
   const initialOffset = () =>

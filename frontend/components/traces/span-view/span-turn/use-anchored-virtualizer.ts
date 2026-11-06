@@ -1,11 +1,15 @@
-import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
+import { elementScroll, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
 import { type RefObject, useCallback, useRef } from "react";
 
 import { type ConversationRow, type MessageAnchor } from "./build-rows";
 import { useLinkedRow } from "./use-linked-row";
 import { usePremeasureAbove } from "./use-premeasure-above";
+import { bandInset } from "./use-sticky-band";
 
 const HEADER_ESTIMATE_SIZE = 40;
+// The opened context card (card + rail stub), exact: a linked context message lands below its copy in the sticky band,
+// so an estimate off by a few pixels would move the landing once the row is measured.
+const OPEN_CONTEXT_SIZE = 46;
 const MESSAGE_ESTIMATE_SIZE = 240;
 const NEVER_ADJUST = () => false;
 
@@ -28,8 +32,17 @@ export const useAnchoredVirtualizer = ({
   searching: boolean;
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const estimateSize = (i: number) => (rows[i]?.kind === "message" ? MESSAGE_ESTIMATE_SIZE : HEADER_ESTIMATE_SIZE);
-  const linkedRow = useLinkedRow(scrollRef, rows, linked, estimateSize);
+  const estimateSize = (i: number) => {
+    const row = rows[i];
+    if (row?.kind === "message") return MESSAGE_ESTIMATE_SIZE;
+    return row?.kind === "context" && row.open ? OPEN_CONTEXT_SIZE : HEADER_ESTIMATE_SIZE;
+  };
+  // A linked context message lands below the context card the sticky band pins over the top.
+  const inset = useCallback(
+    (virtualizer: Virtualizer<HTMLDivElement, Element>, index: number) => bandInset(rows, virtualizer, index),
+    [rows]
+  );
+  const linkedRow = useLinkedRow(scrollRef, rows, linked, estimateSize, inset);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
