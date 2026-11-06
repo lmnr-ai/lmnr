@@ -2,9 +2,9 @@ use backon::Retryable;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
-    Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
+    Acker, BasicProperties, Channel, ConnectionStatus, Consumer,
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
-    types::{AMQPValue, FieldTable, ShortString},
+    types::FieldTable,
 };
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
@@ -14,6 +14,17 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
+use connection::{Binding, Generation};
+use properties::{properties, retry_attempt_of, retry_properties};
+
+mod connection;
+#[cfg(test)]
+mod live_tests;
+mod properties;
+mod topology;
+
+pub use connection::ResilientRabbitConnection;
+pub use topology::declare_topology;
 
 /// `backon` decides retryability from the error value alone, so the publish
 /// closure's failures — all `anyhow::Error` — need the transient/permanent
@@ -32,58 +43,48 @@ enum PublishError {
 static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
 
-/// Carries the delayed-retry count across a retry-queue round trip. RabbitMQ
-/// preserves headers through dead-lettering, so the value survives the hop back
-/// into the origin queue.
-const RETRY_ATTEMPT_HEADER: &str = "x-lmnr-retry-attempt";
+/// Per-attempt bound on `create_channel`, so a half-dead connection fails the
+/// attempt instead of hanging the publish that asked for a channel.
+const CREATE_CHANNEL_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Properties common to every publish: `delivery_mode=2` is persistent, and the
-/// TTL and priority are applied only when the caller asked for them — an absent
-/// priority is what lets a quorum queue apply its own default (4).
-fn properties(ttl_ms: Option<u64>, priority: Option<u8>) -> BasicProperties {
-    let mut properties = BasicProperties::default().with_delivery_mode(2);
-
-    if let Some(ttl_ms) = ttl_ms {
-        properties = properties.with_expiration(ShortString::from(ttl_ms.to_string()));
-    }
-    if let Some(priority) = priority {
-        properties = properties.with_priority(priority);
-    }
-
-    properties
-}
-
-fn retry_properties(ttl_ms: u64, attempt: u32, priority: Option<u8>) -> BasicProperties {
-    let mut headers = FieldTable::default();
-    headers.insert(RETRY_ATTEMPT_HEADER.into(), AMQPValue::LongUInt(attempt));
-
-    properties(Some(ttl_ms), priority).with_headers(headers)
-}
-
-/// Anything but the `LongUInt` written by `retry_properties` reads as a first
-/// delivery, which restarts the budget rather than dropping the message early.
-fn retry_attempt_of(properties: &BasicProperties) -> u32 {
-    properties
-        .headers()
-        .as_ref()
-        .and_then(|headers| headers.inner().get(RETRY_ATTEMPT_HEADER))
-        .and_then(|value| match value {
-            AMQPValue::LongUInt(n) => Some(*n),
-            _ => None,
-        })
-        .unwrap_or(0)
+/// A pooled publisher channel, tagged with the connection generation it was
+/// opened on so the pool drops it once that connection has been replaced.
+pub struct PooledChannel {
+    channel: Channel,
+    generation: u64,
 }
 
 struct RabbitChannelManager {
-    connection: Arc<Connection>,
+    connection: Arc<ResilientRabbitConnection>,
 }
 
 impl Manager for RabbitChannelManager {
-    type Type = Channel;
+    type Type = PooledChannel;
     type Error = anyhow::Error;
 
-    async fn create(&self) -> Result<Channel, Self::Error> {
-        let create_channel = || async { self.connection.create_channel().await };
+    async fn create(&self) -> Result<PooledChannel, Self::Error> {
+        let create_channel = || async {
+            let generation = self.connection.current();
+            if !generation.is_usable() {
+                return Err(anyhow::anyhow!(
+                    "Publisher connection generation {} is not usable",
+                    generation.id
+                ));
+            }
+            match tokio::time::timeout(
+                CREATE_CHANNEL_TIMEOUT,
+                generation.connection.create_channel(),
+            )
+            .await
+            {
+                Ok(Ok(channel)) => Ok(PooledChannel {
+                    channel,
+                    generation: generation.id,
+                }),
+                Ok(Err(e)) => Err(anyhow::Error::from(e)),
+                Err(_) => Err(anyhow::anyhow!("Timed out creating a channel")),
+            }
+        };
         let backoff = retry::bounded_delay(
             Duration::from_millis(100),
             Duration::from_secs(5),
@@ -111,10 +112,16 @@ impl Manager for RabbitChannelManager {
 
     async fn recycle(
         &self,
-        channel: &mut Channel,
+        pooled: &mut PooledChannel,
         _: &deadpool::managed::Metrics,
     ) -> deadpool::managed::RecycleResult<Self::Error> {
-        if channel.status().connected() {
+        if pooled.generation != self.connection.current().id {
+            log::debug!("Channel belongs to a replaced connection, marking for recycling");
+            return Err(RecycleError::Backend(anyhow::anyhow!(
+                "Channel belongs to a replaced connection"
+            )));
+        }
+        if pooled.channel.status().connected() {
             Ok(())
         } else {
             log::debug!("Channel is not connected, marking for recycling");
@@ -126,13 +133,16 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    publisher_connection: Arc<Connection>,
-    consumer_connection: Option<Arc<Connection>>,
+    publisher_connection: Arc<ResilientRabbitConnection>,
+    consumer_connection: Option<Arc<ResilientRabbitConnection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
 pub struct RabbitMQReceiver {
     consumer: Consumer,
+    /// The connection the consumer lives on, so the receiver ends when that
+    /// connection is replaced even if lapin never ends the stream itself.
+    generation: Arc<Generation>,
 }
 
 pub struct RabbitMQDelivery {
@@ -167,7 +177,17 @@ impl MessageQueueDeliveryTrait for RabbitMQDelivery {
 
 impl MessageQueueReceiverTrait for RabbitMQReceiver {
     async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
-        if let Some(delivery) = self.consumer.next().await {
+        let next = tokio::select! {
+            biased;
+            _ = self.generation.retired() => {
+                return Some(Err(anyhow::anyhow!(
+                    "RabbitMQ connection generation {} was replaced",
+                    self.generation.id
+                )));
+            }
+            next = self.consumer.next() => next,
+        };
+        if let Some(delivery) = next {
             let Ok(delivery) = delivery else {
                 return Some(Err(anyhow::anyhow!(
                     "Failed to get delivery from RabbitMQ."
@@ -189,8 +209,8 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 
 impl RabbitMQ {
     pub fn new(
-        publisher_connection: Arc<Connection>,
-        consumer_connection: Option<Arc<Connection>>,
+        publisher_connection: Arc<ResilientRabbitConnection>,
+        consumer_connection: Option<Arc<ResilientRabbitConnection>>,
         max_channel_pool_size: usize,
     ) -> Self {
         let manager = RabbitChannelManager {
@@ -219,8 +239,8 @@ impl RabbitMQ {
         properties: BasicProperties,
     ) -> anyhow::Result<()> {
         let publish_with_retry = || async {
-            let channel = match self.publisher_channel_pool.get().await {
-                Ok(channel) => channel,
+            let pooled = match self.publisher_channel_pool.get().await {
+                Ok(pooled) => pooled,
                 Err(PoolError::Backend(e)) => {
                     log::warn!("Failed to get channel from pool: {}", e);
                     return Err(PublishError::Transient(anyhow::anyhow!(
@@ -237,6 +257,7 @@ impl RabbitMQ {
                 }
             };
 
+            let channel = &pooled.channel;
             // Check if channel is still connected before using it
             if !channel.status().connected() {
                 log::warn!("Channel is not connected, retrying...");
@@ -354,10 +375,16 @@ impl MessageQueueTrait for RabbitMQ {
             )
         })?;
 
-        if !consumer_conn.status().connected() {
+        // Waiting for a turn is NOT under the setup timeout: after a reconnect
+        // every worker queues here, and the timeout is for the broker's answer.
+        let _permit = consumer_conn.setup_permit().await;
+
+        let generation = consumer_conn.current();
+        if !generation.is_usable() {
             return Err(anyhow::anyhow!(
-                "Consumer connection is not in connected state: {:?}",
-                connection_state(consumer_conn.status())
+                "Consumer connection generation {} is not usable (state: {:?})",
+                generation.id,
+                connection_state(generation.connection.status())
             ));
         }
 
@@ -365,7 +392,8 @@ impl MessageQueueTrait for RabbitMQ {
         // `create_channel` against a half-dead connection; without this the
         // worker's outer backoff retry never fires another attempt.
         let setup = async {
-            let channel = consumer_conn
+            let channel = generation
+                .connection
                 .create_channel()
                 .await
                 .map_err(|e| anyhow::Error::from(e))?;
@@ -374,15 +402,26 @@ impl MessageQueueTrait for RabbitMQ {
                 .basic_qos(prefetch_count, BasicQosOptions::default())
                 .await?;
 
-            channel
-                .queue_bind(
-                    queue_name.into(),
-                    exchange.into(),
-                    routing_key.into(),
-                    QueueBindOptions::default(),
-                    FieldTable::default(),
-                )
-                .await?;
+            // The origin queues are bound to their exchanges only here, never
+            // at declare time, so this can't be dropped — just done once per
+            // connection rather than once per worker.
+            let binding = Binding {
+                queue: queue_name.to_string(),
+                exchange: exchange.to_string(),
+                routing_key: routing_key.to_string(),
+            };
+            if generation.needs_binding(&binding) {
+                channel
+                    .queue_bind(
+                        queue_name.into(),
+                        exchange.into(),
+                        routing_key.into(),
+                        QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await?;
+                generation.record_binding(binding);
+            }
 
             let consumer = channel
                 .basic_consume(
@@ -397,25 +436,36 @@ impl MessageQueueTrait for RabbitMQ {
         };
 
         let consumer = match tokio::time::timeout(*CONSUMER_SETUP_TIMEOUT, setup).await {
-            Ok(Ok(consumer)) => consumer,
+            Ok(Ok(consumer)) => {
+                consumer_conn.record_setup_success(&generation);
+                consumer
+            }
+            // The broker answered, so the connection isn't wedged; the worker's
+            // backoff retries this queue on its own.
             Ok(Err(e)) => return Err(e),
             Err(_) => {
+                consumer_conn.record_setup_timeout(&generation);
                 return Err(anyhow::anyhow!(
-                    "Timed out setting up RabbitMQ consumer for queue '{}'",
-                    queue_name
+                    "Timed out setting up RabbitMQ consumer for queue '{}' on connection generation {}",
+                    queue_name,
+                    generation.id
                 ));
             }
         };
 
-        Ok(RabbitMQReceiver { consumer }.into())
+        Ok(RabbitMQReceiver {
+            consumer,
+            generation,
+        }
+        .into())
     }
 
     fn is_healthy(&self) -> bool {
-        let publisher_ok = self.publisher_connection.status().connected();
+        let publisher_ok = self.publisher_connection.is_connected();
         if !publisher_ok {
             log::error!(
                 "RabbitMQ readiness: publisher connection is not connected (state: {:?})",
-                connection_state(self.publisher_connection.status())
+                connection_state(self.publisher_connection.current().connection.status())
             );
         }
 
@@ -423,11 +473,11 @@ impl MessageQueueTrait for RabbitMQ {
             .consumer_connection
             .as_ref()
             .map(|c| {
-                let connected = c.status().connected();
+                let connected = c.is_connected();
                 if !connected {
                     log::error!(
                         "RabbitMQ readiness: consumer connection is not connected (state: {:?})",
-                        connection_state(c.status())
+                        connection_state(c.current().connection.status())
                     );
                 }
                 connected
@@ -457,73 +507,4 @@ fn connection_state(status: &ConnectionStatus) -> String {
         "unknown"
     };
     s.to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn retry_attempt_round_trips_through_message_properties() {
-        assert_eq!(retry_attempt_of(&retry_properties(30_000, 7, None)), 7);
-    }
-
-    #[test]
-    fn a_parked_message_keeps_the_priority_it_arrived_with() {
-        // The park is the round trip a priority is most easily lost on: the
-        // worker republishes raw bytes, so anything not re-stamped here is gone
-        // by the time the broker dead-letters the message back.
-        let parked = retry_properties(30_000, 1, Some(8));
-
-        assert_eq!(*parked.priority(), Some(8));
-        assert_eq!(retry_attempt_of(&parked), 1);
-    }
-
-    #[test]
-    fn an_unprioritized_publish_sets_no_priority_at_all() {
-        // Absent, not zero: the quorum queue reads an absent property as 4, and
-        // an explicit 0 would sort BELOW everything instead of alongside it.
-        assert_eq!(*properties(None, None).priority(), None);
-        assert_eq!(*retry_properties(30_000, 0, None).priority(), None);
-    }
-
-    #[test]
-    fn a_priority_publish_carries_both_the_ttl_and_the_priority() {
-        let properties = properties(Some(30_000), Some(8));
-
-        assert_eq!(*properties.priority(), Some(8));
-        assert_eq!(
-            properties.expiration().as_ref().map(|e| e.to_string()),
-            Some("30000".to_string())
-        );
-    }
-
-    #[test]
-    fn retry_attempt_of_a_first_delivery_is_zero() {
-        // Nothing published by `publish` carries the header.
-        let properties = BasicProperties::default().with_delivery_mode(2);
-        assert_eq!(retry_attempt_of(&properties), 0);
-
-        let mut headers = FieldTable::default();
-        headers.insert("x-death".into(), AMQPValue::LongUInt(4));
-        assert_eq!(
-            retry_attempt_of(&BasicProperties::default().with_headers(headers)),
-            0
-        );
-    }
-
-    #[test]
-    fn a_header_written_by_something_else_restarts_the_budget() {
-        // Not written by `retry_properties`, so the count is unusable. Restarting
-        // is the safe reading — it retries more, it doesn't drop early.
-        let mut wrong_type = FieldTable::default();
-        wrong_type.insert(
-            RETRY_ATTEMPT_HEADER.into(),
-            AMQPValue::LongString("3".into()),
-        );
-        assert_eq!(
-            retry_attempt_of(&BasicProperties::default().with_headers(wrong_type)),
-            0
-        );
-    }
 }
