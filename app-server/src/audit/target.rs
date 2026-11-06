@@ -112,6 +112,7 @@ pub fn target_named(req: &HttpRequest, id: impl ToString, name: impl Into<Option
 }
 
 /// A parent the request touched, e.g. the dashboard of charts or the dataset of datapoints.
+/// Keys are camelCase (`datasetId`), as the Next.js routes write them.
 pub fn target_parent(req: &HttpRequest, key: &str, id: impl ToString) {
     metadata(req, key, id.to_string());
 }

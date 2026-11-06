@@ -270,7 +270,7 @@ pub(crate) async fn target_datapoints(req: &HttpRequest, outcome: &CreateDatapoi
     } = outcome
     {
         audit::target(req, datapoints.iter().map(|dp| dp.id)).await;
-        audit::target_parent(req, "dataset_id", dataset_id);
+        audit::target_parent(req, "datasetId", dataset_id);
     }
 }
 

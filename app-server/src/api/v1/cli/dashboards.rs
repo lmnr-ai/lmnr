@@ -139,7 +139,7 @@ pub async fn upsert_charts(
     )
     .await;
 
-    audit::target_parent(&req, "dashboard_id", dashboard_id);
+    audit::target_parent(&req, "dashboardId", dashboard_id);
     Ok(match result {
         Ok(upserted) => HttpResponse::Ok().json(UpsertChartsResponse {
             charts: upserted
@@ -175,7 +175,7 @@ pub async fn delete_charts(
     let dashboard_id = path.into_inner();
     let chart_ids = body.into_inner().chart_ids;
     audit::target(&req, &chart_ids).await;
-    audit::target_parent(&req, "dashboard_id", dashboard_id);
+    audit::target_parent(&req, "dashboardId", dashboard_id);
     let result =
         dashboards::delete_charts(&http_client, auth.project_id, dashboard_id, &chart_ids).await;
     Ok(match result {

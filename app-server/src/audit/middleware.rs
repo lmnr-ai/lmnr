@@ -358,14 +358,14 @@ mod tests {
         let mut charts = targets(&[("c1", Some("Latency")), ("c2", None)]);
         charts
             .metadata
-            .insert("dashboard_id".to_string(), json!("dash"));
+            .insert("dashboardId".to_string(), json!("dash"));
         let fields = target_fields(charts);
         assert_eq!(fields.resource_id, None);
         assert_eq!(fields.resource_label, None);
         assert_eq!(
             fields.metadata,
             Some(json!({
-                "dashboard_id": "dash",
+                "dashboardId": "dash",
                 "ids": ["c1", "c2"],
                 "names": ["Latency"],
                 "count": 2,
@@ -378,11 +378,11 @@ mod tests {
         let ids: Vec<String> = (0..150).map(|i| format!("dp{i}")).collect();
         let items: Vec<(&str, Option<&str>)> = ids.iter().map(|id| (id.as_str(), None)).collect();
         let mut many = targets(&items);
-        many.metadata.insert("dataset_id".to_string(), json!("ds"));
+        many.metadata.insert("datasetId".to_string(), json!("ds"));
         let metadata = target_fields(many).metadata.unwrap();
         assert_eq!(metadata["ids"].as_array().unwrap().len(), MAX_TARGETS);
         assert_eq!(metadata["count"], json!(150));
-        assert_eq!(metadata["dataset_id"], json!("ds"));
+        assert_eq!(metadata["datasetId"], json!("ds"));
     }
 
     #[test]
