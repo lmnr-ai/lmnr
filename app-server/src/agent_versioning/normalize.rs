@@ -76,7 +76,7 @@ pub fn doc_lines<'a>(system_prompt: &'a str, tool_text: &'a str) -> impl Iterato
 }
 
 /// One part of the document cut down to its lines in `core` (sorted), in order,
-/// each line once.
+/// each line once and masked, so the text shows exactly what the version hashes.
 pub fn core_text(text: &str, core: &[u64]) -> String {
     let mut seen = HashSet::new();
     hashable_lines(text)
@@ -84,6 +84,7 @@ pub fn core_text(text: &str, core: &[u64]) -> String {
             let hash = line_hash(line);
             core.binary_search(&hash).is_ok() && seen.insert(hash)
         })
+        .map(mask)
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -111,16 +112,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn core_text_keeps_core_lines_in_order_once() {
-        let text = "Be brief.\n\nToday is 2026-10-23.\nUser: Ada\nBe brief.\nEnd.";
-        let mut core: Vec<u64> = ["End.", "Today is 2030-01-01.", "Be brief."]
-            .iter()
-            .map(|line| line_hash(line))
-            .collect();
+    fn core_text_keeps_masked_core_lines_in_order_once() {
+        let text = "Be brief.\n\nToday is 2026-10-23.\nUser: Ada\nproject_id=123\nBe brief.\nEnd.";
+        let mut core: Vec<u64> = [
+            "End.",
+            "Today is 2030-01-01.",
+            "project_id=456",
+            "Be brief.",
+        ]
+        .iter()
+        .map(|line| line_hash(line))
+        .collect();
         core.sort_unstable();
         assert_eq!(
             core_text(text, &core),
-            "Be brief.\nToday is 2026-10-23.\nEnd."
+            "Be brief.\nToday is <datetime>.\nproject_id=<id>\nEnd."
         );
     }
 
