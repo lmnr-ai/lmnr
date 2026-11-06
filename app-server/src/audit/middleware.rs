@@ -212,12 +212,10 @@ pub async fn audit_v1(
     let Some((path, source)) = route(request) else {
         return Ok(res);
     };
-    let (resource, action, read) = match classify(request.method(), &path) {
+    let (resource, action) = match classify(request.method(), &path) {
         Some(Classification::Log {
-            resource,
-            action,
-            read,
-        }) => (resource, action, read),
+            resource, action, ..
+        }) => (resource, action),
         Some(Classification::Skip) => return Ok(res),
         None => {
             log::warn!(
@@ -279,11 +277,7 @@ pub async fn audit_v1(
         cache.clone().into_inner(),
         queue.get_ref().clone(),
     );
-    if read {
-        super::emit_detached(db, cache, queue, input);
-    } else if let Err(e) = super::emit(db, cache, &queue, input).await {
-        log::error!("Failed to emit /v1 audit event: {e:?}");
-    }
+    super::emit_detached(db, cache, queue, input);
     Ok(res)
 }
 

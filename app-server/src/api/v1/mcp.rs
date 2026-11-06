@@ -370,9 +370,7 @@ impl LaminarMcpServer {
         input.project_id = Some(*project_id);
         input.resource_id = resource_id;
         input.metadata = metadata;
-        if let Err(e) = audit::emit(self.db.clone(), self.cache.clone(), &self.queue, input).await {
-            log::error!("Failed to emit MCP audit event: {e:?}");
-        }
+        audit::emit_detached(self.db.clone(), self.cache.clone(), self.queue.clone(), input);
     }
 }
 

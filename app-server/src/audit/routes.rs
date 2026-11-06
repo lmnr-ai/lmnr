@@ -8,7 +8,7 @@ use crate::{cache::Cache, db::DB, mq::MessageQueue, routes::types::ResponseResul
 /// Internal: the frontend's audit events. Like the other `/api/v1` routes it
 /// has no HTTP auth and is reachable only inside the cluster; the frontend
 /// resolves the actor from the session. Replies after the broker confirms the
-/// publish, so the frontend can await durability for security events.
+/// publish; the frontend sends from `after()`, so no user request waits on it.
 #[post("/api/v1/audit")]
 pub async fn create_audit_event(
     input: web::Json<AuditEventInput>,
