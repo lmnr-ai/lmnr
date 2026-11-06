@@ -120,20 +120,30 @@ export const SessionsTableContents = memo(function SessionsTableContents({
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
 
-  // Live refresh merges a fresh first page over the loaded rows; `refetch` would clear the table and scroll.
-  const refreshFirstPage = useCallback(async () => {
-    const page = await fetchSessions(0).catch(() => undefined);
-    if (!page) return;
-    const fresh = new Set(page.items.map((s) => s.sessionId));
-    updateData((prev) => [...page.items, ...prev.filter((s) => !fresh.has(s.sessionId))]);
-  }, [fetchSessions, updateData]);
+  // `refetch` would clear the table and scroll; the live check only needs the first page's rows.
+  const fetchFirstPage = useCallback(
+    () =>
+      fetchSessions(0).then(
+        (page) => page.items,
+        () => undefined
+      ),
+    [fetchSessions]
+  );
 
   const [realtimeEnabled] = useLocalStorage(REALTIME_STORAGE_KEY, false);
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
+  // Live rows are patched client-side, which can't evaluate filters or search; those views stay static.
   useSessionsRealtime({
     projectId: String(projectId),
-    enabled: realtimeEnabled && shouldFetch && !isViewLoading && isCurrentTimestampIncluded,
-    onRefresh: refreshFirstPage,
+    enabled:
+      realtimeEnabled &&
+      shouldFetch &&
+      !isViewLoading &&
+      isCurrentTimestampIncluded &&
+      filter.length === 0 &&
+      !textSearchFilter,
+    updateData,
+    fetchFirstPage,
   });
 
   const searchWiderRange = useCallback(
