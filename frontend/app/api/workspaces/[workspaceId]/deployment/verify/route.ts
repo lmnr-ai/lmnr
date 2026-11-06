@@ -1,8 +1,8 @@
 import { verifyDeployment } from "@/lib/actions/workspace/deployment.ts";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "connectivity check, changes nothing",
   apiHandler<{ workspaceId: string }>(async (req, ctx) => {
     const { workspaceId } = await ctx.params;

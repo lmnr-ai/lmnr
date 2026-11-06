@@ -1,8 +1,8 @@
 import { updateRole } from "@/lib/actions/workspace";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getUserEmail } from "@/lib/audit/labels";
 
-export const PATCH = withAudit<{ workspaceId: string }>(
+export const PATCH = handlerWithAudit<{ workspaceId: string }>(
   { resource: "member", action: "role_update" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

@@ -3,11 +3,11 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { AUDIT_EXPORT_MAX_ROWS, exportAuditEventsCsv } from "@/lib/actions/audit-log";
 import { auditLogAccessError, auditQueryFromSearchParams, getAuditLogAccess } from "@/lib/actions/audit-log/access";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 // Every export is logged (unlike page views): it takes the log out of the product.
-export const GET = withAudit(
+export const GET = handlerWithAudit(
   { resource: "audit_log", action: "export", read: true },
   async (req: NextRequest, props: { params: Promise<{ workspaceId: string }> }, audit): Promise<Response> => {
     const { workspaceId } = await props.params;

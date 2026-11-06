@@ -1,9 +1,9 @@
 import { deleteLlmProfile, updateLlmProfile } from "@/lib/actions/llm-profiles";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { workspaceId: string; profileId: string };
 
-export const PUT = withAudit<Params>({ resource: "llm_profile", action: "update" }, async (req, ctx, audit) => {
+export const PUT = handlerWithAudit<Params>({ resource: "llm_profile", action: "update" }, async (req, ctx, audit) => {
   const { workspaceId, profileId } = await ctx.params;
   const body = await req.json();
   const profile = await updateLlmProfile({ ...body, workspaceId, profileId });
@@ -11,9 +11,12 @@ export const PUT = withAudit<Params>({ resource: "llm_profile", action: "update"
   return Response.json(profile);
 });
 
-export const DELETE = withAudit<Params>({ resource: "llm_profile", action: "delete" }, async (_req, ctx, audit) => {
-  const { workspaceId, profileId } = await ctx.params;
-  await audit.target(profileId);
-  await deleteLlmProfile({ workspaceId, profileId });
-  return Response.json({ success: true });
-});
+export const DELETE = handlerWithAudit<Params>(
+  { resource: "llm_profile", action: "delete" },
+  async (_req, ctx, audit) => {
+    const { workspaceId, profileId } = await ctx.params;
+    await audit.target(profileId);
+    await deleteLlmProfile({ workspaceId, profileId });
+    return Response.json({ success: true });
+  }
+);

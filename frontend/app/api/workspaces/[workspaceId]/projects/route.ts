@@ -1,6 +1,6 @@
 import { createProject, getProjectsByWorkspace } from "@/lib/actions/projects";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   const { workspaceId } = await ctx.params;
@@ -12,7 +12,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
 
 // Auth: proxy.ts gates /api/workspaces/:workspaceId/* via isUserMemberOfWorkspace,
 // so a non-member never reaches this handler — no in-handler authz needed.
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "project", action: "create" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

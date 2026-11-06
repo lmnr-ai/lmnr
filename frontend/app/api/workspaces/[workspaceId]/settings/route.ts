@@ -1,8 +1,8 @@
 import { updateWorkspaceSettings } from "@/lib/actions/workspace/settings";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-export const PATCH = withAudit<{ workspaceId: string }>(
+export const PATCH = handlerWithAudit<{ workspaceId: string }>(
   { resource: "workspace", action: "update" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

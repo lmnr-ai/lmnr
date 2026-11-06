@@ -4,7 +4,7 @@ import {
   upsertChannelProjectBinding,
 } from "@/lib/actions/slack/channel-projects";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 // Auth: proxy.ts gates /api/workspaces/:workspaceId/* via isUserMemberOfWorkspace, so a non-member
 // never reaches these handlers — no in-handler authz needed.
@@ -16,20 +16,23 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getChannelProjectBindings(workspaceId));
 });
 
-export const PUT = withAudit<Params>({ resource: "slack_integration", action: "update" }, async (req, ctx, audit) => {
-  const { workspaceId } = await ctx.params;
-  const body = await req.json();
-  await audit.target(body.channelId, { name: body.channelName });
-  await upsertChannelProjectBinding({
-    workspaceId,
-    channelId: body.channelId,
-    channelName: body.channelName,
-    projectId: body.projectId,
-  });
-  return Response.json({ success: true });
-});
+export const PUT = handlerWithAudit<Params>(
+  { resource: "slack_integration", action: "update" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    const body = await req.json();
+    await audit.target(body.channelId, { name: body.channelName });
+    await upsertChannelProjectBinding({
+      workspaceId,
+      channelId: body.channelId,
+      channelName: body.channelName,
+      projectId: body.projectId,
+    });
+    return Response.json({ success: true });
+  }
+);
 
-export const DELETE = withAudit<Params>(
+export const DELETE = handlerWithAudit<Params>(
   { resource: "slack_integration", action: "update" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

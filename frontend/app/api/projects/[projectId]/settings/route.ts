@@ -1,6 +1,6 @@
 import { getProjectWorkspaceId } from "@/lib/actions/project";
 import { updateProjectSettings } from "@/lib/actions/project/settings";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { getWorkspaceRole, isUserMemberOfProject } from "@/lib/authorization";
 
@@ -8,7 +8,7 @@ import { getWorkspaceRole, isUserMemberOfProject } from "@/lib/authorization";
 /// every other member gets to see, so a member must not be able to flip it.
 const PRIVILEGED_KEYS = new Set(["piiMode"]);
 
-export const PATCH = withAudit<{ projectId: string }>(
+export const PATCH = handlerWithAudit<{ projectId: string }>(
   { resource: "project", action: "update" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

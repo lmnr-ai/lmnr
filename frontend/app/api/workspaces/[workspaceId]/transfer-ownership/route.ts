@@ -1,8 +1,8 @@
 import { transferOwnership } from "@/lib/actions/workspace";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getUserEmail } from "@/lib/audit/labels";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "member", action: "transfer_ownership" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

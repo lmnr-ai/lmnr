@@ -48,11 +48,11 @@ type RouteContext<P> = { params: Promise<P> };
 
 /**
  * Wraps a route handler so every call records an audit event. Every mutating
- * route export must be wrapped in `withAudit` or `noAudit`
+ * route export must be wrapped in `handlerWithAudit` or `handlerNoAudit`
  * (`tests/audit-coverage.test.ts`). Includes `apiHandler`: thrown errors become
  * their `{ error }` response, and the event's outcome is that response's status.
  */
-export const withAudit =
+export const handlerWithAudit =
   <P extends Record<string, string> = Record<string, string>>(
     meta: AuditEventMeta,
     handler: (req: NextRequest, ctx: RouteContext<P>, audit: AuditHandle) => Promise<Response>
@@ -147,7 +147,7 @@ export const withAudit =
   };
 
 /** Marks a mutating route as deliberately not audited. */
-export const noAudit = <H>(_reason: string, handler: H): H => handler;
+export const handlerNoAudit = <H>(_reason: string, handler: H): H => handler;
 
 /**
  * Records one event from code that isn't a route handler: server actions,
