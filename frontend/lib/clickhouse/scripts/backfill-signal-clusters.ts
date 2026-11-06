@@ -94,7 +94,7 @@ const fillSummaries = async (projectId: string): Promise<{ inserted: number; sou
     FROM events_to_clusters AS ec FINAL
     INNER JOIN signal_event_clusters AS c FINAL
       ON c.project_id = ec.project_id AND c.id = ec.cluster_id AND c.level <= 1
-    INNER JOIN signal_events AS e
+    INNER JOIN signal_events AS e FINAL
       ON e.project_id = ec.project_id AND e.id = ec.event_id
     INNER JOIN (
       SELECT project_id, id, min(start_time) AS start_time
@@ -139,7 +139,7 @@ const fillTraceEvents = async (projectId: string): Promise<number> =>
       e.trace_id,
       t.start_time,
       groupArray((e.id, e.signal_id, e.severity, e.payload))
-    FROM signal_events AS e
+    FROM signal_events AS e FINAL
     INNER JOIN (
       SELECT project_id, id, min(start_time) AS start_time
       FROM traces_agg
