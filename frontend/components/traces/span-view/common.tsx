@@ -1,8 +1,10 @@
 import { capitalize } from "lodash";
-import { Bolt, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
-import { memo, type PropsWithChildren, type ReactNode, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { Bolt, Lightbulb } from "lucide-react";
+import { memo, type PropsWithChildren, type ReactNode, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { MessageRole } from "@/components/traces/span-view/collapsible";
+import HeightClamp from "@/components/traces/span-view/height-clamp";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
@@ -166,7 +168,7 @@ interface RoleHeaderProps {
   action?: ReactNode;
 }
 
-const RoleHeader = ({ role, className, action }: RoleHeaderProps) => {
+export const RoleHeader = ({ role, className, action }: RoleHeaderProps) => {
   if (role) {
     return (
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
@@ -246,7 +248,6 @@ export const MessageWrapper = ({
   children,
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
-  stickyHeader = true,
   defaultExpanded = false,
   headerAction,
   highlighted = false,
@@ -256,73 +257,26 @@ export const MessageWrapper = ({
   headerAction?: ReactNode;
   /** Briefly marks the message a link opened. */
   highlighted?: boolean;
-  presetKey: string;
   maxHeight?: number;
-  stickyHeader?: boolean;
   defaultExpanded?: boolean;
 }>) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isOverflowing, setIsOverflowing] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-
-  const checkOverflow = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    setIsOverflowing(el.scrollHeight > maxHeight);
-  }, [maxHeight]);
-
-  // Layout effect: the expand toggle adds height, and it must land before paint. Added a frame later, a card scrolled
-  // in from above grows under the virtualizer, which leaves that to the browser's scroll anchoring and eats the scroll.
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    checkOverflow();
-
-    const resizeObserver = new ResizeObserver(checkOverflow);
-    resizeObserver.observe(el);
-
-    return () => resizeObserver.disconnect();
-  }, [checkOverflow]);
-
-  const showToggle = isOverflowing;
-
+  const cardRef = useRef<HTMLDivElement>(null);
   return (
     // overflow-clip (not hidden): clips to radius without creating a scroll
     // container, so sticky can still pin to the messages list.
     <ElevatedSurface
+      ref={cardRef}
       offset={1}
-      className={cn("group/span-message relative border rounded-lg overflow-clip", highlighted && FLASH)}
+      className={cn("group/span-message relative border rounded-lg overflow-clip scroll-mt-16", highlighted && FLASH)}
     >
-      <RoleHeader role={role} action={headerAction} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
-      <div
-        ref={containerRef}
-        className="overflow-hidden bg-emphasis-1 dark:bg-transparent"
-        style={!isExpanded ? { maxHeight } : undefined}
-      >
-        <div className="flex flex-col divide-y">{children}</div>
+      <RoleHeader role={role} action={headerAction} />
+      <div className="bg-emphasis-1 dark:bg-transparent">
+        <MessageRole value={role}>
+          <HeightClamp maxHeight={maxHeight} defaultExpanded={defaultExpanded} anchorRef={cardRef}>
+            <div className="flex flex-col divide-y">{children}</div>
+          </HeightClamp>
+        </MessageRole>
       </div>
-      {showToggle && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
-          <div
-            className="w-full pointer-events-none bg-gradient-to-b from-background/0 to-background"
-            style={{
-              height: isExpanded ? 16 : 36,
-              marginTop: isExpanded ? -8 : -36,
-            }}
-          />
-          <div className="w-full bg-background rounded-b-lg">
-            <button
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="h-3 relative w-full flex items-center justify-center cursor-pointer rounded-b-lg"
-            >
-              <span className="absolute -top-2.5 w-full flex justify-center">
-                {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
     </ElevatedSurface>
   );
 };

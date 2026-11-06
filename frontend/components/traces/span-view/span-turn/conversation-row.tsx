@@ -5,13 +5,11 @@ import { renderMessageContent } from "@/components/traces/span-view/messages";
 import { canonicalRole, segmentMessageRole } from "@/lib/spans/turn";
 import { cn } from "@/lib/utils";
 
-import { type ConversationRow, type MessageAnchor, type SectionKey } from "./build-rows";
-import ContextHeader from "./context-header";
+import { type ConversationRow, isContextRow, type MessageAnchor, type SectionKey } from "./build-rows";
+import ContextStack from "./context-stack";
 import MessageLinkButton from "./message-link-button";
 import NormalizedParts from "./normalized-parts";
-import SectionHeader, { type SectionFormat } from "./section-header";
-
-const SECTION_TITLES: Record<SectionKey, string> = { input: "Input", output: "Output" };
+import SectionHeader, { SECTION_TITLES, type SectionFormat } from "./section-header";
 
 // The virtualizer positions each row itself (`directDomUpdates`).
 const ROW = "absolute top-0 left-0 w-full";
@@ -56,43 +54,40 @@ const ConversationRowView = ({
   if (row.kind === "context") {
     return (
       <div data-index={index} ref={measureRef} className={ROW}>
-        <ContextHeader
-          summary={row.summary}
-          open={row.open}
-          onToggle={onToggleContext}
-          copyText={formats.input.value}
-        />
+        <ContextStack summary={row.summary} open={row.open} onToggle={onToggleContext} />
       </div>
     );
   }
 
   // Anthropic sends tool results as `user` messages; label them by what they are.
-  const role = row.normalized?.parts.every((p) => p.kind === "tool-result")
-    ? "tool"
-    : (row.normalized?.role ?? segmentMessageRole(row.segment, row.localIndex));
+  const role = canonicalRole(
+    row.normalized?.parts.every((p) => p.kind === "tool-result")
+      ? "tool"
+      : (row.normalized?.role ?? segmentMessageRole(row.segment, row.localIndex))
+  );
   return (
-    <div data-index={index} ref={measureRef} className={cn(ROW, "pb-4")}>
-      <MessageWrapper
-        role={canonicalRole(role)}
-        presetKey={presetKey}
-        maxHeight={row.maxHeight}
-        defaultExpanded={row.defaultExpanded}
-        stickyHeader={false}
-        highlighted={highlighted}
-        headerAction={onLinkMessage && <MessageLinkButton onCopy={() => onLinkMessage(row.anchor)} />}
-      >
-        {row.normalized ? (
-          <NormalizedParts
-            parts={row.normalized.parts}
-            plainResults={row.plainResults}
-            expandReasoning={row.source === "output"}
-            presetKey={presetKey}
-            messageIndex={index}
-          />
-        ) : (
-          renderMessageContent(row.segment, row.localIndex, index, presetKey, toolNameMap)
-        )}
-      </MessageWrapper>
+    <div data-index={index} ref={measureRef} className={ROW}>
+      <div className={cn("pb-4", isContextRow(row) && "ml-1.5 pl-3 border-l")}>
+        <MessageWrapper
+          role={role}
+          maxHeight={row.maxHeight}
+          defaultExpanded={row.defaultExpanded}
+          highlighted={highlighted}
+          headerAction={onLinkMessage && <MessageLinkButton onCopy={() => onLinkMessage(row.anchor)} />}
+        >
+          {row.normalized ? (
+            <NormalizedParts
+              parts={row.normalized.parts}
+              plainResults={row.plainResults}
+              expandReasoning={row.source === "output"}
+              presetKey={presetKey}
+              messageIndex={index}
+            />
+          ) : (
+            renderMessageContent(row.segment, row.localIndex, index, presetKey, toolNameMap)
+          )}
+        </MessageWrapper>
+      </div>
     </div>
   );
 };

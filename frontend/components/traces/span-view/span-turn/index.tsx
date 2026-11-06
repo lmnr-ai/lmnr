@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
 
+import { spanPathKey } from "@/components/traces/span-view/span-io";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { useUrlState } from "@/components/traces/trace-view/store/base";
 import { buildSpanTurn } from "@/lib/spans/turn";
@@ -42,8 +43,7 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
     [span.spanId]
   );
 
-  const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
-  const pathKey = (typeof spanPath === "string" ? spanPath.split(".") : spanPath).join(".");
+  const pathKey = spanPathKey(span);
   const formats = useSectionFormats(span, turn, pathKey);
 
   const rawInput = formats.input.mode !== "messages";

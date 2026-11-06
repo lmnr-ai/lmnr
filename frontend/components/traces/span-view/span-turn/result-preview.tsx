@@ -1,7 +1,9 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { type PropsWithChildren, useState } from "react";
+import { type PropsWithChildren, useCallback, useRef, useState } from "react";
 
+import { useCollapsible } from "@/components/traces/span-view/collapsible";
 import { getRoleTextColor } from "@/components/traces/span-view/common";
+import { useExpandClamp } from "@/components/traces/span-view/height-clamp";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { preview, type ToolResultPart } from "@/lib/spans/turn-parts";
 
@@ -13,14 +15,22 @@ const ResultPreview = ({ part, children }: PropsWithChildren<{ part: ToolResultP
   const searching = !!useSpanSearchState()?.searchTerm;
   const [open, setOpen] = useState(searching);
   const expanded = open || searching;
+  const name = part.name ?? part.id ?? "result";
+  const rootRef = useRef<HTMLDivElement>(null);
+  const collapse = useCallback(() => setOpen(false), []);
+  const expandClamp = useExpandClamp();
+  useCollapsible(rootRef, open && !searching, name, "Collapse", collapse);
   const text = typeof part.output === "string" ? part.output.slice(0, PREVIEW_CHARS) : preview(part.output);
 
   // One target: collapsed, header and preview are a single button; expanded, only the header collapses it.
   return (
-    <div className="flex flex-col">
+    <div ref={rootRef} className="flex flex-col">
       <button
         type="button"
-        onClick={() => setOpen(!expanded)}
+        onClick={() => {
+          if (!expanded) expandClamp();
+          setOpen(!expanded);
+        }}
         className="flex flex-col gap-2 px-2.5 py-2 min-w-0 text-left text-xs hover:overlay-hover"
       >
         <span className="flex items-center gap-1.5 min-w-0">
@@ -30,7 +40,7 @@ const ResultPreview = ({ part, children }: PropsWithChildren<{ part: ToolResultP
             <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
           )}
           <span className="font-medium shrink-0" style={{ color: getRoleTextColor("tool") }}>
-            {part.name ?? part.id ?? "result"}
+            {name}
           </span>
           {part.call && <span className="truncate font-mono text-muted-foreground">{preview(part.call.args)}</span>}
         </span>

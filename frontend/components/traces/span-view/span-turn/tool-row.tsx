@@ -1,7 +1,9 @@
 import { Bolt, ChevronDown, ChevronRight, Lightbulb } from "lucide-react";
-import { type PropsWithChildren, type ReactNode, useState } from "react";
+import { type PropsWithChildren, type ReactNode, useCallback, useRef, useState } from "react";
 
+import { useCollapsible } from "@/components/traces/span-view/collapsible";
 import { getRoleTextColor } from "@/components/traces/span-view/common";
+import { useExpandClamp } from "@/components/traces/span-view/height-clamp";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 
 const ICONS = {
@@ -25,12 +27,19 @@ const ToolRow = ({ icon, name, summary, detail, defaultOpen = false, children }:
   const searching = !!useSpanSearchState()?.searchTerm;
   const [open, setOpen] = useState(defaultOpen || searching);
   const expanded = open || searching;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const collapse = useCallback(() => setOpen(false), []);
+  const expandClamp = useExpandClamp();
+  useCollapsible(rootRef, open && !searching, name, "Collapse", collapse);
 
   return (
-    <div className="flex flex-col">
+    <div ref={rootRef} className="flex flex-col">
       <button
         type="button"
-        onClick={() => setOpen(!expanded)}
+        onClick={() => {
+          if (!expanded) expandClamp();
+          setOpen(!expanded);
+        }}
         className="flex flex-col gap-1 px-2.5 py-2 text-left text-xs hover:overlay-hover min-w-0"
       >
         <span className="flex items-center gap-1.5 min-w-0">

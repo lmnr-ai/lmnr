@@ -22,24 +22,24 @@ const message = (rows: Rows, key: string) => {
 };
 
 describe("buildRows", () => {
-  it("folds system prompt and earlier steps into Context and keeps only new input in Input", () => {
+  it("folds system prompt and earlier steps into a context card under Input, then this call's new messages", () => {
     const rows = buildRows(buildSpanTurn(input, output), false, RAW_OFF);
-    assert.deepEqual(keys(rows), ["context", "section-input", "input-0", "section-output", "output-0"]);
+    assert.deepEqual(keys(rows), ["section-input", "context", "input-0", "section-output", "output-0"]);
 
-    const [context, header] = rows;
+    const [header, context] = rows;
+    assert.equal(header.kind === "section" && header.summary, undefined);
     assert.equal(context.kind === "context" && context.summary, "system prompt + 1 earlier step");
-    assert.equal(header.kind === "section" && header.summary, "1 tool result");
     assert.equal(message(rows, "input-0")?.plainResults, true);
   });
 
   it("opens Context to the system prompt, task and earlier steps", () => {
     const rows = buildRows(buildSpanTurn(input, output), true, RAW_OFF);
     assert.deepEqual(keys(rows), [
+      "section-input",
       "context",
       "system-0",
       "task-0",
       "previous-0",
-      "section-input",
       "input-0",
       "section-output",
       "output-0",
@@ -60,21 +60,14 @@ describe("buildRows", () => {
       { role: "tool", tool_call_id: "c2", content: "r2" },
     ];
     const rows = buildRows(buildSpanTurn(parallel, output), false, RAW_OFF);
-    assert.deepEqual(keys(rows), ["context", "section-input", "input-0", "section-output", "output-0"]);
+    assert.deepEqual(keys(rows), ["section-input", "context", "input-0", "section-output", "output-0"]);
     assert.equal(message(rows, "input-0")?.normalized?.parts.length, 2);
-    const header = rows[1];
-    assert.equal(header.kind === "section" && header.summary, "2 tool results");
   });
 
-  it("calls a plain follow-up a user message", () => {
-    const followUp = [...input, { role: "assistant", content: "found it" }, { role: "user", content: "now fix it" }];
-    const header = buildRows(buildSpanTurn(followUp, output), false, RAW_OFF).find((row) => row.kind === "section");
-    assert.equal(header?.kind === "section" && header.summary, "1 user message");
-  });
-
-  it("skips Context when the whole input is new", () => {
+  it("skips the context card and summarizes Input when the whole input is new", () => {
     const rows = buildRows(buildSpanTurn([{ role: "user", content: "hi" }], output), false, RAW_OFF);
     assert.deepEqual(keys(rows), ["section-input", "input-0", "section-output", "output-0"]);
+    assert.equal(rows[0].kind === "section" && rows[0].summary, "1 user message");
   });
 
   it("drops Context and messages when Input shows the raw payload", () => {

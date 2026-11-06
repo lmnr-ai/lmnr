@@ -1,17 +1,22 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useMemo, useRef } from "react";
 
+import { CollapsibleRegistry } from "@/components/traces/span-view/collapsible";
 import { buildToolNameMap } from "@/components/traces/span-view/messages";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 
 import { type ConversationRow, type MessageAnchor, type SectionKey } from "./build-rows";
 import ConversationRowView, { type ConversationRowProps } from "./conversation-row";
+import ScrollToBottom from "./scroll-to-bottom";
 import { type SectionFormat } from "./section-header";
+import StickyBand from "./sticky-band";
 import { useLinkedRow } from "./use-linked-row";
 import { usePremeasureAbove } from "./use-premeasure-above";
+import { useStickyBand } from "./use-sticky-band";
 
 const HEADER_ESTIMATE_SIZE = 40;
 const MESSAGE_ESTIMATE_SIZE = 240;
+const BAND_HEIGHT = 48;
 const NEVER_ADJUST = () => false;
 
 interface ConversationListProps {
@@ -68,6 +73,12 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
 
   const premeasure = usePremeasureAbove(virtualizer, linkedRow.index, !!searchTerm);
 
+  const sticky = useStickyBand(parentRef, virtualizer, rows, BAND_HEIGHT, rowProps.onToggleContext);
+  const scrollToBottom = useCallback(
+    () => virtualizer.scrollToIndex(rows.length - 1, { align: "end" }),
+    [virtualizer, rows.length]
+  );
+
   const renderRow = (index: number) => {
     const row = rows[index];
     const props: ConversationRowProps = {
@@ -82,21 +93,32 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
   };
 
   return (
-    <div
-      ref={parentRef}
-      className="size-full overflow-y-auto styled-scrollbar scrollbar-gutter-stable px-2"
-      // The virtualizer corrects scrollTop itself; browser scroll anchoring would correct the same shifts again.
-      style={{ contain: "strict", overflowAnchor: "none" }}
-    >
-      <div ref={setContainer} className="relative w-full">
-        {premeasure.length > 0 && (
-          <div aria-hidden className="invisible absolute inset-x-0 top-0 pointer-events-none">
-            {premeasure.map(renderRow)}
+    <>
+      <div
+        ref={parentRef}
+        className="size-full overflow-y-auto styled-scrollbar scrollbar-gutter-stable px-2"
+        // The virtualizer corrects scrollTop itself; browser scroll anchoring would correct the same shifts again.
+        style={{ contain: "strict", overflowAnchor: "none" }}
+      >
+        <StickyBand
+          band={sticky.band}
+          item={sticky.item}
+          onCollapseContext={sticky.collapseContext}
+          onCollapseItem={sticky.collapseItem}
+        />
+        <CollapsibleRegistry value={sticky.registry}>
+          <div ref={setContainer} className="relative w-full">
+            {premeasure.length > 0 && (
+              <div aria-hidden className="invisible absolute inset-x-0 top-0 pointer-events-none">
+                {premeasure.map(renderRow)}
+              </div>
+            )}
+            {virtualizer.getVirtualItems().map((item) => renderRow(item.index))}
           </div>
-        )}
-        {virtualizer.getVirtualItems().map((item) => renderRow(item.index))}
+        </CollapsibleRegistry>
       </div>
-    </div>
+      <ScrollToBottom scrollRef={parentRef} onClick={scrollToBottom} />
+    </>
   );
 };
 

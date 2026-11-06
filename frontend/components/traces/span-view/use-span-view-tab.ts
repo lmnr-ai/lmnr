@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useUrlState } from "@/components/traces/trace-view/store/base";
 
 /** `content` is the Messages view for LLM spans and stacked input/output for the rest. */
-export const SPAN_VIEW_TABS = ["content", "attributes", "events"] as const;
+const SPAN_VIEW_TABS = ["content", "attributes", "events"] as const;
 export type SpanViewTab = (typeof SPAN_VIEW_TABS)[number];
 
 // Not `tab`: host pages (signals) already own that param.

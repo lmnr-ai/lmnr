@@ -41,9 +41,14 @@ export type MessageRow = {
 
 export type ConversationRow =
   | { kind: "section"; key: string; section: SectionKey; summary?: string }
-  /** System prompt + earlier steps, folded behind one header. */
+  /** Inside Input: system prompt + earlier steps, folded into one card. */
   | { kind: "context"; key: string; summary: string; open: boolean }
   | MessageRow;
+
+const CONTEXT_SOURCES = new Set<Source>(["system", "task", "history", "previous"]);
+
+/** Rows shown inside the opened context, which hang off one rail. */
+export const isContextRow = (row: MessageRow) => CONTEXT_SOURCES.has(row.source);
 
 const INPUT_PARTS = ["system", "task", "history", "previous", "input"] as const;
 
@@ -66,8 +71,8 @@ interface Segment {
 }
 
 /**
- * Context (system prompt + earlier steps, one collapsed header) / Input (only what is new in this call) / Output.
- * A section shown in a raw format gets just its header; the raw Input payload includes the context.
+ * Input (system prompt + earlier steps folded into one context card, then this call's new messages) / Output.
+ * A section shown in a raw format gets just its header, which holds the whole payload.
  */
 export const buildRows = (
   turn: SpanTurn,
@@ -119,14 +124,16 @@ export const buildRows = (
 
   const rows: ConversationRow[] = [];
   if (turn.system || turn.task || turn.history || turn.previous || turn.input) {
-    const context = contextSummary(turn);
-    if (context && !raw.input) {
+    const context = raw.input ? "" : contextSummary(turn);
+    const newRows = batchToolResults(rowsOf("input"));
+    const summary = newRows.length > 0 ? summarizeNewInput(newRows) : undefined;
+    // Only when the whole input is new does a summary of it describe the Input section.
+    rows.push({ kind: "section", key: "section-input", section: "input", summary: context ? undefined : summary });
+    if (context) {
       rows.push({ kind: "context", key: "context", summary: context, open: contextOpen });
       if (contextOpen) rows.push(...rowsOf("system"), ...rowsOf("task"), ...rowsOf("history"), ...rowsOf("previous"));
     }
-    const newRows = batchToolResults(rowsOf("input"));
-    const summary = newRows.length > 0 ? summarizeNewInput(newRows) : undefined;
-    rows.push({ kind: "section", key: "section-input", section: "input", summary }, ...newRows);
+    rows.push(...newRows);
   }
   if (turn.output) {
     rows.push({ kind: "section", key: "section-output", section: "output" }, ...rowsOf("output"));

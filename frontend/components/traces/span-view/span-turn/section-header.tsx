@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/template-renderer/template-picker";
 import { cn } from "@/lib/utils";
 
+import { type SectionKey } from "./build-rows";
+
 export const SECTION_MODES = ["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"];
+
+export const SECTION_TITLES: Record<SectionKey, string> = { input: "Input", output: "Output" };
 
 export interface SectionFormat {
   /** Extra copy target next to the full payload, e.g. only this call's new input messages. */

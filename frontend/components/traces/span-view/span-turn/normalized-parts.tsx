@@ -50,12 +50,14 @@ const ResultSummary = ({ result }: { result: ToolResultPart }) => (
   </span>
 );
 
-const Part = ({
-  part,
-  plainResults,
-  expandReasoning,
-  ...props
-}: PartProps & { part: TurnPart; plainResults?: boolean; expandReasoning?: boolean }) => {
+interface PartOptions {
+  /** This call's tool results: their output's first lines instead of one-line rows. */
+  plainResults?: boolean;
+  /** Open Thinking rows initially (the output's reasoning is what you came to read). */
+  expandReasoning?: boolean;
+}
+
+const Part = ({ part, plainResults, expandReasoning, ...props }: PartProps & PartOptions & { part: TurnPart }) => {
   switch (part.kind) {
     case "text":
       return <TextContentPart content={part.text} {...props} />;
@@ -111,23 +113,19 @@ const Part = ({
   }
 };
 
-interface NormalizedPartsProps {
+interface NormalizedPartsProps extends PartOptions {
   parts: TurnPart[];
-  /** This call's tool results: their output's first lines instead of one-line rows. */
-  plainResults?: boolean;
-  /** Open Thinking rows initially (the output's reasoning is what you came to read). */
-  expandReasoning?: boolean;
   presetKey: string;
   messageIndex: number;
 }
 
-const NormalizedParts = ({ parts, plainResults, expandReasoning, presetKey, messageIndex }: NormalizedPartsProps) =>
+/** Tool calls, results and reasoning as one-line rows; the card's clamp handles long text. */
+const NormalizedParts = ({ parts, presetKey, messageIndex, ...options }: NormalizedPartsProps) =>
   parts.map((part, index) => (
     <Part
       key={index}
       part={part}
-      plainResults={plainResults}
-      expandReasoning={expandReasoning}
+      {...options}
       presetKey={`${messageIndex}-${part.kind}-${index}-${presetKey}`}
       messageIndex={messageIndex}
       // Even slots for parts, odd for a paired result, so search order follows reading order.
