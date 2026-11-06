@@ -74,4 +74,17 @@ describe("live sessions", () => {
     const caughtUp = mergeRefreshedPage(live, [{ sessionId: "s", endTime: at(40), traceCount: 1 } as SessionRow]);
     assert.equal(caughtUp[0].traceCount, 1);
   });
+
+  it("a session the server hasn't written yet keeps its place", () => {
+    const live = [
+      { sessionId: "new", endTime: at(40) },
+      { sessionId: "old", endTime: at(0) },
+    ] as SessionRow[];
+    const merged = mergeRefreshedPage(live, [{ sessionId: "old", endTime: at(0), traceCount: 3 } as SessionRow]);
+    assert.deepEqual(
+      merged.map((r) => r.sessionId),
+      ["new", "old"]
+    );
+    assert.equal(merged[1].traceCount, 3);
+  });
 });

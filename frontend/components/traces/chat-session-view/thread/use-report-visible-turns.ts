@@ -26,9 +26,12 @@ export function useReportVisibleTurns(virtualizer: Virtualizer<HTMLDivElement, E
         : items.filter((i) => i.end > scrollOffset && i.start < scrollOffset + viewportHeight);
     for (const item of inView) {
       const trace = traces[item.index];
-      if (!trace) continue;
-      min = Math.min(min, Date.parse(trace.startTime));
-      max = Math.max(max, Date.parse(trace.endTime));
+      const start = Date.parse(trace?.startTime ?? "");
+      const end = Date.parse(trace?.endTime ?? "");
+      // A live turn's first delta can lack times; one NaN would blank the whole range.
+      if (Number.isNaN(start) || Number.isNaN(end)) continue;
+      min = Math.min(min, start);
+      max = Math.max(max, end);
     }
     return Number.isFinite(min) && Number.isFinite(max) ? { start: min, end: max } : {};
   }, [items, scrollOffset, viewportHeight, traces]);

@@ -90,17 +90,15 @@ export const applyAgentInput = (state: LiveSessions, traceId: string, agentInput
 };
 
 /**
- * Lays a refetched first page over the live rows. ClickHouse can lag the realtime stream, so a server row only
- * replaces a live one once it has caught up to it (its last activity is at least as late).
+ * Corrects the rows on screen with a refetched first page. It never adds, drops or moves rows (live updates own
+ * those), and ClickHouse can lag the stream, so a server row replaces a live one only once it has caught up to it.
  */
 export const mergeRefreshedPage = (rows: SessionRow[], page: SessionRow[]): SessionRow[] => {
-  const live = new Map(rows.map((r) => [r.sessionId, r]));
-  const onPage = new Set(page.map((r) => r.sessionId));
-  const merged = page.map((server) => {
-    const local = live.get(server.sessionId);
-    return local && ms(local.endTime) > ms(server.endTime) ? local : server;
+  const server = new Map(page.map((r) => [r.sessionId, r]));
+  return rows.map((local) => {
+    const fresh = server.get(local.sessionId);
+    return fresh && ms(fresh.endTime) >= ms(local.endTime) ? fresh : local;
   });
-  return [...merged, ...rows.filter((r) => !onPage.has(r.sessionId))];
 };
 
 const omit = <V>(record: Record<string, V>, key: string) => {
