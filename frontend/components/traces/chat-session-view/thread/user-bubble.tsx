@@ -15,7 +15,7 @@ export default function UserBubble({ text, time }: { text: string; time: string 
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="max-w-[80%] rounded-2xl rounded-br-md bg-emphasis-0.5 px-3.5 py-2">
-        <div ref={ref} className={cn("text-xs leading-5 whitespace-pre-wrap break-words", !expanded && "line-clamp-6")}>
+        <div ref={ref} className={cn("text-sm leading-6 whitespace-pre-wrap break-words", !expanded && "line-clamp-6")}>
           {text}
         </div>
         {(overflowing || expanded) && (
