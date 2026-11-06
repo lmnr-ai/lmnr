@@ -29,6 +29,9 @@ export interface AuditEventPayload extends AuditDetails {
 export const clientIp = (h: Headers) =>
   h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
 
+// A stalled app-server or broker must not hold up the write it records.
+const POST_TIMEOUT_MS = 5_000;
+
 // app-server enriches ids into labels (workspace, project name, email) and
 // replies after the broker confirmed the publish.
 export const postAuditEvent = async (event: AuditEventPayload): Promise<void> => {
@@ -37,6 +40,7 @@ export const postAuditEvent = async (event: AuditEventPayload): Promise<void> =>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
+      signal: AbortSignal.timeout(POST_TIMEOUT_MS),
       body: JSON.stringify({
         actor: { type: "user", userId: event.userId },
         source: event.source ?? "ui",

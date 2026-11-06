@@ -3,7 +3,7 @@
 //! that already emit their own, richer event (`/v1/sql`, `/v1/mcp`) and
 //! ingestion or per-item traffic are skipped.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use actix_web::{
     Error, HttpMessage, HttpRequest,
@@ -202,6 +202,9 @@ fn target_fields(targets: Targets) -> TargetFields {
     }
 }
 
+// A stalled broker must not hold up the write it records.
+const EMIT_TIMEOUT: Duration = Duration::from_secs(5);
+
 pub async fn audit_v1(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
@@ -281,8 +284,12 @@ pub async fn audit_v1(
     );
     if read {
         super::emit_detached(db, cache, queue, input);
-    } else if let Err(e) = super::emit(db, cache, &queue, input).await {
-        log::error!("Failed to emit /v1 audit event: {e:?}");
+    } else {
+        match tokio::time::timeout(EMIT_TIMEOUT, super::emit(db, cache, &queue, input)).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => log::error!("Failed to emit /v1 audit event: {e:?}"),
+            Err(_) => log::error!("Timed out emitting /v1 audit event"),
+        }
     }
     Ok(res)
 }
