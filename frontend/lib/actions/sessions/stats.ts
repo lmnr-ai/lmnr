@@ -4,11 +4,10 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { GetSessionsSchema } from "@/lib/actions/sessions";
+import { resolveSessionSearch } from "@/lib/actions/sessions/search";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
 import { generateEmptyTimeBuckets, parseCustomColumnsJson } from "@/lib/actions/traces/utils";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
 export const GetSessionStatsSchema = GetSessionsSchema.omit({
@@ -46,22 +45,16 @@ export async function getSessionStats(
   const filters: Filter[] = compact(inputFilters);
   const customColumns = parseCustomColumnsJson(customColumnsJson) ?? [];
 
-  const traceIds = search
-    ? [
-        ...new Set(
-          (
-            await searchSpans({
-              projectId,
-              searchQuery: search,
-              timeRange: getTimeRange(pastHours, startTime, endTime),
-              searchType: searchIn as SpanSearchType[],
-            })
-          ).map((hit) => hit.trace_id)
-        ),
-      ]
-    : [];
+  const { traceIds, noMatches } = await resolveSessionSearch({
+    projectId,
+    search,
+    searchIn,
+    pastHours,
+    startTime,
+    endTime,
+  });
 
-  if (search && traceIds.length === 0) {
+  if (noMatches) {
     const buckets = generateEmptyTimeBuckets(getTimeRange(pastHours, startTime, endTime));
     return { items: buckets.map(({ timestamp }) => ({ timestamp, count: 0 }) as SessionsStatsDataPoint) };
   }

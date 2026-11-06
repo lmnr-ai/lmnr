@@ -6,37 +6,25 @@ const MIN_TRACE_WIDTH = 480;
 const MIN_THREAD_WIDTH = 360;
 const DEFAULT_TRACE_WIDTH = 760;
 
-// The thread is always open; clicking a turn's "Worked" row (or a timeline span)
-// slides that trace's view in beside it.
-interface ChatViewState {
-  openTraceId?: string;
-  openSpanId?: string;
+/** Trace panel layout, persisted across sessions. Which trace is open lives in the URL (`useOpenTrace`). */
+interface ChatViewLayoutState {
   traceWidth: number;
   containerWidth: number;
-  toggleTrace: (traceId?: string) => void;
-  openSpan: (traceId: string, spanId: string) => void;
   resizeTrace: (delta: number) => void;
   setContainerWidth: (width: number) => void;
-  reset: () => void;
 }
 
 const clampWidth = (width: number, container: number) =>
   Math.max(MIN_TRACE_WIDTH, Math.min(width, Math.max(MIN_TRACE_WIDTH, container - MIN_THREAD_WIDTH)));
 
-export const useChatViewStore = create<ChatViewState>()(
+export const useChatViewStore = create<ChatViewLayoutState>()(
   persist(
     (set, get) => ({
-      openTraceId: undefined,
-      openSpanId: undefined,
       traceWidth: DEFAULT_TRACE_WIDTH,
       containerWidth: Infinity,
-      toggleTrace: (traceId) =>
-        set({ openTraceId: traceId === get().openTraceId ? undefined : traceId, openSpanId: undefined }),
-      openSpan: (openTraceId, openSpanId) => set({ openTraceId, openSpanId }),
       resizeTrace: (delta) => set({ traceWidth: clampWidth(get().traceWidth + delta, get().containerWidth) }),
       setContainerWidth: (containerWidth) =>
         set({ containerWidth, traceWidth: clampWidth(get().traceWidth, containerWidth) }),
-      reset: () => set({ openTraceId: undefined, openSpanId: undefined }),
     }),
     { name: "chat-session-view-layout", partialize: (s) => ({ traceWidth: s.traceWidth }) }
   )

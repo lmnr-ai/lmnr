@@ -2,6 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
+import UserIdCell from "@/components/traces/user-preview/user-id-cell";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
@@ -122,7 +123,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     meta: { sql: "trace_count" },
   },
   {
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => <UserIdCell userId={row.getValue()} />,
     accessorFn: (row) => row.userId ?? "-",
     header: "User ID",
     id: "user_id",

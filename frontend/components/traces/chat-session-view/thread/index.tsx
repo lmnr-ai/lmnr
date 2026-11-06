@@ -7,8 +7,8 @@ import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useChatViewStore } from "../store";
-import { useTurnDataStore } from "../turn-data";
+import { useTurnData } from "../turn-data";
+import { useOpenTrace } from "../use-open-trace";
 import TimeDivider from "./time-divider";
 import Turn from "./turn";
 
@@ -20,9 +20,8 @@ const ESTIMATED_TURN_HEIGHT = 260;
 const OVERSCAN = 6;
 
 export default function Thread() {
-  const { projectId, traces, isLoading, error, fetchAgentOutputs } = useSessionViewStore(
+  const { traces, isLoading, error, fetchAgentOutputs } = useSessionViewStore(
     (s) => ({
-      projectId: s.projectId,
       traces: s.traces,
       isLoading: s.isTracesLoading,
       error: s.tracesError,
@@ -30,8 +29,8 @@ export default function Thread() {
     }),
     shallow
   );
-  const openTraceId = useChatViewStore((s) => s.openTraceId);
-  const fetchCounts = useTurnDataStore((s) => s.fetchCounts);
+  const { openTraceId } = useOpenTrace();
+  const fetchCounts = useTurnData((s) => s.fetchCounts);
 
   const gaps = useMemo(
     () =>
@@ -52,16 +51,14 @@ export default function Thread() {
   const items = virtualizer.getVirtualItems();
 
   // Rendered turns (viewport + overscan) are exactly the ones whose details we need.
-  const renderedIds = items
-    .map((v) => traces[v.index]?.id)
-    .filter(Boolean)
-    .join(",");
+  const firstIndex = items[0]?.index;
+  const lastIndex = items.at(-1)?.index;
   useEffect(() => {
-    if (!projectId || !renderedIds) return;
-    const ids = renderedIds.split(",");
-    fetchCounts(projectId, ids);
+    if (firstIndex === undefined || lastIndex === undefined) return;
+    const ids = traces.slice(firstIndex, lastIndex + 1).map((t) => t.id);
+    fetchCounts(ids);
     fetchAgentOutputs(ids);
-  }, [projectId, renderedIds, fetchCounts, fetchAgentOutputs]);
+  }, [firstIndex, lastIndex, traces, fetchCounts, fetchAgentOutputs]);
 
   // A turn opened from the session timeline may be far off-screen.
   useEffect(() => {

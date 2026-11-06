@@ -102,6 +102,8 @@ interface BaseSessionViewActions {
    *  debounced). Skips ids already resolved or in-flight. Fire-and-forget;
    *  fills `agentOutputs`. */
   fetchAgentOutputs: (traceIds: string[]) => void;
+  /** Forget resolved outputs (e.g. a live turn produced more) so the next fetch reloads them. */
+  invalidateAgentOutputs: (traceIds: string[]) => void;
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
@@ -361,6 +363,12 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       if (!added) return;
       if (outputTimer) clearTimeout(outputTimer);
       outputTimer = setTimeout(() => void flushAgentOutputs(), 150);
+    },
+
+    invalidateAgentOutputs: (traceIds) => {
+      const next = { ...get().agentOutputs };
+      for (const id of traceIds) delete next[id];
+      set({ agentOutputs: next } as Partial<T>);
     },
 
     // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.

@@ -1,14 +1,13 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { useSessionViewStore } from "@/components/traces/session-view/store";
 import TraceView from "@/components/traces/trace-view";
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
-import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 
 import { useChatViewStore } from "./store";
+import { useOpenTrace } from "./use-open-trace";
 
 const enterExitTransition = { duration: 0.25, ease: "easeOut" } as const;
 const instantTransition = { duration: 0 } as const;
@@ -19,12 +18,10 @@ const instantTransition = { duration: 0 } as const;
  * at the target width, so content never reflows mid-animation. Left edge resizes.
  */
 export default function TracePanel() {
-  const { openTraceId, openSpanId, width, toggleTrace, resizeTrace, setContainerWidth } = useChatViewStore(
+  const { openTraceId, openSpanId, closeTrace } = useOpenTrace();
+  const { width, resizeTrace, setContainerWidth } = useChatViewStore(
     useShallow((s) => ({
-      openTraceId: s.openTraceId,
-      openSpanId: s.openSpanId,
       width: s.traceWidth,
-      toggleTrace: s.toggleTrace,
       resizeTrace: s.resizeTrace,
       setContainerWidth: s.setContainerWidth,
     }))
@@ -35,14 +32,6 @@ export default function TracePanel() {
   if (openTraceId && (openTraceId !== shown?.traceId || openSpanId !== shown?.spanId)) {
     setShown({ traceId: openTraceId, spanId: openSpanId });
   }
-
-  const row = useSessionViewStore((s) => s.traces.find((t) => t.id === shown?.traceId));
-  // Seeding TraceView from the session row skips its own trace fetch.
-  const trace = useMemo<TraceViewTrace | undefined>(
-    () =>
-      row && { ...row, metadata: JSON.stringify(row.metadata ?? {}), visibility: "private", hasBrowserSession: false },
-    [row]
-  );
 
   const onResize = useCallback((_: unknown, delta: number) => resizeTrace(delta), [resizeTrace]);
   const { handlePointerDown, isResizing } = usePanelResize("trace", onResize);
@@ -60,7 +49,7 @@ export default function TracePanel() {
 
   return (
     <AnimatePresence initial={false}>
-      {open && trace && shown && (
+      {open && shown && (
         <motion.div
           key="chat-trace-panel"
           ref={panelRef}
@@ -74,13 +63,13 @@ export default function TracePanel() {
             <LeftEdgeResizeHandle onPointerDown={handlePointerDown} />
             <div className="flex h-full min-w-0 flex-1 overflow-hidden">
               <TraceView
-                key={`${shown.traceId}:${shown.spanId ?? ""}`}
+                // Per trace only: a new spanId selects that span in the mounted view.
+                key={shown.traceId}
                 traceId={shown.traceId}
                 spanId={shown.spanId}
-                propsTrace={trace}
                 storeKey="chat-session-trace-view-state"
                 defaultTimelineEnabled={false}
-                onClose={() => toggleTrace(undefined)}
+                onClose={closeTrace}
               />
             </div>
           </div>
