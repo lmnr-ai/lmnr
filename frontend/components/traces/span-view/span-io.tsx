@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
 
-import MessageLabelRow from "@/components/traces/span-view/message-label-row";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { normalizeSpanPayload } from "@/lib/spans/turn";
@@ -26,7 +25,7 @@ export const SpanIOSection = ({ title, data, presetKey, index }: SpanIOSectionPr
   return (
     <div className="flex flex-col">
       <div className="px-3 pt-2">
-        <MessageLabelRow text={title} />
+        <span className="text-base font-medium text-secondary-foreground">{title}</span>
       </div>
       {/* No contain-strict: size containment would collapse the auto-height editor. */}
       <ContentRenderer

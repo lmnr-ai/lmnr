@@ -9,7 +9,9 @@ import { type ConversationRow, isContextRow, type MessageAnchor, type SectionKey
 import ContextStack from "./context-stack";
 import MessageLinkButton from "./message-link-button";
 import NormalizedParts from "./normalized-parts";
-import SectionHeader, { SECTION_TITLES, type SectionFormat } from "./section-header";
+import SectionHeader, { type SectionFormat } from "./section-header";
+
+const SECTION_TITLES: Record<SectionKey, string> = { input: "Input", output: "Output" };
 
 // The virtualizer positions each row itself (`directDomUpdates`).
 const ROW = "absolute top-0 left-0 w-full";

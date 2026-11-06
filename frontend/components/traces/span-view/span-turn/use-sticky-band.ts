@@ -15,10 +15,6 @@ export interface Band {
   summary: string;
 }
 
-interface Extent {
-  start: number;
-}
-
 const inOpenContext = (row: ConversationRow) =>
   (row.kind === "context" && row.open) || (row.kind === "message" && isContextRow(row));
 
@@ -26,22 +22,23 @@ const inOpenContext = (row: ConversationRow) =>
  * The band for a scroll position: none outside the opened context, while its card is still fully in view, or once the
  * first new message is about to reach the top.
  */
-const bandAt = (rows: ConversationRow[], items: Extent[], scrollTop: number, height: number): Band | undefined => {
+const bandAt = (
+  rows: ConversationRow[],
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+  scrollTop: number,
+  height: number
+): Band | undefined => {
   // Last row starting at or above the top edge.
-  let top = -1;
-  for (let lo = 0, hi = Math.min(rows.length, items.length) - 1; lo <= hi;) {
-    const mid = (lo + hi) >>> 1;
-    if (items[mid].start <= scrollTop) [top, lo] = [mid, mid + 1];
-    else hi = mid - 1;
-  }
-  if (top < 0 || !inOpenContext(rows[top])) return undefined;
+  const top = virtualizer.getVirtualItemForOffset(scrollTop);
+  if (!top || !rows[top.index] || !inOpenContext(rows[top.index])) return undefined;
 
-  const index = rows.slice(0, top + 1).findLastIndex((row) => row.kind === "context");
+  const index = rows.slice(0, top.index + 1).findLastIndex((row) => row.kind === "context");
   const header = rows[index];
-  if (header?.kind !== "context" || (index === top && scrollTop <= items[top].start)) return undefined;
+  if (header?.kind !== "context" || (index === top.index && scrollTop <= top.start)) return undefined;
 
-  const next = rows.findIndex((row, i) => i > top && !inOpenContext(row));
-  if (next >= 0 && items[next] && items[next].start - scrollTop < height) return undefined;
+  const next = rows.findIndex((row, i) => i > top.index && !inOpenContext(row));
+  const nextStart = next >= 0 ? virtualizer.measurementsCache[next]?.start : undefined;
+  if (nextStart !== undefined && nextStart - scrollTop < height) return undefined;
 
   return { index, summary: header.summary };
 };
@@ -69,7 +66,7 @@ export const useStickyBand = (
     const el = scrollRef.current;
     if (!el) return;
     const update = () => {
-      const nextBand = bandAt(rows, virtualizer.measurementsCache, el.scrollTop, height);
+      const nextBand = bandAt(rows, virtualizer, el.scrollTop, height);
       const nextItem = collapsibleAt(el, registry);
       setBand((prev) => (sameBand(prev, nextBand) ? prev : nextBand));
       setItem((prev) => (sameItem(prev, nextItem) ? prev : nextItem));

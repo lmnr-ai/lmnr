@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
 
-import MessageLabelRow from "@/components/traces/span-view/message-label-row";
 import CopyMenu, { type CopyOption } from "@/components/traces/span-view/span-turn/copy-menu";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { renderText, spanViewTheme } from "@/components/ui/content-renderer/utils";
@@ -13,11 +12,7 @@ import {
 } from "@/components/ui/template-renderer/template-picker";
 import { cn } from "@/lib/utils";
 
-import { type SectionKey } from "./build-rows";
-
 export const SECTION_MODES = ["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"];
-
-export const SECTION_TITLES: Record<SectionKey, string> = { input: "Input", output: "Output" };
 
 export interface SectionFormat {
   /** Extra copy target next to the full payload, e.g. only this call's new input messages. */
@@ -62,7 +57,7 @@ const SectionHeader = ({
   <TemplatePickerProvider presetKey={templateKey} testData={value}>
     <div className={cn("flex flex-col pb-2", !first && "pt-2")}>
       <div className="flex items-center gap-2 px-1">
-        <MessageLabelRow text={title} />
+        <span className="text-base font-medium text-secondary-foreground">{title}</span>
         {summary && <span className="-ml-1 text-sm text-muted-foreground whitespace-nowrap">· {summary}</span>}
         <TemplatePickerView mode={mode} onModeChange={onModeChange} modes={SECTION_MODES} />
         {mode === "custom" && <TemplatePickerActions />}
