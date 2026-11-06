@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { cache } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -81,9 +81,13 @@ const sourceSignalIds = async (projectId: string): Promise<string[]> => {
 
 // A signal deleted after the rename only had its events purged from the new
 // table, so its old rows must not be copied back.
-const liveSignalIds = async (projectId: string): Promise<Set<string>> => {
-  const rows = await db.select({ id: signals.id }).from(signals).where(eq(signals.projectId, projectId));
-  return new Set(rows.map((r) => r.id));
+const signalExists = async (projectId: string, signalId: string): Promise<boolean> => {
+  const rows = await db
+    .select({ id: signals.id })
+    .from(signals)
+    .where(and(eq(signals.projectId, projectId), eq(signals.id, signalId)))
+    .limit(1);
+  return rows.length > 0;
 };
 
 // One signal per statement keeps each INSERT bounded on large projects.
@@ -99,6 +103,25 @@ const copySignal = async (projectId: string, signalId: string): Promise<number> 
     clickhouse_settings: { async_insert: 0 },
   });
   return Number(result.summary?.written_rows ?? 0);
+};
+
+const purgeSignal = async (projectId: string, signalId: string): Promise<void> => {
+  await ch().command({
+    query: `DELETE FROM ${TARGET} WHERE project_id = {projectId:UUID} AND signal_id = {signalId:UUID}`,
+    query_params: { projectId, signalId },
+  });
+};
+
+// Signal deletion commits the Postgres delete BEFORE its ClickHouse purge, so
+// re-checking Postgres after the (synchronous) INSERT covers a deletion racing
+// the copy: either the check sees it and purges here, or the deletion's own
+// purge runs after this INSERT landed and removes the copied rows.
+const copyLiveSignal = async (projectId: string, signalId: string): Promise<number> => {
+  if (!(await signalExists(projectId, signalId))) return 0;
+  const n = await copySignal(projectId, signalId);
+  if (await signalExists(projectId, signalId)) return n;
+  await purgeSignal(projectId, signalId);
+  return 0;
 };
 
 const readStatus = async (): Promise<CopyStatus | null> => {
@@ -124,11 +147,9 @@ const runCopy = async (status: CopyStatus | null, lostLease: () => boolean): Pro
   let n = 0;
   for (const projectId of await sourceProjectIds()) {
     if (copied.has(projectId)) continue;
-    const live = await liveSignalIds(projectId);
     for (const signalId of await sourceSignalIds(projectId)) {
-      if (!live.has(signalId)) continue;
       if (lostLease()) return false;
-      n += await copySignal(projectId, signalId);
+      n += await copyLiveSignal(projectId, signalId);
     }
     copied.add(projectId);
     if (lostLease()) return false;
