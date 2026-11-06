@@ -83,3 +83,20 @@ describe("createBatchedLoader", () => {
     assert.deepEqual(resolved, { a: 1 });
   });
 });
+
+describe("createBatchedLoader onFailed", () => {
+  it("reports the ids of a failed chunk", async () => {
+    const failed: string[][] = [];
+    const loader = createBatchedLoader<number>({
+      load: async () => undefined,
+      onLoaded: () => {},
+      onFailed: (ids) => failed.push(ids),
+      isResolved: () => false,
+      batchSize: 2,
+      debounceMs: 0,
+    });
+    loader.request(["a", "b", "c"]);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(failed, [["a", "b"], ["c"]]);
+  });
+});

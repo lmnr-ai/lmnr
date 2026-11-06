@@ -8,6 +8,7 @@ import { mergeTraceDelta, realtimeTraceToRow } from "@/lib/traces/realtime";
 import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 import { fetchSessionTraces, sessionModelTokensUrl } from "./session-api";
+import { useTurnData } from "./turn-data";
 import { useRefreshTurns } from "./use-refresh-turns";
 
 // Wait for a burst of span batches to settle before reconciling with the server.
@@ -33,13 +34,23 @@ export function useSessionRealtime(sessionId: string) {
   const { mutate } = useSWRConfig();
   const setTraces = useSessionViewStore((s) => s.setTraces);
   const refreshTurns = useRefreshTurns();
+  const setLive = useTurnData((s) => s.setLive);
 
   const touched = useRef(new Set<string>());
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Agent input extracted before the turn's first trace_update; applied when the row lands.
+  const earlyInputs = useRef(new Map<string, TraceRow["agentInput"]>());
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const eventHandlers = useMemo(() => {
+    const withEarlyInput = (row: TraceRow): TraceRow => {
+      const agentInput = earlyInputs.current.get(row.id);
+      if (agentInput === undefined) return row;
+      earlyInputs.current.delete(row.id);
+      return { ...row, agentInput };
+    };
+
     const reconcile = async () => {
       const ids = [...touched.current];
       touched.current.clear();
@@ -47,6 +58,7 @@ export function useSessionRealtime(sessionId: string) {
       const { traces } = await fetchSessionTraces(projectId, sessionId);
       if (traces) setTraces(traces);
       refreshTurns(ids);
+      setLive(ids, false);
       void mutate(sessionModelTokensUrl(projectId, sessionId));
     };
 
@@ -61,10 +73,14 @@ export function useSessionRealtime(sessionId: string) {
             touched.current.add(delta.id);
             const i = next.findIndex((t) => t.id === delta.id);
             if (i >= 0) next[i] = mergeTraceDelta(next[i], delta);
-            else next.push(realtimeTraceToRow(delta));
+            else next.push(withEarlyInput(realtimeTraceToRow(delta)));
           }
           return next.sort(byStartTime);
         });
+        setLive(
+          updates.map((u) => u.id),
+          true
+        );
 
         clearTimeout(timer.current);
         timer.current = setTimeout(() => void reconcile(), SETTLE_MS);
@@ -72,14 +88,17 @@ export function useSessionRealtime(sessionId: string) {
       trace_agent_input_update: (event: MessageEvent) => {
         const payload = parse<RealtimeAgentInputPayload>(event);
         if (!payload?.traceId) return;
-        setTraces((prev) =>
-          prev.map((t) =>
-            t.id === payload.traceId ? { ...t, agentInput: payload.agentInput as TraceRow["agentInput"] } : t
-          )
-        );
+        const agentInput = payload.agentInput as TraceRow["agentInput"];
+        setTraces((prev) => {
+          if (!prev.some((t) => t.id === payload.traceId)) {
+            earlyInputs.current.set(payload.traceId, agentInput);
+            return prev;
+          }
+          return prev.map((t) => (t.id === payload.traceId ? { ...t, agentInput } : t));
+        });
       },
     };
-  }, [projectId, sessionId, mutate, setTraces, refreshTurns]);
+  }, [projectId, sessionId, mutate, setTraces, refreshTurns, setLive]);
 
   useRealtime({ key: `session_${sessionId}`, projectId, eventHandlers, enabled: !!projectId });
 }

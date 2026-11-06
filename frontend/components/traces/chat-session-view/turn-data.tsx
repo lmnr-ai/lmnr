@@ -14,6 +14,9 @@ interface TurnDataState {
   fetchCounts: (traceIds: string[]) => void;
   /** Forget resolved counts (a live turn grew) so the next fetchCounts reloads them. */
   invalidateCounts: (traceIds: string[]) => void;
+  /** Turns still receiving live updates: a missing reply there means "not written yet", not "none". */
+  liveIds: Record<string, true>;
+  setLive: (traceIds: string[], live: boolean) => void;
 }
 
 /**
@@ -46,6 +49,15 @@ const createTurnDataStore = (projectId: string) =>
         const next = { ...get().counts };
         for (const id of traceIds) delete next[id];
         set({ counts: next });
+      },
+      liveIds: {},
+      setLive: (traceIds, live) => {
+        const next = { ...get().liveIds };
+        for (const id of traceIds) {
+          if (live) next[id] = true;
+          else delete next[id];
+        }
+        set({ liveIds: next });
       },
     };
   });

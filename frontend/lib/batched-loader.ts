@@ -1,13 +1,15 @@
 /**
  * Collects ids requested within a debounce window and loads them in fixed-size chunks.
  * Ids already resolved, queued, or in flight are skipped. A chunk whose load fails stays
- * unresolved, so a later `request` for those ids retries.
+ * unresolved (and is reported to `onFailed`), so a later `request` for those ids retries.
  */
 export interface BatchedLoaderOptions<V> {
   /** Loads one chunk; `undefined` marks the chunk as failed. */
   load: (ids: string[]) => Promise<Record<string, V> | undefined>;
   /** Receives each successfully loaded chunk. */
   onLoaded: (values: Record<string, V>) => void;
+  /** Receives the ids of each chunk whose load failed. */
+  onFailed?: (ids: string[]) => void;
   isResolved: (id: string) => boolean;
   /** Defaults to 100, the cap the trace batch routes enforce. */
   batchSize?: number;
@@ -21,6 +23,7 @@ export interface BatchedLoader {
 export function createBatchedLoader<V>({
   load,
   onLoaded,
+  onFailed,
   isResolved,
   batchSize = 100,
   debounceMs = 150,
@@ -35,14 +38,16 @@ export function createBatchedLoader<V>({
     for (const id of ids) inFlight.add(id);
     for (let i = 0; i < ids.length; i += batchSize) {
       const chunk = ids.slice(i, i + batchSize);
+      let values: Record<string, V> | undefined;
       try {
-        const values = await load(chunk);
-        if (values) onLoaded(values);
+        values = await load(chunk);
       } catch {
         // Treated like a failed load: the chunk stays unresolved for a later retry.
       } finally {
         for (const id of chunk) inFlight.delete(id);
       }
+      if (values) onLoaded(values);
+      else onFailed?.(chunk);
     }
   };
 
