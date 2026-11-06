@@ -9,7 +9,9 @@ export const POST = handlerWithAudit(
   { resource: "workspace", action: "create" },
   async (req: Request, _ctx: { params: Promise<{}> }, audit): Promise<Response> => {
     try {
-      const result = await startOnboarding(await req.json());
+      const { created, ...result } = await startOnboarding(await req.json());
+      // A double submit or second tab resumes the workspace it already created.
+      if (!created) audit.skip();
       audit.set({ workspaceId: result.workspaceId, metadata: { onboarding: true } });
       await audit.target(result.workspaceId);
       return Response.json(result);
