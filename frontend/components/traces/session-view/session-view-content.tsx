@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import React, { useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
-import { type TraceRow } from "@/lib/traces/types";
+import { fetchSessionTraces } from "@/components/traces/chat-session-view/session-api";
 
 import FillWidthLayout, { type SessionViewPanels } from "./fill-width-layout";
 import SessionPanel from "./session-panel";
@@ -20,18 +20,28 @@ interface SessionViewContentProps {
 export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
-  const { sessionTimelineEnabled, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
-    useSessionViewStore(
-      (s) => ({
-        sessionTimelineEnabled: s.sessionTimelineEnabled,
-        setTraces: s.setTraces,
-        setIsTracesLoading: s.setIsTracesLoading,
-        setTracesError: s.setTracesError,
-        setSession: s.setSession,
-        setProjectId: s.setProjectId,
-      }),
-      shallow
-    );
+  const {
+    sessionTimelineEnabled,
+    selectedSpan,
+    setSelectedSpan,
+    setTraces,
+    setIsTracesLoading,
+    setTracesError,
+    setSession,
+    setProjectId,
+  } = useSessionViewStore(
+    (s) => ({
+      sessionTimelineEnabled: s.sessionTimelineEnabled,
+      selectedSpan: s.selectedSpan,
+      setSelectedSpan: s.setSelectedSpan,
+      setTraces: s.setTraces,
+      setIsTracesLoading: s.setIsTracesLoading,
+      setTracesError: s.setTracesError,
+      setSession: s.setSession,
+      setProjectId: s.setProjectId,
+    }),
+    shallow
+  );
 
   // Push projectId into the store so store-owned async actions
   // (e.g. fetchTraceSpans) can issue requests without prop-drilling.
@@ -44,26 +54,16 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
     setSession({ sessionId });
     const controller = new AbortController();
     const fetchTraces = async () => {
+      setIsTracesLoading(true);
+      setTracesError(undefined);
       try {
-        setIsTracesLoading(true);
-        setTracesError(undefined);
-
-        const encodedSessionId = encodeURIComponent(sessionId);
-        const res = await fetch(`/api/projects/${projectId}/sessions/${encodedSessionId}/traces`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
-          setTracesError(err.error || "Failed to load session traces");
-          return;
-        }
-        const body = (await res.json()) as { items: TraceRow[] };
-        setTraces(body.items);
-      } catch (e) {
-        if ((e as Error).name === "AbortError") return;
-        setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
+        const { traces, error } = await fetchSessionTraces(projectId, sessionId, controller.signal);
+        if (traces) setTraces(traces);
+        else setTracesError(error);
+      } catch {
+        // Aborted: a newer session or unmount superseded this load.
       } finally {
-        setIsTracesLoading(false);
+        if (!controller.signal.aborted) setIsTracesLoading(false);
       }
     };
     fetchTraces();
@@ -76,11 +76,18 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
         <SessionPanel
           searchSlot={<RegularSearchSlot />}
           timelineToggle={<RegularTimelineToggle />}
-          timelinePanel={sessionTimelineEnabled ? <SessionTimeline /> : undefined}
+          timelinePanel={
+            sessionTimelineEnabled ? (
+              <SessionTimeline
+                selectedSpan={selectedSpan}
+                onSelectSpan={(traceId, spanId) => setSelectedSpan({ traceId, spanId })}
+              />
+            ) : undefined
+          }
         />
       ),
     }),
-    [sessionTimelineEnabled]
+    [sessionTimelineEnabled, selectedSpan, setSelectedSpan]
   );
 
   return <FillWidthLayout panels={panels} />;

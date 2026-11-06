@@ -4,18 +4,25 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "
 import { shallow } from "zustand/shallow";
 
 import { formatTimeMarkerLabel } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
-import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
+import { useWheelZoom, zoomKeepingCenter } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useSessionViewStore } from "../store";
+import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
 import SessionTimelineControls from "./controls";
 import SessionTimelineGap from "./session-timeline-gap";
 import SessionTimelineSegment, { type HoverInfo } from "./session-timeline-segment";
 import { ROW_HEIGHT } from "./session-timeline-trace-bar";
 import { computeSessionTimelineSegments, GAP_WIDTH_PX } from "./utils";
 
-function SessionTimeline() {
+interface SessionTimelineProps {
+  /** Owned by the host: the session view keeps it in its store, the chat session view in the URL. */
+  selectedSpan?: SessionViewSelectedSpan;
+  onSelectSpan: (traceId: string, spanId: string) => void;
+  showCloseButton?: boolean;
+}
+
+function SessionTimeline({ selectedSpan, onSelectSpan, showCloseButton = true }: SessionTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -25,8 +32,6 @@ function SessionTimeline() {
     traceSpansError,
     expandedTraceIds,
     isTracesLoading,
-    selectedSpan,
-    setSelectedSpan,
     toggleTraceExpanded,
     fetchTraceSpans,
     zoom,
@@ -40,8 +45,6 @@ function SessionTimeline() {
       traceSpansError: s.traceSpansError,
       expandedTraceIds: s.expandedTraceIds,
       isTracesLoading: s.isTracesLoading,
-      selectedSpan: s.selectedSpan,
-      setSelectedSpan: s.setSelectedSpan,
       toggleTraceExpanded: s.toggleTraceExpanded,
       fetchTraceSpans: s.fetchTraceSpans,
       zoom: s.sessionTimelineZoom,
@@ -119,33 +122,18 @@ function SessionTimeline() {
     [expandedTraceIds, traceSpans, traces, toggleTraceExpanded, fetchTraceSpans]
   );
 
-  const handleSpanBarClick = useCallback(
-    (traceId: string, spanId: string) => setSelectedSpan({ traceId, spanId }),
-    [setSelectedSpan]
-  );
-
   const handleMouseLeaveTimeline = useCallback(() => setHoverInfo(null), []);
+
+  const handleZoom = useCallback(
+    (direction: "in" | "out") => {
+      if (scrollRef.current) zoomKeepingCenter(scrollRef.current, zoom, direction, setZoom);
+    },
+    [zoom, setZoom]
+  );
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
-
-  if (isTracesLoading && traces.length === 0) {
-    return (
-      <div className="flex flex-col gap-2 py-2 px-2 w-full h-full bg-emphasis-1">
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-full w-full" />
-      </div>
-    );
-  }
-
-  if (isEmpty(traces)) {
-    return (
-      <div className="flex items-center justify-center h-full text-sm text-muted-foreground bg-emphasis-1">
-        No traces found
-      </div>
-    );
-  }
 
   // The flex row holds segments (proportional to duration) and gaps (fixed
   // width). The total width at zoom=1 fills the container; segments grow with
@@ -156,6 +144,67 @@ function SessionTimeline() {
   // flex-grow value.
   const totalGapWidth = gapCount * GAP_WIDTH_PX;
 
+  // Loading/empty states render inside the scroll div: useWheelZoom binds to it once on mount.
+  const renderContent = () => {
+    if (isTracesLoading && traces.length === 0) {
+      return (
+        <div className="flex flex-col gap-2 py-2 px-2 w-full h-full">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-full w-full" />
+        </div>
+      );
+    }
+
+    if (isEmpty(traces)) {
+      return (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No traces found</div>
+      );
+    }
+
+    return (
+      <div
+        className="flex h-full px-4"
+        style={{
+          // At zoom=1 the segments fill the visible area; gaps add fixed extra width.
+          width: `calc(${100 * zoom}% + ${totalGapWidth * (zoom > 1 ? 1 : 0)}px)`,
+          minWidth: `calc(100% + ${totalGapWidth}px)`,
+          minHeight: contentHeight,
+        }}
+      >
+        {sections.map((section, i) =>
+          section.type === "segment" ? (
+            <div
+              key={`seg-${i}`}
+              className="min-w-0 overflow-y-clip"
+              style={{
+                // flex-grow proportional to duration; segments split the
+                // available space after gaps are subtracted.
+                flex: `${section.segment.durationMs} 0 0px`,
+              }}
+            >
+              <SessionTimelineSegment
+                segment={section.segment}
+                sessionStartMs={sessionStartMs}
+                selectedSpan={selectedSpan}
+                contentHeight={contentHeight}
+                onTraceBarClick={handleTraceBarClick}
+                onSpanBarClick={onSelectSpan}
+                onHover={setHoverInfo}
+              />
+            </div>
+          ) : (
+            <SessionTimelineGap
+              key={`gap-${i}`}
+              durationMs={section.gap.durationMs}
+              startMs={section.gap.startMs}
+              endMs={section.gap.endMs}
+            />
+          )
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div
@@ -163,46 +212,7 @@ function SessionTimeline() {
         className="flex-1 overflow-auto relative min-h-0 bg-emphasis-1 h-full minimal-scrollbar"
         onMouseLeave={handleMouseLeaveTimeline}
       >
-        <div
-          className="flex h-full px-4"
-          style={{
-            // At zoom=1 the segments fill the visible area; gaps add fixed extra width.
-            width: `calc(${100 * zoom}% + ${totalGapWidth * (zoom > 1 ? 1 : 0)}px)`,
-            minWidth: `calc(100% + ${totalGapWidth}px)`,
-            minHeight: contentHeight,
-          }}
-        >
-          {sections.map((section, i) =>
-            section.type === "segment" ? (
-              <div
-                key={`seg-${i}`}
-                className="min-w-0 overflow-y-clip"
-                style={{
-                  // flex-grow proportional to duration; segments split the
-                  // available space after gaps are subtracted.
-                  flex: `${section.segment.durationMs} 0 0px`,
-                }}
-              >
-                <SessionTimelineSegment
-                  segment={section.segment}
-                  sessionStartMs={sessionStartMs}
-                  selectedSpan={selectedSpan}
-                  contentHeight={contentHeight}
-                  onTraceBarClick={handleTraceBarClick}
-                  onSpanBarClick={handleSpanBarClick}
-                  onHover={setHoverInfo}
-                />
-              </div>
-            ) : (
-              <SessionTimelineGap
-                key={`gap-${i}`}
-                durationMs={section.gap.durationMs}
-                startMs={section.gap.startMs}
-                endMs={section.gap.endMs}
-              />
-            )
-          )}
-        </div>
+        {renderContent()}
       </div>
 
       {/* Hover needle — rendered outside scroll container so it doesn't move with scroll */}
@@ -221,14 +231,16 @@ function SessionTimeline() {
       )}
 
       {/* Close button — top-right, styled as a flush tab */}
-      <div className="absolute top-0 right-0 z-40 h-6 w-7 bg-muted border-b border-l rounded-bl flex items-end overflow-hidden">
-        <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon-xs" className="min-w-5">
-          <X className="size-3.5" />
-        </Button>
-      </div>
+      {showCloseButton && (
+        <div className="absolute top-0 right-0 z-40 h-6 w-7 bg-muted border-b border-l rounded-bl flex items-end overflow-hidden">
+          <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon-xs" className="min-w-5">
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      )}
 
       {/* Zoom controls */}
-      <SessionTimelineControls />
+      <SessionTimelineControls zoom={zoom} onZoomIn={() => handleZoom("in")} onZoomOut={() => handleZoom("out")} />
     </div>
   );
 }

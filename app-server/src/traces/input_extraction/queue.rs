@@ -52,6 +52,9 @@ pub struct InputExtractionMessage {
     /// Winning span's rollout session id, for debugger-channel routing.
     #[serde(default)]
     pub rollout_session_id: Option<String>,
+    /// Winning span's session id, for the live session view's channel.
+    #[serde(default)]
+    pub session_id: Option<String>,
 }
 
 /// Returns `Ok(true)` when the message was enqueued, `Ok(false)` when it

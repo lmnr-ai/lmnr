@@ -119,6 +119,8 @@ pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary_v3";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_rules";
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
+/// `(project, trace) → session id`, so batches whose spans lack the session id still reach its channel.
+pub const TRACE_SESSION_ID_CACHE_KEY: &str = "trace_session_id";
 pub const USER_TASK_REGEX_CACHE_KEY: &str = "user_task_regex";
 /// `(project, agent_hash, template_version, has_history) → String` — the
 /// user-task extraction regex keyed by USER-TEMPLATE version. Deliberately a

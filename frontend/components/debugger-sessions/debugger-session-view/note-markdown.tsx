@@ -1,18 +1,15 @@
 "use client";
 
-import { type ComponentProps, createElement, type JSX, type ReactNode } from "react";
+import { type JSX } from "react";
 
-import { type Response } from "@/components/ai-elements/response";
-import { cn } from "@/lib/utils";
-
-type Components = NonNullable<ComponentProps<typeof Response>["components"]>;
+import { createCompactMarkdownComponents, type MarkdownComponents } from "@/components/common/compact-markdown";
 
 /**
  * EDIT HERE to tune how run notes look. Streamdown ships big defaults (h1
  * `text-3xl`, h2 `text-2xl`, headings with `mt-6 mb-2`), which is too large for
  * these inline notes. The classes below replace those per element — change a
- * value to resize/respace that element. Code blocks are handled separately
- * below (we replace Streamdown's heavy CodeBlock entirely).
+ * value to resize/respace that element. Code blocks replace Streamdown's heavy
+ * CodeBlock entirely (see CODE_BLOCK_CLASS).
  */
 const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
   // Heading scale: h1 20px / h2 18px / h3+ 16px, stepping down to the 14px body.
@@ -33,48 +30,19 @@ const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
   td: "border border-border px-2 py-1",
 };
 
-// EDIT HERE for the code block. We replace Streamdown's CodeBlock (the ugly
-// header bar + copy button + shiki highlighting) with a plain, small block.
-// `pre` is the container; block/inline `code` get their own classes.
+// EDIT HERE for the code block (`pre` container) and inline code.
 const CODE_BLOCK_CLASS =
   "my-2 block overflow-x-auto rounded-md border border-border bg-emphasis-1 p-2.5 font-mono text-xs leading-relaxed text-foreground";
-const CODE_BLOCK_CODE_CLASS = "font-mono"; // inside <pre> — container owns the box
 const INLINE_CODE_CLASS = "rounded bg-emphasis-2 px-1 py-0.5 font-mono text-[0.85em] text-foreground";
 
-type ElProps = { node?: unknown; className?: string; children?: ReactNode } & Record<string, unknown>;
-
-const flattenText = (children: ReactNode): string =>
-  typeof children === "string" ? children : Array.isArray(children) ? children.map(flattenText).join("") : "";
-
-const components = {
-  // Build the simple-tag overrides from STYLES. `node` is react-markdown's AST
-  // node — drop it so it isn't spread onto the DOM element (React warns).
-  ...Object.fromEntries(
-    Object.entries(STYLES).map(([tag, className]) => [
-      tag,
-      ({ node: _node, className: _incoming, ...props }: ElProps) =>
-        createElement(tag, { className: cn(className), ...props }),
-    ])
-  ),
-  pre: ({ node: _node, className: _c, children, ...props }: ElProps) => (
-    <pre className={CODE_BLOCK_CLASS} {...props}>
-      {children}
-    </pre>
-  ),
-  code: ({ node: _node, className, children, ...props }: ElProps) => {
-    // Fenced blocks carry a `language-*` class; multi-line content is also a
-    // block. Everything else is inline code.
-    const isBlock = /language-/.test(className ?? "") || flattenText(children).includes("\n");
-    return (
-      <code className={isBlock ? CODE_BLOCK_CODE_CLASS : INLINE_CODE_CLASS} {...props}>
-        {children}
-      </code>
-    );
-  },
-} as Components;
+const components = createCompactMarkdownComponents({
+  elements: STYLES,
+  codeBlock: CODE_BLOCK_CLASS,
+  inlineCode: INLINE_CODE_CLASS,
+});
 
 /** Per-element overrides for run-note markdown. Merge an `a` override on top. */
-export const noteMarkdownComponents: Components = components;
+export const noteMarkdownComponents: MarkdownComponents = components;
 
 /** Container className for the note's markdown — just the base body size now. */
 export const noteProseClassName = "text-sm text-secondary-foreground";

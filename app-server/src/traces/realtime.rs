@@ -8,7 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    cache::Cache,
+    cache::{Cache, CacheTrait, keys::TRACE_SESSION_ID_CACHE_KEY},
     ch::traces::TraceAggregation,
     db::{spans::Span, spans::SpanType, trace::TraceType},
     evaluations::realtime::lookup_trace_evaluation_id,
@@ -23,6 +23,8 @@ const AGENT_INPUT_UPDATE_EVENT: &str = "trace_agent_input_update";
 const EVALUATION_TOP_SPAN_NAME: &str = "evaluation";
 const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 const EVALUATION_ID_METADATA_KEY: &str = "evaluation_id";
+// Outlives a live session turn; the session view refetches anything older.
+const TRACE_SESSION_ID_TTL_SECONDS: u64 = 60 * 60;
 
 /// Realtime trace data for frontend consumption
 #[derive(Debug, Serialize)]
@@ -157,7 +159,7 @@ pub async fn send_trace_updates<T: Serialize>(
 
 /// Push the extracted `agent_input` (raw stored value) once available, since
 /// the stat delta can't carry it. Routes to every channel the trace belongs to
-/// (project / evaluation / debugger). Shape matches `agent_input as agentInput`.
+/// (project / evaluation / debugger / session). Shape matches `agent_input as agentInput`.
 /// Callers must not send it for `dual` projects: pubsub cannot know who is
 /// subscribed, and there the value is masked per reader (`docs/internal/rbac.md`).
 pub async fn send_agent_input_update(
@@ -167,18 +169,16 @@ pub async fn send_agent_input_update(
     trace_id: Uuid,
     agent_input: &Value,
     rollout_session_id: Option<&str>,
+    session_id: Option<&str>,
 ) {
     let build = || SseMessage {
         event_type: AGENT_INPUT_UPDATE_EVENT.to_string(),
         data: serde_json::json!({ "traceId": trace_id, "agentInput": agent_input }),
     };
-    for channel in channels_for_trace_id(*project_id, trace_id, rollout_session_id, cache).await {
-        let key = match channel {
-            TraceChannel::Project => "traces".to_string(),
-            TraceChannel::Evaluation(evaluation_id) => format!("evaluation_{evaluation_id}"),
-            TraceChannel::RolloutDebugger(session_id) => format!("rollout_session_{session_id}"),
-        };
-        send_to_key(pubsub, project_id, &key, build()).await;
+    for channel in
+        channels_for_trace_id(*project_id, trace_id, rollout_session_id, session_id, cache).await
+    {
+        send_to_key(pubsub, project_id, &channel.key(), build()).await;
     }
 }
 
@@ -203,6 +203,20 @@ pub enum TraceChannel {
     Project,
     Evaluation(Uuid),
     RolloutDebugger(String),
+    /// A user session (`session_id`), for the live session view.
+    Session(String),
+}
+
+impl TraceChannel {
+    /// SSE subscription key the frontend passes as `?key=`.
+    pub fn key(&self) -> String {
+        match self {
+            TraceChannel::Project => "traces".to_string(),
+            TraceChannel::Evaluation(evaluation_id) => format!("evaluation_{evaluation_id}"),
+            TraceChannel::RolloutDebugger(session_id) => format!("rollout_session_{session_id}"),
+            TraceChannel::Session(session_id) => format!("session_{session_id}"),
+        }
+    }
 }
 
 /// SSE channel routing from borrowed fields.
@@ -210,10 +224,11 @@ async fn channels_for_trace_fields(
     project_id: Uuid,
     trace_id: Uuid,
     top_span_name: Option<&str>,
+    session_id: Option<&str>,
     metadata: Option<&Value>,
     cache: &Cache,
 ) -> Vec<TraceChannel> {
-    let mut channels = Vec::with_capacity(2);
+    let mut channels = Vec::with_capacity(3);
 
     let is_evaluation_trace = top_span_name.is_some_and(|name| name == EVALUATION_TOP_SPAN_NAME);
 
@@ -235,22 +250,55 @@ async fn channels_for_trace_fields(
         if let Some(rollout_session_id) = rollout_session_id_from_metadata(metadata) {
             channels.push(TraceChannel::RolloutDebugger(rollout_session_id));
         }
+        if let Some(session_id) =
+            resolve_session_id(cache, &project_id, &trace_id, session_id).await
+        {
+            channels.push(TraceChannel::Session(session_id));
+        }
     }
 
     channels
 }
 
+/// The batch's session id, remembered per trace: only some spans carry it, and later batches without it must still
+/// reach the session channel.
+async fn resolve_session_id(
+    cache: &Cache,
+    project_id: &Uuid,
+    trace_id: &Uuid,
+    session_id: Option<&str>,
+) -> Option<String> {
+    let key = format!("{TRACE_SESSION_ID_CACHE_KEY}:{project_id}:{trace_id}");
+    if let Some(session_id) = session_id.filter(|s| !s.is_empty()) {
+        if let Err(e) = cache
+            .insert_with_ttl(&key, session_id.to_string(), TRACE_SESSION_ID_TTL_SECONDS)
+            .await
+        {
+            log::warn!("Failed to cache session_id for {}: {:?}", key, e);
+        }
+        return Some(session_id.to_string());
+    }
+    match cache.get::<String>(&key).await {
+        Ok(found) => found,
+        Err(e) => {
+            log::warn!("Failed to read session_id cache for {}: {:?}", key, e);
+            None
+        }
+    }
+}
+
 /// Channel routing for the async agent_input event. Eval id from the
 /// eval-datapoint cache (not reliably on spans); rollout session id stamped on
 /// the extraction span and passed in. Eval trace → eval channel only; else
-/// project + debugger (when a session is known).
+/// project + debugger + session (each when known).
 pub async fn channels_for_trace_id(
     project_id: Uuid,
     trace_id: Uuid,
     rollout_session_id: Option<&str>,
+    session_id: Option<&str>,
     cache: &Cache,
 ) -> Vec<TraceChannel> {
-    let mut channels = Vec::with_capacity(2);
+    let mut channels = Vec::with_capacity(3);
 
     match lookup_trace_evaluation_id(cache, &project_id, &trace_id).await {
         Some(eval_id) => channels.push(TraceChannel::Evaluation(eval_id)),
@@ -258,6 +306,11 @@ pub async fn channels_for_trace_id(
             channels.push(TraceChannel::Project);
             if let Some(session_id) = rollout_session_id {
                 channels.push(TraceChannel::RolloutDebugger(session_id.to_string()));
+            }
+            if let Some(session_id) =
+                resolve_session_id(cache, &project_id, &trace_id, session_id).await
+            {
+                channels.push(TraceChannel::Session(session_id));
             }
         }
     }
@@ -271,6 +324,7 @@ pub async fn channels_for_aggregation(agg: &TraceAggregation, cache: &Cache) -> 
         agg.project_id,
         agg.trace_id,
         agg.top_span_name.as_deref(),
+        agg.session_id.as_deref(),
         agg.metadata.as_ref(),
         cache,
     )
