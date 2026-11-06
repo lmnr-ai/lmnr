@@ -3,6 +3,7 @@ import { memo } from "react";
 
 import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { StatsShields } from "@/components/traces/stats-shields";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agentInputText } from "@/lib/traces/agent-input";
 import { type TraceRow } from "@/lib/traces/types";
@@ -25,6 +26,9 @@ function Turn({
   dividerBelow: boolean;
 }) {
   const output = useSessionViewStore((s) => s.agentOutputs[trace.id]);
+  const outputFailed = useSessionViewStore((s) => !!s.agentOutputErrors[trace.id]);
+  const retryOutput = useSessionViewStore((s) => s.retryAgentOutputs);
+  const live = useTurnData((s) => !!s.liveIds[trace.id]);
   const { openTraceId, toggleTrace } = useOpenTrace();
   const active = openTraceId === trace.id;
 
@@ -49,7 +53,15 @@ function Turn({
         <WorkedRow counts={counts} open={active} onClick={() => toggleTrace(trace.id)} />
         {output ? (
           <CollapsibleReply text={output} />
-        ) : output === undefined ? (
+        ) : outputFailed ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <CircleAlert className="size-4 text-destructive-text" />
+            Couldn't load the reply.
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={() => retryOutput([trace.id])}>
+              Retry
+            </Button>
+          </div>
+        ) : output === undefined || live ? (
           <div className="flex flex-col gap-2">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-2/3" />

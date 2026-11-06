@@ -1,3 +1,4 @@
+import { omit } from "lodash";
 import { createContext, useContext } from "react";
 import { type StoreApi } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
@@ -43,6 +44,8 @@ interface BaseSessionViewState {
    *  `trace_outputs` view via `/traces/output` (with a legacy last-LLM-span
    *  fallback server-side). Absent = not fetched; null = fetched, none found. */
   agentOutputs: Record<string, string | null>;
+  /** Traces whose output request failed; cleared when a load succeeds. */
+  agentOutputErrors: Record<string, true>;
 
   // UI state
   expandedTraceIds: Set<string>;
@@ -106,6 +109,8 @@ interface BaseSessionViewActions {
   fetchAgentOutputs: (traceIds: string[]) => void;
   /** Forget resolved outputs (e.g. a live turn produced more) so the next fetch reloads them. */
   invalidateAgentOutputs: (traceIds: string[]) => void;
+  /** Clears the failure and requests the outputs again. */
+  retryAgentOutputs: (traceIds: string[]) => void;
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
@@ -227,7 +232,15 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       // Ids the server omits have no output; failures stay unresolved and retry on the next request.
       return data ? Object.fromEntries(traceIds.map((id) => [id, data[id] ?? null])) : undefined;
     },
-    onLoaded: (outputs) => set({ agentOutputs: { ...get().agentOutputs, ...outputs } } as Partial<T>),
+    onLoaded: (outputs) =>
+      set({
+        agentOutputs: { ...get().agentOutputs, ...outputs },
+        agentOutputErrors: omit(get().agentOutputErrors, Object.keys(outputs)),
+      } as Partial<T>),
+    onFailed: (traceIds) =>
+      set({
+        agentOutputErrors: { ...get().agentOutputErrors, ...Object.fromEntries(traceIds.map((id) => [id, true])) },
+      } as Partial<T>),
     isResolved: (id) => id in get().agentOutputs,
   });
 
@@ -241,6 +254,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     traceSpansError: {},
 
     agentOutputs: {},
+    agentOutputErrors: {},
 
     expandedTraceIds: new Set<string>(),
     transcriptExpandedGroups: new Set<string>(),
@@ -325,6 +339,10 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     },
 
     fetchAgentOutputs: outputLoader.request,
+    retryAgentOutputs: (traceIds) => {
+      set({ agentOutputErrors: omit(get().agentOutputErrors, traceIds) } as Partial<T>);
+      outputLoader.request(traceIds);
+    },
 
     invalidateAgentOutputs: (traceIds) => {
       const next = { ...get().agentOutputs };
