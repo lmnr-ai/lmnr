@@ -3,6 +3,7 @@
 import { type ComponentProps, createElement, type JSX, type ReactNode } from "react";
 
 import { type Response } from "@/components/ai-elements/response";
+import { paragraphTag } from "@/lib/markdown/paragraph-tag";
 import { cn } from "@/lib/utils";
 
 export type MarkdownComponents = NonNullable<ComponentProps<typeof Response>["components"]>;
@@ -31,12 +32,12 @@ export function createCompactMarkdownComponents({
   inlineCode,
 }: CompactMarkdownStyles): MarkdownComponents {
   return {
-    // `node` is react-markdown's AST node — drop it so it isn't spread onto the DOM.
+    // `node` is react-markdown's AST node: read, never spread onto the DOM.
     ...Object.fromEntries(
       Object.entries(elements).map(([tag, className]) => [
         tag,
-        ({ node: _node, className: _incoming, ...props }: ElProps) =>
-          createElement(tag, { className: cn(className), ...props }),
+        ({ node, className: _incoming, ...props }: ElProps) =>
+          createElement(tag === "p" ? paragraphTag(node) : tag, { className: cn(className), ...props }),
       ])
     ),
     pre: ({ node: _node, className: _c, children, ...props }: ElProps) => (
