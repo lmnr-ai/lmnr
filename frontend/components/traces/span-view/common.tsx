@@ -162,29 +162,23 @@ const PureTextContentPart = ({
 
 interface RoleHeaderProps {
   role?: string;
-  suffix?: string;
-  bare?: boolean;
   className?: string;
   action?: ReactNode;
 }
 
-const RoleHeader = ({ role, suffix, bare = false, className, action }: RoleHeaderProps) => {
+const RoleHeader = ({ role, className, action }: RoleHeaderProps) => {
   if (role) {
     return (
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
       <div
         className={cn(
-          "flex items-center gap-2",
-          bare
-            ? "px-1 pb-1"
-            : "px-2 py-1 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
+          "flex items-center gap-2 px-2 py-1 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
           className
         )}
       >
         <span className="text-sm font-medium" style={{ color: getRoleTextColor(role) }}>
           {capitalize(role)}
         </span>
-        {suffix && <span className="text-sm text-muted-foreground -ml-1">· {suffix}</span>}
         {action}
       </div>
     );
@@ -254,19 +248,14 @@ export const MessageWrapper = ({
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
   stickyHeader = true,
   defaultExpanded = false,
-  suffix,
-  bare = false,
   headerAction,
   highlighted = false,
 }: PropsWithChildren<{
   role?: string;
-  suffix?: string;
   /** Right-aligned in the role header; revealed on hover via `group-hover/span-message`. */
   headerAction?: ReactNode;
   /** Briefly marks the message a link opened. */
   highlighted?: boolean;
-  /** No card: a role label over the content, keeping the height clamp and expand toggle. */
-  bare?: boolean;
   presetKey: string;
   maxHeight?: number;
   stickyHeader?: boolean;
@@ -299,20 +288,19 @@ export const MessageWrapper = ({
   const showToggle = isOverflowing;
 
   return (
-    <Frame bare={bare} highlighted={highlighted}>
-      <RoleHeader
-        role={role}
-        suffix={suffix}
-        bare={bare}
-        action={headerAction}
-        className={stickyHeader ? "sticky top-0 z-10" : undefined}
-      />
+    // overflow-clip (not hidden): clips to radius without creating a scroll
+    // container, so sticky can still pin to the messages list.
+    <ElevatedSurface
+      offset={1}
+      className={cn("group/span-message relative border rounded-lg overflow-clip", highlighted && FLASH)}
+    >
+      <RoleHeader role={role} action={headerAction} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
       <div
         ref={containerRef}
-        className={cn("overflow-hidden", !bare && "bg-emphasis-1 dark:bg-transparent")}
+        className="overflow-hidden bg-emphasis-1 dark:bg-transparent"
         style={!isExpanded ? { maxHeight } : undefined}
       >
-        <div className={cn("flex flex-col", !bare && "divide-y")}>{children}</div>
+        <div className="flex flex-col divide-y">{children}</div>
       </div>
       {showToggle && (
         <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
@@ -335,30 +323,9 @@ export const MessageWrapper = ({
           </div>
         </div>
       )}
-    </Frame>
+    </ElevatedSurface>
   );
 };
 
-const Frame = ({ bare, highlighted, children }: PropsWithChildren<{ bare: boolean; highlighted: boolean }>) =>
-  bare ? (
-    <div
-      className={cn(
-        "group/span-message relative rounded-lg ring-primary transition-shadow duration-700",
-        highlighted && "ring-1"
-      )}
-    >
-      {children}
-    </div>
-  ) : (
-    // overflow-clip (not hidden): clips to radius without creating a scroll
-    // container, so sticky can still pin to the messages list.
-    <ElevatedSurface
-      offset={1}
-      className={cn(
-        "group/span-message relative border rounded-lg overflow-clip transition-[border-color] duration-700",
-        highlighted && "border-primary"
-      )}
-    >
-      {children}
-    </ElevatedSurface>
-  );
+// Drawn over the card's own border, so the flash needs no layout or state.
+const FLASH = "outline outline-1 -outline-offset-1 outline-transparent animate-link-flash";

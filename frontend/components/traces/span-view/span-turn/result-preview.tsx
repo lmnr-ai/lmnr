@@ -4,19 +4,12 @@ import { type PropsWithChildren, useState } from "react";
 import { getRoleTextColor } from "@/components/traces/span-view/common";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { type ToolResultPart } from "@/lib/spans/turn-parts";
-import { cn } from "@/lib/utils";
 
 // Enough for the clamped lines; never render the full payload while collapsed.
 const PREVIEW_CHARS = 800;
 
 /** A tool result shown as content: tool + arguments, then the first lines of output; click for the full value. */
-interface ResultPreviewProps {
-  part: ToolResultPart;
-  /** Indented text under a thin rule instead of a bordered box, for results shown without a card. */
-  plain?: boolean;
-}
-
-const ResultPreview = ({ part, plain = false, children }: PropsWithChildren<ResultPreviewProps>) => {
+const ResultPreview = ({ part, children }: PropsWithChildren<{ part: ToolResultPart }>) => {
   const searching = !!useSpanSearchState()?.searchTerm;
   const [open, setOpen] = useState(searching);
   const expanded = open || searching;
@@ -42,12 +35,7 @@ const ResultPreview = ({ part, plain = false, children }: PropsWithChildren<Resu
           {part.call && <span className="truncate font-mono text-muted-foreground">{part.call.preview}</span>}
         </span>
         {!expanded && (
-          <span
-            className={cn(
-              "block",
-              plain ? "ml-[7px] border-l-2 pl-4 py-0.5" : "rounded-md border bg-muted/40 px-2.5 py-1.5"
-            )}
-          >
+          <span className="block ml-[7px] border-l-2 pl-4 py-0.5">
             <span className="block font-mono text-xs whitespace-pre-wrap break-words line-clamp-4 text-secondary-foreground">
               {text || "(empty)"}
             </span>

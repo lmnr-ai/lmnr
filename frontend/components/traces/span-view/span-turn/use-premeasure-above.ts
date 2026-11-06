@@ -17,12 +17,17 @@ const whenIdle = (fn: () => void) => {
  * measurement then corrects scrollTop while the user scrolls up, and that write cancels the browser's smooth wheel
  * scroll, so small scrolls stutter. This measures those rows ahead of time, a few per idle period and never while the
  * user scrolls. Returns the row indices to render in a hidden measuring layer.
+ * `paused` while searching: hidden rows would register as search sources, and a match could scroll to an invisible row.
  */
-export const usePremeasureAbove = (virtualizer: Virtualizer<HTMLDivElement, Element>, from: number): number[] => {
+export const usePremeasureAbove = (
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+  from: number,
+  paused: boolean
+): number[] => {
   // Rows below `cursor` are not measured yet. The window only moves on idle: measuring re-renders the list, and a
   // window derived from the size cache would sweep every row in back-to-back renders.
   const [cursor, setCursor] = useState(from);
-  const top = Math.min(cursor, virtualizer.getVirtualItems()[0]?.index ?? 0);
+  const top = paused ? 0 : Math.min(cursor, virtualizer.getVirtualItems()[0]?.index ?? 0);
   const bottom = Math.max(0, top - CHUNK);
 
   useEffect(() => {

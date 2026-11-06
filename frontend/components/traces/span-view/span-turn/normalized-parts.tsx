@@ -1,12 +1,7 @@
 import { CornerDownRight } from "lucide-react";
 import { memo } from "react";
 
-import {
-  TextContentPart,
-  ThinkingContentPart,
-  ToolCallContentPart,
-  ToolResultContentPart,
-} from "@/components/traces/span-view/common";
+import { TextContentPart } from "@/components/traces/span-view/common";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
@@ -55,13 +50,12 @@ const ResultSummary = ({ result }: { result: ToolResultPart }) => (
   </span>
 );
 
-const CompactPart = ({
+const Part = ({
   part,
-  resultPreviews,
   plainResults,
   expandReasoning,
   ...props
-}: PartProps & { part: TurnPart; resultPreviews?: boolean; plainResults?: boolean; expandReasoning?: boolean }) => {
+}: PartProps & { part: TurnPart; plainResults?: boolean; expandReasoning?: boolean }) => {
   switch (part.kind) {
     case "text":
       return <TextContentPart content={part.text} {...props} />;
@@ -106,10 +100,8 @@ const CompactPart = ({
           <Value title="Result" value={part.output} {...props} />
         </>
       );
-      return resultPreviews || plainResults ? (
-        <ResultPreview part={part} plain={plainResults}>
-          {body}
-        </ResultPreview>
+      return plainResults ? (
+        <ResultPreview part={part}>{body}</ResultPreview>
       ) : (
         <ToolRow icon="result" name={part.name ?? part.id ?? "result"} summary={part.preview}>
           {body}
@@ -119,76 +111,21 @@ const CompactPart = ({
   }
 };
 
-const FullPart = ({
-  part,
-  presetKey,
-  messageIndex,
-  contentPartIndex,
-}: PartProps & { part: TurnPart; resultPreviews?: boolean; plainResults?: boolean; expandReasoning?: boolean }) => {
-  const common = { presetKey, messageIndex, contentPartIndex };
-  switch (part.kind) {
-    case "text":
-      return <TextContentPart content={part.text} {...common} />;
-    case "reasoning":
-      return <ThinkingContentPart content={part.text} {...common} />;
-    case "tool-call":
-      return (
-        <div className="flex flex-col">
-          <ToolCallContentPart toolName={part.name} toolCallId={part.id} content={part.args} {...common} />
-          {part.result && (
-            <div className="ml-4 border-l">
-              <ToolResultContentPart
-                toolCallId="Result"
-                toolName="Result"
-                content={part.result.output}
-                presetKey={`result-${presetKey}`}
-                messageIndex={messageIndex}
-                contentPartIndex={contentPartIndex + 1}
-              />
-            </div>
-          )}
-        </div>
-      );
-    case "tool-result":
-      return (
-        <ToolResultContentPart
-          toolCallId={part.id ?? part.name ?? "-"}
-          toolName={part.name}
-          content={part.output}
-          {...common}
-        />
-      );
-  }
-};
-
 interface NormalizedPartsProps {
   parts: TurnPart[];
-  compact: boolean;
-  /** Compact only: tool results as clamped content previews instead of one-line rows. */
-  resultPreviews: boolean;
-  /** Results as plain indented previews instead of bordered boxes. */
+  /** This call's tool results: their output's first lines instead of one-line rows. */
   plainResults?: boolean;
-  /** Compact only: open Thinking rows initially (the output's reasoning is what you came to read). */
+  /** Open Thinking rows initially (the output's reasoning is what you came to read). */
   expandReasoning?: boolean;
   presetKey: string;
   messageIndex: number;
 }
 
-const NormalizedParts = ({
-  parts,
-  compact,
-  resultPreviews,
-  plainResults,
-  expandReasoning,
-  presetKey,
-  messageIndex,
-}: NormalizedPartsProps) => {
-  const Part = compact ? CompactPart : FullPart;
-  return parts.map((part, index) => (
+const NormalizedParts = ({ parts, plainResults, expandReasoning, presetKey, messageIndex }: NormalizedPartsProps) =>
+  parts.map((part, index) => (
     <Part
       key={index}
       part={part}
-      resultPreviews={resultPreviews}
       plainResults={plainResults}
       expandReasoning={expandReasoning}
       presetKey={`${messageIndex}-${part.kind}-${index}-${presetKey}`}
@@ -197,6 +134,5 @@ const NormalizedParts = ({
       contentPartIndex={index * 2}
     />
   ));
-};
 
 export default memo(NormalizedParts);

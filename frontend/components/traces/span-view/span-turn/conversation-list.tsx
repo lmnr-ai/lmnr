@@ -1,31 +1,24 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 
 import { buildToolNameMap } from "@/components/traces/span-view/messages";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 
-import { type ConversationRow, type MessageAnchor, type NewInputStyle, type SectionKey } from "./build-rows";
+import { type ConversationRow, type MessageAnchor, type SectionKey } from "./build-rows";
 import ConversationRowView, { type ConversationRowProps } from "./conversation-row";
-import { findAnchorRow } from "./message-anchor";
 import { type SectionFormat } from "./section-header";
+import { useLinkedRow } from "./use-linked-row";
 import { usePremeasureAbove } from "./use-premeasure-above";
-import { alignRow, useScrollToRow } from "./use-scroll-to-row";
 
-const TOGGLE_ESTIMATE_SIZE = 40;
+const HEADER_ESTIMATE_SIZE = 40;
 const MESSAGE_ESTIMATE_SIZE = 240;
-const FLASH_MS = 2000;
 const NEVER_ADJUST = () => false;
 
 interface ConversationListProps {
   rows: ConversationRow[];
-  compact: boolean;
-  resultPreviews: boolean;
-  newInputStyle: NewInputStyle;
-  /** Messages without cards (Focused "Flat"). */
-  bare: boolean;
   formats: Record<SectionKey, SectionFormat>;
   presetKey: string;
-  onToggleHistory: () => void;
+  onToggleContext: () => void;
   /** The message the URL hash points at when the list mounts: scrolled to and briefly highlighted. */
   linked?: MessageAnchor;
   /** Omitted where a link couldn't reopen this span. */
@@ -44,21 +37,16 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
     return new Map([...segments].flatMap((segment) => [...buildToolNameMap(segment)]));
   }, [rows]);
 
-  // Read once: copying a link later must not move the list.
-  const [linkedIndex] = useState(() => (linked ? findAnchorRow(rows, linked) : -1));
-  const hold = useScrollToRow(parentRef, linkedIndex);
-
-  const estimateSize = (i: number) => (rows[i]?.kind === "message" ? MESSAGE_ESTIMATE_SIZE : TOGGLE_ESTIMATE_SIZE);
+  const estimateSize = (i: number) => (rows[i]?.kind === "message" ? MESSAGE_ESTIMATE_SIZE : HEADER_ESTIMATE_SIZE);
+  const linkedRow = useLinkedRow(parentRef, rows, linked, estimateSize);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize,
     getItemKey: (i) => rows[i]?.key ?? i,
     overscan: searchTerm ? 100 : 10,
-    // Start at the linked row's estimated spot, so the first frame isn't the top of the list.
-    initialOffset: () =>
-      Array.from({ length: Math.max(0, linkedIndex) }, (_, i) => estimateSize(i)).reduce((a, b) => a + b, 0),
-    onChange: hold.onChange,
+    initialOffset: linkedRow.initialOffset,
+    onChange: linkedRow.onChange,
     // Grow the container before a size correction scrolls: near the end of the list the browser would otherwise clamp
     // it to the old height, and the cut-off part shows as a jump once the container grows.
     scrollToFn: (offset, options, instance) => {
@@ -69,7 +57,7 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
     directDomUpdates: true,
   });
   // Set during render so it already covers the first rows' measurements.
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = hold.holding ? NEVER_ADJUST : undefined;
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = linkedRow.holding ? NEVER_ADJUST : undefined;
   const setContainer = useCallback(
     (node: HTMLDivElement | null) => {
       containerRef.current = node;
@@ -77,18 +65,8 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
     },
     [virtualizer]
   );
-  useLayoutEffect(() => {
-    if (linkedIndex >= 0) alignRow(virtualizer, linkedIndex);
-  }, [linkedIndex, virtualizer]);
 
-  const [flashing, setFlashing] = useState(linkedIndex >= 0);
-  useEffect(() => {
-    if (!flashing) return;
-    const id = setTimeout(() => setFlashing(false), FLASH_MS);
-    return () => clearTimeout(id);
-  }, [flashing]);
-  // A search renders 100 rows of overscan anyway.
-  const premeasure = usePremeasureAbove(virtualizer, searchTerm ? -1 : linkedIndex);
+  const premeasure = usePremeasureAbove(virtualizer, linkedRow.index, !!searchTerm);
 
   const renderRow = (index: number) => {
     const row = rows[index];
@@ -98,7 +76,7 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
       index,
       measureRef: virtualizer.measureElement,
       toolNameMap,
-      highlighted: flashing && index === linkedIndex,
+      highlighted: linkedRow.holding && index === linkedRow.index,
     };
     return <ConversationRowView key={row.key} {...props} />;
   };

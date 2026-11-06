@@ -1,4 +1,3 @@
-import { Info } from "lucide-react";
 import { memo, useMemo } from "react";
 
 import MessageLabelRow from "@/components/traces/span-view/message-label-row";
@@ -12,7 +11,6 @@ import {
   TemplatePickerProvider,
   TemplatePickerView,
 } from "@/components/ui/template-renderer/template-picker";
-import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export const SECTION_MODES = ["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"];
@@ -32,8 +30,6 @@ interface SectionHeaderProps extends SectionFormat {
   title: string;
   /** What the section holds, e.g. "4 tool results". */
   summary?: string;
-  /** Short explanation behind an info icon next to the title. */
-  info?: string;
   messageIndex: number;
   /** First row of the list, so no gap above it. */
   first?: boolean;
@@ -50,7 +46,6 @@ const CustomPreview = ({ value }: { value: string }) => {
 const SectionHeader = ({
   title,
   summary,
-  info,
   mode,
   onModeChange,
   value,
@@ -65,18 +60,6 @@ const SectionHeader = ({
       <div className="flex items-center gap-2 px-1">
         <MessageLabelRow text={title} />
         {summary && <span className="-ml-1 text-sm text-muted-foreground whitespace-nowrap">· {summary}</span>}
-        {info && (
-          <Tooltip delayDuration={200}>
-            <TooltipTrigger asChild>
-              <button type="button" aria-label={`About ${title.toLowerCase()}`} className="-ml-1 text-muted-foreground">
-                <Info className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent className="max-w-xs">{info}</TooltipContent>
-            </TooltipPortal>
-          </Tooltip>
-        )}
         <TemplatePickerView mode={mode} onModeChange={onModeChange} modes={SECTION_MODES} />
         {mode === "custom" && <TemplatePickerActions />}
         <div className="flex-1 border-t" />

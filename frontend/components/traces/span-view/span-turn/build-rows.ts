@@ -9,43 +9,11 @@ import {
 } from "@/lib/spans/turn-parts";
 import { pluralize } from "@/lib/utils";
 
-export type TurnLayout = "compact" | "paired" | "all" | "focused";
-
-export type ResultStyle = "rows" | "batched" | "previews";
-
-export const RESULT_STYLES: { value: ResultStyle; label: string }[] = [
-  { value: "rows", label: "Rows" },
-  { value: "batched", label: "Batched" },
-  { value: "previews", label: "Previews" },
-];
-
-export type NewInputStyle = "divider" | "rail" | "group";
-
-export const NEW_INPUT_STYLES: { value: NewInputStyle; label: string }[] = [
-  { value: "divider", label: "Divider" },
-  { value: "rail", label: "Rail" },
-  { value: "group", label: "Group" },
-];
-
-export const TURN_LAYOUTS: { value: TurnLayout; label: string }[] = [
-  { value: "compact", label: "Compact" },
-  { value: "paired", label: "Paired" },
-  { value: "all", label: "All" },
-  { value: "focused", label: "Focused" },
-];
-
 const PREVIEW_HEIGHT = 120;
 const HISTORY_HEIGHT = 320;
 const INPUT_HEIGHT = 560;
 
-const historyText = (amount: string, open: boolean) => `${open ? "Hide" : "Show"} ${amount}`;
-
 export type SectionKey = "input" | "output";
-
-export interface NewInputLabel {
-  title: string;
-  detail?: string;
-}
 
 /** A message's position in its section of the span payload; message links address it. */
 export interface MessageAnchor {
@@ -53,47 +21,33 @@ export interface MessageAnchor {
   index: number;
 }
 
+type Source = "system" | "task" | "history" | "previous" | "input" | "output";
+
 export type MessageRow = {
   kind: "message";
   key: string;
-  /** Merged and paired cards keep their first message's anchor. */
+  /** Merged cards keep their first message's anchor. */
   anchor: MessageAnchor;
   segment: ProcessedMessages;
   localIndex: number;
-  /** Set when the layout renders normalized parts; null falls back to the provider renderer. */
+  /** Null falls back to the provider renderer. */
   normalized: NormalizedMessage | null;
-  source: "system" | "task" | "history" | "previous" | "input" | "output";
-  /** Set when this turn's consecutive tool results are batched into this one card. */
-  resultCount?: number;
-  /** Focused layout: tool results as light indented previews (the Input header already counts them). */
+  source: Source;
+  /** This call's tool results, shown as light previews (the Input header already counts them). */
   plainResults?: boolean;
-  /** Set on this call's new input rows when Rail / Group frames them. */
-  newInput?: { first: boolean; last: boolean; label: NewInputLabel };
   maxHeight?: number;
   defaultExpanded?: boolean;
 };
 
 export type ConversationRow =
-  | { kind: "toggle"; key: string; text: string; open: boolean }
-  | { kind: "section"; key: string; section: SectionKey; summary?: string; info?: boolean }
-  /** Focused layout: system prompt + earlier steps folded behind one header. */
+  | { kind: "section"; key: string; section: SectionKey; summary?: string }
+  /** System prompt + earlier steps, folded behind one header. */
   | { kind: "context"; key: string; summary: string; open: boolean }
-  /** Marks where this call's new input starts inside the Input section. */
-  | { kind: "new-input"; key: string; label: NewInputLabel }
   | MessageRow;
-
-interface SegmentSpec {
-  key: MessageRow["source"];
-  processed?: ProcessedMessages;
-  /** Normalized (so this turn's results can name their calls) but not rendered. */
-  hidden?: boolean;
-  maxHeight?: number;
-  defaultExpanded?: boolean;
-}
 
 const INPUT_PARTS = ["system", "task", "history", "previous", "input"] as const;
 
-export const anchorOf = (turn: SpanTurn, source: MessageRow["source"], localIndex: number): MessageAnchor => {
+export const anchorOf = (turn: SpanTurn, source: Source, localIndex: number): MessageAnchor => {
   if (source === "output") return { section: "output", index: localIndex };
   const offset = INPUT_PARTS.slice(0, INPUT_PARTS.indexOf(source)).reduce(
     (sum, part) => sum + (turn[part]?.messages.length ?? 0),
@@ -102,101 +56,77 @@ export const anchorOf = (turn: SpanTurn, source: MessageRow["source"], localInde
   return { section: "input", index: offset + localIndex };
 };
 
-interface ConversationOptions {
-  batchResults: boolean;
-  newInputStyle: NewInputStyle;
-  /** Sections shown as a raw payload instead of messages; their message rows are skipped entirely. */
-  raw: Record<SectionKey, boolean>;
+interface Segment {
+  source: Source;
+  processed?: ProcessedMessages;
+  /** Normalized (so this call's results can name their calls) but not rendered. */
+  hidden?: boolean;
+  maxHeight?: number;
+  defaultExpanded?: boolean;
 }
 
 /**
- * Compact / Paired / All: an Input section (system prompt, earlier messages behind a toggle, then this
- * call's new messages) and an Output section. The assistant step this call answers folds into the earlier messages.
+ * Context (system prompt + earlier steps, one collapsed header) / Input (only what is new in this call) / Output.
+ * A section shown in a raw format gets just its header; the raw Input payload includes the context.
  */
-export const buildConversationRows = (
+export const buildRows = (
   turn: SpanTurn,
-  historyOpen: boolean,
-  layout: TurnLayout,
-  { batchResults, newInputStyle, raw }: ConversationOptions
+  contextOpen: boolean,
+  raw: Record<SectionKey, boolean>
 ): ConversationRow[] => {
-  const pair = layout === "paired" || layout === "all";
-
-  const specs: SegmentSpec[] = [
+  const segments: Segment[] = [
     ...(raw.input
       ? []
       : ([
-          { key: "system", processed: turn.system, hidden: !historyOpen, maxHeight: PREVIEW_HEIGHT },
-          { key: "task", processed: turn.task, hidden: !historyOpen, maxHeight: PREVIEW_HEIGHT },
-          { key: "history", processed: historyOpen ? turn.history : undefined, maxHeight: HISTORY_HEIGHT },
-          { key: "previous", processed: turn.previous, hidden: !historyOpen, maxHeight: HISTORY_HEIGHT },
-          { key: "input", processed: turn.input, maxHeight: INPUT_HEIGHT },
-        ] satisfies SegmentSpec[])),
-    ...(raw.output ? [] : [{ key: "output", processed: turn.output, defaultExpanded: true } satisfies SegmentSpec]),
+          { source: "system", processed: turn.system, hidden: !contextOpen, maxHeight: PREVIEW_HEIGHT },
+          { source: "task", processed: turn.task, hidden: !contextOpen, maxHeight: PREVIEW_HEIGHT },
+          { source: "history", processed: contextOpen ? turn.history : undefined, maxHeight: HISTORY_HEIGHT },
+          { source: "previous", processed: turn.previous, hidden: !contextOpen, maxHeight: HISTORY_HEIGHT },
+          { source: "input", processed: turn.input, maxHeight: INPUT_HEIGHT },
+        ] satisfies Segment[])),
+    ...(raw.output ? [] : [{ source: "output", processed: turn.output, defaultExpanded: true } satisfies Segment]),
   ];
-  const messages = specs.flatMap((spec) =>
-    spec.processed ? spec.processed.messages.map((_, localIndex) => ({ spec, localIndex })) : []
+  const messages = segments.flatMap((segment) =>
+    segment.processed ? segment.processed.messages.map((_, localIndex) => ({ segment, localIndex })) : []
   );
 
-  let normalized = messages.map(({ spec, localIndex }) => normalizeMessage(spec.processed!, localIndex));
-  normalized = linkToolResults(normalized);
-  // Pair only within earlier turns: this turn's results are new input and keep their own card.
-  if (pair) {
-    const pastCount = messages.filter(({ spec }) => spec.key !== "input" && spec.key !== "output").length;
-    normalized = [...pairToolResults(normalized.slice(0, pastCount)), ...normalized.slice(pastCount)];
-  }
+  const linked = linkToolResults(
+    messages.map(({ segment, localIndex }) => normalizeMessage(segment.processed!, localIndex))
+  );
+  // Pair only within earlier steps: this call's results are new input and keep their own card.
+  const pastCount = messages.filter(({ segment }) => segment.source !== "input" && segment.source !== "output").length;
+  const normalized = [...pairToolResults(linked.slice(0, pastCount)), ...linked.slice(pastCount)];
 
-  const bySource = new Map<MessageRow["source"], MessageRow[]>();
-  messages.forEach(({ spec, localIndex }, i) => {
+  const bySource = new Map<Source, MessageRow[]>();
+  messages.forEach(({ segment, localIndex }, i) => {
     const message = normalized[i];
-    if (spec.hidden || (message && message.parts.length === 0)) return;
+    if (segment.hidden || message?.parts.length === 0) return;
     const row: MessageRow = {
       kind: "message",
-      key: `${spec.key}-${localIndex}`,
-      anchor: anchorOf(turn, spec.key, localIndex),
-      segment: spec.processed!,
+      key: `${segment.source}-${localIndex}`,
+      anchor: anchorOf(turn, segment.source, localIndex),
+      segment: segment.processed!,
       localIndex,
       normalized: message,
-      source: spec.key,
-      maxHeight: spec.maxHeight,
-      defaultExpanded: spec.defaultExpanded,
+      source: segment.source,
+      maxHeight: segment.maxHeight,
+      defaultExpanded: segment.defaultExpanded,
     };
-    bySource.set(spec.key, [...(bySource.get(spec.key) ?? []), row]);
+    bySource.set(segment.source, [...(bySource.get(segment.source) ?? []), row]);
   });
-  const rowsOf = (source: MessageRow["source"]) => bySource.get(source) ?? [];
-  // Per section, so a merged card never spans history, new input and output.
-  for (const rows of bySource.values()) mergeResponsesTurns(rows);
+  // Per source, so a merged card never spans earlier steps, new input and output.
+  const rowsOf = (source: Source) => mergeResponsesTurns(bySource.get(source) ?? []);
 
   const rows: ConversationRow[] = [];
   if (turn.system || turn.task || turn.history || turn.previous || turn.input) {
-    rows.push({ kind: "section", key: "section-input", section: "input", info: true });
-    if (!raw.input) {
-      const hasEarlier = !!(turn.history || turn.previous);
-      const newRows = rowsOf("input");
-      if (batchResults) batchToolResults(newRows);
-      // Only worth marking when something precedes it; otherwise the whole Input section is new.
-      const markNew = newRows.length > 0 && !!(hasEarlier || turn.system || turn.task);
-      const label = describeNewInput(newRows);
-      const marker: ConversationRow[] =
-        markNew && newInputStyle === "divider" ? [{ kind: "new-input", key: "new-input", label }] : [];
-      if (markNew && newInputStyle !== "divider") {
-        newRows.forEach((row, i, all) => {
-          all[i] = { ...row, newInput: { first: i === 0, last: i === all.length - 1, label } };
-        });
-      }
-      const context = contextSummary(turn);
-      rows.push(
-        // Everything sent before this call's new input folds behind one toggle, system prompt included.
-        ...(context
-          ? [{ kind: "toggle" as const, key: "toggle", text: historyText(context, historyOpen), open: historyOpen }]
-          : []),
-        ...rowsOf("system"),
-        ...rowsOf("task"),
-        ...rowsOf("history"),
-        ...rowsOf("previous"),
-        ...marker,
-        ...newRows
-      );
+    const context = contextSummary(turn);
+    if (context && !raw.input) {
+      rows.push({ kind: "context", key: "context", summary: context, open: contextOpen });
+      if (contextOpen) rows.push(...rowsOf("system"), ...rowsOf("task"), ...rowsOf("history"), ...rowsOf("previous"));
     }
+    const newRows = batchToolResults(rowsOf("input"));
+    const summary = newRows.length > 0 ? summarizeNewInput(newRows) : undefined;
+    rows.push({ kind: "section", key: "section-input", section: "input", summary }, ...newRows);
   }
   if (turn.output) {
     rows.push({ kind: "section", key: "section-output", section: "output" }, ...rowsOf("output"));
@@ -208,65 +138,36 @@ export const buildConversationRows = (
 // skipped (e.g. tool outputs paired under their calls), and those messages are what separate two LLM calls.
 const adjacent = (a: MessageRow, b: MessageRow) => a.segment === b.segment && b.localIndex === a.localIndex + 1;
 
-const rowRole = (row: MessageRow) =>
-  canonicalRole(row.normalized?.role ?? segmentMessageRole(row.segment, row.localIndex));
-
-const toolResultCount = (row: MessageRow) =>
-  row.normalized
-    ? row.normalized.parts.filter((part) => part.kind === "tool-result").length
-    : rowRole(row) === "tool"
-      ? 1
-      : 0;
-
-const totalResults = (rows: MessageRow[]) => rows.reduce((sum, row) => sum + toolResultCount(row), 0);
-
-const onlyToolResults = (rows: MessageRow[]) =>
-  rows.every(
-    (row) =>
-      toolResultCount(row) > 0 && (!row.normalized || row.normalized.parts.every((p) => p.kind === "tool-result"))
-  );
-
-const onlyUserMessages = (rows: MessageRow[]) =>
-  rows.every((row) => rowRole(row) === "user" && toolResultCount(row) === 0);
-
-/** Says what this call's new input is in plain words, so the label explains itself without knowing the agent loop. */
-const describeNewInput = (rows: MessageRow[]): NewInputLabel => {
-  if (onlyToolResults(rows))
-    return { title: "Tool results from the previous step", detail: String(totalResults(rows)) };
-  const messageCount = rows.length;
-  if (onlyUserMessages(rows)) {
-    return messageCount === 1
-      ? { title: "New user message" }
-      : { title: "New user messages", detail: String(messageCount) };
-  }
-  return { title: "New since the previous step", detail: pluralize(messageCount, "message", "messages") };
-};
-
-/** Replaces each run of payload-adjacent rows matching `belongs` with one card holding all their parts, in place. */
+/** Replaces each run of payload-adjacent rows matching `belongs` with one card holding all their parts. */
 const mergeRuns = (
   rows: MessageRow[],
   belongs: (row: MessageRow) => boolean,
   merge: (first: MessageRow, parts: TurnPart[]) => MessageRow
-) => {
-  for (let i = 0; i < rows.length; i++) {
-    if (!belongs(rows[i])) continue;
-    let end = i + 1;
-    while (end < rows.length && belongs(rows[end]) && adjacent(rows[end - 1], rows[end])) end++;
-    const parts = rows.slice(i, end).flatMap((row) => row.normalized!.parts);
-    rows.splice(i, end - i, merge(rows[i], parts));
-  }
+): MessageRow[] => {
+  const runs: MessageRow[][] = [];
+  rows.forEach((row, i) => {
+    const run = runs.at(-1);
+    if (run && belongs(row) && belongs(rows[i - 1]) && adjacent(rows[i - 1], row)) run.push(row);
+    else runs.push([row]);
+  });
+  return runs.map((run) =>
+    run.length > 1
+      ? merge(
+          run[0],
+          run.flatMap((row) => row.normalized!.parts)
+        )
+      : run[0]
+  );
 };
 
 const isResultsOnly = (row: MessageRow) =>
   !!row.normalized?.parts.length && row.normalized.parts.every((part) => part.kind === "tool-result");
 
-/** Merges consecutive tool-result messages into one card, in place. */
+/** This call's tool results: consecutive ones share a card, and all show as light previews. */
 const batchToolResults = (rows: MessageRow[]) =>
-  mergeRuns(rows, isResultsOnly, (first, parts) => ({
-    ...first,
-    normalized: { role: "tool", parts },
-    resultCount: parts.length,
-  }));
+  mergeRuns(rows, isResultsOnly, (first, parts) => ({ ...first, normalized: { role: "tool", parts } })).map((row) =>
+    isResultsOnly(row) ? { ...row, plainResults: true } : row
+  );
 
 // The Responses API splits one assistant turn into top-level items (reasoning, message, one per tool call), and it
 // has no `n`, so a run is never alternative choices. Other formats keep a turn in one message, and their consecutive
@@ -276,12 +177,19 @@ const isResponsesAssistantItem = (row: MessageRow) =>
   !!row.normalized?.parts.length &&
   canonicalRole(row.normalized.role) === "assistant";
 
-/** Merges a Responses turn's consecutive assistant items into one card, in place. */
 const mergeResponsesTurns = (rows: MessageRow[]) =>
-  mergeRuns(rows, isResponsesAssistantItem, (first, parts) => ({
-    ...first,
-    normalized: { role: "assistant", parts },
-  }));
+  mergeRuns(rows, isResponsesAssistantItem, (first, parts) => ({ ...first, normalized: { role: "assistant", parts } }));
+
+const rowRole = (row: MessageRow) =>
+  canonicalRole(row.normalized?.role ?? segmentMessageRole(row.segment, row.localIndex));
+
+// Provider-rendered rows (no normalized parts) count as one result when their role is `tool`.
+const toolResultCount = (row: MessageRow) =>
+  row.normalized
+    ? row.normalized.parts.filter((part) => part.kind === "tool-result").length
+    : rowRole(row) === "tool"
+      ? 1
+      : 0;
 
 /** "system prompt + 23 earlier steps": what is folded away before this call's new input. */
 const contextSummary = (turn: SpanTurn): string =>
@@ -292,52 +200,14 @@ const contextSummary = (turn: SpanTurn): string =>
     .filter(Boolean)
     .join(" + ");
 
-/** "4 tool results", "1 user message", "3 messages": what the Focused Input section holds. */
+/** "4 tool results", "1 user message", "3 messages": what the Input section holds. */
 const summarizeNewInput = (rows: MessageRow[]): string => {
-  if (onlyToolResults(rows)) return pluralize(totalResults(rows), "tool result", "tool results");
-  if (onlyUserMessages(rows)) return pluralize(rows.length, "user message", "user messages");
+  const results = rows.reduce((sum, row) => sum + toolResultCount(row), 0);
+  if (rows.every((row) => toolResultCount(row) > 0 && (!row.normalized || isResultsOnly(row)))) {
+    return pluralize(results, "tool result", "tool results");
+  }
+  if (rows.every((row) => rowRole(row) === "user" && toolResultCount(row) === 0)) {
+    return pluralize(rows.length, "user message", "user messages");
+  }
   return pluralize(rows.length, "message", "messages");
-};
-
-/**
- * Focused: Context (system prompt + earlier steps, one collapsed header) / Input (only what is new in this call) /
- * Output. Built from the All rows, so processing, pairing, merging and batching are shared.
- */
-export const buildFocusedRows = (
-  turn: SpanTurn,
-  contextOpen: boolean,
-  raw: Record<SectionKey, boolean>
-): ConversationRow[] => {
-  const messages = buildConversationRows(turn, contextOpen, "all", {
-    batchResults: true,
-    newInputStyle: "divider",
-    raw,
-  }).filter((row): row is MessageRow => row.kind === "message");
-  const newRows = messages
-    .filter((row) => row.source === "input")
-    .map((row) => (isResultsOnly(row) ? { ...row, plainResults: true, resultCount: undefined } : row));
-
-  const rows: ConversationRow[] = [];
-  if (turn.system || turn.task || turn.history || turn.previous || turn.input) {
-    const context = contextSummary(turn);
-    // In a raw format the Input section shows the full payload, context included.
-    if (context && !raw.input) {
-      rows.push({ kind: "context", key: "context", summary: context, open: contextOpen });
-      if (contextOpen) rows.push(...messages.filter((row) => row.source !== "input" && row.source !== "output"));
-    }
-    rows.push({
-      kind: "section",
-      key: "section-input",
-      section: "input",
-      summary: newRows.length > 0 ? summarizeNewInput(newRows) : undefined,
-    });
-    rows.push(...newRows);
-  }
-  if (turn.output) {
-    rows.push(
-      { kind: "section", key: "section-output", section: "output" },
-      ...messages.filter((row) => row.source === "output")
-    );
-  }
-  return rows;
 };

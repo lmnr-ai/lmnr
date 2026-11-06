@@ -216,6 +216,18 @@
     }
   }
 
+  /* Span view: marks the message a link opened, then fades. */
+  --animate-link-flash: link-flash 2s ease-out;
+
+  @keyframes link-flash {
+    from {
+      outline-color: var(--color-primary);
+    }
+    to {
+      outline-color: transparent;
+    }
+  }
+
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
