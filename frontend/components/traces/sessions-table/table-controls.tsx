@@ -4,7 +4,8 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { RESOURCE } from "@/components/traces/sessions-table/constants";
+import { RealtimeToggle } from "@/components/traces/realtime-toggle";
+import { REALTIME_STORAGE_KEY, RESOURCE } from "@/components/traces/sessions-table/constants";
 import SessionsColumnsMenu from "@/components/traces/sessions-table/sessions-columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
@@ -47,6 +48,7 @@ export function SessionsTableControls({
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
         <DateRangeFilter />
         <RefreshButton onClick={onRefresh} variant="outline" />
+        <RealtimeToggle storageKey={REALTIME_STORAGE_KEY} />
       </div>
       <div className="w-full px-px">
         <AdvancedSearch

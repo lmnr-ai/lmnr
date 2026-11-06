@@ -7,7 +7,7 @@ import { shallow } from "zustand/shallow";
 
 import { buildSessionColumnDefs, customColumnsParam } from "@/components/traces/sessions-table/build-columns";
 import { defaultSessionsColumnOrder, filters as staticFilters } from "@/components/traces/sessions-table/columns";
-import { RESOURCE } from "@/components/traces/sessions-table/constants";
+import { RESOURCE, sessionsStatsUrl } from "@/components/traces/sessions-table/constants";
 import SessionsChart from "@/components/traces/sessions-table/sessions-chart";
 import { SessionsTableContents } from "@/components/traces/sessions-table/table-contents";
 import { SessionsTableControls } from "@/components/traces/sessions-table/table-controls";
@@ -92,7 +92,7 @@ function SessionsTableContent() {
   const handleRefresh = useCallback(() => {
     refetchRef.current();
     // The chart's SWR key is unchanged by a refresh, so revalidate it explicitly.
-    const statsPrefix = `/api/projects/${projectId}/sessions/stats`;
+    const statsPrefix = sessionsStatsUrl(String(projectId));
     void mutate((key) => typeof key === "string" && key.startsWith(statsPrefix));
   }, [mutate, projectId]);
 

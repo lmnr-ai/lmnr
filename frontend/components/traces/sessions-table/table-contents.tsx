@@ -4,12 +4,14 @@ import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
-import { FETCH_SIZE } from "@/components/traces/sessions-table/constants";
+import { FETCH_SIZE, REALTIME_STORAGE_KEY } from "@/components/traces/sessions-table/constants";
+import { useSessionsRealtime } from "@/components/traces/sessions-table/use-sessions-realtime";
 import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
 import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type SessionRow } from "@/lib/traces/types";
@@ -107,6 +109,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
     error,
     fetchNextPage,
     refetch,
+    updateData,
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
     enabled: shouldFetch && !isViewLoading,
@@ -116,6 +119,22 @@ export const SessionsTableContents = memo(function SessionsTableContents({
   useEffect(() => {
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
+
+  // Live refresh merges a fresh first page over the loaded rows; `refetch` would clear the table and scroll.
+  const refreshFirstPage = useCallback(async () => {
+    const page = await fetchSessions(0).catch(() => undefined);
+    if (!page) return;
+    const fresh = new Set(page.items.map((s) => s.sessionId));
+    updateData((prev) => [...page.items, ...prev.filter((s) => !fresh.has(s.sessionId))]);
+  }, [fetchSessions, updateData]);
+
+  const [realtimeEnabled] = useLocalStorage(REALTIME_STORAGE_KEY, false);
+  const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
+  useSessionsRealtime({
+    projectId: String(projectId),
+    enabled: realtimeEnabled && shouldFetch && !isViewLoading && isCurrentTimestampIncluded,
+    onRefresh: refreshFirstPage,
+  });
 
   const searchWiderRange = useCallback(
     (range: DateRange) => {
