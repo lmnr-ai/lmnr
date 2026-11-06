@@ -1,14 +1,17 @@
 import { capitalize } from "lodash";
-import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
-import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { Bolt, Lightbulb } from "lucide-react";
+import { memo, type PropsWithChildren, type ReactNode, useRef } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { MessageRole } from "@/components/traces/span-view/collapsible";
+import HeightClamp from "@/components/traces/span-view/height-clamp";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
+import { canonicalRole } from "@/lib/spans/turn";
 import { cn } from "@/lib/utils";
 
 // Hue tokens live in app/globals.css (--{hue}-text); only the role → hue choice is made here.
@@ -19,17 +22,8 @@ const ROLE_TEXT_COLORS: Record<string, string> = {
   tool: "var(--yellow-text)",
 };
 
-const ROLE_ALIASES: Record<string, string> = {
-  human: "user",
-  ai: "assistant",
-  model: "assistant",
-  computer_call_output: "tool",
-};
-
 export function getRoleTextColor(role?: string): string {
-  if (!role) return ROLE_TEXT_COLORS.system;
-  const normalized = ROLE_ALIASES[role.toLowerCase()] ?? role.toLowerCase();
-  return ROLE_TEXT_COLORS[normalized] ?? ROLE_TEXT_COLORS.system;
+  return ROLE_TEXT_COLORS[canonicalRole(role) ?? "system"] ?? ROLE_TEXT_COLORS.system;
 }
 
 interface ToolCallContentPartProps {
@@ -171,21 +165,23 @@ const PureTextContentPart = ({
 interface RoleHeaderProps {
   role?: string;
   className?: string;
+  action?: ReactNode;
 }
 
-const RoleHeader = ({ role, className }: RoleHeaderProps) => {
+export const RoleHeader = ({ role, className, action }: RoleHeaderProps) => {
   if (role) {
     return (
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
       <div
         className={cn(
-          "flex items-center px-2 py-1 gap-2 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
+          "flex items-center gap-2 px-2 py-1 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
           className
         )}
       >
         <span className="text-sm font-medium" style={{ color: getRoleTextColor(role) }}>
           {capitalize(role)}
         </span>
+        {action}
       </div>
     );
   }
@@ -221,7 +217,7 @@ const PureThinkingContentPart = ({
 }: ThinkingContentPartProps) => (
   <div className="flex flex-col gap-2 p-2">
     <span className="flex items-center text-xs">
-      <Brain size={12} className="min-w-3 mr-2" />
+      <Lightbulb size={14} className="min-w-3.5 mr-2 text-muted-foreground" />
       {label}
     </span>
     <ContentRenderer
@@ -252,72 +248,38 @@ export const MessageWrapper = ({
   children,
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
-  stickyHeader = true,
   defaultExpanded = false,
+  headerAction,
+  highlighted = false,
 }: PropsWithChildren<{
   role?: string;
-  presetKey: string;
+  /** Right-aligned in the role header; revealed on hover via `group-hover/span-message`. */
+  headerAction?: ReactNode;
+  /** Briefly marks the message a link opened. */
+  highlighted?: boolean;
   maxHeight?: number;
-  stickyHeader?: boolean;
   defaultExpanded?: boolean;
 }>) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isOverflowing, setIsOverflowing] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-
-  const checkOverflow = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    setIsOverflowing(el.scrollHeight > maxHeight);
-  }, [maxHeight]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    checkOverflow();
-
-    const resizeObserver = new ResizeObserver(checkOverflow);
-    resizeObserver.observe(el);
-
-    return () => resizeObserver.disconnect();
-  }, [checkOverflow]);
-
-  const showToggle = isOverflowing;
-
+  const cardRef = useRef<HTMLDivElement>(null);
   return (
     // overflow-clip (not hidden): clips to radius without creating a scroll
     // container, so sticky can still pin to the messages list.
-    <ElevatedSurface offset={1} className="relative border rounded-lg overflow-clip">
-      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
-      <div
-        ref={containerRef}
-        className="overflow-hidden bg-emphasis-1 dark:bg-transparent"
-        style={!isExpanded ? { maxHeight } : undefined}
-      >
-        <div className="flex flex-col divide-y">{children}</div>
+    <ElevatedSurface
+      ref={cardRef}
+      offset={1}
+      className={cn("group/span-message relative border rounded-lg overflow-clip scroll-mt-16", highlighted && FLASH)}
+    >
+      <RoleHeader role={role} action={headerAction} />
+      <div className="bg-emphasis-1 dark:bg-transparent">
+        <MessageRole value={role}>
+          <HeightClamp maxHeight={maxHeight} defaultExpanded={defaultExpanded} anchorRef={cardRef}>
+            <div className="flex flex-col divide-y">{children}</div>
+          </HeightClamp>
+        </MessageRole>
       </div>
-      {showToggle && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b-lg">
-          <div
-            className="w-full pointer-events-none bg-gradient-to-b from-background/0 to-background"
-            style={{
-              height: isExpanded ? 16 : 36,
-              marginTop: isExpanded ? -8 : -36,
-            }}
-          />
-          <div className="w-full bg-background rounded-b-lg">
-            <button
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="h-3 relative w-full flex items-center justify-center cursor-pointer rounded-b-lg"
-            >
-              <span className="absolute -top-2.5 w-full flex justify-center">
-                {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
     </ElevatedSurface>
   );
 };
+
+// Drawn over the card's own border, so the flash needs no layout or state.
+const FLASH = "outline outline-1 -outline-offset-1 outline-transparent animate-link-flash";

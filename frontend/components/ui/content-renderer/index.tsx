@@ -45,7 +45,6 @@ interface ContentRendererProps {
   defaultShowLineNumbers?: boolean;
   messageIndex?: number;
   contentPartIndex?: number;
-  renderMessages?: (ctx: { value: string; presetKey: string }) => React.ReactNode;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -82,7 +81,6 @@ const PureContentRenderer = ({
   defaultShowLineNumbers = false,
   messageIndex = 0,
   contentPartIndex = 0,
-  renderMessages,
   customTheme,
   extraExtensions,
 }: ContentRendererProps) => {
@@ -188,7 +186,7 @@ const PureContentRenderer = ({
     setEditorMountKey((k) => k + 1);
   }, []);
 
-  const isCodeMode = mode !== "custom" && mode !== "messages";
+  const isCodeMode = mode !== "custom";
   const canPickMode = modes.length > 1;
 
   useEffect(() => {
@@ -271,11 +269,6 @@ const PureContentRenderer = ({
         <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
           <TemplatePickerPreview data={renderedValue} />
         </div>
-      );
-    }
-    if (mode === "messages") {
-      return (
-        <div className="flex-1 flex w-full min-h-0">{renderMessages?.({ value, presetKey: presetKey ?? "" })}</div>
       );
     }
     return (

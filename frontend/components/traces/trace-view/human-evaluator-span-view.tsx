@@ -3,7 +3,7 @@ import React from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
-import SpanMessages from "@/components/traces/span-view/span-content";
+import { SpanIOSection, spanPathKey } from "@/components/traces/span-view/span-io";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,8 +56,14 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
         </div>
         <div className="flex-1 flex overflow-hidden">
           <TabsContent value="span" className="w-full h-full">
-            <div className="flex flex-col h-full">
-              <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}></SpanMessages>
+            <div className="size-full overflow-y-auto styled-scrollbar">
+              <SpanIOSection
+                key={`${datapointId}-${spanId}`}
+                title="Input"
+                data={span.input}
+                presetKey={`input-${spanPathKey(span)}`}
+                index={0}
+              />
             </div>
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">

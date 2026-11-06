@@ -1,10 +1,11 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import { shallow } from "zustand/shallow";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -28,8 +29,7 @@ type NavigationItem =
 
 function TracesContent() {
   const searchParams = useSearchParams();
-  const pathName = usePathname();
-  const router = useRouter();
+  const navigate = useTracePanelNavigate();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext(
@@ -43,14 +43,12 @@ function TracesContent() {
   );
 
   const resetUrlParams = (newView: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.delete("filter");
-    params.delete("textSearch");
-    params.delete("traceId");
-    params.delete("spanId");
-    params.set("view", newView);
+    navigate({ type: "close" }, (params) => {
+      params.delete("filter");
+      params.delete("textSearch");
+      params.set("view", newView);
+    });
     setTraceId(null);
-    router.push(`${pathName}?${params.toString()}`);
   };
 
   const handleNavigate = useCallback(
@@ -98,12 +96,10 @@ function TracesContent() {
       </Tabs>
       {traceId && (
         <TraceViewSidePanel
+          urlState
           spanId={spanId || undefined}
           onClose={() => {
-            const params = new URLSearchParams(searchParams);
-            params.delete("traceId");
-            params.delete("spanId");
-            router.push(`${pathName}?${params.toString()}`);
+            navigate({ type: "close" });
             setTraceId(null);
           }}
           traceId={traceId}

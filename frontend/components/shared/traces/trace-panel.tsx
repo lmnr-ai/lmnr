@@ -11,6 +11,7 @@ import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import Transcript from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 
@@ -33,8 +34,8 @@ const useHydrated = () =>
 export default function TracePanel({ trace, spans, onClose, onSpanSelect, isCompactTimeline }: TracePanelProps) {
   const hydrated = useHydrated();
 
+  const [tab] = useTraceViewTab();
   const {
-    tab,
     browserSession,
     setBrowserSession,
     langGraph,
@@ -46,7 +47,6 @@ export default function TracePanel({ trace, spans, onClose, onSpanSelect, isComp
     setIsResizing,
   } = useTraceViewStore(
     (state) => ({
-      tab: state.tab,
       browserSession: state.browserSession,
       setBrowserSession: state.setBrowserSession,
       langGraph: state.langGraph,

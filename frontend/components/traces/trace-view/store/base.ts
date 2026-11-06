@@ -138,6 +138,8 @@ interface BaseTraceViewState {
 
   // Layout options
   isAlwaysSelectSpan: boolean;
+  /** The page reopens this trace and its span from the URL, so views keep tabs and message links there. */
+  urlState: boolean;
 
   // Transcript mode: IDs of groups the user has expanded
   transcriptExpandedGroups: Set<string>;
@@ -206,6 +208,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
     initialSearch?: string;
+    urlState?: boolean;
   }
 ): BaseTraceViewStore {
   return {
@@ -248,6 +251,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
+    urlState: options?.urlState ?? false,
 
     // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
     transcriptExpandedGroups: new Set<string>(),
@@ -413,6 +417,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 }
 
 export const TraceViewContext = createContext<StoreApi<BaseTraceViewStore> | undefined>(undefined);
+
+/** Off outside a trace view (e.g. the session view's span panel). Set once per store, so no subscription. */
+export const useUrlState = () => useContext(TraceViewContext)?.getState().urlState ?? false;
 
 export const useTraceViewBaseStore = <T>(
   selector: (store: BaseTraceViewStore) => T,

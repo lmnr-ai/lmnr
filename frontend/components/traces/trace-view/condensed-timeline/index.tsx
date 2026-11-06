@@ -5,6 +5,8 @@ import React, { memo, useCallback, useMemo, useRef } from "react";
 import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +44,6 @@ function CondensedTimeline() {
     scrollEndTime,
     transcriptExpandedGroups,
     requestScrollToGroup,
-    tab,
     isCostHeatmapVisible,
     setIsCostHeatmapVisible,
   } = useTraceViewBaseStore((state) => ({
@@ -65,10 +66,10 @@ function CondensedTimeline() {
     scrollEndTime: state.scrollEndTime,
     transcriptExpandedGroups: state.transcriptExpandedGroups,
     requestScrollToGroup: state.requestScrollToGroup,
-    tab: state.tab,
     isCostHeatmapVisible: state.isCostHeatmapVisible,
     setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
   }));
+  const [tab] = useTraceViewTab();
 
   const {
     spans: condensedSpans,
@@ -181,13 +182,15 @@ function CondensedTimeline() {
     [storeSpans, setCondensedTimelineVisibleSpanIds]
   );
 
+  const navigate = useTracePanelNavigate();
   const handleSpanClick = useCallback(
     (span: (typeof storeSpans)[0]) => {
       if (!span.pending) {
         setSelectedSpan(span);
+        navigate({ type: "selectSpan", spanId: span.spanId });
       }
     },
-    [setSelectedSpan]
+    [setSelectedSpan, navigate]
   );
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
