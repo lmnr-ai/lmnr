@@ -42,6 +42,7 @@ export interface LiveSessionState {
 }
 
 const DEFAULT_SETTLE_MS = 2000;
+const MAX_RETRY_MS = 30_000;
 
 export const createLiveSessionStore = ({
   loadTraces,
@@ -54,6 +55,7 @@ export const createLiveSessionStore = ({
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let loading = false;
+    let failures = 0;
 
     const replyLoader = createBatchedLoader<string | null>({
       load: async (ids) => {
@@ -99,9 +101,11 @@ export const createLiveSessionStore = ({
         const result = await loadTraces();
         if (disposed) return;
         if ("error" in result) {
+          failures++;
           dispatch({ type: "snapshotFailed", error: result.error });
           return;
         }
+        failures = 0;
         dispatch({ type: "snapshot", traces: result.traces, requestedAtSeq });
 
         // Turns this snapshot settled may have new replies and spans since they were last loaded.
@@ -115,14 +119,17 @@ export const createLiveSessionStore = ({
         if (afterLiveUpdates) onRefreshed?.();
       } finally {
         loading = false;
+        // Live updates no snapshot reflects yet (they arrived mid-request, or this request failed) need another one;
+        // otherwise live turns would stay "writing" once the session goes quiet. Failures back off.
+        if (!disposed && needsReconcile(get().sync)) {
+          scheduleRefresh(Math.min(settleMs * 2 ** failures, MAX_RETRY_MS));
+        }
       }
-      // Deltas that arrived during the request (or while it blocked a refresh) aren't reflected yet.
-      if (!disposed && needsReconcile(get().sync)) scheduleRefresh();
     };
 
-    const scheduleRefresh = () => {
+    const scheduleRefresh = (delay = settleMs) => {
       clearTimeout(timer);
-      timer = setTimeout(() => void load(true), settleMs);
+      timer = setTimeout(() => void load(true), delay);
     };
 
     return {
@@ -130,12 +137,16 @@ export const createLiveSessionStore = ({
       replies: {},
       counts: {},
 
-      start: () => void load(false),
+      // Re-entrant: an effect that re-runs (StrictMode, Fast Refresh) disposes and starts the same store again.
+      start: () => {
+        disposed = false;
+        void load(false);
+      },
 
       receive: (event) => {
         if (disposed) return;
         dispatch(event);
-        if (event.type === "delta") scheduleRefresh();
+        if (event.type === "delta" && !loading) scheduleRefresh();
       },
 
       requestDetails: (traceIds) => {
