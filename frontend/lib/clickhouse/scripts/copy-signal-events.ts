@@ -105,7 +105,14 @@ const copySignal = async (projectId: string, signalId: string): Promise<number> 
   return Number(result.summary?.written_rows ?? 0);
 };
 
+// Skips the DELETE (a mutation) when nothing is there, the usual case.
 const purgeSignal = async (projectId: string, signalId: string): Promise<void> => {
+  const rs = await ch().query({
+    query: `SELECT 1 FROM ${TARGET} PREWHERE project_id = {projectId:UUID} AND signal_id = {signalId:UUID} LIMIT 1`,
+    query_params: { projectId, signalId },
+    format: "JSONEachRow",
+  });
+  if ((await rs.json()).length === 0) return;
   await ch().command({
     query: `DELETE FROM ${TARGET} WHERE project_id = {projectId:UUID} AND signal_id = {signalId:UUID}`,
     query_params: { projectId, signalId },
@@ -115,9 +122,14 @@ const purgeSignal = async (projectId: string, signalId: string): Promise<void> =
 // Signal deletion commits the Postgres delete BEFORE its ClickHouse purge, so
 // re-checking Postgres after the (synchronous) INSERT covers a deletion racing
 // the copy: either the check sees it and purges here, or the deletion's own
-// purge runs after this INSERT landed and removes the copied rows.
+// purge runs after this INSERT landed and removes the copied rows. A deleted
+// signal is purged on the way in too: a run that died between its INSERT and
+// the second check left rows behind.
 const copyLiveSignal = async (projectId: string, signalId: string): Promise<number> => {
-  if (!(await signalExists(projectId, signalId))) return 0;
+  if (!(await signalExists(projectId, signalId))) {
+    await purgeSignal(projectId, signalId);
+    return 0;
+  }
   const n = await copySignal(projectId, signalId);
   if (await signalExists(projectId, signalId)) return n;
   await purgeSignal(projectId, signalId);
