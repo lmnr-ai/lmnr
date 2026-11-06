@@ -1,7 +1,7 @@
 import { pushDatapointsToQueue, PushDatapointsToQueueSchema } from "@/lib/actions/datapoints";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ projectId: string; datasetId: string }>(
+export const POST = handlerWithAudit<{ projectId: string; datasetId: string }>(
   { resource: "labeling_queue", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, datasetId } = await ctx.params;

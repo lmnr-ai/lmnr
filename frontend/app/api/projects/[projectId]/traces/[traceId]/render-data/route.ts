@@ -1,8 +1,8 @@
 import { getTraceRenderData } from "@/lib/actions/trace/render-data";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "trace view sub-request; the trace route records trace.view",
   apiHandler<{ projectId: string; traceId: string }>(async (req, { params }) => {
     const { projectId, traceId } = await params;

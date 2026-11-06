@@ -3,9 +3,9 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createQueue, deleteQueues, getQueues, GetQueuesSchema } from "@/lib/actions/queues";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "labeling_queue", action: "create" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -28,7 +28,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getQueues({ ...parseResult.data, projectId }));
 });
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "labeling_queue", action: "delete" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

@@ -1,5 +1,5 @@
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 type Params = { projectId: string; traceId: string };
@@ -24,7 +24,7 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await readTraceTags(projectId, traceId));
 });
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "trace tagging is not security-relevant",
   apiHandler<Params>(async (req, ctx) => {
     const { projectId, traceId } = await ctx.params;

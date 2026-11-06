@@ -1,7 +1,7 @@
 import { updateQueueAnnotationSchema } from "@/lib/actions/queue";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const PUT = withAudit<{ projectId: string; queueId: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; queueId: string }>(
   { resource: "labeling_queue", action: "update" },
   async (request, ctx, audit) => {
     const { projectId, queueId } = await ctx.params;

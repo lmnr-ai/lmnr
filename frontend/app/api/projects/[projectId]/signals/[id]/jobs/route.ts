@@ -4,7 +4,7 @@ import { parseUrlParams } from "@/lib/actions/common/utils.ts";
 import { createSignalJob, getSignalJobs, GetSignalJobsSchema } from "@/lib/actions/signal-jobs";
 import { checkSignalRunsLimit } from "@/lib/actions/usage/limits";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
   const { projectId, id: signalId } = await ctx.params;
@@ -27,7 +27,7 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
   return Response.json(result);
 });
 
-export const POST = withAudit<{ projectId: string; id: string }>(
+export const POST = handlerWithAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "backfill" },
   async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;

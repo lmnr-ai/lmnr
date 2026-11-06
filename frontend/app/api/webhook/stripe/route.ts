@@ -12,7 +12,7 @@ import {
 } from "@/lib/actions/checkout/trial";
 import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { handleInvoiceFinalized, handleSubscriptionChange } from "@/lib/actions/checkout/webhook";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
 
 // Stripe zero-decimal currencies are billed in their major units directly.
@@ -120,7 +120,7 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   }
 }
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "inbound Stripe webhook; not a user action",
   async (req: NextRequest): Promise<Response> => {
     let event;

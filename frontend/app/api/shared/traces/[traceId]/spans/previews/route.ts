@@ -1,8 +1,8 @@
 import { getSharedSpanPreviews } from "@/lib/actions/shared/spans/previews.ts";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "anonymous public-trace views are not audited",
   apiHandler<{ traceId: string }>(async (req, ctx) => {
     const { traceId } = await ctx.params;

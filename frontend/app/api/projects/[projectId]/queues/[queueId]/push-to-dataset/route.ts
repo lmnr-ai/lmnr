@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { pushItemsToDataset } from "@/lib/actions/queue";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
   datasetId: z.guid(),
@@ -9,7 +9,7 @@ const BodySchema = z.object({
   includeUnlabelled: z.boolean().optional(),
 });
 
-export const POST = withAudit<{ projectId: string; queueId: string }>(
+export const POST = handlerWithAudit<{ projectId: string; queueId: string }>(
   // The created datapoint ids aren't returned; the dataset and items are recorded instead.
   { resource: "datapoint", action: "create", noTarget: true },
   async (req, ctx, audit) => {

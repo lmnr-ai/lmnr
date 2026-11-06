@@ -2,10 +2,10 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { sqlToJson } from "@/lib/actions/sql";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "query builder conversion; reads no data",
   async (request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) => {
     try {

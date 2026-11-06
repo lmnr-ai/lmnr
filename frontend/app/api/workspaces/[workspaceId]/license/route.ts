@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { AuthorizationError, NotFoundError } from "@/lib/api/errors";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { getWorkspaceRole } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -12,7 +12,7 @@ const SaveLicenseSchema = z.object({ key: z.string().trim().min(1) });
 // The license is instance-wide, but workspace owners manage it. There is no
 // DELETE: the app-server only accepts a key that verifies, so a stored license
 // can be replaced by another working one but never removed.
-export const PUT = withAudit<{ workspaceId: string }>(
+export const PUT = handlerWithAudit<{ workspaceId: string }>(
   { resource: "license", action: "update", noTarget: true },
   async (req, { params }) => {
     const { workspaceId } = await params;

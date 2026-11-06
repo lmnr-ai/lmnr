@@ -1,9 +1,9 @@
 import { createApiKey, deleteApiKey, getApiKeys } from "@/lib/actions/project-api-keys";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "api_key", action: "create" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -34,7 +34,7 @@ export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
   return Response.json(await getApiKeys({ projectId }));
 });
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "api_key", action: "delete" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

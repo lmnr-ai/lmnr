@@ -1,8 +1,8 @@
 import { removeUserFromWorkspace } from "@/lib/actions/workspace";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getUserEmail } from "@/lib/audit/labels";
 
-export const DELETE = withAudit<{ workspaceId: string }>(
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
   { resource: "member", action: "remove" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

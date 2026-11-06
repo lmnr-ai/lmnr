@@ -1,9 +1,9 @@
 import { handleChatGeneration } from "@/lib/actions/chat";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "LLM generation over messages the client sends (playground); reads no stored data",
   apiHandler<{ projectId: string }>(async (req, ctx) => {
     const body = await req.json();

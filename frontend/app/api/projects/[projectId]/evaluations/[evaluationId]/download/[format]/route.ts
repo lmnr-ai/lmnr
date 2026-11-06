@@ -2,13 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { json2csv } from "json-2-csv";
 
 import { executeQuery } from "@/lib/actions/sql";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import { DownloadFormat } from "@/lib/types";
 import { tryParseJson } from "@/lib/utils";
 
-export const GET = withAudit(
+export const GET = handlerWithAudit(
   { resource: "evaluation", action: "export", read: true },
   async (
     req: Request,

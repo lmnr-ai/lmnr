@@ -7,7 +7,7 @@ import {
   ListDatapointsSchema,
 } from "@/lib/actions/datapoints";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { projectId: string; datasetId: string };
 
@@ -26,7 +26,7 @@ export const GET = apiHandler<Params>(async (req, ctx) => {
   return Response.json(await getDatapoints({ ...parseResult.data, projectId, datasetId }));
 });
 
-export const POST = withAudit<Params>({ resource: "datapoint", action: "create" }, async (req, ctx, audit) => {
+export const POST = handlerWithAudit<Params>({ resource: "datapoint", action: "create" }, async (req, ctx, audit) => {
   const { projectId, datasetId } = await ctx.params;
   const body = await req.json();
 
@@ -49,7 +49,7 @@ export const POST = withAudit<Params>({ resource: "datapoint", action: "create" 
 // Note: this endpoint allows a body in a DELETE request, which is not standard
 // but fits our purposes: (1) this is an internal API, (2) passing many
 // datapoint IDs in the URL may break
-export const DELETE = withAudit<Params>({ resource: "datapoint", action: "delete" }, async (req, ctx, audit) => {
+export const DELETE = handlerWithAudit<Params>({ resource: "datapoint", action: "delete" }, async (req, ctx, audit) => {
   const { projectId, datasetId } = await ctx.params;
   const { datapointIds } = await req.json();
 

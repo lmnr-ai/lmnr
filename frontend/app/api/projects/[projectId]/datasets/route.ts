@@ -4,9 +4,9 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createDataset, deleteDatasets, getDatasets, getDatasetsSchema } from "@/lib/actions/datasets";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "dataset", action: "create" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -35,7 +35,7 @@ export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ct
   return Response.json(response, { status: 200 });
 });
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "dataset", action: "delete" },
   async (req, ctx, audit) => {
     const { projectId } = await ctx.params;

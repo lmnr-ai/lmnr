@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions/evaluation";
 import { updateEvaluationVisibility } from "@/lib/actions/evaluation/visibility";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; evaluationId: string }>(async (req: NextRequest, ctx) => {
   const { projectId, evaluationId } = await ctx.params;
@@ -35,7 +35,7 @@ export const GET = apiHandler<{ projectId: string; evaluationId: string }>(async
   return Response.json(result);
 });
 
-export const PATCH = withAudit<{ projectId: string; evaluationId: string }>(
+export const PATCH = handlerWithAudit<{ projectId: string; evaluationId: string }>(
   { resource: "evaluation", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, evaluationId } = await ctx.params;
@@ -57,7 +57,7 @@ export const PATCH = withAudit<{ projectId: string; evaluationId: string }>(
   }
 );
 
-export const PUT = withAudit<{ projectId: string; evaluationId: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; evaluationId: string }>(
   { resource: "evaluation", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, evaluationId } = await ctx.params;

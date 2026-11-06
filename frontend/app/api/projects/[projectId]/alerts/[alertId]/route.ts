@@ -1,8 +1,8 @@
 import { patchAlert } from "@/lib/actions/alerts";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
-export const PATCH = withAudit<{ projectId: string; alertId: string }>(
+export const PATCH = handlerWithAudit<{ projectId: string; alertId: string }>(
   { resource: "alert", action: "update" },
   async (request, ctx, audit) => {
     const { projectId, alertId } = await ctx.params;

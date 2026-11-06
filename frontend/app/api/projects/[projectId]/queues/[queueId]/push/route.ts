@@ -1,8 +1,8 @@
 import { pushQueueItems, PushQueueItemsRequestSchema } from "@/lib/actions/queue";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "per-item labeling traffic",
   apiHandler<{ projectId: string; queueId: string }>(async (req, ctx) => {
     const { projectId, queueId } = await ctx.params;

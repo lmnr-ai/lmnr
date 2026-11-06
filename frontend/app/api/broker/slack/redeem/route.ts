@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, z, ZodError } from "zod/v4";
 
 import { authenticateInstance, getBearerToken, redeemClaim } from "@/lib/actions/slack/broker";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
 const RedeemRequestSchema = z.object({
   claim: z.string(),
@@ -11,7 +11,7 @@ const RedeemRequestSchema = z.object({
 // Server-to-server: the calling instance authenticates with its issued key and
 // redeems the one-time claim. The claim is bound to the instance that started
 // the flow, so one tenant can never redeem another's token.
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "Laminar Cloud Slack broker for self-hosted instances; not a workspace action",
   async (req: NextRequest): Promise<Response> => {
     try {

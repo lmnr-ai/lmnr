@@ -1,6 +1,6 @@
 import { getReports, optInReport, optOutReport, setEmailSubscriptions } from "@/lib/actions/reports";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
@@ -13,7 +13,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
 });
 
 // Subscribing and unsubscribing change only the caller's delivery, never the report itself.
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "report", action: "update" },
   async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
@@ -38,7 +38,7 @@ export const POST = withAudit<{ workspaceId: string }>(
   }
 );
 
-export const PUT = withAudit<{ workspaceId: string }>(
+export const PUT = handlerWithAudit<{ workspaceId: string }>(
   { resource: "report", action: "update" },
   async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;
@@ -56,7 +56,7 @@ export const PUT = withAudit<{ workspaceId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ workspaceId: string }>(
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
   { resource: "report", action: "update" },
   async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;

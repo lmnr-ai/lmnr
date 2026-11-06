@@ -1,8 +1,8 @@
 import { setSlackTargets } from "@/lib/actions/reports";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "report", action: "update" },
   async (request, ctx, audit) => {
     const { workspaceId } = await ctx.params;

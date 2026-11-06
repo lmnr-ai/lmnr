@@ -2,11 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "audited by app-server as sql.query (source export)",
   async (
     req: NextRequest,

@@ -1,6 +1,6 @@
 import { getDatapoint, updateDatapoint } from "@/lib/actions/datapoint";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { projectId: string; datasetId: string; datapointId: string };
 
@@ -9,7 +9,7 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getDatapoint({ projectId, datapointId, datasetId }));
 });
 
-export const POST = withAudit<Params>({ resource: "datapoint", action: "update" }, async (req, ctx, audit) => {
+export const POST = handlerWithAudit<Params>({ resource: "datapoint", action: "update" }, async (req, ctx, audit) => {
   const { projectId, datasetId, datapointId } = await ctx.params;
   const body = await req.json();
 

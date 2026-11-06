@@ -1,7 +1,7 @@
 import { updatePlayground } from "@/lib/actions/playgrounds";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ projectId: string; playgroundId: string }>(
+export const POST = handlerWithAudit<{ projectId: string; playgroundId: string }>(
   { resource: "playground", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, playgroundId } = await ctx.params;

@@ -1,7 +1,7 @@
 import { getTrace, updateTraceVisibility } from "@/lib/actions/trace";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const GET = withAudit<{ projectId: string; traceId: string }>(
+export const GET = handlerWithAudit<{ projectId: string; traceId: string }>(
   { resource: "trace", action: "view", read: true },
   async (_req, ctx, audit) => {
     const params = await ctx.params;
@@ -19,7 +19,7 @@ export const GET = withAudit<{ projectId: string; traceId: string }>(
   }
 );
 
-export const PUT = withAudit<{ projectId: string; traceId: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; traceId: string }>(
   { resource: "trace", action: "share" },
   async (req, ctx, audit) => {
     const params = await ctx.params;

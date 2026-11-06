@@ -1,8 +1,8 @@
 import { createExportJob } from "@/lib/actions/sql/export-job";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "audited by app-server as sql.query (source export)",
   apiHandler<{ projectId: string }>(async (req, ctx) => {
     const { projectId } = await ctx.params;

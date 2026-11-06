@@ -1,8 +1,8 @@
 import { deleteWorkspace, getWorkspace, updateWorkspace } from "@/lib/actions/workspace";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "workspace", action: "update" },
   async (req, ctx, audit) => {
     const { workspaceId } = await ctx.params;
@@ -24,7 +24,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   return Response.json(workspace);
 });
 
-export const DELETE = withAudit<{ workspaceId: string }>(
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
   { resource: "workspace", action: "delete" },
   async (_req, ctx, audit) => {
     const { workspaceId } = await ctx.params;

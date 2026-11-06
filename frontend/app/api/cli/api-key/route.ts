@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod/v4";
 
 import { createApiKey } from "@/lib/actions/project-api-keys";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
@@ -23,7 +23,7 @@ const Body = z
 // endpoint is intentionally generic — not bound to the setup flow. Auth comes
 // from a BetterAuth session token via the bearer() plugin. CLI-minted keys have
 // no expiration. The minting user is recorded for auditing.
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "api_key", action: "create" },
   async (req: NextRequest, _ctx: { params: Promise<{}> }, audit) => {
     audit.set({ source: "cli" });

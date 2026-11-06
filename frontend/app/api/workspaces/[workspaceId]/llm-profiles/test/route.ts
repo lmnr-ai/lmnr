@@ -1,8 +1,8 @@
 import { testLlmProfile } from "@/lib/actions/llm-profiles/test";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "connectivity probe of an LLM profile; changes nothing",
   apiHandler<{ workspaceId: string }>(async (req, ctx) => {
     const { workspaceId } = await ctx.params;

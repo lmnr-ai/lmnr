@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getParquets, startParquetExportJob } from "@/lib/actions/dataset";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string }> }) {
   const { projectId, datasetId } = await params;
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   return NextResponse.json(parquets);
 }
 
-export const POST = withAudit(
+export const POST = handlerWithAudit(
   { resource: "dataset", action: "export" },
   async (req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string }> }, audit) => {
     const { projectId, datasetId } = await params;

@@ -1,6 +1,6 @@
 import { deleteSignal, getSignal, updateSignal } from "@/lib/actions/signals";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; id: string }>(async (_request, ctx) => {
   const { id, projectId } = await ctx.params;
@@ -13,7 +13,7 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (_request
   return Response.json(result);
 });
 
-export const PUT = withAudit<{ projectId: string; id: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
   async (request, ctx, audit) => {
     const { projectId, id } = await ctx.params;
@@ -30,7 +30,7 @@ export const PUT = withAudit<{ projectId: string; id: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string; id: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "delete" },
   async (_request, ctx, audit) => {
     const { projectId, id } = await ctx.params;

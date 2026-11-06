@@ -1,8 +1,8 @@
 import { generateSql } from "@/lib/actions/sql/generate";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "LLM query generation; reads no data",
   apiHandler<{ projectId: string }>(async (request, ctx) => {
     const { projectId } = await ctx.params;

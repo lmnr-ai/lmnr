@@ -1,6 +1,6 @@
 import { createAlert, deleteAlert, getAlerts } from "@/lib/actions/alerts";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
@@ -12,7 +12,7 @@ export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
   return Response.json(result);
 });
 
-export const POST = withAudit<{ projectId: string }>(
+export const POST = handlerWithAudit<{ projectId: string }>(
   { resource: "alert", action: "create" },
   async (request, ctx, audit) => {
     const { projectId } = await ctx.params;
@@ -33,7 +33,7 @@ export const POST = withAudit<{ projectId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "alert", action: "delete" },
   async (request, ctx, audit) => {
     const { projectId } = await ctx.params;

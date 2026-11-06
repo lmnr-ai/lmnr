@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 
 import { createOrUpdateTagClass } from "@/lib/actions/tags";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 
-export const POST = withAudit<{ projectId: string; tagName: string }>(
+export const POST = handlerWithAudit<{ projectId: string; tagName: string }>(
   { resource: "tag_class", action: "create" },
   async (req, ctx, audit) => {
     const params = await ctx.params;
@@ -31,7 +31,7 @@ export const POST = withAudit<{ projectId: string; tagName: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string; tagName: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string; tagName: string }>(
   { resource: "tag_class", action: "delete" },
   async (_req, ctx, audit) => {
     const params = await ctx.params;

@@ -1,6 +1,6 @@
 import { getWebNotifications, markNotificationsAsRead } from "@/lib/actions/notifications";
 import { apiHandler } from "@/lib/api/api-handler";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { isProjectInWorkspace } from "@/lib/authorization";
 
@@ -23,7 +23,7 @@ export const GET = apiHandler<Params>(async (request, ctx) => {
   return Response.json(await getWebNotifications({ userId, projectId, workspaceId }));
 });
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "per-user notification read state",
   apiHandler<Params>(async (request, ctx) => {
     const { workspaceId } = await ctx.params;

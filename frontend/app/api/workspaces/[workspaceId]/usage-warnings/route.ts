@@ -1,6 +1,6 @@
 import { addUsageWarning, getUsageWarnings, removeUsageWarning } from "@/lib/actions/usage/usage-warnings";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   const { workspaceId } = await ctx.params;
@@ -8,7 +8,7 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   return Response.json(warnings);
 });
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "workspace", action: "update", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;
@@ -18,7 +18,7 @@ export const POST = withAudit<{ workspaceId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ workspaceId: string }>(
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
   { resource: "workspace", action: "update", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;

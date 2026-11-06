@@ -9,7 +9,7 @@ import {
   updateSignalTrigger,
 } from "@/lib/actions/signal-triggers";
 import { apiHandler } from "@/lib/api/api-handler";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
   const { projectId, id: signalId } = await ctx.params;
@@ -28,7 +28,7 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
   return Response.json(result);
 });
 
-export const POST = withAudit<{ projectId: string; id: string }>(
+export const POST = handlerWithAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;
@@ -51,7 +51,7 @@ export const POST = withAudit<{ projectId: string; id: string }>(
   }
 );
 
-export const PUT = withAudit<{ projectId: string; id: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;
@@ -75,7 +75,7 @@ export const PUT = withAudit<{ projectId: string; id: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string; id: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string; id: string }>(
   { resource: "signal", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, id: signalId } = await ctx.params;

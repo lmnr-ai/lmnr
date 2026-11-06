@@ -1,7 +1,7 @@
 import { generateDeploymentKeys } from "@/lib/actions/workspace/deployment.ts";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "deployment", action: "create", noTarget: true },
   async (_req, ctx) => {
     const { workspaceId } = await ctx.params;

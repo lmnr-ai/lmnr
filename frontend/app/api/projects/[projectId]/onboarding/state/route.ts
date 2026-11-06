@@ -2,12 +2,12 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { clearOnboardingState, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
 import { OnboardingProgressSchema } from "@/lib/actions/onboarding/types";
-import { noAudit } from "@/lib/audit";
+import { handlerNoAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { sendWelcomeEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-export const POST = noAudit(
+export const POST = handlerNoAudit(
   "onboarding UI state",
   async (request: NextRequest, props: { params: Promise<{ projectId: string }> }) => {
     const session = await getServerSession();
@@ -38,7 +38,7 @@ export const POST = noAudit(
   }
 );
 
-export const DELETE = noAudit(
+export const DELETE = handlerNoAudit(
   "onboarding UI state",
   async (_request: NextRequest, props: { params: Promise<{ projectId: string }> }) => {
     const session = await getServerSession();

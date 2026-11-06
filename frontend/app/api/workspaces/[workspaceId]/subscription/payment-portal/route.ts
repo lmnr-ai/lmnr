@@ -1,7 +1,7 @@
 import { getPaymentMethodPortalUrl } from "@/lib/actions/checkout";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "subscription", action: "view", noTarget: true },
   async (req, ctx) => {
     const { workspaceId } = await ctx.params;

@@ -3,9 +3,9 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteSessions, getSessions, GetSessionsSchema } from "@/lib/actions/sessions";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const GET = withAudit<{ projectId: string }>(
+export const GET = handlerWithAudit<{ projectId: string }>(
   { resource: "trace", action: "list", read: true },
   async (req, ctx, audit) => {
     const params = await ctx.params;
@@ -35,7 +35,7 @@ export const GET = withAudit<{ projectId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string }>(
   { resource: "trace", action: "delete" },
   async (req, ctx, audit) => {
     const params = await ctx.params;

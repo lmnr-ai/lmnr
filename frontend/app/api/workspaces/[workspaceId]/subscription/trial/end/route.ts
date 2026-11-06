@@ -1,7 +1,7 @@
 import { startStarterNow } from "@/lib/actions/checkout/trial";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = withAudit<{ workspaceId: string }>(
+export const POST = handlerWithAudit<{ workspaceId: string }>(
   { resource: "subscription", action: "update", noTarget: true },
   async (_req, ctx) => {
     const { workspaceId } = await ctx.params;

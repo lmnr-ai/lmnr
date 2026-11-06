@@ -1,7 +1,7 @@
 import { deleteSqlTemplate, updateSqlTemplate } from "@/lib/actions/sql/templates";
-import { withAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const PUT = withAudit<{ projectId: string; templateId: string }>(
+export const PUT = handlerWithAudit<{ projectId: string; templateId: string }>(
   { resource: "sql_template", action: "update" },
   async (req, ctx, audit) => {
     const { projectId, templateId } = await ctx.params;
@@ -19,7 +19,7 @@ export const PUT = withAudit<{ projectId: string; templateId: string }>(
   }
 );
 
-export const DELETE = withAudit<{ projectId: string; templateId: string }>(
+export const DELETE = handlerWithAudit<{ projectId: string; templateId: string }>(
   { resource: "sql_template", action: "delete" },
   async (_req, ctx, audit) => {
     const { projectId, templateId } = await ctx.params;
