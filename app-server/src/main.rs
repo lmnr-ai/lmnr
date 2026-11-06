@@ -21,6 +21,7 @@ use api::v1::browser_sessions::{
     BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
 };
 use aws_config::BehaviorVersion;
+use audit::{AUDIT_EXCHANGE, AUDIT_QUEUE, AUDIT_ROUTING_KEY, consumer::AuditEventHandler};
 use browser_events::BrowserEventHandler;
 #[cfg(feature = "signals")]
 use clustering::private::{
@@ -137,6 +138,7 @@ mod agent;
 mod agent_versioning;
 mod alerts;
 mod api;
+mod audit;
 mod auth;
 mod batch_worker;
 mod browser_events;
@@ -486,6 +488,32 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     BROWSER_SESSIONS_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.2a Audit events message queue ====
+            channel
+                .exchange_declare(
+                    AUDIT_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    AUDIT_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -1157,6 +1185,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
+        // ==== 3.2a Audit events message queue ====
+        queue.register_queue(AUDIT_EXCHANGE, AUDIT_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
         // ==== 3.5c User-task regex agent queue ====
@@ -1856,6 +1886,26 @@ fn main() -> anyhow::Result<()> {
 
                             log::info!("Stream readers started");
                         }
+                    }
+
+                    // Spawn audit event workers
+                    {
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let size = env::audit::BATCH_SIZE.get();
+                        let flush_interval =
+                            Duration::from_millis(env::audit::FLUSH_INTERVAL_MS.get());
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::AuditEvents,
+                            env::audit::NUM_WORKERS.get(),
+                            move || AuditEventHandler {
+                                clickhouse: clickhouse.clone(),
+                                config: BatchingConfig {
+                                    size,
+                                    flush_interval,
+                                },
+                            },
+                            QueueConfig::new(AUDIT_QUEUE, AUDIT_EXCHANGE, AUDIT_ROUTING_KEY),
+                        );
                     }
 
                     // Spawn browser events workers
@@ -2773,6 +2823,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope
                             });
+                        let app = app.service(audit::routes::create_audit_event);
                         // Instance license; the Next.js route checks workspace ownership.
                         #[cfg(feature = "signals")]
                         let app = app
