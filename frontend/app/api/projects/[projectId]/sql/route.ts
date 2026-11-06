@@ -1,11 +1,18 @@
-import { executeQuery } from "@/lib/actions/sql";
-import { apiHandler } from "@/lib/api/api-handler";
+import { executeQueryWithTables } from "@/lib/actions/sql";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ projectId: string }>(async (request, ctx) => {
-  const body = await request.json();
-  const projectId = (await ctx.params).projectId;
+// The SQL editor, dashboards and custom columns. app-server stores the query text
+// literal-stripped for hybrid workspaces.
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "sql", action: "query", noTarget: true },
+  async (request, ctx, audit) => {
+    const body = await request.json();
+    const projectId = (await ctx.params).projectId;
+    audit.set({ metadata: { query: body?.query } });
 
-  const data = await executeQuery({ ...body, projectId });
+    const { rows, tables } = await executeQueryWithTables({ ...body, projectId });
+    audit.set({ metadata: { query: body?.query, tables } });
 
-  return Response.json(data);
-});
+    return Response.json(rows);
+  }
+);

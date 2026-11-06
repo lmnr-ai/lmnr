@@ -344,9 +344,9 @@ pub struct SignalEventSnippetRow {
 /// each row is index-aligned with that list. Empty strings mean "no match
 /// for this field" (the calling code then leaves the cell un-highlighted).
 ///
-/// `signal_events` is `MergeTree` keyed by `(project_id, signal_id, timestamp,
-/// trace_id, run_id)`; we scope by `project_id` + `signal_id` + `id IN (...)`
-/// so the lookup hits the right primary-key prefix without `FINAL`.
+/// `signal_events` is a `ReplacingMergeTree` keyed by `(project_id, signal_id,
+/// id)`, read with `FINAL`; scoping by `project_id` + `signal_id` + `id IN`
+/// hits the whole primary key.
 #[tracing::instrument(skip_all, fields(ids_count = ids.len(), fields_count = field_names.len()))]
 pub async fn fetch_signal_event_snippets(
     clickhouse: &clickhouse::Client,
@@ -384,7 +384,7 @@ pub async fn fetch_signal_event_snippets(
 
     let query = format!(
         "SELECT id, array({extract_fragments}) AS field_snippets
-         FROM signal_events
+         FROM signal_events FINAL
          WHERE project_id = ?
            AND signal_id = ?
            AND id IN ({id_list})"

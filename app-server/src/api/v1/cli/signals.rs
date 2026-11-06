@@ -1,9 +1,10 @@
 //! CLI signal CRUD. Auth via `CliProjectAuth`; writes go through `signals::service`.
 
-use actix_web::{HttpResponse, delete, get, patch, post, web};
+use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::audit;
 use crate::auth::cli_user::CliProjectAuth;
 use crate::cache::Cache;
 use crate::db::{self, DB};
@@ -12,6 +13,7 @@ use crate::signals::service::{self, SignalInput, UpdateSignalInput};
 
 #[post("signals")]
 pub async fn create_signal(
+    req: HttpRequest,
     auth: CliProjectAuth,
     body: web::Json<SignalInput>,
     db: web::Data<DB>,
@@ -32,6 +34,9 @@ pub async fn create_signal(
     )
     .await;
 
+    if let Ok(signal) = &result {
+        audit::target_named(&req, signal.id, signal.name.clone());
+    }
     Ok(match result {
         Ok(signal) => HttpResponse::Ok().json(signal),
         Err(e) => service::error_response(e),
@@ -89,6 +94,7 @@ pub async fn list_signal_versions(
 
 #[patch("signals/{signal_id}")]
 pub async fn update_signal(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<UpdateSignalInput>,
@@ -104,6 +110,9 @@ pub async fn update_signal(
     )
     .await;
 
+    if let Ok(signal) = &result {
+        audit::target_named(&req, signal.id, signal.name.clone());
+    }
     Ok(match result {
         Ok(signal) => HttpResponse::Ok().json(signal),
         Err(e) => service::error_response(e),
@@ -112,18 +121,21 @@ pub async fn update_signal(
 
 #[delete("signals/{signal_id}")]
 pub async fn delete_signal(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> actix_web::Result<HttpResponse> {
+    let signal_id = path.into_inner();
+    audit::target(&req, [signal_id]).await;
     let result = service::delete_signal(
         &db.pool,
         cache.get_ref(),
         clickhouse.get_ref(),
         auth.project_id,
-        path.into_inner(),
+        signal_id,
     )
     .await;
 

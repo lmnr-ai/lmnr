@@ -2,95 +2,101 @@ import { and, eq } from "drizzle-orm";
 import { json2csv } from "json-2-csv";
 
 import { executeQuery } from "@/lib/actions/sql";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import { DownloadFormat } from "@/lib/types";
 import { tryParseJson } from "@/lib/utils";
 
-export async function GET(
-  req: Request,
-  props: {
-    params: Promise<{ projectId: string; evaluationId: string; format: string }>;
-  }
-): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const evaluationId = params.evaluationId;
-  const format = params.format as DownloadFormat;
+export const GET = handlerWithAudit(
+  { resource: "evaluation", action: "export", read: true },
+  async (
+    req: Request,
+    props: {
+      params: Promise<{ projectId: string; evaluationId: string; format: string }>;
+    },
+    audit
+  ): Promise<Response> => {
+    const params = await props.params;
+    await audit.target(params.evaluationId);
+    const projectId = params.projectId;
+    const evaluationId = params.evaluationId;
+    const format = params.format as DownloadFormat;
 
-  if (!Object.values(DownloadFormat).includes(format)) {
-    return Response.json({ error: "Invalid format. Supported formats are: csv, json" }, { status: 400 });
-  }
+    if (!Object.values(DownloadFormat).includes(format)) {
+      return Response.json({ error: "Invalid format. Supported formats are: csv, json" }, { status: 400 });
+    }
 
-  const evaluation = await db.query.evaluations.findFirst({
-    where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
-  });
+    const evaluation = await db.query.evaluations.findFirst({
+      where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
+    });
 
-  if (!evaluation) {
-    return Response.json({ error: "Evaluation not found" }, { status: 404 });
-  }
+    if (!evaluation) {
+      return Response.json({ error: "Evaluation not found" }, { status: 404 });
+    }
 
-  const chTrials = (await executeQuery({
-    projectId,
-    query: `
+    const chTrials = (await executeQuery({
+      projectId,
+      query: `
         SELECT id, task_id taskId, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
         FROM evaluation_trials
         WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
       `,
-    parameters: {
-      projectId,
-      evaluationId,
-    },
-  })) as {
-    id: string;
-    taskId: string;
-    index: number;
-    executorOutput: string;
-    data: string;
-    target: string;
-    metadata: string;
-    scores: string;
-  }[];
+      parameters: {
+        projectId,
+        evaluationId,
+      },
+    })) as {
+      id: string;
+      taskId: string;
+      index: number;
+      executorOutput: string;
+      data: string;
+      target: string;
+      metadata: string;
+      scores: string;
+    }[];
 
-  const trials = chTrials.map((trial) => ({
-    ...trial,
-    scores: (tryParseJson(trial.scores) as Record<string, number | null>) ?? trial.scores,
-    data: tryParseJson(trial.data) ?? trial.data,
-    target: tryParseJson(trial.target) ?? trial.target,
-    executorOutput: tryParseJson(trial.executorOutput) ?? trial.executorOutput,
-  }));
+    const trials = chTrials.map((trial) => ({
+      ...trial,
+      scores: (tryParseJson(trial.scores) as Record<string, number | null>) ?? trial.scores,
+      data: tryParseJson(trial.data) ?? trial.data,
+      target: tryParseJson(trial.target) ?? trial.target,
+      executorOutput: tryParseJson(trial.executorOutput) ?? trial.executorOutput,
+    }));
 
-  const flattenedResults = trials.map((result) => {
-    const { scores, ...rest } = result;
-    return {
-      ...rest,
-      ...scores,
-    };
-  });
+    const flattenedResults = trials.map((result) => {
+      const { scores, ...rest } = result;
+      return {
+        ...rest,
+        ...scores,
+      };
+    });
 
-  // else the format is json, return the results as json
-  if (format === DownloadFormat.JSON) {
-    const json = JSON.stringify(flattenedResults);
-    const contentType = "application/json";
-    const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_.]/g, "_")}-${evaluationId}.json`;
-    return new Response(json, {
-      headers: { "Content-Type": contentType, "Content-Disposition": `attachment; filename="${filename}"` },
+    // else the format is json, return the results as json
+    if (format === DownloadFormat.JSON) {
+      const json = JSON.stringify(flattenedResults);
+      const contentType = "application/json";
+      const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_.]/g, "_")}-${evaluationId}.json`;
+      return new Response(json, {
+        headers: { "Content-Type": contentType, "Content-Disposition": `attachment; filename="${filename}"` },
+      });
+    }
+
+    // if the format is csv, convert the results to csv
+    const csv = json2csv(flattenedResults, {
+      emptyFieldValue: "",
+      expandNestedObjects: false,
+    });
+    const contentType = "text/csv";
+    const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_.]/g, "_")}-${evaluationId}.csv`;
+    const headers = new Headers();
+    headers.set("Content-Type", contentType);
+    headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+
+    return new Response(csv, {
+      headers,
     });
   }
-
-  // if the format is csv, convert the results to csv
-  const csv = json2csv(flattenedResults, {
-    emptyFieldValue: "",
-    expandNestedObjects: false,
-  });
-  const contentType = "text/csv";
-  const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_.]/g, "_")}-${evaluationId}.csv`;
-  const headers = new Headers();
-  headers.set("Content-Type", contentType);
-  headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-
-  return new Response(csv, {
-    headers,
-  });
-}
+);

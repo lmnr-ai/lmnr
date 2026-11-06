@@ -57,12 +57,14 @@ export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySche
     })
     .returning();
 
-  // Cache the newly created key. user_id is deliberately NOT cached (it's for the
-  // UI only); expires_at IS cached so the app-server can enforce expiry lazily.
+  // Mirrors app-server's `ProjectApiKey`: expires_at for lazy expiry, id and
+  // userId for audit attribution (an entry without id is re-read from the DB).
   const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
   await cache.set(
     cacheKey,
     {
+      id: key.id,
+      userId: key.userId,
       projectId: key.projectId,
       name: key.name,
       hash: key.hash,
@@ -123,18 +125,22 @@ export async function getApiKeys(input: z.infer<typeof GetProjectApiKeysSchema>)
   }));
 }
 
-export async function deleteApiKey(input: z.infer<typeof DeleteProjectApiKeySchema>): Promise<void> {
+export async function deleteApiKey(
+  input: z.infer<typeof DeleteProjectApiKeySchema>
+): Promise<{ name: string | null; shorthand: string } | undefined> {
   const { projectId, id } = DeleteProjectApiKeySchema.parse(input);
 
   // Delete from database and get the hash to clear from cache
   const deleted = await db
     .delete(projectApiKeys)
     .where(and(eq(projectApiKeys.id, id), eq(projectApiKeys.projectId, projectId)))
-    .returning({ hash: projectApiKeys.hash });
+    .returning({ hash: projectApiKeys.hash, name: projectApiKeys.name, shorthand: projectApiKeys.shorthand });
 
   // Clear from cache if deleted
   if (deleted.length > 0) {
     const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${deleted[0].hash}`;
     await cache.remove(cacheKey);
   }
+
+  return deleted[0];
 }

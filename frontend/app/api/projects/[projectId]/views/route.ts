@@ -1,6 +1,7 @@
 import { createView } from "@/lib/actions/view";
 import { getViews } from "@/lib/actions/views";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
@@ -13,16 +14,20 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getViews({ projectId, resource }));
 });
 
-export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const body = await req.json();
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "view", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const body = await req.json();
 
-  const result = await createView({
-    projectId,
-    resource: body.resource,
-    name: body.name,
-    config: body.config,
-  });
+    const result = await createView({
+      projectId,
+      resource: body.resource,
+      name: body.name,
+      config: body.config,
+    });
+    await audit.target(result.id, { name: result.name });
 
-  return Response.json(result);
-});
+    return Response.json(result);
+  }
+);

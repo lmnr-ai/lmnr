@@ -7,6 +7,7 @@ import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checko
 import { getActiveTrial, isStarterTrialEligible } from "@/lib/actions/checkout/trial";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getApiKeys } from "@/lib/actions/project-api-keys";
+import { workspaceHasAuditLog } from "@/lib/actions/usage/plan-gates";
 import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { requireProjectAccess } from "@/lib/authorization";
@@ -31,11 +32,12 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   const projectDetails = await getProjectDetails(params.projectId);
   const workspaceId = projectDetails.workspaceId;
 
-  const [workspace, apiKeys, license, brokerLicenseKey] = await Promise.all([
+  const [workspace, apiKeys, license, brokerLicenseKey, auditLogAvailable] = await Promise.all([
     getWorkspace({ workspaceId }),
     getApiKeys({ projectId: params.projectId }),
     getLicenseStatus(),
     process.env.SLACK_BROKER_URL ? getBrokerLicenseKey() : null,
+    workspaceHasAuditLog(workspaceId),
   ]);
 
   const userMembership = await db
@@ -115,6 +117,7 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
       slackRedirectUri={process.env.SLACK_REDIRECT_URL}
       slackBrokerEnabled={!!brokerLicenseKey}
       license={license}
+      auditLogAvailable={auditLogAvailable}
     />
   );
 }

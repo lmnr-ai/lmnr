@@ -7,6 +7,10 @@ use uuid::Uuid;
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectApiKey {
+    /// Nil on cache entries written before this field existed;
+    /// `get_api_key_from_raw_value` re-reads those from the DB.
+    #[serde(default)]
+    pub id: Uuid,
     pub project_id: Uuid,
     pub name: Option<String>,
     pub hash: String,
@@ -16,6 +20,9 @@ pub struct ProjectApiKey {
     // deserializable (they decode to `None` = never expires).
     #[serde(default)]
     pub expires_at: Option<DateTime<Utc>>,
+    /// The user who created the key; audit events record it as the key's owner.
+    #[serde(default)]
+    pub user_id: Option<Uuid>,
 }
 
 pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> {
@@ -27,7 +34,8 @@ pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> 
             project_api_keys.id,
             project_api_keys.shorthand,
             project_api_keys.is_ingest_only,
-            project_api_keys.expires_at
+            project_api_keys.expires_at,
+            project_api_keys.user_id
         FROM
             project_api_keys
         WHERE

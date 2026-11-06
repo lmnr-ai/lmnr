@@ -4,15 +4,20 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createDataset, deleteDatasets, getDatasets, getDatasetsSchema } from "@/lib/actions/datasets";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const body = await req.json();
-  const { name } = body;
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "dataset", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const body = await req.json();
+    const { name } = body;
 
-  const dataset = await createDataset({ name, projectId });
-  return Response.json(dataset, { status: 200 });
-});
+    const dataset = await createDataset({ name, projectId });
+    await audit.target(dataset.id, { name: dataset.name });
+    return Response.json(dataset, { status: 200 });
+  }
+);
 
 export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ctx) => {
   const { projectId } = await ctx.params;
@@ -30,17 +35,21 @@ export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ct
   return Response.json(response, { status: 200 });
 });
 
-export const DELETE = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
+export const DELETE = handlerWithAudit<{ projectId: string }>(
+  { resource: "dataset", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
 
-  const { searchParams } = new URL(req.url);
-  const datasetIds = searchParams.get("datasetIds")?.split(",");
+    const { searchParams } = new URL(req.url);
+    const datasetIds = searchParams.get("datasetIds")?.split(",");
 
-  if (!datasetIds) {
-    return Response.json({ error: "At least one Dataset ID is required" }, { status: 400 });
+    if (!datasetIds) {
+      return Response.json({ error: "At least one Dataset ID is required" }, { status: 400 });
+    }
+
+    await audit.target(datasetIds);
+    await deleteDatasets({ projectId, datasetIds });
+
+    return Response.json({ message: "datasets deleted successfully" }, { status: 200 });
   }
-
-  await deleteDatasets({ projectId, datasetIds });
-
-  return Response.json({ message: "datasets deleted successfully" }, { status: 200 });
-});
+);

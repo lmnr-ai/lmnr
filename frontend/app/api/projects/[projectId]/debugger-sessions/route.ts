@@ -9,6 +9,7 @@ import {
   GetDebuggerSessionsSchema,
 } from "@/lib/actions/debugger-sessions";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string }>(async (request: NextRequest, ctx) => {
   const { projectId } = await ctx.params;
@@ -23,21 +24,25 @@ export const GET = apiHandler<{ projectId: string }>(async (request: NextRequest
   return Response.json(result);
 });
 
-export const POST = apiHandler<{ projectId: string }>(async (request: NextRequest, ctx) => {
-  const { projectId } = await ctx.params;
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "debugger_session", action: "create" },
+  async (request: NextRequest, ctx, audit) => {
+    const { projectId } = await ctx.params;
 
-  let body: unknown = {};
-  try {
-    body = await request.json();
-  } catch {
-    // empty body is allowed — id/name are optional
+    let body: unknown = {};
+    try {
+      body = await request.json();
+    } catch {
+      // empty body is allowed — id/name are optional
+    }
+
+    const parseResult = CreateDebuggerSessionSchema.omit({ projectId: true }).safeParse(body);
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
+    const session = await createDebuggerSession({ ...parseResult.data, projectId });
+    await audit.target(session.id, { name: session.name ?? undefined });
+    return Response.json(session);
   }
-
-  const parseResult = CreateDebuggerSessionSchema.omit({ projectId: true }).safeParse(body);
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
-
-  const session = await createDebuggerSession({ ...parseResult.data, projectId });
-  return Response.json(session);
-});
+);

@@ -1,15 +1,21 @@
 import { deleteWorkspace, getWorkspace, updateWorkspace } from "@/lib/actions/workspace";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ workspaceId: string }>(async (req, ctx) => {
-  const { workspaceId } = await ctx.params;
+export const POST = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "workspace", action: "update" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
 
-  const body = await req.json();
+    const body = await req.json();
+    audit.set({ metadata: { fields: Object.keys(body ?? {}) } });
+    await audit.target(workspaceId, { name: body?.name });
 
-  await updateWorkspace({ workspaceId, ...body });
+    await updateWorkspace({ workspaceId, ...body });
 
-  return Response.json({ message: "Workspace renamed successfully." });
-});
+    return Response.json({ message: "Workspace renamed successfully." });
+  }
+);
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   const { workspaceId } = await ctx.params;
@@ -18,10 +24,14 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
   return Response.json(workspace);
 });
 
-export const DELETE = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
-  const { workspaceId } = await ctx.params;
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "workspace", action: "delete" },
+  async (_req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    await audit.target(workspaceId);
 
-  await deleteWorkspace({ workspaceId });
+    await deleteWorkspace({ workspaceId });
 
-  return Response.json({ success: true });
-});
+    return Response.json({ success: true });
+  }
+);

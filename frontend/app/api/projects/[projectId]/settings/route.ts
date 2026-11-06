@@ -1,6 +1,6 @@
 import { getProjectWorkspaceId } from "@/lib/actions/project";
 import { updateProjectSettings } from "@/lib/actions/project/settings";
-import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { getWorkspaceRole, isUserMemberOfProject } from "@/lib/authorization";
 
@@ -8,33 +8,38 @@ import { getWorkspaceRole, isUserMemberOfProject } from "@/lib/authorization";
 /// every other member gets to see, so a member must not be able to flip it.
 const PRIVILEGED_KEYS = new Set(["piiMode"]);
 
-export const PATCH = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
+export const PATCH = handlerWithAudit<{ projectId: string }>(
+  { resource: "project", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
 
-  // Auth + project-ownership gate. Without it, any caller could mutate
-  // settings for an arbitrary project id (no app-level middleware covers
-  // `/api/projects/...`). Use 401/403 JSON rather than `requireProjectAccess`
-  // (which redirects / 404s for the page tree).
-  const session = await getServerSession();
-  const userId = session?.user?.id;
-  if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!(await isUserMemberOfProject(projectId, userId))) {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const body = await req.json();
-  const settings = body?.settings ?? {};
-
-  if (Object.keys(settings).some((key) => PRIVILEGED_KEYS.has(key))) {
-    const workspaceId = await getProjectWorkspaceId(projectId);
-    const role = workspaceId ? await getWorkspaceRole(workspaceId, userId) : null;
-    if (role !== "owner" && role !== "admin") {
-      return Response.json({ error: "Only workspace owners and admins can change this setting" }, { status: 403 });
+    // Auth + project-ownership gate. Without it, any caller could mutate
+    // settings for an arbitrary project id (no app-level middleware covers
+    // `/api/projects/...`). Use 401/403 JSON rather than `requireProjectAccess`
+    // (which redirects / 404s for the page tree).
+    const session = await getServerSession();
+    const userId = session?.user?.id;
+    if (!userId) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-  }
+    if (!(await isUserMemberOfProject(projectId, userId))) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-  await updateProjectSettings({ projectId, settings });
-  return Response.json({ success: true });
-});
+    const body = await req.json();
+    const settings = body?.settings ?? {};
+
+    if (Object.keys(settings).some((key) => PRIVILEGED_KEYS.has(key))) {
+      const workspaceId = await getProjectWorkspaceId(projectId);
+      const role = workspaceId ? await getWorkspaceRole(workspaceId, userId) : null;
+      if (role !== "owner" && role !== "admin") {
+        return Response.json({ error: "Only workspace owners and admins can change this setting" }, { status: 403 });
+      }
+    }
+
+    await updateProjectSettings({ projectId, settings });
+    audit.set({ metadata: { fields: Object.keys(settings), ...settings } });
+    await audit.target(projectId);
+    return Response.json({ success: true });
+  }
+);

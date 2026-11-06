@@ -9,6 +9,7 @@ import {
   updateSignalTrigger,
 } from "@/lib/actions/signal-triggers";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
   const { projectId, id: signalId } = await ctx.params;
@@ -27,54 +28,66 @@ export const GET = apiHandler<{ projectId: string; id: string }>(async (req, ctx
   return Response.json(result);
 });
 
-export const POST = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
-  const { projectId, id: signalId } = await ctx.params;
+export const POST = handlerWithAudit<{ projectId: string; id: string }>(
+  { resource: "signal", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, id: signalId } = await ctx.params;
 
-  const body = await req.json();
-  const result = await createSignalTrigger({
-    projectId,
-    signalId,
-    conditions: body.conditions,
-    filters: body.filters ?? [],
-    mode: body.mode ?? 0,
-  });
+    const body = await req.json();
+    await audit.target(signalId);
+    const result = await createSignalTrigger({
+      projectId,
+      signalId,
+      conditions: body.conditions,
+      filters: body.filters ?? [],
+      mode: body.mode ?? 0,
+    });
 
-  if (!result) {
-    return Response.json({ error: "Signal not found" }, { status: 404 });
+    if (!result) {
+      return Response.json({ error: "Signal not found" }, { status: 404 });
+    }
+
+    return Response.json(result);
   }
+);
 
-  return Response.json(result);
-});
+export const PUT = handlerWithAudit<{ projectId: string; id: string }>(
+  { resource: "signal", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, id: signalId } = await ctx.params;
 
-export const PUT = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
-  const { projectId, id: signalId } = await ctx.params;
+    const body = await req.json();
+    await audit.target(signalId);
+    const result = await updateSignalTrigger({
+      projectId,
+      signalId,
+      triggerId: body.triggerId,
+      conditions: body.conditions,
+      filters: body.filters ?? [],
+      mode: body.mode,
+    });
 
-  const body = await req.json();
-  const result = await updateSignalTrigger({
-    projectId,
-    signalId,
-    triggerId: body.triggerId,
-    conditions: body.conditions,
-    filters: body.filters ?? [],
-    mode: body.mode,
-  });
+    if (!result) {
+      return Response.json({ error: "Trigger not found" }, { status: 404 });
+    }
 
-  if (!result) {
-    return Response.json({ error: "Trigger not found" }, { status: 404 });
+    return Response.json(result);
   }
+);
 
-  return Response.json(result);
-});
+export const DELETE = handlerWithAudit<{ projectId: string; id: string }>(
+  { resource: "signal", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, id: signalId } = await ctx.params;
 
-export const DELETE = apiHandler<{ projectId: string; id: string }>(async (req, ctx) => {
-  const { projectId, id: signalId } = await ctx.params;
+    const body = await req.json();
+    await audit.target(signalId);
+    const result = await deleteSignalTriggers({
+      projectId,
+      signalId,
+      triggerIds: body.triggerIds,
+    });
 
-  const body = await req.json();
-  const result = await deleteSignalTriggers({
-    projectId,
-    signalId,
-    triggerIds: body.triggerIds,
-  });
-
-  return Response.json(result);
-});
+    return Response.json(result);
+  }
+);

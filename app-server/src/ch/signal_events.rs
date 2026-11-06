@@ -30,9 +30,11 @@ pub struct CHSignalEvent {
     /// 0 = info, 1 = warning, 2 = critical
     pub severity: u8,
     /// `signals.version` at the time the event was produced; 0 means the
-    /// event predates versioning. MUST stay last — `ALTER TABLE ADD COLUMN`
-    /// appends, and the `Row` derive maps columns by position.
+    /// event predates versioning.
     pub signal_version: u32,
+    // `created_at` (internal audit) and `updated_at` / `is_deleted` (the
+    // ReplacingMergeTree version and tombstone flag) are omitted: inserts name
+    // their columns, so the server fills a live row stamped now.
 }
 
 /// Leaf-only membership row for `signal_event_summaries`. Field order matches
@@ -79,7 +81,7 @@ pub async fn get_signal_event_counts(
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
     let query_str = format!(
         "SELECT signal_id, count() as count
-         FROM signal_events
+         FROM signal_events FINAL
          WHERE project_id = ?
            AND signal_id IN ({})
            AND timestamp >= toDateTime64(?, 9)
@@ -138,7 +140,7 @@ pub async fn get_signal_event_buckets(
         "SELECT signal_id,
                 toUInt32(intDiv(toUnixTimestamp(timestamp) - ?, {bucket_seconds})) AS bucket_index,
                 count() AS count
-         FROM signal_events
+         FROM signal_events FINAL
          WHERE project_id = ? AND signal_id IN ({placeholders})
            AND timestamp >= toDateTime64(?, 9) AND timestamp < toDateTime64(?, 9)
          GROUP BY signal_id, bucket_index"
@@ -197,7 +199,7 @@ pub async fn get_signal_cluster_counts(
          FROM (
              SELECT s.cluster_id AS leaf_id, s.event_id AS event_id, e.timestamp AS timestamp
              FROM signal_event_summaries AS s FINAL
-             INNER JOIN signal_events AS e
+             INNER JOIN signal_events AS e FINAL
                ON e.project_id = s.project_id AND e.signal_id = s.signal_id AND e.id = s.event_id
              WHERE s.project_id = {project_id:UUID}
                AND s.signal_id IN {signal_ids:Array(UUID)}
@@ -257,7 +259,7 @@ pub async fn get_signal_events_for_summary(
     let query_str = format!(
         "SELECT if(notEmpty(summaries), arrayStringConcat(summaries, '; '), summary) AS summary,
                 payload
-         FROM signal_events
+         FROM signal_events FINAL
          WHERE project_id = ?
            AND signal_id IN ({})
            AND timestamp >= toDateTime64(?, 9)

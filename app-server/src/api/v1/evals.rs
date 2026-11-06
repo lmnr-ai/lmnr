@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use super::debugger;
 use crate::{
+    audit,
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
@@ -17,7 +18,7 @@ use crate::{
     routes::types::ResponseResult,
 };
 use actix_web::{
-    HttpResponse, post,
+    HttpRequest, HttpResponse, post,
     web::{self, Json},
 };
 use serde::{Deserialize, Serialize};
@@ -35,17 +36,18 @@ pub struct InitEvalRequest {
 
 #[post("/evals")]
 pub async fn init_eval(
-    req: Json<InitEvalRequest>,
+    req: HttpRequest,
+    body: Json<InitEvalRequest>,
     db: web::Data<DB>,
     name_generator: web::Data<Arc<NameGenerator>>,
     pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
-    let req = req.into_inner();
-    let group_name = req.group_name.unwrap_or("default".to_string());
+    let body = body.into_inner();
+    let group_name = body.group_name.unwrap_or("default".to_string());
     let project_id = project_api_key.project_id;
-    let metadata = req.metadata;
-    let name = if let Some(name) = req.name {
+    let metadata = body.metadata;
+    let name = if let Some(name) = body.name {
         name
     } else {
         name_generator.next().await
@@ -54,6 +56,7 @@ pub async fn init_eval(
     let evaluation =
         db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name, &metadata)
             .await?;
+    audit::target_named(&req, evaluation.id, evaluation.name.clone());
 
     db::debugger_session_blocks::upsert_block_for_evaluation(
         &db.pool,

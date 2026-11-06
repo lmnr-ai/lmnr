@@ -1,5 +1,6 @@
 import { createLlmProfile, listLlmProfiles } from "@/lib/actions/llm-profiles";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { workspaceId: string };
 
@@ -8,8 +9,10 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await listLlmProfiles({ workspaceId }));
 });
 
-export const POST = apiHandler<Params>(async (req, ctx) => {
+export const POST = handlerWithAudit<Params>({ resource: "llm_profile", action: "create" }, async (req, ctx, audit) => {
   const { workspaceId } = await ctx.params;
   const body = await req.json();
-  return Response.json(await createLlmProfile({ ...body, workspaceId }), { status: 201 });
+  const profile = await createLlmProfile({ ...body, workspaceId });
+  await audit.target(profile.id, { name: profile.name });
+  return Response.json(profile, { status: 201 });
 });

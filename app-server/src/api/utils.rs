@@ -20,8 +20,8 @@ pub async fn get_api_key_from_raw_value(
     let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{api_key_hash}");
     let cache_res = cache.get::<ProjectApiKey>(&cache_key).await;
     let (api_key, from_cache) = match cache_res {
-        Ok(Some(api_key)) => (api_key, true),
-        Ok(None) | Err(_) => (
+        Ok(Some(api_key)) if !api_key.id.is_nil() => (api_key, true),
+        Ok(_) | Err(_) => (
             db::project_api_keys::get_api_key(pool, &api_key_hash).await?,
             false,
         ),

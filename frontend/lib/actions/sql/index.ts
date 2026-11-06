@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { callAppServer } from "@/lib/api/backend";
+import { callAppServer, callAppServerWithResponseHeaders } from "@/lib/api/backend";
 
 import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
@@ -27,16 +27,22 @@ const ExecuteQuerySchema = z.object({
 export const executeQuery = async <T extends object>(
   input: z.infer<typeof ExecuteQuerySchema>,
   options?: { actor?: SqlActor }
+) => (await executeQueryWithTables<T>(input, options)).rows;
+
+/** `executeQuery` that also returns the tables the query read, for a route's `sql.query` audit event. */
+export const executeQueryWithTables = async <T extends object>(
+  input: z.infer<typeof ExecuteQuerySchema>,
+  options?: { actor?: SqlActor }
 ) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
   const actor = await resolveSqlActor(options?.actor);
 
-  const res = (await callAppServer(`/projects/${projectId}/sql/query`, {
+  const { data, headers } = await callAppServerWithResponseHeaders<T[]>(`/projects/${projectId}/sql/query`, {
     method: "POST",
     body: { query, parameters, actor },
-  })) as T[];
+  });
 
-  return res;
+  return { rows: data, tables: headers.get("x-laminar-sql-tables")?.split(",").filter(Boolean) ?? [] };
 };
 
 const SqlToJsonInputSchema = z.object({

@@ -18,16 +18,18 @@ interface UpgradeNoticeProps {
   description: string;
   source: string;
   actions?: ReactNode;
+  /** The plan that unlocks the feature. The free trial is of Starter, so it is only offered for Starter. */
+  tier?: "Starter" | "Pro";
 }
 
-export default function UpgradeNotice({ title, description, source, actions }: UpgradeNoticeProps) {
+export default function UpgradeNotice({ title, description, source, actions, tier = "Starter" }: UpgradeNoticeProps) {
   const { project, settingsHref } = useProjectContext();
   const router = useRouter();
   const { toast } = useToast();
   const [isStarting, setIsStarting] = useState(false);
   const workspaceId = project?.workspaceId;
   const { data } = useSWR<{ eligible: boolean }>(
-    workspaceId ? `/api/workspaces/${workspaceId}/subscription/trial/eligibility` : null,
+    workspaceId && tier === "Starter" ? `/api/workspaces/${workspaceId}/subscription/trial/eligibility` : null,
     swrFetcher
   );
 
@@ -64,7 +66,7 @@ export default function UpgradeNotice({ title, description, source, actions }: U
         ) : (
           <Link href={settingsHref("billing")} onClick={() => track("billing", "upgrade_clicked", { source })}>
             <Button>
-              Upgrade to Starter
+              Upgrade to {tier}
               <ArrowUpRight className="ml-1 size-3.5" />
             </Button>
           </Link>

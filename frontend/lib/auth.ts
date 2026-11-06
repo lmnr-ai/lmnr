@@ -9,6 +9,7 @@ import { genericOAuth, keycloak, microsoftEntraId } from "better-auth/plugins/ge
 import { jwt } from "better-auth/plugins/jwt";
 import { eq } from "drizzle-orm";
 
+import { postAuditEvent } from "@/lib/audit/post";
 import { authDb } from "@/lib/auth-db";
 import { localEmail } from "@/lib/auth-local-email";
 import { OKTA_PROVIDER_ID } from "@/lib/auth-okta/constants";
@@ -72,6 +73,20 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   });
 
   await Promise.all(pendingInvitations.map(({ workspaceId }) => invalidateMemberAccessCache(workspaceId, [userId])));
+  // Not awaited: sign-up must not wait on the audit log. `postAuditEvent` never throws.
+  void Promise.all(
+    pendingInvitations.map(({ workspaceId }) =>
+      postAuditEvent({
+        userId,
+        workspaceId,
+        resource: "member",
+        action: "join",
+        outcome: "success",
+        resourceId: userId,
+        resourceLabel: email,
+      })
+    )
+  );
 };
 
 const trackUserCreated = (email: string): void => {

@@ -1,10 +1,13 @@
 import { generateDeploymentKeys } from "@/lib/actions/workspace/deployment.ts";
-import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ workspaceId: string }>(async (_req, ctx) => {
-  const { workspaceId } = await ctx.params;
+export const POST = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "deployment", action: "create", noTarget: true },
+  async (_req, ctx) => {
+    const { workspaceId } = await ctx.params;
 
-  const result = await generateDeploymentKeys({ workspaceId });
+    const result = await generateDeploymentKeys({ workspaceId });
 
-  return Response.json({ publicKey: result.publicKey });
-});
+    return Response.json({ publicKey: result.publicKey });
+  }
+);

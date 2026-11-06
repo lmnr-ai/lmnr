@@ -58,6 +58,9 @@ pub enum Feature {
     /// Hosted Harbor evals (`src/hosted_evals/`): trial sandboxes proxied to the
     /// sandbox provider (Daytona). Detached runs additionally need S3 storage.
     HostedEvals,
+    /// Workspace audit log events (`src/audit/`). Gated on `AUDIT_LOG_ENABLED`
+    /// (default true).
+    AuditLog,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -118,6 +121,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
         }
         Feature::Quickwit => env::quickwit::ENABLED.get(),
+        Feature::AuditLog => env::audit::ENABLED.get(),
         Feature::HostedEvals => {
             std::env::var(env::hosted_evals::DAYTONA_API_KEY).is_ok_and(|s| !s.is_empty())
         }

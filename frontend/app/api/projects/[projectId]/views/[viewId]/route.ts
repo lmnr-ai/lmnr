@@ -1,9 +1,9 @@
 import { deleteView, updateView } from "@/lib/actions/view";
-import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { projectId: string; viewId: string };
 
-export const PATCH = apiHandler<Params>(async (req, ctx) => {
+export const PATCH = handlerWithAudit<Params>({ resource: "view", action: "update" }, async (req, ctx, audit) => {
   const { projectId, viewId } = await ctx.params;
   const body = await req.json();
 
@@ -13,12 +13,14 @@ export const PATCH = apiHandler<Params>(async (req, ctx) => {
     name: body.name,
     config: body.config,
   });
+  await audit.target(viewId);
 
   return Response.json(result);
 });
 
-export const DELETE = apiHandler<Params>(async (_req, ctx) => {
+export const DELETE = handlerWithAudit<Params>({ resource: "view", action: "delete" }, async (_req, ctx, audit) => {
   const { projectId, viewId } = await ctx.params;
+  await audit.target(viewId);
   await deleteView({ projectId, viewId });
   return new Response(null, { status: 204 });
 });

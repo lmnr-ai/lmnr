@@ -1,15 +1,22 @@
 import { deleteDashboard, renameDashboard } from "@/lib/actions/dashboard/dashboards";
-import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { projectId: string; dashboardId: string };
 
-export const PATCH = apiHandler<Params>(async (req, ctx) => {
+export const PATCH = handlerWithAudit<Params>({ resource: "dashboard", action: "update" }, async (req, ctx, audit) => {
   const { projectId, dashboardId } = await ctx.params;
   const body = await req.json();
-  return Response.json(await renameDashboard({ ...body, projectId, dashboardId }));
+  const dashboard = await renameDashboard({ ...body, projectId, dashboardId });
+  await audit.target(dashboardId);
+  return Response.json(dashboard);
 });
 
-export const DELETE = apiHandler<Params>(async (_req, ctx) => {
-  await deleteDashboard(await ctx.params);
-  return Response.json({ success: true });
-});
+export const DELETE = handlerWithAudit<Params>(
+  { resource: "dashboard", action: "delete" },
+  async (_req, ctx, audit) => {
+    const params = await ctx.params;
+    await audit.target(params.dashboardId);
+    await deleteDashboard(params);
+    return Response.json({ success: true });
+  }
+);
