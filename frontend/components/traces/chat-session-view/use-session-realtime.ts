@@ -1,7 +1,6 @@
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
-import { shallow } from "zustand/shallow";
 
 import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -9,7 +8,7 @@ import { mergeTraceDelta, realtimeTraceToRow } from "@/lib/traces/realtime";
 import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 import { fetchSessionTraces, sessionModelTokensUrl } from "./session-api";
-import { useTurnData } from "./turn-data";
+import { useRefreshTurns } from "./use-refresh-turns";
 
 // Wait for a burst of span batches to settle before reconciling with the server.
 const SETTLE_MS = 2000;
@@ -32,18 +31,8 @@ const parse = <T>(event: MessageEvent): T | undefined => {
 export function useSessionRealtime(sessionId: string) {
   const { projectId } = useParams<{ projectId: string }>();
   const { mutate } = useSWRConfig();
-  const { setTraces, invalidateAgentOutputs, fetchAgentOutputs } = useSessionViewStore(
-    (s) => ({
-      setTraces: s.setTraces,
-      invalidateAgentOutputs: s.invalidateAgentOutputs,
-      fetchAgentOutputs: s.fetchAgentOutputs,
-    }),
-    shallow
-  );
-  const { invalidateCounts, fetchCounts } = useTurnData(
-    (s) => ({ invalidateCounts: s.invalidateCounts, fetchCounts: s.fetchCounts }),
-    shallow
-  );
+  const setTraces = useSessionViewStore((s) => s.setTraces);
+  const refreshTurns = useRefreshTurns();
 
   const touched = useRef(new Set<string>());
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -57,10 +46,7 @@ export function useSessionRealtime(sessionId: string) {
       // On failure keep the live deltas; the next update schedules another reconcile.
       const { traces } = await fetchSessionTraces(projectId, sessionId);
       if (traces) setTraces(traces);
-      invalidateAgentOutputs(ids);
-      invalidateCounts(ids);
-      fetchAgentOutputs(ids);
-      fetchCounts(ids);
+      refreshTurns(ids);
       void mutate(sessionModelTokensUrl(projectId, sessionId));
     };
 
@@ -93,16 +79,7 @@ export function useSessionRealtime(sessionId: string) {
         );
       },
     };
-  }, [
-    projectId,
-    sessionId,
-    mutate,
-    setTraces,
-    invalidateAgentOutputs,
-    invalidateCounts,
-    fetchAgentOutputs,
-    fetchCounts,
-  ]);
+  }, [projectId, sessionId, mutate, setTraces, refreshTurns]);
 
   useRealtime({ key: `session_${sessionId}`, projectId, eventHandlers, enabled: !!projectId });
 }

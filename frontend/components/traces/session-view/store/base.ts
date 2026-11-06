@@ -6,6 +6,8 @@ import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
+import { fetchApi } from "@/lib/api/fetch-api";
+import { createBatchedLoader } from "@/lib/batched-loader";
 import { type TraceRow } from "@/lib/traces/types";
 
 type SessionResizablePanel = "session" | "span";
@@ -213,51 +215,21 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
   // No options needed today; keep the signature for parity with trace-view's base.
   _options?: Record<string, never>
 ): BaseSessionViewStore {
-  // Closure-scoped per-store batching state for the output fetch.
-  // Not part of the store's reactive state — pure fetch bookkeeping.
-  const outputFetching = new Set<string>();
-  const outputPending = new Set<string>();
-  let outputTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const flushAgentOutputs = async () => {
-    const projectId = get().projectId;
-    if (!projectId || outputPending.size === 0) return;
-
-    const toFetch = Array.from(outputPending);
-    outputPending.clear();
-    for (const id of toFetch) outputFetching.add(id);
-
-    // Server caps each request at 100 ids.
-    for (let i = 0; i < toFetch.length; i += 100) {
-      const chunk = toFetch.slice(i, i + 100);
-      try {
-        const res = await fetch(`/api/projects/${projectId}/traces/output`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ traceIds: chunk }),
-        });
-        if (!res.ok) throw new Error("Failed to fetch trace output");
-        const data = (await res.json()) as Record<string, string | null>;
-        set({
-          agentOutputs: {
-            ...get().agentOutputs,
-            ...Object.fromEntries(chunk.map((id) => [id, data[id] ?? null])),
-          },
-        } as Partial<T>);
-      } catch {
-        // Mark as resolved-with-nothing so we don't retry in a loop; the
-        // collapsed body already degrades to "no output" gracefully.
-        set({
-          agentOutputs: {
-            ...get().agentOutputs,
-            ...Object.fromEntries(chunk.map((id) => [id, null])),
-          },
-        } as Partial<T>);
-      } finally {
-        for (const id of chunk) outputFetching.delete(id);
-      }
-    }
-  };
+  const outputLoader = createBatchedLoader<string | null>({
+    load: async (traceIds) => {
+      const projectId = get().projectId;
+      if (!projectId) return undefined;
+      const { data } = await fetchApi<Record<string, string | null>>(`/api/projects/${projectId}/traces/output`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ traceIds }),
+      });
+      // Ids the server omits have no output; failures stay unresolved and retry on the next request.
+      return data ? Object.fromEntries(traceIds.map((id) => [id, data[id] ?? null])) : undefined;
+    },
+    onLoaded: (outputs) => set({ agentOutputs: { ...get().agentOutputs, ...outputs } } as Partial<T>),
+    isResolved: (id) => id in get().agentOutputs,
+  });
 
   return {
     traces: [],
@@ -352,18 +324,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       }
     },
 
-    fetchAgentOutputs: (traceIds) => {
-      const resolved = get().agentOutputs;
-      let added = false;
-      for (const id of traceIds) {
-        if (id in resolved || outputFetching.has(id) || outputPending.has(id)) continue;
-        outputPending.add(id);
-        added = true;
-      }
-      if (!added) return;
-      if (outputTimer) clearTimeout(outputTimer);
-      outputTimer = setTimeout(() => void flushAgentOutputs(), 150);
-    },
+    fetchAgentOutputs: outputLoader.request,
 
     invalidateAgentOutputs: (traceIds) => {
       const next = { ...get().agentOutputs };

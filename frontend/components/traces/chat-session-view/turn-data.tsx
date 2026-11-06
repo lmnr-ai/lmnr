@@ -7,10 +7,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type TraceSpanCounts } from "@/lib/actions/traces/span-counts";
 import { fetchApi } from "@/lib/api/fetch-api";
-
-// Server caps each counts request at 100 trace ids.
-const BATCH = 100;
-const DEBOUNCE_MS = 150;
+import { createBatchedLoader } from "@/lib/batched-loader";
 
 interface TurnDataState {
   counts: Record<string, TraceSpanCounts>;
@@ -25,40 +22,26 @@ interface TurnDataState {
  */
 const createTurnDataStore = (projectId: string) =>
   createStore<TurnDataState>()((set, get) => {
-    const inFlight = new Set<string>();
-    const pending = new Set<string>();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const flush = async () => {
-      const ids = [...pending];
-      pending.clear();
-      for (const id of ids) inFlight.add(id);
-      for (let i = 0; i < ids.length; i += BATCH) {
-        const chunk = ids.slice(i, i + BATCH);
-        // A background per-row load: failures stay unresolved (no toast) and retry when scrolled back into view.
+    const loader = createBatchedLoader<TraceSpanCounts>({
+      // A background per-row load: failures stay unresolved (no toast) and retry when scrolled back into view.
+      load: async (traceIds) => {
         const { data } = await fetchApi<Record<string, TraceSpanCounts>>(
           `/api/projects/${projectId}/traces/span-counts`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ traceIds: chunk }),
+            body: JSON.stringify({ traceIds }),
           }
         );
-        if (data) set({ counts: { ...get().counts, ...data } });
-        for (const id of chunk) inFlight.delete(id);
-      }
-    };
+        return data ?? undefined;
+      },
+      onLoaded: (counts) => set({ counts: { ...get().counts, ...counts } }),
+      isResolved: (id) => id in get().counts,
+    });
 
     return {
       counts: {},
-      fetchCounts: (traceIds) => {
-        const resolved = get().counts;
-        const fresh = traceIds.filter((id) => !(id in resolved) && !inFlight.has(id) && !pending.has(id));
-        if (fresh.length === 0) return;
-        for (const id of fresh) pending.add(id);
-        clearTimeout(timer);
-        timer = setTimeout(() => void flush(), DEBOUNCE_MS);
-      },
+      fetchCounts: loader.request,
       invalidateCounts: (traceIds) => {
         const next = { ...get().counts };
         for (const id of traceIds) delete next[id];
