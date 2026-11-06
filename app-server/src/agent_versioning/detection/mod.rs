@@ -26,6 +26,10 @@ use crate::{
     llm::LlmClient,
 };
 
+/// Candidates read per sample: uncovered traces include those stored before
+/// their agent was defined, which are filtered out after reading.
+const CANDIDATES_PER_SAMPLE: u64 = 3;
+
 impl Job {
     pub(super) async fn detect_agents(&self, now: i64) {
         let Some(llm_client) = &self.llm_client else {
@@ -69,14 +73,31 @@ impl Job {
         // Sampled from the whole active window, not just this interval, so an
         // agent with a trace an hour still gathers enough to be defined.
         let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
-        let traces =
-            uncovered_traces(&self.clickhouse, project_id, since, DETECTION_SAMPLES.get()).await?;
+        let samples_limit = DETECTION_SAMPLES.get();
+        let traces = uncovered_traces(
+            &self.clickhouse,
+            project_id,
+            since,
+            samples_limit * CANDIDATES_PER_SAMPLE,
+        )
+        .await?;
         // Fewer could never make an agent.
         if traces.len() < min_matches {
             return Ok(());
         }
-        let samples = self.read_samples(project_id, &traces).await?;
         let agents = self.known_agents(project_id, since).await?;
+        // A trace stored before its agent was defined stays unlabelled; it
+        // needs no new agent and would only crowd out the ones that do.
+        let samples: Vec<Sample> = self
+            .read_samples(project_id, &traces)
+            .await?
+            .into_iter()
+            .filter(|sample| !is_defined(&agents, sample))
+            .take(samples_limit as usize)
+            .collect();
+        if samples.len() < min_matches {
+            return Ok(());
+        }
         let mut session = Session::new(samples, agents, min_matches);
         let run = agent::run(
             llm_client,
@@ -169,4 +190,10 @@ impl Job {
         }
         Ok(())
     }
+}
+
+fn is_defined(agents: &[KnownAgent], sample: &Sample) -> bool {
+    agents
+        .iter()
+        .any(|known| known.agent.definition.matches(&sample.opening))
 }
