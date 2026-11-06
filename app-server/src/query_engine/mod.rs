@@ -17,8 +17,14 @@ use validator::QueryValidator;
 
 #[derive(Debug, Clone)]
 pub enum QueryEngineValidationResult {
-    Success { validated_query: String },
-    Error { error: String },
+    Success {
+        validated_query: String,
+        /// Allowlisted tables the query reads.
+        tables: Vec<String>,
+    },
+    Error {
+        error: String,
+    },
 }
 
 #[derive(Clone, Default)]
@@ -45,7 +51,10 @@ impl QueryEngine {
             &project_id.to_string(),
             &policy.to_view_arg(),
         ) {
-            Ok(validated_query) => Ok(QueryEngineValidationResult::Success { validated_query }),
+            Ok(validated) => Ok(QueryEngineValidationResult::Success {
+                validated_query: validated.query,
+                tables: validated.tables,
+            }),
             Err(error) => Ok(QueryEngineValidationResult::Error { error }),
         }
     }

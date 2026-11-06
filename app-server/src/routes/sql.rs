@@ -48,6 +48,9 @@ pub struct SqlValidateResponse {
     pub error: Option<String>,
 }
 
+/// Allowlisted tables a query read (comma-separated), for the caller's `sql.query` audit event.
+const TABLES_HEADER: &str = "x-laminar-sql-tables";
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlToJsonRequest {
@@ -96,7 +99,9 @@ pub async fn execute_sql_query(
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("frontend_sql_query");
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
-    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    if let Some(attribute) = sql::query_span_attribute(&query) {
+        span.set_attribute(attribute);
+    }
     let _guard = mark_span_as_active(span);
 
     let db = db.into_inner();
@@ -106,7 +111,7 @@ pub async fn execute_sql_query(
 
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
-            match sql::execute_sql_query(
+            match sql::run_sql_query(
                 query,
                 project_id,
                 parameters,
@@ -120,7 +125,9 @@ pub async fn execute_sql_query(
             )
             .await
             {
-                Ok(result_json) => Ok(HttpResponse::Ok().json(result_json)),
+                Ok(output) => Ok(HttpResponse::Ok()
+                    .insert_header((TABLES_HEADER, output.tables.join(",")))
+                    .json(output.rows)),
                 Err(e) => Err(e.into()),
             }
         }
@@ -150,7 +157,9 @@ pub async fn validate_sql_query(
     {
         Ok(validation_result) => {
             let response = match validation_result {
-                QueryEngineValidationResult::Success { validated_query } => SqlValidateResponse {
+                QueryEngineValidationResult::Success {
+                    validated_query, ..
+                } => SqlValidateResponse {
                     success: true,
                     validated_query: Some(validated_query),
                     error: None,

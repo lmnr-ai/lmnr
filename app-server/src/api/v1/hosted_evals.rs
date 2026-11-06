@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::{
-    HttpResponse, delete,
+    HttpRequest, HttpResponse, delete,
     error::PayloadError,
     get,
     http::StatusCode,
@@ -17,6 +17,7 @@ use tokio::sync::mpsc::{self, Sender};
 use uuid::Uuid;
 
 use crate::{
+    audit,
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     env,
@@ -460,7 +461,8 @@ pub async fn delete_upload(
 
 #[post("/hosted-evals/runs")]
 pub async fn start_run(
-    req: Json<RunRequest>,
+    req: HttpRequest,
+    body: Json<RunRequest>,
     project_api_key: ProjectApiKey,
     hosted: HostedEvalsData,
     db: web::Data<DB>,
@@ -468,8 +470,9 @@ pub async fn start_run(
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
     handle_start_run(
+        &req,
         project_api_key.project_id,
-        req.into_inner(),
+        body.into_inner(),
         &hosted,
         &db,
         &cache,
@@ -508,6 +511,7 @@ pub async fn handle_create_upload(
 
 /// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) runs.
 pub async fn handle_start_run(
+    http_req: &HttpRequest,
     project_id: Uuid,
     req: RunRequest,
     hosted: &HostedEvalsData,
@@ -543,6 +547,8 @@ pub async fn handle_start_run(
         Err(RunError::Internal(e)) => return Err(e.into()),
     };
     log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
+    // The evaluation is created later, by the orchestrator; the sandbox is the run.
+    audit::target_named(http_req, &sandbox_id, None);
 
     Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))
 }

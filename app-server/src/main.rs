@@ -2527,6 +2527,7 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),
                         cache_for_http.clone(),
+                        mq_for_http.clone(),
                     ));
 
                     // Shared in-process JWKS cache for the CLI user-token surface.
@@ -2601,6 +2602,9 @@ fn main() -> anyhow::Result<()> {
                                         },
                                     ),
                             )
+                            .wrap(actix_web::middleware::from_fn(
+                                audit::middleware::audit_v1,
+                            ))
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))

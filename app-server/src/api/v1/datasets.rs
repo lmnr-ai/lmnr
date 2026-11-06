@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, delete, get, patch, post, web};
+use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
+    audit,
     cache::Cache,
     datasets::service::{self, CreateDatapointsOutcome, DatasetIdentifier, NewDatapoint},
     db::{self, DB, project_api_keys::ProjectApiKey},
@@ -27,11 +28,12 @@ pub(crate) struct DatasetNameRequest {
 
 #[post("/datasets")]
 pub async fn create_dataset(
+    req: HttpRequest,
     db: web::Data<DB>,
     project_api_key: ProjectApiKey,
-    req: web::Json<DatasetNameRequest>,
+    body: web::Json<DatasetNameRequest>,
 ) -> actix_web::Result<HttpResponse> {
-    Ok(handlers::create(&db, project_api_key.project_id, req.into_inner()).await)
+    Ok(handlers::create(&req, &db, project_api_key.project_id, body.into_inner()).await)
 }
 
 #[get("/datasets/{dataset_id}")]
@@ -45,28 +47,32 @@ pub async fn get_dataset(
 
 #[patch("/datasets/{dataset_id}")]
 pub async fn update_dataset(
+    req: HttpRequest,
     db: web::Data<DB>,
     project_api_key: ProjectApiKey,
     path: web::Path<Uuid>,
-    req: web::Json<DatasetNameRequest>,
+    body: web::Json<DatasetNameRequest>,
 ) -> actix_web::Result<HttpResponse> {
     Ok(handlers::update(
+        &req,
         &db,
         project_api_key.project_id,
         path.into_inner(),
-        req.into_inner(),
+        body.into_inner(),
     )
     .await)
 }
 
 #[delete("/datasets/{dataset_id}")]
 pub async fn delete_dataset(
+    req: HttpRequest,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     project_api_key: ProjectApiKey,
     path: web::Path<Uuid>,
 ) -> actix_web::Result<HttpResponse> {
     Ok(handlers::delete(
+        &req,
         &db,
         &clickhouse,
         project_api_key.project_id,
@@ -77,15 +83,23 @@ pub async fn delete_dataset(
 
 /// Auth-agnostic CRUD handlers shared by the project-key and CLI routes.
 pub mod handlers {
-    use actix_web::HttpResponse;
+    use actix_web::{HttpRequest, HttpResponse};
     use uuid::Uuid;
 
     use super::DatasetNameRequest;
-    use crate::{datasets::service, db::DB};
+    use crate::{audit, datasets::service, db::DB};
 
-    pub async fn create(db: &DB, project_id: Uuid, input: DatasetNameRequest) -> HttpResponse {
+    pub async fn create(
+        req: &HttpRequest,
+        db: &DB,
+        project_id: Uuid,
+        input: DatasetNameRequest,
+    ) -> HttpResponse {
         match service::create_dataset(&db.pool, project_id, input.name).await {
-            Ok(dataset) => HttpResponse::Created().json(dataset),
+            Ok(dataset) => {
+                audit::target_named(req, dataset.id, dataset.name.clone());
+                HttpResponse::Created().json(dataset)
+            }
             Err(error) => service::error_response(error),
         }
     }
@@ -98,23 +112,29 @@ pub mod handlers {
     }
 
     pub async fn update(
+        req: &HttpRequest,
         db: &DB,
         project_id: Uuid,
         dataset_id: Uuid,
         input: DatasetNameRequest,
     ) -> HttpResponse {
         match service::update_dataset(&db.pool, project_id, dataset_id, input.name).await {
-            Ok(dataset) => HttpResponse::Ok().json(dataset),
+            Ok(dataset) => {
+                audit::target_named(req, dataset.id, dataset.name.clone());
+                HttpResponse::Ok().json(dataset)
+            }
             Err(error) => service::error_response(error),
         }
     }
 
     pub async fn delete(
+        req: &HttpRequest,
         db: &DB,
         clickhouse: &clickhouse::Client,
         project_id: Uuid,
         dataset_id: Uuid,
     ) -> HttpResponse {
+        audit::target(req, [dataset_id]).await;
         match service::delete_dataset(&db.pool, clickhouse, project_id, dataset_id).await {
             Ok(dataset) => HttpResponse::Ok().json(dataset),
             Err(error) => service::error_response(error),
@@ -218,13 +238,14 @@ pub(crate) struct CreateDatapointsRequest {
 /// Create datapoints in a dataset
 #[post("/datasets/datapoints")]
 pub async fn create_datapoints(
-    req: web::Json<CreateDatapointsRequest>,
+    req: HttpRequest,
+    body: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
-    let request = req.into_inner();
+    let request = body.into_inner();
 
     let outcome = service::create_datapoints(
         project_id,
@@ -236,7 +257,21 @@ pub async fn create_datapoints(
     )
     .await?;
 
+    target_datapoints(&req, &outcome).await;
     Ok(create_datapoints_response(outcome))
+}
+
+/// Shared with the CLI handler.
+pub(crate) async fn target_datapoints(req: &HttpRequest, outcome: &CreateDatapointsOutcome) {
+    if let CreateDatapointsOutcome::Created {
+        dataset_id,
+        datapoints,
+        ..
+    } = outcome
+    {
+        audit::target(req, datapoints.iter().map(|dp| dp.id)).await;
+        audit::target_parent(req, "datasetId", dataset_id);
+    }
 }
 
 /// Map a [`CreateDatapointsOutcome`] to its HTTP response. Shared with the CLI
@@ -295,6 +330,7 @@ pub(crate) fn create_datapoints_response(outcome: CreateDatapointsOutcome) -> Ht
 
 #[get("/datasets/{dataset_id}/parquets/{idx}")]
 pub async fn get_parquet(
+    req: HttpRequest,
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
@@ -303,6 +339,7 @@ pub async fn get_parquet(
     let (dataset_id_str, name) = path.into_inner();
     let dataset_id =
         Uuid::parse_str(&dataset_id_str).map_err(|_| anyhow::anyhow!("Invalid dataset ID"))?;
+    audit::target(&req, [dataset_id]).await;
 
     let project_id = project_api_key.project_id;
     let db = db.into_inner();

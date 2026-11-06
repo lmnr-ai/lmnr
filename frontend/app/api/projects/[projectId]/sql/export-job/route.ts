@@ -1,17 +1,21 @@
 import { createExportJob } from "@/lib/actions/sql/export-job";
-import { apiHandler } from "@/lib/api/api-handler";
-import { handlerNoAudit } from "@/lib/audit";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = handlerNoAudit(
-  "audited by app-server as sql.query (source export)",
-  apiHandler<{ projectId: string }>(async (req, ctx) => {
+// The export job runs the validated SQL outside app-server, so this is the last point that sees it.
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "sql", action: "export", noTarget: true },
+  async (req, ctx, audit) => {
     const { projectId } = await ctx.params;
 
     const body = await req.json();
+    audit.set({ metadata: { query: body?.sqlQuery, datasetId: body?.datasetId } });
 
     const result = await createExportJob({
       ...body,
       projectId,
+    });
+    audit.set({
+      metadata: { query: body?.sqlQuery, datasetId: body?.datasetId, jobId: result.jobId },
     });
 
     return Response.json({
@@ -20,5 +24,5 @@ export const POST = handlerNoAudit(
       jobId: result.jobId,
       warnings: result.warnings,
     });
-  })
+  }
 );

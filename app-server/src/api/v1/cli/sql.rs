@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{HttpRequest, HttpResponse, get, post, web};
 
 use crate::{
     access_policy::Actor,
@@ -35,6 +35,7 @@ pub async fn get_sql_schema(_auth: CliProjectAuth) -> ResponseResult {
 /// the actor.
 #[post("query")]
 pub async fn execute_sql_query(
+    http_req: HttpRequest,
     auth: CliProjectAuth,
     limiter: Option<web::Data<SqlRateLimiter>>,
     req: web::Json<SqlQueryRequest>,
@@ -45,6 +46,7 @@ pub async fn execute_sql_query(
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     handle_sql_query(
+        &http_req,
         auth.project_id,
         Actor::Cli,
         req,

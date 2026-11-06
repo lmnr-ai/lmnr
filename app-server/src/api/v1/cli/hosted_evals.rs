@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::{
-    post, put,
+    HttpRequest, post, put,
     web::{self, Json},
 };
 
@@ -65,16 +65,18 @@ pub async fn create_upload(
 
 #[post("/hosted-evals/runs")]
 pub async fn start_run(
+    req: HttpRequest,
     auth: CliProjectAuth,
-    req: Json<RunRequest>,
+    body: Json<RunRequest>,
     hosted: HostedEvalsData,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
     handle_start_run(
+        &req,
         auth.project_id,
-        req.into_inner(),
+        body.into_inner(),
         &hosted,
         &db,
         &cache,

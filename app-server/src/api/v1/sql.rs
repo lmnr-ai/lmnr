@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use actix_limitation::{Error as LimiterError, Limiter};
-use actix_web::{HttpResponse, post, web};
+use actix_web::{HttpRequest, HttpResponse, post, web};
 use opentelemetry::{
     global,
     trace::{Tracer, mark_span_as_active},
@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     access_policy::{self, Actor},
+    audit,
     cache::{Cache, CacheTrait, keys::SQL_RATE_LIMIT_CACHE_KEY},
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
@@ -86,6 +87,7 @@ pub struct SqlQueryResponse {
 
 #[post("query")]
 pub async fn execute_sql_query(
+    http_req: HttpRequest,
     req: web::Json<SqlQueryRequest>,
     project_api_key: ProjectApiKey,
     limiter: Option<web::Data<SqlRateLimiter>>,
@@ -96,6 +98,7 @@ pub async fn execute_sql_query(
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     handle_sql_query(
+        &http_req,
         project_api_key.project_id,
         Actor::ApiKey,
         req,
@@ -115,9 +118,11 @@ pub async fn execute_sql_query(
 /// `ratelimit:<id>` key, fail-open), the access policy, the query span, and the
 /// response shape — lives here so the two endpoints can't drift. Rate limiting
 /// is inline (not scope middleware) because `project_id` is only known after
-/// the auth extractor runs.
+/// the auth extractor runs. The audit middleware logs the request as `sql.query`;
+/// the query text and tables are added here.
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_sql_query(
+    http_req: &HttpRequest,
     project_id: Uuid,
     actor: Actor,
     req: web::Json<SqlQueryRequest>,
@@ -128,6 +133,7 @@ pub async fn handle_sql_query(
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
+    audit::metadata(http_req, "query", req.query.clone());
     if let Some(limiter) = limiter.as_ref() {
         let limiter = limiter
             .limiter_for_project(cache.get_ref(), project_id)
@@ -154,7 +160,7 @@ pub async fn handle_sql_query(
 
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
-            match sql::execute_sql_query(
+            match sql::run_sql_query(
                 query,
                 project_id,
                 parameters,
@@ -168,8 +174,9 @@ pub async fn handle_sql_query(
             )
             .await
             {
-                Ok(result_json) => {
-                    Ok(HttpResponse::Ok().json(SqlQueryResponse { data: result_json }))
+                Ok(output) => {
+                    audit::metadata(http_req, "tables", output.tables);
+                    Ok(HttpResponse::Ok().json(SqlQueryResponse { data: output.rows }))
                 }
                 Err(e) => Err(e.into()),
             }

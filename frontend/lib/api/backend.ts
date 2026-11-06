@@ -31,7 +31,14 @@ const errorMessage = async (res: Response): Promise<string> => {
  * JSON call to app-server's REST API. A 4xx is the caller's mistake and passes through as an
  * `ApiError`; a 5xx stays a plain error so `apiHandler` reports it.
  */
-export const callAppServer = async <T = any>(path: string, init: { method: string; body?: unknown }): Promise<T> => {
+export const callAppServer = async <T = any>(path: string, init: { method: string; body?: unknown }): Promise<T> =>
+  (await callAppServerWithResponseHeaders<T>(path, init)).data;
+
+/** `callAppServer` that also returns the response headers. */
+export const callAppServerWithResponseHeaders = async <T = any>(
+  path: string,
+  init: { method: string; body?: unknown }
+): Promise<{ data: T; headers: Headers }> => {
   const res = await fetch(`${process.env.BACKEND_URL}/api/v1${path}`, {
     method: init.method,
     headers: { "Content-Type": "application/json" },
@@ -42,5 +49,5 @@ export const callAppServer = async <T = any>(path: string, init: { method: strin
     const message = await errorMessage(res);
     throw res.status < 500 ? new ApiError(message, res.status) : new Error(message);
   }
-  return (await res.json()) as T;
+  return { data: (await res.json()) as T, headers: res.headers };
 };

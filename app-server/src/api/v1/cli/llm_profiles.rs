@@ -4,7 +4,7 @@
 //! Profiles back the playground everywhere, so these routes are not Cloud-gated;
 //! only pinning a profile on a signal is (`Feature::SignalLlmProfiles`).
 
-use actix_web::{HttpResponse, delete, get, patch, post, web};
+use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
 use uuid::Uuid;
 
 use crate::api::v1::llm_profiles::handlers;
@@ -32,15 +32,17 @@ pub async fn get_llm_profile(
 
 #[post("llm-profiles")]
 pub async fn create_llm_profile(
+    req: HttpRequest,
     auth: CliProjectAuth,
     body: web::Json<CreateLlmProfileInput>,
     db: web::Data<DB>,
 ) -> actix_web::Result<HttpResponse> {
-    Ok(handlers::create(&db, auth.project_id, body.into_inner()).await)
+    Ok(handlers::create(&req, &db, auth.project_id, body.into_inner()).await)
 }
 
 #[patch("llm-profiles/{profile_id}")]
 pub async fn update_llm_profile(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     body: web::Json<UpdateLlmProfileInput>,
@@ -48,6 +50,7 @@ pub async fn update_llm_profile(
     cache: web::Data<Cache>,
 ) -> actix_web::Result<HttpResponse> {
     Ok(handlers::update(
+        &req,
         &db,
         &cache,
         auth.project_id,
@@ -59,10 +62,11 @@ pub async fn update_llm_profile(
 
 #[delete("llm-profiles/{profile_id}")]
 pub async fn delete_llm_profile(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<Uuid>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> actix_web::Result<HttpResponse> {
-    Ok(handlers::delete(&db, &cache, auth.project_id, path.into_inner()).await)
+    Ok(handlers::delete(&req, &db, &cache, auth.project_id, path.into_inner()).await)
 }
