@@ -191,15 +191,22 @@ export default function TraceViewContent({
         }
 
         const urlSpanId = spanId || searchParams.get("spanId");
-        if (urlSpanId && spans.length > 0) {
-          const selectedSpan = findSpanToSelect(spans, spanId, searchParams);
-          setSelectedSpan(selectedSpan);
-        } else if (isAlwaysSelectSpan && spans.length > 0) {
-          // Auto-select first span only in the dedicated trace page (always-select mode).
-          // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
-          setSelectedSpan(spans[0]);
-        } else {
-          setSelectedSpan(undefined);
+        // Auto-select the first span only in the dedicated trace page (always-select mode).
+        // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
+        const selectedSpan =
+          spans.length === 0
+            ? undefined
+            : urlSpanId
+              ? findSpanToSelect(spans, spanId, searchParams)
+              : isAlwaysSelectSpan
+                ? spans[0]
+                : undefined;
+        setSelectedSpan(selectedSpan);
+
+        // A kept `spanTab` would otherwise hide the hit, same as when a hit is clicked.
+        const snippetTab = search ? snippetTabOf(selectedSpan) : undefined;
+        if (selectedSpan && snippetTab) {
+          navigate({ type: "selectSpan", spanId: selectedSpan.spanId, spanTab: snippetTab });
         }
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Failed to load spans";
@@ -224,6 +231,7 @@ export default function TraceViewContent({
       isAlwaysSelectSpan,
       spanId,
       searchParams,
+      navigate,
     ]
   );
 
