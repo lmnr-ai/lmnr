@@ -2642,6 +2642,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::cli::sql::execute_sql_query)
                                     .service(api::v1::cli::sql::get_sql_schema),
                             )
+                            .service(web::scope("/tag").service(api::v1::cli::tag::tag_trace))
                             .service(api::v1::cli::datasets::create_dataset)
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
