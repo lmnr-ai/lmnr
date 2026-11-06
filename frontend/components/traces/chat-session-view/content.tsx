@@ -12,12 +12,8 @@ import ControlBar from "./control-bar";
 import Thread from "./thread";
 import TracePanel from "./trace-panel";
 import { useOpenTrace } from "./use-open-trace";
-import { useSessionData } from "./use-session-data";
-import { useSessionRealtime } from "./use-session-realtime";
 
-export default function ChatSessionContent({ sessionId }: { sessionId: string }) {
-  useSessionData(sessionId);
-  useSessionRealtime(sessionId);
+export default function ChatSessionContent() {
   const { openTraceId, toggleTrace, openSpan } = useOpenTrace();
   const timelineEnabled = useSessionViewStore((s) => s.sessionTimelineEnabled);
   const setTimelineEnabled = useSessionViewStore((s) => s.setSessionTimelineEnabled);

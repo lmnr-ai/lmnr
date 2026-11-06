@@ -3,11 +3,10 @@ import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useTurnData } from "../turn-data";
+import { useLiveSession, useLiveSessionStore } from "../live-session";
 import { useOpenTrace } from "../use-open-trace";
 import TimeDivider from "./time-divider";
 import Turn from "./turn";
@@ -20,17 +19,12 @@ const ESTIMATED_TURN_HEIGHT = 260;
 const OVERSCAN = 6;
 
 export default function Thread() {
-  const { traces, isLoading, error, fetchAgentOutputs } = useSessionViewStore(
-    (s) => ({
-      traces: s.traces,
-      isLoading: s.isTracesLoading,
-      error: s.tracesError,
-      fetchAgentOutputs: s.fetchAgentOutputs,
-    }),
+  const { traces, status, error, requestDetails } = useLiveSession(
+    (s) => ({ traces: s.sync.traces, status: s.sync.status, error: s.sync.error, requestDetails: s.requestDetails }),
     shallow
   );
+  const store = useLiveSessionStore();
   const { openTraceId } = useOpenTrace();
-  const fetchCounts = useTurnData((s) => s.fetchCounts);
 
   const gaps = useMemo(
     () =>
@@ -55,18 +49,19 @@ export default function Thread() {
   const lastIndex = items.at(-1)?.index;
   useEffect(() => {
     if (firstIndex === undefined || lastIndex === undefined) return;
-    const ids = traces.slice(firstIndex, lastIndex + 1).map((t) => t.id);
-    fetchCounts(ids);
-    fetchAgentOutputs(ids);
-  }, [firstIndex, lastIndex, traces, fetchCounts, fetchAgentOutputs]);
+    requestDetails(traces.slice(firstIndex, lastIndex + 1).map((t) => t.id));
+  }, [firstIndex, lastIndex, traces, requestDetails]);
 
-  // A turn opened from the session timeline may be far off-screen.
+  // A turn opened from the session timeline may be far off-screen. Runs when a turn opens (or the session first
+  // loads under a deep link), not on live updates, so reading another turn isn't interrupted.
+  const ready = status === "ready";
   useEffect(() => {
-    const index = openTraceId ? traces.findIndex((t) => t.id === openTraceId) : -1;
+    if (!openTraceId || !ready) return;
+    const index = store.getState().sync.traces.findIndex((t) => t.id === openTraceId);
     if (index >= 0) virtualizer.scrollToIndex(index, { align: "auto" });
-  }, [openTraceId, traces, virtualizer]);
+  }, [openTraceId, ready, store, virtualizer]);
 
-  if (error) {
+  if (status === "error") {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm">
         <AlertTriangle className="size-8 text-destructive-text" />
@@ -75,7 +70,7 @@ export default function Thread() {
     );
   }
 
-  if (isLoading && traces.length === 0) {
+  if (status === "loading" && traces.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
         <Skeleton className="ml-auto h-10 w-1/2" />

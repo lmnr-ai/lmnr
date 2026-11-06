@@ -3,7 +3,7 @@
 import SessionViewStoreProvider from "@/components/traces/session-view/store";
 
 import ChatSessionContent from "./content";
-import { TurnDataProvider } from "./turn-data";
+import { LiveSessionProvider } from "./live-session";
 
 /**
  * Chat-style session view: the session reads as a messaging thread; clicking a
@@ -12,9 +12,9 @@ import { TurnDataProvider } from "./turn-data";
 export function ChatSessionView({ sessionId }: { sessionId: string }) {
   return (
     <SessionViewStoreProvider key={sessionId} initialSession={{ sessionId }} storeKey="chat-session-view-state">
-      <TurnDataProvider>
-        <ChatSessionContent sessionId={sessionId} />
-      </TurnDataProvider>
+      <LiveSessionProvider sessionId={sessionId}>
+        <ChatSessionContent />
+      </LiveSessionProvider>
     </SessionViewStoreProvider>
   );
 }

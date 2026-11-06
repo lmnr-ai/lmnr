@@ -1,17 +1,15 @@
-import { CircleAlert } from "lucide-react";
 import { memo } from "react";
+import { shallow } from "zustand/shallow";
 
-import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { StatsShields } from "@/components/traces/stats-shields";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { agentInputText } from "@/lib/traces/agent-input";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useTurnData } from "../turn-data";
+import { useLiveSession } from "../live-session";
+import { isLive, replyOf } from "../live-session/sync";
 import { useOpenTrace } from "../use-open-trace";
-import CollapsibleReply from "./collapsible-reply";
+import TurnReply from "./turn-reply";
 import UserBubble from "./user-bubble";
 import WorkedRow from "./worked-row";
 
@@ -25,15 +23,13 @@ function Turn({
   dividerAbove: boolean;
   dividerBelow: boolean;
 }) {
-  const output = useSessionViewStore((s) => s.agentOutputs[trace.id]);
-  const outputFailed = useSessionViewStore((s) => !!s.agentOutputErrors[trace.id]);
-  const retryOutput = useSessionViewStore((s) => s.retryAgentOutputs);
-  const live = useTurnData((s) => !!s.liveIds[trace.id]);
+  const reply = useLiveSession((s) => replyOf(s.replies[trace.id], isLive(s.sync, trace.id)), shallow);
+  const retryReply = useLiveSession((s) => s.retryReply);
   const { openTraceId, toggleTrace } = useOpenTrace();
   const active = openTraceId === trace.id;
 
   const inputText = agentInputText(trace.agentInput);
-  const counts = useTurnData((s) => s.counts[trace.id]);
+  const counts = useLiveSession((s) => s.counts[trace.id]);
   const failed = trace.status === "error" || (counts?.errors ?? 0) > 0;
 
   return (
@@ -51,27 +47,7 @@ function Turn({
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-8">
         {inputText && <UserBubble text={inputText} time={trace.startTime} />}
         <WorkedRow counts={counts} open={active} onClick={() => toggleTrace(trace.id)} />
-        {output ? (
-          <CollapsibleReply text={output} />
-        ) : outputFailed ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <CircleAlert className="size-4 text-destructive-text" />
-            Couldn't load the reply.
-            <Button variant="link" size="sm" className="h-auto p-0" onClick={() => retryOutput([trace.id])}>
-              Retry
-            </Button>
-          </div>
-        ) : output === undefined || live ? (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3" />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {failed && <CircleAlert className="size-4 text-destructive-text" />}
-            {failed ? "The agent didn't reply — the turn ended with an error." : "No reply extracted."}
-          </div>
-        )}
+        <TurnReply reply={reply} turnFailed={failed} onRetry={() => retryReply(trace.id)} />
         <StatsShields
           stats={trace}
           className="h-auto w-fit rounded-none bg-transparent px-0 text-xs text-secondary-foreground"

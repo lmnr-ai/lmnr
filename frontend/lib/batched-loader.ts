@@ -2,6 +2,7 @@
  * Collects ids requested within a debounce window and loads them in fixed-size chunks.
  * Ids already resolved, queued, or in flight are skipped. A chunk whose load fails stays
  * unresolved (and is reported to `onFailed`), so a later `request` for those ids retries.
+ * `invalidate` makes results already in flight for those ids stale: they are dropped and loaded again.
  */
 export interface BatchedLoaderOptions<V> {
   /** Loads one chunk; `undefined` marks the chunk as failed. */
@@ -18,6 +19,8 @@ export interface BatchedLoaderOptions<V> {
 
 export interface BatchedLoader {
   request: (ids: string[]) => void;
+  /** Call after forgetting the resolved values of `ids`, when the data behind them changed. */
+  invalidate: (ids: string[]) => void;
 }
 
 export function createBatchedLoader<V>({
@@ -30,6 +33,7 @@ export function createBatchedLoader<V>({
 }: BatchedLoaderOptions<V>): BatchedLoader {
   const pending = new Set<string>();
   const inFlight = new Set<string>();
+  const stale = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const flush = async () => {
@@ -46,18 +50,27 @@ export function createBatchedLoader<V>({
       } finally {
         for (const id of chunk) inFlight.delete(id);
       }
-      if (values) onLoaded(values);
-      else onFailed?.(chunk);
+      const dropped = chunk.filter((id) => stale.delete(id));
+      const kept = chunk.filter((id) => !dropped.includes(id));
+      if (values) onLoaded(Object.fromEntries(Object.entries(values).filter(([id]) => !dropped.includes(id))));
+      else if (kept.length > 0) onFailed?.(kept);
+      request(dropped);
     }
   };
 
+  const request = (ids: string[]) => {
+    const fresh = ids.filter((id) => !isResolved(id) && !inFlight.has(id) && !pending.has(id));
+    if (fresh.length === 0) return;
+    for (const id of fresh) pending.add(id);
+    clearTimeout(timer);
+    timer = setTimeout(() => void flush(), debounceMs);
+  };
+
   return {
-    request: (ids) => {
-      const fresh = ids.filter((id) => !isResolved(id) && !inFlight.has(id) && !pending.has(id));
-      if (fresh.length === 0) return;
-      for (const id of fresh) pending.add(id);
-      clearTimeout(timer);
-      timer = setTimeout(() => void flush(), debounceMs);
+    request,
+    invalidate: (ids) => {
+      // Queued ids load after this call anyway; only in-flight results can be out of date.
+      for (const id of ids) if (inFlight.has(id)) stale.add(id);
     },
   };
 }
