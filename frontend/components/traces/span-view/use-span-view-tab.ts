@@ -1,7 +1,7 @@
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useState } from "react";
 
-import { useUrlState } from "@/components/traces/url-state";
+import { useUrlState } from "@/components/traces/trace-view/store/base";
 
 /** `content` is the Messages view for LLM spans and stacked input/output for the rest. */
 export const SPAN_VIEW_TABS = ["content", "attributes", "events"] as const;
@@ -14,7 +14,7 @@ const spanTabParser = parseAsStringLiteral(SPAN_VIEW_TABS).withOptions({ history
 
 /**
  * The open span tab, kept in `?spanTab` so it deep-links and stays put while stepping through spans.
- * Kept local under `WithoutUrlState`.
+ * Kept local where the page has no URL state (`urlState` on the trace-view store).
  */
 export const useSpanViewTab = ({
   fallback,

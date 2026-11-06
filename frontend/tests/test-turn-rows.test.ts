@@ -49,7 +49,7 @@ describe("buildRows", () => {
   it("links this call's tool results to the calls they answer", () => {
     const part = message(buildRows(buildSpanTurn(input, output), false, RAW_OFF), "input-0")?.normalized?.parts[0];
     assert.equal(part?.kind, "tool-result");
-    assert.deepEqual(part?.kind === "tool-result" && part.call, { args: {}, preview: "{}" });
+    assert.deepEqual(part?.kind === "tool-result" && part.call, { args: {} });
   });
 
   it("puts this call's consecutive tool results in one card", () => {

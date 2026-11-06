@@ -122,6 +122,7 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
 
       {traceId && (
         <TraceViewSidePanel
+          urlState
           spanId={spanId || undefined}
           key={traceId}
           onClose={() => {

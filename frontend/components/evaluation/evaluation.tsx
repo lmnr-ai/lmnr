@@ -382,7 +382,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}
-                  {traceId && <TraceView key={traceId} traceId={traceId} />}
+                  {traceId && <TraceView key={traceId} traceId={traceId} urlState />}
                 </div>
               </div>
             }

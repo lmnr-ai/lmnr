@@ -3,8 +3,7 @@ import { useCallback } from "react";
 import { shallow } from "zustand/shallow";
 
 import { SPAN_TAB_PARAM } from "@/components/traces/span-view/use-span-view-tab";
-import { type BaseTraceViewStore, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import { useUrlState } from "@/components/traces/url-state";
+import { type BaseTraceViewStore, useTraceViewBaseStore, useUrlState } from "@/components/traces/trace-view/store/base";
 
 export type TraceViewTab = BaseTraceViewStore["tab"];
 const TRACE_VIEW_TABS = ["tree", "transcript", "custom"] as const satisfies readonly TraceViewTab[];

@@ -3,7 +3,7 @@ import { type PropsWithChildren, useState } from "react";
 
 import { getRoleTextColor } from "@/components/traces/span-view/common";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
-import { type ToolResultPart } from "@/lib/spans/turn-parts";
+import { preview, type ToolResultPart } from "@/lib/spans/turn-parts";
 
 // Enough for the clamped lines; never render the full payload while collapsed.
 const PREVIEW_CHARS = 800;
@@ -13,7 +13,7 @@ const ResultPreview = ({ part, children }: PropsWithChildren<{ part: ToolResultP
   const searching = !!useSpanSearchState()?.searchTerm;
   const [open, setOpen] = useState(searching);
   const expanded = open || searching;
-  const text = typeof part.output === "string" ? part.output.slice(0, PREVIEW_CHARS) : part.preview;
+  const text = typeof part.output === "string" ? part.output.slice(0, PREVIEW_CHARS) : preview(part.output);
 
   // One target: collapsed, header and preview are a single button; expanded, only the header collapses it.
   return (
@@ -32,7 +32,7 @@ const ResultPreview = ({ part, children }: PropsWithChildren<{ part: ToolResultP
           <span className="font-medium shrink-0" style={{ color: getRoleTextColor("tool") }}>
             {part.name ?? part.id ?? "result"}
           </span>
-          {part.call && <span className="truncate font-mono text-muted-foreground">{part.call.preview}</span>}
+          {part.call && <span className="truncate font-mono text-muted-foreground">{preview(part.call.args)}</span>}
         </span>
         {!expanded && (
           <span className="block ml-[7px] border-l-2 pl-4 py-0.5">

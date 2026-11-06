@@ -100,6 +100,7 @@ function TracesContent() {
       </Tabs>
       {traceId && (
         <TraceViewSidePanel
+          urlState
           spanId={spanId || undefined}
           onClose={() => {
             const params = new URLSearchParams(searchParams);

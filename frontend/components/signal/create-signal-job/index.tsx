@@ -150,6 +150,7 @@ const CreateSignalJobContent = () => {
       </div>
       {traceId && (
         <TraceViewSidePanel
+          urlState
           className="z-60 pointer-events-auto"
           spanId={spanId || undefined}
           key={traceId}

@@ -1,10 +1,9 @@
 import { type ProcessedMessages } from "@/lib/spans/process-messages";
 import { segmentMessageRole } from "@/lib/spans/turn";
 
-// `preview` is a bounded one-line summary, computed once so collapsed rows never serialize full payloads.
 export type TurnPart =
   | { kind: "text"; text: string }
-  | { kind: "reasoning"; text: string; preview: string }
+  | { kind: "reasoning"; text: string }
   | ToolCallPart
   | ToolResultPart;
 
@@ -13,7 +12,6 @@ interface ToolCallPart {
   id?: string;
   name: string;
   args: unknown;
-  preview: string;
   result?: ToolResultPart;
 }
 
@@ -22,9 +20,8 @@ export interface ToolResultPart {
   id?: string;
   name?: string;
   output: unknown;
-  preview: string;
   /** The call this result answers, when it can be matched. */
-  call?: { args: unknown; preview: string };
+  call?: { args: unknown };
 }
 
 export interface NormalizedMessage {
@@ -34,52 +31,18 @@ export interface NormalizedMessage {
 
 const PREVIEW_LENGTH = 240;
 
-/** JSON-ish one-liner that stops walking once it has PREVIEW_LENGTH characters. */
-export const buildPreview = (value: unknown): string => {
-  let out = "";
-  const write = (text: string) => {
-    out += text;
-    return out.length < PREVIEW_LENGTH;
-  };
-  const walk = (v: unknown): boolean => {
-    if (typeof v === "string") return write(JSON.stringify(v.slice(0, PREVIEW_LENGTH)));
-    if (v === null || typeof v !== "object") return write(String(v));
-    if (Array.isArray(v)) {
-      if (!write("[")) return false;
-      for (let i = 0; i < v.length; i++) {
-        if ((i > 0 && !write(",")) || !walk(v[i])) return false;
-      }
-      return write("]");
-    }
-    if (!write("{")) return false;
-    let first = true;
-    for (const [key, item] of Object.entries(v)) {
-      if (!write(`${first ? "" : ","}${JSON.stringify(key)}:`) || !walk(item)) return false;
-      first = false;
-    }
-    return write("}");
-  };
-  if (typeof value === "string") out = value.slice(0, PREVIEW_LENGTH * 4);
-  else walk(value);
-  return out.replace(/\s+/g, " ").trim().slice(0, PREVIEW_LENGTH);
+/** One-line summary for collapsed rows. Strings are cut before serializing, so big payloads stay cheap. */
+export const preview = (value: unknown): string => {
+  const json =
+    typeof value === "string"
+      ? value
+      : JSON.stringify(value, (_, v) => (typeof v === "string" ? v.slice(0, PREVIEW_LENGTH) : v));
+  return (json ?? String(value))
+    .slice(0, PREVIEW_LENGTH * 4)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, PREVIEW_LENGTH);
 };
-
-const text = (value: string): TurnPart => ({ kind: "text", text: value });
-const reasoning = (value: string): TurnPart => ({ kind: "reasoning", text: value, preview: buildPreview(value) });
-const toolCall = (id: string | undefined, name: string, args: unknown): TurnPart => ({
-  kind: "tool-call",
-  id,
-  name,
-  args,
-  preview: buildPreview(args),
-});
-const toolResult = (id: string | undefined, output: unknown, name?: string): TurnPart => ({
-  kind: "tool-result",
-  id,
-  ...(name && { name }),
-  output,
-  preview: buildPreview(output),
-});
 
 /** null: the message holds something these parts can't show (images, files, ...), so its provider renderer takes it. */
 type Parts = TurnPart[] | null;
@@ -90,8 +53,10 @@ const TEXT_TYPES = new Set(["text", "input_text", "output_text"]);
 
 const textOnly = (content: string | null | undefined | readonly { type: string; text?: unknown }[]): Parts => {
   if (!content) return [];
-  if (typeof content === "string") return [text(content)];
-  return every(content.map((p) => (TEXT_TYPES.has(p.type) && typeof p.text === "string" ? text(p.text) : null)));
+  if (typeof content === "string") return [{ kind: "text", text: content }];
+  return every(
+    content.map((p) => (TEXT_TYPES.has(p.type) && typeof p.text === "string" ? { kind: "text", text: p.text } : null))
+  );
 };
 
 const isTextPart = (p: unknown): p is { type: "text"; text: string } =>
@@ -118,11 +83,16 @@ type GenericPart = Exclude<MessageOf<"generic">["content"], string>[number];
 const openai = (m: MessageOf<"openai">): Parts => {
   switch (m.role) {
     case "tool":
-      return [toolResult(m.tool_call_id, resultOutput(m.content))];
+      return [{ kind: "tool-result", id: m.tool_call_id, output: resultOutput(m.content) }];
     case "assistant":
       return withCalls(
         textOnly(m.content),
-        (m.tool_calls ?? []).map((tc) => toolCall(tc.id, tc.function.name, parseArgs(tc.function.arguments)))
+        (m.tool_calls ?? []).map((tc) => ({
+          kind: "tool-call",
+          id: tc.id,
+          name: tc.function.name,
+          args: parseArgs(tc.function.arguments),
+        }))
       );
     case "computer_call_output":
       return null;
@@ -134,17 +104,17 @@ const openai = (m: MessageOf<"openai">): Parts => {
 const anthropicBlock = (b: AnthropicBlock): TurnPart | null => {
   switch (b.type) {
     case "text":
-      return text(b.text);
+      return { kind: "text", text: b.text };
     case "thinking":
-      return reasoning(b.thinking);
+      return { kind: "reasoning", text: b.thinking };
     case "redacted_thinking":
-      return reasoning("[Redacted thinking]");
+      return { kind: "reasoning", text: "[Redacted thinking]" };
     case "tool_use":
     case "server_tool_use":
-      return toolCall(b.id, b.name, b.input ?? {});
+      return { kind: "tool-call", id: b.id, name: b.name, args: b.input ?? {} };
     case "tool_result":
     case "web_search_tool_result":
-      return toolResult(b.tool_use_id, resultOutput(b.content));
+      return { kind: "tool-result", id: b.tool_use_id, output: resultOutput(b.content) };
     default:
       return null;
   }
@@ -156,15 +126,17 @@ const anthropic = (m: MessageOf<"anthropic">): Parts =>
 const responses = (m: MessageOf<"openai-responses">): Parts => {
   if (m.type === undefined || m.type === "message") return textOnly(m.content);
   switch (m.type) {
-    case "reasoning":
-      return [reasoning([...(m.summary ?? []), ...(m.content ?? [])].map((p) => p.text).join("\n\n"))];
+    case "reasoning": {
+      const text = [...(m.summary ?? []), ...(m.content ?? [])].map((p) => p.text).join("\n\n");
+      return [{ kind: "reasoning", text }];
+    }
     case "function_call":
-      return [toolCall(m.call_id, m.name, parseArgs(m.arguments))];
+      return [{ kind: "tool-call", id: m.call_id, name: m.name, args: parseArgs(m.arguments) }];
     case "custom_tool_call":
-      return [toolCall(m.call_id, m.name, m.input)];
+      return [{ kind: "tool-call", id: m.call_id, name: m.name, args: m.input }];
     case "function_call_output":
     case "custom_tool_call_output":
-      return [toolResult(m.call_id, resultOutput(m.output))];
+      return [{ kind: "tool-result", id: m.call_id, output: resultOutput(m.output) }];
     default:
       return null;
   }
@@ -173,13 +145,13 @@ const responses = (m: MessageOf<"openai-responses">): Parts => {
 const langchain = (m: MessageOf<"langchain">): Parts => {
   switch (m.role) {
     case "tool":
-      return [toolResult(m.tool_call_id, resultOutput(m.content))];
+      return [{ kind: "tool-result", id: m.tool_call_id, output: resultOutput(m.content) }];
     case "assistant":
     case "ai":
       if (m.invalid_tool_calls?.length) return null;
       return withCalls(
         textOnly(m.content),
-        (m.tool_calls ?? []).map((tc) => toolCall(tc.id, tc.name, tc.arguments))
+        (m.tool_calls ?? []).map((tc) => ({ kind: "tool-call", id: tc.id, name: tc.name, args: tc.arguments }))
       );
     default:
       return textOnly(m.content);
@@ -189,11 +161,11 @@ const langchain = (m: MessageOf<"langchain">): Parts => {
 // Gemini calls carry no usable ids, so results match their calls by name.
 const gemini = (m: MessageOf<"gemini">): Parts =>
   every(
-    m.parts.map((p) => {
-      if ("text" in p) return p.thought ? reasoning(p.text) : text(p.text);
-      if ("functionCall" in p) return toolCall(undefined, p.functionCall.name, p.functionCall.args ?? {});
+    m.parts.map((p): TurnPart | null => {
+      if ("text" in p) return { kind: p.thought ? "reasoning" : "text", text: p.text };
+      if ("functionCall" in p) return { kind: "tool-call", name: p.functionCall.name, args: p.functionCall.args ?? {} };
       if ("functionResponse" in p) {
-        return toolResult(undefined, p.functionResponse.response, p.functionResponse.name);
+        return { kind: "tool-result", name: p.functionResponse.name, output: p.functionResponse.response };
       }
       return null;
     })
@@ -202,15 +174,24 @@ const gemini = (m: MessageOf<"gemini">): Parts =>
 const genericPart = (p: GenericPart): TurnPart | null => {
   switch (p.type) {
     case "text":
-      return text(p.text);
     case "reasoning":
-      return reasoning(p.text);
+      return { kind: p.type, text: p.text };
     case "tool-call":
       // `args` / `result`: payloads recorded before AI SDK v5 renamed them.
-      return toolCall(p.toolCallId, p.toolName, p.input ?? ("args" in p ? p.args : undefined) ?? {});
+      return {
+        kind: "tool-call",
+        id: p.toolCallId,
+        name: p.toolName,
+        args: p.input ?? ("args" in p ? p.args : undefined) ?? {},
+      };
     case "tool-result": {
       const output = p.output?.type === "text" || p.output?.type === "json" ? p.output.value : p.output;
-      return toolResult(p.toolCallId, output ?? ("result" in p ? p.result : undefined), p.toolName);
+      return {
+        kind: "tool-result",
+        id: p.toolCallId,
+        name: p.toolName,
+        output: output ?? ("result" in p ? p.result : undefined),
+      };
     }
     default:
       return null;
@@ -229,7 +210,7 @@ const PARSERS: { [T in ProcessedMessages["type"]]: (message: MessageOf<T>) => Pa
   generic,
 };
 
-// Keyed by the parsed message object, so toggling history or switching layouts never re-normalizes a message.
+// Keyed by the parsed message object, so toggling context never re-normalizes a message.
 const cache = new WeakMap<object, NormalizedMessage | null>();
 
 /** Flattens one provider message into text / reasoning / tool parts, or null when it holds anything else. */
@@ -274,7 +255,7 @@ export const linkToolResults = (messages: Messages): Messages => {
   return mapParts(messages, (part) => {
     const call = part.kind === "tool-result" && calls.get(part);
     return call && part.kind === "tool-result"
-      ? [{ ...part, name: part.name ?? call.name, call: { args: call.args, preview: call.preview } }]
+      ? [{ ...part, name: part.name ?? call.name, call: { args: call.args } }]
       : [part];
   });
 };

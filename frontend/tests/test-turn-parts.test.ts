@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { processMessages } from "@/lib/spans/process-messages";
-import { buildPreview, linkToolResults, normalizeMessage, pairToolResults } from "@/lib/spans/turn-parts";
+import { linkToolResults, normalizeMessage, pairToolResults, preview } from "@/lib/spans/turn-parts";
 
 const normalizeAll = (raw: unknown) => {
   const processed = processMessages(raw);
@@ -20,10 +20,8 @@ describe("normalizeMessage", () => {
       { role: "tool", tool_call_id: "c1", content: "file body" },
     ]);
 
-    assert.deepEqual(call?.parts, [
-      { kind: "tool-call", id: "c1", name: "read_file", args: { path: "a.ts" }, preview: '{"path":"a.ts"}' },
-    ]);
-    assert.deepEqual(result?.parts, [{ kind: "tool-result", id: "c1", output: "file body", preview: "file body" }]);
+    assert.deepEqual(call?.parts, [{ kind: "tool-call", id: "c1", name: "read_file", args: { path: "a.ts" } }]);
+    assert.deepEqual(result?.parts, [{ kind: "tool-result", id: "c1", output: "file body" }]);
   });
 
   it("flattens Anthropic tool_use / tool_result blocks", () => {
@@ -42,7 +40,7 @@ describe("normalizeMessage", () => {
       call?.parts.map((p) => p.kind),
       ["reasoning", "tool-call"]
     );
-    assert.deepEqual(result?.parts, [{ kind: "tool-result", id: "t1", output: "3 matches", preview: "3 matches" }]);
+    assert.deepEqual(result?.parts, [{ kind: "tool-result", id: "t1", output: "3 matches" }]);
   });
 
   it("caches per parsed message", () => {
@@ -58,23 +56,15 @@ describe("normalizeMessage", () => {
   });
 });
 
-describe("buildPreview", () => {
-  it("stops serializing once the preview is full", () => {
-    let visited = 0;
-    const huge = Array.from({ length: 100_000 }, () => ({
-      get text() {
-        visited++;
-        return "x".repeat(50);
-      },
-    }));
-
-    const preview = buildPreview(huge);
-    assert.ok(preview.length <= 240);
-    assert.ok(visited < 10);
+describe("preview", () => {
+  it("cuts long strings before serializing", () => {
+    const text = preview({ path: "a.ts", body: "x".repeat(1_000_000) });
+    assert.equal(text.length, 240);
+    assert.ok(text.startsWith('{"path":"a.ts","body":"xxx'));
   });
 
   it("collapses whitespace in plain strings", () => {
-    assert.equal(buildPreview("line one\n\n  line two"), "line one line two");
+    assert.equal(preview("line one\n\n  line two"), "line one line two");
   });
 });
 
@@ -97,8 +87,7 @@ describe("linkToolResults", () => {
       id: "c1",
       name: "grep",
       output: "3 matches",
-      preview: "3 matches",
-      call: { args: { q: "foo" }, preview: '{"q":"foo"}' },
+      call: { args: { q: "foo" } },
     });
   });
 });

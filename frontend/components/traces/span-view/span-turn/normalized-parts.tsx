@@ -5,7 +5,7 @@ import { TextContentPart } from "@/components/traces/span-view/common";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
-import { type ToolResultPart, type TurnPart } from "@/lib/spans/turn-parts";
+import { preview, type ToolResultPart, type TurnPart } from "@/lib/spans/turn-parts";
 
 import ResultPreview from "./result-preview";
 import ToolRow from "./tool-row";
@@ -46,7 +46,7 @@ const Value = ({
 const ResultSummary = ({ result }: { result: ToolResultPart }) => (
   <span className="flex items-center gap-1.5 pl-5 min-w-0 text-muted-foreground">
     <CornerDownRight size={12} className="min-w-3" />
-    <span className="truncate font-mono">{result.preview}</span>
+    <span className="truncate font-mono">{preview(result.output)}</span>
   </span>
 );
 
@@ -61,7 +61,7 @@ const Part = ({
       return <TextContentPart content={part.text} {...props} />;
     case "reasoning":
       return (
-        <ToolRow icon="reasoning" name="Thinking" summary={part.preview} defaultOpen={expandReasoning}>
+        <ToolRow icon="reasoning" name="Thinking" summary={preview(part.text)} defaultOpen={expandReasoning}>
           <Value value={part.text} {...props} />
         </ToolRow>
       );
@@ -70,7 +70,7 @@ const Part = ({
         <ToolRow
           icon="call"
           name={part.name}
-          summary={part.preview}
+          summary={preview(part.args)}
           detail={part.result && <ResultSummary result={part.result} />}
         >
           <Value title="Arguments" value={part.args} {...props} />
@@ -103,7 +103,7 @@ const Part = ({
       return plainResults ? (
         <ResultPreview part={part}>{body}</ResultPreview>
       ) : (
-        <ToolRow icon="result" name={part.name ?? part.id ?? "result"} summary={part.preview}>
+        <ToolRow icon="result" name={part.name ?? part.id ?? "result"} summary={preview(part.output)}>
           {body}
         </ToolRow>
       );

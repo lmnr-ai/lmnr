@@ -101,6 +101,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
 export default function TraceView(props: TraceViewProps) {
   return (
     <TraceViewStoreProvider
+      urlState
       storeKey="shared-trace-view"
       initialTrace={props.trace}
       initialSpans={enrichSpansWithPending(props.spans)}

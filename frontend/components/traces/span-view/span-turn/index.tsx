@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from "react";
 
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
-import { useUrlState } from "@/components/traces/url-state";
+import { useUrlState } from "@/components/traces/trace-view/store/base";
 import { buildSpanTurn } from "@/lib/spans/turn";
 import { type Span } from "@/lib/traces/types";
 

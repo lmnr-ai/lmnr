@@ -8,7 +8,6 @@ import { SpanView } from "@/components/traces/span-view";
 import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
-import { WithoutUrlState } from "@/components/traces/url-state";
 
 import { useSessionViewBaseStore } from "./store";
 
@@ -84,14 +83,12 @@ export default function SessionSpanPanel() {
             <LeftEdgeResizeHandle onPointerDown={handlePointerDown} />
             <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
               {shown ? (
-                <WithoutUrlState>
-                  <SpanView
-                    key={shown.spanId}
-                    spanId={shown.spanId}
-                    traceId={shown.traceId}
-                    onClose={() => setSpanPanelOpen(false)}
-                  />
-                </WithoutUrlState>
+                <SpanView
+                  key={shown.spanId}
+                  spanId={shown.spanId}
+                  traceId={shown.traceId}
+                  onClose={() => setSpanPanelOpen(false)}
+                />
               ) : (
                 <SpanViewSkeleton />
               )}
