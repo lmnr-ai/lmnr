@@ -1,59 +1,15 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { deleteDashboard, renameDashboard } from "@/lib/actions/dashboard/dashboards";
-import { DashboardError } from "@/lib/actions/dashboard/errors";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function PATCH(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId } = await props.params;
+type Params = { projectId: string; dashboardId: string };
 
-  try {
-    const body = await req.json();
+export const PATCH = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, dashboardId } = await ctx.params;
+  const body = await req.json();
+  return Response.json(await renameDashboard({ ...body, projectId, dashboardId }));
+});
 
-    const dashboard = await renameDashboard({ ...body, projectId, dashboardId });
-
-    return Response.json(dashboard);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    if (error instanceof DashboardError) {
-      return Response.json({ error: error.message }, { status: error.status });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to rename dashboard. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId } = await props.params;
-
-  try {
-    await deleteDashboard({ projectId, dashboardId });
-
-    return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    if (error instanceof DashboardError) {
-      return Response.json({ error: error.message }, { status: error.status });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to delete dashboard. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const DELETE = apiHandler<Params>(async (_req, ctx) => {
+  await deleteDashboard(await ctx.params);
+  return Response.json({ success: true });
+});

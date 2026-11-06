@@ -2,7 +2,8 @@ import Link from "next/link";
 import useSWR from "swr";
 
 import { type Dashboard, type DashboardChart, getChartsUrl } from "@/components/dashboards/types";
-import { cn, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { cn } from "@/lib/utils";
 
 import CardActions from "./card-actions";
 import LayoutThumbnail, { THUMBNAIL_WIDTH } from "./layout-thumbnail";

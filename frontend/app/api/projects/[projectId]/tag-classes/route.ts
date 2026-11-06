@@ -1,11 +1,11 @@
 import { desc, eq } from "drizzle-orm";
 
+import { apiHandler } from "@/lib/api/api-handler";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 
-export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
+  const { projectId } = await ctx.params;
 
   const res = await db
     .select()
@@ -13,5 +13,5 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
     .where(eq(tagClasses.projectId, projectId))
     .orderBy(desc(tagClasses.createdAt));
 
-  return new Response(JSON.stringify(res), { status: 200 });
-}
+  return Response.json(res);
+});

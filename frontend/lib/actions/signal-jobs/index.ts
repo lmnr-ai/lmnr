@@ -7,11 +7,11 @@ import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types.ts";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
+import { callAppServer } from "@/lib/api/backend";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { signalJobs } from "@/lib/db/migrations/schema";
-import { fetcherJSON } from "@/lib/utils";
 
 export const GetSignalJobsSchema = z.object({
   projectId: z.guid(),
@@ -120,17 +120,14 @@ export async function createSignalJob(
     pastHours,
   });
 
-  const response = await fetcherJSON<{ success: boolean; message: string }>(`/projects/${projectId}/signal-job`, {
+  const response = await callAppServer<{ success: boolean; message: string }>(`/projects/${projectId}/signal-job`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+    body: {
       query: sqlQuery,
       parameters,
       signalId,
       mode,
-    }),
+    },
   });
 
   return response;

@@ -1,6 +1,6 @@
 //! Calls to the Next.js app's `/api/internal` routes, for work whose one implementation lives
-//! there (dashboard and alert writes, the Laminar Agent). Callers authorize the user or agent first; Next.js only checks that
-//! the request came from app-server (`frontend/lib/internal-auth.ts`).
+//! there (dashboard and alert writes, the Laminar Agent). Callers authorize the user or agent
+//! first; Next.js only checks that the request came from app-server (`frontend/lib/api/internal.ts`).
 
 use std::time::Duration;
 

@@ -4,9 +4,9 @@ import { z } from "zod/v4";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { type CommandBlockContent, parseCommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";
 import { executeQuery } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { debuggerSessionBlocks, debuggerSessions, evaluations } from "@/lib/db/migrations/schema";
-import { NotFoundError } from "@/lib/errors";
 import { type TraceRow } from "@/lib/traces/types";
 
 export { type CommandBlockContent } from "@/lib/actions/debugger-sessions/command-content";

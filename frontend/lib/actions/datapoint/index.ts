@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { buildDatapointQueryWithParams } from "@/lib/actions/datapoints/utils";
 import { executeQuery } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { createDatapoints, type DatapointResult } from "@/lib/clickhouse/datapoints";
 
 const GetDatapointSchema = z.object({
@@ -36,7 +37,7 @@ export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
   })) as unknown as DatapointResult[];
 
   if (datapoints.length === 0) {
-    throw new Error("Datapoint not found");
+    throw new NotFoundError("Datapoint not found");
   }
 
   return datapoints[0];

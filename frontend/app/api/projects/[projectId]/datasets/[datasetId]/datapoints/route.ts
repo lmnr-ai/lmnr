@@ -1,5 +1,3 @@
-import { type NextRequest, NextResponse } from "next/server";
-
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import {
   createDatapoints,
@@ -8,102 +6,51 @@ import {
   getDatapoints,
   ListDatapointsSchema,
 } from "@/lib/actions/datapoints";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
+type Params = { projectId: string; datasetId: string };
 
-  try {
-    const parseResult = parseUrlParams(
-      req.nextUrl.searchParams,
-      ListDatapointsSchema.omit({ projectId: true, datasetId: true })
-    );
+export const GET = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, datasetId } = await ctx.params;
 
-    if (!parseResult.success) {
-      return NextResponse.json({ items: [] });
-    }
+  const parseResult = parseUrlParams(
+    req.nextUrl.searchParams,
+    ListDatapointsSchema.omit({ projectId: true, datasetId: true })
+  );
 
-    const datapointsData = await getDatapoints({
-      ...parseResult.data,
-      projectId: params.projectId,
-      datasetId: params.datasetId,
-    });
-
-    return NextResponse.json(datapointsData);
-  } catch (error) {
-    console.error("Error listing datapoints:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  if (!parseResult.success) {
+    return Response.json({ items: [] });
   }
-}
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
+  return Response.json(await getDatapoints({ ...parseResult.data, projectId, datasetId }));
+});
 
-  try {
-    const body = await req.json();
+export const POST = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, datasetId } = await ctx.params;
+  const body = await req.json();
 
-    // Validate request body
-    const parseResult = CreateDatapointsSchema.safeParse(body);
-    if (!parseResult.success) {
-      return new Response(
-        JSON.stringify({
-          error: "Invalid request body",
-          details: parseResult.error.issues,
-        }),
-        { status: 400 }
-      );
-    }
-
-    const { datapoints, sourceSpanId } = parseResult.data;
-
-    const result = await createDatapoints({
-      projectId: params.projectId,
-      datasetId: params.datasetId,
-      datapoints,
-      sourceSpanId,
-    });
-
-    return NextResponse.json(result, { status: 200 });
-  } catch (error) {
-    console.error("Error creating datapoints:", error);
-    if (error instanceof Error && error.message === "Error creating datasetDatapoints") {
-      return new Response("Error creating datasetDatapoints", { status: 500 });
-    }
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  const parseResult = CreateDatapointsSchema.safeParse(body);
+  if (!parseResult.success) {
+    return Response.json({ error: "Invalid request body", details: parseResult.error.issues }, { status: 400 });
   }
-}
+
+  const { datapoints, sourceSpanId } = parseResult.data;
+
+  return Response.json(await createDatapoints({ projectId, datasetId, datapoints, sourceSpanId }));
+});
 
 // Note: this endpoint allows a body in a DELETE request, which is not standard
 // but fits our purposes: (1) this is an internal API, (2) passing many
 // datapoint IDs in the URL may break
-export async function DELETE(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
+export const DELETE = apiHandler<Params>(async (req, ctx) => {
+  const { projectId, datasetId } = await ctx.params;
+  const { datapointIds } = await req.json();
 
-  try {
-    const body = await req.json();
-    const datapointIds = body.datapointIds;
-
-    if (!datapointIds) {
-      return new Response("At least one Datapoint ID is required", { status: 400 });
-    }
-
-    await deleteDatapoints({
-      projectId: params.projectId,
-      datasetId: params.datasetId,
-      datapointIds,
-    });
-
-    return new Response("datasetDatapoints deleted successfully", { status: 200 });
-  } catch (error) {
-    console.error("Error deleting datapoints:", error);
-    return new Response("Error deleting datasetDatapoints", { status: 500 });
+  if (!datapointIds) {
+    return Response.json({ error: "At least one Datapoint ID is required" }, { status: 400 });
   }
-}
+
+  await deleteDatapoints({ projectId, datasetId, datapointIds });
+
+  return new Response("datasetDatapoints deleted successfully", { status: 200 });
+});

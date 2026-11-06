@@ -1,5 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 
+import { NotFoundError } from "@/lib/api/errors";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals, sharedTraces } from "@/lib/db/migrations/schema";
@@ -19,7 +20,7 @@ export async function updateEvaluationVisibility({
   });
 
   if (!evaluation) {
-    throw new Error("Evaluation not found");
+    throw new NotFoundError("Evaluation not found");
   }
 
   // Get all trace IDs for this evaluation from ClickHouse
