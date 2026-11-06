@@ -32,6 +32,7 @@ impl Job {
             return;
         };
         let interval = INTERVAL_SECONDS.get();
+        // Only projects with new unlabelled prompts are worth an LLM call.
         let since = now - interval as i64 * NS;
         let projects = match projects_with_unlabelled(&self.clickhouse, since).await {
             Ok(projects) => projects,
@@ -52,10 +53,7 @@ impl Job {
                     continue;
                 }
             }
-            if let Err(e) = self
-                .detect_project(llm_client, project_id, since, now)
-                .await
-            {
+            if let Err(e) = self.detect_project(llm_client, project_id, now).await {
                 log::error!("[AGENT DETECTION] {project_id} failed: {e:?}");
             }
         }
@@ -65,26 +63,20 @@ impl Job {
         &self,
         llm_client: &LlmClient,
         project_id: Uuid,
-        since: i64,
         now: i64,
     ) -> Result<()> {
         let min_matches = DETECTION_MIN_MATCHES.get();
-        // A trace whose main agent ran before this interval is still covered.
-        let covered_since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
-        let traces = uncovered_traces(
-            &self.clickhouse,
-            project_id,
-            since,
-            covered_since,
-            DETECTION_SAMPLES.get(),
-        )
-        .await?;
+        // Sampled from the whole active window, not just this interval, so an
+        // agent with a trace an hour still gathers enough to be defined.
+        let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
+        let traces =
+            uncovered_traces(&self.clickhouse, project_id, since, DETECTION_SAMPLES.get()).await?;
         // Fewer could never make an agent.
         if traces.len() < min_matches {
             return Ok(());
         }
         let samples = self.read_samples(project_id, &traces).await?;
-        let agents = self.known_agents(project_id, covered_since).await?;
+        let agents = self.known_agents(project_id, since).await?;
         let mut session = Session::new(samples, agents, min_matches);
         let run = agent::run(
             llm_client,
