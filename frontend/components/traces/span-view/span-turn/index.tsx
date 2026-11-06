@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { spanPathKey } from "@/components/traces/span-view/span-io";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { useUrlState } from "@/components/traces/trace-view/store/base";
+import { messageLinkUrl } from "@/components/traces/trace-view/trace-panel-url";
 import { buildSpanTurn } from "@/lib/spans/turn";
 import { type Span } from "@/lib/traces/types";
 
@@ -33,9 +34,7 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
 
   const linkMessage = useCallback(
     (anchor: MessageAnchor) => {
-      const url = new URL(window.location.href);
-      url.searchParams.set("spanId", span.spanId);
-      url.hash = anchorHash(anchor);
+      const url = messageLinkUrl(window.location.href, span.spanId, anchorHash(anchor));
       window.history.replaceState(null, "", url);
       setLinked(anchor);
       return navigator.clipboard.writeText(url.toString());

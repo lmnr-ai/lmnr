@@ -1,5 +1,5 @@
 import { get, isNil } from "lodash";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -12,12 +12,12 @@ import { SpanType } from "@/lib/traces/types";
 
 import { SpanView } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
-import { SPAN_TAB_PARAM, type SpanViewTab } from "../span-view/use-span-view-tab";
+import { type SpanViewTab } from "../span-view/use-span-view-tab";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
+import { useTracePanelNavigate } from "./trace-panel-url";
 import { type TraceViewPanels } from "./trace-view-panels";
-import { deleteTraceViewParams } from "./use-trace-view-tab";
 
 // The span tab holding a search hit, so selecting a hit lands on it.
 const snippetTabOf = (span?: TraceViewSpan): SpanViewTab | undefined =>
@@ -43,8 +43,6 @@ export default function TraceViewContent({
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathName = usePathname();
   const { projectId } = useParams();
 
   // Panel visibility states
@@ -135,21 +133,15 @@ export default function TraceViewContent({
     traceId,
   ]);
 
+  const navigate = useTracePanelNavigate();
+
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
       if (!span) return;
-
       setSelectedSpan(span);
-
-      const params = new URLSearchParams(searchParams);
-      params.set("spanId", span.spanId);
-      const snippetTab = snippetTabOf(span);
-      if (snippetTab) params.set(SPAN_TAB_PARAM, snippetTab);
-      if (params.toString() !== searchParams.toString()) {
-        router.replace(`${pathName}?${params.toString()}`);
-      }
+      navigate({ type: "selectSpan", spanId: span.spanId, spanTab: snippetTabOf(span) });
     },
-    [setSelectedSpan, searchParams, router, pathName]
+    [setSelectedSpan, navigate]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -235,23 +227,10 @@ export default function TraceViewContent({
     ]
   );
 
-  const handleClose = useCallback(() => {
-    const params = new URLSearchParams(searchParams);
-    params.delete("spanId");
-    deleteTraceViewParams(params);
-    router.push(`${pathName}?${params.toString()}`);
-    onClose?.();
-  }, [onClose, pathName, router, searchParams]);
-
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    if (searchParams.has("spanId") || searchParams.has(SPAN_TAB_PARAM)) {
-      const params = new URLSearchParams(searchParams);
-      params.delete("spanId");
-      params.delete(SPAN_TAB_PARAM);
-      router.replace(`${pathName}?${params.toString()}`);
-    }
-  }, [setSelectedSpan, searchParams, router, pathName]);
+    navigate({ type: "closeSpan" });
+  }, [setSelectedSpan, navigate]);
 
   const isLoading = isTraceLoading && !trace;
 
@@ -312,7 +291,7 @@ export default function TraceViewContent({
     <TracePanel
       traceId={traceId}
       // No onClose ⇒ no close button (always-open panels).
-      handleClose={onClose ? handleClose : undefined}
+      handleClose={onClose}
       handleSpanSelect={handleSpanSelect}
       fetchSpans={fetchSpans}
       isLoading={isLoading}

@@ -1,4 +1,3 @@
-import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useMemo, useRef } from "react";
 
 import { CollapsibleRegistry } from "@/components/traces/span-view/collapsible";
@@ -10,14 +9,10 @@ import ConversationRowView, { type ConversationRowProps } from "./conversation-r
 import ScrollToBottom from "./scroll-to-bottom";
 import { type SectionFormat } from "./section-header";
 import StickyBand from "./sticky-band";
-import { useLinkedRow } from "./use-linked-row";
-import { usePremeasureAbove } from "./use-premeasure-above";
+import { useAnchoredVirtualizer } from "./use-anchored-virtualizer";
 import { useStickyBand } from "./use-sticky-band";
 
-const HEADER_ESTIMATE_SIZE = 40;
-const MESSAGE_ESTIMATE_SIZE = 240;
 const BAND_HEIGHT = 48;
-const NEVER_ADJUST = () => false;
 
 interface ConversationListProps {
   rows: ConversationRow[];
@@ -32,7 +27,6 @@ interface ConversationListProps {
 
 const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const searchTerm = useSpanSearchState()?.searchTerm ?? "";
 
   // Only provider-rendered (non-normalized) rows read this map.
@@ -42,36 +36,12 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
     return new Map([...segments].flatMap((segment) => [...buildToolNameMap(segment)]));
   }, [rows]);
 
-  const estimateSize = (i: number) => (rows[i]?.kind === "message" ? MESSAGE_ESTIMATE_SIZE : HEADER_ESTIMATE_SIZE);
-  const linkedRow = useLinkedRow(parentRef, rows, linked, estimateSize);
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize,
-    getItemKey: (i) => rows[i]?.key ?? i,
-    overscan: searchTerm ? 100 : 10,
-    initialOffset: linkedRow.initialOffset,
-    onChange: linkedRow.onChange,
-    // Grow the container before a size correction scrolls: near the end of the list the browser would otherwise clamp
-    // it to the old height, and the cut-off part shows as a jump once the container grows.
-    scrollToFn: (offset, options, instance) => {
-      if (containerRef.current) containerRef.current.style.height = `${instance.getTotalSize()}px`;
-      elementScroll(offset, options, instance);
-    },
-    // Rows move in the same tick as scrollTop corrections, so no frame paints old positions under a new scroll.
-    directDomUpdates: true,
+  const { virtualizer, items, premeasure, setContainer, highlightedIndex } = useAnchoredVirtualizer({
+    scrollRef: parentRef,
+    rows,
+    linked,
+    searching: !!searchTerm,
   });
-  // Set during render so it already covers the first rows' measurements.
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = linkedRow.holding ? NEVER_ADJUST : undefined;
-  const setContainer = useCallback(
-    (node: HTMLDivElement | null) => {
-      containerRef.current = node;
-      virtualizer.containerRef(node);
-    },
-    [virtualizer]
-  );
-
-  const premeasure = usePremeasureAbove(virtualizer, linkedRow.index, !!searchTerm);
 
   const sticky = useStickyBand(parentRef, virtualizer, rows, BAND_HEIGHT, rowProps.onToggleContext);
   const scrollToBottom = useCallback(
@@ -87,7 +57,7 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
       index,
       measureRef: virtualizer.measureElement,
       toolNameMap,
-      highlighted: linkedRow.holding && index === linkedRow.index,
+      highlighted: index === highlightedIndex,
     };
     return <ConversationRowView key={row.key} {...props} />;
   };
@@ -113,7 +83,7 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
                 {premeasure.map(renderRow)}
               </div>
             )}
-            {virtualizer.getVirtualItems().map((item) => renderRow(item.index))}
+            {items.map(renderRow)}
           </div>
         </CollapsibleRegistry>
       </div>
