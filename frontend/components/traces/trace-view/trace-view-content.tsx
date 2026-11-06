@@ -1,10 +1,12 @@
 import { get, isNil } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
+import { useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
+import { useUrlState } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -12,7 +14,7 @@ import { SpanType } from "@/lib/traces/types";
 
 import { SpanView } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
-import { type SpanViewTab } from "../span-view/use-span-view-tab";
+import { SPAN_TAB_PARAM, type SpanViewTab, spanTabParser } from "../span-view/use-span-view-tab";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
@@ -134,6 +136,8 @@ export default function TraceViewContent({
   ]);
 
   const navigate = useTracePanelNavigate();
+  const urlState = useUrlState();
+  const [, setSpanTab] = useQueryState(SPAN_TAB_PARAM, spanTabParser);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -203,11 +207,9 @@ export default function TraceViewContent({
                 : undefined;
         setSelectedSpan(selectedSpan);
 
-        // A kept `spanTab` would otherwise hide the hit, same as when a hit is clicked.
+        // A kept `spanTab` would hide the hit. Only the tab is written: `spanId` and the message hash stay as they are.
         const snippetTab = search ? snippetTabOf(selectedSpan) : undefined;
-        if (selectedSpan && snippetTab) {
-          navigate({ type: "selectSpan", spanId: selectedSpan.spanId, spanTab: snippetTab });
-        }
+        if (urlState && snippetTab) void setSpanTab(snippetTab);
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Failed to load spans";
         setSpansError(errorMessage);
@@ -231,7 +233,8 @@ export default function TraceViewContent({
       isAlwaysSelectSpan,
       spanId,
       searchParams,
-      navigate,
+      urlState,
+      setSpanTab,
     ]
   );
 

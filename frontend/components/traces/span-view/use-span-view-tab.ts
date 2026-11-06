@@ -10,7 +10,7 @@ export type SpanViewTab = (typeof SPAN_VIEW_TABS)[number];
 // Not `tab`: host pages (signals) already own that param.
 export const SPAN_TAB_PARAM = "spanTab";
 
-const spanTabParser = parseAsStringLiteral(SPAN_VIEW_TABS).withOptions({ history: "replace", scroll: false });
+export const spanTabParser = parseAsStringLiteral(SPAN_VIEW_TABS).withOptions({ history: "replace", scroll: false });
 
 /**
  * The open span tab, kept in `?spanTab` so it deep-links and stays put while stepping through spans.
