@@ -106,6 +106,7 @@ impl MessageHandler for InputExtractionHandler {
             message.project_id,
             value,
             message.rollout_session_id.clone(),
+            message.session_id.clone(),
             self.queue.clone(),
             self.db.clone(),
             self.cache.clone(),
