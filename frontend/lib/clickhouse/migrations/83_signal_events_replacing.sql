@@ -47,7 +47,10 @@ CREATE TABLE IF NOT EXISTS signal_events
 )
 ENGINE = ReplacingMergeTree(updated_at, is_deleted)
 PARTITION BY toStartOfMonth(created_at)
-ORDER BY (project_id, signal_id, id);
+ORDER BY (project_id, signal_id, id)
+-- Point lookups by (project_id, signal_id, id) read one granule per part; at
+-- ~750 B rows the default 8192 decompresses ~6 MB of payload for each.
+SETTINGS index_granularity = 1024;
 
 -- Bodies are verbatim from migration 75 apart from `FINAL` on signal_events.
 
